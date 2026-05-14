@@ -1,0 +1,625 @@
+import 'dart:async';
+
+import 'package:flutter/material.dart';
+import 'package:furpa_merkez_terminal/features/stock_operations/label_documents/data/label_documents_repository.dart';
+import 'package:furpa_merkez_terminal/features/stock_operations/label_documents/data/models/label_document_models.dart';
+import 'package:furpa_merkez_terminal/shared/data/search_lookup_models.dart';
+import 'package:furpa_merkez_terminal/shared/formatters/app_formatters.dart';
+import 'package:furpa_merkez_terminal/shared/widgets/section_card.dart';
+import 'package:furpa_merkez_terminal/shared/widgets/terminal_ui_parts.dart';
+
+enum _LabelDocumentsMode { recent, all }
+
+class LabelDocumentsPage extends StatefulWidget {
+  const LabelDocumentsPage({
+    super.key,
+    required this.repository,
+    required this.accessToken,
+    required this.canCreate,
+    required this.defaultWarehouseNo,
+    required this.userWarehouseName,
+  });
+
+  final LabelDocumentsRepository repository;
+  final String accessToken;
+  final bool canCreate;
+  final String defaultWarehouseNo;
+  final String userWarehouseName;
+
+  @override
+  State<LabelDocumentsPage> createState() => _LabelDocumentsPageState();
+}
+
+class _LabelDocumentsPageState extends State<LabelDocumentsPage> {
+  _LabelDocumentsMode _mode = _LabelDocumentsMode.recent;
+  bool _isLoading = false;
+  bool _isCreating = false;
+  String? _errorMessage;
+  List<LabelDocumentListItem> _documents = const <LabelDocumentListItem>[];
+  List<LabelDocumentProduct> _selectedDocumentProducts =
+      const <LabelDocumentProduct>[];
+  LabelDocumentListItem? _selectedDocument;
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_loadCurrentMode());
+  }
+
+  Future<void> _loadCurrentMode() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final documents = switch (_mode) {
+        _LabelDocumentsMode.recent => widget.repository.fetchRecentDocuments(
+          accessToken: widget.accessToken,
+          warehouseNo: widget.defaultWarehouseNo,
+        ),
+        _LabelDocumentsMode.all => widget.repository.fetchAllDocuments(
+          accessToken: widget.accessToken,
+          warehouseNo: widget.defaultWarehouseNo,
+        ),
+      };
+
+      final loadedDocuments = await documents;
+      final selectedDocument = loadedDocuments.isEmpty
+          ? null
+          : loadedDocuments.first;
+      final selectedProducts = selectedDocument == null
+          ? const <LabelDocumentProduct>[]
+          : await widget.repository.fetchDocumentProducts(
+              accessToken: widget.accessToken,
+              documentId: selectedDocument.documentId,
+              warehouseNo: widget.defaultWarehouseNo,
+            );
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _documents = loadedDocuments;
+        _selectedDocument = selectedDocument;
+        _selectedDocumentProducts = selectedProducts;
+        _isLoading = false;
+      });
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _isLoading = false;
+        _errorMessage = error.toString().replaceFirst('Exception: ', '');
+      });
+    }
+  }
+
+  Future<void> _selectDocument(LabelDocumentListItem item) async {
+    setState(() {
+      _selectedDocument = item;
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final detail = await widget.repository.fetchDocumentProducts(
+        accessToken: widget.accessToken,
+        documentId: item.documentId,
+        warehouseNo: widget.defaultWarehouseNo,
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _selectedDocumentProducts = detail;
+        _isLoading = false;
+      });
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _isLoading = false;
+        _errorMessage = error.toString().replaceFirst('Exception: ', '');
+      });
+    }
+  }
+
+  Future<void> _openCreateSheet() async {
+    final request = await showModalBottomSheet<CreateLabelDocumentRequest>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      showDragHandle: true,
+      builder: (context) {
+        return _LabelDocumentCreateSheet(
+          repository: widget.repository,
+          accessToken: widget.accessToken,
+          defaultWarehouseNo: widget.defaultWarehouseNo,
+        );
+      },
+    );
+
+    if (request == null || !mounted) {
+      return;
+    }
+
+    setState(() {
+      _isCreating = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final result = await widget.repository.createDocument(
+        accessToken: widget.accessToken,
+        request: request,
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _isCreating = false;
+        _mode = _LabelDocumentsMode.recent;
+      });
+      await _loadCurrentMode();
+
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Etiket belgesi #${result.documentId} olusturuldu. ${result.lineCount} satir.',
+          ),
+        ),
+      );
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _isCreating = false;
+        _errorMessage = error.toString().replaceFirst('Exception: ', '');
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      top: false,
+      bottom: true,
+      child: ListView(
+        padding: EdgeInsets.fromLTRB(
+          16,
+          16,
+          16,
+          20 + MediaQuery.paddingOf(context).bottom,
+        ),
+        children: <Widget>[
+          _buildHeader(),
+          const SizedBox(height: 16),
+          _buildBody(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHeader() {
+    return TerminalListHeaderCard(
+      title: 'Etiket Belgeleri',
+      subtitle:
+          'Son belgeler, tum gecmis, belge detayi ve yeni belge olusturma akisi bu ekranda yonetilir.',
+      infoChips: <Widget>[
+        TerminalInfoChip(
+          label: 'Varsayilan depo',
+          value: '${widget.defaultWarehouseNo} - ${widget.userWarehouseName}',
+        ),
+        TerminalInfoChip(
+          label: 'Mod',
+          value: switch (_mode) {
+            _LabelDocumentsMode.recent => 'Son Belgeler',
+            _LabelDocumentsMode.all => 'Tum Gecmis',
+          },
+        ),
+      ],
+      filters: <Widget>[
+        ChoiceChip(
+          label: const Text('Son Belgeler'),
+          selected: _mode == _LabelDocumentsMode.recent,
+          onSelected: (_) {
+            setState(() => _mode = _LabelDocumentsMode.recent);
+            unawaited(_loadCurrentMode());
+          },
+        ),
+        ChoiceChip(
+          label: const Text('Tum Gecmis'),
+          selected: _mode == _LabelDocumentsMode.all,
+          onSelected: (_) {
+            setState(() => _mode = _LabelDocumentsMode.all);
+            unawaited(_loadCurrentMode());
+          },
+        ),
+      ],
+      actions: <Widget>[
+        FilledButton.icon(
+          onPressed: _isLoading ? null : _loadCurrentMode,
+          icon: const Icon(Icons.refresh_rounded),
+          label: const Text('Yenile'),
+        ),
+        if (widget.canCreate)
+          FilledButton.tonalIcon(
+            onPressed: _isCreating ? null : _openCreateSheet,
+            icon: _isCreating
+                ? const SizedBox(
+                    height: 16,
+                    width: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.print_outlined),
+            label: Text(
+              _isCreating ? 'Kaydediliyor...' : 'Yeni Etiket Belgesi',
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildBody() {
+    if (_errorMessage != null) {
+      return SectionCard(
+        title: 'Etiket Belgeleri',
+        subtitle: 'Islem sirasinda hata olustu.',
+        child: TerminalMessageBlock.error(message: _errorMessage!),
+      );
+    }
+
+    if (_isLoading) {
+      return const SectionCard(
+        title: 'Etiket Belgeleri',
+        subtitle: 'Yukleniyor...',
+        child: Padding(
+          padding: EdgeInsets.symmetric(vertical: 28),
+          child: Center(child: CircularProgressIndicator()),
+        ),
+      );
+    }
+
+    return SectionCard(
+      title: 'Etiket Belgeleri',
+      subtitle: '${_documents.length} belge bulundu.',
+      child: _buildDocumentsView(),
+    );
+  }
+
+  Widget _buildDocumentsView() {
+    if (_documents.isEmpty) {
+      return const TerminalEmptyState(message: 'Etiket belgesi bulunamadi.');
+    }
+
+    return Column(
+      children: <Widget>[
+        ..._documents.map((item) {
+          final isSelected = _selectedDocument?.documentId == item.documentId;
+
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: Material(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(18),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(18),
+                onTap: () => _selectDocument(item),
+                child: Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(
+                      color: isSelected
+                          ? Theme.of(context).colorScheme.primary
+                          : Theme.of(context).colorScheme.outlineVariant,
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Row(
+                        children: <Widget>[
+                          Expanded(
+                            child: TerminalLabeledValue(
+                              label: 'Belge Id',
+                              value: '#${item.documentId}',
+                            ),
+                          ),
+                          Expanded(
+                            child: TerminalLabeledValue(
+                              label: 'Olusturma',
+                              value: AppFormatters.dateTimeOrDash(
+                                item.createDate,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (isSelected) ...<Widget>[
+                        const SizedBox(height: 12),
+                        if (_selectedDocumentProducts.isEmpty)
+                          const TerminalEmptyState(
+                            message: 'Bu belgeye bagli urun bulunamadi.',
+                          )
+                        else
+                          ..._selectedDocumentProducts.map((product) {
+                            return Padding(
+                              padding: const EdgeInsets.only(bottom: 8),
+                              child: Container(
+                                width: double.infinity,
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(14),
+                                  border: Border.all(
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.outlineVariant.withAlpha(82),
+                                  ),
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: <Widget>[
+                                    Text(
+                                      product.productName,
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .titleSmall
+                                          ?.copyWith(
+                                            fontWeight: FontWeight.w800,
+                                          ),
+                                    ),
+                                    const SizedBox(height: 6),
+                                    Text(
+                                      'Kod ${product.productCode} | Barkod ${product.barcode.isEmpty ? '-' : product.barcode} | Fiyat ${AppFormatters.currency(product.price)}${product.oldPrice > 0 ? ' | Eski ${AppFormatters.currency(product.oldPrice)}' : ''}',
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          }),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          );
+        }),
+      ],
+    );
+  }
+}
+
+class _LabelDocumentCreateSheet extends StatefulWidget {
+  const _LabelDocumentCreateSheet({
+    required this.repository,
+    required this.accessToken,
+    required this.defaultWarehouseNo,
+  });
+
+  final LabelDocumentsRepository repository;
+  final String accessToken;
+  final String defaultWarehouseNo;
+
+  @override
+  State<_LabelDocumentCreateSheet> createState() =>
+      _LabelDocumentCreateSheetState();
+}
+
+class _LabelDocumentCreateSheetState extends State<_LabelDocumentCreateSheet> {
+  final TextEditingController _searchController = TextEditingController();
+  final List<SearchProductLookupItem> _selectedProducts =
+      <SearchProductLookupItem>[];
+  String? _errorMessage;
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _searchProduct() async {
+    final query = _searchController.text.trim();
+
+    if (query.length < 2) {
+      setState(() {
+        _errorMessage =
+            'Urun aramak icin en az 2 karakter veya barkod girilmeli.';
+      });
+      return;
+    }
+
+    final products = await widget.repository.searchProducts(
+      accessToken: widget.accessToken,
+      warehouseNo: widget.defaultWarehouseNo,
+      query: query,
+    );
+
+    if (!mounted) {
+      return;
+    }
+
+    final selected = await showModalBottomSheet<SearchProductLookupItem>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) {
+        if (products.isEmpty) {
+          return const Padding(
+            padding: EdgeInsets.all(24),
+            child: TerminalEmptyState(message: 'Urun bulunamadi.'),
+          );
+        }
+
+        return ListView.separated(
+          shrinkWrap: true,
+          itemCount: products.length,
+          separatorBuilder: (_, _) => const Divider(height: 1),
+          itemBuilder: (context, index) {
+            final item = products[index];
+            return ListTile(
+              title: Text(item.displayLabel),
+              subtitle: Text(
+                '${item.unitName} | ${AppFormatters.currency(item.price)}',
+              ),
+              onTap: () => Navigator.of(context).pop(item),
+            );
+          },
+        );
+      },
+    );
+
+    if (selected == null) {
+      return;
+    }
+
+    setState(() {
+      final exists = _selectedProducts.any(
+        (item) => item.stockCode == selected.stockCode,
+      );
+      if (!exists) {
+        _selectedProducts.add(selected);
+      }
+      _errorMessage = null;
+    });
+  }
+
+  void _submit() {
+    if (_selectedProducts.isEmpty) {
+      setState(() {
+        _errorMessage = 'En az bir urun secilmeli.';
+      });
+      return;
+    }
+
+    Navigator.of(context).pop(
+      CreateLabelDocumentRequest(
+        lines: _selectedProducts
+            .map((item) => CreateLabelDocumentLine(productCode: item.stockCode))
+            .toList(growable: false),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final viewInsets = MediaQuery.viewInsetsOf(context);
+
+    return Padding(
+      padding: EdgeInsets.fromLTRB(20, 8, 20, 20 + viewInsets.bottom),
+      child: ListView(
+        shrinkWrap: true,
+        children: <Widget>[
+          const TerminalSheetHeader(
+            title: 'Yeni Etiket Belgesi',
+            subtitle:
+                'Belgeye eklenecek her satir yalnizca productCode alanindan olusur.',
+            padding: EdgeInsets.zero,
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: <Widget>[
+              Expanded(
+                child: TextField(
+                  controller: _searchController,
+                  decoration: const InputDecoration(
+                    labelText: 'Barkod / stok kodu / urun adi',
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              FilledButton.icon(
+                onPressed: _searchProduct,
+                icon: const Icon(Icons.search_rounded),
+                label: const Text('Urun'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          if (_selectedProducts.isEmpty)
+            const TerminalEmptyState(
+              message: 'Etiket belgesi icin secilen urun yok.',
+            )
+          else
+            Column(
+              children: _selectedProducts
+                  .map((item) {
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(
+                            color: Theme.of(context).colorScheme.outlineVariant,
+                          ),
+                        ),
+                        child: Row(
+                          children: <Widget>[
+                            Expanded(
+                              child: Text(
+                                '${item.stockCode} - ${item.stockName}',
+                              ),
+                            ),
+                            IconButton(
+                              onPressed: () {
+                                setState(() {
+                                  _selectedProducts.remove(item);
+                                });
+                              },
+                              icon: const Icon(Icons.delete_outline_rounded),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  })
+                  .toList(growable: false),
+            ),
+          if (_errorMessage != null) ...<Widget>[
+            const SizedBox(height: 12),
+            TerminalMessageBlock.error(message: _errorMessage!),
+          ],
+          const SizedBox(height: 12),
+          Row(
+            children: <Widget>[
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('Vazgec'),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: FilledButton.icon(
+                  onPressed: _submit,
+                  icon: const Icon(Icons.save_alt_rounded),
+                  label: const Text('Belge Olustur'),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}

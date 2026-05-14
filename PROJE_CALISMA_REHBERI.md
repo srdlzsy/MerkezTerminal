@@ -1,0 +1,1108 @@
+# Proje Calisma Rehberi
+
+Bu belge, `Furpa Merkez Terminal` projesinin nasil calistigini, hangi dosyanin ne ise yaradigini ve projeye yeni bir sey eklerken nasil ilerlenmesi gerektigini anlatiyor.
+
+## 0. Hizli Yon Bulma
+
+Projeye yeni giren biri icin en pratik okuma sirasi:
+
+1. Uygulama nasil aciliyor?
+   - `lib/main.dart`
+   - `lib/app/bootstrap.dart`
+   - `lib/app/app.dart`
+2. Bagimliliklar nerede kuruluyor?
+   - `lib/app/dependencies.dart`
+3. Menu hangi ekrani aciyor?
+   - `lib/features/shell/presentation/routing/shell_module_registry.dart`
+   - `lib/features/shell/presentation/views/home_shell_page.dart`
+4. Tum HTTP istekleri nereden geciyor?
+   - `lib/core/network/api_client.dart`
+5. Oturum ve yetki nerede tutuluyor?
+   - `lib/features/shell/presentation/view_models/app_session_controller.dart`
+   - `lib/features/auth/data/auth_repository.dart`
+6. Offline kuyruk nerede?
+   - `lib/shared/offline/offline_sync_service.dart`
+   - `lib/core/storage/local_json_database.dart`
+
+Kisa sorumluluk haritasi:
+
+```text
+app/      -> uygulama ayaga kalkisi, tema, dependency kurulum
+core/     -> network, config, storage, ortak teknik altyapi
+features/ -> is modulleri, ekranlar, repository ve controller'lar
+shared/   -> moduller arasi ortak widget, formatter, offline servisleri
+test/     -> controller, repository ve kritik akis testleri
+```
+
+Bir dosyayi degistirmeden once su soruyu sor:
+
+> Bu dosya sadece kendi feature'ini mi etkiliyor, yoksa app/core/shared seviyesinde herkesi etkileyen bir davranis mi degistiriyor?
+
+`core/`, `shared/`, `app/` altindaki degisikliklerin etki alani genelde daha buyuktur. Bu dosyalarda degisiklik yaparken test ve manuel kontrol daha dikkatli yapilmalidir.
+
+## 1. Proje Ne Yapiyor?
+
+Bu proje Flutter ile yazilmis bir merkez terminal uygulamasi.
+
+Ana is mantigi su:
+
+1. Kullanici login olur.
+2. Backend kullanicinin yetkilerini ve menu yapisini verir.
+3. Uygulama gelen menuye gore ekranlari acabilir hale gelir.
+4. Kullanici listeleri gorur, detay acar, create ekranlari ile yeni kayit ekler.
+5. Bazi akislar internet varsa aninda sunucuya gider.
+6. Bazi akislar internet yoksa offline taslak olarak cihaza yazilir ve daha sonra senkronize edilir.
+
+Bu proje statik menulu basit bir uygulama degil. Menu, yetki ve bazi ekran davranislari kullanicidan gelen backend datasina gore sekilleniyor.
+
+## 2. Giris Akisi
+
+Uygulamanin acilis zinciri:
+
+1. `lib/main.dart`
+2. `lib/app/bootstrap.dart`
+3. `lib/app/dependencies.dart`
+4. `lib/app/app.dart`
+5. `lib/features/shell/presentation/views/home_shell_page.dart`
+
+Akis soyle:
+
+### `main.dart`
+
+Sadece `bootstrap()` cagirir.
+
+### `bootstrap.dart`
+
+- Flutter binding ayaga kalkar.
+- `AppDependencies.create()` ile tum repository ve servisler uretilir.
+- `FurpaMerkezApp` calistirilir.
+- Arka planda `sessionController.restoreSession()` ile kayitli token varsa oturum geri yuklenmeye calisilir.
+
+### `app.dart`
+
+Burada uygulamanin ana state secimi yapilir:
+
+- `booting` -> Splash
+- `unauthenticated` -> Login
+- `authenticated` -> Home shell
+
+Yani route mantigi named routes uzerinden degil, session status uzerinden akiyor.
+
+## 3. Klasor Yapisi
+
+Ana `lib/` yapisi:
+
+```text
+lib/
+  app/
+  core/
+  features/
+  shared/
+```
+
+### `app/`
+
+Uygulamanin kabugu:
+
+- `bootstrap.dart`
+- `app.dart`
+- `dependencies.dart`
+- `theme/`
+
+### `core/`
+
+Tum modullerin kullandigi temel katman:
+
+- `config/` -> app config ve base url
+- `network/` -> `ApiClient`, `ApiException`
+- `storage/` -> token ve local json storage
+- `utils/` -> request epoch, safe notifier, tarih helperlari
+
+### `features/`
+
+Is modulleri burada:
+
+- `auth`
+- `shell`
+- `order_operations`
+- `shipping_operations`
+- `acceptance_operations`
+- `stock_operations`
+- `return_operations`
+- `company_movements`
+- `legacy_tools`
+
+### `shared/`
+
+Ortak tekrar kullanilan parcalar:
+
+- `widgets/`
+- `formatters/`
+- `offline/`
+- `data/`
+- `utils/`
+
+## 4. Temel Mimari Mantik
+
+Projede katman mantigi genel olarak su:
+
+```text
+UI/Page/Sheet
+  -> Controller veya local State
+    -> Repository
+      -> ApiClient
+        -> Backend
+```
+
+Sonra cevap ayni zincirle geri doner:
+
+```text
+Backend
+  -> Model
+    -> Repository
+      -> Controller / StatefulWidget
+        -> UI
+```
+
+### Repository ne yapiyor?
+
+Repository, backend endpointlerini uygulama tarafinda anlamli methodlara donusturuyor.
+
+Ornek:
+
+- `fetchCounts()`
+- `fetchCountDetail()`
+- `createCount()`
+- `searchProducts()`
+
+Ornek dosya:
+
+- `lib/features/stock_operations/inventory_counts/data/inventory_counts_repository.dart`
+
+### Controller ne yapiyor?
+
+Controller, ekran state'ini yonetiyor:
+
+- loading
+- error
+- secili kayit
+- create sonrasi listeyi yenileme
+- stale request korumasi
+
+Ornek:
+
+- `lib/features/stock_operations/inventory_counts/presentation/view_models/inventory_counts_controller.dart`
+
+### Page ne yapiyor?
+
+Page genelde:
+
+- controller olusturur
+- filtreleri toplar
+- list/detay alanlarini cizer
+- create sheet acar
+
+Ornek:
+
+- `lib/features/stock_operations/inventory_counts/presentation/views/inventory_counts_page.dart`
+
+### Widget / Sheet ne yapiyor?
+
+Alt formlar, lookup sheetleri, create bottom sheetleri burada olur.
+
+Ornek:
+
+- `inventory_count_create_sheet.dart`
+- `company_acceptance_create_sheet.dart`
+- `outgoing_warehouse_shipment_create_sheet.dart`
+
+## 5. Network Katmani Nasil Calisiyor?
+
+Merkez parca:
+
+- `lib/core/network/api_client.dart`
+
+`ApiClient` sunlari yapar:
+
+- base url ile final URI olusturur
+- `Authorization: Bearer ...` header ekler
+- timeout uygular
+- json map/list decode eder
+- hata response'larini `ApiException`'a cevirir
+
+Yani repository dogrudan `http` ile ugrasmaz. Her sey `ApiClient` uzerinden gider.
+
+## 6. Session ve Yetki Mantigi
+
+### Login
+
+`AuthRepository`:
+
+- `/api/auth/login` cagirir
+- gelen token ile `/api/auth/me` cagirir
+- token ve cached session'i local storage'a yazar
+
+Ilgili dosyalar:
+
+- `lib/features/auth/data/auth_repository.dart`
+- `lib/core/storage/token_storage.dart`
+
+### Session restore
+
+Uygulama acilinca:
+
+- token okunur
+- `/api/auth/me` ile gecerlilik kontrol edilir
+- network yoksa, cached session varsa kullanilabilir
+
+Bu sayede uygulama her acilista zorunlu login ekranina dusmez.
+
+### Yetki ve menu
+
+`AppSessionController` icinde:
+
+- `currentUser`
+- `accessToken`
+- `menuEntries`
+
+uretilir.
+
+Menu, `CurrentUser.modules` icinden flatten edilir:
+
+- `lib/features/shell/domain/menu_entry.dart`
+
+## 7. Ana Shell ve Ekran Secimi
+
+Projenin en kritik dosyalarindan biri:
+
+- `lib/features/shell/presentation/views/home_shell_page.dart`
+- `lib/features/shell/presentation/routing/shell_module_registry.dart`
+
+Burada su olur:
+
+1. Kullanici modulleri gorunur menulere cevrilir.
+2. Sol menu veya dashboard secim yapar.
+3. Secilen menu `ShellModuleRegistry` uzerinden ilgili page'e baglanir.
+
+Iki ana pattern var:
+
+### A. Dogrudan route key esleme
+
+`moduleCode.menuCode` string'i ile exact route key eslemesi yapilir.
+
+Ornek:
+
+- `siparis-islemleri.verilen-firma-siparisleri`
+- `stok-islemleri.sayim-sonuclari`
+
+### B. Fallback route matching
+
+Backend menu code bazen tam sabit olmayabilir. Bu durumda:
+
+- exact route key
+- menu code
+- keyword
+
+ile eslesen `ShellModuleRoute.matches(...)` mantigi calisir.
+
+Bu kisim yeni ekran baglarken cok onemli.
+
+## 8. Offline Mantigi
+
+Bu projede offline sadece "ekrani ac" degil, gercek kuyruk mantigi ile calisiyor.
+
+Temel dosyalar:
+
+- `lib/shared/offline/offline_sync_service.dart`
+- `lib/core/storage/local_json_database.dart`
+- `lib/shared/offline/offline_lookup_cache_repository.dart`
+
+### Offline create akisi
+
+Ornek sayim veya firma mal kabul create sirasinda:
+
+1. Uygulama once online create dener.
+2. Network hatasi varsa islem hemen fail olmak yerine kuyruga alinabilir.
+3. Draft, local storage'a yazilir.
+4. Sonra kullanici offline taslak ekranindan veya otomatik sync ile gonderebilir.
+
+### Local storage nasil?
+
+`LocalJsonDatabase`, `SharedPreferencesAsync` uzerinden json table/document saklar.
+
+Yani bu proje su an SQLite degil, JSON-in-SharedPreferences mantigi kullaniyor.
+
+### Offline sync ne zaman olur?
+
+`HomeShellPage` icinde:
+
+- uygulama acilinca
+- uygulama resume olunca
+- her 45 saniyede bir
+
+`offlineSyncService.syncPending(...)` calisir.
+
+### Lookup cache ne ise yariyor?
+
+Offline urun/cari aramalari icin cache:
+
+- customer cache
+- acceptance product cache
+- inventory product cache
+
+saklanir.
+
+Bu sayede internet gidince bazi aramalar yine calisabilir.
+
+## 9. Controller Yardimcilari
+
+Iki kucuk ama onemli utility var:
+
+### `RequestEpoch`
+
+Dosya:
+
+- `lib/core/utils/request_epoch.dart`
+
+Amaci:
+
+- Eski request gec donerse yeni secimi ezmesin.
+
+Ozellikle listeden detaya tiklama gibi hizli akislar icin onemli.
+
+### `SafeChangeNotifier`
+
+Dosya:
+
+- `lib/core/utils/safe_change_notifier.dart`
+
+Amaci:
+
+- widget dispose olduktan sonra `notifyListeners()` hatasi olmasin.
+
+## 10. Feature Dosya Patterni
+
+Bu projede ideal feature pattern genelde su:
+
+```text
+features/<module>/<feature>/
+  data/
+    models/
+    <feature>_repository.dart
+  presentation/
+    view_models/
+    views/
+    widgets/
+```
+
+Ama her feature birebir ayni degil.
+
+Ornek:
+
+- Bazi feature'larda controller var.
+- Bazi create sheet'ler state'i kendi icinde tasiyor.
+- Bazi repository'ler generic yapida tekrar kullaniliyor.
+
+## 11. Generic Repository Kullanan Alanlar
+
+Tum feature'lar sifirdan repository yazmiyor.
+
+Ornek:
+
+- `CompanyMovementsRepository`
+
+Bu repository farkli endpoint path'leri ile tekrar kullaniliyor:
+
+- giden firma sevkleri
+- gelen firma sevkleri
+- firma iadeleri
+
+Bu pattern yeni ekran eklerken tekrar kullanima uygun mu diye once bakilmasi gerektigi anlamina gelir.
+
+## 11.1 Projeyi Yonetilebilir Tutma Kurallari
+
+Bu projede teknik borcu kontrol etmek icin en onemli konu, degisikligin hangi katmana ait oldugunu dogru secmektir.
+
+### Degisiklik tipini once siniflandir
+
+Her is icin once asagidaki tiplerden hangisi oldugunu belirle:
+
+```text
+UI-only          -> sadece gosterim, layout, label, renk, buton yeri
+Feature logic    -> belirli bir ekranin state, filtre, create, detail davranisi
+API contract     -> request/response modeli veya endpoint degisikligi
+Offline contract -> local draft, sync, recover veya lookup cache degisikligi
+Cross-cutting    -> ApiClient, AppConfig, storage, session, theme, shared widget
+```
+
+Risk seviyesi:
+
+- `UI-only` dusuk risklidir; widget kontrolu ve gerekirse snapshot/manual test yeterli olabilir.
+- `Feature logic` icin controller veya page akisi test edilmelidir.
+- `API contract` icin model parse, query param ve hata response'u kontrol edilmelidir.
+- `Offline contract` yuksek risklidir; online create, offline kayit, sync ve duplicate recover birlikte dusunulmelidir.
+- `Cross-cutting` en yuksek risklidir; birden fazla modul etkilenebilir.
+
+### Dosya sorumluluklarini karistirma
+
+Genel kural:
+
+- `models/` sadece veri okuma/yazma ve request/response donusumu yapar.
+- `repository` sadece API veya local storage erisimini bilir.
+- `controller` ekran state'ini, loading/error/selection akisini yonetir.
+- `page` kullanici etkilesimini ve layout'u yonetir.
+- `widgets/` tekrar kullanilan kucuk UI parcalarini barindirir.
+
+Bir repository icinde UI text'i, bir page icinde ham HTTP istegi veya bir model icinde navigasyon mantigi olmamali.
+
+### Yeni alan eklerken zinciri tamamla
+
+Bir form alanini eklemek genelde tek dosya degildir. Kontrol zinciri:
+
+```text
+Create sheet
+  -> Create request model
+    -> Repository body/query mapping
+      -> Backend response model
+        -> Detail/list UI
+          -> Offline draft varsa local model
+            -> Offline sync mapping
+              -> Test
+```
+
+Bu zincirde bir halka eksik kalirsa en sik gorulen sorunlar:
+
+- alan ekranda var ama backend'e gitmez
+- backend'e gider ama offline taslakta kaybolur
+- offline sync sonrasi eski data gonderilir
+- detail ekraninda yeni alan gorunmez
+- testler eski davranisi korudugu icin hata gec fark edilir
+
+### `AppDependencies` buyumesini kontrol et
+
+`lib/app/dependencies.dart` su an tum repository ve servisleri merkezi olarak kuruyor. Bu basit ve anlasilir, ama proje buyudukce dosya agirlasir.
+
+Yeni dependency eklerken:
+
+1. Gercekten global uygulama dependency'si mi?
+2. Sadece tek feature icinde olusturulabilir mi?
+3. Var olan generic repository yeniden kullanilabilir mi?
+4. Testte fake yazmayi zorlastiriyor mu?
+
+Eger bu dosya daha da buyurse ileride su sekilde bolunebilir:
+
+```text
+app/dependencies.dart
+app/dependency_modules/auth_dependencies.dart
+app/dependency_modules/order_dependencies.dart
+app/dependency_modules/stock_dependencies.dart
+app/dependency_modules/offline_dependencies.dart
+```
+
+Simdilik tek dosya kabul edilebilir; ama her yeni modul eklenirken gereksiz dependency tasimamak gerekir.
+
+### Menu eslemesi tek merkezden yonetilmeli
+
+Yeni ekran baglanirken ana merkez:
+
+- `lib/features/shell/presentation/routing/shell_module_registry.dart`
+
+Backend'den gelen menu adlari degisebilir. Bu yuzden route eslesmesinde mumkunse once exact key, sonra gerekiyorsa menu code/keyword fallback kullanilir.
+
+Yeni menu acilmiyorsa sirayla sunlari kontrol et:
+
+1. Backend kullaniciya bu menuyu gonderiyor mu?
+2. Menu action listesi bos mu?
+3. `moduleCode.menuCode` beklenen string mi?
+4. `ShellModuleRegistry` icinde route var mi?
+5. Page icin gerekli repository `AppDependencies` icinde veriliyor mu?
+
+### Offline davranista duplicate riskini koru
+
+Offline create akislarinda `clientRequestId` kritik. Bu alan:
+
+- online create denenirken gonderilir
+- network koparsa local draft icinde saklanir
+- sync sirasinda tekrar gonderilir
+- backend tarafinda recover/status kontrolu icin kullanilir
+
+Bu alan kaybolursa ayni islem ikinci kez olusabilir veya recover calismaz.
+
+Offline destekli feature'larda yeni alan eklerken su dosyalara ozellikle bak:
+
+- online create request modeli
+- offline draft modeli
+- draft `toJson/fromJson`
+- draft `toCreateRequest`
+- `OfflineSyncService`
+- offline liste/create UI
+
+### Error ve loading state ayni dilde olmali
+
+Ekranlarda hata gosterimi kullaniciya teknik stack trace gostermemeli. Repository/API hatalari `ApiException.message` uzerinden okunabilir olmali.
+
+Controller patterninde beklenen state alanlari:
+
+- `isLoading`
+- `isDetailLoading`
+- `isSubmitting`
+- `errorMessage`
+- `selected...`
+- `items`
+
+Bu isimlendirme feature'lar arasi tutarli tutulursa yeni ekran okumak kolaylasir.
+
+### Model parse ederken toleransli ol
+
+Backend bazen sayiyi string, tarihi null, bool'u 0/1 gibi dondurebilir. Bu projede modeller genelde helper methodlarla toleransli parse eder.
+
+Yeni model yazarken:
+
+- `DateTime.parse` yerine mumkunse `DateTime.tryParse`
+- nullable alanlarda bos string kontrolu
+- int/double parse helper'i
+- list/map cast hatalarina karsi guvenli okuma
+
+tercih edilmelidir.
+
+## 12. Yeni Bir Sey Eklerken Hangi Yol Izlenmeli?
+
+Yeni bir sey eklemeden once isi dogru kategoriye koy. Cunku her kategori farkli dosyalari etkiler.
+
+### Once su karari ver
+
+```text
+Sadece ekranda bir metin/gorunum mu degisecek?
+  -> UI-only
+
+Var olan form/list/detail davranisi mi degisecek?
+  -> Feature logic
+
+Backend'e yeni alan veya yeni endpoint mi gidecek?
+  -> API contract
+
+Internet yokken de calismasi gerekiyor mu?
+  -> Offline contract
+
+Tum ekranlari etkileyen ortak bir davranis mi?
+  -> Cross-cutting
+```
+
+### Genel ekleme akisi
+
+Her yeni is icin temel akis:
+
+1. Ilgili feature klasorunu bul.
+2. Degisiklik hangi katmanlari etkiliyor not al.
+3. Model gerekiyorsa once modeli guncelle.
+4. API gerekiyorsa repository methodunu ekle/guncelle.
+5. State gerekiyorsa controller'a ekle.
+6. UI gerekiyorsa page veya widget'a ekle.
+7. Menu ile yeni ekran acilacaksa `ShellModuleRegistry` baglantisini yap.
+8. Offline gerekiyorsa draft + sync katmanini unutma.
+9. Test ekle veya mevcut testi guncelle.
+10. `dart format lib test`, `flutter analyze`, `flutter test` calistir.
+
+### Hangi dosyadan baslayacagim?
+
+| Eklemek istedigin sey | Once bakilacak yer | Sonra bakilacak yer |
+| --- | --- | --- |
+| Yeni buton | Ilgili `page.dart` veya `detail` widget | Controller/repository aksiyonu |
+| Yeni form alani | Ilgili `create_sheet.dart` | request model, offline draft |
+| Yeni liste kolonu/badge | Ilgili `page.dart` list item UI | list response modeli |
+| Yeni filtre | Ilgili `page.dart` filtre state'i | repository query param |
+| Yeni endpoint | Ilgili repository | model + controller/page |
+| Yeni ekran | `features/...` yeni klasor | `AppDependencies`, `ShellModuleRegistry` |
+| Yeni offline akis | online create modeli | offline draft, repository, sync service |
+| Ortak hata/timeout davranisi | `ApiClient` | tum repository testleri |
+| Yeni app config | `AppConfig` | README ve build komutlari |
+
+### Yeni ekran ekleme dosya sirasi
+
+Tamamen yeni bir ekran ekleyeceksen ideal dosya sirasi:
+
+```text
+1. lib/features/<module>/<feature>/data/models/<feature>_models.dart
+2. lib/features/<module>/<feature>/data/<feature>_repository.dart
+3. lib/features/<module>/<feature>/presentation/view_models/<feature>_controller.dart
+4. lib/features/<module>/<feature>/presentation/views/<feature>_page.dart
+5. lib/features/<module>/<feature>/presentation/widgets/...
+6. lib/app/dependencies.dart
+7. lib/features/shell/presentation/routing/shell_module_registry.dart
+8. test/features/<module>/<feature>_controller_test.dart
+```
+
+Her ekran controller gerektirmeyebilir. Ama liste/detail/create gibi state'i olan ekranlarda controller kullanmak projeyi daha okunur tutar.
+
+### Yeni alan ekleme dosya sirasi
+
+Var olan create formuna yeni alan eklenecekse:
+
+```text
+1. create sheet state/controller
+2. create request model
+3. request toJson mapping
+4. repository body/query param
+5. detail/list response modeli
+6. detail/list UI
+7. offline draft varsa fromJson/toJson/toCreateRequest
+8. ilgili test
+```
+
+Offline destekli ekranda 7. adim atlanirsa kullanici offline kayit yaptiginda yeni alan kaybolabilir.
+
+### Yeni endpoint ekleme dosya sirasi
+
+Yeni bir backend aksiyonu eklenecekse:
+
+```text
+1. request/response model
+2. repository interface methodu
+3. API repository implementation
+4. controller methodu veya page action
+5. loading/error state
+6. UI butonu veya aksiyon tetigi
+7. test
+```
+
+Endpoint hata dondurebiliyorsa `ApiException.message` kullaniciya anlasilir sekilde gosterilmeli.
+
+Asagida en sik senaryolari ayirarak anlatiyorum.
+
+### Senaryo A - Var olan bir create ekranina yeni alan eklemek
+
+Ornek:
+
+- create formuna `plaka`
+- aciklama 2
+- yeni checkbox
+- yeni tarih alani
+
+Izlenecek yol:
+
+1. Ilgili create widget'i bul.
+   Ornek:
+   - `.../presentation/widgets/...create_sheet.dart`
+2. Form state'ine controller veya alan ekle.
+3. Submit sirasinda request modeline map et.
+4. Ilgili create request modelinde alan yoksa onu ekle.
+5. `toJson()` icinde backend'e gidecek sekle bagla.
+6. Detay/listede de gosterilecekse ilgili view model veya detail UI'yi guncelle.
+7. Eger ayni akis offline destekliyorsa offline draft modelini de guncelle.
+
+Offline destek varsa atlanmamasi gereken yerler:
+
+- offline draft model
+- offline repository
+- sync service mapping
+- offline create sheet
+
+### Senaryo B - Var olan ekrana yeni filtre, buton veya gosterim eklemek
+
+Ornek:
+
+- listeye yeni badge
+- yeni filtre tarihi
+- yeni refresh mantigi
+
+Izlenecek yol:
+
+1. Ilgili `Page` dosyasini bul.
+2. Controller kullaniliyorsa state'i orada tut.
+3. Sadece gorsel ise `Page` veya alt widget'ta tut.
+4. Filtre backend'e gidiyorsa repository method imzasini guncelle.
+5. Filter model varsa query param mapper'ini guncelle.
+
+### Senaryo C - Var olan modula yeni endpoint eklemek
+
+Ornek:
+
+- create var ama cancel eklenecek
+- detail var ama pdf indir eklenecek
+
+Izlenecek yol:
+
+1. Ilgili repository interface'ine method ekle.
+2. API implementation'a endpoint bagla.
+3. Gerekli response/request modeli varsa ekle.
+4. UI butonunu ilgili page/detail ekranina ekle.
+5. Hata ve loading state'ini controller veya page state'inde yonet.
+
+### Senaryo D - Tamamen yeni bir ekran/modul eklemek
+
+En onemli senaryo bu.
+
+Adimlar:
+
+1. Feature klasorunu olustur.
+2. `data/models` altina request-response modellerini yaz.
+3. `data/<feature>_repository.dart` olustur.
+4. Repository abstract interface + API implementation yaz.
+5. Gerekirse `presentation/view_models` altina controller yaz.
+6. `presentation/views` altina page yaz.
+7. Create/detay/filter alt widgetlarini `presentation/widgets` altina ayir.
+8. `AppDependencies.create()` icinde repository instance'ini ekle.
+9. `ShellModuleRegistry` constructor'una gerekli repository'yi ekle.
+10. `ShellModuleRegistry._buildRoutes()` icinde ilgili menu eslemesini yap.
+11. Eger backend menusu tutarsiz adlandirma kullaniyorsa `menuCodes` veya `keywords` fallback ekle.
+12. Gerekirse test ekle.
+
+### Senaryo E - Yeni ekran offline da calissin istiyorum
+
+Bu biraz daha buyuk is.
+
+Gerekenler:
+
+1. Online create request modelin olmali.
+2. Bunun local draft karsiligi olmali.
+3. Offline repository olmali.
+4. `OfflineSyncService` icine submit + sync draft mantigi eklenmeli.
+5. Offline taslak liste ekranin olmali.
+6. Lookup gerekiyorsa local cache mantigi eklenmeli.
+
+Kisacasi offline destek, sadece "save locally" degil; ayri bir is akisi.
+
+## 13. Yeni Modulu Menuye Baglama Rehberi
+
+Bu kisim cok onemli.
+
+Yeni bir page yazdin ama ekranda gorunmuyor ise buyuk ihtimalle baglanti eksiklerinden biri vardir.
+
+Kontrol listesi:
+
+1. Repository `AppDependencies` icinde olusturuldu mu?
+2. Repository `ShellModuleRegistry` constructor'una eklendi mi?
+3. `AppDependencies` icinde `ShellModuleRegistry` olusturulurken pass edildi mi?
+4. `ShellModuleRegistry._buildRoutes()` icinde route baglandi mi?
+5. Backend'den gelen `moduleCode` ve `menuCode` gercekten senin bekledigin isim mi?
+6. Gerekirse `menuCodes` veya `keywords` ile fallback tanimlandi mi?
+7. Kullanicide o menuye ait action var mi?
+
+Ozellikle `canCreate` su mantikla belirleniyor:
+
+```text
+selectedMenu.actions.any((action) => action.code == 'create')
+```
+
+Yani create butonunun cikmasi sadece UI degil, permission datasina da bagli.
+
+## 14. Ornek Zincir: Sayim Sonuclari
+
+Bu modulu referans alin, cunku duzgun katmanli.
+
+Dosyalar:
+
+- `data/inventory_counts_repository.dart`
+- `data/models/inventory_count_models.dart`
+- `presentation/view_models/inventory_counts_controller.dart`
+- `presentation/views/inventory_counts_page.dart`
+- `presentation/widgets/inventory_count_create_sheet.dart`
+- `test/features/stock_operations/inventory_counts_controller_test.dart`
+
+Calisma mantigi:
+
+1. Page controller olusturur.
+2. Controller listeyi yukler.
+3. Secili kayit varsa detay ister.
+4. Create sheet request dondurur.
+5. Page dogrudan repository'e gitmek yerine offline sync service uzerinden create eder.
+6. Basariliysa liste tekrar yuklenir.
+
+Bu pattern yeni liste-detay-create modulleri icin iyi bir referanstir.
+
+## 15. Test Yazma Mantigi
+
+Repo icinde testler ozellikle controller seviyesinde fake repository ile yazilmis.
+
+Ornek:
+
+- `test/features/stock_operations/inventory_counts_controller_test.dart`
+
+Pattern:
+
+1. Fake repository olustur.
+2. Controller'i bu fake ile ayaga kaldir.
+3. `loadCounts`, `createCount`, `selectCount` gibi akislar test edilir.
+4. Hangi state'in secili oldugu assert edilir.
+
+Yeni modulde controller varsa ayni patterni kullan.
+
+### Test seviyesi nasil secilir?
+
+Her degisiklik icin test seviyesi ayni olmak zorunda degil.
+
+```text
+UI label/layout             -> manuel kontrol yeterli olabilir
+Controller state degisikligi -> controller unit test
+Repository mapping          -> repository veya ApiClient fake response test
+Offline sync                -> draft save + sync + recover test
+Session/auth                -> AppSessionController/AuthRepository test
+Shared helper               -> dogrudan unit test
+```
+
+Yeni test yazarken amac sadece coverage degil, ileride bozulmasi en olasi davranisi kilitlemektir.
+
+Iyi test ornekleri:
+
+- liste yuklenince ilk kayit seciliyor mu?
+- create sonrasi liste yenileniyor mu?
+- eski detail response yeni secimi eziyor mu?
+- 401 gelince session recover calisiyor mu?
+- network yokken offline draft kuyruga aliniyor mu?
+
+Testlerde local storage gerekiyorsa `SharedPreferencesAsync` icin in-memory platform kurulmalidir. Ornek:
+
+```dart
+setUp(() {
+  SharedPreferencesAsyncPlatform.instance =
+      InMemorySharedPreferencesAsync.empty();
+});
+
+tearDown(() {
+  SharedPreferencesAsyncPlatform.instance = null;
+});
+```
+
+Bu kurulmazsa test ortaminda `The SharedPreferencesAsyncPlatform instance must be set` hatasi alinabilir.
+
+## 16. Bu Projede Dikkat Edilmesi Gereken Tuzaklar
+
+### 1. Sadece UI eklemek yetmez
+
+Bir sey ekledigin zaman cogu zaman su katmanlardan birkaci birlikte degisir:
+
+- model
+- repository
+- page
+- create sheet
+- offline draft
+- test
+
+### 2. Menu eslemesi unutulursa ekran hic acilmaz
+
+Ozellikle yeni moduller icin ilk bakilacak yer `home_shell_page.dart`.
+
+### 3. `clientRequestId` kritik
+
+Offline/online recover mantigi icin create request'lerde `clientRequestId` korunur.
+Bunu bozarsan duplicate veya recover akislarini kirabilirsin.
+
+### 4. Offline destek varsa iki tarafta da alan ekle
+
+Sadece online request modeline alan ekleyip offline draft'e eklemezsen veri kaybi olur.
+
+### 5. Standalone page ile embedded page farkli olabilir
+
+Offline sayfalarda `standalone` gibi page kabugu farklari var.
+Route ile acilan sayfada `Scaffold/Material` eksik kalirsa siyah ekran gibi sorunlar gorulebilir.
+
+### 6. Controller yarislari
+
+Hizli secim degisikliklerinde stale response problemi olabilir.
+Bu projede bunun icin `RequestEpoch` kullaniliyor.
+
+### 7. Dispose sonrasi notify
+
+Controller yaziyorsan `SafeChangeNotifier` patternini koru.
+
+### 8. Token storage release icin hassas
+
+Tokenlar su an `SharedPreferencesAsync` uzerinden saklaniyor.
+
+Bu gelistirme ve lokal kullanim icin basit bir cozumdur. Uretim/release guvenligi artirilacaksa access token ve refresh token icin `flutter_secure_storage` gibi platform secure storage dusunulmelidir.
+
+Ilgili dosya:
+
+- `lib/core/storage/token_storage.dart`
+
+### 9. HTTP ve cleartext ayarlari bilincli kullanilmali
+
+Varsayilan API adresi lokal agdaki HTTP sunucusudur:
+
+```text
+http://192.168.254.214:7508
+```
+
+Android tarafinda cleartext traffic, iOS tarafinda App Transport Security istisnasi aciktir. Bu lokal ag/VPN senaryosu icin anlasilabilir, ama public release icin HTTPS tercih edilmelidir.
+
+Kontrol edilecek yerler:
+
+- `lib/core/config/app_config.dart`
+- `android/app/src/main/AndroidManifest.xml`
+- `ios/Runner/Info.plist`
+
+### 10. Offline storage buyurse SharedPreferences zorlanabilir
+
+Offline draft ve lookup cache su an JSON olarak `SharedPreferencesAsync` icinde tutuluyor. Kayit sayisi ve veri boyutu sinirli kaldigi surece yonetilebilir.
+
+Eger offline veri buyurse veya ayni anda cok yazma/okuma ihtiyaci artarsa su alternatifler degerlendirilmeli:
+
+- Drift/SQLite
+- Isar
+- Hive
+
+Bu gecis yapilacaksa once `LocalJsonDatabase` arayuzu korunup alt implementasyon degistirilmelidir.
+
+### 11. Dependency guncellemesi major ise ayri is olarak yap
+
+`flutter pub outdated` yeni major surumleri gosterebilir. Major guncellemeler ozellikle kamera, yazdirma ve platform pluginlerinde davranis degistirebilir.
+
+Guncelleme stratejisi:
+
+1. Ayri branch veya ayri is olarak ele al.
+2. `flutter pub upgrade --major-versions` sonrasi changelog oku.
+3. Android/iOS permission ve manifest degisikliklerini kontrol et.
+4. `flutter analyze` ve `flutter test` calistir.
+5. Kamera/barkod/yazdirma gibi native ozellikleri cihazda manuel dene.
+
+## 17. Yeni Bir Ekran Eklerken Kisa Checklist
+
+Asagidaki listeyi sirayla gec:
+
+1. Backend endpointi net mi?
+2. Request/response modeli yazildi mi?
+3. Repository interface + API implementation tamam mi?
+4. Gerekliyse controller var mi?
+5. Page ve alt widgetlar ayrildi mi?
+6. Dependency injection baglandi mi?
+7. `HomeShellPage` icinde menu map'i yapildi mi?
+8. Permission kaynakli `canCreate` veya benzeri aksiyonlar dusunuldu mu?
+9. Offline gerekiyorsa draft + sync katmani eklendi mi?
+10. Hata/loading/empty state'leri yazildi mi?
+11. Liste/detail/create akisi stale response'a karsi guvenli mi?
+12. Test ve en azindan `flutter analyze` calistirildi mi?
+13. Offline veya native ozellik varsa cihazda manuel kontrol yapildi mi?
+
+## 18. Gelistirme Sirasinda Pratik Komutlar
+
+### Rutin kontrol sirasi
+
+Bir degisiklik tamamlanmadan once ideal kontrol sirasi:
+
+```text
+1. dart format lib test
+2. flutter analyze
+3. flutter test
+4. Degisiklik native/plugin etkiliyorsa cihazda manuel test
+5. API contract degistiyse backend ile request/response kontrolu
+6. Offline etkileniyorsa internet kapali/geri acik senaryosu
+```
+
+Kucuk UI degisikliklerinde tum manuel senaryolari calistirmak gerekmeyebilir, ama `flutter analyze` ve ilgili testler temiz olmalidir.
+
+### Haftalik / periyodik bakim
+
+Proje aktif gelistiriliyorsa arada su kontroller yapilabilir:
+
+```bash
+flutter pub outdated
+flutter analyze
+flutter test
+```
+
+Bakimda ozellikle sunlara bak:
+
+- major dependency guncellemesi var mi?
+- testler localde ve CI'da ayni sonucu veriyor mu?
+- Android/iOS manifest izinleri gereksiz genislemis mi?
+- offline draft formatinda migration gerektiren degisiklik var mi?
+- README ve bu rehber yeni akisla uyumlu mu?
+
+### Release oncesi kisa kontrol
+
+Release veya saha test paketi almadan once:
+
+1. API base URL dogru mu?
+2. HTTP/HTTPS ve cleartext ayari hedef ortama uygun mu?
+3. Android signing dosyalari hazir mi?
+4. Kamera/barkod izni cihazda calisiyor mu?
+5. Yazdirma/PDF akisi hedef cihazda denenmis mi?
+6. Login, session restore, logout denenmis mi?
+7. Offline create + sync akisi denenmis mi?
+8. `flutter analyze` temiz mi?
+9. `flutter test` temiz mi?
+
+### Codex / Windows ortam notu
+
+Bu proje Flutter SDK'yi `C:\dev\flutter` altindan kullaniyor. Codex sandbox sadece proje klasorune yazabiliyorsa `flutter analyze`, `flutter test`, `flutter pub get` gibi komutlar takilabilir.
+
+Sebep proje buyuklugu degildir. Flutter komutlari calisirken SDK cache altina lock/cache dosyasi yazar:
+
+```text
+C:\dev\flutter\bin\cache\lockfile
+C:\dev\flutter\bin\cache\flutter.bat.lock
+```
+
+Codex bu klasore yazamazsa `flutter.bat` sessizce lock bekleyebilir ve komut cikti vermeden uzun sure bitmeyebilir.
+
+Kalici cozum icin `C:\Users\devse\.codex\config.toml` icinde root seviyede su ayarlar bulunmali:
+
+```toml
+model = "gpt-5.5"
+model_reasoning_effort = "xhigh"
+sandbox_mode = "workspace-write"
+
+[windows]
+sandbox = "elevated"
+
+[sandbox_workspace_write]
+writable_roots = [
+  "C:\\Users\\devse\\Desktop\\PROJECTS\\FurpaMerkezTerminal",
+  "C:\\dev\\flutter"
+]
+```
+
+Onemli: `sandbox_mode = "workspace-write"` satiri herhangi bir `[section]` altinda kalmamali; dosyanin root seviyesinde, ilk section basligindan once durmali.
+
+Config degistikten sonra Codex tamamen kapatilip tekrar acilmali.
+
+Eger Flutter komutu daha once takildiysa once eski dart surecleri ve lock dosyalari temizlenebilir:
+
+```powershell
+Stop-Process -Name dart -Force -ErrorAction SilentlyContinue
+Remove-Item C:\dev\flutter\bin\cache\lockfile -Force -ErrorAction SilentlyContinue
+Remove-Item C:\dev\flutter\bin\cache\flutter.bat.lock -Force -ErrorAction SilentlyContinue
+```
+
+Format:
+
+```bash
+dart format lib test
+```
+
+Analiz:
+
+```bash
+flutter analyze
+```
+
+Test:
+
+```bash
+flutter test
+```
+
+Belirli dosya analizi:
+
+```bash
+dart analyze lib/features/stock_operations/inventory_counts/presentation/view_models/inventory_counts_controller.dart
+```
+
+## 19. Ozet
+
+Bu projeyi anlamanin en kisa yolu su:
+
+- `app/` = uygulama kabugu
+- `core/` = temel altyapi
+- `features/` = is modulleri
+- `shared/` = ortak parcalar
+- `HomeShellPage` = menu -> ekran esleme merkezi
+- `AppDependencies` = dependency injection merkezi
+- `ApiClient` = tum HTTP kapisi
+- `OfflineSyncService` = offline kuyruk ve recover merkezi
+
+Bir sey eklerken once su soruyu sor:
+
+> Bu degisiklik sadece UI degisikligi mi, yoksa model + repository + menu + offline + test zincirini de etkiliyor mu?
+
+Bu soruya dogru cevap verdiginde projede kaybolman cok azalir.

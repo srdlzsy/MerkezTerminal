@@ -1,0 +1,223 @@
+import 'package:flutter/material.dart';
+import 'package:furpa_merkez_terminal/core/network/api_exception.dart';
+import 'package:furpa_merkez_terminal/core/utils/default_filter_dates.dart';
+import 'package:furpa_merkez_terminal/core/utils/request_epoch.dart';
+import 'package:furpa_merkez_terminal/core/utils/safe_change_notifier.dart';
+import 'package:furpa_merkez_terminal/features/order_operations/given_company_orders/data/models/given_company_order_models.dart';
+import 'package:furpa_merkez_terminal/features/order_operations/shared/data/company_orders_repository.dart';
+
+class GivenCompanyOrdersController extends ChangeNotifier
+    with SafeChangeNotifier {
+  GivenCompanyOrdersController({
+    required CompanyOrdersRepository repository,
+    required String accessToken,
+    required String defaultWarehouseNo,
+  }) : _repository = repository,
+       _accessToken = accessToken,
+       _defaultWarehouseNo = defaultWarehouseNo;
+
+  final CompanyOrdersRepository _repository;
+  final String _accessToken;
+  final String _defaultWarehouseNo;
+  final RequestEpoch _listEpoch = RequestEpoch();
+  final RequestEpoch _detailEpoch = RequestEpoch();
+
+  DateTime _startDate = defaultFilterStartDate();
+  DateTime _endDate = defaultFilterEndDate();
+  String _warehouseNo = '';
+  bool _isLoadingList = false;
+  bool _isLoadingDetail = false;
+  bool _isCreating = false;
+  String? _listError;
+  String? _detailError;
+  String? _createError;
+  List<CompanyOrderListItem> _orders = const <CompanyOrderListItem>[];
+  CompanyOrderListItem? _selectedOrder;
+  CompanyOrderDetail? _selectedOrderDetail;
+
+  DateTime get startDate => _startDate;
+  DateTime get endDate => _endDate;
+  String get warehouseNo => _warehouseNo;
+  bool get isLoadingList => _isLoadingList;
+  bool get isLoadingDetail => _isLoadingDetail;
+  bool get isCreating => _isCreating;
+  String? get listError => _listError;
+  String? get detailError => _detailError;
+  String? get createError => _createError;
+  List<CompanyOrderListItem> get orders => _orders;
+  CompanyOrderListItem? get selectedOrder => _selectedOrder;
+  CompanyOrderDetail? get selectedOrderDetail => _selectedOrderDetail;
+  bool get canCreate => _repository.supportsCreate;
+
+  void clearSelection() {
+    _detailEpoch.invalidate();
+    _selectedOrder = null;
+    _selectedOrderDetail = null;
+    _detailError = null;
+    _isLoadingDetail = false;
+    notifySafely();
+  }
+
+  Future<void> loadOrders({
+    String? preferredDocumentSerie,
+    int? preferredDocumentOrderNo,
+  }) async {
+    final listRequestId = _listEpoch.next();
+    _detailEpoch.invalidate();
+    _isLoadingList = true;
+    _listError = null;
+    notifySafely();
+
+    try {
+      final items = await _repository.fetchOrders(
+        accessToken: _accessToken,
+        filter: CompanyOrderListFilter(
+          startDate: _startDate,
+          endDate: _endDate,
+          warehouseNo: _warehouseNo.trim().isEmpty ? null : _warehouseNo,
+        ),
+      );
+      if (!_listEpoch.isCurrent(listRequestId)) {
+        return;
+      }
+
+      _orders = items;
+      _selectedOrder = items.isEmpty
+          ? null
+          : _findPreferredOrder(
+                  items,
+                  preferredDocumentSerie: preferredDocumentSerie,
+                  preferredDocumentOrderNo: preferredDocumentOrderNo,
+                ) ??
+                items.first;
+      _selectedOrderDetail = null;
+      _detailError = null;
+      _isLoadingList = false;
+      notifySafely();
+
+      if (_selectedOrder case final selectedOrder?) {
+        await selectOrder(selectedOrder);
+      }
+    } on ApiException catch (error) {
+      if (!_listEpoch.isCurrent(listRequestId)) {
+        return;
+      }
+      _orders = const <CompanyOrderListItem>[];
+      _selectedOrder = null;
+      _selectedOrderDetail = null;
+      _isLoadingList = false;
+      _listError = error.message;
+      notifySafely();
+    }
+  }
+
+  Future<void> selectOrder(CompanyOrderListItem item) async {
+    final detailRequestId = _detailEpoch.next();
+    _selectedOrder = item;
+    _selectedOrderDetail = null;
+    _detailError = null;
+    _isLoadingDetail = true;
+    notifySafely();
+
+    try {
+      final detail = await _repository.fetchOrderDetail(
+        accessToken: _accessToken,
+        documentSerie: item.documentSerie,
+        documentOrderNo: item.documentOrderNo,
+        warehouseNo: _effectiveWarehouseNo,
+      );
+      if (!_detailEpoch.isCurrent(detailRequestId)) {
+        return;
+      }
+      _selectedOrderDetail = detail;
+      _isLoadingDetail = false;
+      notifySafely();
+    } on ApiException catch (error) {
+      if (!_detailEpoch.isCurrent(detailRequestId)) {
+        return;
+      }
+      _selectedOrderDetail = null;
+      _detailError = error.message;
+      _isLoadingDetail = false;
+      notifySafely();
+    }
+  }
+
+  Future<void> updateFilters({
+    required DateTime startDate,
+    required DateTime endDate,
+    required String warehouseNo,
+  }) async {
+    _startDate = _normalizedDate(startDate);
+    _endDate = _normalizedDate(endDate);
+    _warehouseNo = warehouseNo.trim();
+    await loadOrders();
+  }
+
+  Future<CompanyOrderCreateResult?> createOrder(
+    CompanyOrderCreateRequest request,
+  ) async {
+    if (!_repository.supportsCreate) {
+      _createError = 'Bu ekranda yeni siparis olusturma desteklenmiyor.';
+      notifySafely();
+      return null;
+    }
+
+    _isCreating = true;
+    _createError = null;
+    notifySafely();
+
+    try {
+      final result = await _repository.createOrder(
+        accessToken: _accessToken,
+        request: request,
+      );
+
+      _isCreating = false;
+      notifySafely();
+
+      await loadOrders(
+        preferredDocumentSerie: result.documentSerie,
+        preferredDocumentOrderNo: result.documentOrderNo,
+      );
+
+      return result;
+    } on ApiException catch (error) {
+      _isCreating = false;
+      _createError = error.message;
+      notifySafely();
+      return null;
+    }
+  }
+
+  String get _effectiveWarehouseNo {
+    if (_warehouseNo.trim().isNotEmpty) {
+      return _warehouseNo.trim();
+    }
+
+    return _defaultWarehouseNo;
+  }
+
+  static DateTime _normalizedDate(DateTime value) {
+    return DateTime(value.year, value.month, value.day);
+  }
+
+  CompanyOrderListItem? _findPreferredOrder(
+    List<CompanyOrderListItem> items, {
+    String? preferredDocumentSerie,
+    int? preferredDocumentOrderNo,
+  }) {
+    if (preferredDocumentSerie == null || preferredDocumentOrderNo == null) {
+      return null;
+    }
+
+    for (final item in items) {
+      if (item.documentSerie == preferredDocumentSerie &&
+          item.documentOrderNo == preferredDocumentOrderNo) {
+        return item;
+      }
+    }
+
+    return null;
+  }
+}
