@@ -1146,6 +1146,105 @@ Hedef ortama gore API adresi build sirasinda verilecekse:
 flutter build apk --release --dart-define=API_BASE_URL_ANDROID=http://10.0.0.100:7508
 ```
 
+### Otomatik APK guncelleme akisi
+
+Android uygulama acilinca yeni surum kontrolu otomatik yapilir. Varsayilan manifest adresi:
+
+```text
+http://10.0.0.100:802/Terminal/version.json
+```
+
+Manifest formati:
+
+```json
+{
+  "version": "1.0.3",
+  "apk": "http://10.0.0.100:802/Terminal/app-release.apk"
+}
+```
+
+Akis su sekildedir:
+
+1. Uygulama acilirken `version.json` okunur.
+2. `version` degeri cihazdaki uygulama versiyonundan buyukse kullaniciya "Yeni surum var, indirelim mi?" sorulur.
+3. Kullanici `Indir` derse APK cache'e indirilir.
+4. Android sistem kurulum ekrani acilir.
+5. Cihazda bilinmeyen kaynaklardan kurulum izni kapaliysa izin sayfasi acilir; izin verilince kurulum ekrani otomatik devam eder.
+
+Onemli ilk kurulum mantigi:
+
+- Otomatik guncelleme kodu eski APK'nin icinde yoksa eski uygulama `version.json` kontrol edemez.
+- Bu nedenle otomatik guncelleme sistemi eklendikten sonra uretilen ilk APK cihaza bir kere manuel kurulmalidir.
+- Bundan sonraki surumlerde uygulama acilinca otomatik kontrol calisir.
+
+Ornek:
+
+1. Cihaza manuel olarak `1.1.5+6` kurulur. Bu APK artik otomatik guncelleme kodunu icerir.
+2. Sonraki release `pubspec.yaml` icinde `version: 1.1.6+7` yapilir.
+3. Yeni APK sunucuya `app-release.apk` olarak koyulur.
+4. Sunucudaki `version.json` `1.1.6` gosterir.
+5. Cihazda yüklü `1.1.5` uygulama acilinca `1.1.6` daha buyuk oldugu icin guncelleme sorusu cikar.
+
+Bu akis su dosyalardadir:
+
+```text
+lib/core/update/app_update_service.dart
+lib/app/app.dart
+android/app/src/main/kotlin/com/furpa/furpa_merkez_terminal/MainActivity.kt
+android/app/src/main/AndroidManifest.xml
+android/app/src/main/res/xml/file_paths.xml
+```
+
+Yeni surumu yayinlarken:
+
+1. `pubspec.yaml` icindeki `version` degerini artir.
+2. `flutter build apk --release` ile APK al.
+3. `build/app/outputs/flutter-apk/app-release.apk` dosyasini `http://10.0.0.100:802/Terminal/app-release.apk` olacak sekilde sunucuya koy.
+4. Sunucudaki `version.json` icindeki `version` degerini APK'nin kullanici versiyonu ile ayni yap.
+5. `apk` alaninin indirilebilir APK adresini gosterdigini kontrol et.
+
+Ornek: `pubspec.yaml` icinde `version: 1.0.3+6` varsa `version.json` icindeki deger `1.0.3` olmalidir. Otomatik kontrol `+6` build numarasini degil kullanici versiyonunu karsilastirir; bu yuzden saha guncellemesi icin noktali versiyon da artirilmalidir.
+
+Kritik kural:
+
+- Cihazdaki uygulama `1.1.5` ise sunucudaki `version.json` da `1.1.5` ise guncelleme sorusu cikmaz.
+- Guncelleme sorusu cikmasi icin sunucudaki `version` cihazdaki uygulama surumunden buyuk olmalidir.
+- `version.json` icindeki `version`, sunucuya koyulan APK'nin `versionName` degeriyle ayni olmalidir.
+- Sadece `+6`, `+7` gibi build numarasini artirmak otomatik guncelleme penceresi icin yetmez; `1.1.5 -> 1.1.6` gibi kullanici versiyonu da artmalidir.
+
+APK'nin icindeki gercek surumu kontrol etmek icin:
+
+```powershell
+& "$env:LOCALAPPDATA\Android\Sdk\build-tools\36.1.0-rc1\aapt.exe" dump badging build\app\outputs\flutter-apk\app-release.apk | Select-String "package:"
+```
+
+Beklenen ornek cikti:
+
+```text
+versionCode='7' versionName='1.1.6'
+```
+
+Sunucunun gercekten hangi `version.json` dosyasini servis ettigini kontrol etmek icin:
+
+```powershell
+(Invoke-WebRequest -Uri http://10.0.0.100:802/Terminal/version.json -UseBasicParsing).Content
+```
+
+Masaustundeki `C:\Users\devse\Desktop\version.json` dosyasini duzenlemek tek basina yeterli olmayabilir. Esas kontrol edilmesi gereken dosya, tarayicidan veya `Invoke-WebRequest` ile `http://10.0.0.100:802/Terminal/version.json` adresinden okunan dosyadir.
+
+Guncelleme manifest adresi farkli ortamda degisecekse build sirasinda verilebilir:
+
+```powershell
+flutter build apk --release --dart-define=UPDATE_MANIFEST_URL=http://10.0.0.100:802/Terminal/version.json
+```
+
+Notlar:
+
+- APK ayni `applicationId` ve ayni release keystore ile imzalanmali.
+- `version.json` veya APK adresi HTTP ise Android manifestte cleartext traffic izni gerekir; bu projede aciktir.
+- APK kurulumunu Android sistem kurucusu yapar, uygulama sessiz kurulum yapmaz.
+- Ilk saha kurulumunda cihazda "bu uygulamadan kurulum" izni istenebilir.
+
 Android uygulama kimligi su anda:
 
 ```text
@@ -1176,6 +1275,8 @@ Dagitimdan sonra sahada minimum manuel smoke test:
 6. Kritik liste/detail ekranlari aciliyor mu?
 7. Terminal geri tusu uygulamayi kapatmadan once menu/anasayfa akisini yapiyor mu?
 8. Offline create kullanilan cihazda internet kapali/acik senaryosu calisiyor mu?
+9. `version.json` daha yuksek versiyon gosterince guncelleme sorusu cikiyor mu?
+10. `Indir` sonrasi APK kurulum ekrani aciliyor mu?
 
 ### Release icin eksik sayilacak durumlar
 
@@ -1187,6 +1288,7 @@ Asagidakilerden biri varsa paket "dagitima hazir" sayilmamalidir:
 - `android/app/upload-keystore.jks` yok.
 - `pubspec.yaml` `version` build numarasi artirilmamis.
 - API base URL test/production hedefi icin yanlis.
+- Otomatik guncelleme icin `version.json` ve APK sunucuya yuklenmemis veya yanlis URL gosteriyor.
 - Kamera veya internet izni hedef cihazda denenmemis.
 - Offline draft bekleyen cihazlara temiz kurulum yapilacaksa sync plani yok.
 - Ikon/app adi degistiyse launcher icon ve manifest yeniden uretilmemis.

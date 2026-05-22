@@ -2,6 +2,7 @@ import 'package:furpa_merkez_terminal/core/config/app_config.dart';
 import 'package:furpa_merkez_terminal/core/network/api_client.dart';
 import 'package:furpa_merkez_terminal/core/storage/local_json_database.dart';
 import 'package:furpa_merkez_terminal/core/storage/token_storage.dart';
+import 'package:furpa_merkez_terminal/core/update/app_update_service.dart';
 import 'package:furpa_merkez_terminal/features/acceptance_operations/company_acceptances/data/company_acceptances_repository.dart';
 import 'package:furpa_merkez_terminal/features/acceptance_operations/offline_company_acceptances/data/offline_company_acceptances_repository.dart';
 import 'package:furpa_merkez_terminal/features/acceptance_operations/warehouse_acceptances/data/warehouse_acceptances_repository.dart';
@@ -33,6 +34,7 @@ class AppDependencies {
       baseUrl: AppConfig.baseUrl,
       httpClient: httpClient,
     );
+    final updateService = AppUpdateService(httpClient: httpClient);
     final tokenStorage = TokenStorage();
     final localDatabase = LocalJsonDatabase();
     final offlineInventoryCountsRepository =
@@ -71,8 +73,9 @@ class AppDependencies {
     final givenWarehouseOrdersRepository = ApiGivenWarehouseOrdersRepository(
       apiClient: apiClient,
     );
-    final receivedCompanyOrdersRepository =
-        ApiReceivedCompanyOrdersRepository(apiClient: apiClient);
+    final receivedCompanyOrdersRepository = ApiReceivedCompanyOrdersRepository(
+      apiClient: apiClient,
+    );
     final receivedWarehouseOrdersRepository =
         ApiReceivedWarehouseOrdersRepository(apiClient: apiClient);
     final warehouseAcceptancesRepository = ApiWarehouseAcceptancesRepository(
@@ -143,6 +146,7 @@ class AppDependencies {
     );
 
     return AppDependencies._(
+      updateService: updateService,
       sessionController: sessionController,
       moduleRegistry: moduleRegistry,
       givenCompanyOrdersRepository: givenCompanyOrdersRepository,
@@ -172,6 +176,7 @@ class AppDependencies {
   }
 
   AppDependencies._({
+    required this.updateService,
     required this.sessionController,
     required this.moduleRegistry,
     required this.givenCompanyOrdersRepository,
@@ -197,6 +202,7 @@ class AppDependencies {
     required this.legacyToolsRepository,
   });
 
+  final AppUpdateService updateService;
   final AppSessionController sessionController;
   final ShellModuleRegistry moduleRegistry;
   final GivenCompanyOrdersRepository givenCompanyOrdersRepository;

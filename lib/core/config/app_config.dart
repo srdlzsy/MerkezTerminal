@@ -4,6 +4,10 @@ abstract final class AppConfig {
   static const String appName = 'Furpa Merkez Terminal';
   static const Duration requestTimeout = Duration(seconds: 25);
   static const String _defaultBaseUrl = 'http://10.0.0.100:7508';
+  static const String updateManifestUrl = String.fromEnvironment(
+    'UPDATE_MANIFEST_URL',
+    defaultValue: 'http://10.0.0.100:802/Terminal/version.json',
+  );
 
   static String get baseUrl {
     const configured = String.fromEnvironment('API_BASE_URL');
