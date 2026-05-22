@@ -25,6 +25,8 @@ class HomeShellPage extends StatefulWidget {
 
 class _HomeShellPageState extends State<HomeShellPage>
     with WidgetsBindingObserver {
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+  final List<MenuEntry> _menuBackStack = <MenuEntry>[];
   MenuEntry? _selectedMenu;
   bool _isSidebarExpanded = false;
   Timer? _offlineSyncTimer;
@@ -46,17 +48,10 @@ class _HomeShellPageState extends State<HomeShellPage>
     super.didUpdateWidget(oldWidget);
 
     final user = widget.sessionController.currentUser;
-    final availableMenus = _flattenVisibleMenus(user?.modules ?? const []);
-    final currentSelection = _selectedMenu;
-
-    if (currentSelection == null) {
-      return;
-    }
-
-    final exists = availableMenus.any((item) => item.id == currentSelection.id);
-    if (!exists) {
-      _selectedMenu = null;
-    }
+    final availableMenus = _flattenVisibleMenus(
+      _visibleModules(user?.modules ?? const <PermissionModule>[]),
+    );
+    _syncMenuStateWithAvailableMenus(availableMenus);
   }
 
   @override
@@ -86,10 +81,7 @@ class _HomeShellPageState extends State<HomeShellPage>
     final availableMenus = _flattenVisibleMenus(visibleModules);
     final isWide = MediaQuery.sizeOf(context).width >= 1080;
 
-    if (_selectedMenu != null &&
-        !availableMenus.any((item) => item.id == _selectedMenu!.id)) {
-      _selectedMenu = null;
-    }
+    _syncMenuStateWithAvailableMenus(availableMenus);
 
     final navigationPanel = ModuleNavigationPanel(
       user: user,
@@ -105,9 +97,7 @@ class _HomeShellPageState extends State<HomeShellPage>
           : null,
       onHomeTap: _goHome,
       onSelectMenu: (menu) {
-        setState(() {
-          _selectedMenu = menu;
-        });
+        _openMenu(menu);
         if (!isWide) {
           Navigator.of(context).pop();
         }
@@ -128,78 +118,141 @@ class _HomeShellPageState extends State<HomeShellPage>
           );
 
     if (isWide) {
-      return Scaffold(
-        body: SafeArea(
-          child: Row(
-            children: <Widget>[
-              AnimatedContainer(
-                duration: const Duration(milliseconds: 180),
-                width: _isSidebarExpanded ? 332 : 92,
-                child: navigationPanel,
-              ),
-              Expanded(
-                child: Column(
-                  children: <Widget>[
-                    _WideTopBar(
-                      userName: user.fullName,
-                      warehouseName: user.warehouseName,
-                      isSidebarExpanded: _isSidebarExpanded,
-                      onHomeTap: _goHome,
-                      onToggleMenu: () {
-                        setState(() {
-                          _isSidebarExpanded = !_isSidebarExpanded;
-                        });
-                      },
-                      onSignOut: () => session.signOut(),
-                    ),
-                    Expanded(child: content),
-                  ],
+      return _buildBackAwareScaffold(
+        Scaffold(
+          key: _scaffoldKey,
+          body: SafeArea(
+            child: Row(
+              children: <Widget>[
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 180),
+                  width: _isSidebarExpanded ? 332 : 92,
+                  child: navigationPanel,
                 ),
-              ),
-            ],
+                Expanded(
+                  child: Column(
+                    children: <Widget>[
+                      _WideTopBar(
+                        userName: user.fullName,
+                        warehouseName: user.warehouseName,
+                        isSidebarExpanded: _isSidebarExpanded,
+                        onHomeTap: _goHome,
+                        onToggleMenu: () {
+                          setState(() {
+                            _isSidebarExpanded = !_isSidebarExpanded;
+                          });
+                        },
+                        onSignOut: () => session.signOut(),
+                      ),
+                      Expanded(child: content),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       );
     }
 
-    return Scaffold(
-      appBar: AppBar(
-        title: InkWell(
-          borderRadius: BorderRadius.circular(14),
-          onTap: _goHome,
-          child: const Padding(
-            padding: EdgeInsets.symmetric(vertical: 6),
-            child: FurpaBrandLockup(scale: 0.64),
+    return _buildBackAwareScaffold(
+      Scaffold(
+        key: _scaffoldKey,
+        appBar: AppBar(
+          title: InkWell(
+            borderRadius: BorderRadius.circular(14),
+            onTap: _goHome,
+            child: const Padding(
+              padding: EdgeInsets.symmetric(vertical: 6),
+              child: FurpaBrandLockup(scale: 0.64),
+            ),
           ),
+          actions: <Widget>[
+            IconButton(
+              onPressed: _goHome,
+              tooltip: 'Anasayfa',
+              icon: const Icon(Icons.home_rounded),
+            ),
+            IconButton(
+              onPressed: () => session.signOut(),
+              tooltip: 'Cikis yap',
+              icon: const Icon(Icons.logout_rounded),
+            ),
+          ],
         ),
-        actions: <Widget>[
-          IconButton(
-            onPressed: _goHome,
-            tooltip: 'Anasayfa',
-            icon: const Icon(Icons.home_rounded),
-          ),
-          IconButton(
-            onPressed: () => session.signOut(),
-            tooltip: 'Cikis yap',
-            icon: const Icon(Icons.logout_rounded),
-          ),
-        ],
+        drawer: Drawer(child: navigationPanel),
+        body: SafeArea(top: false, bottom: true, child: content),
       ),
-      drawer: Drawer(child: navigationPanel),
-      body: SafeArea(top: false, bottom: true, child: content),
     );
   }
 
   void _goHome() {
     setState(() {
       _selectedMenu = null;
+      _menuBackStack.clear();
     });
   }
 
   void _openMenu(MenuEntry menu) {
+    if (_selectedMenu?.id == menu.id) {
+      return;
+    }
+
     setState(() {
+      final previousMenu = _selectedMenu;
+      if (previousMenu != null) {
+        _menuBackStack.add(previousMenu);
+      }
       _selectedMenu = menu;
     });
+  }
+
+  Widget _buildBackAwareScaffold(Widget scaffold) {
+    return PopScope<Object?>(
+      canPop: !_hasShellBackTarget,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) {
+          return;
+        }
+
+        _handleShellBack();
+      },
+      child: scaffold,
+    );
+  }
+
+  bool get _hasShellBackTarget =>
+      _selectedMenu != null || _menuBackStack.isNotEmpty;
+
+  void _handleShellBack() {
+    final scaffoldState = _scaffoldKey.currentState;
+    if (scaffoldState?.isDrawerOpen ?? false) {
+      scaffoldState?.closeDrawer();
+      return;
+    }
+
+    if (_menuBackStack.isNotEmpty) {
+      setState(() {
+        _selectedMenu = _menuBackStack.removeLast();
+      });
+      return;
+    }
+
+    if (_selectedMenu != null) {
+      _goHome();
+    }
+  }
+
+  void _syncMenuStateWithAvailableMenus(List<MenuEntry> availableMenus) {
+    final availableMenuIds = availableMenus.map((item) => item.id).toSet();
+
+    _menuBackStack.removeWhere((menu) => !availableMenuIds.contains(menu.id));
+
+    final selectedMenu = _selectedMenu;
+    if (selectedMenu != null && !availableMenuIds.contains(selectedMenu.id)) {
+      _selectedMenu = null;
+      _menuBackStack.clear();
+    }
   }
 
   List<PermissionModule> _visibleModules(List<PermissionModule> modules) {

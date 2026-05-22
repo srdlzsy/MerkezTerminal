@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
@@ -20,6 +22,7 @@ Future<String?> openBarcodeCameraScanner(
   String title = 'Kamera ile Oku',
   String subtitle =
       'Barkodu kameraya gosterin. Ilk bulunan deger otomatik secilir.',
+  bool qrOnly = false,
 }) async {
   if (!supportsCameraBarcodeScanning) {
     return null;
@@ -28,7 +31,11 @@ Future<String?> openBarcodeCameraScanner(
   return Navigator.of(context).push<String>(
     MaterialPageRoute<String>(
       builder: (context) {
-        return BarcodeCameraScanPage(title: title, subtitle: subtitle);
+        return BarcodeCameraScanPage(
+          title: title,
+          subtitle: subtitle,
+          qrOnly: qrOnly,
+        );
       },
       fullscreenDialog: true,
     ),
@@ -40,19 +47,32 @@ class BarcodeCameraScanPage extends StatefulWidget {
     super.key,
     required this.title,
     required this.subtitle,
+    required this.qrOnly,
   });
 
   final String title;
   final String subtitle;
+  final bool qrOnly;
 
   @override
   State<BarcodeCameraScanPage> createState() => _BarcodeCameraScanPageState();
 }
 
 class _BarcodeCameraScanPageState extends State<BarcodeCameraScanPage> {
-  final MobileScannerController _controller = MobileScannerController();
+  late final MobileScannerController _controller;
   bool _didPop = false;
   bool _isTorchOn = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = MobileScannerController(
+      detectionSpeed: DetectionSpeed.noDuplicates,
+      formats: widget.qrOnly
+          ? const <BarcodeFormat>[BarcodeFormat.qrCode]
+          : const <BarcodeFormat>[],
+    );
+  }
 
   @override
   void dispose() {
@@ -60,18 +80,28 @@ class _BarcodeCameraScanPageState extends State<BarcodeCameraScanPage> {
     super.dispose();
   }
 
-  void _handleDetection(BarcodeCapture capture) {
+  Future<void> _handleDetection(BarcodeCapture capture) async {
     if (_didPop) {
       return;
     }
 
     for (final barcode in capture.barcodes) {
-      final rawValue = barcode.rawValue?.trim();
+      debugPrint(
+        'Barcode detected format=${barcode.format.name} '
+        'rawLength=${barcode.rawValue?.length ?? 0} '
+        'displayLength=${barcode.displayValue?.length ?? 0} '
+        'bytes=${barcode.rawBytes?.length ?? 0}',
+      );
+      final rawValue = _barcodeValue(barcode)?.trim();
       if (rawValue == null || rawValue.isEmpty) {
         continue;
       }
 
       _didPop = true;
+      await _controller.stop();
+      if (!mounted) {
+        return;
+      }
       Navigator.of(context).pop(rawValue);
       return;
     }
@@ -86,6 +116,40 @@ class _BarcodeCameraScanPageState extends State<BarcodeCameraScanPage> {
     setState(() {
       _isTorchOn = !_isTorchOn;
     });
+  }
+
+  String? _barcodeValue(Barcode barcode) {
+    final rawValue = barcode.rawValue?.trim();
+    if (rawValue != null && rawValue.isNotEmpty) {
+      return rawValue;
+    }
+
+    final displayValue = barcode.displayValue?.trim();
+    if (displayValue != null && displayValue.isNotEmpty) {
+      return displayValue;
+    }
+
+    final rawBytes = barcode.rawBytes;
+    if (rawBytes == null || rawBytes.isEmpty) {
+      return null;
+    }
+
+    return _decodeBarcodeBytes(rawBytes);
+  }
+
+  String? _decodeBarcodeBytes(Uint8List rawBytes) {
+    for (final decoder in const <Encoding>[utf8, latin1]) {
+      try {
+        final decoded = decoder.decode(rawBytes).trim();
+        if (decoded.isNotEmpty) {
+          return decoded;
+        }
+      } on FormatException {
+        continue;
+      }
+    }
+
+    return null;
   }
 
   @override

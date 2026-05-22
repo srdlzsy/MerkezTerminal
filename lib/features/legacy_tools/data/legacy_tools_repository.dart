@@ -38,6 +38,12 @@ abstract class LegacyToolsRepository {
     required String barcode,
     required int piecesInBox,
   });
+
+  Future<List<CustomerLookupItem>> searchCustomersByBarcode({
+    required String accessToken,
+    required String barcode,
+    int? warehouseNo,
+  });
 }
 
 class ApiLegacyToolsRepository implements LegacyToolsRepository {
@@ -59,20 +65,28 @@ class ApiLegacyToolsRepository implements LegacyToolsRepository {
         normalizedQuery.contains(RegExp(r'\d')) &&
         !normalizedQuery.contains(' ');
 
-    final response = await _apiClient.getJsonList(
-      '/api/arama-islemleri/urunler',
-      accessToken: accessToken,
-      queryParameters: <String, String>{
-        'warehouseNo': warehouseNo,
-        'take': '20',
-        if (isBarcodeQuery)
-          'barcode': normalizedQuery
-        else if (isStockCodeQuery)
-          'stockCode': normalizedQuery
-        else
-          'stockName': normalizedQuery,
-      },
-    );
+    final response = isBarcodeQuery
+        ? await _apiClient.getJsonList(
+            '/api/arama-islemleri/barkodlar/'
+            '${Uri.encodeComponent(normalizedQuery)}/fiyat',
+            accessToken: accessToken,
+            queryParameters: <String, String>{
+              'warehouseNo': warehouseNo,
+              'take': '20',
+            },
+          )
+        : await _apiClient.getJsonList(
+            '/api/arama-islemleri/fiyat-gor',
+            accessToken: accessToken,
+            queryParameters: <String, String>{
+              'warehouseNo': warehouseNo,
+              'take': '20',
+              if (isStockCodeQuery)
+                'stockCode': normalizedQuery
+              else
+                'stockName': normalizedQuery,
+            },
+          );
 
     return response
         .map(
@@ -168,5 +182,33 @@ class ApiLegacyToolsRepository implements LegacyToolsRepository {
         'piecesInBox': piecesInBox,
       },
     );
+  }
+
+  @override
+  Future<List<CustomerLookupItem>> searchCustomersByBarcode({
+    required String accessToken,
+    required String barcode,
+    int? warehouseNo,
+  }) async {
+    final normalizedBarcode = barcode.trim();
+    final response = await _apiClient.getJsonMap(
+      '/api/arama-islemleri/barkodlar/'
+      '${Uri.encodeComponent(normalizedBarcode)}/cariler',
+      accessToken: accessToken,
+      queryParameters: <String, String>{
+        'take': '20',
+        if (warehouseNo != null) 'warehouseNo': warehouseNo.toString(),
+      },
+    );
+
+    final suggestions = response['suggestions'] as List? ?? [];
+
+    return suggestions
+        .map(
+          (item) => CustomerLookupItem.fromJson(
+            item as JsonMap? ?? <String, dynamic>{},
+          ),
+        )
+        .toList(growable: false);
   }
 }

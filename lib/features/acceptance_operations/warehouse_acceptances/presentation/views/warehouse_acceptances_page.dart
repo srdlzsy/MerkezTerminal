@@ -132,6 +132,7 @@ class _WarehouseAcceptancesPageState extends State<WarehouseAcceptancesPage> {
       return;
     }
 
+    final documentType = result.isReturn ? 'iade' : 'sevk';
     final discrepancyInfo = result.hasDiscrepancy
         ? ' Eksik ${AppFormatters.quantity(result.totalMissingQuantity)}, fazla ${AppFormatters.quantity(result.totalExcessQuantity)}.'
         : '';
@@ -139,7 +140,7 @@ class _WarehouseAcceptancesPageState extends State<WarehouseAcceptancesPage> {
     messenger.showSnackBar(
       SnackBar(
         content: Text(
-          '${result.documentNoLabel} kabul edildi. Toplam kabul ${AppFormatters.quantity(result.totalReceivedQuantity)}.$discrepancyInfo',
+          '${result.documentNoLabel} $documentType kabul edildi. Toplam kabul ${AppFormatters.quantity(result.totalReceivedQuantity)}.$discrepancyInfo',
         ),
       ),
     );
@@ -182,19 +183,15 @@ class _WarehouseAcceptancesPageState extends State<WarehouseAcceptancesPage> {
     return TerminalListHeaderCard(
       title: 'Depo Mal Kabulleri',
       subtitle:
-          'Bekleyen gelen depo sevklerini listeler, detaydan sayim miktari girilip ayni ekrandan kabul edilir.',
+          'Bekleyen gelen depo sevk ve iadelerini listeler, detaydan sayim miktari girilip ayni ekrandan kabul edilir.',
       infoChips: <Widget>[
         TerminalInfoChip(
           label: 'Varsayilan depo',
           value: '${widget.defaultWarehouseNo} - ${widget.userWarehouseName}',
         ),
         TerminalInfoChip(
-          label: 'Bekleyen evrak',
+          label: 'Bekleyen sevk/iade',
           value: '${_controller.acceptances.length}',
-        ),
-        TerminalInfoChip(
-          label: 'Yetki',
-          value: widget.canSubmit ? 'Kabul var' : 'Salt gorunum',
         ),
       ],
       filters: <Widget>[
@@ -245,14 +242,14 @@ class _AcceptanceAccordionPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     if (controller.listError != null && controller.acceptances.isEmpty) {
       return SectionCard(
-        title: 'Bekleyen Sevkler',
+        title: 'Bekleyen Sevk/Iadeler',
         subtitle: 'Listeleme sirasinda hata olustu.',
         child: _ErrorBlock(message: controller.listError!),
       );
     }
 
     return SectionCard(
-      title: 'Bekleyen Sevkler',
+      title: 'Bekleyen Sevk/Iadeler',
       subtitle: controller.isLoadingList
           ? 'Liste yenileniyor...'
           : '${controller.acceptances.length} kayit bulundu.',
@@ -271,7 +268,7 @@ class _AcceptanceAccordionPanel extends StatelessWidget {
           else if (controller.acceptances.isEmpty)
             const _EmptyState(
               message:
-                  'Secilen tarih araliginda bekleyen depo sevki bulunamadi.',
+                  'Secilen tarih araliginda bekleyen depo sevki veya iadesi bulunamadi.',
             )
           else
             Column(
@@ -415,7 +412,7 @@ class _AcceptanceAccordionCard extends StatelessWidget {
                   Expanded(
                     flex: 3,
                     child: _InlineField(
-                      label: 'Siparis',
+                      label: item.isReturn ? 'Iade' : 'Siparis',
                       value: item.warehouseOrderNo.isEmpty
                           ? '-'
                           : item.warehouseOrderNo,
@@ -429,6 +426,8 @@ class _AcceptanceAccordionCard extends StatelessWidget {
                       value: AppFormatters.quantity(item.totalQuantity),
                     ),
                   ),
+                  const SizedBox(width: 8),
+                  _DocumentTypeBadge(isReturn: item.isReturn),
                   const SizedBox(width: 8),
                   _StateBadge(state: item.shippingState),
                   const SizedBox(width: 2),
@@ -449,6 +448,7 @@ class _AcceptanceAccordionCard extends StatelessWidget {
                         padding: const EdgeInsets.only(top: 14),
                         child: _AcceptanceDetailBody(
                           key: ValueKey(item.documentNoLabel),
+                          isReturn: detail?.header.isReturn ?? item.isReturn,
                           detail: detail,
                           isLoading: isLoadingDetail,
                           isSubmitting: isSubmitting,
@@ -472,6 +472,7 @@ class _AcceptanceDetailBody extends StatelessWidget {
   const _AcceptanceDetailBody({
     super.key,
     required this.detail,
+    required this.isReturn,
     required this.isLoading,
     required this.isSubmitting,
     required this.detailError,
@@ -481,6 +482,7 @@ class _AcceptanceDetailBody extends StatelessWidget {
   });
 
   final WarehouseAcceptanceDetail? detail;
+  final bool isReturn;
   final bool isLoading;
   final bool isSubmitting;
   final String? detailError;
@@ -507,6 +509,7 @@ class _AcceptanceDetailBody extends StatelessWidget {
 
     return _AcceptanceReadyBody(
       detail: detail!,
+      isReturn: isReturn,
       isSubmitting: isSubmitting,
       submitError: submitError,
       canSubmit: canSubmit,
@@ -518,6 +521,7 @@ class _AcceptanceDetailBody extends StatelessWidget {
 class _AcceptanceReadyBody extends StatefulWidget {
   const _AcceptanceReadyBody({
     required this.detail,
+    required this.isReturn,
     required this.isSubmitting,
     required this.submitError,
     required this.canSubmit,
@@ -525,6 +529,7 @@ class _AcceptanceReadyBody extends StatefulWidget {
   });
 
   final WarehouseAcceptanceDetail detail;
+  final bool isReturn;
   final bool isSubmitting;
   final String? submitError;
   final bool canSubmit;
@@ -577,36 +582,6 @@ class _AcceptanceReadyBodyState extends State<_AcceptanceReadyBody> {
 
   bool get _hasDiscrepancy {
     return _drafts.any((draft) => draft.differenceType != 'none');
-  }
-
-  double get _totalReceivedQuantity {
-    return _drafts.fold<double>(
-      0,
-      (total, draft) => total + draft.receivedQuantity,
-    );
-  }
-
-  double get _totalShippedQuantity {
-    return _drafts.fold<double>(
-      0,
-      (total, draft) => total + draft.shippedQuantity,
-    );
-  }
-
-  double get _totalMissingQuantity {
-    return _drafts.fold<double>(
-      0,
-      (total, draft) =>
-          total + (draft.differenceValue < 0 ? -draft.differenceValue : 0),
-    );
-  }
-
-  double get _totalExcessQuantity {
-    return _drafts.fold<double>(
-      0,
-      (total, draft) =>
-          total + (draft.differenceValue > 0 ? draft.differenceValue : 0),
-    );
   }
 
   Future<void> _submit() async {
@@ -668,14 +643,6 @@ class _AcceptanceReadyBodyState extends State<_AcceptanceReadyBody> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          _AcceptanceHeaderSummary(
-            header: widget.detail.header,
-            totalReceivedQuantity: _totalReceivedQuantity,
-            totalShippedQuantity: _totalShippedQuantity,
-            totalMissingQuantity: _totalMissingQuantity,
-            totalExcessQuantity: _totalExcessQuantity,
-          ),
-          const SizedBox(height: 12),
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(12),
@@ -689,7 +656,7 @@ class _AcceptanceReadyBodyState extends State<_AcceptanceReadyBody> {
               ),
             ),
             child: Text(
-              'Her satirda varsayilan olarak sevk miktari gelir. Gerekirse sayilan miktari guncelleyin; eslestirme movementGuid ile yapilir.',
+              'Her satirda varsayilan olarak ${widget.isReturn ? 'iade' : 'sevk'} miktari gelir. Gerekirse sayilan miktari guncelleyin; eslestirme movementGuid ile yapilir.',
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                 height: 1.35,
                 color: const Color(0xFF5B4738),
@@ -842,64 +809,14 @@ class _AcceptanceReadyBodyState extends State<_AcceptanceReadyBody> {
               label: Text(
                 widget.isSubmitting
                     ? 'Kaydediliyor...'
+                    : widget.isReturn
+                    ? 'Depo Iadesi Mal Kabul Et'
                     : 'Depo Sevki Mal Kabul Et',
               ),
             ),
           ),
         ],
       ),
-    );
-  }
-}
-
-class _AcceptanceHeaderSummary extends StatelessWidget {
-  const _AcceptanceHeaderSummary({
-    required this.header,
-    required this.totalReceivedQuantity,
-    required this.totalShippedQuantity,
-    required this.totalMissingQuantity,
-    required this.totalExcessQuantity,
-  });
-
-  final WarehouseAcceptanceDetailHeader header;
-  final double totalReceivedQuantity;
-  final double totalShippedQuantity;
-  final double totalMissingQuantity;
-  final double totalExcessQuantity;
-
-  @override
-  Widget build(BuildContext context) {
-    return Wrap(
-      spacing: 10,
-      runSpacing: 10,
-      children: <Widget>[
-        _SummaryTile(label: 'Belge', value: header.documentNoLabel),
-        _SummaryTile(
-          label: 'Kaynak',
-          value: '${header.sourceWarehouseNo} - ${header.sourceWarehouse}',
-        ),
-        _SummaryTile(
-          label: 'Hedef',
-          value: '${header.targetWarehouseNo} - ${header.targetWarehouse}',
-        ),
-        _SummaryTile(label: 'Transit', value: '${header.shippingWarehouseNo}'),
-        _SummaryTile(
-          label: 'Toplam Sevk',
-          value: AppFormatters.quantity(totalShippedQuantity),
-        ),
-        _SummaryTile(
-          label: 'Toplam Sayim',
-          value: AppFormatters.quantity(totalReceivedQuantity),
-        ),
-        _SummaryTile(
-          label: 'Eksik',
-          value: AppFormatters.quantity(totalMissingQuantity),
-        ),
-        _SummaryTile(
-          label: 'Fazla',
-          value: AppFormatters.quantity(totalExcessQuantity),
-        ),
-      ],
     );
   }
 }
@@ -947,7 +864,7 @@ class _AcceptanceLineCard extends StatelessWidget {
           ),
           const SizedBox(height: 4),
           Text(
-            'Kod ${draft.stockCode} | Sevk ${AppFormatters.quantity(draft.shippedQuantity)} | Birim ${draft.unitName}/${draft.unitPointer}',
+            'Kod ${draft.stockCode} | Evrak ${AppFormatters.quantity(draft.shippedQuantity)} | Birim ${draft.unitName}/${draft.unitPointer}',
             style: theme.textTheme.bodyMedium?.copyWith(
               color: const Color(0xFF6B5A4A),
               fontWeight: FontWeight.w700,
@@ -1019,6 +936,7 @@ class _AcceptanceResultBanner extends StatelessWidget {
         runSpacing: 10,
         children: <Widget>[
           _MiniMetric(label: 'Son kabul', value: result.documentNoLabel),
+          _MiniMetric(label: 'Tip', value: result.isReturn ? 'Iade' : 'Sevk'),
           _MiniMetric(
             label: 'Toplam kabul',
             value: AppFormatters.quantity(result.totalReceivedQuantity),
@@ -1177,44 +1095,6 @@ class _MiniMetric extends StatelessWidget {
   }
 }
 
-class _SummaryTile extends StatelessWidget {
-  const _SummaryTile({required this.label, required this.value});
-
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 164,
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: Theme.of(context).colorScheme.outlineVariant.withAlpha(82),
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          Text(label, style: Theme.of(context).textTheme.labelSmall),
-          const SizedBox(height: 4),
-          Text(
-            value,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.w800,
-              color: const Color(0xFF231C17),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class _DifferenceBadge extends StatelessWidget {
   const _DifferenceBadge({required this.type});
 
@@ -1266,6 +1146,37 @@ class _StateBadge extends StatelessWidget {
       ),
       child: Text(
         _shippingStateLabel(state),
+        style: Theme.of(context).textTheme.labelLarge?.copyWith(
+          color: foreground,
+          fontWeight: FontWeight.w800,
+        ),
+      ),
+    );
+  }
+}
+
+class _DocumentTypeBadge extends StatelessWidget {
+  const _DocumentTypeBadge({required this.isReturn});
+
+  final bool isReturn;
+
+  @override
+  Widget build(BuildContext context) {
+    final background = isReturn
+        ? const Color(0xFFFFEEDB)
+        : const Color(0xFFE9EEF7);
+    final foreground = isReturn
+        ? const Color(0xFF8A4B00)
+        : const Color(0xFF32598B);
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        isReturn ? 'Iade' : 'Sevk',
         style: Theme.of(context).textTheme.labelLarge?.copyWith(
           color: foreground,
           fontWeight: FontWeight.w800,

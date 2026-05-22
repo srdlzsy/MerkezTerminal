@@ -3,7 +3,9 @@ import 'package:flutter/services.dart';
 import 'package:furpa_merkez_terminal/features/order_operations/given_company_orders/data/models/given_company_order_models.dart';
 import 'package:furpa_merkez_terminal/features/order_operations/shared/data/company_orders_repository.dart';
 import 'package:furpa_merkez_terminal/shared/formatters/app_formatters.dart';
+import 'package:furpa_merkez_terminal/shared/utils/create_form_validation.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/barcode_camera_scan_page.dart';
+import 'package:furpa_merkez_terminal/shared/widgets/terminal_ui_parts.dart';
 
 enum _CompanyProductEntryMode { barcode, search, camera }
 
@@ -25,7 +27,8 @@ class GivenCompanyOrderCreateSheet extends StatefulWidget {
 }
 
 class _GivenCompanyOrderCreateSheetState
-    extends State<GivenCompanyOrderCreateSheet> {
+    extends State<GivenCompanyOrderCreateSheet>
+    with CreateFormValidation {
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   final ScrollController _scrollController = ScrollController();
   late final TextEditingController _customerCodeController;
@@ -124,9 +127,19 @@ class _GivenCompanyOrderCreateSheetState
   Future<void> _searchProduct(_CompanyOrderLineDraft line) async {
     final customer = _selectedCustomer;
     if (customer == null) {
+      setState(() {
+        line.setLookupStatus(
+          'Urun aramasi icin once cari secilmeli.',
+          isError: true,
+        );
+      });
       _showFeedback('Once bir musteri secin.');
       return;
     }
+
+    setState(() {
+      line.setLookupStatus('Urun arama penceresi aciliyor.');
+    });
 
     final product = await showModalBottomSheet<CompanyOrderProductLookupItem>(
       context: context,
@@ -142,12 +155,22 @@ class _GivenCompanyOrderCreateSheetState
     );
 
     if (product == null || !mounted) {
+      if (mounted) {
+        setState(() {
+          line.setLookupStatus('Urun secimi yapilmadi.');
+        });
+      }
       return;
     }
 
     var mergedIntoExisting = false;
     setState(() {
       mergedIntoExisting = _applyProductToLine(line, product);
+      if (!mergedIntoExisting) {
+        line.setLookupStatus(
+          'Secildi: ${product.stockCode} | ${product.stockName}',
+        );
+      }
       _validationMessage = null;
     });
 
@@ -159,17 +182,34 @@ class _GivenCompanyOrderCreateSheetState
   Future<void> _findProductByBarcode(_CompanyOrderLineDraft line) async {
     final customer = _selectedCustomer;
     if (customer == null) {
+      setState(() {
+        line.setLookupStatus(
+          'Barkod aramasi icin once cari secilmeli.',
+          isError: true,
+        );
+      });
       _showFeedback('Barkod aramasi icin once musteri secin.');
       return;
     }
 
     final barcode = line.barcodeController.text.trim();
     if (barcode.length < 3) {
+      setState(() {
+        line.setLookupStatus(
+          'Barkod alanina gecerli bir deger girin.',
+          isError: true,
+        );
+      });
       _showFeedback('Barkod alanina gecerli bir deger girin.');
       return;
     }
 
     try {
+      setState(() {
+        line.setLookupStatus('API araniyor: $barcode', isLoading: true);
+        _validationMessage = null;
+      });
+
       final products = await widget.repository.searchProducts(
         accessToken: widget.accessToken,
         warehouseNo: widget.defaultWarehouseNo,
@@ -182,6 +222,12 @@ class _GivenCompanyOrderCreateSheetState
       }
 
       if (products.isEmpty) {
+        setState(() {
+          line.setLookupStatus(
+            'API cevap verdi ama barkoda ait urun bulunamadi: $barcode',
+            isError: true,
+          );
+        });
         _showFeedback('Bu barkoda ait urun bulunamadi.');
         return;
       }
@@ -189,6 +235,11 @@ class _GivenCompanyOrderCreateSheetState
       var mergedIntoExisting = false;
       setState(() {
         mergedIntoExisting = _applyProductToLine(line, products.first);
+        if (!mergedIntoExisting) {
+          line.setLookupStatus(
+            '${products.length} sonuc geldi. Secildi: ${products.first.stockCode} | ${products.first.stockName}',
+          );
+        }
         _validationMessage = null;
       });
 
@@ -201,17 +252,35 @@ class _GivenCompanyOrderCreateSheetState
       }
 
       _showFeedback(error.toString().replaceFirst('Exception: ', '').trim());
+      setState(() {
+        line.setLookupStatus(
+          'API hata dondu: ${error.toString().replaceFirst('Exception: ', '').trim()}',
+          isError: true,
+        );
+      });
     }
   }
 
   Future<void> _scanProductWithCamera(_CompanyOrderLineDraft line) async {
     final customer = _selectedCustomer;
     if (customer == null) {
+      setState(() {
+        line.setLookupStatus(
+          'Kamera ile okuma icin once cari secilmeli.',
+          isError: true,
+        );
+      });
       _showFeedback('Kamera ile okuma icin once musteri secin.');
       return;
     }
 
     if (!supportsCameraBarcodeScanning) {
+      setState(() {
+        line.setLookupStatus(
+          'Bu cihazda kamera ile barkod okutma desteklenmiyor.',
+          isError: true,
+        );
+      });
       _showFeedback('Bu cihazda kamera ile barkod okutma desteklenmiyor.');
       return;
     }
@@ -227,6 +296,9 @@ class _GivenCompanyOrderCreateSheetState
     }
 
     line.barcodeController.text = barcode;
+    setState(() {
+      line.setLookupStatus('Barkod okundu: $barcode. API aramasi basliyor.');
+    });
     await _findProductByBarcode(line);
   }
 
@@ -336,7 +408,7 @@ class _GivenCompanyOrderCreateSheetState
   }
 
   void _submit() {
-    if (!_formKey.currentState!.validate()) {
+    if (!validateCreateForm(_formKey)) {
       setState(() {
         _validationMessage = 'Lutfen zorunlu alanlari duzeltin.';
       });
@@ -425,6 +497,7 @@ class _GivenCompanyOrderCreateSheetState
             color: theme.scaffoldBackgroundColor,
             child: Form(
               key: _formKey,
+              autovalidateMode: createFormAutovalidateMode,
               child: Column(
                 children: <Widget>[
                   Container(
@@ -576,29 +649,20 @@ class _GivenCompanyOrderCreateSheetState
                           _ValidationBlock(message: _validationMessage!),
                         ],
                         const SizedBox(height: 16),
-                        Row(
-                          children: <Widget>[
-                            Expanded(
-                              child: OutlinedButton(
-                                onPressed: () => Navigator.of(context).pop(),
-                                child: const Text('Vazgec'),
-                              ),
+                        TerminalFormActionRow(
+                          submitFlex: 2,
+                          cancel: OutlinedButton(
+                            onPressed: () => Navigator.of(context).pop(),
+                            child: const Text('Vazgec'),
+                          ),
+                          submit: FilledButton.icon(
+                            onPressed: _submit,
+                            icon: const Icon(Icons.save_rounded),
+                            label: const Text('Siparisi Olustur'),
+                            style: FilledButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 14),
                             ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              flex: 2,
-                              child: FilledButton.icon(
-                                onPressed: _submit,
-                                icon: const Icon(Icons.save_rounded),
-                                label: const Text('Siparisi Olustur'),
-                                style: FilledButton.styleFrom(
-                                  padding: const EdgeInsets.symmetric(
-                                    vertical: 14,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
+                          ),
                         ),
                       ],
                     ),
@@ -854,7 +918,11 @@ class _GivenCompanyOrderCreateSheetState
                           enabled: customerSelected,
                           keyboardType: TextInputType.number,
                           textInputAction: TextInputAction.done,
-                          onSubmitted: (_) => _findProductByBarcode(line),
+                          onSubmitted: (_) {
+                            if (!line.isLookupStatusLoading) {
+                              _findProductByBarcode(line);
+                            }
+                          },
                           decoration: const InputDecoration(
                             labelText: 'Barkod',
                             hintText: 'Tarat veya yaz',
@@ -867,7 +935,8 @@ class _GivenCompanyOrderCreateSheetState
                       ),
                       const SizedBox(width: 8),
                       FilledButton.tonal(
-                        onPressed: customerSelected
+                        onPressed:
+                            customerSelected && !line.isLookupStatusLoading
                             ? () => _findProductByBarcode(line)
                             : null,
                         style: FilledButton.styleFrom(
@@ -884,7 +953,7 @@ class _GivenCompanyOrderCreateSheetState
                   SizedBox(
                     width: double.infinity,
                     child: FilledButton.tonalIcon(
-                      onPressed: customerSelected
+                      onPressed: customerSelected && !line.isLookupStatusLoading
                           ? () => _scanProductWithCamera(line)
                           : null,
                       icon: const Icon(
@@ -903,7 +972,7 @@ class _GivenCompanyOrderCreateSheetState
                   SizedBox(
                     width: double.infinity,
                     child: FilledButton.tonalIcon(
-                      onPressed: customerSelected
+                      onPressed: customerSelected && !line.isLookupStatusLoading
                           ? () => _searchProduct(line)
                           : null,
                       icon: const Icon(Icons.search_rounded, size: 18),
@@ -932,6 +1001,21 @@ class _GivenCompanyOrderCreateSheetState
                       ),
                     ),
                   ),
+                ],
+                if (line.lookupStatusMessage != null) ...<Widget>[
+                  const SizedBox(height: 8),
+                  if (line.isLookupStatusLoading)
+                    TerminalMessageBlock.loading(
+                      message: line.lookupStatusMessage!,
+                    )
+                  else if (line.isLookupStatusError)
+                    TerminalMessageBlock.error(
+                      message: line.lookupStatusMessage!,
+                    )
+                  else
+                    TerminalMessageBlock.info(
+                      message: line.lookupStatusMessage!,
+                    ),
                 ],
                 const SizedBox(height: 10),
                 TextFormField(
@@ -1035,6 +1119,9 @@ class _CompanyOrderLineDraft {
       unitPriceController = TextEditingController(text: '0');
 
   CompanyOrderProductLookupItem? selectedProduct;
+  String? lookupStatusMessage;
+  bool isLookupStatusLoading = false;
+  bool isLookupStatusError = false;
   final TextEditingController barcodeController;
   final TextEditingController stockCodeController;
   final TextEditingController quantityController;
@@ -1054,6 +1141,19 @@ class _CompanyOrderLineDraft {
     barcodeController.clear();
     stockCodeController.clear();
     unitPriceController.text = '0';
+    lookupStatusMessage = null;
+    isLookupStatusLoading = false;
+    isLookupStatusError = false;
+  }
+
+  void setLookupStatus(
+    String message, {
+    bool isLoading = false,
+    bool isError = false,
+  }) {
+    lookupStatusMessage = message;
+    isLookupStatusLoading = isLoading;
+    isLookupStatusError = isError;
   }
 
   void dispose() {

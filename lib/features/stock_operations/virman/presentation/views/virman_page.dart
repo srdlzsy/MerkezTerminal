@@ -6,6 +6,7 @@ import 'package:furpa_merkez_terminal/features/stock_operations/virman/data/mode
 import 'package:furpa_merkez_terminal/features/stock_operations/virman/data/virman_repository.dart';
 import 'package:furpa_merkez_terminal/features/stock_operations/virman/presentation/view_models/virman_controller.dart';
 import 'package:furpa_merkez_terminal/shared/formatters/app_formatters.dart';
+import 'package:furpa_merkez_terminal/shared/utils/create_form_validation.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/section_card.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/terminal_ui_parts.dart';
 
@@ -215,9 +216,7 @@ class _VirmanPageState extends State<VirmanPage> {
         ),
         if (widget.canCreate)
           FilledButton.tonalIcon(
-            onPressed: _controller.isCreating || _controller.isLoadingList
-                ? null
-                : _openCreateSheet,
+            onPressed: _controller.isCreating ? null : _openCreateSheet,
             icon: _controller.isCreating
                 ? const SizedBox(
                     height: 16,
@@ -406,42 +405,6 @@ class _VirmanDetailSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
-        Wrap(
-          spacing: 12,
-          runSpacing: 12,
-          children: <Widget>[
-            TerminalSummaryTile(
-              label: 'Depo',
-              value:
-                  '${detail.header.warehouseNo} - ${detail.header.warehouseName}',
-            ),
-            TerminalSummaryTile(
-              label: 'Belge Tarihi',
-              value: AppFormatters.dateOrDash(detail.header.documentDate),
-            ),
-            TerminalSummaryTile(
-              label: 'Hareket Tarihi',
-              value: AppFormatters.dateOrDash(detail.header.movementDate),
-            ),
-            TerminalSummaryTile(
-              label: 'Tipler',
-              value: _formatMovementTypes(detail.header.movementTypes),
-            ),
-            TerminalSummaryTile(
-              label: 'Toplam Miktar',
-              value: AppFormatters.quantity(detail.header.totalQuantity),
-            ),
-            TerminalSummaryTile(
-              label: 'Toplam Tutar',
-              value: AppFormatters.currency(detail.header.totalAmount),
-            ),
-          ],
-        ),
-        if (detail.header.description.isNotEmpty) ...<Widget>[
-          const SizedBox(height: 12),
-          TerminalMessageBlock.info(message: detail.header.description),
-        ],
-        const SizedBox(height: 12),
         if (detail.items.isEmpty)
           const TerminalEmptyState(message: 'Bu virmanda satir bulunamadi.')
         else
@@ -519,8 +482,9 @@ class _VirmanCreateSheet extends StatefulWidget {
   State<_VirmanCreateSheet> createState() => _VirmanCreateSheetState();
 }
 
-class _VirmanCreateSheetState extends State<_VirmanCreateSheet> {
-  final TextEditingController _documentNoController = TextEditingController();
+class _VirmanCreateSheetState extends State<_VirmanCreateSheet>
+    with CreateFormValidation {
+  final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   final TextEditingController _descriptionController = TextEditingController();
   final List<_VirmanDraftLine> _lines = <_VirmanDraftLine>[_VirmanDraftLine()];
   DateTime _movementDate = DateTime.now();
@@ -529,7 +493,6 @@ class _VirmanCreateSheetState extends State<_VirmanCreateSheet> {
 
   @override
   void dispose() {
-    _documentNoController.dispose();
     _descriptionController.dispose();
     for (final line in _lines) {
       line.dispose();
@@ -577,6 +540,13 @@ class _VirmanCreateSheetState extends State<_VirmanCreateSheet> {
   }
 
   void _submit() {
+    if (!validateCreateForm(_formKey)) {
+      setState(() {
+        _errorMessage = 'Lutfen zorunlu alanlari duzeltin.';
+      });
+      return;
+    }
+
     final requestLines = <VirmanCreateLine>[];
 
     for (final line in _lines) {
@@ -638,7 +608,7 @@ class _VirmanCreateSheetState extends State<_VirmanCreateSheet> {
       VirmanCreateRequest(
         movementDate: _movementDate,
         documentDate: _documentDate,
-        documentNo: _documentNoController.text.trim(),
+        documentNo: '',
         description: _descriptionController.text.trim(),
         lines: requestLines,
       ),
@@ -651,101 +621,87 @@ class _VirmanCreateSheetState extends State<_VirmanCreateSheet> {
 
     return Padding(
       padding: EdgeInsets.fromLTRB(20, 8, 20, 20 + viewInsets.bottom),
-      child: ListView(
-        shrinkWrap: true,
-        children: <Widget>[
-          const TerminalSheetHeader(
-            title: 'Yeni Virman',
-            subtitle:
-                'Virman satirlarinda movementType zorunludur. API dokumanindaki ornege uygun olarak varsayilan deger 2 ile baslatildi.',
-            padding: EdgeInsets.zero,
-          ),
-          const SizedBox(height: 16),
-          Wrap(
-            spacing: 12,
-            runSpacing: 12,
-            children: <Widget>[
-              TerminalFilterButton(
-                label: 'Hareket Tarihi',
-                value: AppFormatters.date(_movementDate),
-                onPressed: () => _pickDate(isMovementDate: true),
-              ),
-              TerminalFilterButton(
-                label: 'Belge Tarihi',
-                value: AppFormatters.date(_documentDate),
-                onPressed: () => _pickDate(isMovementDate: false),
-              ),
+      child: Form(
+        key: _formKey,
+        autovalidateMode: createFormAutovalidateMode,
+        child: ListView(
+          shrinkWrap: true,
+          children: <Widget>[
+            const TerminalSheetHeader(
+              title: 'Yeni Virman',
+              subtitle:
+                  'Virman satirlarinda movementType zorunludur. API dokumanindaki ornege uygun olarak varsayilan deger 2 ile baslatildi.',
+              padding: EdgeInsets.zero,
+            ),
+            const SizedBox(height: 16),
+            Wrap(
+              spacing: 12,
+              runSpacing: 12,
+              children: <Widget>[
+                TerminalFilterButton(
+                  label: 'Hareket Tarihi',
+                  value: AppFormatters.date(_movementDate),
+                  onPressed: () => _pickDate(isMovementDate: true),
+                ),
+                TerminalFilterButton(
+                  label: 'Belge Tarihi',
+                  value: AppFormatters.date(_documentDate),
+                  onPressed: () => _pickDate(isMovementDate: false),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: _descriptionController,
+              maxLines: 2,
+              decoration: const InputDecoration(labelText: 'Aciklama'),
+            ),
+            const SizedBox(height: 16),
+            TerminalSectionToolbar(
+              title: 'Satirlar',
+              actions: <Widget>[
+                FilledButton.tonalIcon(
+                  onPressed: _addLine,
+                  icon: const Icon(Icons.add_rounded),
+                  label: const Text('Satir Ekle'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Column(
+              children: _lines
+                  .map((line) {
+                    final index = _lines.indexOf(line);
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: _VirmanDraftLineCard(
+                        index: index,
+                        line: line,
+                        canRemove: _lines.length > 1,
+                        onRemove: () => _removeLine(line),
+                      ),
+                    );
+                  })
+                  .toList(growable: false),
+            ),
+            if (_errorMessage != null) ...<Widget>[
+              const SizedBox(height: 8),
+              TerminalMessageBlock.error(message: _errorMessage!),
             ],
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: _documentNoController,
-            decoration: const InputDecoration(labelText: 'Belge No'),
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: _descriptionController,
-            maxLines: 2,
-            decoration: const InputDecoration(labelText: 'Aciklama'),
-          ),
-          const SizedBox(height: 16),
-          Row(
-            children: <Widget>[
-              Text(
-                'Satirlar',
-                style: Theme.of(
-                  context,
-                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
+            const SizedBox(height: 12),
+            TerminalFormActionRow(
+              cancel: OutlinedButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('Vazgec'),
               ),
-              const Spacer(),
-              FilledButton.tonalIcon(
-                onPressed: _addLine,
-                icon: const Icon(Icons.add_rounded),
-                label: const Text('Satir Ekle'),
+              submit: FilledButton.icon(
+                onPressed: _submit,
+                icon: const Icon(Icons.save_alt_rounded),
+                label: const Text('Virmani Kaydet'),
               ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Column(
-            children: _lines
-                .map((line) {
-                  final index = _lines.indexOf(line);
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
-                    child: _VirmanDraftLineCard(
-                      index: index,
-                      line: line,
-                      canRemove: _lines.length > 1,
-                      onRemove: () => _removeLine(line),
-                    ),
-                  );
-                })
-                .toList(growable: false),
-          ),
-          if (_errorMessage != null) ...<Widget>[
-            const SizedBox(height: 8),
-            TerminalMessageBlock.error(message: _errorMessage!),
+            ),
           ],
-          const SizedBox(height: 12),
-          Row(
-            children: <Widget>[
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  child: const Text('Vazgec'),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: FilledButton.icon(
-                  onPressed: _submit,
-                  icon: const Icon(Icons.save_alt_rounded),
-                  label: const Text('Virmani Kaydet'),
-                ),
-              ),
-            ],
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -796,15 +752,28 @@ class _VirmanDraftLineCard extends StatelessWidget {
                 ),
             ],
           ),
-          TextField(
+          TextFormField(
             controller: line.stockCodeController,
             decoration: const InputDecoration(labelText: 'Stok Kodu*'),
+            validator: (value) {
+              if ((value ?? '').trim().isEmpty) {
+                return 'Zorunlu';
+              }
+              return null;
+            },
           ),
           const SizedBox(height: 10),
-          TextField(
+          TextFormField(
             controller: line.quantityController,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
             decoration: const InputDecoration(labelText: 'Miktar*'),
+            validator: (value) {
+              final quantity = double.tryParse((value ?? '').trim());
+              if (quantity == null || quantity <= 0) {
+                return 'Miktar > 0';
+              }
+              return null;
+            },
           ),
         ],
       ),

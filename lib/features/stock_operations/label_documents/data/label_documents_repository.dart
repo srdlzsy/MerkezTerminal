@@ -55,7 +55,7 @@ class ApiLabelDocumentsRepository implements LabelDocumentsRepository {
     int take = 10,
   }) async {
     final response = await _apiClient.getJsonList(
-      '/api/stok-islemleri/etiket-belgeleri',
+      '/api/kasa-islemleri/etiket-belgeleri',
       accessToken: accessToken,
       queryParameters: <String, String>{
         'warehouseNo': warehouseNo,
@@ -78,7 +78,7 @@ class ApiLabelDocumentsRepository implements LabelDocumentsRepository {
     required String warehouseNo,
   }) async {
     final response = await _apiClient.getJsonList(
-      '/api/stok-islemleri/etiket-belgeleri/tumu',
+      '/api/kasa-islemleri/etiket-belgeleri/tumu',
       accessToken: accessToken,
       queryParameters: <String, String>{'warehouseNo': warehouseNo},
     );
@@ -99,7 +99,7 @@ class ApiLabelDocumentsRepository implements LabelDocumentsRepository {
     required String warehouseNo,
   }) async {
     final response = await _apiClient.getJsonList(
-      '/api/stok-islemleri/etiket-belgeleri/$documentId',
+      '/api/kasa-islemleri/etiket-belgeleri/$documentId',
       accessToken: accessToken,
       queryParameters: <String, String>{'warehouseNo': warehouseNo},
     );
@@ -119,18 +119,14 @@ class ApiLabelDocumentsRepository implements LabelDocumentsRepository {
     required DateTime dateToGet,
   }) async {
     final response = await _apiClient.getJsonList(
-      '/api/stok-islemleri/etiket-belgeleri/etiketler',
+      '/api/kasa-islemleri/etiket-belgeleri/etiketler',
       accessToken: accessToken,
-      queryParameters: <String, String>{
-        'dateToGet': _toApiDate(dateToGet),
-      },
+      queryParameters: <String, String>{'dateToGet': _toApiDate(dateToGet)},
     );
 
     return response
         .map(
-          (item) => LabelTag.fromJson(
-            item as JsonMap? ?? <String, dynamic>{},
-          ),
+          (item) => LabelTag.fromJson(item as JsonMap? ?? <String, dynamic>{}),
         )
         .toList(growable: false);
   }
@@ -141,7 +137,7 @@ class ApiLabelDocumentsRepository implements LabelDocumentsRepository {
     required DateTime dateTimeFilter,
   }) async {
     final response = await _apiClient.getJsonList(
-      '/api/stok-islemleri/etiket-belgeleri/fiyati-degisen-urunler',
+      '/api/kasa-islemleri/etiket-belgeleri/fiyati-degisen-urunler',
       accessToken: accessToken,
       queryParameters: <String, String>{
         'dateTimeFilter': _toLegacyDateTime(dateTimeFilter),
@@ -163,7 +159,7 @@ class ApiLabelDocumentsRepository implements LabelDocumentsRepository {
     required CreateLabelDocumentRequest request,
   }) async {
     final response = await _apiClient.postJsonMap(
-      '/api/stok-islemleri/etiket-belgeleri',
+      '/api/kasa-islemleri/etiket-belgeleri',
       accessToken: accessToken,
       body: request.toJson(),
     );

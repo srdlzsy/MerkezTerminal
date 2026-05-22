@@ -21,6 +21,11 @@ abstract class WarehouseAcceptancesRepository {
     required int documentOrderNo,
     required WarehouseAcceptanceRequest request,
   });
+
+  Future<List<WarehouseAcceptanceDifferenceItem>> fetchDifferences({
+    required String accessToken,
+    required WarehouseAcceptanceDifferenceFilter filter,
+  });
 }
 
 class ApiWarehouseAcceptancesRepository
@@ -82,5 +87,25 @@ class ApiWarehouseAcceptancesRepository
     );
 
     return WarehouseAcceptanceResult.fromJson(response);
+  }
+
+  @override
+  Future<List<WarehouseAcceptanceDifferenceItem>> fetchDifferences({
+    required String accessToken,
+    required WarehouseAcceptanceDifferenceFilter filter,
+  }) async {
+    final response = await _apiClient.getJsonList(
+      '/api/mal-kabul-islemleri/mal-kabul-farklari',
+      accessToken: accessToken,
+      queryParameters: filter.toQueryParameters(),
+    );
+
+    return response
+        .map(
+          (item) => WarehouseAcceptanceDifferenceItem.fromJson(
+            item as JsonMap? ?? <String, dynamic>{},
+          ),
+        )
+        .toList(growable: false);
   }
 }

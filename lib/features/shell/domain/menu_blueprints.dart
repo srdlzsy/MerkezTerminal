@@ -182,7 +182,7 @@ abstract final class MenuBlueprintRegistry {
     'mal-kabul-islemleri.depo-mal-kabulleri': const MenuBlueprint(
       title: 'Depo Mal Kabulleri',
       subtitle:
-          'Bekleyen gelen sevkleri listeler ve movementGuid bazli kabul akisini yonetir.',
+          'Bekleyen gelen sevk ve iadeleri listeler, movementGuid bazli kabul akisini yonetir.',
       endpoints: <EndpointSpec>[
         EndpointSpec(
           label: 'Liste',
@@ -202,9 +202,37 @@ abstract final class MenuBlueprintRegistry {
         ),
       ],
       uiNotes: <String>[
-        'Liste bekleyen gelen sevkleri gosterir; yeni bos fis acilmaz.',
+        'Liste bekleyen gelen sevkleri ve gelen depo iadelerini gosterir; yeni bos fis acilmaz.',
+        'isReturn=false normal gelen depo sevkini, isReturn=true gelen depo iadesini ifade eder.',
         'UI her satir icin receivedQuantity alanini sevk miktariyla onceden doldurabilir.',
-        'Eksik veya fazla durumda allowDiscrepancy kullanicidan acik onay alinarak gonderilmeli.',
+        'Eksik veya fazla durumda allowDiscrepancy kullanicidan acik onay alinarak gonderilmeli; fark sth_FormulMiktar uzerinde izlenir.',
+      ],
+    ),
+    'mal-kabul-islemleri.mal-kabul-farklari': const MenuBlueprint(
+      title: 'Mal Kabul Farklari',
+      subtitle:
+          'Kabul edilmis depo sevki veya depo iadesi satirlarindaki eksik/fazla farklarini listeler.',
+      endpoints: <EndpointSpec>[
+        EndpointSpec(
+          label: 'Liste',
+          method: 'GET',
+          path: '/api/mal-kabul-islemleri/mal-kabul-farklari',
+        ),
+        EndpointSpec(
+          label: 'Kabul Ettigim',
+          method: 'GET',
+          path: '/api/mal-kabul-islemleri/mal-kabul-farklari/accepted',
+        ),
+        EndpointSpec(
+          label: 'Olusturdugum',
+          method: 'GET',
+          path: '/api/mal-kabul-islemleri/mal-kabul-farklari/created',
+        ),
+      ],
+      uiNotes: <String>[
+        'StartDate ve EndDate zorunludur; WarehouseNo verilmezse backend JWT deposunu kullanir.',
+        'scope=accepted kullanicinin deposunun kabul ettigi evraklari, scope=created kendi olusturdugu/gonderdigi evraklari listeler.',
+        'Normal sevk ve depo iadesi ayni listede gelir; isReturn alanina gore rozet basilabilir.',
       ],
     ),
     'stok-islemleri.sayim-sonuclari': const MenuBlueprint(

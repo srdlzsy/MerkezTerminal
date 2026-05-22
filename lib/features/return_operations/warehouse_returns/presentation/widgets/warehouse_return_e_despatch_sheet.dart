@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:furpa_merkez_terminal/features/return_operations/warehouse_returns/data/models/warehouse_return_models.dart';
+import 'package:furpa_merkez_terminal/shared/utils/create_form_validation.dart';
 
 class WarehouseReturnEDespatchSheet extends StatefulWidget {
   const WarehouseReturnEDespatchSheet({
@@ -22,7 +23,8 @@ class WarehouseReturnEDespatchSheet extends StatefulWidget {
 }
 
 class _WarehouseReturnEDespatchSheetState
-    extends State<WarehouseReturnEDespatchSheet> {
+    extends State<WarehouseReturnEDespatchSheet>
+    with CreateFormValidation {
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   late final TextEditingController _plaqueController;
   late final TextEditingController _driverController;
@@ -49,7 +51,7 @@ class _WarehouseReturnEDespatchSheetState
   void _submit() {
     final form = _formKey.currentState;
 
-    if (form == null || !form.validate()) {
+    if (form == null || !validateCreateForm(_formKey)) {
       return;
     }
 
@@ -70,22 +72,23 @@ class _WarehouseReturnEDespatchSheetState
       padding: EdgeInsets.fromLTRB(20, 8, 20, 20 + viewInsets.bottom),
       child: Form(
         key: _formKey,
+        autovalidateMode: createFormAutovalidateMode,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
             Text(
               'E-Irsaliyeye Cevir',
-              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.w800,
-                  ),
+              style: Theme.of(
+                context,
+              ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800),
             ),
             const SizedBox(height: 8),
             Text(
               '${widget.documentNoLabel} icin tasima bilgilerini girip gonderimi baslatin.',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    height: 1.5,
-                  ),
+              style: Theme.of(
+                context,
+              ).textTheme.bodyMedium?.copyWith(height: 1.5),
             ),
             const SizedBox(height: 20),
             TextFormField(
@@ -156,9 +159,9 @@ class _WarehouseReturnEDespatchSheetState
               ),
               child: Text(
                 'Dokumana gore bu alanlar create ekraninda degil, tam gonderim aninda zorunlu alinmali.',
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      height: 1.5,
-                    ),
+                style: Theme.of(
+                  context,
+                ).textTheme.bodySmall?.copyWith(height: 1.5),
               ),
             ),
             const SizedBox(height: 20),

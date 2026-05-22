@@ -17,6 +17,7 @@ class OfflineCompanyAcceptanceDraft {
     required this.receiver,
     required this.description,
     required this.allowOrderOverReceiving,
+    required this.autoCreateReturnForPartialAcceptance,
     required this.createdAt,
     required this.status,
     required this.lastSyncAttemptAt,
@@ -36,6 +37,7 @@ class OfflineCompanyAcceptanceDraft {
   final String receiver;
   final String description;
   final bool allowOrderOverReceiving;
+  final bool autoCreateReturnForPartialAcceptance;
   final DateTime createdAt;
   final OfflineRecordStatus status;
   final DateTime? lastSyncAttemptAt;
@@ -58,12 +60,15 @@ class OfflineCompanyAcceptanceDraft {
       receiver: receiver,
       description: description,
       allowOrderOverReceiving: allowOrderOverReceiving,
+      autoCreateReturnForPartialAcceptance:
+          autoCreateReturnForPartialAcceptance,
       clientRequestId: clientRequestId,
       lines: lines
           .map(
             (item) => CompanyAcceptanceCreateLine(
               stockCode: item.stockCode,
-              quantity: item.quantity,
+              dispatchQuantity: item.dispatchQuantity,
+              acceptedQuantity: item.acceptedQuantity,
               unitPrice: item.unitPrice,
               unitPointer: item.unitPointer,
               lastConsumingDate: item.lastConsumingDate,
@@ -98,6 +103,8 @@ class OfflineCompanyAcceptanceDraft {
       receiver: receiver,
       description: description,
       allowOrderOverReceiving: allowOrderOverReceiving,
+      autoCreateReturnForPartialAcceptance:
+          autoCreateReturnForPartialAcceptance,
       createdAt: createdAt,
       status: status ?? this.status,
       lastSyncAttemptAt: lastSyncAttemptAt ?? this.lastSyncAttemptAt,
@@ -120,6 +127,8 @@ class OfflineCompanyAcceptanceDraft {
       'receiver': receiver,
       'description': description,
       'allowOrderOverReceiving': allowOrderOverReceiving,
+      'autoCreateReturnForPartialAcceptance':
+          autoCreateReturnForPartialAcceptance,
       'createdAt': createdAt.toIso8601String(),
       'status': encodeOfflineRecordStatus(status),
       'lastSyncAttemptAt': lastSyncAttemptAt?.toIso8601String(),
@@ -147,6 +156,8 @@ class OfflineCompanyAcceptanceDraft {
       description: json['description']?.toString() ?? '',
       allowOrderOverReceiving:
           json['allowOrderOverReceiving'] as bool? ?? false,
+      autoCreateReturnForPartialAcceptance:
+          json['autoCreateReturnForPartialAcceptance'] as bool? ?? true,
       createdAt:
           DateTime.tryParse(json['createdAt']?.toString() ?? '') ??
           DateTime.now(),
@@ -193,6 +204,8 @@ class OfflineCompanyAcceptanceDraft {
       receiver: request.receiver,
       description: request.description,
       allowOrderOverReceiving: request.allowOrderOverReceiving,
+      autoCreateReturnForPartialAcceptance:
+          request.autoCreateReturnForPartialAcceptance,
       createdAt: createdAt,
       status: status,
       lastSyncAttemptAt: lastSyncAttemptAt,
@@ -203,7 +216,8 @@ class OfflineCompanyAcceptanceDraft {
               stockCode: item.stockCode,
               stockName: '',
               barcode: '',
-              quantity: item.quantity,
+              dispatchQuantity: item.dispatchQuantity,
+              acceptedQuantity: item.acceptedQuantity,
               unitPrice: item.unitPrice,
               unitPointer: item.unitPointer,
               lastConsumingDate: item.lastConsumingDate,
@@ -226,7 +240,8 @@ class OfflineCompanyAcceptanceLine {
     required this.stockCode,
     required this.stockName,
     required this.barcode,
-    required this.quantity,
+    required this.dispatchQuantity,
+    required this.acceptedQuantity,
     required this.unitPrice,
     required this.unitPointer,
     required this.lastConsumingDate,
@@ -242,7 +257,8 @@ class OfflineCompanyAcceptanceLine {
   final String stockCode;
   final String stockName;
   final String barcode;
-  final double quantity;
+  final double dispatchQuantity;
+  final double acceptedQuantity;
   final double unitPrice;
   final int unitPointer;
   final DateTime? lastConsumingDate;
@@ -254,12 +270,19 @@ class OfflineCompanyAcceptanceLine {
   final String customerResponsibilityCenter;
   final String productResponsibilityCenter;
 
+  double get quantity => dispatchQuantity;
+  double get returnQuantity {
+    final value = dispatchQuantity - acceptedQuantity;
+    return value > 0 ? value : 0;
+  }
+
   Map<String, dynamic> toJson() {
     return <String, dynamic>{
       'stockCode': stockCode,
       'stockName': stockName,
       'barcode': barcode,
-      'quantity': quantity,
+      'dispatchQuantity': dispatchQuantity,
+      'acceptedQuantity': acceptedQuantity,
       'unitPrice': unitPrice,
       'unitPointer': unitPointer,
       'lastConsumingDate': lastConsumingDate?.toIso8601String(),
@@ -274,11 +297,23 @@ class OfflineCompanyAcceptanceLine {
   }
 
   factory OfflineCompanyAcceptanceLine.fromJson(Map<String, dynamic> json) {
+    final legacyQuantity = _readNullableDouble(json['quantity']);
+    final dispatchQuantity =
+        _readNullableDouble(json['dispatchQuantity']) ??
+        legacyQuantity ??
+        _readNullableDouble(json['acceptedQuantity']) ??
+        0;
+    final acceptedQuantity =
+        _readNullableDouble(json['acceptedQuantity']) ??
+        legacyQuantity ??
+        dispatchQuantity;
+
     return OfflineCompanyAcceptanceLine(
       stockCode: json['stockCode']?.toString() ?? '',
       stockName: json['stockName']?.toString() ?? '',
       barcode: json['barcode']?.toString() ?? '',
-      quantity: double.tryParse(json['quantity']?.toString() ?? '') ?? 0,
+      dispatchQuantity: dispatchQuantity,
+      acceptedQuantity: acceptedQuantity,
       unitPrice: double.tryParse(json['unitPrice']?.toString() ?? '') ?? 0,
       unitPointer: int.tryParse(json['unitPointer']?.toString() ?? '') ?? 1,
       lastConsumingDate: DateTime.tryParse(
@@ -295,6 +330,23 @@ class OfflineCompanyAcceptanceLine {
           json['productResponsibilityCenter']?.toString() ?? '',
     );
   }
+}
+
+double? _readNullableDouble(Object? value) {
+  if (value == null) {
+    return null;
+  }
+
+  if (value is num) {
+    return value.toDouble();
+  }
+
+  final raw = value.toString().trim();
+  if (raw.isEmpty) {
+    return null;
+  }
+
+  return double.tryParse(raw);
 }
 
 String encodeOfflineCompanyAcceptanceDrafts(

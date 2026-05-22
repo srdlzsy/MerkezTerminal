@@ -4,7 +4,9 @@ import 'package:furpa_merkez_terminal/features/order_operations/shared/data/mode
 import 'package:furpa_merkez_terminal/features/return_operations/warehouse_returns/data/models/warehouse_return_models.dart';
 import 'package:furpa_merkez_terminal/features/return_operations/warehouse_returns/data/warehouse_returns_repository.dart';
 import 'package:furpa_merkez_terminal/shared/formatters/app_formatters.dart';
+import 'package:furpa_merkez_terminal/shared/utils/create_form_validation.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/barcode_camera_scan_page.dart';
+import 'package:furpa_merkez_terminal/shared/widgets/terminal_ui_parts.dart';
 
 class WarehouseReturnCreateSheet extends StatefulWidget {
   const WarehouseReturnCreateSheet({
@@ -23,13 +25,12 @@ class WarehouseReturnCreateSheet extends StatefulWidget {
       _WarehouseReturnCreateSheetState();
 }
 
-class _WarehouseReturnCreateSheetState
-    extends State<WarehouseReturnCreateSheet> {
+class _WarehouseReturnCreateSheetState extends State<WarehouseReturnCreateSheet>
+    with CreateFormValidation {
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   final ScrollController _scrollController = ScrollController();
   late final TextEditingController _targetWarehouseController;
   late final TextEditingController _transitWarehouseController;
-  late final TextEditingController _documentNoController;
   late final TextEditingController _descriptionController;
   late DateTime _movementDate;
   late DateTime _documentDate;
@@ -46,7 +47,6 @@ class _WarehouseReturnCreateSheetState
     super.initState();
     _targetWarehouseController = TextEditingController();
     _transitWarehouseController = TextEditingController(text: '60');
-    _documentNoController = TextEditingController();
     _descriptionController = TextEditingController();
     _movementDate = _normalizeDate(DateTime.now());
     _documentDate = _normalizeDate(DateTime.now());
@@ -58,7 +58,6 @@ class _WarehouseReturnCreateSheetState
     _scrollController.dispose();
     _targetWarehouseController.dispose();
     _transitWarehouseController.dispose();
-    _documentNoController.dispose();
     _descriptionController.dispose();
     for (final line in _lines) {
       line.dispose();
@@ -200,7 +199,7 @@ class _WarehouseReturnCreateSheetState
   }
 
   void _submit() {
-    if (!_formKey.currentState!.validate()) {
+    if (!validateCreateForm(_formKey)) {
       setState(() {
         _validationMessage = 'Lutfen zorunlu alanlari kontrol edin.';
       });
@@ -260,7 +259,7 @@ class _WarehouseReturnCreateSheetState
         transitWarehouseNo: transitWarehouseNo,
         movementDate: _movementDate,
         documentDate: _documentDate,
-        documentNo: _documentNoController.text.trim(),
+        documentNo: '',
         description: _descriptionController.text.trim(),
         lines: requestLines,
       ),
@@ -281,6 +280,7 @@ class _WarehouseReturnCreateSheetState
             color: theme.scaffoldBackgroundColor,
             child: Form(
               key: _formKey,
+              autovalidateMode: createFormAutovalidateMode,
               child: Column(
                 children: <Widget>[
                   Container(
@@ -352,14 +352,6 @@ class _WarehouseReturnCreateSheetState
                         ),
                         const SizedBox(height: 12),
                         TextFormField(
-                          controller: _documentNoController,
-                          decoration: const InputDecoration(
-                            labelText: 'Belge No',
-                            hintText: 'Bos birakilabilir',
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        TextFormField(
                           controller: _descriptionController,
                           minLines: 2,
                           maxLines: 3,
@@ -368,15 +360,9 @@ class _WarehouseReturnCreateSheetState
                           ),
                         ),
                         const SizedBox(height: 16),
-                        Row(
-                          children: <Widget>[
-                            Text(
-                              'Satirlar',
-                              style: theme.textTheme.titleMedium?.copyWith(
-                                fontWeight: FontWeight.w800,
-                              ),
-                            ),
-                            const Spacer(),
+                        TerminalSectionToolbar(
+                          title: 'Satirlar',
+                          actions: <Widget>[
                             OutlinedButton.icon(
                               onPressed: _hasTargetWarehouse ? _addLine : null,
                               icon: const Icon(Icons.add_rounded),
@@ -397,23 +383,16 @@ class _WarehouseReturnCreateSheetState
                           _ValidationBlock(message: _validationMessage!),
                         ],
                         const SizedBox(height: 16),
-                        Row(
-                          children: <Widget>[
-                            Expanded(
-                              child: OutlinedButton(
-                                onPressed: () => Navigator.of(context).pop(),
-                                child: const Text('Vazgec'),
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: FilledButton.icon(
-                                onPressed: _submit,
-                                icon: const Icon(Icons.save_rounded),
-                                label: const Text('Iadeyi Kaydet'),
-                              ),
-                            ),
-                          ],
+                        TerminalFormActionRow(
+                          cancel: OutlinedButton(
+                            onPressed: () => Navigator.of(context).pop(),
+                            child: const Text('Vazgec'),
+                          ),
+                          submit: FilledButton.icon(
+                            onPressed: _submit,
+                            icon: const Icon(Icons.save_rounded),
+                            label: const Text('Iadeyi Kaydet'),
+                          ),
                         ),
                       ],
                     ),
@@ -602,6 +581,12 @@ class _WarehouseReturnCreateSheetState
               FilteringTextInputFormatter.allow(RegExp(r'[0-9,\.]')),
             ],
             decoration: const InputDecoration(labelText: 'Miktar*'),
+            validator: (_) {
+              if (line.quantity <= 0) {
+                return 'Miktar > 0';
+              }
+              return null;
+            },
           ),
         ],
       ),

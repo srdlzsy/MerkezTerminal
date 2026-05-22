@@ -300,10 +300,7 @@ class _WarehouseReturnsPageState extends State<WarehouseReturnsPage> {
           label: 'Varsayilan depo',
           value: '${widget.defaultWarehouseNo} - ${widget.userWarehouseName}',
         ),
-        TerminalInfoChip(
-          label: 'Perspektif',
-          value: widget.direction.perspectiveLabel,
-        ),
+
         TerminalInfoChip(
           label: 'Kayit',
           value: '${_controller.returns.length}',
@@ -334,9 +331,7 @@ class _WarehouseReturnsPageState extends State<WarehouseReturnsPage> {
         ),
         if (widget.direction == WarehouseReturnDirection.outgoing)
           FilledButton.tonalIcon(
-            onPressed: _controller.isCreating || _controller.isLoadingList
-                ? null
-                : _openCreateSheet,
+            onPressed: _controller.isCreating ? null : _openCreateSheet,
             icon: _controller.isCreating
                 ? const SizedBox(
                     height: 16,
@@ -699,7 +694,6 @@ class _ReturnDetailBody extends StatelessWidget {
             ),
             const SizedBox(height: 18),
           ],
-          _ReturnHeaderSummary(header: currentDetail.header),
           if (currentEDespatchResult case final result?) ...<Widget>[
             const SizedBox(height: 18),
             _EDespatchResultCard(result: result),
@@ -869,100 +863,6 @@ class _EDespatchResultCard extends StatelessWidget {
           ),
         ],
       ),
-    );
-  }
-}
-
-class _ReturnHeaderSummary extends StatelessWidget {
-  const _ReturnHeaderSummary({required this.header});
-
-  final WarehouseReturnDetailHeader header;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: <Widget>[
-        Wrap(
-          spacing: 12,
-          runSpacing: 12,
-          children: <Widget>[
-            _SummaryTile(label: 'Belge No', value: header.documentNoLabel),
-            _SummaryTile(
-              label: 'Belge Tarihi',
-              value: AppFormatters.dateOrDash(header.documentDate),
-            ),
-            _SummaryTile(
-              label: 'Iade Tarihi',
-              value: AppFormatters.dateOrDash(header.movementDate),
-            ),
-            _SummaryTile(
-              label: 'Durum',
-              value: _shippingStateLabel(header.shippingState),
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
-        Wrap(
-          spacing: 12,
-          runSpacing: 12,
-          children: <Widget>[
-            _SummaryTile(
-              label: 'Kaynak',
-              value: '${header.sourceWarehouseNo} - ${header.sourceWarehouse}',
-            ),
-            _SummaryTile(
-              label: 'Hedef',
-              value: '${header.targetWarehouseNo} - ${header.targetWarehouse}',
-            ),
-            _SummaryTile(
-              label: 'Transit',
-              value: '${header.shippingWarehouseNo}',
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
-        Wrap(
-          spacing: 12,
-          runSpacing: 12,
-          children: <Widget>[
-            _SummaryTile(label: 'Satir', value: '${header.lineCount}'),
-            _SummaryTile(
-              label: 'Toplam Miktar',
-              value: AppFormatters.quantity(header.totalQuantity),
-            ),
-            if (header.totalAmount > 0)
-              _SummaryTile(
-                label: 'Toplam Tutar',
-                value: AppFormatters.currency(header.totalAmount),
-              ),
-            if (header.warehouseOrderNos.isNotEmpty)
-              _SummaryTile(
-                label: 'Bagli Evraklar',
-                value: header.warehouseOrderNos.join(', '),
-              ),
-          ],
-        ),
-        if (header.plaque.isNotEmpty ||
-            header.driverNameSurname.isNotEmpty ||
-            header.driverTckn.isNotEmpty ||
-            header.descriptionEttn.isNotEmpty) ...<Widget>[
-          const SizedBox(height: 12),
-          Wrap(
-            spacing: 12,
-            runSpacing: 12,
-            children: <Widget>[
-              if (header.plaque.isNotEmpty)
-                _SummaryTile(label: 'Plaka', value: header.plaque),
-              if (header.driverNameSurname.isNotEmpty)
-                _SummaryTile(label: 'Sofor', value: header.driverNameSurname),
-              if (header.driverTckn.isNotEmpty)
-                _SummaryTile(label: 'TCKN', value: header.driverTckn),
-              if (header.descriptionEttn.isNotEmpty)
-                _SummaryTile(label: 'ETTN', value: header.descriptionEttn),
-            ],
-          ),
-        ],
-      ],
     );
   }
 }

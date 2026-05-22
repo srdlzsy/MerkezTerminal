@@ -1010,7 +1010,7 @@ Bakimda ozellikle sunlara bak:
 
 ### Release oncesi kisa kontrol
 
-Release veya saha test paketi almadan once:
+Release veya saha test paketi almadan once su liste gecilmeli:
 
 1. API base URL dogru mu?
 2. HTTP/HTTPS ve cleartext ayari hedef ortama uygun mu?
@@ -1021,6 +1021,175 @@ Release veya saha test paketi almadan once:
 7. Offline create + sync akisi denenmis mi?
 8. `flutter analyze` temiz mi?
 9. `flutter test` temiz mi?
+
+### Android release signing ilk kurulum
+
+Release APK'nin kullanici cihazinda guncelleme olarak kurulabilmesi icin ayni uygulama imzasi korunmalidir. Bu yuzden keystore dosyasi kaybedilmemeli ve sifreleri guvenli yerde saklanmalidir.
+
+Bu projede Android imza ayari su dosyada yapilir:
+
+```text
+android/app/build.gradle.kts
+```
+
+Mantik su:
+
+- `android/key.properties` varsa release build bu dosyadaki keystore ile imzalanir.
+- `android/key.properties` yoksa build debug imzasina duser.
+- Debug imzali APK saha test icin kurulabilir ama nihai dagitim sayilmamalidir.
+
+Ilk kez release anahtari olusturma:
+
+```powershell
+keytool -genkeypair -v -keystore android\app\upload-keystore.jks -storetype JKS -keyalg RSA -keysize 2048 -validity 10000 -alias upload
+```
+
+Sonra `android/key.properties` dosyasi olusturulur:
+
+```properties
+storePassword=KEYSTORE_SIFRESI
+keyPassword=KEY_SIFRESI
+keyAlias=upload
+storeFile=app/upload-keystore.jks
+```
+
+`keytool` sirasinda key password icin Enter ile ayni sifre kullanildiysa `storePassword` ve `keyPassword` ayni olabilir.
+
+Asla commitlenmemesi gereken dosyalar:
+
+```text
+android/key.properties
+android/app/upload-keystore.jks
+```
+
+`android/.gitignore` bu dosyalari ignore eder. Yine de commit oncesi `git status` ile kontrol edilmelidir.
+
+Keystore olustu mu hizli kontrol:
+
+```powershell
+Test-Path android\key.properties
+Test-Path android\app\upload-keystore.jks
+```
+
+Alias kontrolu gerekiyorsa:
+
+```powershell
+keytool -list -v -keystore android\app\upload-keystore.jks -alias upload
+```
+
+Bu komut sifre sorar; sifre ekrana yazilmaz.
+
+### Yeni versiyon atma akisi
+
+Yeni APK/AAB cikmadan once `pubspec.yaml` icindeki version artirilmalidir:
+
+```yaml
+version: 1.0.0+1
+```
+
+Burada:
+
+- `1.0.0` kullanicinin gorecegi versiyondur.
+- `+1` Android `versionCode` degeridir.
+- Ayni cihaza veya Play Store'a guncelleme vermek icin `+` sonrasi sayi her release'te artmalidir.
+
+Ornek:
+
+```yaml
+version: 1.0.1+2
+```
+
+Sadece ic test paketi alirken bile build numarasini artirmak kurulum karisikliklarini azaltir.
+
+Yeni surumden once rutin komutlar:
+
+```powershell
+flutter pub get
+dart format lib test
+flutter analyze
+flutter test
+```
+
+Icon degistiyse:
+
+```powershell
+flutter pub run flutter_launcher_icons
+```
+
+Release APK alma:
+
+```powershell
+flutter build apk --release
+```
+
+APK cikti yolu:
+
+```text
+build/app/outputs/flutter-apk/app-release.apk
+```
+
+Play Store veya merkezi dagitim AAB istiyorsa:
+
+```powershell
+flutter build appbundle --release
+```
+
+AAB cikti yolu:
+
+```text
+build/app/outputs/bundle/release/app-release.aab
+```
+
+Hedef ortama gore API adresi build sirasinda verilecekse:
+
+```powershell
+flutter build apk --release --dart-define=API_BASE_URL_ANDROID=http://10.0.0.100:7508
+```
+
+Android uygulama kimligi su anda:
+
+```text
+com.furpa.furpa_merkez_terminal
+```
+
+Bu deger degistirilirse cihaz bunu eski uygulamanin guncellemesi olarak gormez; yeni uygulama gibi kurulur. Mecbur kalmadikca `applicationId` degistirilmemelidir.
+
+### Saha cihazi guncelleme notlari
+
+APK ayni `applicationId` ve ayni release keystore ile imzalandiysa mevcut uygulamanin uzerine guncelleme olarak kurulabilir.
+
+ADB ile manuel kurulum:
+
+```powershell
+adb install -r build\app\outputs\flutter-apk\app-release.apk
+```
+
+Temiz kurulum gerekiyorsa once uygulama kaldirilabilir, ama bu lokal token/offline draft gibi cihazdaki uygulama verilerini silebilir. Offline kayit bekleyen cihazlarda once sync tamamlanmalidir.
+
+Dagitimdan sonra sahada minimum manuel smoke test:
+
+1. Uygulama aciliyor mu?
+2. Ikon ve uygulama adi dogru mu?
+3. Login oluyor mu?
+4. Menu listesi geliyor mu?
+5. Barkod/kamera izni calisiyor mu?
+6. Kritik liste/detail ekranlari aciliyor mu?
+7. Terminal geri tusu uygulamayi kapatmadan once menu/anasayfa akisini yapiyor mu?
+8. Offline create kullanilan cihazda internet kapali/acik senaryosu calisiyor mu?
+
+### Release icin eksik sayilacak durumlar
+
+Asagidakilerden biri varsa paket "dagitima hazir" sayilmamalidir:
+
+- `flutter analyze` hata veriyor.
+- `flutter test` hata veriyor.
+- `android/key.properties` yok veya bos alan iceriyor.
+- `android/app/upload-keystore.jks` yok.
+- `pubspec.yaml` `version` build numarasi artirilmamis.
+- API base URL test/production hedefi icin yanlis.
+- Kamera veya internet izni hedef cihazda denenmemis.
+- Offline draft bekleyen cihazlara temiz kurulum yapilacaksa sync plani yok.
+- Ikon/app adi degistiyse launcher icon ve manifest yeniden uretilmemis.
 
 ### Codex / Windows ortam notu
 

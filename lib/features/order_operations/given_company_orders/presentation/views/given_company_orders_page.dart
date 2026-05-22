@@ -228,9 +228,7 @@ class _GivenCompanyOrdersPageState extends State<GivenCompanyOrdersPage> {
         ),
         if (widget.canCreate && _controller.canCreate)
           FilledButton.tonalIcon(
-            onPressed: _controller.isCreating || _controller.isLoadingList
-                ? null
-                : _openCreateSheet,
+            onPressed: _controller.isCreating ? null : _openCreateSheet,
             icon: _controller.isCreating
                 ? const SizedBox(
                     height: 16,
@@ -529,8 +527,6 @@ class _DetailBody extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          _HeaderSummary(header: detail!.header),
-          const SizedBox(height: 14),
           Text(
             'Kalemler',
             style: Theme.of(
@@ -541,104 +537,6 @@ class _DetailBody extends StatelessWidget {
           _ItemsList(items: detail!.items),
         ],
       ),
-    );
-  }
-}
-
-class _HeaderSummary extends StatelessWidget {
-  const _HeaderSummary({required this.header});
-
-  final CompanyOrderDetailHeader header;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: <Widget>[
-        Wrap(
-          spacing: 10,
-          runSpacing: 10,
-          children: <Widget>[
-            _SummaryTile(label: 'Belge No', value: header.documentNoLabel),
-            _SummaryTile(
-              label: 'Belge Tarihi',
-              value: AppFormatters.dateOrDash(header.documentDate),
-            ),
-            _SummaryTile(
-              label: 'Teslim Tarihi',
-              value: AppFormatters.dateOrDash(header.deliveryDate),
-            ),
-            _SummaryTile(
-              label: 'Durum',
-              value: header.isClosed ? 'Kapali' : 'Acik',
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
-        Wrap(
-          spacing: 10,
-          runSpacing: 10,
-          children: <Widget>[
-            _SummaryTile(
-              label: 'Depo',
-              value: '${header.warehouseNo} - ${header.warehouseName}',
-            ),
-            _SummaryTile(label: 'Musteri', value: header.customerDisplayName),
-            _SummaryTile(
-              label: 'Temsilci',
-              value: header.customerRepresentativeCode.isEmpty
-                  ? '-'
-                  : header.customerRepresentativeCode,
-            ),
-            _SummaryTile(
-              label: 'Aranabilir',
-              value: header.canBeCalled ? 'Evet' : 'Hayir',
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
-        Wrap(
-          spacing: 10,
-          runSpacing: 10,
-          children: <Widget>[
-            _SummaryTile(
-              label: 'Toplam miktar',
-              value: AppFormatters.quantity(header.totalQuantity),
-            ),
-            _SummaryTile(
-              label: 'Teslim',
-              value: AppFormatters.quantity(header.totalDeliveredQuantity),
-            ),
-            _SummaryTile(
-              label: 'Kalan',
-              value: AppFormatters.quantity(header.totalRemainingQuantity),
-            ),
-            _SummaryTile(
-              label: 'Toplam tutar',
-              value: AppFormatters.currency(header.totalAmount),
-            ),
-          ],
-        ),
-        if (header.customerAddress.isNotEmpty ||
-            header.description1.isNotEmpty ||
-            header.description2.isNotEmpty ||
-            header.deliverer.isNotEmpty ||
-            header.receiver.isNotEmpty) ...<Widget>[
-          const SizedBox(height: 12),
-          _InfoBlock(
-            message: [
-              if (header.customerAddress.isNotEmpty)
-                'Adres: ${header.customerAddress}',
-              if (header.description1.isNotEmpty)
-                'Aciklama 1: ${header.description1}',
-              if (header.description2.isNotEmpty)
-                'Aciklama 2: ${header.description2}',
-              if (header.deliverer.isNotEmpty)
-                'Teslim Eden: ${header.deliverer}',
-              if (header.receiver.isNotEmpty) 'Teslim Alan: ${header.receiver}',
-            ].join(' | '),
-          ),
-        ],
-      ],
     );
   }
 }
@@ -789,44 +687,6 @@ class _InlineField extends StatelessWidget {
   }
 }
 
-class _SummaryTile extends StatelessWidget {
-  const _SummaryTile({required this.label, required this.value});
-
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 164,
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: Theme.of(context).colorScheme.outlineVariant.withAlpha(82),
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          Text(label, style: Theme.of(context).textTheme.labelSmall),
-          const SizedBox(height: 4),
-          Text(
-            value,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.w800,
-              color: const Color(0xFF231C17),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class _AccentBadge extends StatelessWidget {
   const _AccentBadge({required this.label});
 
@@ -846,31 +706,6 @@ class _AccentBadge extends StatelessWidget {
           color: Theme.of(context).colorScheme.primary,
           fontWeight: FontWeight.w800,
         ),
-      ),
-    );
-  }
-}
-
-class _InfoBlock extends StatelessWidget {
-  const _InfoBlock({required this.message});
-
-  final String message;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF7F9FD),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFD8DFEC)),
-      ),
-      child: Text(
-        message,
-        style: Theme.of(
-          context,
-        ).textTheme.bodyMedium?.copyWith(color: const Color(0xFF35506D)),
       ),
     );
   }

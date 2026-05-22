@@ -3,6 +3,7 @@ import 'package:furpa_merkez_terminal/features/acceptance_operations/company_acc
 import 'package:furpa_merkez_terminal/features/acceptance_operations/company_acceptances/presentation/views/company_acceptances_page.dart';
 import 'package:furpa_merkez_terminal/features/acceptance_operations/offline_company_acceptances/data/offline_company_acceptances_repository.dart';
 import 'package:furpa_merkez_terminal/features/acceptance_operations/warehouse_acceptances/data/warehouse_acceptances_repository.dart';
+import 'package:furpa_merkez_terminal/features/acceptance_operations/warehouse_acceptances/presentation/views/warehouse_acceptance_differences_page.dart';
 import 'package:furpa_merkez_terminal/features/acceptance_operations/warehouse_acceptances/presentation/views/warehouse_acceptances_page.dart';
 import 'package:furpa_merkez_terminal/features/auth/data/models/auth_models.dart';
 import 'package:furpa_merkez_terminal/features/company_movements/shared/data/company_movements_repository.dart';
@@ -58,13 +59,11 @@ class ShellModuleRouteContext {
 
   ValueKey<String> get pageKey => ValueKey(sessionScopeKey);
 
-  bool get canCreate => selectedMenu.actions.any(
-    (action) => action.code == 'create',
-  );
+  bool get canCreate =>
+      selectedMenu.actions.any((action) => action.code == 'create');
 
-  bool get canUpdate => selectedMenu.actions.any(
-    (action) => action.code == 'update',
-  );
+  bool get canUpdate =>
+      selectedMenu.actions.any((action) => action.code == 'update');
 }
 
 class ShellModuleRoute {
@@ -141,8 +140,10 @@ class ShellModuleRegistry {
   final ReceivedWarehouseOrdersRepository receivedWarehouseOrdersRepository;
   final WarehouseAcceptancesRepository warehouseAcceptancesRepository;
   final WarehouseReturnsRepository warehouseReturnsRepository;
-  final IncomingWarehouseShipmentsRepository incomingWarehouseShipmentsRepository;
-  final OutgoingWarehouseShipmentsRepository outgoingWarehouseShipmentsRepository;
+  final IncomingWarehouseShipmentsRepository
+  incomingWarehouseShipmentsRepository;
+  final OutgoingWarehouseShipmentsRepository
+  outgoingWarehouseShipmentsRepository;
   final InventoryCountsRepository inventoryCountsRepository;
   final CompanyMovementsRepository outgoingCompanyShipmentsRepository;
   final CompanyMovementsRepository incomingCompanyShipmentsRepository;
@@ -176,10 +177,7 @@ class ShellModuleRegistry {
       }
     }
 
-    return ModulePlaceholderPage(
-      key: context.pageKey,
-      menuEntry: selectedMenu,
-    );
+    return ModulePlaceholderPage(key: context.pageKey, menuEntry: selectedMenu);
   }
 
   List<ShellModuleRoute> _buildRoutes() {
@@ -280,6 +278,16 @@ class ShellModuleRegistry {
         ),
       ),
       ShellModuleRoute(
+        exactRouteKey: 'mal-kabul-islemleri.mal-kabul-farklari',
+        builder: (context) => WarehouseAcceptanceDifferencesPage(
+          key: context.pageKey,
+          repository: warehouseAcceptancesRepository,
+          accessToken: context.accessToken,
+          defaultWarehouseNo: context.user.warehouseNo,
+          userWarehouseName: context.user.warehouseName,
+        ),
+      ),
+      ShellModuleRoute(
         exactRouteKey: 'iade-islemleri.giden-depo-iadeleri',
         builder: (context) => WarehouseReturnsPage(
           key: context.pageKey,
@@ -317,7 +325,7 @@ class ShellModuleRegistry {
         ),
       ),
       ShellModuleRoute(
-        exactRouteKey: 'stok-islemleri.etiket-belgeleri',
+        exactRouteKey: 'kasa-islemleri.etiket-belgeleri',
         menuCodes: const <String>['labelDocuments'],
         keywords: const <String>['etiket belgeleri'],
         builder: (context) => LabelDocumentsPage(
@@ -330,7 +338,7 @@ class ShellModuleRegistry {
         ),
       ),
       ShellModuleRoute(
-        exactRouteKey: 'stok-islemleri.kunye-etiket-yazdirma',
+        exactRouteKey: 'kasa-islemleri.kunye-etiket-yazdirma',
         menuCodes: const <String>['labelPage', 'kunyeEtiketYazdirma'],
         keywords: const <String>[
           'etiket basim',
@@ -423,12 +431,12 @@ class ShellModuleRegistry {
           title: 'Firma Iadeleri',
           subtitle:
               'Firma iade evraklari liste, detay, create ve e-irsaliye akislariyla birlikte yonetilir.',
-          createTitle: 'Yeni Firma Iadesi',
+          createTitle: 'Yeni Iade',
           createHelperText:
               'Cari secildikten sonra iade satirlari manuel eklenir ve e-irsaliye adimi detay ekranindan yonetilir.',
-          createButtonLabel: 'Yeni Firma Iadesi',
-          emptyListMessage:
-              'Secilen tarih araliginda firma iadesi bulunamadi.',
+          createButtonLabel: 'Yeni Iade',
+          emptyListMessage: 'Secilen tarih araliginda firma iadesi bulunamadi.',
+          showCreateDocumentNoField: false,
         ),
       ),
       ShellModuleRoute(
@@ -474,8 +482,9 @@ class ShellModuleRegistry {
         ),
       ),
       ShellModuleRoute(
-        menuCodes: const <String>['checkPrice'],
-        keywords: const <String>['fiyat gor', 'price check'],
+        exactRouteKey: 'arama-islemleri.fiyat-gor',
+        menuCodes: const <String>['fiyat-gor', 'fiyatGor'],
+        keywords: const <String>['fiyat gor'],
         builder: (context) => ProductLookupToolPage(
           key: context.pageKey,
           repository: legacyToolsRepository,
@@ -488,12 +497,18 @@ class ShellModuleRegistry {
         ),
       ),
       ShellModuleRoute(
-        menuCodes: const <String>['findCompanies'],
-        keywords: const <String>['firma bul'],
+        exactRouteKey: 'arama-islemleri.cari-bul',
+        menuCodes: const <String>['cari-bul', 'cariBul'],
+        keywords: const <String>['cari bul'],
         builder: (context) => CompanyLookupToolPage(
           key: context.pageKey,
           repository: legacyToolsRepository,
           accessToken: context.accessToken,
+          defaultWarehouseNo: context.user.warehouseNo,
+          title: 'Cari Bul',
+          subtitle:
+              'Barkoddan varsayilan tedarikciyi ve cari onerilerini gosterir.',
+          emptyMessage: 'Bu barkod icin cari onerisi bulunamadi.',
         ),
       ),
       ShellModuleRoute(

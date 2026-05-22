@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:furpa_merkez_terminal/features/order_operations/shared/data/models/warehouse_order_models.dart';
 import 'package:furpa_merkez_terminal/features/order_operations/shared/data/warehouse_orders_repository.dart';
 import 'package:furpa_merkez_terminal/shared/formatters/app_formatters.dart';
+import 'package:furpa_merkez_terminal/shared/utils/create_form_validation.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/barcode_camera_scan_page.dart';
 
 enum _ProductEntryMode { barcode, search, camera }
@@ -24,7 +25,8 @@ class GivenWarehouseOrderCreateSheet extends StatefulWidget {
 }
 
 class _GivenWarehouseOrderCreateSheetState
-    extends State<GivenWarehouseOrderCreateSheet> {
+    extends State<GivenWarehouseOrderCreateSheet>
+    with CreateFormValidation {
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   late final TextEditingController _outWarehouseNoController;
   late DateTime _orderDate;
@@ -308,7 +310,7 @@ class _GivenWarehouseOrderCreateSheetState
   }
 
   void _submit() {
-    if (!_formKey.currentState!.validate()) {
+    if (!validateCreateForm(_formKey)) {
       setState(() => _validationMessage = 'Lütfen zorunlu alanları düzeltin.');
       return;
     }
@@ -361,6 +363,7 @@ class _GivenWarehouseOrderCreateSheetState
             color: theme.scaffoldBackgroundColor,
             child: Form(
               key: _formKey,
+              autovalidateMode: createFormAutovalidateMode,
               child: Column(
                 children: [
                   // ========== HEADER (Sabit) ==========

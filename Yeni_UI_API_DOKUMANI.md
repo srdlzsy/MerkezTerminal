@@ -136,7 +136,7 @@ Request:
 ```json
 {
   "usernameOrEmail": "admin",
-  "password": "FurpaAdmin123!"
+  "password": "REPLACE_WITH_PASSWORD"
 }
 ```
 
@@ -531,7 +531,8 @@ Bu endpointler siparis, mal kabul, sevk, iade gibi formlarda ortak secim/arama i
 Not:
 
 - Tum endpointler `Authorization: Bearer {token}` ister.
-- Su an menu/action permission istemez; login olan kullanici kullanabilir.
+- Genel arama endpointleri menu/action permission istemez; login olan kullanici kullanabilir.
+- UI menusu olarak gorunen `FiyatGor` ve `CariBul` endpointleri kendi `list` permission'larini ister.
 - Mikro tarafinda sadece SELECT/read-only mantigiyla calisir.
 - Urun arama `dbo.__StokveFiyatArama_Gokhan` stored procedure'u ile yapilir.
 - Mobil barkod okutma senaryolarinda genel `urunler` listesi yerine once `barkodlar/{barcode}/cozumle` endpoint'i tercih edilmelidir.
@@ -604,6 +605,48 @@ UI kullanim notu:
 - Siparis girisinde `isOrderBlocked = true` olan urunlerde uyari veya engel uygulanabilir.
 - Satis/sevk formlarinda `isSalesBlocked = true` olan urunlerde uyari gosterilebilir.
 
+### Fiyat Gor
+
+Arama Islemleri altinda menu olarak gosterilebilecek hizli fiyat sorgu ekranidir. Ayni Mikro fiyat arama prosedurunu kullanir ve `Urun Ara` response modelini doner.
+
+`GET /api/arama-islemleri/fiyat-gor?warehouseNo=110&barcode=8690000000000`
+
+Stok kodu veya urun adi ile:
+
+`GET /api/arama-islemleri/fiyat-gor?warehouseNo=110&stockCode=015550`
+
+`GET /api/arama-islemleri/fiyat-gor?warehouseNo=110&stockName=sut&take=20`
+
+Barkod odakli alias:
+
+`GET /api/arama-islemleri/barkodlar/8690000000000/fiyat?warehouseNo=110&take=20`
+
+Yetki:
+
+- `arama-islemleri.fiyat-gor.list`
+
+Query:
+
+```text
+warehouseNo    opsiyonel; verilmezse JWT icindeki depo kullanilir
+barcode        opsiyonel; barkod ile exact arama
+stockCode      opsiyonel; stok kodu ile exact arama
+stockName      opsiyonel; stok adinda contains arama, en az 2 karakter
+companyCode    opsiyonel; secilen firma/cari kodu filtresi
+supplierCode   opsiyonel; companyCode ile ayni filtre icin geriye uyum alias'i
+take           opsiyonel; default 20, max 100
+```
+
+Response:
+
+- `ProductLookupItemDto[]`
+- Alanlar `Urun Ara` response'u ile aynidir; UI fiyat icin `price`, `priceTypeCode`, `unitName`, `barcode`, `stockCode` ve `stockName` alanlarini one cikarabilir.
+
+UI kullanim notu:
+
+- Sol menu altinda `AramaIslemleri > FiyatGor` gibi ayri bir hizli ekran olarak sunulabilir.
+- Barkod okutma ekraninda pratik yol `barkodlar/{barcode}/fiyat` alias'idir.
+
 ### Tek Barkod Cozumle
 
 Mobil uygulamada barkod okutunca tek cevapta urun bulundu mu, stok kodu, koli barkodu, koli ici adet ve secili ekranda kullanilabilirlik bilgisi almak icin:
@@ -674,7 +717,7 @@ Bulunamayan barkod davranisi:
 
 UI kullanim notu:
 
-
+- Kamera ile tek barkod okutulan ekranlarda once bu endpoint cagrilmalidir.
 - `isFound = true` ve `isUsableInScreen = false` ise UI urunu satira eklemeden once blok nedenini gostermelidir.
 - `caseBarcode` doluysa koli barkodu tekrar okutma, koli bozma veya alternatif birim secimi gibi kisayollar acilabilir.
 
@@ -730,6 +773,68 @@ UI kullanim notu:
 
 - Firma mal kabul create ekraninda kullanici urun sectiginde cari bos ise bu endpoint ile `onerilen tedarikci` chip'i gosterilebilir.
 - `isDefaultSupplier = true` olan ilk kayit varsayilan secim adayi gibi davranabilir ama yine de kullanicidan onay almak daha guvenlidir.
+
+### Barkoddan Cari Bul
+
+Arama Islemleri altinda menu olarak gosterilebilecek hizli cari/firma bulma ekranidir. Backend once barkodu stokla eslestirir, sonra stok kartindaki varsayilan tedarikciyi ve yakin gecmis stok hareketlerinden cari onerilerini doner.
+
+`GET /api/arama-islemleri/cari-bul?barcode=8690000000000&warehouseNo=110&take=10`
+
+Barkod odakli alias:
+
+`GET /api/arama-islemleri/barkodlar/8690000000000/cariler?warehouseNo=110&take=10`
+
+Yetki:
+
+- `arama-islemleri.cari-bul.list`
+
+Query:
+
+```text
+barcode        cari-bul route'unda zorunlu; path alias'ta path parametresidir
+warehouseNo    opsiyonel; verilmezse JWT icindeki depo kullanilir
+take           opsiyonel; default 10, max 25
+```
+
+Response:
+
+```json
+{
+  "isFound": true,
+  "barcode": "8690000000000",
+  "warehouseNo": 110,
+  "resolutionSource": "barcode",
+  "stockCode": "015550",
+  "stockName": "Stok Adi",
+  "matchedBarcode": "8690000000000",
+  "primaryBarcode": "8690000000000",
+  "caseBarcode": "18690000000007",
+  "unitsPerCase": 12,
+  "defaultSupplierCode": "120.01.03106",
+  "defaultSupplierName": "ORNEK TEDARIKCI",
+  "suggestions": [
+    {
+      "customerCode": "120.01.03106",
+      "customerName": "ORNEK TEDARIKCI",
+      "taxNoOrTckn": "1234567890",
+      "isDefaultSupplier": true,
+      "movementCount": 8,
+      "lastMovementDate": "2026-05-01T00:00:00",
+      "lastDocumentNo": "ST12026000002395",
+      "sources": [
+        "stok-hareketleri",
+        "varsayilan-tedarikci"
+      ]
+    }
+  ]
+}
+```
+
+UI kullanim notu:
+
+- Sol menu altinda `AramaIslemleri > CariBul` gibi ayri bir hizli ekran olarak sunulabilir.
+- `isFound = false` ise barkod/stok eslesmesi yoktur; UI "urun bulunamadi" gibi kisa bir mesaj gosterebilir.
+- `suggestions` bos ama `defaultSupplierCode` doluysa UI varsayilan tedarikciyi tek onerilen firma gibi gosterebilir.
 
 ### Cari Ara
 
@@ -1789,7 +1894,7 @@ Yetki:
 
 ### Depo Mal Kabulleri Liste
 
-Bekleyen gelen depo sevklerini mal kabul ekranina kaynak olmak uzere listeler.
+Bekleyen gelen depo sevklerini ve gelen depo iadelerini mal kabul ekranina kaynak olmak uzere listeler.
 
 `GET /api/mal-kabul-islemleri/depo-mal-kabulleri?WarehouseNo=110&StartDate=2026-04-01&EndDate=2026-04-30`
 
@@ -1800,13 +1905,14 @@ Yetki:
 Onemli not:
 
 - Bu endpoint sadece bekleyen mal kabul evraklarini doner.
-- Filtre mantigi `sth_evraktip = 17`, `sth_normal_iade = 0`, `sth_nakliyedeposu = WarehouseNo`, `sth_nakliyedurumu != 1` seklindedir.
+- Filtre mantigi `sth_evraktip = 17`, `sth_normal_iade = 0 veya 1`, `sth_nakliyedeposu = WarehouseNo`, `sth_nakliyedurumu != 1` seklindedir.
 - Response modeli `WarehouseShippingListItemDto` ile aynidir.
+- `isReturn = false` normal gelen depo sevkini, `isReturn = true` gelen depo iadesini ifade eder.
 - UI bu listeyi "evragi sec ve create'e tasin" akisi icin kullanabilir.
 
 ### Depo Mal Kabulleri Detay
 
-Secilen bekleyen gelen sevkin kalemlerini mal kabul create ekranina tasimak icin kullanilir.
+Secilen bekleyen gelen sevk veya gelen depo iadesi kalemlerini mal kabul create ekranina tasimak icin kullanilir.
 
 `GET /api/mal-kabul-islemleri/depo-mal-kabulleri/F110/3694?warehouseNo=110`
 
@@ -1821,8 +1927,9 @@ Yetki:
 Onemli not:
 
 - Kullanici listedeki satira tikladiginda veya ustten seri/sira girerek devam ettiginde ayni endpoint cagrilabilir.
-- Sadece bekleyen evraklar doner; daha once kabul edilmis bir sevk icin `404` doner.
+- Sadece bekleyen evraklar doner; daha once kabul edilmis bir sevk/iade icin `404` doner.
 - Response modeli `WarehouseShippingDetailDto` ile aynidir.
+- `header.isReturn = false` normal gelen depo sevkini, `header.isReturn = true` gelen depo iadesini ifade eder.
 - UI `items[].movementGuid` alanini kabul request'ine tasimalidir.
 
 ### Depo Mal Kabul Icin E-Irsaliye ETTN Cozumleme
@@ -1900,9 +2007,9 @@ Response:
 }
 ```
 
-### Depo Sevki Mal Kabul Et
+### Depo Sevki veya Iadesi Mal Kabul Et
 
-Gelen depolar arasi sevk detayinda sayim/kabul yapildiktan sonra mevcut `STOK_HAREKETLERI` satirlarini teslim alinmis duruma getirir.
+Gelen depolar arasi sevk veya gelen depo iadesi detayinda sayim/kabul yapildiktan sonra mevcut `STOK_HAREKETLERI` satirlarini teslim alinmis duruma getirir.
 
 `POST /api/mal-kabul-islemleri/depo-mal-kabulleri/F110/3694/kabul`
 
@@ -1916,7 +2023,8 @@ Yetki:
 
 Onemli not:
 
-- Bu endpoint yeni ana stok hareketi olusturmaz; gonderen deponun olusturdugu mevcut `sth_evraktip = 17`, `sth_normal_iade = 0` satirlarini gunceller.
+- Bu endpoint yeni ana stok hareketi olusturmaz; gonderen deponun olusturdugu mevcut `sth_evraktip = 17`, `sth_normal_iade = 0 veya 1` satirlarini gunceller.
+- `isReturn = false` normal gelen depo sevkini, `isReturn = true` gelen depo iadesini ifade eder.
 - `warehouseNo` body icinden alinmaz; JWT icindeki kullanici deposu kullanilir.
 - Bekleyen kabul icin hareketlerde `sth_nakliyedeposu = kullaniciDeposu` ve `sth_nakliyedurumu != 1` olmalidir.
 - `sth_miktar` degistirilmez; resmi sevk/e-irsaliye miktari olarak korunur.
@@ -1925,7 +2033,7 @@ Onemli not:
 - Ayni evrak ikinci kez kabul edilirse `409 Conflict` doner.
 - Satir eslestirmesi `movementGuid` ile yapilmalidir; bu deger depolar arasi sevk detay response'undaki `items[].movementGuid` alanidir.
 - Eksik/fazla varsa ve `allowDiscrepancy = false` ise endpoint `409 Conflict` doner.
-- Eksik/fazla varsa ve `allowDiscrepancy = true` ise hareket kabul edilir, `differenceResolutionStatus = "requires-manual-resolution"` doner. Bu ilk surum fark icin otomatik stok duzeltme hareketi olusturmaz.
+- Eksik/fazla varsa ve `allowDiscrepancy = true` ise hareket kabul edilir, `differenceResolutionStatus = "recorded-on-formula-quantity"` doner. Canli Mikro pratigine uygun olarak fark `sth_FormulMiktar` uzerinde izlenir; otomatik iade/fire/stok duzeltme hareketi olusturulmaz.
 
 Request:
 
@@ -1951,13 +2059,14 @@ Response:
   "sourceWarehouseNo": 50,
   "transitWarehouseNo": 60,
   "shippingState": 1,
+  "isReturn": false,
   "lineCount": 1,
   "totalShippedQuantity": 10,
   "totalReceivedQuantity": 8,
   "totalMissingQuantity": 2,
   "totalExcessQuantity": 0,
   "hasDiscrepancy": true,
-  "differenceResolutionStatus": "requires-manual-resolution",
+  "differenceResolutionStatus": "recorded-on-formula-quantity",
   "writeConnectionName": "testMikroConnection",
   "lines": [
     {
@@ -1976,14 +2085,14 @@ Response:
 Eksik/fazla anlamlari:
 
 - `differenceType = "none"`: `receivedQuantity` ile `sth_miktar` aynidir.
-- `differenceType = "missing"`: sayilan miktar sevk miktarindan azdir; stok duzeltme/fark kapatma aksiyonu ayrica planlanmalidir.
-- `differenceType = "excess"`: sayilan miktar sevk miktarindan fazladir; ek sevk veya yetkili sayim fazlasi karari ayrica verilmelidir.
+- `differenceType = "missing"`: sayilan miktar sevk miktarindan azdir; fark `sth_FormulMiktar` uzerinde kayit altina alinmistir.
+- `differenceType = "excess"`: sayilan miktar sevk miktarindan fazladir; fark `sth_FormulMiktar` uzerinde kayit altina alinmistir.
 
 Depo mal kabul UI akisi:
 
-- Ekran bos fis acmaz; ana ekran bekleyen gelen depo sevklerini listeler. Liste icin tarih araligi ve depo filtresiyle `GET /api/mal-kabul-islemleri/depo-mal-kabulleri` cagrilir.
+- Ekran bos fis acmaz; ana ekran bekleyen gelen depo sevklerini ve gelen depo iadelerini listeler. Liste icin tarih araligi ve depo filtresiyle `GET /api/mal-kabul-islemleri/depo-mal-kabulleri` cagrilir.
 - Kullanici isterse fiziksel irsaliyenin QR bilgisinden aldigi ETTN ile `GET /api/mal-kabul-islemleri/depo-mal-kabulleri/e-irsaliye/ettn/{ettn}` cagirip resmi e-irsaliye ust bilgisi ve kalemlerini yan panelde gorebilir.
-- Liste satirinda kullaniciya seri/sira, gonderen depo, hedef depo, sevk durumu, depo siparis no, satir sayisi ve toplam miktar gosterilir.
+- Liste satirinda kullaniciya seri/sira, gonderen depo, hedef depo, sevk/iade tipi, sevk durumu, depo siparis no, satir sayisi ve toplam miktar gosterilir.
 - Kullanici satira tikladiginda detay acilir ve `GET /api/mal-kabul-islemleri/depo-mal-kabulleri/{seri}/{sira}` cagrilir.
 - ETTN sonucu ile bekleyen sevk detayi birlikte acik gosteriliyorsa UI satir bazinda miktar ve urun eslesme farklarini highlight etmelidir.
 - Detayda her satir icin stok kodu, stok adi, sevk miktari, birim, parti/lot ve aciklama gosterilir. `items[].movementGuid` UI icinde saklanir; kabul request'i bu guid ile yapilir.
@@ -1995,6 +2104,76 @@ Depo mal kabul UI akisi:
 - Basarili response geldikten sonra evrak bekleyen listesinden dusurulur veya detayda "Kabul edildi" durumuna alinip kullaniciya toplam sevk, toplam kabul, eksik ve fazla miktarlari gosterilir.
 - `409 Conflict` gelirse UI bunu "evrak daha once kabul edilmis olabilir" veya "fark onayi gerekiyor" mesaji olarak gostermelidir.
 - Bu ekran plaka, sofor ve TCKN istemez; bu bilgiler sevk/iade e-irsaliyesi gonderilirken ayrica girilir.
+
+### Mal Kabul Farklari
+
+Kabul edilmis depo sevki veya depo iadesi satirlarinda `sth_miktar` ile `sth_FormulMiktar` farki olan kalemleri listeler.
+
+`GET /api/mal-kabul-islemleri/mal-kabul-farklari?WarehouseNo=110&StartDate=2026-04-01&EndDate=2026-04-30&scope=accepted`
+
+Alias:
+
+```text
+GET /api/mal-kabul-islemleri/mal-kabul-farklari/accepted?WarehouseNo=110&StartDate=2026-04-01&EndDate=2026-04-30
+GET /api/mal-kabul-islemleri/mal-kabul-farklari/created?WarehouseNo=110&StartDate=2026-04-01&EndDate=2026-04-30
+GET /api/mal-kabul-islemleri/mal-kabul-farklari/kabul-ettigim?WarehouseNo=110&StartDate=2026-04-01&EndDate=2026-04-30
+GET /api/mal-kabul-islemleri/mal-kabul-farklari/olusturdugum?WarehouseNo=110&StartDate=2026-04-01&EndDate=2026-04-30
+```
+
+Yetki:
+
+- `mal-kabul-islemleri.mal-kabul-farklari.list`
+
+Query:
+
+```text
+WarehouseNo  opsiyonel; verilmezse JWT icindeki depo kullanilir
+StartDate    zorunlu
+EndDate      zorunlu
+scope        opsiyonel; accepted veya created
+```
+
+Scope anlamlari:
+
+- `accepted`: deponun kendi mal kabul yaptigi evraklar. Filtre `sth_giris_depo_no = WarehouseNo`.
+- `created`: deponun kendi olusturdugu/gonderdigi evraklar. Filtre `sth_cikis_depo_no = WarehouseNo`.
+
+Onemli not:
+
+- Sadece kabul edilmis satirlar doner: `sth_evraktip = 17`, `sth_nakliyedurumu = 1`.
+- Normal sevk ve depo iadesi beraber gelir; `isReturn` alanina gore UI rozet basabilir.
+- Fark mantigi `differenceQuantity = receivedQuantity - quantity` seklindedir.
+- `differenceType = "missing"` eksik, `"excess"` fazla kabul anlamina gelir.
+
+Response:
+
+```json
+[
+  {
+    "documentDate": "2026-04-10T00:00:00",
+    "movementDate": "2026-04-10T00:00:00",
+    "documentNo": "FRM2026600065140",
+    "documentSerie": "F50",
+    "documentOrderNo": 192188,
+    "lineNo": 28,
+    "movementGuid": "8d4a5a77-1b3f-4f2a-93a1-b90a1b7d3c11",
+    "isReturn": false,
+    "sourceWarehouseNo": 50,
+    "sourceWarehouse": "PANAYIR PREMIUM",
+    "targetWarehouseNo": 135,
+    "targetWarehouse": "ALICI DEPO",
+    "productCode": "019042",
+    "productName": "COOK EKO BUYUK BUZDOLABI POS.30x42CM 80 YAP.*15",
+    "unitName": "ADET",
+    "unitPointer": 1,
+    "quantity": 45,
+    "receivedQuantity": 25,
+    "differenceQuantity": -20,
+    "differenceType": "missing",
+    "description": ""
+  }
+]
+```
 
 ### Firma Mal Kabulleri Liste
 
@@ -2152,14 +2331,25 @@ Onemli not:
 - `warehouseNo` body icinden alinmaz; JWT icindeki kullanici deposu kullanilir.
 - Mobil offline pilotta request'e `clientRequestId` eklenmelidir.
 - Backend `sth_evraktip = 13`, `sth_tip = 0`, `sth_normal_iade = 0` olarak yeni giris hareketi olusturur.
-- Kabul edilen miktar `sth_miktar` alanina yazilir.
-- Satirda `orderGuid` doluysa `sth_sip_uid = orderGuid` yazilir ve `SIPARISLER.sip_teslim_miktar` kabul miktari kadar artirilir.
+- Mal kabul giris hareketinde `sth_miktar` irsaliye/gelen miktari olan `dispatchQuantity` ile yazilir.
+- Fiili/net kabul miktari `acceptedQuantity` alanidir. UI farkli kabul durumunda `dispatchQuantity` ve `acceptedQuantity` alanlarini ayri gondermelidir.
+- Eski uyumluluk icin `quantity` hala desteklenir; UI sadece `quantity` gonderirse backend bunu hem `dispatchQuantity` hem `acceptedQuantity` gibi yorumlar.
+- `acceptedQuantity`, `dispatchQuantity` degerinden buyuk olamaz. `dispatchQuantity` sifirdan buyuk olmali, `acceptedQuantity` sifir olabilir.
+- `autoCreateReturnForPartialAcceptance = true` varsayilandir. `acceptedQuantity < dispatchQuantity` ise backend ayni transaction icinde fark kadar firma iade evragi olusturur.
+- Otomatik firma iade hareketi `sth_evraktip = 1`, `sth_tip = 1`, `sth_normal_iade = 1` olarak yazilir; seri `F{warehouseNo}` seklinde uretilir ve sira Mikro'daki sonraki uygun sira olur.
+- Mikro net stok etkisi: `dispatchQuantity` kadar firma mal kabul girisi, fark kadar firma iade cikisi. Ornek: 10 geldi, 8 kabul edildi ise +10 mal kabul ve -2 firma iade yazilir; net stok 8 olur.
+- Otomatik firma iade icin e-irsaliye gonderimi yapilmaz. Response'ta iade evrak link/status bilgisi doner; kullanici sonradan `POST /api/iade-islemleri/firma-iadeleri/{seri}/{sira}/e-irsaliye` ile gondermelidir.
+- `autoCreateReturnForPartialAcceptance = false` gonderilirse fark icin iade evragi olusmaz; satir `returnStatus = IadeBekliyor` olarak doner ve UI bunu manuel cozum bekleyen fark gibi gostermelidir.
+- Satirda `orderGuid` doluysa `sth_sip_uid = orderGuid` yazilir ve `SIPARISLER.sip_teslim_miktar` mal kabul hareket miktari, yani `dispatchQuantity`, kadar artirilir.
 - Satirda `orderGuid` bos veya `null` ise `sth_sip_uid = Guid.Empty` yazilir ve siparis tablosuna dokunulmaz.
 - Siparis kalanindan fazla kabul varsayilan olarak engellenir. `allowOrderOverReceiving = true` gonderilirse kalan kadar siparisli, fazla kisim siparissiz hareket olarak bolunur.
-- `documentNo` zorunludur. Beklenen format bosluksuz `seri + 9 haneli sayisal sira` seklindedir.
-- Ornek gecerli `documentNo` degerleri: `ST12026000002395`, `C682026000003472`, `FRM2026600059281`, `OY32026000000162`
-- `documentSerie` backend tarafinda `documentNo` icindeki son 9 hane atilarak uretilir.
-- `documentOrderNo` backend tarafinda `documentNo` icindeki son 9 hane sayi olarak okunarak uretilir.
+- `documentNo` opsiyoneldir. E-belge/e-irsaliye no varsa tam `seri + 9 haneli sayisal sira` formatinda gonderilebilir.
+- Ornek tam `documentNo` degerleri: `ST12026000002395`, `C682026000003472`, `FRM2026600059281`, `OY32026000000162`
+- Tam formatta `documentNo` gelirse `documentSerie` son 9 hane atilarak, `documentOrderNo` son 9 hane sayi olarak okunarak uretilir.
+- `documentNo` bos gelirse backend cari unvanindan seri uretir ve ayni depo/seri icin siradaki `documentOrderNo` degerini verir.
+- `documentNo` `ABC`, `ULK`, `FIRMA` gibi harf iceren ve tam format olmayan kisa bir deger gelirse backend bunu seri/prefix kabul eder, sadece harf-rakam karakterlerini kullanir ve siradaki sira numarasini uretir.
+- `documentNo` bos veya sadece sayisal bir degerse backend seri icin cari unvanina duser.
+- Response'taki `documentNo`, uretilen nihai `documentSerie + 9 haneli documentOrderNo` degeridir.
 - Ayni depo icinde ayni `documentSerie + documentOrderNo` kombinasyonu tekrar kullanilamaz.
 - Mobil retry icin backend `clientRequestId` izini `STOK_HAREKETLERI.sth_eticaret_kanal_kodu` alanina yazar ve ayni istek tekrar geldiginde bu iz uzerinden sonucu toparlayabilir.
 - Ayni `clientRequestId` ile ayni payload tekrar gonderilirse backend ayni business response'u dondurmeye calisir.
@@ -2179,10 +2369,12 @@ Request:
   "receiver": "Teslim Alan",
   "description": "",
   "allowOrderOverReceiving": false,
+  "autoCreateReturnForPartialAcceptance": true,
   "lines": [
     {
       "stockCode": "015792",
-      "quantity": 6,
+      "dispatchQuantity": 10,
+      "acceptedQuantity": 8,
       "unitPrice": 0,
       "unitPointer": 1,
       "lastConsumingDate": "2026-12-31",
@@ -2196,7 +2388,8 @@ Request:
     },
     {
       "stockCode": "018888",
-      "quantity": 3,
+      "dispatchQuantity": 3,
+      "acceptedQuantity": 3,
       "unitPrice": 0,
       "unitPointer": 1,
       "lastConsumingDate": "2026-11-30",
@@ -2218,12 +2411,19 @@ Response:
   "warehouseNo": 110,
   "customerCode": "120.01.03106",
   "lineCount": 2,
-  "totalReceivedQuantity": 9,
-  "totalOrderLinkedQuantity": 6,
+  "totalReceivedQuantity": 13,
+  "totalOrderLinkedQuantity": 10,
   "totalOrderlessQuantity": 3,
   "totalOrderOverReceivedQuantity": 0,
   "totalAmount": 0,
   "writeConnectionName": "testMikroConnection",
+  "totalDispatchQuantity": 13,
+  "totalNetAcceptedQuantity": 11,
+  "totalReturnedQuantity": 2,
+  "autoCreatedReturnLineCount": 1,
+  "autoCreatedReturnDocumentSerie": "F110",
+  "autoCreatedReturnDocumentOrderNo": 4301,
+  "returnEDespatchStatus": "GonderimBekliyor",
   "lines": [
     {
       "movementGuid": "9c2d1f41-6f91-4e70-8e50-53d1e4bc88b0",
@@ -2233,16 +2433,33 @@ Response:
       "orderGuid": "1bb2b4fe-b722-4e67-9d4b-050b6d87e800",
       "isOrderLinked": true,
       "receivingMode": "order-linked",
-      "requestedQuantity": 6,
-      "acceptedQuantity": 6,
-      "orderLinkedQuantity": 6,
+      "requestedQuantity": 10,
+      "acceptedQuantity": 10,
+      "orderLinkedQuantity": 10,
       "orderlessQuantity": 0,
-      "orderRemainingBefore": 6,
-      "orderRemainingAfter": 0
+      "orderRemainingBefore": 10,
+      "orderRemainingAfter": 0,
+      "dispatchQuantity": 10,
+      "physicalAcceptedQuantity": 8,
+      "returnQuantity": 2,
+      "returnStatus": "IadeOlusturuldu",
+      "returnMovementGuid": "1d2c3f41-6f91-4e70-8e50-53d1e4bc88b0",
+      "returnDocumentSerie": "F110",
+      "returnDocumentOrderNo": 4301,
+      "returnEDespatchStatus": "GonderimBekliyor"
     }
   ]
 }
 ```
+
+Response alan notlari:
+
+- `totalReceivedQuantity` ve `totalDispatchQuantity`: Mikro'ya yazilan firma mal kabul giris miktari toplamidir.
+- `totalNetAcceptedQuantity`: fiilen kabul edilen miktar toplamidir; UI stokta kalan/net kabul icin bu alani kullanmalidir.
+- `totalReturnedQuantity`: otomatik veya bekleyen firma iade fark miktari toplamidir.
+- `acceptedQuantity` satir alaninin eski anlamiyla mal kabul hareket miktari oldugu unutulmamalidir; fiili kabul icin `physicalAcceptedQuantity` kullanilmalidir.
+- `returnStatus`: `Yok`, `IadeOlusturuldu` veya `IadeBekliyor` olabilir.
+- `returnEDespatchStatus`: `Yok` veya `GonderimBekliyor` olabilir. `GonderimBekliyor` otomatik e-irsaliye gonderildi anlamina gelmez.
 
 Offline status endpoint:
 
@@ -2284,6 +2501,13 @@ Ornek response:
     "totalOrderOverReceivedQuantity": 0,
     "totalAmount": 0,
     "writeConnectionName": "testMikroConnection",
+    "totalDispatchQuantity": 9,
+    "totalNetAcceptedQuantity": 9,
+    "totalReturnedQuantity": 0,
+    "autoCreatedReturnLineCount": 0,
+    "autoCreatedReturnDocumentSerie": null,
+    "autoCreatedReturnDocumentOrderNo": null,
+    "returnEDespatchStatus": "Yok",
     "lines": []
   }
 }
@@ -2298,11 +2522,16 @@ Firma mal kabul UI akisi:
 - Kullanici QR'dan ETTN okutursa UI ilk adimda `GET /api/mal-kabul-islemleri/firma-mal-kabulleri/e-irsaliye/ettn/{ettn}` cagirabilir.
 - Bu response'tan `primaryCustomerSuggestion` varsa cari alani icin varsayilan onerilir; `despatchNumber` ve `issueDate` alanlari `documentNo` ve `documentDate` icin on dolum adayi olarak kullanilabilir.
 - `lines[].isMatched = true` olan satirlar tek tikla create satirina aktarilabilir; `isMatched = false` olanlar ayrica "manuel eslestir" listesine dusurulebilir.
-- `DocumentNo` zorunludur. UI bos kayda izin vermemeli ve alan icin bosluksuz `seri + 9 haneli sayisal sira` formatini dogrulamalidir. Ornek: `ST12026000002395` -> `documentSerie = ST12026`, `documentOrderNo = 2395`
+- `DocumentNo` artik zorunlu degildir. E-belge/e-irsaliye no varsa UI tam `seri + 9 haneli sayisal sira` formatinda gonderebilir; yoksa bos gonderebilir.
+- Kullanici e-belge olmayan firmalarda isterse `ABC`, `ULK`, cari unvanin ilk 2-3 harfi gibi harf iceren bir prefix girebilir. Backend bu prefix'ten seri uretip siradaki sira numarasini verir.
+- UI kayit sonrasi ekranda mutlaka response'taki `documentNo`, `documentSerie` ve `documentOrderNo` alanlarini esas almalidir; bos veya prefix request'in kendisini evrak kimligi gibi saklamamalidir.
 - Cari secildikten sonra kullanici manuel satir ekleyebilir. Manuel satirlarda `orderGuid = null` gonderilir.
 - `Siparis Bagla` aksiyonunda UI secili carinin acik verilen firma siparislerini `GET /api/siparis-islemleri/verilen-firma-siparisleri?WarehouseNo=...&CustomerCode=...&OnlyOpen=true` ile listeler.
 - Kullanici bir siparis secerse siparis detayi `GET /api/siparis-islemleri/verilen-firma-siparisleri/{seri}/{sira}?warehouseNo=...` ile acilir ve detaydaki `items[].orderGuid` mal kabul satirina tasinir.
-- Siparisten gelen satirda UI kalan miktari kabul miktari olarak onerir; kullanici miktari degistirebilir.
+- Siparisten veya e-irsaliyeden gelen satirda UI resmi/irsaliye miktarini `dispatchQuantity`, fiili sayilan miktari `acceptedQuantity` olarak tutmalidir. Normal durumda iki alan esit onerilir.
+- Kullanici eksik kabul ederse UI farki anlik hesaplamalidir: `returnQuantity = dispatchQuantity - acceptedQuantity`. Bu fark backend tarafinda otomatik firma iadesine donusebilir.
+- UI `acceptedQuantity > dispatchQuantity` durumuna izin vermemelidir.
+- UI `autoCreateReturnForPartialAcceptance` alanini varsayilan `true` gonderebilir veya hic gondermeyebilir. Operasyon ozellikle otomatik iade istemiyorsa `false` gonderilir ve response'ta `IadeBekliyor` statusu takip edilir.
 - Siparisli ve siparissiz satirlar ayni fis icinde birlikte gidebilir. UI satirda siparis bagli mi bilgisini gostermeli, ama request'te sadece `orderGuid` dolu/bos olarak gondermelidir.
 - Siparis kalanindan fazla kabul varsayilan olarak engellenmelidir. Yetkili kullanici fazla kabul etmeyi secerek `allowOrderOverReceiving = true` gonderirse backend kalan kadar siparisli, fazla miktari siparissiz hareket olarak boler.
 - Mobil offline akista taslak ilk olusturulurken tek bir `clientRequestId` uretilmeli ve cihazdaki local kayitla birlikte saklanmalidir.
@@ -2312,6 +2541,8 @@ Firma mal kabul UI akisi:
 - `409 Conflict` ve mesaj "already being processed" anlamina geliyorsa UI kullaniciya "islem halen isleniyor" bilgisi verip status endpoint'ini poll edebilir.
 - Kaydet butonu `POST /api/mal-kabul-islemleri/firma-mal-kabulleri` endpoint'ine gider.
 - Basarili response sonrasi UI olusan `documentSerie` ve `documentOrderNo` ile detay ekranina gecebilir veya listeyi yenileyebilir.
+- Response'ta `autoCreatedReturnLineCount > 0` ise UI olusan firma iade evragini `autoCreatedReturnDocumentSerie` + `autoCreatedReturnDocumentOrderNo` ile linklemeli ve durumunu `returnEDespatchStatus = GonderimBekliyor` olarak gostermelidir.
+- Otomatik iade olustugunda UI e-irsaliye gonderimini kendiliginden tetiklememelidir. Kullanici "Firma iadesi e-irsaliye gonder" aksiyonuna bastiginda `POST /api/iade-islemleri/firma-iadeleri/{seri}/{sira}/e-irsaliye` cagrilir.
 - Bu ekranda plaka, sofor ve TCKN istenmez. Firma mal kabul icin opsiyonel `deliverer` ve `receiver` alanlari teslim eden/teslim alan notu olarak kullanilabilir.
 
 ## Stok Islemleri
@@ -2741,12 +2972,12 @@ Secili depo icin son etiket belgelerini getirir.
 
 Root route ile `son` route'u ayni davranisi kullanir:
 
-- `GET /api/stok-islemleri/etiket-belgeleri?warehouseNo=110&take=10`
-- `GET /api/stok-islemleri/etiket-belgeleri/son?warehouseNo=110&take=10`
+- `GET /api/kasa-islemleri/etiket-belgeleri?warehouseNo=110&take=10`
+- `GET /api/kasa-islemleri/etiket-belgeleri/son?warehouseNo=110&take=10`
 
 Yetki:
 
-- `stok-islemleri.etiket-belgeleri.list`
+- `kasa-islemleri.etiket-belgeleri.list`
 
 Not:
 
@@ -2777,11 +3008,11 @@ Response:
 
 Secili depo icin tum etiket belgelerini getirir.
 
-`GET /api/stok-islemleri/etiket-belgeleri/tumu?warehouseNo=110`
+`GET /api/kasa-islemleri/etiket-belgeleri/tumu?warehouseNo=110`
 
 Yetki:
 
-- `stok-islemleri.etiket-belgeleri.list`
+- `kasa-islemleri.etiket-belgeleri.list`
 
 Not:
 
@@ -2793,11 +3024,11 @@ Not:
 
 Secilen etiket belgesine bagli urun kartlarini getirir.
 
-`GET /api/stok-islemleri/etiket-belgeleri/15?warehouseNo=110`
+`GET /api/kasa-islemleri/etiket-belgeleri/15?warehouseNo=110`
 
 Yetki:
 
-- `stok-islemleri.etiket-belgeleri.detail`
+- `kasa-islemleri.etiket-belgeleri.detail`
 
 Not:
 
@@ -2828,11 +3059,11 @@ Response:
 
 Belirli bir tarih icin kullanicinin deposuna ait tag/view kayitlarini getirir.
 
-`GET /api/stok-islemleri/etiket-belgeleri/etiketler?dateToGet=2026-04-24`
+`GET /api/kasa-islemleri/etiket-belgeleri/etiketler?dateToGet=2026-04-24`
 
 Yetki:
 
-- `stok-islemleri.etiket-belgeleri.list`
+- `kasa-islemleri.etiket-belgeleri.list`
 
 Not:
 
@@ -2863,19 +3094,59 @@ Response:
 ]
 ```
 
+### Kunye Etiket Yazdirma
+
+Belirli bir tarih icin kullanicinin deposuna ait kunye etiket kayitlarini Kasa Islemleri altindaki ayri menu route'undan getirir.
+
+`GET /api/kasa-islemleri/kunye-etiket-yazdirma?dateToGet=2026-04-24`
+
+Yetki:
+
+- `kasa-islemleri.kunye-etiket-yazdirma.list`
+
+Not:
+
+- `warehouseNo` query ile alinmaz; dogrudan JWT icindeki kullanici deposu kullanilir
+- response modeli `LabelTagDto` doner
+- veri Furpa tarafindaki `VwKunyeNet` view'undan okunur
+- eski `stok-islemleri.kunye-etiket-yazdirma.*` permission kodlari migration ile `kasa-islemleri...` altina tasinir
+
+Response:
+
+```json
+[
+  {
+    "branchNo": 110,
+    "branchName": "KESTEL 1",
+    "productionCity": "BURSA",
+    "productionDistrict": "KESTEL",
+    "productName": "DANA KIYMA",
+    "goodsType": "ET",
+    "goodsGenus": "BUYUKBAS",
+    "quantity": 12.5,
+    "takenTag": "TAG-20260424-001",
+    "buyer": "FURPA",
+    "productionDate": "2026-04-24T00:00:00",
+    "buyingPrice": 450,
+    "shippingDate": "2026-04-24T00:00:00",
+    "manufacturer": "TEDARIKCI A"
+  }
+]
+```
+
 ### Fiyati Degisen Etiket Urunleri
 
 Belirli bir zaman bilgisinden sonra fiyati degisen ve etikete uygun urunleri getirir.
 
-`GET /api/stok-islemleri/etiket-belgeleri/fiyati-degisen-urunler?dateTimeFilter=24.04.2026%2008:00:00`
+`GET /api/kasa-islemleri/etiket-belgeleri/fiyati-degisen-urunler?dateTimeFilter=24.04.2026%2008:00:00`
 
 Uyumluluk icin eski route alias'i da desteklenir:
 
-`GET /api/stok-islemleri/etiket-belgeleri/get-by-date-for-label?dateTimeFilter=24.04.2026%2008:00:00`
+`GET /api/kasa-islemleri/etiket-belgeleri/get-by-date-for-label?dateTimeFilter=24.04.2026%2008:00:00`
 
 Yetki:
 
-- `stok-islemleri.etiket-belgeleri.list`
+- `kasa-islemleri.etiket-belgeleri.list`
 
 Not:
 
@@ -2909,11 +3180,11 @@ Response:
 
 Secili kullanici deposu icin yeni etiket belgesi olusturur.
 
-`POST /api/stok-islemleri/etiket-belgeleri`
+`POST /api/kasa-islemleri/etiket-belgeleri`
 
 Yetki:
 
-- `stok-islemleri.etiket-belgeleri.create`
+- `kasa-islemleri.etiket-belgeleri.create`
 
 Onemli not:
 
@@ -2950,7 +3221,7 @@ Response:
 
 UI notu:
 
-- `PUT /api/stok-islemleri/etiket-belgeleri/{id}` route'u acik olsa da backend tarafinda su an `501 Not Implemented` doner
+- `PUT /api/kasa-islemleri/etiket-belgeleri/{id}` route'u acik olsa da backend tarafinda su an `501 Not Implemented` doner
 - detay ekraninda belge basligindan cok urun kartlari on plana cikacagi icin grid tasarimi urun odakli kurulmalidir
 
 ### Virmanlar Liste
@@ -3849,30 +4120,32 @@ Response ornekleri:
 
 ### Banknot Takipleri
 
-Gunluk banknot teslim/toplam kayitlarini getirir.
+Gunluk banknot teslim/toplam kayitlarini Kasa Islemleri altindaki ayri menu route'undan getirir.
 
-`GET /api/kasa-islemleri/kasa-sayimlari/banknot-takipleri?dateToGet=2026-04-24&warehouseNo=110`
+`GET /api/kasa-islemleri/banknot-takipleri?dateToGet=2026-04-24&warehouseNo=110`
 
 Yetki:
 
-- `kasa-islemleri.kasa-sayimlari.list`
+- `kasa-islemleri.banknot-takipleri.list`
 
 Not:
 
-- response modeli `BanknoteTrackItemDto` doner
-- `differenceAmount` backend tarafinda `totalAmount - deliveryTotalAmount` olarak hesaplanir
+- `warehouseNo = 1` gonderilirse tum depolar listelenir
+- response modeli `BanknoteTrackDto` doner ve `banknoteTrackId` alanini GUID olarak icerir
+- bu route'da `differenceAmount`, eski kodla uyumlu olarak `deliveryTotalAmount - totalAmount` hesaplanir
 
 Response:
 
 ```json
 [
   {
+    "banknoteTrackId": "14d74fd4-1217-4056-9a0e-c45e3a25a456",
     "warehouseNo": 110,
     "warehouseName": "KESTEL 1",
     "banknoteTrackDate": "2026-04-24T00:00:00",
     "totalAmount": 12000,
     "deliveryTotalAmount": 11850,
-    "differenceAmount": 150,
+    "differenceAmount": -150,
     "deliverer": "Teslim Eden",
     "receiver": "Teslim Alan",
     "createDate": "2026-04-24T20:10:00"
@@ -3880,20 +4153,49 @@ Response:
 ]
 ```
 
-### Banknot Toplam Tutar
+Detay:
 
-Kasa sayimlarina yazilmis banknot hareketlerinin toplam tutarini verir.
-
-`GET /api/kasa-islemleri/kasa-sayimlari/banknot-takipleri/toplam?dateToGet=2026-04-24&warehouseNo=110`
+`GET /api/kasa-islemleri/banknot-takipleri/14d74fd4-1217-4056-9a0e-c45e3a25a456`
 
 Yetki:
 
-- `kasa-islemleri.kasa-sayimlari.list`
+- `kasa-islemleri.banknot-takipleri.detail`
+
+Olustur:
+
+`POST /api/kasa-islemleri/banknot-takipleri`
+
+Yetki:
+
+- `kasa-islemleri.banknot-takipleri.create`
+
+Onemli not:
+
+- `warehouseNo` body'de gonderilirse mevcut JWT deposu ile ayni olmak zorundadir
+- ayni depo ve ayni gun icin kayit varsa yeni insert yapmaz, `200 OK` ve `created = false` doner
+- yeni kayit acilirse `201 Created` ve `created = true` doner
+
+Request:
+
+```json
+{
+  "banknoteTrackDate": "2026-04-24",
+  "totalAmount": 12000,
+  "deliveryTotalAmount": 11850,
+  "deliverer": "Teslim Eden",
+  "receiver": "Teslim Alan"
+}
+```
 
 Response:
 
 ```json
-15850.0
+{
+  "banknoteTrackId": "14d74fd4-1217-4056-9a0e-c45e3a25a456",
+  "banknoteTrackDate": "2026-04-24T00:00:00",
+  "warehouseNo": 110,
+  "created": true
+}
 ```
 
 ### Kasa Lookup Endpointleri
@@ -3975,45 +4277,6 @@ Not:
 - response `double` doner
 - dosya bulunamazsa, config bos ise veya `NET CIRO` parse edilemezse `-1` doner
 - backend `KasaSayimlari:ZReportBasePath` konfigurasyonunu kullanir
-
-### Banknot Takibi Olustur
-
-Gunluk banknot teslim kaydi ekler.
-
-`POST /api/kasa-islemleri/kasa-sayimlari/banknot-takipleri`
-
-Yetki:
-
-- `kasa-islemleri.kasa-sayimlari.create`
-
-Onemli not:
-
-- `warehouseNo` body'de gonderilirse mevcut JWT deposu ile ayni olmak zorundadir
-- ayni depo ve ayni gun icin kayit zaten varsa backend yeni insert yapmaz, `200 OK` ve `created = false` doner
-- yeni kayit acilirse `201 Created` ve `created = true` doner
-
-Request:
-
-```json
-{
-  "banknoteTrackDate": "2026-04-24",
-  "totalAmount": 12000,
-  "deliveryTotalAmount": 11850,
-  "deliverer": "Teslim Eden",
-  "receiver": "Teslim Alan"
-}
-```
-
-Response:
-
-```json
-{
-  "banknoteTrackId": 7,
-  "banknoteTrackDate": "2026-04-24T00:00:00",
-  "warehouseNo": 110,
-  "created": true
-}
-```
 
 ### Kasa Sayimi Olustur
 
@@ -4207,40 +4470,41 @@ Bu endpoint iskelet olarak acildi. Is kurali ve Mikro veritabani entegrasyonu so
 
 - `PUT /api/sevk-islemleri/depolar-arasi-sevkler/{id}`
 - `PUT /api/sevk-islemleri/firma-sevkleri/{id}`
-- `GET /api/sevk-islemleri/sevk-planlari`
-- `GET /api/sevk-islemleri/sevk-planlari/{id}`
-- `POST /api/sevk-islemleri/sevk-planlari`
-- `PUT /api/sevk-islemleri/sevk-planlari/{id}`
 
 ### Mal Kabul Islemleri
 
 - `POST /api/mal-kabul-islemleri/depo-mal-kabulleri`
 - `PUT /api/mal-kabul-islemleri/depo-mal-kabulleri/{id}`
 - `PUT /api/mal-kabul-islemleri/firma-mal-kabulleri/{id}`
-- `GET /api/mal-kabul-islemleri/irsaliye-kabulleri`
-- `GET /api/mal-kabul-islemleri/irsaliye-kabulleri/{id}`
-- `POST /api/mal-kabul-islemleri/irsaliye-kabulleri`
-- `PUT /api/mal-kabul-islemleri/irsaliye-kabulleri/{id}`
 
 ### Iade Islemleri
 
 - `PUT /api/iade-islemleri/depo-iadeleri/{id}`
 - `PUT /api/iade-islemleri/firma-iadeleri/{id}`
-- `GET /api/iade-islemleri/musteri-iadeleri`
-- `GET /api/iade-islemleri/musteri-iadeleri/{id}`
-- `POST /api/iade-islemleri/musteri-iadeleri`
-- `PUT /api/iade-islemleri/musteri-iadeleri/{id}`
-- `GET /api/iade-islemleri/tedarikci-iadeleri`
-- `GET /api/iade-islemleri/tedarikci-iadeleri/{id}`
-- `POST /api/iade-islemleri/tedarikci-iadeleri`
-- `PUT /api/iade-islemleri/tedarikci-iadeleri/{id}`
 
-### Kasa Islemleri
+### Entegrasyon Islemleri
 
-- `GET /api/kasa-islemleri/kasa-hareketleri`
-- `GET /api/kasa-islemleri/kasa-hareketleri/{id}`
-- `POST /api/kasa-islemleri/kasa-hareketleri`
-- `PUT /api/kasa-islemleri/kasa-hareketleri/{id}`
+- `GET /api/entegrasyon-islemleri/pos-muhasebe-aktarimi`
+- `GET /api/entegrasyon-islemleri/pos-muhasebe-aktarimi/z-raporlari`
+- `GET /api/entegrasyon-islemleri/pos-muhasebe-aktarimi/z-raporlari/{reportId}`
+- `POST /api/entegrasyon-islemleri/pos-muhasebe-aktarimi/z-raporlari/ice-aktar`
+- `POST /api/entegrasyon-islemleri/pos-muhasebe-aktarimi/z-raporlari/erpye-gonder`
+- `DELETE /api/entegrasyon-islemleri/pos-muhasebe-aktarimi/z-raporlari`
+- `GET /api/entegrasyon-islemleri/pos-muhasebe-aktarimi/pos-faturalar`
+- `GET /api/entegrasyon-islemleri/pos-muhasebe-aktarimi/pos-faturalar/{invoiceId}`
+- `POST /api/entegrasyon-islemleri/pos-muhasebe-aktarimi/pos-faturalar/ice-aktar`
+- `POST /api/entegrasyon-islemleri/pos-muhasebe-aktarimi/pos-faturalar/erpye-gonder`
+- `PUT /api/entegrasyon-islemleri/pos-muhasebe-aktarimi/pos-faturalar/{invoiceId}`
+- `DELETE /api/entegrasyon-islemleri/pos-muhasebe-aktarimi/pos-faturalar`
+- `GET /api/entegrasyon-islemleri/pos-muhasebe-aktarimi/gider-pusulalari`
+- `GET /api/entegrasyon-islemleri/pos-muhasebe-aktarimi/gider-pusulalari/{expenseId}`
+- `POST /api/entegrasyon-islemleri/pos-muhasebe-aktarimi/gider-pusulalari/ice-aktar`
+- `POST /api/entegrasyon-islemleri/pos-muhasebe-aktarimi/gider-pusulalari/erpye-gonder`
+- `PUT /api/entegrasyon-islemleri/pos-muhasebe-aktarimi/gider-pusulalari/{expenseId}`
+- `DELETE /api/entegrasyon-islemleri/pos-muhasebe-aktarimi/gider-pusulalari`
+- `GET /api/entegrasyon-islemleri/pos-muhasebe-aktarimi/kasa-eslemeleri`
+- `POST /api/entegrasyon-islemleri/pos-muhasebe-aktarimi/kasa-eslemeleri`
+- `PUT /api/entegrasyon-islemleri/pos-muhasebe-aktarimi/kasa-eslemeleri/{mappingId}`
 
 ## UI Isleyis Semasi
 
@@ -4253,6 +4517,16 @@ Login Ekrani
 Ana Layout
   -> me.modules ile sol menu ciz
   -> me.permissions ile buton yetkilerini belirle
+
+Arama Islemleri / Fiyat Gor
+  -> barkod, stok kodu veya stok adi ile GET /api/arama-islemleri/fiyat-gor
+  -> barkod okutma kisayolu icin GET /api/arama-islemleri/barkodlar/{barcode}/fiyat
+  -> liste satirlarini ProductLookupItemDto ile goster
+
+Arama Islemleri / Cari Bul
+  -> barkod ile GET /api/arama-islemleri/cari-bul
+  -> barkod okutma kisayolu icin GET /api/arama-islemleri/barkodlar/{barcode}/cariler
+  -> stok karti ve onerilen cari listesini BarcodeCustomerSuggestionResponse ile goster
 
 Siparis Islemleri / Verilen Depo Siparisleri
   -> liste filtreleri: tarih araligi, opsiyonel depo
@@ -4320,6 +4594,13 @@ Mal Kabul Islemleri / Depo Mal Kabulleri
   -> kalemlerde stok kodu ile filtreleme UI tarafinda yapilir
   -> kabul kaydi icin POST /api/mal-kabul-islemleri/depo-mal-kabulleri/{seri}/{sira}/kabul
 
+Mal Kabul Islemleri / Mal Kabul Farklari
+  -> tarih araligi ve iki secimli scope ile farklari getir
+  -> scope=accepted: kullanicinin deposunun kabul ettigi evraklar
+  -> scope=created: kullanicinin deposunun olusturdugu/gonderdigi evraklar
+  -> GET /api/mal-kabul-islemleri/mal-kabul-farklari
+  -> alternatif kisayollar: /accepted, /created, /kabul-ettigim, /olusturdugum
+
 Mal Kabul Islemleri / Firma Mal Kabulleri
   -> tarih araliginda yapilmis mal kabul fislerini getir
   -> GET /api/mal-kabul-islemleri/firma-mal-kabulleri
@@ -4361,17 +4642,22 @@ Stok Islemleri / Sayim Sonuclari
   -> name alani opsiyonel, satirlar zorunlu
   -> kaydetmek icin POST /api/stok-islemleri/sayim-sonuclari
 
-Stok Islemleri / Etiket Belgeleri
-  -> son belgeler icin GET /api/stok-islemleri/etiket-belgeleri veya /son
-  -> tum gecmis istenirse GET /api/stok-islemleri/etiket-belgeleri/tumu
+Kasa Islemleri / Etiket Belgeleri
+  -> son belgeler icin GET /api/kasa-islemleri/etiket-belgeleri veya /son
+  -> tum gecmis istenirse GET /api/kasa-islemleri/etiket-belgeleri/tumu
   -> liste satirlarini LabelDocumentListItemDto ile goster
   -> kullanici satira tiklar
-  -> GET /api/stok-islemleri/etiket-belgeleri/{documentId}
+  -> GET /api/kasa-islemleri/etiket-belgeleri/{documentId}
   -> ayni ekranda tarih bazli tag sorgusu gerekiyorsa
-  -> GET /api/stok-islemleri/etiket-belgeleri/etiketler?dateToGet=...
+  -> GET /api/kasa-islemleri/etiket-belgeleri/etiketler?dateToGet=...
   -> kullanici 'Yeni Etiket Belgesi' derse create ekranina gecer
   -> her satir icin productCode zorunlu olmali
-  -> kaydetmek icin POST /api/stok-islemleri/etiket-belgeleri
+  -> kaydetmek icin POST /api/kasa-islemleri/etiket-belgeleri
+
+Kasa Islemleri / Kunye Etiket Yazdirma
+  -> tarih bazli kunye etiket kayitlari icin GET /api/kasa-islemleri/kunye-etiket-yazdirma?dateToGet=...
+  -> liste satirlarini LabelTagDto ile goster
+  -> yetki kodu kasa-islemleri.kunye-etiket-yazdirma.list
 
 Stok Islemleri / Virmanlar
   -> liste filtreleri: tarih araligi, opsiyonel depo
@@ -4412,7 +4698,6 @@ Iade Islemleri / Depo Iadeleri
 Kasa Islemleri / Kasa Sayimlari
   -> ekran acilisinda o gunun belge listesi icin GET /api/kasa-islemleri/kasa-sayimlari?dateToGet=...
   -> ust rapor kartlari icin GET /api/kasa-islemleri/kasa-sayimlari/rapor?dateToGet=...
-  -> fiziksel para teslim takibi icin GET /api/kasa-islemleri/kasa-sayimlari/banknot-takipleri?dateToGet=...
   -> lookup alanlari icin kasiyer, kasa, odeme tipi ve banknot tipi endpointlerini paralel cagir
   -> kullanici satira tiklar
   -> GET /api/kasa-islemleri/kasa-sayimlari/{seri}/{sira}
@@ -4425,6 +4710,11 @@ Kasa Islemleri / Kasa Sayimlari
   -> detay duzenleme icin PUT /api/kasa-islemleri/kasa-sayimlari/{seri}/{sira}/detaylar
   -> banknot duzenleme icin PUT /api/kasa-islemleri/kasa-sayimlari/{seri}/{sira}/banknot-hareketleri
   -> silme icin DELETE /api/kasa-islemleri/kasa-sayimlari/{seri}/{sira}
+
+Kasa Islemleri / Banknot Takipleri
+  -> fiziksel para teslim takibi icin GET /api/kasa-islemleri/banknot-takipleri?dateToGet=...
+  -> detay icin GET /api/kasa-islemleri/banknot-takipleri/{banknoteTrackId}
+  -> kaydetmek icin POST /api/kasa-islemleri/banknot-takipleri
 
 Kasa Islemleri / Kasa Cirolari
   -> liste filtreleri: tarih araligi, opsiyonel depo
@@ -4460,9 +4750,9 @@ Bu bolumde daha once karisiklik yaratan nokta, is kurali ile mevcut HTTP endpoin
   - secilen belgeleri Uyumsoft `SendInvoice` ile gonderir
   - basarili cevapta donen belge numarasini tekrar Mikro `cha_belge_no` alanina yazar ve kaydi kilitler
 - `fatura-goruntuleme`
-  - eski `Furpa.FaturaGoruntulemeWinUI` parity'siyle lokal `EFatura` kaynagindan listeyi okur
-  - detayda Uyumsoft `GetInboxInvoice` ile XML alir
-  - `XML -> XSLT -> HTML` render eder
+  - eski `Furpa.FaturaGoruntulemeWinUI` parity'sini korur; listeyi artik Auth/PostgreSQL icindeki `uyumsoft_inbox_invoices` cache tablosundan okur
+  - varsayilan belge acmada Uyumsoft `GetInboxInvoicePdf` ile PDF datasini alir
+  - HTML detay/render gerektiginde Uyumsoft `GetInboxInvoice` ile XML alip `XML -> XSLT -> HTML` render eder
   - gercek print/isaretleme ayrimini koruyup `isPrinted` durumunu ayri endpoint ile gunceller
 
 UI tarafinda artik ayri iki operasyon mantigi vardir:
@@ -4485,14 +4775,16 @@ Mevcut API'yi kullanarak ilerleyecekseniz akisi su sekilde okuyun:
    - default davranis yeterliyse `GET /api/fatura-islemleri/fatura-gonderimi/{documentSerie}/{documentOrderNo}?scenario=...`
    - XSLT secimini elle kontrol etmek istiyorsaniz `POST /api/fatura-islemleri/fatura-gonderimi/{documentSerie}/{documentOrderNo}/render`
 3. Secilen bekleyen faturalari canli Uyumsoft'a gondermek icin `POST /api/fatura-islemleri/fatura-gonderimi/send`
-4. Lokal kayitli / gonderilmis belge listesini doldurmak icin `GET /api/fatura-islemleri/fatura-goruntuleme`
-5. Gonderilmis belgeyi acmak icin:
-   - default davranis yeterliyse `GET /api/fatura-islemleri/fatura-goruntuleme/{documentId}`
+4. Yeni eklendi: secilen tarih araligini Uyumsoft'tan cache tabloya almak icin `POST /api/fatura-islemleri/fatura-goruntuleme/senkronize`
+5. Lokal cache/DB'deki gonderilmis belge listesini doldurmak icin `GET /api/fatura-islemleri/fatura-goruntuleme`
+6. Gonderilmis belgeyi resmi PDF olarak acmak icin `GET /api/fatura-islemleri/fatura-goruntuleme/{documentId}` veya `/pdf` alias'i kullanilir.
+7. HTML render/onizleme gerekiyorsa:
+   - default davranis yeterliyse `GET /api/fatura-islemleri/fatura-goruntuleme/{documentId}/detail`
    - XSLT secimini elle kontrol etmek istiyorsaniz `POST /api/fatura-islemleri/fatura-goruntuleme/{documentId}/render`
-6. Kullanici HTML'i gercekten yazdirdiktan veya acikca onay verdikten sonra `PATCH /api/fatura-islemleri/fatura-goruntuleme/{documentId}/printed`
-7. Uyumsoft outbox tarafindaki giden faturayi sorgulamak gerekiyorsa `POST /api/fatura-islemleri/fatura-gonderimi/outbox/search`
-8. Uyumsoft outbox'taki tekil belgeyi gostermek gerekiyorsa `GET /api/fatura-islemleri/fatura-gonderimi/outbox/{invoiceId}`
-9. UI lokal veya baska bir kaynaktan XML uretip sadece goruntusunu gormek istiyorsa `POST /api/fatura-islemleri/fatura-gonderimi/preview`
+8. Kullanici PDF/HTML'i gercekten yazdirdiktan veya acikca onay verdikten sonra `PATCH /api/fatura-islemleri/fatura-goruntuleme/{documentId}/printed`
+9. Uyumsoft outbox tarafindaki giden faturayi sorgulamak gerekiyorsa `POST /api/fatura-islemleri/fatura-gonderimi/outbox/search`
+10. Uyumsoft outbox'taki tekil belgeyi gostermek gerekiyorsa `GET /api/fatura-islemleri/fatura-gonderimi/outbox/{invoiceId}`
+11. UI lokal veya baska bir kaynaktan XML uretip sadece goruntusunu gormek istiyorsa `POST /api/fatura-islemleri/fatura-gonderimi/preview`
 
 Temel route'lar:
 
@@ -4516,8 +4808,13 @@ Legacy referansi:
 - ana pencere karsiligi `Faturalar` listesidir
 - backend tarafindaki ana orkestrasyon `InvoiceViewingService.cs` icinde tutulur
 - veri kaynagi sadece Furpa DB'deki `EFatura` tablosudur; Mikro'dan canli belge aramaz
-- detay / render tarafinda Uyumsoft `GetInboxInvoice` kullanilir
+- varsayilan belge acma tarafinda Uyumsoft `GetInboxInvoicePdf`, HTML detay/render tarafinda Uyumsoft `GetInboxInvoice` kullanilir
 - yazdirma etkisi backend'de otomatik degil, acik `PATCH /printed` komutuna ayrilmistir
+
+Not:
+
+- yeni davranisla birlikte `GET /api/fatura-islemleri/fatura-goruntuleme` artik yalnizca DB/cache okur
+- yeni eklendi: Uyumsoft tarih araligi senkronizasyonu ayri endpoint olan `POST /api/fatura-islemleri/fatura-goruntuleme/senkronize` ile yapilir
 
 Kisa ornek:
 
@@ -4583,9 +4880,11 @@ Response `InvoiceViewingListResponse`:
 
 Liste davranisi:
 
-- temel kaynak `EFatura WITH (NOLOCK)` tablosu/view'i uzerinden okunur
+- temel kaynak Auth/PostgreSQL icindeki `uyumsoft_inbox_invoices` tablosudur
+- `GET /api/fatura-islemleri/fatura-goruntuleme` otomatik Uyumsoft cagrisi yapmaz; sadece lokal cache/DB sonucunu doner
+- yeni eklendi: `POST /api/fatura-islemleri/fatura-goruntuleme/senkronize` endpoint'i secilen tarih araligini Uyumsoft `GetInboxInvoiceList` operasyonu ile cache tabloya upsert eder
 - legacy `GetInvoicesAsync(isProcessed, isPrinted)` akisindaki gibi tarih + islenme + yazdirilma filtresi uygulanir
-- tarih filtresi yalniz `invoiceDate` alanina uygulanir
+- tarih filtresi `invoiceDate` veya fallback olarak `createDate` alanina uygulanir
 - tarih araligi gun seviyesindedir; bitis tarihi SQL tarafinda `+1 gun exclusive` mantigi ile uygulanir
 - `documentId` bu listedeki operasyon anahtaridir; UI icinde row key olarak bunun saklanmasi gerekir
 - `invoiceId` ekranda gostereceginiz fatura numarasidir; detay ve update bununla acilmaz
@@ -4613,9 +4912,70 @@ Liste davranisi:
 - bu, WinUI'daki `invoiceList` / `filteredList` + `PagedList` mantiginin API karsiligidir
 - eski WinUI'daki Excel export davranisi bu endpoint grubuna server-side olarak tasinmamistir; export ihtiyaci varsa UI kendi yukledigi veriyi kullanmali veya ayrica export endpoint'i tasarlanmalidir
 
-### Fatura Goruntuleme Detay
+### Fatura Goruntuleme Manuel Senkronizasyon
+
+Yeni eklendi:
+
+- bu endpoint listeyi donmez; yalnizca secilen tarih araligini Uyumsoft'tan cache tabloya senkronize eder
+- UI tarafinda tipik akis `POST /senkronize` sonra `GET /fatura-goruntuleme` seklinde olmalidir
+
+`POST /api/fatura-islemleri/fatura-goruntuleme/senkronize`
+
+Yetki:
+
+- `fatura-islemleri.fatura-goruntuleme.list`
+
+Request body:
+
+```json
+{
+  "startDate": "2026-05-01",
+  "endDate": "2026-05-05"
+}
+```
+
+Response:
+
+- `204 NoContent`
+
+Davranis:
+
+- secilen tarih araligini Uyumsoft `GetInboxInvoiceList` ile okur
+- gelen sonuc `uyumsoft_inbox_invoices` cache tablosuna upsert edilir
+- tekrar eden veya degisiklik icermeyen sayfalar icin koruma vardir; sonsuz donguye girmez
+- sync tamamlandiktan sonra UI ayni tarih araligiyla `GET /api/fatura-islemleri/fatura-goruntuleme` cagirip DB sonucunu alabilir
+
+### Fatura Goruntuleme PDF
 
 `GET /api/fatura-islemleri/fatura-goruntuleme/{documentId}`
+
+Alias:
+
+`GET /api/fatura-islemleri/fatura-goruntuleme/{documentId}/pdf`
+
+Yetki:
+
+- `fatura-islemleri.fatura-goruntuleme.detail`
+
+Response:
+
+- `UyumsoftOperationResponseDto`
+- Backend Uyumsoft e-fatura `GetInboxInvoicePdf` operasyonunu `invoiceId = documentId` parametresiyle cagirir.
+- PDF payload Uyumsoft response yapisina gore `scalarValue`, `nodes` veya `rawXml` icinde gelir; UI mevcut entegrasyon endpointindeki `GetInboxInvoicePdf` cevabi gibi yorumlamalidir.
+
+Bu endpoint ne icin kullanilmali:
+
+- kullanici liste satirina tiklayip faturanin resmi PDF'ini acmak istediginde
+- fatura goruntuleme ekraninda varsayilan belge acma aksiyonu icin
+
+Bu endpoint ne yapmaz:
+
+- `isPrinted` alanini kendiliginden guncellemez
+- kullanicinin "yazdirildi" karari yerine gecmez
+
+### Fatura Goruntuleme HTML Detay
+
+`GET /api/fatura-islemleri/fatura-goruntuleme/{documentId}/detail`
 
 Yetki:
 
@@ -4641,7 +5001,7 @@ Bu endpoint ne yapmaz:
 Detay davranisi:
 
 - public lookup key `documentId`'dir
-- API once `EFatura` kaynagindan satiri bulur
+- API once `uyumsoft_inbox_invoices` cache kaynagindan satiri bulur; satir yoksa Uyumsoft'tan tekil senkron denemesi yapar
 - sonra legacy semantige uygun olarak ayni satirin `documentId` degerini Uyumsoft `GetInboxInvoice` cagrisinda lookup parametresi olarak kullanir
 - bu akis eski `FaturaGoruntuleyici` formunun `documentId` bazli acilisina karsilik gelir
 - UI HTML donusumunu kendi icinde yapmaz; backend'den gelen `htmlContent` dogrudan gosterilir
@@ -4691,7 +5051,7 @@ Alan anlami:
 
 Response:
 
-- `GET /api/fatura-islemleri/fatura-goruntuleme/{documentId}` ile ayni `InvoiceViewingDetailDto`
+- `GET /api/fatura-islemleri/fatura-goruntuleme/{documentId}/detail` ile ayni `InvoiceViewingDetailDto`
 
 UI notu:
 
@@ -4743,20 +5103,20 @@ Response `InvoiceViewingPrintedStateResponse`:
 Komut davranisi:
 
 - bu endpoint legacy `statusOfPrinted` kolon tiklamasindaki kalici yan etkiyi API'ye acik komut olarak tasir
-- eski WinUI akisinda belge tekrar servisden alinip HTML uretildikten sonra browser print tetiklenir ve yerel `EFatura.isPrinted` guncellenirdi
+- eski WinUI akisinda belge servisden alinip goruntuleme/yazdirma tetiklenir ve yerel `EFatura.isPrinted` guncellenirdi
 - yeni API tasariminda gercek print davranisi backend tarafinda simule edilmez; backend yalniz kalici `isPrinted` durumunu yazar
 - satira cift tiklayip detay acmak artik kendiliginden `isPrinted` guncellemez
 - UI tarafinda sadece kullanici gercekten "yazdirildi say" aksiyonunu verdiginde cagrilmalidir
 - iyi UI akisi sudur:
-  - once `GET detail` veya `POST render`
-  - sonra `document.htmlContent` bir webview/browser icinde gosterilir ve gercek print UI tarafinda tetiklenir
+  - once `GET /{documentId}` PDF, `GET /{documentId}/detail` HTML veya `POST render`
+  - sonra PDF ya da `document.htmlContent` UI tarafinda gosterilir ve gercek print UI tarafinda tetiklenir
   - sonra kullanici acikca onaylarsa `PATCH /printed`
 - response icindeki `summary` guncel DB durumunu geri doner; UI ayrica listeyi tekrar cekmeden satiri yerinde guncelleyebilir
 - eski WinUI'daki gibi "yazdirilmamis" filtresinde satiri listeden dusurmek istiyorsaniz bu karar UI tarafinda verilir; backend otomatik satir silmez
 
 ### Fatura Goruntuleme Render Kurallari
 
-- `GET detail` endpoint'i `preferEmbeddedXslt` kararini kendisi verir:
+- `GET /{documentId}/detail` endpoint'i `preferEmbeddedXslt` kararini kendisi verir:
   - `isStandard = true` ise legacy `Properties.Resources.general` davranisina denk olarak embedded XSLT aranmaz
   - `isStandard = false` ise once embedded XSLT denenir
 - `POST render` endpoint'i ise bu karari request body'si ile override etmenize izin verir
@@ -4770,9 +5130,10 @@ Komut davranisi:
 
 ### Fatura Goruntuleme WinUI Parity Notlari
 
-- liste kaynagi yalnizca `EFatura`'dir; bu modulde Mikro tarafindan canli belge aramasi yapilmaz
+- liste kaynagi yalnizca Uyumsoft inbox metadata'sinin yerel cache'idir; bu modulde Mikro tarafindan canli belge aramasi yapilmaz
+- yeni eklendi: liste endpoint'i ile manuel Uyumsoft sync endpoint'i ayrilmistir; UI ihtiyaca gore once sync sonra liste akisini kurmalidir
 - eski WinForms'taki "tum filtreli seti alip sonra arama/sayfalama yap" davranisi buyuk oranda korunmustur; sadece bu mantik artik API katmani icinde calisir
-- hem detay hem yazdirma akisinin render kaynagi Uyumsoft `GetInboxInvoice` tarafidir; bu modulde outbox okunmaz
+- varsayilan PDF akisi Uyumsoft `GetInboxInvoicePdf`, HTML detay/render akisi Uyumsoft `GetInboxInvoice` tarafidir; bu modulde outbox okunmaz
 - eski UI'daki `invoiceDate.Value` null riski yerine API null `invoiceDate` satirlarini tarih listesine dahil etmez
 - `ClientGenerator` benzeri alternatif istemci secimi artik UI sorunu degildir; backend config tabanli entegrasyon servisi kullanir
 - legacy'deki hardcoded WCF credential'i yeni backend'de config tabanli hale getirilmistir; secret UI'ya sizmaz
@@ -5059,18 +5420,20 @@ Fatura modulu notlari:
 
 - is kurali tarafinda sade ozet sunudur: `fatura-gonderimi` bekleyen faturayi secip Uyumsoft'a yollama akisidir, `fatura-goruntuleme` ise Uyumsoft tarafindaki giden faturayi acma/yazdirma akisidir
 - bu repoda `fatura-gonderimi` icin artik dogrudan pending list, detay/render ve send endpointleri vardir
-- `fatura-goruntuleme` tarafi su an `EFatura` kaynagindan liste alir; detayda belgeyi Uyumsoft `GetInboxInvoice` ile cekip render eder
+- `fatura-goruntuleme` tarafi artik `uyumsoft_inbox_invoices` cache tablosundan liste alir; varsayilan acista Uyumsoft `GetInboxInvoicePdf` ile PDF datasini, HTML detayda `GetInboxInvoice` ile render datasini alir
+- yeni eklendi: `POST /api/fatura-islemleri/fatura-goruntuleme/senkronize` ile secilen tarih araligi manuel olarak Uyumsoft'tan cache'e alinabilir
 - `fatura-goruntuleme` icinde legacy'deki "goruntule" ve "yazdirildi say" ayrimi artik ayri endpointlerle temsil edilir
-- `GET detail` ile `POST render` ayni response tipini doner; fark, `POST render` ile XSLT davranisinin override edilebilmesidir
+- `GET /{documentId}/detail` ile `POST render` ayni response tipini doner; fark, `POST render` ile XSLT davranisinin override edilebilmesidir
 - `fatura-gonderimi` detail/send akisinda invoice XML Mikro verisinden backend tarafinda yeniden uretilir; UI ham XML kurmak zorunda degildir
 - `fatura-gonderimi` send akisinda basarili sonuclarda Mikro `cha_belge_no` geri yazilir ve kayit kilitlenir
 - render sirasinda once embedded XSLT denenir; yoksa WebApi icindeki `Assets/Xslt/efatura.xslt` veya `Assets/Xslt/earsiv.xslt` fallback olarak kullanilir
-- `fatura-goruntuleme` detayinda lookup anahtari `documentId`'dir; `invoiceId` ise kullaniciya gosterilen numaradir
+- `fatura-goruntuleme` PDF/detail lookup anahtari `documentId`'dir; `invoiceId` ise kullaniciya gosterilen numaradir
 
 ## UI Tasarim Onerisi
 
 Sol menu:
 
+- `AramaIslemleri`
 - `SiparisIslemleri`
 - `SevkIslemleri`
 - `MalKabulIslemleri`
@@ -5083,6 +5446,8 @@ Sol menu:
 
 Liste ekranlarinda onerilen kolonlar:
 
+- Fiyat Gor icin: barkod, stok kodu, stok adi, fiyat, fiyat tipi, birim, blok durumlari
+- Cari Bul icin: barkod, stok kodu, stok adi, varsayilan tedarikci, onerilen cari, son hareket tarihi, kaynaklar
 - Depo siparisleri icin: belge tarihi, seri, sira, kaynak/hedef depo, satir sayisi, toplam miktar, teslim tarihi
 - Firma siparisleri icin: belge tarihi, seri, sira, musteri, adres, satir sayisi, toplam miktar, teslim tarihi
 - Firma sevkleri ve firma iadeleri icin: belge tarihi, seri, sira, cari, depo, satir sayisi, toplam miktar, toplam tutar
@@ -5129,7 +5494,7 @@ Legacy farklarini okurken su noktalari esas alinmalidir:
 
 - Hangfire ve SignalR beklentisi yoktur; bu modul application icindeki hosted queue + polling modeliyle calisir
 - `warehouseNo` artik `ClaimTypes.Name` degil, `warehouse_no` claim'inden okunur
-- `promofile` eski sistemdeki yardimci dosya zincirini su an uretmez; endpoint bilincli olarak `409 Conflict` doner
+- `promofile` de yeni kuyruk/polling modeliyle calisir; eski yardimci dosya zinciri job icinde uretilir
 
 Temel route:
 
@@ -5149,9 +5514,9 @@ Mevcut endpointler:
   - kasiyer ve yetki dosyalari isi kuyruga alinir
   - response `202 Accepted`
 - `GET /api/operations/promofile`
-  - su an bilincli olarak aktif degil
-  - `409 Conflict` donebilir
-  - neden: promotion ve GIB veri kaynagi bu API'ye henuz tasinmadi
+  - promosyon ve yardimci POS dosyalari isi kuyruga alinir
+  - response `202 Accepted`
+  - Mayday/UYUM connection stringleri eksikse job `Failed` durumuna duser ve `errorMessage` ile sebep doner
 - `GET /api/operations/jobs/{jobId}`
   - kuyruga atilan isin durumunu dondurur
   - response `OperationJobDetailDto`
@@ -5175,6 +5540,7 @@ Ayni akis su ekran aksiyonlari icin de gecerlidir:
 
 - `Urun/Barcode/PLU Dosyasi Olustur`
 - `Kasiyer Dosyasi Olustur`
+- `Promosyon Dosyasi Olustur`
 
 Job response modelleri:
 
@@ -5242,8 +5608,9 @@ Operasyon modulu notlari:
 - UI canli progress stream beklememelidir; polling yeterlidir
 - `scalesfile` icin `BranchDetails` kaydi ve `ScalesType` bilgisi zorunludur
 - `productbarcodeplunofile` ve `cashierfile` lokal export uretebilir; branch network path varsa ek olarak paylasima da kopyalanir
+- `promofile` `PROMO.DAT`, `NOPROMO.DAT`, `NOCEK.DAT`, `NOYEMEK.DAT`, `GRUP.DAT`, `OZELKOD.DAT`, `EFATVNO.DAT` ve kasa bazli `MESAJ.xxx` dosyalarini uretir
 - export klasoru config'deki `OperationsExport:BasePath` ile verilebilir; bos ise uygulama altindaki `App_Data/OperationsExports` kullanilir
-- `promofile` UI'da simdilik gizlenmeli ya da "hazir degil" etiketiyle pasif sunulmalidir
+- `promofile` icin `ConnectionStrings:MaydayConnection` ve `ConnectionStrings:UyumConnection` ayarlari gereklidir
 
 ## Entegrasyon Islemleri
 
@@ -5335,15 +5702,21 @@ Mevcut endpointler:
   - response `AxataManualOutboundDeliveryBatchResponse`
 - `POST /api/integrations/axata-sync/manual/axata/inbound-atf/company-receivings`
   - AXATA inbound ATF verisini AXATA-native body ile Mikro firma mal kabule cevirir
+  - native ATF modelinde satir bazli fiili kabul alani yoktur; `quantity` hem `dispatchQuantity` hem `acceptedQuantity` gibi yazilir
+  - bu nedenle bu endpoint'te `quantity` tek basina fark/iade olusturmaz
   - response `CreateCompanyReceivingResponse`
 - `POST /api/integrations/axata-sync/manual/axata/inbound-atf/company-receivings/batch`
   - birden fazla AXATA inbound ATF kaydini toplu Mikro firma mal kabule cevirir
+  - her item icin native ATF miktari tam kabul gibi islenir
   - response `AxataManualIncomingCompanyReceivingBatchResponse`
 - `POST /api/integrations/axata-sync/manual/incoming/company-receivings`
   - AXATA'dan elle toparlanan firma mal kabul verisini Mikro'ya manuel yazar
+  - body `CreateCompanyReceivingHttpRequest` ile aynidir; `dispatchQuantity`, `acceptedQuantity` ve `autoCreateReturnForPartialAcceptance` desteklenir
+  - `acceptedQuantity < dispatchQuantity` ise firma iadesi otomatik olusabilir, e-irsaliye gonderimi yine kullanici aksiyonudur
   - response `CreateCompanyReceivingResponse`
 - `POST /api/integrations/axata-sync/manual/incoming/company-receivings/batch`
   - birden fazla firma mal kabul payload'ini tek cagrida Mikro'ya yazar
+  - her item tekli `manual/incoming/company-receivings` ile ayni otomatik iade kuralini kullanir
   - response `AxataManualIncomingCompanyReceivingBatchResponse`
 - `POST /api/integrations/axata-sync/manual/incoming/inventory-counts`
   - AXATA'dan elle toparlanan sayim verisini Mikro'ya manuel yazar
@@ -5480,8 +5853,8 @@ Entegrasyon modulu notlari:
 - toplu endpoint'lerde `ContinueOnError = true` ise HTTP 200 donup basarisiz item'lari `Failures` listesinde raporlar
 - `Outbox` modu su an gercek SOAP dispatch degil, payload uretim ve dosyalama asamasidir
 - canli AXATA belge fetch/ack adapter'i halen ayri fazdir
-- `GET /api/integrations/axata-sync` icindeki her task artik `supportsManualDocuments` ve `supportsLiveDispatch` alanlarini da dondurur
-- `GET /api/integrations/axata-sync/fetch-profiles` ile UI eski worker parity icin hedeflenen `C01/C02/C03/C04/G01/G02` ve benzeri fetch profillerini okuyabilir
+- `GET /api/integrations/axata-sync` icindeki her task artik `supportsManualDocuments`, `supportsLiveDispatch` ve varsa `liveOperationName` alanlarini da dondurur
+- `GET /api/integrations/axata-sync/fetch-profiles` ile UI eski worker parity icin hedeflenen `C01/C02/C03/C04(query C4)/G01/G02` ve benzeri fetch profillerini okuyabilir
 
 Bu modulun tasarim hedefi:
 
@@ -5563,7 +5936,7 @@ UI'da sonraki faz icin acilabilecek ekranlar:
 
 - `AXATA'dan Cek ve Islet` sekmesi
   - amac: operasyon ekibi AXATA body toplamak zorunda kalmadan tanimli profile gore fetch baslatsin
-  - ornek profiller: `C01`, `C02`, `C03`, `C04`, `G01`, `G02`
+  - ornek profiller: `C01`, `C02`, `C03`, `C04(query C4)`, `G01`, `G02`
   - beklenen akis:
     - profil sec
     - preview al
@@ -5584,6 +5957,302 @@ UI tarafinda simdiden scaffold edilebilecek ama mevcut backend'de henuz aktif ol
 - `manual/fetch/inbound-deliveries/{profileCode}/execute`
 
 Bu route'lar bugun yoktur; ama ekran mimarisi kurarken ayrik bir `fetch-import` deneyimi dusunulmesi dogru olur.
+
+### POS Muhasebe Aktarimi
+
+Bu menu, eski `Furpa.ZReportWinUI` icindeki su operasyon ailesini web'e tasimak icin acildi:
+
+- Z raporu iceri aktarma ve ERP'ye gonderme
+- POS fatura staging ve ERP'ye gonderme
+- gider pusulasi staging ve ERP'ye gonderme
+- kasa / cihaz ile sube esleme bakimi
+
+Temel route:
+
+- `api/entegrasyon-islemleri/pos-muhasebe-aktarimi`
+
+Yetki kodlari:
+
+- `entegrasyon-islemleri.pos-muhasebe-aktarimi.list`
+- `entegrasyon-islemleri.pos-muhasebe-aktarimi.detail`
+- `entegrasyon-islemleri.pos-muhasebe-aktarimi.create`
+- `entegrasyon-islemleri.pos-muhasebe-aktarimi.update`
+
+Mevcut backend durumu:
+
+- route ailesi aciktir
+- controller ve request contract'lari tanimlidir
+- tum endpoint'ler su an `501 Not Implemented` doner
+- response modeli `ModuleActionScaffoldResponse`'dur
+- yani UI ekrani cizilebilir, fakat business veri beklenmemelidir
+
+UI bu menuyu tek sayfa icinde 4 tab olarak kurgulamalidir:
+
+1. `Z Raporlari`
+2. `POS Faturalar`
+3. `Gider Pusulalari`
+4. `Kasa Eslemeleri`
+
+#### Z Raporlari Tab'i
+
+Bu tab'in hedefi gelecekte su akisi yurutmektir:
+
+- kullanici tarih ve depo baglamini secer
+- secili import kaynagina gore Z raporlari staging alana okunur
+- belge baslik, KDV satiri ve odeme satiri bazinda incelenir
+- secilen raporlar ERP muhasebe fisine donusturulur
+- hatali veya tekrarli importlar loglanir
+
+Scaffold endpoint'ler:
+
+- `GET /api/entegrasyon-islemleri/pos-muhasebe-aktarimi/z-raporlari`
+- `GET /api/entegrasyon-islemleri/pos-muhasebe-aktarimi/z-raporlari/{reportId}`
+- `POST /api/entegrasyon-islemleri/pos-muhasebe-aktarimi/z-raporlari/ice-aktar`
+- `POST /api/entegrasyon-islemleri/pos-muhasebe-aktarimi/z-raporlari/erpye-gonder`
+- `DELETE /api/entegrasyon-islemleri/pos-muhasebe-aktarimi/z-raporlari`
+
+UI beklentisi:
+
+- liste ekraninda durum, tarih, Z no, kasa no, sube ve toplam kolonlari hazir dusunulmelidir
+- detay ekraninda header + KDV satirlari + odeme satirlari alt panelli dusunulmelidir
+- `ice aktar` butonu ayrik bir dialog ile acilmalidir
+- `ERP'ye gonder` aksiyonu coklu secim ile calisacakmis gibi tasarlanmalidir
+- `sil` aksiyonu staging kaydi temizleme semantigiyle ele alinmalidir; ERP'de olusmus fis silme butonu gibi sunulmamalidir
+
+#### POS Faturalar Tab'i
+
+Bu tab'in hedefi gelecekte POS kaynakli satis faturalarini once staging'e alip sonra ERP'ye aktarmaktir.
+
+Scaffold endpoint'ler:
+
+- `GET /api/entegrasyon-islemleri/pos-muhasebe-aktarimi/pos-faturalar`
+- `GET /api/entegrasyon-islemleri/pos-muhasebe-aktarimi/pos-faturalar/{invoiceId}`
+- `POST /api/entegrasyon-islemleri/pos-muhasebe-aktarimi/pos-faturalar/ice-aktar`
+- `POST /api/entegrasyon-islemleri/pos-muhasebe-aktarimi/pos-faturalar/erpye-gonder`
+- `PUT /api/entegrasyon-islemleri/pos-muhasebe-aktarimi/pos-faturalar/{invoiceId}`
+- `DELETE /api/entegrasyon-islemleri/pos-muhasebe-aktarimi/pos-faturalar`
+
+UI beklentisi:
+
+- liste ekraninda tarih bazli veri cekme aksiyonu vardir
+- detay ekraninda `documentNo`, `customerTaxNo`, `paymentType`, `branchNo`, `description` duzenleme alanlari dusunulmelidir
+- satir duzeyi guncelleme bu surumde contract'ta yoktur; ekran agirlikla ust belge duzenleme mantigiyla tasarlanmalidir
+- kullanici daha sonra ERP gonderimi icin birden fazla fatura secebilecekmis gibi secim modeli hazir tutulmalidir
+
+#### Gider Pusulalari Tab'i
+
+Bu tab, POS gider pusulasi staging ve ERP'ye aktarim akisinin web karsiligidir.
+
+Scaffold endpoint'ler:
+
+- `GET /api/entegrasyon-islemleri/pos-muhasebe-aktarimi/gider-pusulalari`
+- `GET /api/entegrasyon-islemleri/pos-muhasebe-aktarimi/gider-pusulalari/{expenseId}`
+- `POST /api/entegrasyon-islemleri/pos-muhasebe-aktarimi/gider-pusulalari/ice-aktar`
+- `POST /api/entegrasyon-islemleri/pos-muhasebe-aktarimi/gider-pusulalari/erpye-gonder`
+- `PUT /api/entegrasyon-islemleri/pos-muhasebe-aktarimi/gider-pusulalari/{expenseId}`
+- `DELETE /api/entegrasyon-islemleri/pos-muhasebe-aktarimi/gider-pusulalari`
+
+UI beklentisi:
+
+- POS faturalar tab'ina paralel bir liste + detay kurgusu kullanilmalidir
+- ayrim yalnizca is anlami ve kolon isimlerinde olmalidir
+- detay formunda belge satirlari okunur, ama guncellenen alanlar header agirlikli olacakmis gibi dusunulmelidir
+
+#### Kasa Eslemeleri Tab'i
+
+Bu tab'in amaci yazar kasa / cihaz no ile sube arasindaki eslemeyi yonetmektir.
+
+Scaffold endpoint'ler:
+
+- `GET /api/entegrasyon-islemleri/pos-muhasebe-aktarimi/kasa-eslemeleri`
+- `POST /api/entegrasyon-islemleri/pos-muhasebe-aktarimi/kasa-eslemeleri`
+- `PUT /api/entegrasyon-islemleri/pos-muhasebe-aktarimi/kasa-eslemeleri/{mappingId}`
+
+UI beklentisi:
+
+- bu tab master-data ekranidir; tarih filtresi gerektirmez
+- grid inline edit veya drawer edit mantigi uygundur
+- minimum alanlar `cashRegisterNo` ve `branchNo` olarak dusunulmelidir
+
+#### UI Durum Yonetimi
+
+Bu menu scaffold oldugu icin UI tarafinda su davranis onerilir:
+
+- route acik olsa da ilk cagrida `501` gelirse ekran "hazir ama backend baglanmadi" uyarisina dussun
+- `ModuleActionScaffoldResponse.message` kullaniciya dogrudan gosterilebilir
+- tab'ler simdiden cizilebilir, ama kayit listeleri yerine placeholder / empty-state kartlari kullanilmalidir
+- aksiyon butonlari gorunsun fakat tiklandiginda backend `501` cevabi kullaniciya net anlatilsin
+
+#### Gelecek Faz Icin Ekran Beklentisi
+
+Bu menu ileride gercek implementasyona gectiginde UI'nin tekrar buyuk refactor istememesi icin su omurga korunmalidir:
+
+- tek menu, cok tab
+- liste / detay / toplu islem ayrimi
+- staging kaydi ile ERP kaydini ayri kavramlar olarak gosterme
+- `Import`, `Detay`, `ERP'ye Gonder`, `Sil` aksiyonlarini her belge turunde ortak toolbar diliyle sunma
+
+Bu nedenle frontend tarafinda bugunden su dil benimsenmelidir:
+
+- `ice aktar` = kaynaktan staging'e cek
+- `ERP'ye gonder` = staging'den muhasebe kaydina donustur
+- `sil` = staging kaydini temizle
+- `guncelle` = staging header verisini duzenle
+
+Not:
+
+- bu bolumde anlatilan is akislarinin buyuk kismi hedef tasarimdir
+- bugun dogrulanabilen durum, yalnizca route + yetki + HTTP contract + scaffold response varligidir
+- gercek veri modeli ve business response DTO'lari backend implementasyon fazinda netlesecektir
+
+#### Mevcut Request / Response Kontratlari
+
+Bu menu su an scaffold oldugu icin `liste`, `detay`, `import`, `gonder`, `sil` ve `guncelle` endpoint'lerinin tumu response olarak ayni modeli doner:
+
+- `ModuleActionScaffoldResponse`
+
+Yani bugunku backend durumunda:
+
+- ozel `ZReportListItemDto`
+- ozel `PosInvoiceDetailDto`
+- ozel `ExpenseNoteDetailDto`
+- ozel `CashRegisterBranchMappingDto`
+
+gibi business response DTO'lari henuz yoktur.
+
+UI tarafi bu fazda response'u su mantikla ele almalidir:
+
+- `isImplemented = false`
+- `message = backend iskelet endpoint aciklamasi`
+- `moduleCode`, `menuCode`, `actionCode` alanlari ile ekran aksiyonu eslenebilir
+
+Endpoint bazli request / response ozet tablosu:
+
+| Endpoint | Request kaynagi | Request modeli | Mevcut response |
+|---|---|---|---|
+| `GET /api/entegrasyon-islemleri/pos-muhasebe-aktarimi` | body yok | body yok | `ModuleActionScaffoldResponse` |
+| `GET /api/entegrasyon-islemleri/pos-muhasebe-aktarimi/z-raporlari` | query | `PosAccountingDateRangeHttpRequest` | `ModuleActionScaffoldResponse` |
+| `GET /api/entegrasyon-islemleri/pos-muhasebe-aktarimi/z-raporlari/{reportId}` | path | `reportId: Guid` | `ModuleActionScaffoldResponse` |
+| `POST /api/entegrasyon-islemleri/pos-muhasebe-aktarimi/z-raporlari/ice-aktar` | body | `ImportZReportsHttpRequest` | `ModuleActionScaffoldResponse` |
+| `POST /api/entegrasyon-islemleri/pos-muhasebe-aktarimi/z-raporlari/erpye-gonder` | body | `PosAccountingTransferHttpRequest` | `ModuleActionScaffoldResponse` |
+| `DELETE /api/entegrasyon-islemleri/pos-muhasebe-aktarimi/z-raporlari` | body | `PosAccountingDeleteHttpRequest` | `ModuleActionScaffoldResponse` |
+| `GET /api/entegrasyon-islemleri/pos-muhasebe-aktarimi/pos-faturalar` | query | `PosAccountingDateRangeHttpRequest` | `ModuleActionScaffoldResponse` |
+| `GET /api/entegrasyon-islemleri/pos-muhasebe-aktarimi/pos-faturalar/{invoiceId}` | path | `invoiceId: Guid` | `ModuleActionScaffoldResponse` |
+| `POST /api/entegrasyon-islemleri/pos-muhasebe-aktarimi/pos-faturalar/ice-aktar` | body | `ImportPosDocumentsHttpRequest` | `ModuleActionScaffoldResponse` |
+| `POST /api/entegrasyon-islemleri/pos-muhasebe-aktarimi/pos-faturalar/erpye-gonder` | body | `PosAccountingTransferHttpRequest` | `ModuleActionScaffoldResponse` |
+| `PUT /api/entegrasyon-islemleri/pos-muhasebe-aktarimi/pos-faturalar/{invoiceId}` | body | `UpdatePosAccountingDocumentHttpRequest` | `ModuleActionScaffoldResponse` |
+| `DELETE /api/entegrasyon-islemleri/pos-muhasebe-aktarimi/pos-faturalar` | body | `PosAccountingDeleteHttpRequest` | `ModuleActionScaffoldResponse` |
+| `GET /api/entegrasyon-islemleri/pos-muhasebe-aktarimi/gider-pusulalari` | query | `PosAccountingDateRangeHttpRequest` | `ModuleActionScaffoldResponse` |
+| `GET /api/entegrasyon-islemleri/pos-muhasebe-aktarimi/gider-pusulalari/{expenseId}` | path | `expenseId: Guid` | `ModuleActionScaffoldResponse` |
+| `POST /api/entegrasyon-islemleri/pos-muhasebe-aktarimi/gider-pusulalari/ice-aktar` | body | `ImportPosDocumentsHttpRequest` | `ModuleActionScaffoldResponse` |
+| `POST /api/entegrasyon-islemleri/pos-muhasebe-aktarimi/gider-pusulalari/erpye-gonder` | body | `PosAccountingTransferHttpRequest` | `ModuleActionScaffoldResponse` |
+| `PUT /api/entegrasyon-islemleri/pos-muhasebe-aktarimi/gider-pusulalari/{expenseId}` | body | `UpdatePosAccountingDocumentHttpRequest` | `ModuleActionScaffoldResponse` |
+| `DELETE /api/entegrasyon-islemleri/pos-muhasebe-aktarimi/gider-pusulalari` | body | `PosAccountingDeleteHttpRequest` | `ModuleActionScaffoldResponse` |
+| `GET /api/entegrasyon-islemleri/pos-muhasebe-aktarimi/kasa-eslemeleri` | query | `CashRegisterBranchMappingListHttpRequest` | `ModuleActionScaffoldResponse` |
+| `POST /api/entegrasyon-islemleri/pos-muhasebe-aktarimi/kasa-eslemeleri` | body | `CashRegisterBranchMappingHttpRequest` | `ModuleActionScaffoldResponse` |
+| `PUT /api/entegrasyon-islemleri/pos-muhasebe-aktarimi/kasa-eslemeleri/{mappingId}` | body | `CashRegisterBranchMappingHttpRequest` | `ModuleActionScaffoldResponse` |
+
+Request modellerinin alanlari:
+
+```csharp
+public sealed class PosAccountingDateRangeHttpRequest
+{
+    public DateTime? StartDate { get; init; }
+    public DateTime? EndDate { get; init; }
+    public int? WarehouseNo { get; init; }
+    public bool OnlyPending { get; init; } = true;
+}
+
+public sealed class ImportZReportsHttpRequest
+{
+    public int? WarehouseNo { get; init; }
+    public DateTime? BusinessDate { get; init; }
+    public string? ImportMode { get; init; }
+    public string? SourceCode { get; init; }
+    public bool OverwriteExisting { get; init; }
+}
+
+public sealed class ImportPosDocumentsHttpRequest
+{
+    public int? WarehouseNo { get; init; }
+    public DateTime? BusinessDate { get; init; }
+    public bool IncludePreviouslyImported { get; init; }
+    public bool OverwriteExisting { get; init; }
+}
+
+public sealed class PosAccountingTransferHttpRequest
+{
+    public int? WarehouseNo { get; init; }
+    public IReadOnlyCollection<Guid> DocumentIds { get; init; }
+    public bool ContinueOnError { get; init; } = true;
+}
+
+public sealed class PosAccountingDeleteHttpRequest
+{
+    public int? WarehouseNo { get; init; }
+    public IReadOnlyCollection<Guid> DocumentIds { get; init; }
+}
+
+public sealed class UpdatePosAccountingDocumentHttpRequest
+{
+    public string? DocumentNo { get; init; }
+    public string? CustomerTaxNo { get; init; }
+    public string? PaymentType { get; init; }
+    public int? BranchNo { get; init; }
+    public string? Description { get; init; }
+}
+
+public sealed class CashRegisterBranchMappingListHttpRequest
+{
+    public int? BranchNo { get; init; }
+    public string? CashRegisterNo { get; init; }
+}
+
+public sealed class CashRegisterBranchMappingHttpRequest
+{
+    public string CashRegisterNo { get; init; } = string.Empty;
+    public int? BranchNo { get; init; }
+    public string? BranchName { get; init; }
+    public string? Description { get; init; }
+}
+```
+
+Mevcut response modeli:
+
+```csharp
+public sealed record ModuleActionScaffoldResponse(
+    string ModuleCode,
+    string ModuleName,
+    string MenuCode,
+    string MenuName,
+    string ActionCode,
+    string ActionName,
+    string HttpMethod,
+    string PermissionCode,
+    string Route,
+    string? ResourceId,
+    bool IsImplemented,
+    string Message);
+```
+
+Ornek scaffold response:
+
+```json
+{
+  "moduleCode": "entegrasyon-islemleri",
+  "moduleName": "EntegrasyonIslemleri",
+  "menuCode": "pos-muhasebe-aktarimi",
+  "menuName": "PosMuhasebeAktarimi",
+  "actionCode": "list",
+  "actionName": "Listele",
+  "httpMethod": "GET",
+  "permissionCode": "entegrasyon-islemleri.pos-muhasebe-aktarimi.list",
+  "route": "/api/entegrasyon-islemleri/pos-muhasebe-aktarimi/pos-faturalar",
+  "resourceId": null,
+  "isImplemented": false,
+  "message": "Bu endpoint iskelet olarak acildi. Is kurali ve Mikro veritabani entegrasyonu sonraki adimda baglanacak."
+}
+```
 
 ## Uyumsoft Entegrasyonu
 
@@ -6434,6 +7103,39 @@ public sealed record ProductLookupItemDto(
     bool IsGoodsAcceptanceBlocked,
     string ProductManagerCode);
 
+public sealed record ProductCustomerSuggestionResponse(
+    bool IsProductFound,
+    string StockCode,
+    string? StockName,
+    string? DefaultSupplierCode,
+    string? DefaultSupplierName,
+    IReadOnlyCollection<ProductCustomerSuggestionDto> Suggestions);
+
+public sealed record ProductCustomerSuggestionDto(
+    string CustomerCode,
+    string CustomerName,
+    string? TaxNoOrTckn,
+    bool IsDefaultSupplier,
+    int MovementCount,
+    DateTime? LastMovementDate,
+    string? LastDocumentNo,
+    IReadOnlyCollection<string> Sources);
+
+public sealed record BarcodeCustomerSuggestionResponse(
+    bool IsFound,
+    string Barcode,
+    int WarehouseNo,
+    string? ResolutionSource,
+    string? StockCode,
+    string? StockName,
+    string? MatchedBarcode,
+    string? PrimaryBarcode,
+    string? CaseBarcode,
+    double? UnitsPerCase,
+    string? DefaultSupplierCode,
+    string? DefaultSupplierName,
+    IReadOnlyCollection<ProductCustomerSuggestionDto> Suggestions);
+
 public sealed record CustomerLookupItemDto(
     string CustomerCode,
     string CustomerName,
@@ -6640,6 +7342,7 @@ public sealed record WarehouseShippingListItemDto(
     string TargetWarehouse,
     int ShippingWarehouseNo,
     byte ShippingState,
+    bool IsReturn,
     string Plaque,
     string DriverNameSurname,
     string DriverTckn,
@@ -6660,6 +7363,7 @@ public sealed record WarehouseShippingHeaderDto(
     string TargetWarehouse,
     int ShippingWarehouseNo,
     byte ShippingState,
+    bool IsReturn,
     string Plaque,
     string DriverNameSurname,
     string DriverTckn,
@@ -6815,6 +7519,7 @@ public sealed record AcceptWarehouseReceivingResponse(
     int SourceWarehouseNo,
     int TransitWarehouseNo,
     byte ShippingState,
+    bool IsReturn,
     int LineCount,
     double TotalShippedQuantity,
     double TotalReceivedQuantity,
@@ -6849,7 +7554,14 @@ public sealed record CreateCompanyReceivingResponse(
     double TotalOrderOverReceivedQuantity,
     double TotalAmount,
     string WriteConnectionName,
-    IReadOnlyCollection<CreateCompanyReceivingLineResultDto> Lines);
+    IReadOnlyCollection<CreateCompanyReceivingLineResultDto> Lines,
+    double TotalDispatchQuantity = 0d,
+    double TotalNetAcceptedQuantity = 0d,
+    double TotalReturnedQuantity = 0d,
+    int AutoCreatedReturnLineCount = 0,
+    string? AutoCreatedReturnDocumentSerie = null,
+    int? AutoCreatedReturnDocumentOrderNo = null,
+    string ReturnEDespatchStatus = "Yok");
 
 public sealed record CreateCompanyReceivingLineResultDto(
     Guid MovementGuid,
@@ -6864,7 +7576,15 @@ public sealed record CreateCompanyReceivingLineResultDto(
     double OrderLinkedQuantity,
     double OrderlessQuantity,
     double OrderRemainingBefore,
-    double OrderRemainingAfter);
+    double OrderRemainingAfter,
+    double DispatchQuantity = 0d,
+    double PhysicalAcceptedQuantity = 0d,
+    double ReturnQuantity = 0d,
+    string ReturnStatus = "Yok",
+    Guid? ReturnMovementGuid = null,
+    string? ReturnDocumentSerie = null,
+    int? ReturnDocumentOrderNo = null,
+    string ReturnEDespatchStatus = "Yok");
 ```
 
 ### Stok Modelleri
@@ -7206,7 +7926,8 @@ public sealed record BanknoteMovementItemDto(
     int Quantity,
     double Total);
 
-public sealed record BanknoteTrackItemDto(
+public sealed record BanknoteTrackDto(
+    Guid BanknoteTrackId,
     int WarehouseNo,
     string WarehouseName,
     DateTime BanknoteTrackDate,
@@ -7357,7 +8078,7 @@ public sealed record CashTurnoverBranchOverviewItemDto(
     double AverageBasketAmount);
 
 public sealed record CreateBanknoteTrackResponse(
-    int BanknoteTrackId,
+    Guid BanknoteTrackId,
     DateTime BanknoteTrackDate,
     int WarehouseNo,
     bool Created);
@@ -7446,7 +8167,7 @@ public sealed record InvoiceViewingPrintedStateResponse(
 Not:
 
 - `InvoiceRenderedDocumentDto.InvoiceId`, inbox detay response'unda UI'nin gosterecegi fatura numarasini tasir.
-- `GET /api/fatura-islemleri/fatura-goruntuleme/{documentId}` endpoint'inde lookup anahtari yine `documentId` olarak kalir.
+- `GET /api/fatura-islemleri/fatura-goruntuleme/{documentId}` PDF endpoint'inde lookup anahtari yine `documentId` olarak kalir.
 
 ### Operasyon Modelleri
 
@@ -7513,7 +8234,8 @@ public sealed record AxataSynchronizationTaskDto(
     string SourceSystem,
     string TargetSystem,
     bool SupportsManualDocuments,
-    bool SupportsLiveDispatch);
+    bool SupportsLiveDispatch,
+    string? LiveOperationName);
 
 public sealed record AxataSynchronizationFetchProfilesOverviewDto(
     DateTime GeneratedAtUtc,
@@ -7718,7 +8440,6 @@ public sealed record AxataSynchronizationProbeDto(
 ### Ozel Response Notlari
 
 - `GET /` response modeli dokumanin basindaki `Root bilgi endpoint'i` bolumunde yer alir.
-- `GET /api/kasa-islemleri/kasa-sayimlari/banknot-takipleri/toplam` response body olarak `double` doner.
 - `GET /api/kasa-islemleri/kasa-sayimlari/z-rapor-toplam` response body olarak `double` doner.
 - E-irsaliye PDF endpointleri `application/pdf` binary response doner; JSON model yoktur.
 - `GET /api/entegrasyon-islemleri/uyumsoft/e-fatura/.../pdf` ve `GET /api/entegrasyon-islemleri/uyumsoft/e-irsaliye/.../pdf` route'lari binary degil, JSON `UyumsoftOperationResponseDto` doner.
@@ -7755,8 +8476,13 @@ Bu bolumde yalnizca endpointlerin dogrudan baglandigi HTTP request modelleri yer
 ### Arama Request Modelleri
 
 - `ProductSearchHttpRequest`: `WarehouseNo`, `Barcode`, `StockCode`, `StockName`, `SupplierCode`, `CompanyCode`, `Take`
+- `ProductBarcodePriceLookupHttpRequest`: `WarehouseNo`, `Take`
 - `CustomerSearchHttpRequest`: `SearchText`, `Take`
 - `WarehouseSearchHttpRequest`: `SearchText`, `WarehouseNo`, `Take`
+- `BarcodeResolutionHttpRequest`: `WarehouseNo`, `ScreenCode`
+- `BarcodeCustomerLookupHttpRequest`: `Barcode`, `WarehouseNo`, `Take`
+- `BarcodeCustomerLookupByPathHttpRequest`: `WarehouseNo`, `Take`
+- `ProductCustomerSuggestionHttpRequest`: `Take`
 
 ### Siparis Request Modelleri
 
@@ -7774,8 +8500,8 @@ Bu bolumde yalnizca endpointlerin dogrudan baglandigi HTTP request modelleri yer
 - `CreateWarehouseReturnLineHttpRequest`: `StockCode`, `Quantity`, `UnitPrice`, `UnitPointer`, `Description`, `PartyCode`, `LotNo`, `ProjectCode`, `CustomerResponsibilityCenter`, `ProductResponsibilityCenter`
 - `AcceptWarehouseReceivingHttpRequest`: `AllowDiscrepancy`, `Lines`
 - `AcceptWarehouseReceivingLineHttpRequest`: `MovementGuid`, `ReceivedQuantity`
-- `CreateCompanyReceivingHttpRequest`: `CustomerCode`, `MovementDate`, `DocumentDate`, `DocumentNo`, `Deliverer`, `Receiver`, `Description`, `AllowOrderOverReceiving`, `Lines`
-- `CreateCompanyReceivingLineHttpRequest`: `StockCode`, `Quantity`, `UnitPrice`, `UnitPointer`, `LastConsumingDate`, `OrderGuid`, `Description`, `PartyCode`, `LotNo`, `ProjectCode`, `CustomerResponsibilityCenter`, `ProductResponsibilityCenter`
+- `CreateCompanyReceivingHttpRequest`: `ClientRequestId`, `CustomerCode`, `MovementDate`, `DocumentDate`, `DocumentNo`, `Deliverer`, `Receiver`, `Description`, `AllowOrderOverReceiving`, `AutoCreateReturnForPartialAcceptance`, `Lines`
+- `CreateCompanyReceivingLineHttpRequest`: `StockCode`, `Quantity`, `DispatchQuantity`, `AcceptedQuantity`, `UnitPrice`, `UnitPointer`, `LastConsumingDate`, `OrderGuid`, `Description`, `PartyCode`, `LotNo`, `ProjectCode`, `CustomerResponsibilityCenter`, `ProductResponsibilityCenter`
 
 ### Stok ve Etiket Request Modelleri
 
@@ -7813,6 +8539,7 @@ Bu bolumde yalnizca endpointlerin dogrudan baglandigi HTTP request modelleri yer
 - `InvoiceSendingBatchHttpRequest`: `Scenario`, `Documents[]`
 - `InvoiceSendingBatchDocumentHttpRequest`: `DocumentSerie`, `DocumentOrderNo`
 - `InvoiceViewingListHttpRequest`: `StartDate`, `EndDate`, `ProcessedState`, `IsProcessed`, `PrintedState`, `IsPrinted`, `SearchField`, `SearchText`, `PageNumber`, `Page`, `PageSize`
+- `InvoiceViewingSynchronizationHttpRequest`: `StartDate`, `EndDate`
 - `InvoiceViewingRenderHttpRequest`: `Profile`, `PreferEmbeddedXslt`, `FallbackToDefaultXslt` (JSON body'de `fallbackToGeneral` olarak gonderilir)
 - `InvoiceViewingPrintedStateHttpRequest`: `IsPrinted`, `Source`
 - `InvoicePreviewHttpRequest`: `InvoiceId`, `XmlContent`, `Profile`, `PreferEmbeddedXslt`
@@ -7821,7 +8548,9 @@ Bu bolumde yalnizca endpointlerin dogrudan baglandigi HTTP request modelleri yer
 - `POST /api/fatura-islemleri/fatura-gonderimi/{documentSerie}/{documentOrderNo}/render` endpoint'i body'de `InvoiceSendingRenderHttpRequest` alir
 - `POST /api/fatura-islemleri/fatura-gonderimi/send` endpoint'i body'de `InvoiceSendingBatchHttpRequest` alir
 - `POST /api/fatura-islemleri/fatura-gonderimi/outbox/search` body'de `UyumsoftOperationHttpRequest` alir
-- `GET /api/fatura-islemleri/fatura-goruntuleme/{documentId}` endpoint'i body almaz; `documentId` path parametresi kullanir
+- `POST /api/fatura-islemleri/fatura-goruntuleme/senkronize` endpoint'i body'de `InvoiceViewingSynchronizationHttpRequest` alir
+- `GET /api/fatura-islemleri/fatura-goruntuleme/{documentId}` ve `/pdf` endpointleri body almaz; `documentId` path parametresiyle Uyumsoft `GetInboxInvoicePdf` cagirir
+- `GET /api/fatura-islemleri/fatura-goruntuleme/{documentId}/detail` endpoint'i body almaz; HTML detay icin `documentId` path parametresi kullanir
 - `POST /api/fatura-islemleri/fatura-goruntuleme/{documentId}/render` endpoint'i body'de `InvoiceViewingRenderHttpRequest` alir
 - `PATCH /api/fatura-islemleri/fatura-goruntuleme/{documentId}/printed` endpoint'i body'de `InvoiceViewingPrintedStateHttpRequest` alir
 - `GET /api/fatura-islemleri/fatura-gonderimi/outbox/{invoiceId}` endpoint'i body almaz; `invoiceId` path parametresiyle birlikte `profile` ve `preferEmbeddedXslt` query parametrelerini kullanir
@@ -7844,13 +8573,23 @@ Bu bolumde yalnizca endpointlerin dogrudan baglandigi HTTP request modelleri yer
 - `AxataSynchronizationManualDocumentBatchHttpRequest`: `WarehouseNo`, `ContinueOnError`, `Documents`
 - `AxataSynchronizationManualDocumentBatchExecuteHttpRequest`: `WarehouseNo`, `ContinueOnError`, `Documents`, `ExecutionMode`
 - `AxataOutboundDeliveryHttpRequest`: `SourceWarehouseNo`, `TargetWarehouseNo`, `TransitWarehouseNo`, `MovementDate`, `DocumentDate`, `DocumentNo`, `AxataDeliveryNo`, `MovementCode`, `Description`, `Lines`
+- `AxataOutboundDeliveryLineHttpRequest`: `LineNo`, `StockCode`, `Quantity`, `UnitPrice`, `UnitPointer`, `Description`, `PartyCode`, `LotNo`, `ProjectCode`, `CustomerResponsibilityCenter`, `ProductResponsibilityCenter`
 - `AxataOutboundDeliveryBatchHttpRequest`: `ContinueOnError`, `Items`
 - `AxataInboundAtfCompanyReceivingHttpRequest`: `WarehouseNo`, `CustomerCode`, `MovementDate`, `DocumentDate`, `DocumentNo`, `AxataOrderNo`, `InvoiceNo`, `Deliverer`, `Receiver`, `Description`, `AllowOrderOverReceiving`, `Lines`
+- `AxataInboundAtfCompanyReceivingLineHttpRequest`: `LineNo`, `StockCode`, `Quantity`, `UnitPrice`, `UnitPointer`, `LastConsumingDate`, `Description`, `PartyCode`, `LotNo`, `ProjectCode`, `CustomerResponsibilityCenter`, `ProductResponsibilityCenter`
 - `AxataInboundAtfCompanyReceivingBatchHttpRequest`: `ContinueOnError`, `Items`
 - `AxataManualIncomingCompanyReceivingBatchHttpRequest`: `ContinueOnError`, `Items`
 - `AxataManualIncomingInventoryCountBatchHttpRequest`: `ContinueOnError`, `Items`
 - `AxataManualIncomingWarehouseReceivingBatchHttpRequest`: `ContinueOnError`, `Items`
 - `AxataManualIncomingWarehouseReceivingBatchItemHttpRequest`: `DocumentSerie`, `DocumentOrderNo`, `AllowDiscrepancy`, `Lines`
+- `PosAccountingDateRangeHttpRequest`: `StartDate`, `EndDate`, `WarehouseNo`, `OnlyPending`
+- `ImportZReportsHttpRequest`: `WarehouseNo`, `BusinessDate`, `ImportMode`, `SourceCode`, `OverwriteExisting`
+- `ImportPosDocumentsHttpRequest`: `WarehouseNo`, `BusinessDate`, `IncludePreviouslyImported`, `OverwriteExisting`
+- `PosAccountingTransferHttpRequest`: `WarehouseNo`, `DocumentIds`, `ContinueOnError`
+- `PosAccountingDeleteHttpRequest`: `WarehouseNo`, `DocumentIds`
+- `UpdatePosAccountingDocumentHttpRequest`: `DocumentNo`, `CustomerTaxNo`, `PaymentType`, `BranchNo`, `Description`
+- `CashRegisterBranchMappingListHttpRequest`: `BranchNo`, `CashRegisterNo`
+- `CashRegisterBranchMappingHttpRequest`: `CashRegisterNo`, `BranchNo`, `BranchName`, `Description`
 - `GET /api/integrations/axata-sync/tasks/{taskCode}/preview` endpoint'i body almaz; `warehouseNo` ve `take` query parametresi kullanir
 - `GET /api/integrations/axata-sync/manual/tasks/{taskCode}/documents/candidates` endpoint'i body almaz; `warehouseNo`, `startDate`, `endDate`, `take` query parametresi kullanir
 - `ExecutionMode` su an yalnizca `DryRun` veya `Outbox` olabilir
@@ -7863,11 +8602,22 @@ Bu bolumde yalnizca endpointlerin dogrudan baglandigi HTTP request modelleri yer
 - `manual/tasks/{taskCode}/documents/dispatch` ve `manual/tasks/{taskCode}/documents/dispatch-batch` endpoint'lerinde tekli/toplu belge secimi preview ile ayni kurali kullanir
 - `GET /api/integrations/axata-sync/manual/incoming/warehouse-receivings` endpoint'i `WarehouseOrderDateRangeHttpRequest` query alanlarini kullanir
 - toplu incoming endpoint'lerde `Items[]` elemanlari tekli create/accept endpoint body'leriyle ayni alanlari tasir
+- `GET /api/entegrasyon-islemleri/pos-muhasebe-aktarimi/z-raporlari`, `GET /api/entegrasyon-islemleri/pos-muhasebe-aktarimi/pos-faturalar` ve `GET /api/entegrasyon-islemleri/pos-muhasebe-aktarimi/gider-pusulalari` endpoint'leri query'de `PosAccountingDateRangeHttpRequest` kullanir
+- `POST /api/entegrasyon-islemleri/pos-muhasebe-aktarimi/z-raporlari/ice-aktar` body'de `ImportZReportsHttpRequest` alir
+- `POST /api/entegrasyon-islemleri/pos-muhasebe-aktarimi/pos-faturalar/ice-aktar` ve `POST /api/entegrasyon-islemleri/pos-muhasebe-aktarimi/gider-pusulalari/ice-aktar` body'de `ImportPosDocumentsHttpRequest` alir
+- `POST /api/entegrasyon-islemleri/pos-muhasebe-aktarimi/*/erpye-gonder` ve `DELETE /api/entegrasyon-islemleri/pos-muhasebe-aktarimi/*` endpoint'leri secili belge listesi bekler; `DocumentIds[]` GUID koleksiyonudur
+- `PUT /api/entegrasyon-islemleri/pos-muhasebe-aktarimi/pos-faturalar/{invoiceId}` ve `PUT /api/entegrasyon-islemleri/pos-muhasebe-aktarimi/gider-pusulalari/{expenseId}` body'de `UpdatePosAccountingDocumentHttpRequest` alir
+- `GET /api/entegrasyon-islemleri/pos-muhasebe-aktarimi/kasa-eslemeleri` query'de `CashRegisterBranchMappingListHttpRequest` kullanir
+- `POST /api/entegrasyon-islemleri/pos-muhasebe-aktarimi/kasa-eslemeleri` ve `PUT /api/entegrasyon-islemleri/pos-muhasebe-aktarimi/kasa-eslemeleri/{mappingId}` body'de `CashRegisterBranchMappingHttpRequest` alir
 
 ### Ozel Request Notlari
 
-- `CreateCompanyReceivingHttpRequest.DocumentNo` zorunludur; bosluksuz `seri + 9 haneli sayisal sira` formatinda gonderilmelidir. Ornek: `ST12026000002395` -> `documentSerie = ST12026`, `documentOrderNo = 2395`
-- `AxataInboundAtfCompanyReceivingHttpRequest` icin `DocumentNo` verilirse ayni format kullanilmalidir; `DocumentNo` bos ise backend sirayla `InvoiceNo`, sonra `AxataOrderNo` degerini ayni kuralla firma mal kabul evrak numarasi olarak kullanir
+- `CreateCompanyReceivingHttpRequest.DocumentNo` opsiyoneldir. Tam `seri + 9 haneli sayisal sira` gelirse aynen kullanilir; bos veya sadece sayisal gelirse backend cari unvanindan seri uretir; tam format olmayan ve harf iceren `ABC` gibi deger gelirse prefix kabul edilip siradaki sira uretilir. Ornek tam no: `ST12026000002395` -> `documentSerie = ST12026`, `documentOrderNo = 2395`
+- Firma mal kabulde yeni UI `dispatchQuantity` ve `acceptedQuantity` alanlarini ayri kullanmalidir. `quantity` sadece eski uyumluluk alanidir ve tek basina gonderilirse hem sevk/irsaliye hem fiili kabul miktari gibi yorumlanir.
+- `CreateCompanyReceivingLineHttpRequest.AcceptedQuantity`, `DispatchQuantity` degerinden buyuk olamaz. Eksik kabulde fark kadar firma iadesi `AutoCreateReturnForPartialAcceptance = true` ise otomatik olusur.
+- Otomatik olusan firma iadesi icin e-irsaliye gonderimi otomatik degildir; UI response'taki `autoCreatedReturnDocumentSerie`, `autoCreatedReturnDocumentOrderNo` ve `returnEDespatchStatus` alanlariyla iade linki/statusu gosterir.
+- `AxataInboundAtfCompanyReceivingHttpRequest` icin `DocumentNo`, `InvoiceNo` veya `AxataOrderNo` tam formatta ise aynen kullanilir; tam format degilse seri/prefix gibi degerlendirilir; hepsi bos ise backend cari unvanindan seri/sira uretir.
+- `AxataInboundAtfCompanyReceivingLineHttpRequest` icinde yalnizca `Quantity` vardir; bu endpoint native ATF miktarini tam kabul sayar. Kismi kabul/iade gerekiyorsa `manual/incoming/company-receivings` endpoint'ine `dispatchQuantity` ve `acceptedQuantity` ayrimiyla payload gonderilmelidir.
 - E-irsaliye olusturan endpointler body'de `SendEDespatchHttpRequest`, path'te `documentSerie` ve `documentOrderNo`, query'de opsiyonel `warehouseNo` alir.
 - `POST /api/entegrasyon-islemleri/uyumsoft/e-fatura/get/{operationName}` ve `POST /api/entegrasyon-islemleri/uyumsoft/e-irsaliye/get/{operationName}` endpoint'leri body'de `UyumsoftOperationHttpRequest` alir.
 - `GET /api/entegrasyon-islemleri/uyumsoft/e-fatura/get/{operationName}` ve `GET /api/entegrasyon-islemleri/uyumsoft/e-irsaliye/get/{operationName}` endpoint'leri body almaz; opsiyonel `payloadXml` ve tekrar eden `parameter=name=value` query parametresi kullanir.
@@ -7875,5 +8625,5 @@ Bu bolumde yalnizca endpointlerin dogrudan baglandigi HTTP request modelleri yer
 - `GET /api/entegrasyon-islemleri/uyumsoft/e-fatura/.../{invoiceId}` alias route'lari `invoiceId` path parametresiyle calisir.
 - `GET /api/entegrasyon-islemleri/uyumsoft/e-irsaliye/.../{despatchId}` alias route'lari `despatchId` path parametresiyle calisir; `GET /api/entegrasyon-islemleri/uyumsoft/e-irsaliye/despatches/{despatchId}/envelope` icin ek olarak `isInbox` query parametresi zorunludur.
 - Cok sayida detay endpointi ayri request class'i kullanmaz; path parametreleri ve opsiyonel `warehouseNo` query parametresi ile calisir.
-- `GET /api/stok-islemleri/etiket-belgeleri`, `GET /api/stok-islemleri/etiket-belgeleri/son`, `GET /api/stok-islemleri/etiket-belgeleri/tumu` ve `GET /api/stok-islemleri/etiket-belgeleri/{documentId}` endpointleri ayri request class'i yerine dogrudan action parametreleri kullanir.
+- `GET /api/kasa-islemleri/etiket-belgeleri`, `GET /api/kasa-islemleri/etiket-belgeleri/son`, `GET /api/kasa-islemleri/etiket-belgeleri/tumu` ve `GET /api/kasa-islemleri/etiket-belgeleri/{documentId}` endpointleri ayri request class'i yerine dogrudan action parametreleri kullanir.
 - `LabelPriceChangedProductListHttpRequest.DateTimeFilter` alaninin beklenen formati `dd.MM.yyyy HH:mm:ss` degeridir.

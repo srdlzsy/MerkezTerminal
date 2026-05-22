@@ -27,6 +27,12 @@ abstract class CompanyAcceptancesRepository {
     required String clientRequestId,
   });
 
+  Future<CompanyAcceptanceEDespatchPrefill> resolveEDespatchByEttn({
+    required String accessToken,
+    required String warehouseNo,
+    required String ettn,
+  });
+
   Future<List<CustomerLookupItem>> searchCustomers({
     required String accessToken,
     required String query,
@@ -109,6 +115,23 @@ class ApiCompanyAcceptancesRepository implements CompanyAcceptancesRepository {
     );
 
     return CompanyAcceptanceOfflineSyncStatus.fromJson(response);
+  }
+
+  @override
+  Future<CompanyAcceptanceEDespatchPrefill> resolveEDespatchByEttn({
+    required String accessToken,
+    required String warehouseNo,
+    required String ettn,
+  }) async {
+    final normalizedEttn = ettn.trim();
+    final response = await _apiClient.getJsonMap(
+      '/api/mal-kabul-islemleri/firma-mal-kabulleri/e-irsaliye/ettn/'
+      '$normalizedEttn',
+      accessToken: accessToken,
+      queryParameters: <String, String>{'warehouseNo': warehouseNo.trim()},
+    );
+
+    return CompanyAcceptanceEDespatchPrefill.fromJson(response);
   }
 
   @override

@@ -27,6 +27,7 @@ class CompanyMovementsPage extends StatefulWidget {
     required this.createHelperText,
     required this.createButtonLabel,
     this.emptyListMessage = 'Secilen tarih araliginda kayit bulunamadi.',
+    this.showCreateDocumentNoField = true,
   });
 
   final CompanyMovementsRepository repository;
@@ -40,6 +41,7 @@ class CompanyMovementsPage extends StatefulWidget {
   final String createHelperText;
   final String createButtonLabel;
   final String emptyListMessage;
+  final bool showCreateDocumentNoField;
 
   @override
   State<CompanyMovementsPage> createState() => _CompanyMovementsPageState();
@@ -137,6 +139,7 @@ class _CompanyMovementsPageState extends State<CompanyMovementsPage> {
           title: widget.createTitle,
           helperText: widget.createHelperText,
           submitLabel: widget.createButtonLabel,
+          showDocumentNoField: widget.showCreateDocumentNoField,
         );
       },
     );
@@ -327,9 +330,7 @@ class _CompanyMovementsPageState extends State<CompanyMovementsPage> {
         ),
         if (widget.canCreate && _controller.canCreate)
           FilledButton.tonalIcon(
-            onPressed: _controller.isCreating || _controller.isLoadingList
-                ? null
-                : _openCreateSheet,
+            onPressed: _controller.isCreating ? null : _openCreateSheet,
             icon: _controller.isCreating
                 ? const SizedBox(
                     height: 16,
@@ -682,49 +683,6 @@ class _MovementDetailBody extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 12),
-          ],
-          Wrap(
-            spacing: 12,
-            runSpacing: 12,
-            children: <Widget>[
-              TerminalSummaryTile(
-                label: 'Belge',
-                value: detail!.header.documentNoLabel,
-              ),
-              TerminalSummaryTile(
-                label: 'Belge Trh',
-                value: AppFormatters.dateOrDash(detail!.header.documentDate),
-              ),
-              TerminalSummaryTile(
-                label: 'Hareket Trh',
-                value: AppFormatters.dateOrDash(detail!.header.movementDate),
-              ),
-              TerminalSummaryTile(
-                label: 'Depo',
-                value:
-                    '${detail!.header.warehouseNo} - ${detail!.header.warehouseName}',
-              ),
-              TerminalSummaryTile(
-                label: 'Cari',
-                value: detail!.header.customerDisplayName,
-              ),
-              TerminalSummaryTile(
-                label: 'Toplam',
-                value: AppFormatters.quantity(detail!.header.totalQuantity),
-              ),
-            ],
-          ),
-          if (detail!.header.customerAddress.isNotEmpty ||
-              detail!.header.description.isNotEmpty) ...<Widget>[
-            const SizedBox(height: 12),
-            TerminalMessageBlock.info(
-              message: [
-                if (detail!.header.customerAddress.isNotEmpty)
-                  'Adres: ${detail!.header.customerAddress}',
-                if (detail!.header.description.isNotEmpty)
-                  'Aciklama: ${detail!.header.description}',
-              ].join(' | '),
-            ),
           ],
           if (lastEDespatchResult != null) ...<Widget>[
             const SizedBox(height: 12),

@@ -9,6 +9,8 @@ import 'package:furpa_merkez_terminal/shared/data/search_lookup_models.dart';
 import 'package:furpa_merkez_terminal/shared/formatters/app_formatters.dart';
 import 'package:furpa_merkez_terminal/shared/offline/offline_lookup_cache_repository.dart';
 import 'package:furpa_merkez_terminal/shared/utils/client_request_id.dart';
+import 'package:furpa_merkez_terminal/shared/utils/create_form_validation.dart';
+import 'package:furpa_merkez_terminal/shared/utils/e_despatch_qr_parser.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/barcode_camera_scan_page.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/terminal_ui_parts.dart';
 
@@ -36,11 +38,13 @@ class CompanyAcceptanceCreateSheet extends StatefulWidget {
 }
 
 class _CompanyAcceptanceCreateSheetState
-    extends State<CompanyAcceptanceCreateSheet> {
+    extends State<CompanyAcceptanceCreateSheet>
+    with CreateFormValidation {
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   final List<_AcceptanceLineDraft> _lines = <_AcceptanceLineDraft>[];
   late final TextEditingController _customerController;
   late final TextEditingController _customerCodeController;
+  late final TextEditingController _ettnController;
   late final TextEditingController _documentNoController;
   late final TextEditingController _delivererController;
   late final TextEditingController _receiverController;
@@ -48,13 +52,17 @@ class _CompanyAcceptanceCreateSheetState
   DateTime _movementDate = DateTime.now();
   DateTime _documentDate = DateTime.now();
   bool _allowOrderOverReceiving = false;
+  bool _autoCreateReturnForPartialAcceptance = true;
+  bool _isResolvingEDespatch = false;
   String? _lookupError;
+  CompanyAcceptanceEDespatchPrefill? _lastEDespatchPrefill;
 
   @override
   void initState() {
     super.initState();
     _customerController = TextEditingController();
     _customerCodeController = TextEditingController();
+    _ettnController = TextEditingController();
     _documentNoController = TextEditingController();
     _delivererController = TextEditingController();
     _receiverController = TextEditingController();
@@ -66,6 +74,7 @@ class _CompanyAcceptanceCreateSheetState
   void dispose() {
     _customerController.dispose();
     _customerCodeController.dispose();
+    _ettnController.dispose();
     _documentNoController.dispose();
     _delivererController.dispose();
     _receiverController.dispose();
@@ -96,6 +105,177 @@ class _CompanyAcceptanceCreateSheetState
         _documentDate = pickedDate;
       }
     });
+  }
+
+  Future<void> _scanEDespatchQr() async {
+    if (!supportsCameraBarcodeScanning) {
+      setState(() {
+        _lookupError =
+            'Bu cihazda kamera ile e-irsaliye QR okutma desteklenmiyor.';
+      });
+      return;
+    }
+
+    final qrValue = await openBarcodeCameraScanner(
+      context,
+      title: 'E-Irsaliye QR',
+      subtitle: 'Tedarikci irsaliyesindeki QR kodu okutun.',
+      qrOnly: true,
+    );
+
+    if (qrValue == null || !mounted) {
+      return;
+    }
+
+    _ettnController.text = qrValue;
+    await _resolveEDespatchFromValue(qrValue);
+  }
+
+  Future<void> _resolveEDespatchFromInput() async {
+    await _resolveEDespatchFromValue(_ettnController.text);
+  }
+
+  Future<void> _resolveEDespatchFromValue(String rawValue) async {
+    final qrPayload = parseEDespatchQrPayload(rawValue);
+    final ettn = qrPayload.ettn;
+    if (ettn == null) {
+      setState(() {
+        _lookupError = 'Gecerli bir ETTN/UUID bulunamadi.';
+      });
+      return;
+    }
+
+    setState(() {
+      _ettnController.text = ettn;
+      _applyQrPayloadPrefill(qrPayload);
+      _isResolvingEDespatch = true;
+      _lookupError = null;
+    });
+
+    try {
+      final prefill = await widget.repository.resolveEDespatchByEttn(
+        accessToken: widget.accessToken,
+        warehouseNo: widget.defaultWarehouseNo,
+        ettn: ettn,
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      if (!prefill.isFound) {
+        setState(() {
+          _ettnController.text = ettn;
+          _lastEDespatchPrefill = prefill;
+          _isResolvingEDespatch = false;
+          _lookupError = qrPayload.hasDocumentPrefill
+              ? 'Bu ETTN ile gelen e-irsaliye bulunamadi; QR belge bilgileri forma aktarildi.'
+              : 'Bu ETTN ile gelen e-irsaliye bulunamadi: $ettn';
+        });
+        return;
+      }
+
+      setState(() {
+        _ettnController.text = prefill.ettn.trim().isEmpty
+            ? ettn
+            : prefill.ettn.trim();
+        _lastEDespatchPrefill = prefill;
+        _applyEDespatchPrefill(prefill);
+        _isResolvingEDespatch = false;
+        _lookupError = null;
+      });
+
+      await _fillCustomerFromQrSenderIfNeeded(qrPayload);
+
+      final documentNo = prefill.despatchNumber.trim();
+      _showFeedback(
+        documentNo.isEmpty
+            ? 'E-irsaliye bilgileri forma aktarildi.'
+            : '$documentNo icin e-irsaliye bilgileri forma aktarildi.',
+      );
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _isResolvingEDespatch = false;
+        _lookupError = error.toString().replaceFirst('Exception: ', '');
+      });
+
+      await _fillCustomerFromQrSenderIfNeeded(qrPayload);
+    }
+  }
+
+  Future<void> _fillCustomerFromQrSenderIfNeeded(
+    EDespatchQrPayload qrPayload,
+  ) async {
+    if (_customerCodeController.text.trim().isNotEmpty) {
+      return;
+    }
+
+    final taxNoOrTckn = qrPayload.senderTaxNoOrTckn?.trim() ?? '';
+    if (taxNoOrTckn.length < 6) {
+      return;
+    }
+
+    try {
+      final customers = await _searchCustomersWithFallback(taxNoOrTckn);
+      if (!mounted ||
+          customers.isEmpty ||
+          _customerCodeController.text.trim().isNotEmpty) {
+        return;
+      }
+
+      final selectedCustomer =
+          _findCustomerByTaxNo(customers, taxNoOrTckn) ?? customers.first;
+      setState(() {
+        _customerController.text = selectedCustomer.displayLabel;
+        _customerCodeController.text = selectedCustomer.customerCode;
+      });
+    } catch (_) {
+      // QR belge bilgileri yine de kullanilabilir; cari arama basarisizsa
+      // kullanici cari kodunu manuel girebilir.
+    }
+  }
+
+  void _applyQrPayloadPrefill(EDespatchQrPayload qrPayload) {
+    final documentNo = qrPayload.documentNo?.trim() ?? '';
+    if (documentNo.isNotEmpty) {
+      _documentNoController.text = documentNo;
+    }
+
+    final issueDate = qrPayload.issueDate;
+    if (issueDate != null) {
+      _documentDate = _normalizedDate(issueDate);
+    }
+  }
+
+  void _applyEDespatchPrefill(CompanyAcceptanceEDespatchPrefill prefill) {
+    final despatchNumber = prefill.despatchNumber.trim();
+    if (despatchNumber.isNotEmpty) {
+      _documentNoController.text = despatchNumber;
+    }
+
+    final issueDate = prefill.issueDate;
+    if (issueDate != null) {
+      _documentDate = _normalizedDate(issueDate);
+    }
+
+    final suggestedCustomer = _preferredCustomerSuggestion(prefill);
+    if (suggestedCustomer != null &&
+        suggestedCustomer.customerCode.trim().isNotEmpty) {
+      _customerController.text = suggestedCustomer.displayLabel;
+      _customerCodeController.text = suggestedCustomer.customerCode.trim();
+    } else if (prefill.sender.title.trim().isNotEmpty &&
+        _customerController.text.trim().isEmpty) {
+      _customerController.text = prefill.sender.title.trim();
+    }
+
+    if (_descriptionController.text.trim().isEmpty &&
+        prefill.notes.isNotEmpty) {
+      _descriptionController.text = prefill.notes.join('\n');
+    }
   }
 
   Future<void> _searchCustomer() async {
@@ -169,14 +349,22 @@ class _CompanyAcceptanceCreateSheetState
 
     if (query.length < 2) {
       setState(() {
-        _lookupError =
-            'Urun aramak icin en az 2 karakter veya barkod girilmeli.';
+        line.setLookupStatus(
+          'Urun aramak icin en az 2 karakter veya barkod girilmeli.',
+          isError: true,
+        );
+        _lookupError = null;
       });
       return;
     }
 
     List<SearchProductLookupItem> products;
     try {
+      setState(() {
+        line.setLookupStatus('API araniyor: $query', isLoading: true);
+        _lookupError = null;
+      });
+
       products = await _searchProductsWithFallback(
         query,
         customerCode: _customerCodeController.text.trim(),
@@ -187,7 +375,11 @@ class _CompanyAcceptanceCreateSheetState
       }
 
       setState(() {
-        _lookupError = error.toString().replaceFirst('Exception: ', '');
+        line.setLookupStatus(
+          'API hata dondu: ${error.toString().replaceFirst('Exception: ', '').trim()}',
+          isError: true,
+        );
+        _lookupError = null;
       });
       return;
     }
@@ -197,9 +389,20 @@ class _CompanyAcceptanceCreateSheetState
     }
 
     if (products.isEmpty) {
-      _showFeedback('Bu aramaya uygun urun bulunamadi.');
+      setState(() {
+        line.setLookupStatus(
+          'API cevap verdi ama urun bulunamadi: $query',
+          isError: true,
+        );
+      });
       return;
     }
+
+    setState(() {
+      line.setLookupStatus(
+        '${products.length} urun bulundu. Listeden secim bekleniyor.',
+      );
+    });
 
     final selected = await showModalBottomSheet<SearchProductLookupItem>(
       context: context,
@@ -224,12 +427,24 @@ class _CompanyAcceptanceCreateSheetState
     );
 
     if (selected == null) {
+      if (mounted) {
+        setState(() {
+          line.setLookupStatus(
+            '${products.length} sonuc geldi, secim yapilmadi.',
+          );
+        });
+      }
       return;
     }
 
     var mergedIntoExisting = false;
     setState(() {
       mergedIntoExisting = _applyProductToLine(line, selected);
+      if (!mergedIntoExisting) {
+        line.setLookupStatus(
+          'Secildi: ${selected.stockCode} | ${selected.stockName}',
+        );
+      }
       _lookupError = null;
     });
 
@@ -258,6 +473,7 @@ class _CompanyAcceptanceCreateSheetState
 
     setState(() {
       line.lookupController.text = barcode;
+      line.setLookupStatus('Barkod okundu: $barcode. API aramasi basliyor.');
       _lookupError = null;
     });
 
@@ -279,9 +495,16 @@ class _CompanyAcceptanceCreateSheetState
       return false;
     }
 
-    existingLine.quantityController.text = _formatQuantity(
-      _readDouble(existingLine.quantityController.text, fallback: 0) +
-          _readDouble(line.quantityController.text, fallback: 0),
+    existingLine.dispatchQuantityController.text = _formatQuantity(
+      _readDouble(existingLine.dispatchQuantityController.text, fallback: 0) +
+          _readDouble(line.dispatchQuantityController.text, fallback: 0),
+    );
+    existingLine.acceptedQuantityController.text = _formatQuantity(
+      _readDouble(existingLine.acceptedQuantityController.text, fallback: 0) +
+          _readDouble(
+            line.acceptedQuantityController.text,
+            fallback: line.dispatchQuantity,
+          ),
     );
 
     if (_readDouble(existingLine.unitPriceController.text, fallback: 0) <= 0) {
@@ -460,7 +683,7 @@ class _CompanyAcceptanceCreateSheetState
   void _submit() {
     final form = _formKey.currentState;
 
-    if (form == null || !form.validate()) {
+    if (form == null || !validateCreateForm(_formKey)) {
       return;
     }
 
@@ -472,6 +695,14 @@ class _CompanyAcceptanceCreateSheetState
       return;
     }
 
+    if (_documentDate.isBefore(_movementDate)) {
+      setState(() {
+        _lookupError = 'Belge tarihi hareket tarihinden once olamaz.';
+      });
+      return;
+    }
+
+    final usedOrderGuids = <String>{};
     for (var index = 0; index < _lines.length; index += 1) {
       final line = _lines[index];
       if (line.stockCodeController.text.trim().isEmpty) {
@@ -481,10 +712,49 @@ class _CompanyAcceptanceCreateSheetState
         return;
       }
 
-      if (line.quantity <= 0) {
+      if (line.dispatchQuantity <= 0) {
         setState(() {
           _lookupError =
-              '${index + 1}. satir icin miktar sifirdan buyuk olmali.';
+              '${index + 1}. satir icin irsaliye miktari sifirdan buyuk olmali.';
+        });
+        return;
+      }
+
+      if (line.acceptedQuantity < 0) {
+        setState(() {
+          _lookupError =
+              '${index + 1}. satir icin fiili kabul miktari negatif olamaz.';
+        });
+        return;
+      }
+
+      if (line.acceptedQuantity > line.dispatchQuantity) {
+        setState(() {
+          _lookupError =
+              '${index + 1}. satirda fiili kabul irsaliye miktarini gecemez.';
+        });
+        return;
+      }
+
+      if (line.unitPointer <= 0 || line.unitPointer > 255) {
+        setState(() {
+          _lookupError = '${index + 1}. satir icin unitPointer 1-255 olmali.';
+        });
+        return;
+      }
+
+      if (line.lotNo < 0) {
+        setState(() {
+          _lookupError = '${index + 1}. satir icin lot no negatif olamaz.';
+        });
+        return;
+      }
+
+      final orderGuid = line.orderGuid?.trim() ?? '';
+      if (orderGuid.isNotEmpty && !usedOrderGuids.add(orderGuid)) {
+        setState(() {
+          _lookupError =
+              '${index + 1}. satirda ayni siparis satiri tekrar kullanilamaz.';
         });
         return;
       }
@@ -501,11 +771,14 @@ class _CompanyAcceptanceCreateSheetState
         receiver: _receiverController.text.trim(),
         description: _descriptionController.text.trim(),
         allowOrderOverReceiving: _allowOrderOverReceiving,
+        autoCreateReturnForPartialAcceptance:
+            _autoCreateReturnForPartialAcceptance,
         lines: _lines
             .map(
               (line) => CompanyAcceptanceCreateLine(
                 stockCode: line.stockCodeController.text.trim(),
-                quantity: line.quantity,
+                dispatchQuantity: line.dispatchQuantity,
+                acceptedQuantity: line.acceptedQuantity,
                 unitPrice: line.unitPrice,
                 unitPointer: line.unitPointer,
                 lastConsumingDate: line.lastConsumingDate,
@@ -597,6 +870,7 @@ class _CompanyAcceptanceCreateSheetState
       padding: EdgeInsets.fromLTRB(20, 8, 20, 20 + viewInsets.bottom),
       child: Form(
         key: _formKey,
+        autovalidateMode: createFormAutovalidateMode,
         child: ListView(
           shrinkWrap: true,
           children: <Widget>[
@@ -607,25 +881,15 @@ class _CompanyAcceptanceCreateSheetState
               padding: EdgeInsets.zero,
             ),
             const SizedBox(height: 16),
-            Row(
-              children: <Widget>[
-                Expanded(
-                  child: TextFormField(
-                    controller: _customerController,
-                    decoration: const InputDecoration(
-                      labelText: 'Cari Arama',
-                      hintText: 'Cari adi veya kodu',
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                FilledButton.icon(
-                  onPressed: _searchCustomer,
-                  icon: const Icon(Icons.search_rounded),
-                  label: const Text('Bul'),
-                ),
-              ],
-            ),
+            _buildEDespatchLookupRow(),
+            if (_lastEDespatchPrefill != null) ...<Widget>[
+              const SizedBox(height: 10),
+              TerminalMessageBlock.info(
+                message: _eDespatchSummaryMessage(_lastEDespatchPrefill!),
+              ),
+            ],
+            const SizedBox(height: 12),
+            _buildCustomerLookupRow(),
             const SizedBox(height: 12),
             TextFormField(
               controller: _customerCodeController,
@@ -633,6 +897,7 @@ class _CompanyAcceptanceCreateSheetState
                 labelText: 'Cari Kodu*',
                 hintText: 'Internet yoksa elle girin',
               ),
+              onChanged: (_) => setState(() {}),
               validator: (value) {
                 if ((value ?? '').trim().isEmpty) {
                   return 'Cari kodu zorunlu';
@@ -661,7 +926,10 @@ class _CompanyAcceptanceCreateSheetState
             const SizedBox(height: 12),
             TextFormField(
               controller: _documentNoController,
-              decoration: const InputDecoration(labelText: 'Belge No'),
+              decoration: const InputDecoration(
+                labelText: 'Belge No / Seri',
+                hintText: 'Bos birakilabilir veya ULK gibi seri girilebilir',
+              ),
             ),
             const SizedBox(height: 12),
             Wrap(
@@ -707,29 +975,21 @@ class _CompanyAcceptanceCreateSheetState
                 });
               },
             ),
-            const SizedBox(height: 8),
-            Row(
-              children: <Widget>[
-                Text(
-                  'Satirlar',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                const Spacer(),
-                OutlinedButton.icon(
-                  onPressed: _addLinesFromOpenOrders,
-                  icon: const Icon(Icons.link_rounded),
-                  label: const Text('Siparis Bagla'),
-                ),
-                const SizedBox(width: 8),
-                OutlinedButton.icon(
-                  onPressed: _addLine,
-                  icon: const Icon(Icons.add_rounded),
-                  label: const Text('Satir'),
-                ),
-              ],
+            CheckboxListTile(
+              value: _autoCreateReturnForPartialAcceptance,
+              title: const Text('Eksik kabul farki icin firma iadesi olustur'),
+              subtitle: const Text(
+                'E-irsaliye otomatik gonderilmez; iade evragindan manuel gonderilir.',
+              ),
+              contentPadding: EdgeInsets.zero,
+              onChanged: (value) {
+                setState(() {
+                  _autoCreateReturnForPartialAcceptance = value ?? true;
+                });
+              },
             ),
+            const SizedBox(height: 8),
+            _buildLinesToolbar(),
             const SizedBox(height: 10),
             ..._lines.asMap().entries.map((entry) {
               final index = entry.key;
@@ -774,31 +1034,22 @@ class _CompanyAcceptanceCreateSheetState
                             ),
                         ],
                       ),
-                      Row(
-                        children: <Widget>[
-                          Expanded(
-                            child: TextFormField(
-                              controller: line.lookupController,
-                              decoration: const InputDecoration(
-                                labelText: 'Barkod / stok kodu / urun adi',
-                                hintText: 'Arama veya barkod',
-                              ),
-                            ),
+                      _buildProductLookupRow(line),
+                      if (line.lookupStatusMessage != null) ...<Widget>[
+                        const SizedBox(height: 8),
+                        if (line.isLookupStatusLoading)
+                          TerminalMessageBlock.loading(
+                            message: line.lookupStatusMessage!,
+                          )
+                        else if (line.isLookupStatusError)
+                          TerminalMessageBlock.error(
+                            message: line.lookupStatusMessage!,
+                          )
+                        else
+                          TerminalMessageBlock.info(
+                            message: line.lookupStatusMessage!,
                           ),
-                          const SizedBox(width: 12),
-                          FilledButton.icon(
-                            onPressed: () => _searchProduct(line),
-                            icon: const Icon(Icons.search_rounded),
-                            label: const Text('Urun'),
-                          ),
-                          const SizedBox(width: 8),
-                          IconButton.filledTonal(
-                            onPressed: () => _scanProductWithCamera(line),
-                            tooltip: 'Kamera ile oku',
-                            icon: const Icon(Icons.photo_camera_back_rounded),
-                          ),
-                        ],
-                      ),
+                      ],
                       if (line.selectedProduct != null) ...<Widget>[
                         const SizedBox(height: 8),
                         TerminalMessageBlock.info(
@@ -806,24 +1057,15 @@ class _CompanyAcceptanceCreateSheetState
                               '${line.selectedProduct!.stockCode} | ${line.selectedProduct!.stockName} | ${line.selectedProduct!.unitName} | ${AppFormatters.currency(line.selectedProduct!.price)}',
                         ),
                       ],
-                      TextFormField(
-                        controller: line.quantityController,
-                        keyboardType: const TextInputType.numberWithOptions(
-                          decimal: true,
+                      const SizedBox(height: 12),
+                      _buildQuantityFields(line),
+                      if (line.returnQuantity > 0) ...<Widget>[
+                        const SizedBox(height: 8),
+                        TerminalMessageBlock.info(
+                          message:
+                              'Iade farki ${AppFormatters.quantity(line.returnQuantity)}. ${_autoCreateReturnForPartialAcceptance ? 'Firma iadesi olusur, e-irsaliye manuel gonderilir.' : 'Otomatik iade kapali; fark manuel iade bekler.'}',
                         ),
-                        inputFormatters: <TextInputFormatter>[
-                          FilteringTextInputFormatter.allow(
-                            RegExp(r'[0-9,\.]'),
-                          ),
-                        ],
-                        decoration: const InputDecoration(labelText: 'Miktar'),
-                        validator: (_) {
-                          if (line.quantity <= 0) {
-                            return 'Miktar > 0';
-                          }
-                          return null;
-                        },
-                      ),
+                      ],
                     ],
                   ),
                 ),
@@ -833,27 +1075,322 @@ class _CompanyAcceptanceCreateSheetState
               TerminalMessageBlock.error(message: _lookupError!),
               const SizedBox(height: 12),
             ],
-            Row(
-              children: <Widget>[
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: () => Navigator.of(context).pop(),
-                    child: const Text('Vazgec'),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: FilledButton.icon(
-                    onPressed: _submit,
-                    icon: const Icon(Icons.save_alt_rounded),
-                    label: const Text('Mal Kabul Et'),
-                  ),
-                ),
-              ],
-            ),
+            _buildFormActions(),
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildEDespatchLookupRow() {
+    final lookupField = TextFormField(
+      controller: _ettnController,
+      textInputAction: TextInputAction.search,
+      onFieldSubmitted: (_) => _resolveEDespatchFromInput(),
+      decoration: const InputDecoration(
+        labelText: 'E-Irsaliye ETTN / QR',
+        hintText: 'QR okutun veya UUID girin',
+        suffixIcon: Icon(Icons.qr_code_2_rounded),
+      ),
+    );
+
+    final resolveButton = FilledButton.icon(
+      onPressed: _isResolvingEDespatch ? null : _resolveEDespatchFromInput,
+      icon: _isResolvingEDespatch
+          ? const SizedBox.square(
+              dimension: 18,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          : const Icon(Icons.fact_check_rounded),
+      label: Text(_isResolvingEDespatch ? 'Sorgu' : 'Cozumle'),
+    );
+
+    final scanButton = IconButton.filledTonal(
+      onPressed: _isResolvingEDespatch ? null : _scanEDespatchQr,
+      tooltip: 'E-irsaliye QR oku',
+      icon: const Icon(Icons.qr_code_scanner_rounded),
+    );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < 430) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: <Widget>[
+              lookupField,
+              const SizedBox(height: 8),
+              Row(
+                children: <Widget>[
+                  Expanded(child: resolveButton),
+                  const SizedBox(width: 8),
+                  scanButton,
+                ],
+              ),
+            ],
+          );
+        }
+
+        return Row(
+          children: <Widget>[
+            Expanded(child: lookupField),
+            const SizedBox(width: 12),
+            resolveButton,
+            const SizedBox(width: 8),
+            scanButton,
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildCustomerLookupRow() {
+    final lookupField = TextFormField(
+      controller: _customerController,
+      decoration: const InputDecoration(
+        labelText: 'Cari Arama',
+        hintText: 'Cari adi veya kodu',
+      ),
+    );
+
+    final searchButton = FilledButton.icon(
+      onPressed: _searchCustomer,
+      icon: const Icon(Icons.search_rounded),
+      label: const Text('Bul'),
+    );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < 360) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: <Widget>[
+              lookupField,
+              const SizedBox(height: 8),
+              searchButton,
+            ],
+          );
+        }
+
+        return Row(
+          children: <Widget>[
+            Expanded(child: lookupField),
+            const SizedBox(width: 12),
+            searchButton,
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildLinesToolbar() {
+    final title = Text(
+      'Satirlar',
+      style: Theme.of(
+        context,
+      ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
+    );
+
+    final orderButton = OutlinedButton.icon(
+      onPressed: _customerCodeController.text.trim().isEmpty
+          ? null
+          : _addLinesFromOpenOrders,
+      icon: const Icon(Icons.link_rounded),
+      label: const Text('Siparis Bagla'),
+    );
+
+    final addButton = OutlinedButton.icon(
+      onPressed: _addLine,
+      icon: const Icon(Icons.add_rounded),
+      label: const Text('Satir'),
+    );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < 360) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              title,
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: <Widget>[orderButton, addButton],
+              ),
+            ],
+          );
+        }
+
+        return Row(
+          children: <Widget>[
+            title,
+            const Spacer(),
+            orderButton,
+            const SizedBox(width: 8),
+            addButton,
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildFormActions() {
+    final cancelButton = OutlinedButton(
+      onPressed: () => Navigator.of(context).pop(),
+      child: const Text('Vazgec'),
+    );
+
+    final submitButton = FilledButton.icon(
+      onPressed: _submit,
+      icon: const Icon(Icons.save_alt_rounded),
+      label: const Text('Mal Kabul Et'),
+    );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < 360) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: <Widget>[
+              cancelButton,
+              const SizedBox(height: 10),
+              submitButton,
+            ],
+          );
+        }
+
+        return Row(
+          children: <Widget>[
+            Expanded(child: cancelButton),
+            const SizedBox(width: 12),
+            Expanded(child: submitButton),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildProductLookupRow(_AcceptanceLineDraft line) {
+    final lookupField = TextFormField(
+      controller: line.lookupController,
+      decoration: const InputDecoration(
+        labelText: 'Barkod / stok kodu / urun adi',
+        hintText: 'Arama veya barkod',
+      ),
+      validator: (_) {
+        if (line.stockCodeController.text.trim().isEmpty) {
+          return 'Urun secin';
+        }
+        return null;
+      },
+    );
+
+    final searchButton = FilledButton.icon(
+      onPressed: line.isLookupStatusLoading ? null : () => _searchProduct(line),
+      icon: const Icon(Icons.search_rounded),
+      label: const Text('Urun'),
+    );
+
+    final scanButton = IconButton.filledTonal(
+      onPressed: line.isLookupStatusLoading
+          ? null
+          : () => _scanProductWithCamera(line),
+      tooltip: 'Kamera ile oku',
+      icon: const Icon(Icons.photo_camera_back_rounded),
+    );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < 430) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: <Widget>[
+              lookupField,
+              const SizedBox(height: 8),
+              Row(
+                children: <Widget>[
+                  Expanded(child: searchButton),
+                  const SizedBox(width: 8),
+                  scanButton,
+                ],
+              ),
+            ],
+          );
+        }
+
+        return Row(
+          children: <Widget>[
+            Expanded(child: lookupField),
+            const SizedBox(width: 12),
+            searchButton,
+            const SizedBox(width: 8),
+            scanButton,
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildQuantityFields(_AcceptanceLineDraft line) {
+    Widget dispatchField() {
+      return TextFormField(
+        controller: line.dispatchQuantityController,
+        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+        inputFormatters: <TextInputFormatter>[
+          FilteringTextInputFormatter.allow(RegExp(r'[0-9,\.]')),
+        ],
+        decoration: const InputDecoration(labelText: 'Irsaliye Miktari*'),
+        onChanged: (_) => setState(() {}),
+        validator: (_) {
+          if (line.dispatchQuantity <= 0) {
+            return 'Miktar > 0';
+          }
+          return null;
+        },
+      );
+    }
+
+    Widget acceptedField() {
+      return TextFormField(
+        controller: line.acceptedQuantityController,
+        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+        inputFormatters: <TextInputFormatter>[
+          FilteringTextInputFormatter.allow(RegExp(r'[0-9,\.]')),
+        ],
+        decoration: const InputDecoration(labelText: 'Fiili Kabul*'),
+        onChanged: (_) => setState(() {}),
+        validator: (_) {
+          if (line.acceptedQuantity < 0) {
+            return 'Negatif olamaz';
+          }
+          if (line.acceptedQuantity > line.dispatchQuantity) {
+            return 'Irsaliyeyi gecemez';
+          }
+          return null;
+        },
+      );
+    }
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < 360) {
+          return Column(
+            children: <Widget>[
+              dispatchField(),
+              const SizedBox(height: 10),
+              acceptedField(),
+            ],
+          );
+        }
+
+        return Row(
+          children: <Widget>[
+            Expanded(child: dispatchField()),
+            const SizedBox(width: 12),
+            Expanded(child: acceptedField()),
+          ],
+        );
+      },
     );
   }
 
@@ -892,13 +1429,85 @@ class _CompanyAcceptanceCreateSheetState
       ),
     );
   }
+
+  String _eDespatchSummaryMessage(CompanyAcceptanceEDespatchPrefill prefill) {
+    if (!prefill.isFound) {
+      return 'E-irsaliye bulunamadi. ETTN: ${prefill.ettn}';
+    }
+
+    final suggestedCustomer = _preferredCustomerSuggestion(prefill);
+    final parts = <String>[
+      if (prefill.despatchNumber.trim().isNotEmpty)
+        'Belge: ${prefill.despatchNumber}',
+      'Irsaliye satiri: ${prefill.totalLineCount}',
+      'Kalemler manuel girilecek',
+      if (prefill.sender.title.trim().isNotEmpty)
+        'Gonderici: ${prefill.sender.title}',
+      if (suggestedCustomer != null)
+        'Cari onerisi: ${suggestedCustomer.displayLabel}',
+    ];
+
+    return parts.join(' | ');
+  }
+
+  static CompanyAcceptanceCustomerSuggestion? _preferredCustomerSuggestion(
+    CompanyAcceptanceEDespatchPrefill prefill,
+  ) {
+    final primarySuggestion = prefill.primaryCustomerSuggestion;
+    if (primarySuggestion != null &&
+        primarySuggestion.customerCode.trim().isNotEmpty) {
+      return primarySuggestion;
+    }
+
+    for (final suggestion in prefill.suggestedCustomers) {
+      if (suggestion.isPrimarySuggestion &&
+          suggestion.customerCode.trim().isNotEmpty) {
+        return suggestion;
+      }
+    }
+
+    for (final suggestion in prefill.suggestedCustomers) {
+      if (suggestion.customerCode.trim().isNotEmpty) {
+        return suggestion;
+      }
+    }
+
+    return null;
+  }
+
+  static CustomerLookupItem? _findCustomerByTaxNo(
+    List<CustomerLookupItem> customers,
+    String taxNoOrTckn,
+  ) {
+    final normalizedTaxNo = _onlyDigits(taxNoOrTckn);
+    if (normalizedTaxNo.isEmpty) {
+      return null;
+    }
+
+    for (final customer in customers) {
+      if (_onlyDigits(customer.taxNumber) == normalizedTaxNo) {
+        return customer;
+      }
+    }
+
+    return null;
+  }
+
+  static String _onlyDigits(String value) {
+    return value.replaceAll(RegExp(r'\D'), '');
+  }
+
+  static DateTime _normalizedDate(DateTime value) {
+    return DateTime(value.year, value.month, value.day);
+  }
 }
 
 class _AcceptanceLineDraft {
   _AcceptanceLineDraft()
     : lookupController = TextEditingController(),
       stockCodeController = TextEditingController(),
-      quantityController = TextEditingController(text: '1'),
+      dispatchQuantityController = TextEditingController(text: '1'),
+      acceptedQuantityController = TextEditingController(text: '1'),
       unitPriceController = TextEditingController(text: '0'),
       descriptionController = TextEditingController(),
       partyCodeController = TextEditingController(),
@@ -913,7 +1522,10 @@ class _AcceptanceLineDraft {
         text: '${item.stockCode} - ${item.stockName}',
       ),
       stockCodeController = TextEditingController(text: item.stockCode),
-      quantityController = TextEditingController(
+      dispatchQuantityController = TextEditingController(
+        text: item.remainingQuantity.toString(),
+      ),
+      acceptedQuantityController = TextEditingController(
         text: item.remainingQuantity.toString(),
       ),
       unitPriceController = TextEditingController(
@@ -951,7 +1563,8 @@ class _AcceptanceLineDraft {
 
   final TextEditingController lookupController;
   final TextEditingController stockCodeController;
-  final TextEditingController quantityController;
+  final TextEditingController dispatchQuantityController;
+  final TextEditingController acceptedQuantityController;
   final TextEditingController unitPriceController;
   final TextEditingController descriptionController;
   final TextEditingController partyCodeController;
@@ -962,10 +1575,21 @@ class _AcceptanceLineDraft {
   final TextEditingController lastConsumingDateController;
 
   SearchProductLookupItem? selectedProduct;
+  String? lookupStatusMessage;
+  bool isLookupStatusLoading = false;
+  bool isLookupStatusError = false;
   String? orderGuid;
   int unitPointer = 1;
 
-  double get quantity => _readDouble(quantityController.text, fallback: 0);
+  double get dispatchQuantity =>
+      _readDouble(dispatchQuantityController.text, fallback: 0);
+  double get acceptedQuantity =>
+      _readDouble(acceptedQuantityController.text, fallback: 0);
+  double get returnQuantity {
+    final value = dispatchQuantity - acceptedQuantity;
+    return value > 0 ? value : 0;
+  }
+
   double get unitPrice => _readDouble(unitPriceController.text, fallback: 0);
   int get lotNo => _readInt(lotNoController.text, fallback: 0);
   DateTime? get lastConsumingDate {
@@ -984,10 +1608,21 @@ class _AcceptanceLineDraft {
     unitPointer = 1;
   }
 
+  void setLookupStatus(
+    String message, {
+    bool isLoading = false,
+    bool isError = false,
+  }) {
+    lookupStatusMessage = message;
+    isLookupStatusLoading = isLoading;
+    isLookupStatusError = isError;
+  }
+
   void dispose() {
     lookupController.dispose();
     stockCodeController.dispose();
-    quantityController.dispose();
+    dispatchQuantityController.dispose();
+    acceptedQuantityController.dispose();
     unitPriceController.dispose();
     descriptionController.dispose();
     partyCodeController.dispose();

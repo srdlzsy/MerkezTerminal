@@ -12,6 +12,7 @@ import 'package:furpa_merkez_terminal/shared/formatters/app_formatters.dart';
 import 'package:furpa_merkez_terminal/shared/offline/offline_record_status.dart';
 import 'package:furpa_merkez_terminal/shared/offline/offline_sync_service.dart';
 import 'package:furpa_merkez_terminal/shared/utils/client_request_id.dart';
+import 'package:furpa_merkez_terminal/shared/utils/create_form_validation.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/barcode_camera_scan_page.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/section_card.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/terminal_ui_parts.dart';
@@ -185,6 +186,53 @@ class _OfflineCompanyAcceptancesPageState
     }
   }
 
+  Widget _buildDraftTitleRow({
+    required OfflineCompanyAcceptanceDraft draft,
+    required String title,
+  }) {
+    final titleText = Text(
+      title,
+      maxLines: 2,
+      overflow: TextOverflow.ellipsis,
+      style: Theme.of(
+        context,
+      ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800),
+    );
+
+    final statusBadge = TerminalBadge(
+      label: offlineRecordStatusLabel(draft.status),
+    );
+    final lineCountBadge = TerminalBadge(label: '${draft.lines.length} satir');
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < 360) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              titleText,
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: <Widget>[statusBadge, lineCountBadge],
+              ),
+            ],
+          );
+        }
+
+        return Row(
+          children: <Widget>[
+            Expanded(child: titleText),
+            statusBadge,
+            const SizedBox(width: 8),
+            lineCountBadge,
+          ],
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final content = Container(
@@ -283,30 +331,7 @@ class _OfflineCompanyAcceptancesPageState
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: <Widget>[
-                              Row(
-                                children: <Widget>[
-                                  Expanded(
-                                    child: Text(
-                                      title,
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .titleSmall
-                                          ?.copyWith(
-                                            fontWeight: FontWeight.w800,
-                                          ),
-                                    ),
-                                  ),
-                                  TerminalBadge(
-                                    label: offlineRecordStatusLabel(
-                                      draft.status,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  TerminalBadge(
-                                    label: '${draft.lines.length} satir',
-                                  ),
-                                ],
-                              ),
+                              _buildDraftTitleRow(draft: draft, title: title),
                               const SizedBox(height: 8),
                               Text(
                                 '$customerLabel | Belge ${AppFormatters.date(draft.documentDate)} | Hareket ${AppFormatters.date(draft.movementDate)}',
@@ -341,7 +366,10 @@ class _OfflineCompanyAcceptancesPageState
                                     ? line.stockCode
                                     : '${line.stockCode} - ${line.stockName}';
                                 final extras = <String>[
-                                  AppFormatters.quantity(line.quantity),
+                                  'Irsaliye ${AppFormatters.quantity(line.dispatchQuantity)}',
+                                  'Sayilan ${AppFormatters.quantity(line.acceptedQuantity)}',
+                                  if (line.returnQuantity > 0)
+                                    'Iade ${AppFormatters.quantity(line.returnQuantity)}',
                                   if ((line.orderGuid ?? '').trim().isNotEmpty)
                                     'Siparisli',
                                 ].join(' | ');
@@ -436,7 +464,8 @@ class _OfflineCompanyAcceptanceCreateSheet extends StatefulWidget {
 }
 
 class _OfflineCompanyAcceptanceCreateSheetState
-    extends State<_OfflineCompanyAcceptanceCreateSheet> {
+    extends State<_OfflineCompanyAcceptanceCreateSheet>
+    with CreateFormValidation {
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   final List<_OfflineCompanyAcceptanceLineDraft> _lines =
       <_OfflineCompanyAcceptanceLineDraft>[];
@@ -449,6 +478,7 @@ class _OfflineCompanyAcceptanceCreateSheetState
   DateTime _movementDate = DateTime.now();
   DateTime _documentDate = DateTime.now();
   bool _allowOrderOverReceiving = false;
+  bool _autoCreateReturnForPartialAcceptance = true;
   CustomerLookupItem? _selectedCustomer;
   String? _validationMessage;
 
@@ -760,7 +790,7 @@ class _OfflineCompanyAcceptanceCreateSheetState
   void _submit() {
     final form = _formKey.currentState;
 
-    if (form == null || !form.validate()) {
+    if (form == null || !validateCreateForm(_formKey)) {
       return;
     }
 
@@ -774,10 +804,9 @@ class _OfflineCompanyAcceptanceCreateSheetState
       return;
     }
 
-    if (!_looksLikeDocumentNo(documentNo)) {
+    if (_documentDate.isBefore(_movementDate)) {
       setState(() {
-        _validationMessage =
-            'Belge No bosluksuz seri + 9 haneli sayisal sira formatinda olmali.';
+        _validationMessage = 'Belge tarihi hareket tarihinden once olamaz.';
       });
       return;
     }
@@ -789,6 +818,7 @@ class _OfflineCompanyAcceptanceCreateSheetState
       return;
     }
 
+    final usedOrderGuids = <String>{};
     for (var index = 0; index < _lines.length; index += 1) {
       final line = _lines[index];
       if (line.stockCodeController.text.trim().isEmpty) {
@@ -797,17 +827,46 @@ class _OfflineCompanyAcceptanceCreateSheetState
         });
         return;
       }
-      if (line.quantity <= 0) {
+      if (line.dispatchQuantity <= 0) {
         setState(() {
           _validationMessage =
-              '${index + 1}. satir icin miktar sifirdan buyuk olmali.';
+              '${index + 1}. satir icin irsaliye miktari sifirdan buyuk olmali.';
         });
         return;
       }
-      if (line.unitPointer <= 0) {
+      if (line.acceptedQuantity < 0) {
         setState(() {
           _validationMessage =
-              '${index + 1}. satir icin unitPointer sifirdan buyuk olmali.';
+              '${index + 1}. satir icin sayilan miktar negatif olamaz.';
+        });
+        return;
+      }
+      if (line.acceptedQuantity > line.dispatchQuantity) {
+        setState(() {
+          _validationMessage =
+              '${index + 1}. satirda sayilan miktar irsaliye miktarini gecemez.';
+        });
+        return;
+      }
+      if (line.unitPointer <= 0 || line.unitPointer > 255) {
+        setState(() {
+          _validationMessage =
+              '${index + 1}. satir icin unitPointer 1-255 olmali.';
+        });
+        return;
+      }
+      if (line.lotNo < 0) {
+        setState(() {
+          _validationMessage =
+              '${index + 1}. satir icin lot no negatif olamaz.';
+        });
+        return;
+      }
+      final orderGuid = line.orderGuid?.trim() ?? '';
+      if (orderGuid.isNotEmpty && !usedOrderGuids.add(orderGuid)) {
+        setState(() {
+          _validationMessage =
+              '${index + 1}. satirda ayni siparis satiri tekrar kullanilamaz.';
         });
         return;
       }
@@ -829,6 +888,8 @@ class _OfflineCompanyAcceptanceCreateSheetState
         receiver: _receiverController.text.trim(),
         description: _descriptionController.text.trim(),
         allowOrderOverReceiving: _allowOrderOverReceiving,
+        autoCreateReturnForPartialAcceptance:
+            _autoCreateReturnForPartialAcceptance,
         createdAt: DateTime.now(),
         status: OfflineRecordStatus.pending,
         lastSyncAttemptAt: null,
@@ -839,7 +900,8 @@ class _OfflineCompanyAcceptanceCreateSheetState
                 stockCode: line.stockCodeController.text.trim(),
                 stockName: line.stockNameController.text.trim(),
                 barcode: line.barcodeController.text.trim(),
-                quantity: line.quantity,
+                dispatchQuantity: line.dispatchQuantity,
+                acceptedQuantity: line.acceptedQuantity,
                 unitPrice: line.unitPrice,
                 unitPointer: line.unitPointer,
                 lastConsumingDate: line.lastConsumingDate,
@@ -867,6 +929,7 @@ class _OfflineCompanyAcceptanceCreateSheetState
         padding: EdgeInsets.fromLTRB(20, 8, 20, 20 + viewInsets.bottom),
         child: Form(
           key: _formKey,
+          autovalidateMode: createFormAutovalidateMode,
           child: ListView(
             shrinkWrap: true,
             children: <Widget>[
@@ -877,29 +940,12 @@ class _OfflineCompanyAcceptanceCreateSheetState
                 padding: EdgeInsets.zero,
               ),
               const SizedBox(height: 16),
-              Row(
-                children: <Widget>[
-                  Expanded(
-                    child: TextField(
-                      controller: _customerSearchController,
-                      decoration: const InputDecoration(
-                        labelText: 'Cari ara',
-                        hintText: 'Cari adi veya kodu',
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  FilledButton.icon(
-                    onPressed: _searchCustomer,
-                    icon: const Icon(Icons.search_rounded),
-                    label: const Text('Bul'),
-                  ),
-                ],
-              ),
+              _buildCustomerLookupRow(),
               const SizedBox(height: 12),
               TextFormField(
                 controller: _customerCodeController,
                 decoration: const InputDecoration(labelText: 'Cari Kodu*'),
+                onChanged: (_) => setState(() {}),
                 validator: (value) {
                   if ((value ?? '').trim().isEmpty) {
                     return 'Cari kodu zorunlu.';
@@ -927,13 +973,10 @@ class _OfflineCompanyAcceptanceCreateSheetState
               const SizedBox(height: 12),
               TextFormField(
                 controller: _documentNoController,
-                decoration: const InputDecoration(labelText: 'Belge No*'),
-                validator: (value) {
-                  if (!_looksLikeDocumentNo((value ?? '').trim())) {
-                    return 'Seri + 9 haneli sira';
-                  }
-                  return null;
-                },
+                decoration: const InputDecoration(
+                  labelText: 'Belge No / Seri',
+                  hintText: 'Bos birakilabilir veya ULK gibi seri girilebilir',
+                ),
               ),
               const SizedBox(height: 12),
               Wrap(
@@ -983,33 +1026,23 @@ class _OfflineCompanyAcceptanceCreateSheetState
                   });
                 },
               ),
-              const SizedBox(height: 8),
-              Row(
-                children: <Widget>[
-                  Text(
-                    'Satirlar',
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                  const Spacer(),
-                  OutlinedButton.icon(
-                    onPressed: _addLinesFromOpenOrders,
-                    icon: const Icon(Icons.link_rounded),
-                    label: const Text('Siparis Bagla'),
-                  ),
-                  const SizedBox(width: 8),
-                  OutlinedButton.icon(
-                    onPressed: () {
-                      setState(() {
-                        _lines.add(_OfflineCompanyAcceptanceLineDraft());
-                      });
-                    },
-                    icon: const Icon(Icons.add_rounded),
-                    label: const Text('Satir'),
-                  ),
-                ],
+              CheckboxListTile(
+                value: _autoCreateReturnForPartialAcceptance,
+                title: const Text(
+                  'Eksik kabul farki icin firma iadesi olustur',
+                ),
+                subtitle: const Text(
+                  'E-irsaliye otomatik gonderilmez; iade evragindan manuel gonderilir.',
+                ),
+                contentPadding: EdgeInsets.zero,
+                onChanged: (value) {
+                  setState(() {
+                    _autoCreateReturnForPartialAcceptance = value ?? true;
+                  });
+                },
               ),
+              const SizedBox(height: 8),
+              _buildLinesToolbar(),
               const SizedBox(height: 10),
               ..._lines.asMap().entries.map((entry) {
                 final index = entry.key;
@@ -1054,30 +1087,7 @@ class _OfflineCompanyAcceptanceCreateSheetState
                               ),
                           ],
                         ),
-                        Row(
-                          children: <Widget>[
-                            Expanded(
-                              child: TextField(
-                                controller: line.lookupController,
-                                decoration: const InputDecoration(
-                                  labelText: 'Barkod / stok kodu / urun adi',
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            FilledButton.icon(
-                              onPressed: () => _searchProduct(line),
-                              icon: const Icon(Icons.search_rounded),
-                              label: const Text('Urun'),
-                            ),
-                            const SizedBox(width: 8),
-                            IconButton.filledTonal(
-                              onPressed: () => _scanProductWithCamera(line),
-                              tooltip: 'Kamera ile oku',
-                              icon: const Icon(Icons.photo_camera_back_rounded),
-                            ),
-                          ],
-                        ),
+                        _buildProductLookupRow(line),
                         if (line.selectedProduct != null) ...<Widget>[
                           const SizedBox(height: 8),
                           TerminalMessageBlock.info(
@@ -1126,26 +1136,14 @@ class _OfflineCompanyAcceptanceCreateSheetState
                           ],
                         ),
                         const SizedBox(height: 10),
-                        TextFormField(
-                          controller: line.quantityController,
-                          keyboardType: const TextInputType.numberWithOptions(
-                            decimal: true,
+                        _buildQuantityFields(line),
+                        if (line.returnQuantity > 0) ...<Widget>[
+                          const SizedBox(height: 8),
+                          TerminalMessageBlock.info(
+                            message:
+                                'Iade farki ${AppFormatters.quantity(line.returnQuantity)}. ${_autoCreateReturnForPartialAcceptance ? 'Firma iadesi olusur, e-irsaliye manuel gonderilir.' : 'Otomatik iade kapali; fark manuel iade bekler.'}',
                           ),
-                          inputFormatters: <TextInputFormatter>[
-                            FilteringTextInputFormatter.allow(
-                              RegExp(r'[0-9,\.]'),
-                            ),
-                          ],
-                          decoration: const InputDecoration(
-                            labelText: 'Miktar*',
-                          ),
-                          validator: (_) {
-                            if (line.quantity <= 0) {
-                              return 'Miktar > 0';
-                            }
-                            return null;
-                          },
-                        ),
+                        ],
                       ],
                     ),
                   ),
@@ -1155,28 +1153,257 @@ class _OfflineCompanyAcceptanceCreateSheetState
                 TerminalMessageBlock.error(message: _validationMessage!),
                 const SizedBox(height: 12),
               ],
-              Row(
-                children: <Widget>[
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () => Navigator.of(context).pop(),
-                      child: const Text('Vazgec'),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: FilledButton.icon(
-                      onPressed: _submit,
-                      icon: const Icon(Icons.save_alt_rounded),
-                      label: const Text('Taslagi Kaydet'),
-                    ),
-                  ),
-                ],
-              ),
+              _buildFormActions(),
             ],
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildCustomerLookupRow() {
+    final lookupField = TextField(
+      controller: _customerSearchController,
+      decoration: const InputDecoration(
+        labelText: 'Cari ara',
+        hintText: 'Cari adi veya kodu',
+      ),
+    );
+
+    final searchButton = FilledButton.icon(
+      onPressed: _searchCustomer,
+      icon: const Icon(Icons.search_rounded),
+      label: const Text('Bul'),
+    );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < 360) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: <Widget>[
+              lookupField,
+              const SizedBox(height: 8),
+              searchButton,
+            ],
+          );
+        }
+
+        return Row(
+          children: <Widget>[
+            Expanded(child: lookupField),
+            const SizedBox(width: 12),
+            searchButton,
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildLinesToolbar() {
+    final title = Text(
+      'Satirlar',
+      style: Theme.of(
+        context,
+      ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
+    );
+
+    final orderButton = OutlinedButton.icon(
+      onPressed: _customerCodeController.text.trim().isEmpty
+          ? null
+          : _addLinesFromOpenOrders,
+      icon: const Icon(Icons.link_rounded),
+      label: const Text('Siparis Bagla'),
+    );
+
+    final addButton = OutlinedButton.icon(
+      onPressed: () {
+        setState(() {
+          _lines.add(_OfflineCompanyAcceptanceLineDraft());
+        });
+      },
+      icon: const Icon(Icons.add_rounded),
+      label: const Text('Satir'),
+    );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < 360) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              title,
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: <Widget>[orderButton, addButton],
+              ),
+            ],
+          );
+        }
+
+        return Row(
+          children: <Widget>[
+            title,
+            const Spacer(),
+            orderButton,
+            const SizedBox(width: 8),
+            addButton,
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildFormActions() {
+    final cancelButton = OutlinedButton(
+      onPressed: () => Navigator.of(context).pop(),
+      child: const Text('Vazgec'),
+    );
+
+    final submitButton = FilledButton.icon(
+      onPressed: _submit,
+      icon: const Icon(Icons.save_alt_rounded),
+      label: const Text('Taslagi Kaydet'),
+    );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < 360) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: <Widget>[
+              cancelButton,
+              const SizedBox(height: 10),
+              submitButton,
+            ],
+          );
+        }
+
+        return Row(
+          children: <Widget>[
+            Expanded(child: cancelButton),
+            const SizedBox(width: 12),
+            Expanded(child: submitButton),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildProductLookupRow(_OfflineCompanyAcceptanceLineDraft line) {
+    final lookupField = TextField(
+      controller: line.lookupController,
+      decoration: const InputDecoration(
+        labelText: 'Barkod / stok kodu / urun adi',
+      ),
+    );
+
+    final searchButton = FilledButton.icon(
+      onPressed: () => _searchProduct(line),
+      icon: const Icon(Icons.search_rounded),
+      label: const Text('Urun'),
+    );
+
+    final scanButton = IconButton.filledTonal(
+      onPressed: () => _scanProductWithCamera(line),
+      tooltip: 'Kamera ile oku',
+      icon: const Icon(Icons.photo_camera_back_rounded),
+    );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < 430) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: <Widget>[
+              lookupField,
+              const SizedBox(height: 8),
+              Row(
+                children: <Widget>[
+                  Expanded(child: searchButton),
+                  const SizedBox(width: 8),
+                  scanButton,
+                ],
+              ),
+            ],
+          );
+        }
+
+        return Row(
+          children: <Widget>[
+            Expanded(child: lookupField),
+            const SizedBox(width: 12),
+            searchButton,
+            const SizedBox(width: 8),
+            scanButton,
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildQuantityFields(_OfflineCompanyAcceptanceLineDraft line) {
+    Widget dispatchField() {
+      return TextFormField(
+        controller: line.dispatchQuantityController,
+        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+        inputFormatters: <TextInputFormatter>[
+          FilteringTextInputFormatter.allow(RegExp(r'[0-9,\.]')),
+        ],
+        decoration: const InputDecoration(labelText: 'Irsaliye Miktari*'),
+        onChanged: (_) => setState(() {}),
+        validator: (_) {
+          if (line.dispatchQuantity <= 0) {
+            return 'Miktar > 0';
+          }
+          return null;
+        },
+      );
+    }
+
+    Widget acceptedField() {
+      return TextFormField(
+        controller: line.acceptedQuantityController,
+        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+        inputFormatters: <TextInputFormatter>[
+          FilteringTextInputFormatter.allow(RegExp(r'[0-9,\.]')),
+        ],
+        decoration: const InputDecoration(labelText: 'Sayilan Miktar*'),
+        onChanged: (_) => setState(() {}),
+        validator: (_) {
+          if (line.acceptedQuantity < 0) {
+            return 'Negatif olamaz';
+          }
+          if (line.acceptedQuantity > line.dispatchQuantity) {
+            return 'Irsaliyeyi gecemez';
+          }
+          return null;
+        },
+      );
+    }
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < 360) {
+          return Column(
+            children: <Widget>[
+              dispatchField(),
+              const SizedBox(height: 10),
+              acceptedField(),
+            ],
+          );
+        }
+
+        return Row(
+          children: <Widget>[
+            Expanded(child: dispatchField()),
+            const SizedBox(width: 12),
+            Expanded(child: acceptedField()),
+          ],
+        );
+      },
     );
   }
 }
@@ -1187,7 +1414,8 @@ class _OfflineCompanyAcceptanceLineDraft {
       stockCodeController = TextEditingController(),
       stockNameController = TextEditingController(),
       barcodeController = TextEditingController(),
-      quantityController = TextEditingController(text: '1'),
+      dispatchQuantityController = TextEditingController(text: '1'),
+      acceptedQuantityController = TextEditingController(text: '1'),
       unitPriceController = TextEditingController(text: '0'),
       unitPointerController = TextEditingController(text: '1'),
       descriptionController = TextEditingController(),
@@ -1203,7 +1431,10 @@ class _OfflineCompanyAcceptanceLineDraft {
       stockCodeController = TextEditingController(text: item.stockCode),
       stockNameController = TextEditingController(text: item.stockName),
       barcodeController = TextEditingController(),
-      quantityController = TextEditingController(
+      dispatchQuantityController = TextEditingController(
+        text: item.remainingQuantity.toString(),
+      ),
+      acceptedQuantityController = TextEditingController(
         text: item.remainingQuantity.toString(),
       ),
       unitPriceController = TextEditingController(
@@ -1243,7 +1474,8 @@ class _OfflineCompanyAcceptanceLineDraft {
   final TextEditingController stockCodeController;
   final TextEditingController stockNameController;
   final TextEditingController barcodeController;
-  final TextEditingController quantityController;
+  final TextEditingController dispatchQuantityController;
+  final TextEditingController acceptedQuantityController;
   final TextEditingController unitPriceController;
   final TextEditingController unitPointerController;
   final TextEditingController descriptionController;
@@ -1255,7 +1487,15 @@ class _OfflineCompanyAcceptanceLineDraft {
   SearchProductLookupItem? selectedProduct;
   String? orderGuid;
 
-  double get quantity => _readDouble(quantityController.text, fallback: 0);
+  double get dispatchQuantity =>
+      _readDouble(dispatchQuantityController.text, fallback: 0);
+  double get acceptedQuantity =>
+      _readDouble(acceptedQuantityController.text, fallback: 0);
+  double get returnQuantity {
+    final value = dispatchQuantity - acceptedQuantity;
+    return value > 0 ? value : 0;
+  }
+
   double get unitPrice => _readDouble(unitPriceController.text, fallback: 0);
   int get unitPointer => _readInt(unitPointerController.text, fallback: 1);
   int get lotNo => _readInt(lotNoController.text, fallback: 0);
@@ -1282,7 +1522,8 @@ class _OfflineCompanyAcceptanceLineDraft {
     stockCodeController.dispose();
     stockNameController.dispose();
     barcodeController.dispose();
-    quantityController.dispose();
+    dispatchQuantityController.dispose();
+    acceptedQuantityController.dispose();
     unitPriceController.dispose();
     unitPointerController.dispose();
     descriptionController.dispose();
@@ -1291,15 +1532,6 @@ class _OfflineCompanyAcceptanceLineDraft {
     projectCodeController.dispose();
     lastConsumingDateController.dispose();
   }
-}
-
-bool _looksLikeDocumentNo(String value) {
-  if (value.isEmpty || value.contains(RegExp(r'\s')) || value.length <= 9) {
-    return false;
-  }
-
-  final suffix = value.substring(value.length - 9);
-  return RegExp(r'^\d{9}$').hasMatch(suffix);
 }
 
 double _readDouble(String value, {required double fallback}) {

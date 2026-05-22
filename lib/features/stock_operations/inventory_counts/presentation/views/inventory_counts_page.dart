@@ -312,9 +312,7 @@ class _InventoryCountsPageState extends State<InventoryCountsPage> {
         ),
         if (widget.canCreate)
           FilledButton.tonalIcon(
-            onPressed: _isSubmittingCreate || _controller.isLoadingList
-                ? null
-                : _openCreateSheet,
+            onPressed: _isSubmittingCreate ? null : _openCreateSheet,
             icon: _isSubmittingCreate
                 ? const SizedBox(
                     height: 16,
@@ -326,9 +324,7 @@ class _InventoryCountsPageState extends State<InventoryCountsPage> {
           ),
         if (widget.canCreate)
           OutlinedButton.icon(
-            onPressed: _controller.isLoadingList
-                ? null
-                : _openOfflineDraftsPage,
+            onPressed: _openOfflineDraftsPage,
             icon: const Icon(Icons.cloud_off_rounded),
             label: const Text('Offline Taslaklar'),
           ),
@@ -589,46 +585,6 @@ class _DetailBody extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          Wrap(
-            spacing: 12,
-            runSpacing: 12,
-            children: <Widget>[
-              _SummaryTile(
-                label: 'Belge No',
-                value: '#${currentDetail.header.documentNo}',
-              ),
-              _SummaryTile(
-                label: 'Belge Tarihi',
-                value: AppFormatters.dateOrDash(
-                  currentDetail.header.documentDate,
-                ),
-              ),
-              _SummaryTile(
-                label: 'Olusturma',
-                value: AppFormatters.dateTimeOrDash(
-                  currentDetail.header.createdAt,
-                ),
-              ),
-              _SummaryTile(
-                label: 'Depo',
-                value:
-                    '${currentDetail.header.warehouseNo} - ${currentDetail.header.warehouseName}',
-              ),
-              _SummaryTile(
-                label: 'Sayim Adi',
-                value: currentDetail.header.name.isEmpty
-                    ? '-'
-                    : currentDetail.header.name,
-              ),
-              _SummaryTile(
-                label: 'Toplam Miktar',
-                value: AppFormatters.quantity(
-                  currentDetail.header.totalQuantity,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
           Text(
             'Kalemler',
             style: Theme.of(
@@ -766,44 +722,6 @@ class _InlineField extends StatelessWidget {
           ),
         ),
       ],
-    );
-  }
-}
-
-class _SummaryTile extends StatelessWidget {
-  const _SummaryTile({required this.label, required this.value});
-
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 170,
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: Theme.of(context).colorScheme.outlineVariant.withAlpha(82),
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          Text(label, style: Theme.of(context).textTheme.labelMedium),
-          const SizedBox(height: 6),
-          Text(
-            value,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.w800,
-              color: const Color(0xFF231C17),
-            ),
-          ),
-        ],
-      ),
     );
   }
 }

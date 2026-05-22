@@ -10,6 +10,7 @@ import 'package:furpa_merkez_terminal/shared/formatters/app_formatters.dart';
 import 'package:furpa_merkez_terminal/shared/offline/offline_record_status.dart';
 import 'package:furpa_merkez_terminal/shared/offline/offline_sync_service.dart';
 import 'package:furpa_merkez_terminal/shared/utils/client_request_id.dart';
+import 'package:furpa_merkez_terminal/shared/utils/create_form_validation.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/barcode_camera_scan_page.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/section_card.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/terminal_ui_parts.dart';
@@ -268,27 +269,16 @@ class _OfflineInventoryCountsPageState
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: <Widget>[
-                              Row(
-                                children: <Widget>[
-                                  Expanded(
-                                    child: Text(
-                                      draft.name.isEmpty
-                                          ? 'Adsiz Sayim Taslagi'
-                                          : draft.name,
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .titleSmall
-                                          ?.copyWith(
-                                            fontWeight: FontWeight.w800,
-                                          ),
-                                    ),
-                                  ),
+                              TerminalTitleBadgeRow(
+                                title: draft.name.isEmpty
+                                    ? 'Adsiz Sayim Taslagi'
+                                    : draft.name,
+                                badges: <Widget>[
                                   TerminalBadge(
                                     label: offlineRecordStatusLabel(
                                       draft.status,
                                     ),
                                   ),
-                                  const SizedBox(width: 8),
                                   TerminalBadge(
                                     label: '${draft.lines.length} satir',
                                   ),
@@ -402,7 +392,8 @@ class _OfflineInventoryCountCreateSheet extends StatefulWidget {
 }
 
 class _OfflineInventoryCountCreateSheetState
-    extends State<_OfflineInventoryCountCreateSheet> {
+    extends State<_OfflineInventoryCountCreateSheet>
+    with CreateFormValidation {
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   final TextEditingController _nameController = TextEditingController();
   final List<_OfflineLineDraft> _lines = <_OfflineLineDraft>[];
@@ -542,7 +533,7 @@ class _OfflineInventoryCountCreateSheetState
   void _submit() {
     final form = _formKey.currentState;
 
-    if (form == null || !form.validate()) {
+    if (form == null || !validateCreateForm(_formKey)) {
       return;
     }
 
@@ -582,6 +573,7 @@ class _OfflineInventoryCountCreateSheetState
         padding: EdgeInsets.fromLTRB(20, 8, 20, 20 + viewInsets.bottom),
         child: Form(
           key: _formKey,
+          autovalidateMode: createFormAutovalidateMode,
           child: ListView(
             shrinkWrap: true,
             children: <Widget>[
@@ -609,15 +601,9 @@ class _OfflineInventoryCountCreateSheetState
                 onPressed: _pickDate,
               ),
               const SizedBox(height: 12),
-              Row(
-                children: <Widget>[
-                  Text(
-                    'Satirlar',
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                  const Spacer(),
+              TerminalSectionToolbar(
+                title: 'Satirlar',
+                actions: <Widget>[
                   OutlinedButton.icon(
                     onPressed: () {
                       setState(() {
@@ -670,29 +656,23 @@ class _OfflineInventoryCountCreateSheetState
                               ),
                           ],
                         ),
-                        Row(
-                          children: <Widget>[
-                            Expanded(
-                              child: TextField(
-                                controller: line.lookupController,
-                                decoration: const InputDecoration(
-                                  labelText: 'Online urun ara',
-                                ),
-                              ),
+                        TerminalResponsiveLookupRow(
+                          field: TextField(
+                            controller: line.lookupController,
+                            decoration: const InputDecoration(
+                              labelText: 'Online urun ara',
                             ),
-                            const SizedBox(width: 12),
-                            FilledButton.icon(
-                              onPressed: () => _searchProduct(line),
-                              icon: const Icon(Icons.search_rounded),
-                              label: const Text('Bul'),
-                            ),
-                            const SizedBox(width: 8),
-                            IconButton.filledTonal(
-                              onPressed: () => _scanProductWithCamera(line),
-                              tooltip: 'Kamera ile oku',
-                              icon: const Icon(Icons.photo_camera_back_rounded),
-                            ),
-                          ],
+                          ),
+                          action: FilledButton.icon(
+                            onPressed: () => _searchProduct(line),
+                            icon: const Icon(Icons.search_rounded),
+                            label: const Text('Bul'),
+                          ),
+                          trailingAction: IconButton.filledTonal(
+                            onPressed: () => _scanProductWithCamera(line),
+                            tooltip: 'Kamera ile oku',
+                            icon: const Icon(Icons.photo_camera_back_rounded),
+                          ),
                         ),
                         const SizedBox(height: 10),
                         TextFormField(
@@ -763,23 +743,16 @@ class _OfflineInventoryCountCreateSheetState
                 TerminalMessageBlock.error(message: _errorMessage!),
               ],
               const SizedBox(height: 12),
-              Row(
-                children: <Widget>[
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () => Navigator.of(context).pop(),
-                      child: const Text('Vazgec'),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: FilledButton.icon(
-                      onPressed: _submit,
-                      icon: const Icon(Icons.save_alt_rounded),
-                      label: const Text('Taslagi Kaydet'),
-                    ),
-                  ),
-                ],
+              TerminalFormActionRow(
+                cancel: OutlinedButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('Vazgec'),
+                ),
+                submit: FilledButton.icon(
+                  onPressed: _submit,
+                  icon: const Icon(Icons.save_alt_rounded),
+                  label: const Text('Taslagi Kaydet'),
+                ),
               ),
             ],
           ),

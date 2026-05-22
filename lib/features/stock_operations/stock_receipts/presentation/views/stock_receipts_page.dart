@@ -224,9 +224,7 @@ class _StockReceiptsPageState extends State<StockReceiptsPage> {
         ),
         if (widget.canCreate)
           FilledButton.tonalIcon(
-            onPressed: _controller.isCreating || _controller.isLoadingList
-                ? null
-                : _openCreateSheet,
+            onPressed: _controller.isCreating ? null : _openCreateSheet,
             icon: _controller.isCreating
                 ? const SizedBox(
                     height: 16,
@@ -373,51 +371,6 @@ class _StockReceiptsPageState extends State<StockReceiptsPage> {
                                       crossAxisAlignment:
                                           CrossAxisAlignment.start,
                                       children: <Widget>[
-                                        Wrap(
-                                          spacing: 12,
-                                          runSpacing: 12,
-                                          children: <Widget>[
-                                            TerminalSummaryTile(
-                                              label: 'Depo',
-                                              value:
-                                                  '${detail.header.warehouseNo} - ${detail.header.warehouseName}',
-                                            ),
-                                            TerminalSummaryTile(
-                                              label: 'Creator',
-                                              value:
-                                                  detail.header.creator.isEmpty
-                                                  ? '-'
-                                                  : detail.header.creator,
-                                            ),
-                                            TerminalSummaryTile(
-                                              label: 'Acceptor',
-                                              value:
-                                                  detail.header.acceptor.isEmpty
-                                                  ? '-'
-                                                  : detail.header.acceptor,
-                                            ),
-                                            TerminalSummaryTile(
-                                              label: 'Toplam',
-                                              value: AppFormatters.quantity(
-                                                detail.header.totalQuantity,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                        const SizedBox(height: 12),
-                                        if (detail
-                                            .header
-                                            .description
-                                            .isNotEmpty)
-                                          Padding(
-                                            padding: const EdgeInsets.only(
-                                              bottom: 12,
-                                            ),
-                                            child: TerminalMessageBlock.info(
-                                              message:
-                                                  detail.header.description,
-                                            ),
-                                          ),
                                         ...detail.items.map((line) {
                                           return Padding(
                                             padding: const EdgeInsets.only(

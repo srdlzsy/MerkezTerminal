@@ -4,6 +4,7 @@ import 'package:furpa_merkez_terminal/features/stock_operations/stock_receipts/d
 import 'package:furpa_merkez_terminal/features/stock_operations/stock_receipts/data/stock_receipts_repository.dart';
 import 'package:furpa_merkez_terminal/shared/data/search_lookup_models.dart';
 import 'package:furpa_merkez_terminal/shared/formatters/app_formatters.dart';
+import 'package:furpa_merkez_terminal/shared/utils/create_form_validation.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/terminal_ui_parts.dart';
 
 class StockReceiptCreateSheet extends StatefulWidget {
@@ -25,7 +26,8 @@ class StockReceiptCreateSheet extends StatefulWidget {
       _StockReceiptCreateSheetState();
 }
 
-class _StockReceiptCreateSheetState extends State<StockReceiptCreateSheet> {
+class _StockReceiptCreateSheetState extends State<StockReceiptCreateSheet>
+    with CreateFormValidation {
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   final List<_StockReceiptLineDraft> _lines = <_StockReceiptLineDraft>[];
   late final TextEditingController _creatorController;
@@ -35,6 +37,8 @@ class _StockReceiptCreateSheetState extends State<StockReceiptCreateSheet> {
   DateTime _movementDate = DateTime.now();
   DateTime _documentDate = DateTime.now();
   String? _lookupError;
+
+  bool get _showDocumentNoField => widget.kind != StockReceiptKind.expense;
 
   @override
   void initState() {
@@ -85,14 +89,22 @@ class _StockReceiptCreateSheetState extends State<StockReceiptCreateSheet> {
 
     if (query.length < 2) {
       setState(() {
-        _lookupError =
-            'Urun aramak icin en az 2 karakter veya barkod girilmeli.';
+        line.setLookupStatus(
+          'Urun aramak icin en az 2 karakter veya barkod girilmeli.',
+          isError: true,
+        );
+        _lookupError = null;
       });
       return;
     }
 
     List<SearchProductLookupItem> products;
     try {
+      setState(() {
+        line.setLookupStatus('API araniyor: $query', isLoading: true);
+        _lookupError = null;
+      });
+
       products = await widget.repository.searchProducts(
         accessToken: widget.accessToken,
         warehouseNo: widget.defaultWarehouseNo,
@@ -104,7 +116,11 @@ class _StockReceiptCreateSheetState extends State<StockReceiptCreateSheet> {
       }
 
       setState(() {
-        _lookupError = error.toString().replaceFirst('Exception: ', '').trim();
+        line.setLookupStatus(
+          'API hata dondu: ${error.toString().replaceFirst('Exception: ', '').trim()}',
+          isError: true,
+        );
+        _lookupError = null;
       });
       return;
     }
@@ -114,9 +130,20 @@ class _StockReceiptCreateSheetState extends State<StockReceiptCreateSheet> {
     }
 
     if (products.isEmpty) {
-      _showFeedback('Bu aramaya uygun urun bulunamadi.');
+      setState(() {
+        line.setLookupStatus(
+          'API cevap verdi ama urun bulunamadi: $query',
+          isError: true,
+        );
+      });
       return;
     }
+
+    setState(() {
+      line.setLookupStatus(
+        '${products.length} urun bulundu. Listeden secim bekleniyor.',
+      );
+    });
 
     final selected = await showModalBottomSheet<SearchProductLookupItem>(
       context: context,
@@ -141,12 +168,24 @@ class _StockReceiptCreateSheetState extends State<StockReceiptCreateSheet> {
     );
 
     if (selected == null) {
+      if (mounted) {
+        setState(() {
+          line.setLookupStatus(
+            '${products.length} sonuc geldi, secim yapilmadi.',
+          );
+        });
+      }
       return;
     }
 
     var mergedIntoExisting = false;
     setState(() {
       mergedIntoExisting = _applyProductToLine(line, selected);
+      if (!mergedIntoExisting) {
+        line.setLookupStatus(
+          'Secildi: ${selected.stockCode} | ${selected.stockName}',
+        );
+      }
       _lookupError = null;
     });
 
@@ -235,7 +274,7 @@ class _StockReceiptCreateSheetState extends State<StockReceiptCreateSheet> {
   void _submit() {
     final form = _formKey.currentState;
 
-    if (form == null || !form.validate()) {
+    if (form == null || !validateCreateForm(_formKey)) {
       return;
     }
 
@@ -252,7 +291,9 @@ class _StockReceiptCreateSheetState extends State<StockReceiptCreateSheet> {
         acceptor: _acceptorController.text.trim(),
         movementDate: _movementDate,
         documentDate: _documentDate,
-        documentNo: _documentNoController.text.trim(),
+        documentNo: _showDocumentNoField
+            ? _documentNoController.text.trim()
+            : '',
         description: _descriptionController.text.trim(),
         lines: _lines
             .map(
@@ -279,6 +320,7 @@ class _StockReceiptCreateSheetState extends State<StockReceiptCreateSheet> {
       padding: EdgeInsets.fromLTRB(20, 8, 20, 20 + viewInsets.bottom),
       child: Form(
         key: _formKey,
+        autovalidateMode: createFormAutovalidateMode,
         child: ListView(
           shrinkWrap: true,
           children: <Widget>[
@@ -327,11 +369,13 @@ class _StockReceiptCreateSheetState extends State<StockReceiptCreateSheet> {
               ],
             ),
             const SizedBox(height: 12),
-            TextFormField(
-              controller: _documentNoController,
-              decoration: const InputDecoration(labelText: 'Belge No'),
-            ),
-            const SizedBox(height: 12),
+            if (_showDocumentNoField) ...<Widget>[
+              TextFormField(
+                controller: _documentNoController,
+                decoration: const InputDecoration(labelText: 'Belge No'),
+              ),
+              const SizedBox(height: 12),
+            ],
             TextFormField(
               controller: _descriptionController,
               minLines: 2,
@@ -339,15 +383,9 @@ class _StockReceiptCreateSheetState extends State<StockReceiptCreateSheet> {
               decoration: const InputDecoration(labelText: 'Aciklama'),
             ),
             const SizedBox(height: 12),
-            Row(
-              children: <Widget>[
-                Text(
-                  'Satirlar',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                const Spacer(),
+            TerminalSectionToolbar(
+              title: 'Satirlar',
+              actions: <Widget>[
                 OutlinedButton.icon(
                   onPressed: _addLine,
                   icon: const Icon(Icons.add_rounded),
@@ -396,31 +434,43 @@ class _StockReceiptCreateSheetState extends State<StockReceiptCreateSheet> {
                             ),
                         ],
                       ),
-                      Row(
-                        children: <Widget>[
-                          Expanded(
-                            child: TextFormField(
-                              controller: line.lookupController,
-                              decoration: const InputDecoration(
-                                labelText: 'Barkod / stok kodu / urun adi',
-                              ),
-                              validator: (_) {
-                                if (line.selectedProduct == null) {
-                                  return 'Urun secilmeli.';
-                                }
+                      TerminalResponsiveLookupRow(
+                        field: TextFormField(
+                          controller: line.lookupController,
+                          decoration: const InputDecoration(
+                            labelText: 'Barkod / stok kodu / urun adi',
+                          ),
+                          validator: (_) {
+                            if (line.selectedProduct == null) {
+                              return 'Urun secilmeli.';
+                            }
 
-                                return null;
-                              },
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          FilledButton.icon(
-                            onPressed: () => _searchProduct(line),
-                            icon: const Icon(Icons.search_rounded),
-                            label: const Text('Urun'),
-                          ),
-                        ],
+                            return null;
+                          },
+                        ),
+                        action: FilledButton.icon(
+                          onPressed: line.isLookupStatusLoading
+                              ? null
+                              : () => _searchProduct(line),
+                          icon: const Icon(Icons.search_rounded),
+                          label: const Text('Urun'),
+                        ),
                       ),
+                      if (line.lookupStatusMessage != null) ...<Widget>[
+                        const SizedBox(height: 8),
+                        if (line.isLookupStatusLoading)
+                          TerminalMessageBlock.loading(
+                            message: line.lookupStatusMessage!,
+                          )
+                        else if (line.isLookupStatusError)
+                          TerminalMessageBlock.error(
+                            message: line.lookupStatusMessage!,
+                          )
+                        else
+                          TerminalMessageBlock.info(
+                            message: line.lookupStatusMessage!,
+                          ),
+                      ],
                       if (line.selectedProduct != null) ...<Widget>[
                         const SizedBox(height: 8),
                         TerminalMessageBlock.info(
@@ -456,23 +506,16 @@ class _StockReceiptCreateSheetState extends State<StockReceiptCreateSheet> {
               TerminalMessageBlock.error(message: _lookupError!),
               const SizedBox(height: 12),
             ],
-            Row(
-              children: <Widget>[
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: () => Navigator.of(context).pop(),
-                    child: const Text('Vazgec'),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: FilledButton.icon(
-                    onPressed: _submit,
-                    icon: const Icon(Icons.save_alt_rounded),
-                    label: const Text('Kaydet'),
-                  ),
-                ),
-              ],
+            TerminalFormActionRow(
+              cancel: OutlinedButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('Vazgec'),
+              ),
+              submit: FilledButton.icon(
+                onPressed: _submit,
+                icon: const Icon(Icons.save_alt_rounded),
+                label: const Text('Kaydet'),
+              ),
             ),
           ],
         ),
@@ -536,6 +579,9 @@ class _StockReceiptLineDraft {
   final TextEditingController projectCodeController;
 
   SearchProductLookupItem? selectedProduct;
+  String? lookupStatusMessage;
+  bool isLookupStatusLoading = false;
+  bool isLookupStatusError = false;
 
   double get quantity => _readDouble(quantityController.text, fallback: 0);
   int get unitPointer => _readInt(unitPointerController.text, fallback: 1);
@@ -544,6 +590,16 @@ class _StockReceiptLineDraft {
   void applyProduct(SearchProductLookupItem product) {
     selectedProduct = product;
     lookupController.text = product.displayLabel;
+  }
+
+  void setLookupStatus(
+    String message, {
+    bool isLoading = false,
+    bool isError = false,
+  }) {
+    lookupStatusMessage = message;
+    isLookupStatusLoading = isLoading;
+    isLookupStatusError = isError;
   }
 
   void dispose() {

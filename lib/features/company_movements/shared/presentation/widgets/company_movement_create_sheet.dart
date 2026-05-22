@@ -5,6 +5,7 @@ import 'package:furpa_merkez_terminal/features/company_movements/shared/data/mod
 import 'package:furpa_merkez_terminal/features/order_operations/given_company_orders/data/models/given_company_order_models.dart';
 import 'package:furpa_merkez_terminal/shared/data/search_lookup_models.dart';
 import 'package:furpa_merkez_terminal/shared/formatters/app_formatters.dart';
+import 'package:furpa_merkez_terminal/shared/utils/create_form_validation.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/barcode_camera_scan_page.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/terminal_ui_parts.dart';
 
@@ -17,6 +18,7 @@ class CompanyMovementCreateSheet extends StatefulWidget {
     required this.title,
     required this.helperText,
     required this.submitLabel,
+    this.showDocumentNoField = true,
   });
 
   final CompanyMovementsRepository repository;
@@ -25,14 +27,15 @@ class CompanyMovementCreateSheet extends StatefulWidget {
   final String title;
   final String helperText;
   final String submitLabel;
+  final bool showDocumentNoField;
 
   @override
   State<CompanyMovementCreateSheet> createState() =>
       _CompanyMovementCreateSheetState();
 }
 
-class _CompanyMovementCreateSheetState
-    extends State<CompanyMovementCreateSheet> {
+class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
+    with CreateFormValidation {
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   final List<_MovementLineDraft> _lines = <_MovementLineDraft>[];
   late final TextEditingController _customerController;
@@ -161,14 +164,22 @@ class _CompanyMovementCreateSheetState
 
     if (query.length < 2) {
       setState(() {
-        _lookupError =
-            'Urun aramak icin en az 2 karakter veya barkod girilmeli.';
+        line.setLookupStatus(
+          'Urun aramak icin en az 2 karakter veya barkod girilmeli.',
+          isError: true,
+        );
+        _lookupError = null;
       });
       return;
     }
 
     List<SearchProductLookupItem> products;
     try {
+      setState(() {
+        line.setLookupStatus('API araniyor: $query', isLoading: true);
+        _lookupError = null;
+      });
+
       products = await widget.repository.searchProducts(
         accessToken: widget.accessToken,
         warehouseNo: widget.defaultWarehouseNo,
@@ -181,7 +192,11 @@ class _CompanyMovementCreateSheetState
       }
 
       setState(() {
-        _lookupError = error.toString().replaceFirst('Exception: ', '').trim();
+        line.setLookupStatus(
+          'API hata dondu: ${error.toString().replaceFirst('Exception: ', '').trim()}',
+          isError: true,
+        );
+        _lookupError = null;
       });
       return;
     }
@@ -191,9 +206,20 @@ class _CompanyMovementCreateSheetState
     }
 
     if (products.isEmpty) {
-      _showFeedback('Bu aramaya uygun urun bulunamadi.');
+      setState(() {
+        line.setLookupStatus(
+          'API cevap verdi ama urun bulunamadi: $query',
+          isError: true,
+        );
+      });
       return;
     }
+
+    setState(() {
+      line.setLookupStatus(
+        '${products.length} urun bulundu. Listeden secim bekleniyor.',
+      );
+    });
 
     final selected = await showModalBottomSheet<SearchProductLookupItem>(
       context: context,
@@ -218,12 +244,24 @@ class _CompanyMovementCreateSheetState
     );
 
     if (selected == null) {
+      if (mounted) {
+        setState(() {
+          line.setLookupStatus(
+            '${products.length} sonuc geldi, secim yapilmadi.',
+          );
+        });
+      }
       return;
     }
 
     var mergedIntoExisting = false;
     setState(() {
       mergedIntoExisting = _applyProductToLine(line, selected);
+      if (!mergedIntoExisting) {
+        line.setLookupStatus(
+          'Secildi: ${selected.stockCode} | ${selected.stockName}',
+        );
+      }
       _lookupError = null;
     });
 
@@ -252,6 +290,7 @@ class _CompanyMovementCreateSheetState
 
     setState(() {
       line.lookupController.text = barcode;
+      line.setLookupStatus('Barkod okundu: $barcode. API aramasi basliyor.');
       _lookupError = null;
     });
 
@@ -344,7 +383,7 @@ class _CompanyMovementCreateSheetState
   void _submit() {
     final form = _formKey.currentState;
 
-    if (form == null || !form.validate()) {
+    if (form == null || !validateCreateForm(_formKey)) {
       return;
     }
 
@@ -367,7 +406,9 @@ class _CompanyMovementCreateSheetState
         customerCode: _selectedCustomer!.customerCode,
         movementDate: _movementDate,
         documentDate: _documentDate,
-        documentNo: _documentNoController.text.trim(),
+        documentNo: widget.showDocumentNoField
+            ? _documentNoController.text.trim()
+            : '',
         description: _descriptionController.text.trim(),
         lines: _lines
             .map(
@@ -399,6 +440,7 @@ class _CompanyMovementCreateSheetState
       padding: EdgeInsets.fromLTRB(20, 8, 20, 20 + viewInsets.bottom),
       child: Form(
         key: _formKey,
+        autovalidateMode: createFormAutovalidateMode,
         child: ListView(
           shrinkWrap: true,
           children: <Widget>[
@@ -408,31 +450,27 @@ class _CompanyMovementCreateSheetState
               padding: EdgeInsets.zero,
             ),
             const SizedBox(height: 16),
-            Row(
-              children: <Widget>[
-                Expanded(
-                  child: TextFormField(
-                    controller: _customerController,
-                    decoration: const InputDecoration(
-                      labelText: 'Cari',
-                      hintText: 'Cari adi veya kodu',
-                    ),
-                    validator: (_) {
-                      if (_selectedCustomer == null) {
-                        return 'Cari secimi zorunludur.';
-                      }
+            TerminalResponsiveLookupRow(
+              breakpoint: 360,
+              field: TextFormField(
+                controller: _customerController,
+                decoration: const InputDecoration(
+                  labelText: 'Cari',
+                  hintText: 'Cari adi veya kodu',
+                ),
+                validator: (_) {
+                  if (_selectedCustomer == null) {
+                    return 'Cari secimi zorunludur.';
+                  }
 
-                      return null;
-                    },
-                  ),
-                ),
-                const SizedBox(width: 12),
-                FilledButton.icon(
-                  onPressed: _searchCustomer,
-                  icon: const Icon(Icons.search_rounded),
-                  label: const Text('Bul'),
-                ),
-              ],
+                  return null;
+                },
+              ),
+              action: FilledButton.icon(
+                onPressed: _searchCustomer,
+                icon: const Icon(Icons.search_rounded),
+                label: const Text('Bul'),
+              ),
             ),
             const SizedBox(height: 12),
             Wrap(
@@ -452,14 +490,16 @@ class _CompanyMovementCreateSheetState
               ],
             ),
             const SizedBox(height: 12),
-            TextFormField(
-              controller: _documentNoController,
-              decoration: const InputDecoration(
-                labelText: 'Belge No',
-                hintText: 'IRS-0001',
+            if (widget.showDocumentNoField) ...<Widget>[
+              TextFormField(
+                controller: _documentNoController,
+                decoration: const InputDecoration(
+                  labelText: 'Belge No',
+                  hintText: 'IRS-0001',
+                ),
               ),
-            ),
-            const SizedBox(height: 12),
+              const SizedBox(height: 12),
+            ],
             TextFormField(
               controller: _descriptionController,
               minLines: 2,
@@ -467,15 +507,9 @@ class _CompanyMovementCreateSheetState
               decoration: const InputDecoration(labelText: 'Aciklama'),
             ),
             const SizedBox(height: 16),
-            Row(
-              children: <Widget>[
-                Text(
-                  'Satirlar',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                const Spacer(),
+            TerminalSectionToolbar(
+              title: 'Satirlar',
+              actions: <Widget>[
                 OutlinedButton.icon(
                   onPressed: _addLine,
                   icon: const Icon(Icons.add_rounded),
@@ -524,37 +558,50 @@ class _CompanyMovementCreateSheetState
                             ),
                         ],
                       ),
-                      Row(
-                        children: <Widget>[
-                          Expanded(
-                            child: TextFormField(
-                              controller: line.lookupController,
-                              decoration: const InputDecoration(
-                                labelText: 'Barkod / stok kodu / urun adi',
-                              ),
-                              validator: (_) {
-                                if (line.selectedProduct == null) {
-                                  return 'Urun secilmeli.';
-                                }
+                      TerminalResponsiveLookupRow(
+                        field: TextFormField(
+                          controller: line.lookupController,
+                          decoration: const InputDecoration(
+                            labelText: 'Barkod / stok kodu / urun adi',
+                          ),
+                          validator: (_) {
+                            if (line.selectedProduct == null) {
+                              return 'Urun secilmeli.';
+                            }
 
-                                return null;
-                              },
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          FilledButton.icon(
-                            onPressed: () => _searchProduct(line),
-                            icon: const Icon(Icons.search_rounded),
-                            label: const Text('Urun'),
-                          ),
-                          const SizedBox(width: 8),
-                          IconButton.filledTonal(
-                            onPressed: () => _scanProductWithCamera(line),
-                            tooltip: 'Kamera ile oku',
-                            icon: const Icon(Icons.photo_camera_back_rounded),
-                          ),
-                        ],
+                            return null;
+                          },
+                        ),
+                        action: FilledButton.icon(
+                          onPressed: line.isLookupStatusLoading
+                              ? null
+                              : () => _searchProduct(line),
+                          icon: const Icon(Icons.search_rounded),
+                          label: const Text('Urun'),
+                        ),
+                        trailingAction: IconButton.filledTonal(
+                          onPressed: line.isLookupStatusLoading
+                              ? null
+                              : () => _scanProductWithCamera(line),
+                          tooltip: 'Kamera ile oku',
+                          icon: const Icon(Icons.photo_camera_back_rounded),
+                        ),
                       ),
+                      if (line.lookupStatusMessage != null) ...<Widget>[
+                        const SizedBox(height: 8),
+                        if (line.isLookupStatusLoading)
+                          TerminalMessageBlock.loading(
+                            message: line.lookupStatusMessage!,
+                          )
+                        else if (line.isLookupStatusError)
+                          TerminalMessageBlock.error(
+                            message: line.lookupStatusMessage!,
+                          )
+                        else
+                          TerminalMessageBlock.info(
+                            message: line.lookupStatusMessage!,
+                          ),
+                      ],
                       if (line.selectedProduct != null) ...<Widget>[
                         const SizedBox(height: 8),
                         TerminalMessageBlock.info(
@@ -591,23 +638,16 @@ class _CompanyMovementCreateSheetState
               TerminalMessageBlock.error(message: _lookupError!),
               const SizedBox(height: 12),
             ],
-            Row(
-              children: <Widget>[
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: () => Navigator.of(context).pop(),
-                    child: const Text('Vazgec'),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: FilledButton.icon(
-                    onPressed: _submit,
-                    icon: const Icon(Icons.save_alt_rounded),
-                    label: Text(widget.submitLabel),
-                  ),
-                ),
-              ],
+            TerminalFormActionRow(
+              cancel: OutlinedButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('Vazgec'),
+              ),
+              submit: FilledButton.icon(
+                onPressed: _submit,
+                icon: const Icon(Icons.save_alt_rounded),
+                label: Text(widget.submitLabel),
+              ),
             ),
           ],
         ),
@@ -677,6 +717,9 @@ class _MovementLineDraft {
   final TextEditingController productRcController;
 
   SearchProductLookupItem? selectedProduct;
+  String? lookupStatusMessage;
+  bool isLookupStatusLoading = false;
+  bool isLookupStatusError = false;
 
   double get quantity => _readDouble(quantityController.text, fallback: 0);
   double get unitPrice => _readDouble(unitPriceController.text, fallback: 0);
@@ -687,6 +730,16 @@ class _MovementLineDraft {
     selectedProduct = product;
     lookupController.text = product.displayLabel;
     unitPriceController.text = product.price.toString();
+  }
+
+  void setLookupStatus(
+    String message, {
+    bool isLoading = false,
+    bool isError = false,
+  }) {
+    lookupStatusMessage = message;
+    isLookupStatusLoading = isLoading;
+    isLookupStatusError = isError;
   }
 
   void dispose() {

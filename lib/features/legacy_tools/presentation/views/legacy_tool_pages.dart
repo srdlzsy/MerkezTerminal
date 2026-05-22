@@ -33,19 +33,47 @@ class ProductLookupToolPage extends StatefulWidget {
 class _ProductLookupToolPageState extends State<ProductLookupToolPage> {
   final TextEditingController _queryController = TextEditingController();
   bool _isLoading = false;
+  bool _hasQuery = false;
   String? _errorMessage;
   List<SearchProductLookupItem> _products = const <SearchProductLookupItem>[];
 
   @override
+  void initState() {
+    super.initState();
+    _queryController.addListener(_handleQueryChanged);
+  }
+
+  @override
   void dispose() {
+    _queryController.removeListener(_handleQueryChanged);
     _queryController.dispose();
     super.dispose();
+  }
+
+  void _handleQueryChanged() {
+    final hasQuery = _queryController.text.trim().isNotEmpty;
+    if (hasQuery == _hasQuery) {
+      return;
+    }
+
+    setState(() {
+      _hasQuery = hasQuery;
+    });
+  }
+
+  void _clearSearch() {
+    _queryController.clear();
+    setState(() {
+      _products = const <SearchProductLookupItem>[];
+      _errorMessage = null;
+      _isLoading = false;
+    });
   }
 
   Future<void> _search() async {
     final query = _queryController.text.trim();
 
-    if (query.length < 2) {
+    if (query.isEmpty) {
       setState(() {
         _errorMessage = 'Arama icin en az 2 karakter veya barkod girilmeli.';
       });
@@ -102,24 +130,26 @@ class _ProductLookupToolPageState extends State<ProductLookupToolPage> {
             subtitle: widget.subtitle,
             child: Column(
               children: <Widget>[
-                Row(
-                  children: <Widget>[
-                    Expanded(
-                      child: TextField(
-                        controller: _queryController,
-                        decoration: const InputDecoration(
-                          labelText: 'Barkod / stok kodu / urun adi',
-                        ),
-                        onSubmitted: (_) => _search(),
-                      ),
+                TerminalResponsiveLookupRow(
+                  field: TextField(
+                    controller: _queryController,
+                    decoration: const InputDecoration(
+                      labelText: 'Barkod / stok kodu / urun adi',
                     ),
-                    const SizedBox(width: 12),
-                    FilledButton.icon(
-                      onPressed: _isLoading ? null : _search,
-                      icon: const Icon(Icons.search_rounded),
-                      label: const Text('Ara'),
-                    ),
-                  ],
+                    onSubmitted: (_) => _search(),
+                  ),
+                  action: FilledButton.icon(
+                    onPressed: _isLoading ? null : _search,
+                    icon: const Icon(Icons.search_rounded),
+                    label: const Text('Ara'),
+                  ),
+                  trailingAction: _hasQuery
+                      ? OutlinedButton.icon(
+                          onPressed: _isLoading ? null : _clearSearch,
+                          icon: const Icon(Icons.close_rounded),
+                          label: const Text('Temizle'),
+                        )
+                      : null,
                 ),
               ],
             ),
@@ -214,10 +244,18 @@ class CompanyLookupToolPage extends StatefulWidget {
     super.key,
     required this.repository,
     required this.accessToken,
+    required this.defaultWarehouseNo,
+    required this.title,
+    required this.subtitle,
+    required this.emptyMessage,
   });
 
   final LegacyToolsRepository repository;
   final String accessToken;
+  final String defaultWarehouseNo;
+  final String title;
+  final String subtitle;
+  final String emptyMessage;
 
   @override
   State<CompanyLookupToolPage> createState() => _CompanyLookupToolPageState();
@@ -226,21 +264,49 @@ class CompanyLookupToolPage extends StatefulWidget {
 class _CompanyLookupToolPageState extends State<CompanyLookupToolPage> {
   final TextEditingController _queryController = TextEditingController();
   bool _isLoading = false;
+  bool _hasQuery = false;
   String? _errorMessage;
   List<CustomerLookupItem> _customers = const <CustomerLookupItem>[];
 
   @override
+  void initState() {
+    super.initState();
+    _queryController.addListener(_handleQueryChanged);
+  }
+
+  @override
   void dispose() {
+    _queryController.removeListener(_handleQueryChanged);
     _queryController.dispose();
     super.dispose();
+  }
+
+  void _handleQueryChanged() {
+    final hasQuery = _queryController.text.trim().isNotEmpty;
+    if (hasQuery == _hasQuery) {
+      return;
+    }
+
+    setState(() {
+      _hasQuery = hasQuery;
+    });
+  }
+
+  void _clearSearch() {
+    _queryController.clear();
+    setState(() {
+      _customers = const <CustomerLookupItem>[];
+      _errorMessage = null;
+      _isLoading = false;
+    });
   }
 
   Future<void> _search() async {
     final query = _queryController.text.trim();
 
-    if (query.length < 2) {
+    if (query.isEmpty) {
       setState(() {
-        _errorMessage = 'Cari aramak icin en az 2 karakter girilmeli.';
+        _errorMessage = 'Cari bulmak icin barkod girilmeli.';
       });
       return;
     }
@@ -251,9 +317,10 @@ class _CompanyLookupToolPageState extends State<CompanyLookupToolPage> {
     });
 
     try {
-      final customers = await widget.repository.searchCustomers(
+      final customers = await widget.repository.searchCustomersByBarcode(
         accessToken: widget.accessToken,
-        query: query,
+        barcode: query,
+        warehouseNo: int.tryParse(widget.defaultWarehouseNo),
       );
 
       if (!mounted) {
@@ -290,24 +357,26 @@ class _CompanyLookupToolPageState extends State<CompanyLookupToolPage> {
         ),
         children: <Widget>[
           SectionCard(
-            title: 'Firma Bul',
-            subtitle: 'Cari kodu, isim veya unvan ile hizli firma aramasi yapar.',
-            child: Row(
-              children: <Widget>[
-                Expanded(
-                  child: TextField(
-                    controller: _queryController,
-                    decoration: const InputDecoration(labelText: 'Cari ara'),
-                    onSubmitted: (_) => _search(),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                FilledButton.icon(
-                  onPressed: _isLoading ? null : _search,
-                  icon: const Icon(Icons.search_rounded),
-                  label: const Text('Ara'),
-                ),
-              ],
+            title: widget.title,
+            subtitle: widget.subtitle,
+            child: TerminalResponsiveLookupRow(
+              field: TextField(
+                controller: _queryController,
+                decoration: const InputDecoration(labelText: 'Barkod'),
+                onSubmitted: (_) => _search(),
+              ),
+              action: FilledButton.icon(
+                onPressed: _isLoading ? null : _search,
+                icon: const Icon(Icons.search_rounded),
+                label: const Text('Ara'),
+              ),
+              trailingAction: _hasQuery
+                  ? OutlinedButton.icon(
+                      onPressed: _isLoading ? null : _clearSearch,
+                      icon: const Icon(Icons.close_rounded),
+                      label: const Text('Temizle'),
+                    )
+                  : null,
             ),
           ),
           const SizedBox(height: 16),
@@ -329,7 +398,7 @@ class _CompanyLookupToolPageState extends State<CompanyLookupToolPage> {
                     child: CircularProgressIndicator(),
                   )
                 else if (_customers.isEmpty)
-                  const TerminalEmptyState(message: 'Firma bulunamadi.')
+                  TerminalEmptyState(message: widget.emptyMessage)
                 else
                   ..._customers.map((item) {
                     return Padding(

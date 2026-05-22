@@ -4,8 +4,10 @@ import 'package:furpa_merkez_terminal/features/order_operations/shared/data/mode
 import 'package:furpa_merkez_terminal/features/shipping_operations/outgoing_warehouse_shipments/data/models/outgoing_warehouse_shipment_models.dart';
 import 'package:furpa_merkez_terminal/features/shipping_operations/outgoing_warehouse_shipments/data/outgoing_warehouse_shipments_repository.dart';
 import 'package:furpa_merkez_terminal/shared/formatters/app_formatters.dart';
+import 'package:furpa_merkez_terminal/shared/utils/create_form_validation.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/barcode_camera_scan_page.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/section_card.dart';
+import 'package:furpa_merkez_terminal/shared/widgets/terminal_ui_parts.dart';
 
 enum _ShipmentCreateMode { manual, orderLinked }
 
@@ -31,7 +33,9 @@ class OutgoingWarehouseShipmentCreateSheet extends StatefulWidget {
 }
 
 class _OutgoingWarehouseShipmentCreateSheetState
-    extends State<OutgoingWarehouseShipmentCreateSheet> {
+    extends State<OutgoingWarehouseShipmentCreateSheet>
+    with CreateFormValidation {
+  final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   late final TextEditingController _targetWarehouseNoController;
   late final TextEditingController _transitWarehouseNoController;
   late final TextEditingController _documentNoController;
@@ -201,9 +205,19 @@ class _OutgoingWarehouseShipmentCreateSheetState
 
   Future<void> _pickProduct(_ManualShipmentLineDraft line) async {
     if (!_hasTargetWarehouseSelection) {
+      setState(() {
+        line.setLookupStatus(
+          'Urun aramasi icin once hedef depo secilmeli.',
+          isError: true,
+        );
+      });
       _showFeedback('Once hedef depo secin, sonra kalem okutun.');
       return;
     }
+
+    setState(() {
+      line.setLookupStatus('Urun arama penceresi aciliyor.');
+    });
 
     final product = await showModalBottomSheet<ProductLookupItem>(
       context: context,
@@ -220,12 +234,22 @@ class _OutgoingWarehouseShipmentCreateSheetState
     );
 
     if (product == null || !mounted) {
+      if (mounted) {
+        setState(() {
+          line.setLookupStatus('Urun secimi yapilmadi.');
+        });
+      }
       return;
     }
 
     var mergedIntoExisting = false;
     setState(() {
       mergedIntoExisting = _applyProductToManualLine(line, product);
+      if (!mergedIntoExisting) {
+        line.setLookupStatus(
+          'Secildi: ${product.stockCode} | ${product.stockName}',
+        );
+      }
       _validationMessage = null;
     });
 
@@ -236,6 +260,12 @@ class _OutgoingWarehouseShipmentCreateSheetState
 
   Future<void> _findProductByBarcode(_ManualShipmentLineDraft line) async {
     if (!_hasTargetWarehouseSelection) {
+      setState(() {
+        line.setLookupStatus(
+          'Barkod aramasi icin once hedef depo secilmeli.',
+          isError: true,
+        );
+      });
       _showFeedback('Once hedef depo secin, sonra barkod okutun.');
       return;
     }
@@ -243,11 +273,22 @@ class _OutgoingWarehouseShipmentCreateSheetState
     final barcode = line.barcodeController.text.trim();
 
     if (barcode.length < 3) {
+      setState(() {
+        line.setLookupStatus(
+          'Barkod alanina gecerli bir deger girin.',
+          isError: true,
+        );
+      });
       _showFeedback('Barkod alanina gecerli bir deger girin.');
       return;
     }
 
     try {
+      setState(() {
+        line.setLookupStatus('API araniyor: $barcode', isLoading: true);
+        _validationMessage = null;
+      });
+
       final products = await widget.repository.searchProducts(
         accessToken: widget.accessToken,
         warehouseNo: widget.defaultWarehouseNo,
@@ -259,6 +300,12 @@ class _OutgoingWarehouseShipmentCreateSheetState
       }
 
       if (products.isEmpty) {
+        setState(() {
+          line.setLookupStatus(
+            'API cevap verdi ama barkoda ait urun bulunamadi: $barcode',
+            isError: true,
+          );
+        });
         _showFeedback('Bu barkoda ait urun bulunamadi.');
         return;
       }
@@ -266,6 +313,11 @@ class _OutgoingWarehouseShipmentCreateSheetState
       var mergedIntoExisting = false;
       setState(() {
         mergedIntoExisting = _applyProductToManualLine(line, products.first);
+        if (!mergedIntoExisting) {
+          line.setLookupStatus(
+            '${products.length} sonuc geldi. Secildi: ${products.first.stockCode} | ${products.first.stockName}',
+          );
+        }
         _validationMessage = null;
       });
 
@@ -278,16 +330,34 @@ class _OutgoingWarehouseShipmentCreateSheetState
       }
 
       _showFeedback(error.toString().replaceFirst('Exception: ', '').trim());
+      setState(() {
+        line.setLookupStatus(
+          'API hata dondu: ${error.toString().replaceFirst('Exception: ', '').trim()}',
+          isError: true,
+        );
+      });
     }
   }
 
   Future<void> _scanProductWithCamera(_ManualShipmentLineDraft line) async {
     if (!_hasTargetWarehouseSelection) {
+      setState(() {
+        line.setLookupStatus(
+          'Kamera ile okuma icin once hedef depo secilmeli.',
+          isError: true,
+        );
+      });
       _showFeedback('Once hedef depo secin, sonra kamera ile okutun.');
       return;
     }
 
     if (!supportsCameraBarcodeScanning) {
+      setState(() {
+        line.setLookupStatus(
+          'Bu cihazda kamera ile barkod okutma desteklenmiyor.',
+          isError: true,
+        );
+      });
       _showFeedback('Bu cihazda kamera ile barkod okutma desteklenmiyor.');
       return;
     }
@@ -303,6 +373,9 @@ class _OutgoingWarehouseShipmentCreateSheetState
     }
 
     line.barcodeController.text = barcode;
+    setState(() {
+      line.setLookupStatus('Barkod okundu: $barcode. API aramasi basliyor.');
+    });
     await _findProductByBarcode(line);
   }
 
@@ -429,6 +502,13 @@ class _OutgoingWarehouseShipmentCreateSheetState
   }
 
   void _submit() {
+    if (!validateCreateForm(_formKey)) {
+      setState(() {
+        _validationMessage = 'Lutfen zorunlu alanlari duzeltin.';
+      });
+      return;
+    }
+
     final targetWarehouseNo = _parseInt(_targetWarehouseNoController.text);
     final currentWarehouseNo = _parseInt(widget.defaultWarehouseNo);
     final transitWarehouseNo = _parseInt(_transitWarehouseNoController.text);
@@ -585,132 +665,138 @@ class _OutgoingWarehouseShipmentCreateSheetState
           heightFactor: 0.94,
           child: Material(
             color: theme.scaffoldBackgroundColor,
-            child: Column(
-              children: <Widget>[
-                Container(
-                  padding: const EdgeInsets.fromLTRB(20, 16, 12, 12),
-                  decoration: BoxDecoration(
-                    color: theme.colorScheme.surface,
-                    boxShadow: <BoxShadow>[
-                      BoxShadow(
-                        color: Colors.black.withAlpha(20),
-                        blurRadius: 4,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
+            child: Form(
+              key: _formKey,
+              autovalidateMode: createFormAutovalidateMode,
+              child: Column(
+                children: <Widget>[
+                  Container(
+                    padding: const EdgeInsets.fromLTRB(20, 16, 12, 12),
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.surface,
+                      boxShadow: <BoxShadow>[
+                        BoxShadow(
+                          color: Colors.black.withAlpha(20),
+                          blurRadius: 4,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      children: <Widget>[
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: <Widget>[
+                              Text(
+                                'Yeni Giden Depolar Arasi Sevk',
+                                style: theme.textTheme.titleLarge?.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                'Kaynak depo: ${widget.defaultWarehouseNo}',
+                                style: theme.textTheme.bodySmall,
+                              ),
+                            ],
+                          ),
+                        ),
+                        IconButton(
+                          onPressed: () => Navigator.of(context).pop(),
+                          icon: const Icon(Icons.close_rounded, size: 28),
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(),
+                        ),
+                      ],
+                    ),
                   ),
-                  child: Row(
-                    children: <Widget>[
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: <Widget>[
-                            Text(
-                              'Yeni Giden Depolar Arasi Sevk',
-                              style: theme.textTheme.titleLarge?.copyWith(
-                                fontWeight: FontWeight.bold,
+                  Expanded(
+                    child: ListView(
+                      controller: _scrollController,
+                      padding: const EdgeInsets.all(16),
+                      children: <Widget>[
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: theme.colorScheme.surfaceContainerHighest
+                                .withAlpha(30),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: theme.colorScheme.outlineVariant.withAlpha(
+                                50,
                               ),
                             ),
-                            const SizedBox(height: 4),
-                            Text(
-                              'Kaynak depo: ${widget.defaultWarehouseNo}',
-                              style: theme.textTheme.bodySmall,
-                            ),
-                          ],
-                        ),
-                      ),
-                      IconButton(
-                        onPressed: () => Navigator.of(context).pop(),
-                        icon: const Icon(Icons.close_rounded, size: 28),
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(),
-                      ),
-                    ],
-                  ),
-                ),
-                Expanded(
-                  child: ListView(
-                    controller: _scrollController,
-                    padding: const EdgeInsets.all(16),
-                    children: <Widget>[
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: theme.colorScheme.surfaceContainerHighest
-                              .withAlpha(30),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: theme.colorScheme.outlineVariant.withAlpha(
-                              50,
-                            ),
                           ),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: <Widget>[
-                            const Text(
-                              'Sevk tipi',
-                              style: TextStyle(fontWeight: FontWeight.w700),
-                            ),
-                            const SizedBox(height: 8),
-                            Wrap(
-                              spacing: 8,
-                              runSpacing: 8,
-                              children: <Widget>[
-                                _ModeChip(
-                                  label: 'Siparissiz Sevk',
-                                  selected: _mode == _ShipmentCreateMode.manual,
-                                  onTap: () =>
-                                      _switchMode(_ShipmentCreateMode.manual),
-                                ),
-                                _ModeChip(
-                                  label: 'Siparise Bagli Sevk',
-                                  selected:
-                                      _mode == _ShipmentCreateMode.orderLinked,
-                                  onTap: () => _switchMode(
-                                    _ShipmentCreateMode.orderLinked,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: <Widget>[
+                              const Text(
+                                'Sevk tipi',
+                                style: TextStyle(fontWeight: FontWeight.w700),
+                              ),
+                              const SizedBox(height: 8),
+                              Wrap(
+                                spacing: 8,
+                                runSpacing: 8,
+                                children: <Widget>[
+                                  _ModeChip(
+                                    label: 'Siparissiz Sevk',
+                                    selected:
+                                        _mode == _ShipmentCreateMode.manual,
+                                    onTap: () =>
+                                        _switchMode(_ShipmentCreateMode.manual),
                                   ),
-                                ),
-                              ],
+                                  _ModeChip(
+                                    label: 'Siparise Bagli Sevk',
+                                    selected:
+                                        _mode ==
+                                        _ShipmentCreateMode.orderLinked,
+                                    onTap: () => _switchMode(
+                                      _ShipmentCreateMode.orderLinked,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        _buildHeaderFieldsSection(theme),
+                        const SizedBox(height: 12),
+                        if (_mode == _ShipmentCreateMode.manual)
+                          _buildManualLinesSection(theme)
+                        else
+                          _buildOrderLinkedSection(theme),
+                        if (_validationMessage != null) ...<Widget>[
+                          const SizedBox(height: 12),
+                          _ValidationBlock(message: _validationMessage!),
+                        ],
+                        const SizedBox(height: 12),
+                        Row(
+                          children: <Widget>[
+                            Expanded(
+                              child: OutlinedButton(
+                                onPressed: () => Navigator.of(context).pop(),
+                                child: const Text('Vazgec'),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              flex: 2,
+                              child: FilledButton.icon(
+                                onPressed: _submit,
+                                icon: const Icon(Icons.save_outlined),
+                                label: const Text('Sevki Hazirla'),
+                              ),
                             ),
                           ],
                         ),
-                      ),
-                      const SizedBox(height: 12),
-                      _buildHeaderFieldsSection(theme),
-                      const SizedBox(height: 12),
-                      if (_mode == _ShipmentCreateMode.manual)
-                        _buildManualLinesSection(theme)
-                      else
-                        _buildOrderLinkedSection(theme),
-                      if (_validationMessage != null) ...<Widget>[
-                        const SizedBox(height: 12),
-                        _ValidationBlock(message: _validationMessage!),
                       ],
-                      const SizedBox(height: 12),
-                      Row(
-                        children: <Widget>[
-                          Expanded(
-                            child: OutlinedButton(
-                              onPressed: () => Navigator.of(context).pop(),
-                              child: const Text('Vazgec'),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            flex: 2,
-                            child: FilledButton.icon(
-                              onPressed: _submit,
-                              icon: const Icon(Icons.save_outlined),
-                              label: const Text('Sevki Hazirla'),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
@@ -731,95 +817,138 @@ class _OutgoingWarehouseShipmentCreateSheetState
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final targetWarehouseField = TextFormField(
+                controller: _targetWarehouseNoController,
+                readOnly: true,
+                onTap: _selectTargetWarehouse,
+                decoration: InputDecoration(
+                  labelText: 'Hedef depo no*',
+                  hintText: 'Depo secin',
+                  border: const OutlineInputBorder(),
+                  isDense: true,
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 10,
+                  ),
+                  suffixIcon: IconButton(
+                    onPressed: _selectTargetWarehouse,
+                    icon: const Icon(Icons.search_rounded),
+                    tooltip: 'Depo sec',
+                  ),
+                ),
+                validator: (value) {
+                  final parsed = _parseInt(value ?? '');
+                  if (parsed == null || parsed <= 0) {
+                    return 'Zorunlu';
+                  }
+                  return null;
+                },
+              );
+              final selectButton = FilledButton.tonal(
+                onPressed: _selectTargetWarehouse,
+                child: const Text('Sec'),
+              );
+
+              if (constraints.maxWidth < 360) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: <Widget>[
+                    targetWarehouseField,
+                    const SizedBox(height: 8),
+                    selectButton,
+                  ],
+                );
+              }
+
+              return Row(
+                children: <Widget>[
+                  Expanded(child: targetWarehouseField),
+                  const SizedBox(width: 8),
+                  selectButton,
+                ],
+              );
+            },
+          ),
+          const SizedBox(height: 10),
           Wrap(
             spacing: 8,
             runSpacing: 8,
             children: <Widget>[
-              Expanded(
-                child: TextField(
-                  controller: _targetWarehouseNoController,
-                  readOnly: true,
-                  onTap: _selectTargetWarehouse,
-                  decoration: InputDecoration(
-                    labelText: 'Hedef depo no*',
-                    hintText: 'Depo secin',
-                    border: const OutlineInputBorder(),
-                    isDense: true,
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 10,
-                    ),
-                    suffixIcon: IconButton(
-                      onPressed: _selectTargetWarehouse,
-                      icon: const Icon(Icons.search_rounded),
-                      tooltip: 'Depo sec',
-                    ),
-                  ),
-                ),
+              _DateField(
+                label: 'Sevk',
+                value: AppFormatters.date(_movementDate),
+                onPressed: () => _pickDate(isMovementDate: true),
               ),
-              const SizedBox(width: 8),
-              FilledButton.tonal(
-                onPressed: _selectTargetWarehouse,
-                child: const Text('Sec'),
+              _DateField(
+                label: 'Belge',
+                value: AppFormatters.date(_documentDate),
+                onPressed: () => _pickDate(isMovementDate: false),
               ),
             ],
           ),
           const SizedBox(height: 10),
-          Row(
-            children: <Widget>[
-              Expanded(
-                child: _DateField(
-                  label: 'Sevk',
-                  value: AppFormatters.date(_movementDate),
-                  onPressed: () => _pickDate(isMovementDate: true),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _DateField(
-                  label: 'Belge',
-                  value: AppFormatters.date(_documentDate),
-                  onPressed: () => _pickDate(isMovementDate: false),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Row(
-            children: <Widget>[
-              Expanded(
-                child: TextField(
-                  controller: _transitWarehouseNoController,
-                  keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(
-                    labelText: 'Transit depo no',
-                    hintText: '60',
-                    border: OutlineInputBorder(),
-                    isDense: true,
-                    contentPadding: EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 10,
-                    ),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final transitField = TextFormField(
+                controller: _transitWarehouseNoController,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                  labelText: 'Transit depo no',
+                  hintText: '60',
+                  border: OutlineInputBorder(),
+                  isDense: true,
+                  contentPadding: EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 10,
                   ),
                 ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: TextField(
-                  controller: _documentNoController,
-                  decoration: const InputDecoration(
-                    labelText: 'Belge no',
-                    hintText: 'Opsiyonel',
-                    border: OutlineInputBorder(),
-                    isDense: true,
-                    contentPadding: EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 10,
-                    ),
+                validator: (value) {
+                  final normalized = (value ?? '').trim();
+                  if (normalized.isEmpty) {
+                    return null;
+                  }
+
+                  final parsed = _parseInt(normalized);
+                  if (parsed == null || parsed <= 0) {
+                    return 'Pozitif olmali';
+                  }
+                  return null;
+                },
+              );
+              final documentNoField = TextFormField(
+                controller: _documentNoController,
+                decoration: const InputDecoration(
+                  labelText: 'Belge no',
+                  hintText: 'Opsiyonel',
+                  border: OutlineInputBorder(),
+                  isDense: true,
+                  contentPadding: EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 10,
                   ),
                 ),
-              ),
-            ],
+              );
+
+              if (constraints.maxWidth < 360) {
+                return Column(
+                  children: <Widget>[
+                    transitField,
+                    const SizedBox(height: 8),
+                    documentNoField,
+                  ],
+                );
+              }
+
+              return Row(
+                children: <Widget>[
+                  Expanded(child: transitField),
+                  const SizedBox(width: 8),
+                  Expanded(child: documentNoField),
+                ],
+              );
+            },
           ),
           const SizedBox(height: 10),
           TextField(
@@ -866,7 +995,9 @@ class _OutgoingWarehouseShipmentCreateSheetState
             style: TextStyle(fontWeight: FontWeight.w700),
           ),
           const SizedBox(height: 8),
-          Row(
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
             children: <Widget>[
               ChoiceChip(
                 label: const Text('Barkod ile'),
@@ -1129,7 +1260,7 @@ class _ManualShipmentLineCard extends StatelessWidget {
             Align(
               alignment: Alignment.centerLeft,
               child: FilledButton.tonalIcon(
-                onPressed: onPickProduct,
+                onPressed: line.isLookupStatusLoading ? null : onPickProduct,
                 icon: const Icon(Icons.search_rounded),
                 label: Text(product == null ? 'Urun Sec' : 'Urun Degistir'),
               ),
@@ -1138,7 +1269,9 @@ class _ManualShipmentLineCard extends StatelessWidget {
             Align(
               alignment: Alignment.centerLeft,
               child: FilledButton.tonalIcon(
-                onPressed: isReadyForScanning ? onScanWithCamera : null,
+                onPressed: isReadyForScanning && !line.isLookupStatusLoading
+                    ? onScanWithCamera
+                    : null,
                 icon: const Icon(Icons.photo_camera_back_rounded),
                 label: Text(
                   product == null ? 'Kamera ile Oku' : 'Tekrar Kamera Ac',
@@ -1146,32 +1279,63 @@ class _ManualShipmentLineCard extends StatelessWidget {
               ),
             )
           else
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Expanded(
-                  child: TextField(
-                    controller: line.barcodeController,
-                    enabled: isReadyForScanning,
-                    keyboardType: TextInputType.number,
-                    textInputAction: TextInputAction.search,
-                    onSubmitted: (_) => onResolveBarcode(),
-                    decoration: const InputDecoration(
-                      labelText: 'Barkod',
-                      hintText: 'Tarat ya da yaz',
-                      suffixIcon: Icon(Icons.qr_code_scanner_rounded),
-                    ),
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final barcodeField = TextField(
+                  controller: line.barcodeController,
+                  enabled: isReadyForScanning,
+                  keyboardType: TextInputType.number,
+                  textInputAction: TextInputAction.search,
+                  onSubmitted: (_) {
+                    if (!line.isLookupStatusLoading) {
+                      onResolveBarcode();
+                    }
+                  },
+                  decoration: const InputDecoration(
+                    labelText: 'Barkod',
+                    hintText: 'Tarat ya da yaz',
+                    suffixIcon: Icon(Icons.qr_code_scanner_rounded),
                   ),
-                ),
-                const SizedBox(width: 12),
-                FilledButton.tonalIcon(
-                  onPressed: isReadyForScanning ? onResolveBarcode : null,
+                );
+                final searchButton = FilledButton.tonalIcon(
+                  onPressed: isReadyForScanning && !line.isLookupStatusLoading
+                      ? onResolveBarcode
+                      : null,
                   icon: const Icon(Icons.search_rounded),
                   label: const Text('Bul'),
-                ),
-              ],
+                );
+
+                if (constraints.maxWidth < 340) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: <Widget>[
+                      barcodeField,
+                      const SizedBox(height: 8),
+                      searchButton,
+                    ],
+                  );
+                }
+
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Expanded(child: barcodeField),
+                    const SizedBox(width: 12),
+                    searchButton,
+                  ],
+                );
+              },
             ),
           const SizedBox(height: 8),
+          if (line.lookupStatusMessage != null) ...<Widget>[
+            if (line.isLookupStatusLoading)
+              TerminalMessageBlock.loading(message: line.lookupStatusMessage!)
+            else if (line.isLookupStatusError)
+              TerminalMessageBlock.error(message: line.lookupStatusMessage!)
+            else
+              TerminalMessageBlock.info(message: line.lookupStatusMessage!),
+            const SizedBox(height: 8),
+          ],
           if (product == null)
             Container(
               width: double.infinity,
@@ -1213,10 +1377,19 @@ class _ManualShipmentLineCard extends StatelessWidget {
               ),
             ),
           const SizedBox(height: 8),
-          TextField(
+          TextFormField(
             controller: line.quantityController,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
             decoration: const InputDecoration(labelText: 'Miktar'),
+            validator: (value) {
+              final parsed = double.tryParse(
+                (value ?? '').trim().replaceAll(',', '.'),
+              );
+              if (parsed == null || parsed <= 0) {
+                return 'Miktar > 0';
+              }
+              return null;
+            },
           ),
         ],
       ),
@@ -1309,7 +1482,7 @@ class _LinkedShipmentLineCard extends StatelessWidget {
                         ),
                         SizedBox(
                           width: 140,
-                          child: TextField(
+                          child: TextFormField(
                             controller: line.quantityController,
                             keyboardType: const TextInputType.numberWithOptions(
                               decimal: true,
@@ -1317,6 +1490,18 @@ class _LinkedShipmentLineCard extends StatelessWidget {
                             decoration: const InputDecoration(
                               labelText: 'Sevk miktari',
                             ),
+                            validator: (value) {
+                              final parsed = double.tryParse(
+                                (value ?? '').trim().replaceAll(',', '.'),
+                              );
+                              if (parsed == null || parsed <= 0) {
+                                return 'Miktar > 0';
+                              }
+                              if (parsed > line.maxQuantity) {
+                                return 'Kalan asildi';
+                              }
+                              return null;
+                            },
                           ),
                         ),
                       ],
@@ -1369,12 +1554,24 @@ class _LinkedShipmentLineCard extends StatelessWidget {
                     const SizedBox(width: 12),
                     SizedBox(
                       width: 128,
-                      child: TextField(
+                      child: TextFormField(
                         controller: line.quantityController,
                         keyboardType: const TextInputType.numberWithOptions(
                           decimal: true,
                         ),
                         decoration: const InputDecoration(labelText: 'Sevk'),
+                        validator: (value) {
+                          final parsed = double.tryParse(
+                            (value ?? '').trim().replaceAll(',', '.'),
+                          );
+                          if (parsed == null || parsed <= 0) {
+                            return 'Miktar > 0';
+                          }
+                          if (parsed > line.maxQuantity) {
+                            return 'Kalan asildi';
+                          }
+                          return null;
+                        },
                       ),
                     ),
                   ],
@@ -1588,24 +1785,19 @@ class _WarehouseOrderPickerSheetState
                       ],
                     ),
                     const SizedBox(height: 12),
-                    Row(
-                      children: <Widget>[
-                        Expanded(
-                          child: TextField(
-                            controller: _queryController,
-                            decoration: const InputDecoration(
-                              labelText: 'Siparis ara',
-                              hintText: 'Ornek: D110.1915',
-                            ),
-                          ),
+                    _ResponsiveSearchRow(
+                      textField: TextField(
+                        controller: _queryController,
+                        decoration: const InputDecoration(
+                          labelText: 'Siparis ara',
+                          hintText: 'Ornek: D110.1915',
                         ),
-                        const SizedBox(width: 12),
-                        FilledButton.icon(
-                          onPressed: _load,
-                          icon: const Icon(Icons.search_rounded),
-                          label: const Text('Listele'),
-                        ),
-                      ],
+                      ),
+                      button: FilledButton.icon(
+                        onPressed: _load,
+                        icon: const Icon(Icons.search_rounded),
+                        label: const Text('Listele'),
+                      ),
                     ),
                   ],
                 ),
@@ -1946,24 +2138,19 @@ class _LookupScaffold extends StatelessWidget {
                 SectionCard(
                   title: title,
                   subtitle: subtitle,
-                  child: Row(
-                    children: <Widget>[
-                      Expanded(
-                        child: TextField(
-                          controller: queryController,
-                          decoration: InputDecoration(
-                            labelText: 'Arama',
-                            hintText: hintText,
-                          ),
-                        ),
+                  child: _ResponsiveSearchRow(
+                    textField: TextField(
+                      controller: queryController,
+                      decoration: InputDecoration(
+                        labelText: 'Arama',
+                        hintText: hintText,
                       ),
-                      const SizedBox(width: 12),
-                      FilledButton.icon(
-                        onPressed: onSearch,
-                        icon: const Icon(Icons.search_rounded),
-                        label: const Text('Ara'),
-                      ),
-                    ],
+                    ),
+                    button: FilledButton.icon(
+                      onPressed: onSearch,
+                      icon: const Icon(Icons.search_rounded),
+                      label: const Text('Ara'),
+                    ),
                   ),
                 ),
                 const SizedBox(height: 16),
@@ -2005,6 +2192,9 @@ class _ManualShipmentLineDraft {
   final TextEditingController barcodeController;
   final TextEditingController quantityController;
   ProductLookupItem? selectedProduct;
+  String? lookupStatusMessage;
+  bool isLookupStatusLoading = false;
+  bool isLookupStatusError = false;
 
   void applyProduct(ProductLookupItem product) {
     selectedProduct = product;
@@ -2020,6 +2210,19 @@ class _ManualShipmentLineDraft {
     barcodeController.clear();
     quantityController.clear();
     selectedProduct = null;
+    lookupStatusMessage = null;
+    isLookupStatusLoading = false;
+    isLookupStatusError = false;
+  }
+
+  void setLookupStatus(
+    String message, {
+    bool isLoading = false,
+    bool isError = false,
+  }) {
+    lookupStatusMessage = message;
+    isLookupStatusLoading = isLoading;
+    isLookupStatusError = isError;
   }
 
   void dispose() {
@@ -2093,6 +2296,36 @@ class _SelectedWarehouseOrder {
   final WarehouseOrderDetail detail;
 }
 
+class _ResponsiveSearchRow extends StatelessWidget {
+  const _ResponsiveSearchRow({required this.textField, required this.button});
+
+  final Widget textField;
+  final Widget button;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < 360) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: <Widget>[textField, const SizedBox(height: 8), button],
+          );
+        }
+
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Expanded(child: textField),
+            const SizedBox(width: 12),
+            button,
+          ],
+        );
+      },
+    );
+  }
+}
+
 class _ModeChip extends StatelessWidget {
   const _ModeChip({
     required this.label,
@@ -2127,15 +2360,33 @@ class _DateField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return OutlinedButton.icon(
-      onPressed: onPressed,
-      icon: const Icon(Icons.calendar_month_rounded),
-      label: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          Text(label),
-          Text(value, style: const TextStyle(fontWeight: FontWeight.w700)),
-        ],
+    return SizedBox(
+      width: 142,
+      child: OutlinedButton.icon(
+        onPressed: onPressed,
+        style: OutlinedButton.styleFrom(
+          minimumSize: const Size(142, 48),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+          tapTargetSize: MaterialTapTargetSize.padded,
+        ),
+        icon: const Icon(Icons.calendar_month_rounded, size: 19),
+        label: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
+            Text(
+              value,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontSize: 15,
+                height: 1.12,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -2172,6 +2423,8 @@ class _InfoPill extends StatelessWidget {
           const SizedBox(height: 4),
           Text(
             value,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
             style: Theme.of(context).textTheme.titleSmall?.copyWith(
               color: const Color(0xFF231C17),
               fontWeight: FontWeight.w800,

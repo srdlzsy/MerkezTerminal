@@ -6,7 +6,9 @@ import 'package:furpa_merkez_terminal/features/stock_operations/inventory_counts
 import 'package:furpa_merkez_terminal/shared/formatters/app_formatters.dart';
 import 'package:furpa_merkez_terminal/shared/offline/offline_lookup_cache_repository.dart';
 import 'package:furpa_merkez_terminal/shared/utils/client_request_id.dart';
+import 'package:furpa_merkez_terminal/shared/utils/create_form_validation.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/barcode_camera_scan_page.dart';
+import 'package:furpa_merkez_terminal/shared/widgets/terminal_ui_parts.dart';
 
 enum _InventoryEntryMode { barcode, search, camera }
 
@@ -31,7 +33,8 @@ class InventoryCountCreateSheet extends StatefulWidget {
       _InventoryCountCreateSheetState();
 }
 
-class _InventoryCountCreateSheetState extends State<InventoryCountCreateSheet> {
+class _InventoryCountCreateSheetState extends State<InventoryCountCreateSheet>
+    with CreateFormValidation {
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   final ScrollController _scrollController = ScrollController();
   late final TextEditingController _nameController;
@@ -289,7 +292,7 @@ class _InventoryCountCreateSheetState extends State<InventoryCountCreateSheet> {
   }
 
   void _submit() {
-    if (!_formKey.currentState!.validate()) {
+    if (!validateCreateForm(_formKey)) {
       setState(() {
         _validationMessage = 'Lutfen zorunlu alanlari duzeltin.';
       });
@@ -351,6 +354,7 @@ class _InventoryCountCreateSheetState extends State<InventoryCountCreateSheet> {
             color: theme.scaffoldBackgroundColor,
             child: Form(
               key: _formKey,
+              autovalidateMode: createFormAutovalidateMode,
               child: Column(
                 children: <Widget>[
                   Container(
@@ -482,29 +486,20 @@ class _InventoryCountCreateSheetState extends State<InventoryCountCreateSheet> {
                           _ValidationBlock(message: _validationMessage!),
                         ],
                         const SizedBox(height: 16),
-                        Row(
-                          children: <Widget>[
-                            Expanded(
-                              child: OutlinedButton(
-                                onPressed: () => Navigator.of(context).pop(),
-                                child: const Text('Vazgec'),
-                              ),
+                        TerminalFormActionRow(
+                          submitFlex: 2,
+                          cancel: OutlinedButton(
+                            onPressed: () => Navigator.of(context).pop(),
+                            child: const Text('Vazgec'),
+                          ),
+                          submit: FilledButton.icon(
+                            onPressed: _submit,
+                            icon: const Icon(Icons.save_rounded),
+                            label: const Text('Sayimi Kaydet'),
+                            style: FilledButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 14),
                             ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              flex: 2,
-                              child: FilledButton.icon(
-                                onPressed: _submit,
-                                icon: const Icon(Icons.save_rounded),
-                                label: const Text('Sayimi Kaydet'),
-                                style: FilledButton.styleFrom(
-                                  padding: const EdgeInsets.symmetric(
-                                    vertical: 14,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
+                          ),
                         ),
                       ],
                     ),
@@ -579,36 +574,32 @@ class _InventoryCountCreateSheetState extends State<InventoryCountCreateSheet> {
             child: Column(
               children: <Widget>[
                 if (isBarcodeMode)
-                  Row(
-                    children: <Widget>[
-                      Expanded(
-                        child: TextField(
-                          controller: line.barcodeController,
-                          keyboardType: TextInputType.number,
-                          textInputAction: TextInputAction.done,
-                          onSubmitted: (_) => _findProductByBarcode(line),
-                          decoration: const InputDecoration(
-                            labelText: 'Barkod',
-                            hintText: 'Tarat veya yaz',
-                            suffixIcon: Icon(
-                              Icons.qr_code_scanner_rounded,
-                              size: 20,
-                            ),
-                          ),
+                  TerminalResponsiveLookupRow(
+                    breakpoint: 340,
+                    field: TextField(
+                      controller: line.barcodeController,
+                      keyboardType: TextInputType.number,
+                      textInputAction: TextInputAction.done,
+                      onSubmitted: (_) => _findProductByBarcode(line),
+                      decoration: const InputDecoration(
+                        labelText: 'Barkod',
+                        hintText: 'Tarat veya yaz',
+                        suffixIcon: Icon(
+                          Icons.qr_code_scanner_rounded,
+                          size: 20,
                         ),
                       ),
-                      const SizedBox(width: 8),
-                      FilledButton.tonal(
-                        onPressed: () => _findProductByBarcode(line),
-                        style: FilledButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 12,
-                          ),
+                    ),
+                    action: FilledButton.tonal(
+                      onPressed: () => _findProductByBarcode(line),
+                      style: FilledButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 12,
                         ),
-                        child: const Text('Bul'),
                       ),
-                    ],
+                      child: const Text('Bul'),
+                    ),
                   )
                 else if (isCameraMode)
                   SizedBox(

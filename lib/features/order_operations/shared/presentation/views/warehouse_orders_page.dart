@@ -239,9 +239,7 @@ class _WarehouseOrdersPageState extends State<WarehouseOrdersPage> {
         ),
         if (_canCreate)
           FilledButton.tonalIcon(
-            onPressed: _controller.isCreating || _controller.isLoadingList
-                ? null
-                : _openCreateSheet,
+            onPressed: _controller.isCreating ? null : _openCreateSheet,
             icon: _controller.isCreating
                 ? const SizedBox(
                     height: 16,
@@ -545,8 +543,6 @@ class _AccordionDetailBody extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          _OrderHeaderSummary(header: currentDetail.header),
-          const SizedBox(height: 14),
           Text(
             'Kalemler',
             style: Theme.of(
@@ -557,83 +553,6 @@ class _AccordionDetailBody extends StatelessWidget {
           _OrderItemsList(items: currentDetail.items),
         ],
       ),
-    );
-  }
-}
-
-class _OrderHeaderSummary extends StatelessWidget {
-  const _OrderHeaderSummary({required this.header});
-
-  final WarehouseOrderDetailHeader header;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: <Widget>[
-        Wrap(
-          spacing: 12,
-          runSpacing: 12,
-          children: <Widget>[
-            _SummaryTile(label: 'Belge No', value: header.documentNoLabel),
-            _SummaryTile(
-              label: 'Belge Tarihi',
-              value: AppFormatters.dateOrDash(header.documentDate),
-            ),
-            _SummaryTile(
-              label: 'Teslim Tarihi',
-              value: AppFormatters.dateOrDash(header.deliveryDate),
-            ),
-            _SummaryTile(
-              label: 'Durum',
-              value: header.isClosed ? 'Kapali' : 'Acik',
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
-        Wrap(
-          spacing: 12,
-          runSpacing: 12,
-          children: <Widget>[
-            _SummaryTile(
-              label: 'Kaynak',
-              value: '${header.outWarehouseNo} - ${header.outWarehouseName}',
-            ),
-            _SummaryTile(
-              label: 'Hedef',
-              value: '${header.inWarehouseNo} - ${header.inWarehouseName}',
-            ),
-            _SummaryTile(
-              label: 'Karsi Depo',
-              value:
-                  '${header.relatedWarehouseNo} - ${header.relatedWarehouseName}',
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
-        Wrap(
-          spacing: 12,
-          runSpacing: 12,
-          children: <Widget>[
-            _SummaryTile(
-              label: 'Toplam miktar',
-              value: AppFormatters.quantity(header.totalQuantity),
-            ),
-            _SummaryTile(
-              label: 'Teslim',
-              value: AppFormatters.quantity(header.totalDeliveredQuantity),
-            ),
-            _SummaryTile(
-              label: 'Kalan',
-              value: AppFormatters.quantity(header.totalRemainingQuantity),
-            ),
-            if (header.totalAmount > 0)
-              _SummaryTile(
-                label: 'Toplam tutar',
-                value: AppFormatters.currency(header.totalAmount),
-              ),
-          ],
-        ),
-      ],
     );
   }
 }
@@ -740,46 +659,6 @@ class _OrderItemCard extends StatelessWidget {
               ),
             ),
           ],
-        ],
-      ),
-    );
-  }
-}
-
-class _SummaryTile extends StatelessWidget {
-  const _SummaryTile({required this.label, required this.value});
-
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return Container(
-      width: 168,
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: theme.colorScheme.outlineVariant.withAlpha(82),
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          Text(label, style: theme.textTheme.labelSmall),
-          const SizedBox(height: 4),
-          Text(
-            value,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: theme.textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.w800,
-              color: const Color(0xFF231C17),
-            ),
-          ),
         ],
       ),
     );

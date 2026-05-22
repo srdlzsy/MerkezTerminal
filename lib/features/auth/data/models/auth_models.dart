@@ -5,8 +5,6 @@ const Set<String> _hiddenModuleCodes = <String>{
   'entegrasyonislemleri',
   'fatura-islemleri',
   'faturaislemleri',
-  'kasa-islemleri',
-  'kasaislemleri',
   'operations',
 };
 

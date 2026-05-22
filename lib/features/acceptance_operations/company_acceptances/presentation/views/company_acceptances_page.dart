@@ -187,10 +187,14 @@ class _CompanyAcceptancesPageState extends State<CompanyAcceptancesPage> {
             );
             return;
           }
+          final returnDocumentLabel = result.autoCreatedReturnDocumentNoLabel;
+          final returnInfo = result.totalReturnedQuantity > 0
+              ? ' Net kabul ${AppFormatters.quantity(result.totalNetAcceptedQuantity)}, iade ${AppFormatters.quantity(result.totalReturnedQuantity)}${returnDocumentLabel == null ? '' : ' ($returnDocumentLabel ${result.returnEDespatchStatus})'}.'
+              : ' Net kabul ${AppFormatters.quantity(result.totalNetAcceptedQuantity)}.';
           messenger.showSnackBar(
             SnackBar(
               content: Text(
-                '${result.documentNoLabel} kaydedildi. ${result.lineCount} satir, toplam kabul ${AppFormatters.quantity(result.totalReceivedQuantity)}.',
+                '${result.documentNoLabel} kaydedildi. ${result.lineCount} satir, irsaliye ${AppFormatters.quantity(result.totalDispatchQuantity)}.$returnInfo',
               ),
             ),
           );
@@ -314,9 +318,7 @@ class _CompanyAcceptancesPageState extends State<CompanyAcceptancesPage> {
         ),
         if (widget.canCreate)
           FilledButton.tonalIcon(
-            onPressed: _isSubmittingCreate || _controller.isLoadingList
-                ? null
-                : _openCreateSheet,
+            onPressed: _isSubmittingCreate ? null : _openCreateSheet,
             icon: _isSubmittingCreate
                 ? const SizedBox(
                     height: 16,
@@ -330,9 +332,7 @@ class _CompanyAcceptancesPageState extends State<CompanyAcceptancesPage> {
           ),
         if (widget.canCreate)
           OutlinedButton.icon(
-            onPressed: _controller.isLoadingList
-                ? null
-                : _openOfflineDraftsPage,
+            onPressed: _openOfflineDraftsPage,
             icon: const Icon(Icons.cloud_off_rounded),
             label: const Text('Offline Taslaklar'),
           ),
@@ -467,30 +467,6 @@ class _CompanyAcceptancesPageState extends State<CompanyAcceptancesPage> {
                                       crossAxisAlignment:
                                           CrossAxisAlignment.start,
                                       children: <Widget>[
-                                        Wrap(
-                                          spacing: 12,
-                                          runSpacing: 12,
-                                          children: <Widget>[
-                                            TerminalSummaryTile(
-                                              label: 'Depo',
-                                              value:
-                                                  '${detail.header.warehouseNo} - ${detail.header.warehouseName}',
-                                            ),
-                                            TerminalSummaryTile(
-                                              label: 'Cari',
-                                              value: detail
-                                                  .header
-                                                  .customerDisplayName,
-                                            ),
-                                            TerminalSummaryTile(
-                                              label: 'Toplam',
-                                              value: AppFormatters.quantity(
-                                                detail.header.totalQuantity,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                        const SizedBox(height: 12),
                                         ...detail.items.map((line) {
                                           return Padding(
                                             padding: const EdgeInsets.only(

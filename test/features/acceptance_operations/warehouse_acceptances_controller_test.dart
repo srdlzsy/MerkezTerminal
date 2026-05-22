@@ -50,50 +50,51 @@ void main() {
 
 class _FakeWarehouseAcceptancesRepository
     implements WarehouseAcceptancesRepository {
-  final List<WarehouseAcceptanceListItem> _items = <WarehouseAcceptanceListItem>[
-    const WarehouseShipmentListItem(
-      documentDate: null,
-      movementDate: null,
-      documentNo: 'SVK-0001',
-      documentSerie: 'F110',
-      documentOrderNo: 3694,
-      sourceWarehouseNo: 50,
-      sourceWarehouse: 'MERKEZ DEPO',
-      targetWarehouseNo: 110,
-      targetWarehouse: 'KESTEL 1',
-      shippingWarehouseNo: 60,
-      shippingState: 0,
-      plaque: '',
-      driverNameSurname: '',
-      driverTckn: '',
-      descriptionEttn: '',
-      warehouseOrderNo: 'D110.1915',
-      lineCount: 1,
-      totalQuantity: 10,
-      totalAmount: 1250,
-    ),
-    const WarehouseShipmentListItem(
-      documentDate: null,
-      movementDate: null,
-      documentNo: 'SVK-0002',
-      documentSerie: 'F110',
-      documentOrderNo: 3695,
-      sourceWarehouseNo: 50,
-      sourceWarehouse: 'MERKEZ DEPO',
-      targetWarehouseNo: 110,
-      targetWarehouse: 'KESTEL 1',
-      shippingWarehouseNo: 60,
-      shippingState: 0,
-      plaque: '',
-      driverNameSurname: '',
-      driverTckn: '',
-      descriptionEttn: '',
-      warehouseOrderNo: '',
-      lineCount: 2,
-      totalQuantity: 6,
-      totalAmount: 720,
-    ),
-  ];
+  final List<WarehouseAcceptanceListItem> _items =
+      <WarehouseAcceptanceListItem>[
+        const WarehouseShipmentListItem(
+          documentDate: null,
+          movementDate: null,
+          documentNo: 'SVK-0001',
+          documentSerie: 'F110',
+          documentOrderNo: 3694,
+          sourceWarehouseNo: 50,
+          sourceWarehouse: 'MERKEZ DEPO',
+          targetWarehouseNo: 110,
+          targetWarehouse: 'KESTEL 1',
+          shippingWarehouseNo: 60,
+          shippingState: 0,
+          plaque: '',
+          driverNameSurname: '',
+          driverTckn: '',
+          descriptionEttn: '',
+          warehouseOrderNo: 'D110.1915',
+          lineCount: 1,
+          totalQuantity: 10,
+          totalAmount: 1250,
+        ),
+        const WarehouseShipmentListItem(
+          documentDate: null,
+          movementDate: null,
+          documentNo: 'SVK-0002',
+          documentSerie: 'F110',
+          documentOrderNo: 3695,
+          sourceWarehouseNo: 50,
+          sourceWarehouse: 'MERKEZ DEPO',
+          targetWarehouseNo: 110,
+          targetWarehouse: 'KESTEL 1',
+          shippingWarehouseNo: 60,
+          shippingState: 0,
+          plaque: '',
+          driverNameSurname: '',
+          driverTckn: '',
+          descriptionEttn: '',
+          warehouseOrderNo: '',
+          lineCount: 2,
+          totalQuantity: 6,
+          totalAmount: 720,
+        ),
+      ];
 
   @override
   Future<List<WarehouseAcceptanceListItem>> fetchAcceptances({
@@ -194,5 +195,13 @@ class _FakeWarehouseAcceptancesRepository
         ),
       ],
     );
+  }
+
+  @override
+  Future<List<WarehouseAcceptanceDifferenceItem>> fetchDifferences({
+    required String accessToken,
+    required WarehouseAcceptanceDifferenceFilter filter,
+  }) async {
+    return const <WarehouseAcceptanceDifferenceItem>[];
   }
 }

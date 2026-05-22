@@ -30,6 +30,7 @@ class WarehouseShipmentListItem {
     required this.documentNo,
     required this.documentSerie,
     required this.documentOrderNo,
+    this.isReturn = false,
     required this.sourceWarehouseNo,
     required this.sourceWarehouse,
     required this.targetWarehouseNo,
@@ -51,6 +52,7 @@ class WarehouseShipmentListItem {
   final String documentNo;
   final String documentSerie;
   final int documentOrderNo;
+  final bool isReturn;
   final int sourceWarehouseNo;
   final String sourceWarehouse;
   final int targetWarehouseNo;
@@ -77,6 +79,7 @@ class WarehouseShipmentListItem {
       documentNo: _readString(json['documentNo']),
       documentSerie: _readString(json['documentSerie']),
       documentOrderNo: _readInt(json['documentOrderNo']),
+      isReturn: _readBool(json['isReturn']),
       sourceWarehouseNo: _readInt(json['sourceWarehouseNo']),
       sourceWarehouse: _readString(json['sourceWarehouse']),
       targetWarehouseNo: _readInt(json['targetWarehouseNo']),
@@ -124,6 +127,7 @@ class WarehouseShipmentDetailHeader {
     required this.documentNo,
     required this.documentSerie,
     required this.documentOrderNo,
+    this.isReturn = false,
     required this.sourceWarehouseNo,
     required this.sourceWarehouse,
     required this.targetWarehouseNo,
@@ -146,6 +150,7 @@ class WarehouseShipmentDetailHeader {
   final String documentNo;
   final String documentSerie;
   final int documentOrderNo;
+  final bool isReturn;
   final int sourceWarehouseNo;
   final String sourceWarehouse;
   final int targetWarehouseNo;
@@ -173,6 +178,7 @@ class WarehouseShipmentDetailHeader {
       documentNo: _readString(json['documentNo']),
       documentSerie: _readString(json['documentSerie']),
       documentOrderNo: _readInt(json['documentOrderNo']),
+      isReturn: _readBool(json['isReturn']),
       sourceWarehouseNo: _readInt(json['sourceWarehouseNo']),
       sourceWarehouse: _readString(json['sourceWarehouse']),
       targetWarehouseNo: _readInt(json['targetWarehouseNo']),
@@ -413,6 +419,19 @@ int _readInt(Object? value) {
   }
 
   return int.tryParse(value?.toString() ?? '') ?? 0;
+}
+
+bool _readBool(Object? value) {
+  if (value is bool) {
+    return value;
+  }
+
+  if (value is num) {
+    return value != 0;
+  }
+
+  final normalized = value?.toString().trim().toLowerCase();
+  return normalized == 'true' || normalized == '1';
 }
 
 String _readString(Object? value) {
