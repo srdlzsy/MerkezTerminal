@@ -7,6 +7,7 @@ import 'package:furpa_merkez_terminal/features/order_operations/given_company_or
 import 'package:furpa_merkez_terminal/features/order_operations/given_company_orders/presentation/widgets/given_company_order_create_sheet.dart';
 import 'package:furpa_merkez_terminal/features/order_operations/shared/data/company_orders_repository.dart';
 import 'package:furpa_merkez_terminal/shared/formatters/app_formatters.dart';
+import 'package:furpa_merkez_terminal/shared/offline/mobile_customer_catalog_repository.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/section_card.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/terminal_ui_parts.dart';
 
@@ -17,6 +18,7 @@ class GivenCompanyOrdersPage extends StatefulWidget {
     required this.accessToken,
     required this.canCreate,
     required this.defaultWarehouseNo,
+    required this.mobileCustomerCatalogRepository,
     required this.userWarehouseName,
     required this.title,
     required this.subtitle,
@@ -28,6 +30,7 @@ class GivenCompanyOrdersPage extends StatefulWidget {
   final String accessToken;
   final bool canCreate;
   final String defaultWarehouseNo;
+  final MobileCustomerCatalogLocalRepository mobileCustomerCatalogRepository;
   final String userWarehouseName;
   final String title;
   final String subtitle;
@@ -117,6 +120,8 @@ class _GivenCompanyOrdersPageState extends State<GivenCompanyOrdersPage> {
           repository: widget.repository,
           accessToken: widget.accessToken,
           defaultWarehouseNo: widget.defaultWarehouseNo,
+          mobileCustomerCatalogRepository:
+              widget.mobileCustomerCatalogRepository,
         );
       },
     );

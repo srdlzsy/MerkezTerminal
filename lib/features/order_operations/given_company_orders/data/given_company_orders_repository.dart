@@ -2,7 +2,8 @@ import 'package:furpa_merkez_terminal/core/network/api_client.dart';
 import 'package:furpa_merkez_terminal/features/order_operations/given_company_orders/data/models/given_company_order_models.dart';
 import 'package:furpa_merkez_terminal/features/order_operations/shared/data/company_orders_repository.dart';
 
-abstract class GivenCompanyOrdersRepository implements CompanyOrdersRepository {}
+abstract class GivenCompanyOrdersRepository
+    implements CompanyOrdersRepository {}
 
 class ApiGivenCompanyOrdersRepository implements GivenCompanyOrdersRepository {
   const ApiGivenCompanyOrdersRepository({required ApiClient apiClient})

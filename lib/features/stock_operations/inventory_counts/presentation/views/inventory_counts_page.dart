@@ -9,7 +9,7 @@ import 'package:furpa_merkez_terminal/features/stock_operations/inventory_counts
 import 'package:furpa_merkez_terminal/features/stock_operations/offline_inventory_counts/data/offline_inventory_counts_repository.dart';
 import 'package:furpa_merkez_terminal/features/stock_operations/offline_inventory_counts/presentation/views/offline_inventory_counts_page.dart';
 import 'package:furpa_merkez_terminal/shared/formatters/app_formatters.dart';
-import 'package:furpa_merkez_terminal/shared/offline/offline_lookup_cache_repository.dart';
+import 'package:furpa_merkez_terminal/shared/offline/mobile_product_catalog_repository.dart';
 import 'package:furpa_merkez_terminal/shared/offline/offline_sync_service.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/section_card.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/terminal_ui_parts.dart';
@@ -21,8 +21,8 @@ class InventoryCountsPage extends StatefulWidget {
     required this.offlineRepository,
     required this.accessToken,
     required this.canCreate,
-    required this.lookupCacheRepository,
     required this.offlineSyncService,
+    required this.mobileProductCatalogRepository,
     required this.currentUserId,
     required this.defaultWarehouseNo,
     required this.userWarehouseName,
@@ -32,8 +32,8 @@ class InventoryCountsPage extends StatefulWidget {
   final OfflineInventoryCountsRepository offlineRepository;
   final String accessToken;
   final bool canCreate;
-  final OfflineLookupCacheRepository lookupCacheRepository;
   final OfflineSyncService offlineSyncService;
+  final MobileProductCatalogLocalRepository mobileProductCatalogRepository;
   final String currentUserId;
   final String defaultWarehouseNo;
   final String userWarehouseName;
@@ -122,9 +122,8 @@ class _InventoryCountsPageState extends State<InventoryCountsPage> {
         return InventoryCountCreateSheet(
           repository: widget.repository,
           accessToken: widget.accessToken,
-          currentUserId: widget.currentUserId,
           defaultWarehouseNo: widget.defaultWarehouseNo,
-          lookupCacheRepository: widget.lookupCacheRepository,
+          mobileProductCatalogRepository: widget.mobileProductCatalogRepository,
         );
       },
     );
@@ -216,6 +215,8 @@ class _InventoryCountsPageState extends State<InventoryCountsPage> {
             onlineRepository: widget.repository,
             accessToken: widget.accessToken,
             offlineSyncService: widget.offlineSyncService,
+            mobileProductCatalogRepository:
+                widget.mobileProductCatalogRepository,
             currentUserId: widget.currentUserId,
             defaultWarehouseNo: widget.defaultWarehouseNo,
             userWarehouseName: widget.userWarehouseName,

@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:furpa_merkez_terminal/core/network/api_exception.dart';
 import 'package:furpa_merkez_terminal/features/acceptance_operations/company_acceptances/data/company_acceptances_repository.dart';
 import 'package:furpa_merkez_terminal/features/acceptance_operations/offline_company_acceptances/data/models/offline_company_acceptance_models.dart';
 import 'package:furpa_merkez_terminal/features/acceptance_operations/offline_company_acceptances/data/offline_company_acceptances_repository.dart';
@@ -9,6 +10,8 @@ import 'package:furpa_merkez_terminal/features/order_operations/given_company_or
 import 'package:furpa_merkez_terminal/features/order_operations/given_company_orders/data/models/given_company_order_models.dart';
 import 'package:furpa_merkez_terminal/shared/data/search_lookup_models.dart';
 import 'package:furpa_merkez_terminal/shared/formatters/app_formatters.dart';
+import 'package:furpa_merkez_terminal/shared/offline/mobile_customer_catalog_repository.dart';
+import 'package:furpa_merkez_terminal/shared/offline/mobile_product_catalog_repository.dart';
 import 'package:furpa_merkez_terminal/shared/offline/offline_record_status.dart';
 import 'package:furpa_merkez_terminal/shared/offline/offline_sync_service.dart';
 import 'package:furpa_merkez_terminal/shared/utils/client_request_id.dart';
@@ -25,6 +28,8 @@ class OfflineCompanyAcceptancesPage extends StatefulWidget {
     required this.ordersRepository,
     required this.accessToken,
     required this.offlineSyncService,
+    required this.mobileCustomerCatalogRepository,
+    required this.mobileProductCatalogRepository,
     required this.currentUserId,
     required this.defaultWarehouseNo,
     required this.userWarehouseName,
@@ -36,6 +41,8 @@ class OfflineCompanyAcceptancesPage extends StatefulWidget {
   final GivenCompanyOrdersRepository ordersRepository;
   final String accessToken;
   final OfflineSyncService offlineSyncService;
+  final MobileCustomerCatalogLocalRepository mobileCustomerCatalogRepository;
+  final MobileProductCatalogLocalRepository mobileProductCatalogRepository;
   final String currentUserId;
   final String defaultWarehouseNo;
   final String userWarehouseName;
@@ -105,6 +112,9 @@ class _OfflineCompanyAcceptancesPageState
           accessToken: widget.accessToken,
           currentUserId: widget.currentUserId,
           defaultWarehouseNo: widget.defaultWarehouseNo,
+          mobileCustomerCatalogRepository:
+              widget.mobileCustomerCatalogRepository,
+          mobileProductCatalogRepository: widget.mobileProductCatalogRepository,
         );
       },
     );
@@ -450,6 +460,8 @@ class _OfflineCompanyAcceptanceCreateSheet extends StatefulWidget {
     required this.accessToken,
     required this.currentUserId,
     required this.defaultWarehouseNo,
+    required this.mobileCustomerCatalogRepository,
+    required this.mobileProductCatalogRepository,
   });
 
   final CompanyAcceptancesRepository repository;
@@ -457,6 +469,8 @@ class _OfflineCompanyAcceptanceCreateSheet extends StatefulWidget {
   final String accessToken;
   final String currentUserId;
   final String defaultWarehouseNo;
+  final MobileCustomerCatalogLocalRepository mobileCustomerCatalogRepository;
+  final MobileProductCatalogLocalRepository mobileProductCatalogRepository;
 
   @override
   State<_OfflineCompanyAcceptanceCreateSheet> createState() =>
@@ -540,10 +554,19 @@ class _OfflineCompanyAcceptanceCreateSheetState
       return;
     }
 
-    final customers = await widget.repository.searchCustomers(
-      accessToken: widget.accessToken,
-      query: query,
-    );
+    List<CustomerLookupItem> customers;
+    try {
+      customers = await widget.repository.searchCustomers(
+        accessToken: widget.accessToken,
+        query: query,
+      );
+    } on ApiException {
+      final catalogItems = await widget.mobileCustomerCatalogRepository
+          .searchCustomers(query: query);
+      customers = catalogItems
+          .map((item) => item.toCustomerLookupItem())
+          .toList(growable: false);
+    }
 
     if (!mounted) {
       return;
@@ -599,13 +622,7 @@ class _OfflineCompanyAcceptanceCreateSheetState
       return;
     }
 
-    final customerCode = _customerCodeController.text.trim();
-    final products = await widget.repository.searchProducts(
-      accessToken: widget.accessToken,
-      warehouseNo: widget.defaultWarehouseNo,
-      query: query,
-      customerCode: customerCode.isEmpty ? null : customerCode,
-    );
+    final products = await _searchProductsWithCatalogFallback(query);
 
     if (!mounted) {
       return;
@@ -649,6 +666,29 @@ class _OfflineCompanyAcceptanceCreateSheetState
       line.applyProduct(selected);
       _validationMessage = null;
     });
+  }
+
+  Future<List<SearchProductLookupItem>> _searchProductsWithCatalogFallback(
+    String query,
+  ) async {
+    final customerCode = _customerCodeController.text.trim();
+    try {
+      return await widget.repository.searchProducts(
+        accessToken: widget.accessToken,
+        warehouseNo: widget.defaultWarehouseNo,
+        query: query,
+        customerCode: customerCode.isEmpty ? null : customerCode,
+      );
+    } on ApiException {
+      final catalogItems = await widget.mobileProductCatalogRepository
+          .searchProducts(warehouseNo: widget.defaultWarehouseNo, query: query);
+      if (catalogItems.isNotEmpty) {
+        return catalogItems
+            .map((item) => item.toSearchProductLookupItem())
+            .toList(growable: false);
+      }
+      rethrow;
+    }
   }
 
   Future<void> _scanProductWithCamera(

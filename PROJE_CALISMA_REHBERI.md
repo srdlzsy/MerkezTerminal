@@ -22,7 +22,12 @@ Projeye yeni giren biri icin en pratik okuma sirasi:
    - `lib/features/auth/data/auth_repository.dart`
 6. Offline kuyruk nerede?
    - `lib/shared/offline/offline_sync_service.dart`
-   - `lib/core/storage/local_json_database.dart`
+   - `lib/core/storage/local_database.dart`
+   - `lib/core/storage/local_sqlite_database.dart`
+7. Offline kataloglar nerede?
+   - `lib/shared/offline/mobile_product_catalog_repository.dart`
+   - `lib/shared/offline/mobile_customer_catalog_repository.dart`
+   - `lib/shared/offline/mobile_warehouse_catalog_repository.dart`
 
 Kisa sorumluluk haritasi:
 
@@ -115,7 +120,7 @@ Tum modullerin kullandigi temel katman:
 
 - `config/` -> app config ve base url
 - `network/` -> `ApiClient`, `ApiException`
-- `storage/` -> token ve local json storage
+- `storage/` -> token storage ve `LocalDatabase` / SQLite local tablo altyapisi
 - `utils/` -> request epoch, safe notifier, tarih helperlari
 
 ### `features/`
@@ -314,8 +319,11 @@ Bu projede offline sadece "ekrani ac" degil, gercek kuyruk mantigi ile calisiyor
 Temel dosyalar:
 
 - `lib/shared/offline/offline_sync_service.dart`
-- `lib/core/storage/local_json_database.dart`
-- `lib/shared/offline/offline_lookup_cache_repository.dart`
+- `lib/core/storage/local_database.dart`
+- `lib/core/storage/local_sqlite_database.dart`
+- `lib/shared/offline/mobile_product_catalog_repository.dart`
+- `lib/shared/offline/mobile_customer_catalog_repository.dart`
+- `lib/shared/offline/mobile_warehouse_catalog_repository.dart`
 
 ### Offline create akisi
 
@@ -328,9 +336,14 @@ Ornek sayim veya firma mal kabul create sirasinda:
 
 ### Local storage nasil?
 
-`LocalJsonDatabase`, `SharedPreferencesAsync` uzerinden json table/document saklar.
+`LocalDatabase` ortak storage arayuzudur. Uygulamada bunun ana implementasyonu `LocalSqliteDatabase`tir.
 
-Yani bu proje su an SQLite degil, JSON-in-SharedPreferences mantigi kullaniyor.
+`LocalSqliteDatabase`, `sqflite` uzerinden iki tip veri saklar:
+
+- table: ayni key altinda birden fazla json row
+- document: tek key altinda tek json document
+
+Eski `SharedPreferencesAsync` tabanli offline draft/cache verileri varsa ilk acilista SQLite'a migrate edilmeye calisilir. Bu yuzden yeni offline veri yazarken dogrudan `SharedPreferencesAsync` kullanma; `LocalDatabase` uzerinden ilerle.
 
 ### Offline sync ne zaman olur?
 
@@ -342,17 +355,31 @@ Yani bu proje su an SQLite degil, JSON-in-SharedPreferences mantigi kullaniyor.
 
 `offlineSyncService.syncPending(...)` calisir.
 
-### Lookup cache ne ise yariyor?
+### Mobil kataloglar ne ise yariyor?
 
-Offline urun/cari aramalari icin cache:
+Offline urun/cari/depo aramalari icin eski "son aranan cache" yerine mobil katalog mantigi kullanilir:
 
-- customer cache
-- acceptance product cache
-- inventory product cache
+- product catalog
+- customer catalog
+- warehouse catalog
 
-saklanir.
+Bu kataloglar local SQLite icinde saklanir. Arama ekranlari once API'den arar; API `ApiException` verirse ilgili local katalogdan sonuc donmeye calisir.
 
-Bu sayede internet gidince bazi aramalar yine calisabilir.
+Ornekler:
+
+- sayim ve urun arama akislarinda `MobileProductCatalogLocalRepository`
+- firma mal kabul, firma hareketleri ve verilen firma siparislerinde `MobileCustomerCatalogLocalRepository`
+- verilen depo siparisi, depo sevki ve depo iadesinde `MobileWarehouseCatalogLocalRepository`
+
+Sync servisleri `AppDependencies` icinde kurulur:
+
+- `MobileProductCatalogSyncService`
+- `MobileCustomerCatalogSyncService`
+- `MobileWarehouseCatalogSyncService`
+
+Kullanici tetiklemesi `Fiyat Gor` ve `Var Yok` ekranlarindaki `Mobil Katalog Sync` butonudur. Bu buton sirasiyla urun, cari ve depo kataloglarini sync eder.
+
+Kritik not: Local fallback'in sonuc verebilmesi icin ilgili katalog daha once cihaza inmis olmalidir. API yokken hic katalog yoksa arama bos donebilir.
 
 ## 9. Controller Yardimcilari
 
@@ -431,7 +458,7 @@ Her is icin once asagidaki tiplerden hangisi oldugunu belirle:
 UI-only          -> sadece gosterim, layout, label, renk, buton yeri
 Feature logic    -> belirli bir ekranin state, filtre, create, detail davranisi
 API contract     -> request/response modeli veya endpoint degisikligi
-Offline contract -> local draft, sync, recover veya lookup cache degisikligi
+Offline contract -> local draft, sync, recover veya mobil katalog degisikligi
 Cross-cutting    -> ApiClient, AppConfig, storage, session, theme, shared widget
 ```
 
@@ -758,7 +785,8 @@ Gerekenler:
 3. Offline repository olmali.
 4. `OfflineSyncService` icine submit + sync draft mantigi eklenmeli.
 5. Offline taslak liste ekranin olmali.
-6. Lookup gerekiyorsa local cache mantigi eklenmeli.
+6. Lookup gerekiyorsa ilgili mobil katalog repository'si ve fallback mantigi eklenmeli.
+7. Katalog sync gerekiyorsa `AppDependencies` ve `ShellModuleRegistry` uzerinden local/sync servisleri ekrana tasinmali.
 
 Kisacasi offline destek, sadece "save locally" degil; ayri bir is akisi.
 
@@ -850,7 +878,17 @@ Iyi test ornekleri:
 - 401 gelince session recover calisiyor mu?
 - network yokken offline draft kuyruga aliniyor mu?
 
-Testlerde local storage gerekiyorsa `SharedPreferencesAsync` icin in-memory platform kurulmalidir. Ornek:
+Offline draft veya mobil katalog testlerinde gercek SQLite yerine `test/support/memory_local_database.dart` icindeki `MemoryLocalDatabase` kullanilabilir. Bu sayede repository testleri dosya sistemi veya platform SQLite'a baglanmadan calisir.
+
+Ornek:
+
+```dart
+final repository = MobileProductCatalogLocalRepository(
+  database: MemoryLocalDatabase(),
+);
+```
+
+`TokenStorage` veya legacy SharedPreferences migration testlerinde `SharedPreferencesAsync` gerekiyorsa in-memory platform kurulmalidir. Ornek:
 
 ```dart
 setUp(() {
@@ -863,7 +901,7 @@ tearDown(() {
 });
 ```
 
-Bu kurulmazsa test ortaminda `The SharedPreferencesAsyncPlatform instance must be set` hatasi alinabilir.
+Bu kurulmazsa SharedPreferences kullanan testlerde `The SharedPreferencesAsyncPlatform instance must be set` hatasi alinabilir.
 
 ## 16. Bu Projede Dikkat Edilmesi Gereken Tuzaklar
 
@@ -931,17 +969,17 @@ Kontrol edilecek yerler:
 - `android/app/src/main/AndroidManifest.xml`
 - `ios/Runner/Info.plist`
 
-### 10. Offline storage buyurse SharedPreferences zorlanabilir
+### 10. Offline storage buyurse SQLite semasi degerlendirilmeli
 
-Offline draft ve lookup cache su an JSON olarak `SharedPreferencesAsync` icinde tutuluyor. Kayit sayisi ve veri boyutu sinirli kaldigi surece yonetilebilir.
+Offline draft ve mobil kataloglar su an `LocalDatabase` arayuzu arkasinda SQLite icinde JSON row/document olarak tutuluyor. Bu yapi SharedPreferences'a gore daha uygundur, ama veri cok buyurse tek tek JSON row saklamak veya tum tabloyu okuyup filtrelemek pahali hale gelebilir.
 
 Eger offline veri buyurse veya ayni anda cok yazma/okuma ihtiyaci artarsa su alternatifler degerlendirilmeli:
 
-- Drift/SQLite
+- Drift veya typed SQLite tablolar
 - Isar
 - Hive
 
-Bu gecis yapilacaksa once `LocalJsonDatabase` arayuzu korunup alt implementasyon degistirilmelidir.
+Bu gecis yapilacaksa once `LocalDatabase` arayuzu korunup alt implementasyon veya katalog repository'lerinin ic sorgu stratejisi degistirilmelidir.
 
 ### 11. Dependency guncellemesi major ise ayri is olarak yap
 

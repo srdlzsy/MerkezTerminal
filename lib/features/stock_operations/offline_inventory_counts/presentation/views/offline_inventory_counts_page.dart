@@ -2,11 +2,13 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:furpa_merkez_terminal/core/network/api_exception.dart';
 import 'package:furpa_merkez_terminal/features/stock_operations/inventory_counts/data/inventory_counts_repository.dart';
 import 'package:furpa_merkez_terminal/features/stock_operations/inventory_counts/data/models/inventory_count_models.dart';
 import 'package:furpa_merkez_terminal/features/stock_operations/offline_inventory_counts/data/models/offline_inventory_count_models.dart';
 import 'package:furpa_merkez_terminal/features/stock_operations/offline_inventory_counts/data/offline_inventory_counts_repository.dart';
 import 'package:furpa_merkez_terminal/shared/formatters/app_formatters.dart';
+import 'package:furpa_merkez_terminal/shared/offline/mobile_product_catalog_repository.dart';
 import 'package:furpa_merkez_terminal/shared/offline/offline_record_status.dart';
 import 'package:furpa_merkez_terminal/shared/offline/offline_sync_service.dart';
 import 'package:furpa_merkez_terminal/shared/utils/client_request_id.dart';
@@ -22,6 +24,7 @@ class OfflineInventoryCountsPage extends StatefulWidget {
     required this.onlineRepository,
     required this.accessToken,
     required this.offlineSyncService,
+    required this.mobileProductCatalogRepository,
     required this.currentUserId,
     required this.defaultWarehouseNo,
     required this.userWarehouseName,
@@ -32,6 +35,7 @@ class OfflineInventoryCountsPage extends StatefulWidget {
   final InventoryCountsRepository onlineRepository;
   final String accessToken;
   final OfflineSyncService offlineSyncService;
+  final MobileProductCatalogLocalRepository mobileProductCatalogRepository;
   final String currentUserId;
   final String defaultWarehouseNo;
   final String userWarehouseName;
@@ -99,6 +103,7 @@ class _OfflineInventoryCountsPageState
           accessToken: widget.accessToken,
           currentUserId: widget.currentUserId,
           defaultWarehouseNo: widget.defaultWarehouseNo,
+          mobileProductCatalogRepository: widget.mobileProductCatalogRepository,
         );
       },
     );
@@ -379,12 +384,14 @@ class _OfflineInventoryCountCreateSheet extends StatefulWidget {
     required this.accessToken,
     required this.currentUserId,
     required this.defaultWarehouseNo,
+    required this.mobileProductCatalogRepository,
   });
 
   final InventoryCountsRepository onlineRepository;
   final String accessToken;
   final String currentUserId;
   final String defaultWarehouseNo;
+  final MobileProductCatalogLocalRepository mobileProductCatalogRepository;
 
   @override
   State<_OfflineInventoryCountCreateSheet> createState() =>
@@ -442,11 +449,7 @@ class _OfflineInventoryCountCreateSheetState
       return;
     }
 
-    final products = await widget.onlineRepository.searchProducts(
-      accessToken: widget.accessToken,
-      warehouseNo: widget.defaultWarehouseNo,
-      query: query,
-    );
+    final products = await _searchProductsWithCatalogFallback(query);
 
     if (!mounted) {
       return;
@@ -489,6 +492,26 @@ class _OfflineInventoryCountCreateSheetState
       line.applyLookup(selected);
       _errorMessage = null;
     });
+  }
+
+  Future<List<InventoryCountProductLookupItem>>
+  _searchProductsWithCatalogFallback(String query) async {
+    try {
+      return await widget.onlineRepository.searchProducts(
+        accessToken: widget.accessToken,
+        warehouseNo: widget.defaultWarehouseNo,
+        query: query,
+      );
+    } on ApiException {
+      final catalogItems = await widget.mobileProductCatalogRepository
+          .searchProducts(warehouseNo: widget.defaultWarehouseNo, query: query);
+      if (catalogItems.isNotEmpty) {
+        return catalogItems
+            .map((item) => item.toInventoryCountProductLookupItem())
+            .toList(growable: false);
+      }
+      rethrow;
+    }
   }
 
   Future<void> _scanProductWithCamera(_OfflineLineDraft line) async {

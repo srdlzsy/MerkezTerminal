@@ -1,4 +1,5 @@
-import 'package:furpa_merkez_terminal/core/storage/local_json_database.dart';
+import 'package:furpa_merkez_terminal/core/storage/local_database.dart';
+import 'package:furpa_merkez_terminal/core/storage/local_sqlite_database.dart';
 import 'package:furpa_merkez_terminal/features/stock_operations/offline_inventory_counts/data/models/offline_inventory_count_models.dart';
 
 abstract class OfflineInventoryCountsRepository {
@@ -11,13 +12,13 @@ abstract class OfflineInventoryCountsRepository {
   Future<void> deleteDraft(String id);
 }
 
-class SharedPrefsOfflineInventoryCountsRepository
+class LocalOfflineInventoryCountsRepository
     implements OfflineInventoryCountsRepository {
-  SharedPrefsOfflineInventoryCountsRepository({LocalJsonDatabase? database})
-    : _database = database ?? LocalJsonDatabase();
+  LocalOfflineInventoryCountsRepository({LocalDatabase? database})
+    : _database = database ?? LocalSqliteDatabase();
 
   static const String _storageKey = 'offline_inventory_count_drafts_v1';
-  final LocalJsonDatabase _database;
+  final LocalDatabase _database;
 
   @override
   Future<List<OfflineInventoryCountDraft>> fetchDrafts({

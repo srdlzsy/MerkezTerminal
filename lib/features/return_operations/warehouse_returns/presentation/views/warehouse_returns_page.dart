@@ -9,6 +9,7 @@ import 'package:furpa_merkez_terminal/features/return_operations/warehouse_retur
 import 'package:furpa_merkez_terminal/features/return_operations/warehouse_returns/presentation/widgets/warehouse_return_create_sheet.dart';
 import 'package:furpa_merkez_terminal/features/return_operations/warehouse_returns/presentation/widgets/warehouse_return_e_despatch_sheet.dart';
 import 'package:furpa_merkez_terminal/shared/formatters/app_formatters.dart';
+import 'package:furpa_merkez_terminal/shared/offline/mobile_warehouse_catalog_repository.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/section_card.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/terminal_ui_parts.dart';
 
@@ -18,6 +19,7 @@ class WarehouseReturnsPage extends StatefulWidget {
     required this.repository,
     required this.accessToken,
     required this.defaultWarehouseNo,
+    required this.mobileWarehouseCatalogRepository,
     required this.userWarehouseName,
     required this.direction,
   });
@@ -25,6 +27,7 @@ class WarehouseReturnsPage extends StatefulWidget {
   final WarehouseReturnsRepository repository;
   final String accessToken;
   final String defaultWarehouseNo;
+  final MobileWarehouseCatalogLocalRepository mobileWarehouseCatalogRepository;
   final String userWarehouseName;
   final WarehouseReturnDirection direction;
 
@@ -222,6 +225,8 @@ class _WarehouseReturnsPageState extends State<WarehouseReturnsPage> {
           repository: widget.repository,
           accessToken: widget.accessToken,
           defaultWarehouseNo: widget.defaultWarehouseNo,
+          mobileWarehouseCatalogRepository:
+              widget.mobileWarehouseCatalogRepository,
         );
       },
     );

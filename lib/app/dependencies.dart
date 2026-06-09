@@ -1,6 +1,6 @@
 import 'package:furpa_merkez_terminal/core/config/app_config.dart';
 import 'package:furpa_merkez_terminal/core/network/api_client.dart';
-import 'package:furpa_merkez_terminal/core/storage/local_json_database.dart';
+import 'package:furpa_merkez_terminal/core/storage/local_sqlite_database.dart';
 import 'package:furpa_merkez_terminal/core/storage/token_storage.dart';
 import 'package:furpa_merkez_terminal/core/update/app_update_service.dart';
 import 'package:furpa_merkez_terminal/features/acceptance_operations/company_acceptances/data/company_acceptances_repository.dart';
@@ -23,7 +23,9 @@ import 'package:furpa_merkez_terminal/features/stock_operations/label_documents/
 import 'package:furpa_merkez_terminal/features/stock_operations/offline_inventory_counts/data/offline_inventory_counts_repository.dart';
 import 'package:furpa_merkez_terminal/features/stock_operations/stock_receipts/data/stock_receipts_repository.dart';
 import 'package:furpa_merkez_terminal/features/stock_operations/virman/data/virman_repository.dart';
-import 'package:furpa_merkez_terminal/shared/offline/offline_lookup_cache_repository.dart';
+import 'package:furpa_merkez_terminal/shared/offline/mobile_customer_catalog_repository.dart';
+import 'package:furpa_merkez_terminal/shared/offline/mobile_product_catalog_repository.dart';
+import 'package:furpa_merkez_terminal/shared/offline/mobile_warehouse_catalog_repository.dart';
 import 'package:furpa_merkez_terminal/shared/offline/offline_sync_service.dart';
 import 'package:http/http.dart' as http;
 
@@ -36,14 +38,17 @@ class AppDependencies {
     );
     final updateService = AppUpdateService(httpClient: httpClient);
     final tokenStorage = TokenStorage();
-    final localDatabase = LocalJsonDatabase();
+    final localDatabase = LocalSqliteDatabase();
     final offlineInventoryCountsRepository =
-        SharedPrefsOfflineInventoryCountsRepository(database: localDatabase);
+        LocalOfflineInventoryCountsRepository(database: localDatabase);
     final offlineCompanyAcceptancesRepository =
-        SharedPrefsOfflineCompanyAcceptancesRepository(database: localDatabase);
-    final offlineLookupCacheRepository = OfflineLookupCacheRepository(
-      database: localDatabase,
-    );
+        LocalOfflineCompanyAcceptancesRepository(database: localDatabase);
+    final mobileCustomerCatalogLocalRepository =
+        MobileCustomerCatalogLocalRepository(database: localDatabase);
+    final mobileWarehouseCatalogLocalRepository =
+        MobileWarehouseCatalogLocalRepository(database: localDatabase);
+    final mobileProductCatalogLocalRepository =
+        MobileProductCatalogLocalRepository(database: localDatabase);
     final authRepository = AuthRepository(
       apiClient: apiClient,
       tokenStorage: tokenStorage,
@@ -119,6 +124,24 @@ class AppDependencies {
     final legacyToolsRepository = ApiLegacyToolsRepository(
       apiClient: apiClient,
     );
+    final mobileProductCatalogSyncService = MobileProductCatalogSyncService(
+      remoteDataSource: ApiMobileProductCatalogRemoteDataSource(
+        apiClient: apiClient,
+      ),
+      localRepository: mobileProductCatalogLocalRepository,
+    );
+    final mobileCustomerCatalogSyncService = MobileCustomerCatalogSyncService(
+      remoteDataSource: ApiMobileCustomerCatalogRemoteDataSource(
+        apiClient: apiClient,
+      ),
+      localRepository: mobileCustomerCatalogLocalRepository,
+    );
+    final mobileWarehouseCatalogSyncService = MobileWarehouseCatalogSyncService(
+      remoteDataSource: ApiMobileWarehouseCatalogRemoteDataSource(
+        apiClient: apiClient,
+      ),
+      localRepository: mobileWarehouseCatalogLocalRepository,
+    );
     final moduleRegistry = ShellModuleRegistry(
       givenCompanyOrdersRepository: givenCompanyOrdersRepository,
       givenWarehouseOrdersRepository: givenWarehouseOrdersRepository,
@@ -140,8 +163,15 @@ class AppDependencies {
       virmanRepository: virmanRepository,
       offlineInventoryCountsRepository: offlineInventoryCountsRepository,
       offlineCompanyAcceptancesRepository: offlineCompanyAcceptancesRepository,
-      offlineLookupCacheRepository: offlineLookupCacheRepository,
       offlineSyncService: offlineSyncService,
+      mobileCustomerCatalogLocalRepository:
+          mobileCustomerCatalogLocalRepository,
+      mobileCustomerCatalogSyncService: mobileCustomerCatalogSyncService,
+      mobileProductCatalogLocalRepository: mobileProductCatalogLocalRepository,
+      mobileProductCatalogSyncService: mobileProductCatalogSyncService,
+      mobileWarehouseCatalogLocalRepository:
+          mobileWarehouseCatalogLocalRepository,
+      mobileWarehouseCatalogSyncService: mobileWarehouseCatalogSyncService,
       legacyToolsRepository: legacyToolsRepository,
     );
 
@@ -169,8 +199,15 @@ class AppDependencies {
       virmanRepository: virmanRepository,
       offlineInventoryCountsRepository: offlineInventoryCountsRepository,
       offlineCompanyAcceptancesRepository: offlineCompanyAcceptancesRepository,
-      offlineLookupCacheRepository: offlineLookupCacheRepository,
       offlineSyncService: offlineSyncService,
+      mobileCustomerCatalogLocalRepository:
+          mobileCustomerCatalogLocalRepository,
+      mobileCustomerCatalogSyncService: mobileCustomerCatalogSyncService,
+      mobileProductCatalogLocalRepository: mobileProductCatalogLocalRepository,
+      mobileProductCatalogSyncService: mobileProductCatalogSyncService,
+      mobileWarehouseCatalogLocalRepository:
+          mobileWarehouseCatalogLocalRepository,
+      mobileWarehouseCatalogSyncService: mobileWarehouseCatalogSyncService,
       legacyToolsRepository: legacyToolsRepository,
     );
   }
@@ -197,8 +234,13 @@ class AppDependencies {
     required this.virmanRepository,
     required this.offlineInventoryCountsRepository,
     required this.offlineCompanyAcceptancesRepository,
-    required this.offlineLookupCacheRepository,
     required this.offlineSyncService,
+    required this.mobileCustomerCatalogLocalRepository,
+    required this.mobileCustomerCatalogSyncService,
+    required this.mobileProductCatalogLocalRepository,
+    required this.mobileProductCatalogSyncService,
+    required this.mobileWarehouseCatalogLocalRepository,
+    required this.mobileWarehouseCatalogSyncService,
     required this.legacyToolsRepository,
   });
 
@@ -225,7 +267,13 @@ class AppDependencies {
   final VirmanRepository virmanRepository;
   final OfflineInventoryCountsRepository offlineInventoryCountsRepository;
   final OfflineCompanyAcceptancesRepository offlineCompanyAcceptancesRepository;
-  final OfflineLookupCacheRepository offlineLookupCacheRepository;
   final OfflineSyncService offlineSyncService;
+  final MobileCustomerCatalogLocalRepository mobileCustomerCatalogLocalRepository;
+  final MobileCustomerCatalogSyncService mobileCustomerCatalogSyncService;
+  final MobileProductCatalogLocalRepository mobileProductCatalogLocalRepository;
+  final MobileProductCatalogSyncService mobileProductCatalogSyncService;
+  final MobileWarehouseCatalogLocalRepository
+  mobileWarehouseCatalogLocalRepository;
+  final MobileWarehouseCatalogSyncService mobileWarehouseCatalogSyncService;
   final LegacyToolsRepository legacyToolsRepository;
 }

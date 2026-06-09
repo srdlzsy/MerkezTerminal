@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:furpa_merkez_terminal/core/network/api_exception.dart';
 import 'package:furpa_merkez_terminal/features/company_movements/shared/data/company_movements_repository.dart';
 import 'package:furpa_merkez_terminal/features/company_movements/shared/data/models/company_movement_models.dart';
 import 'package:furpa_merkez_terminal/features/order_operations/given_company_orders/data/models/given_company_order_models.dart';
 import 'package:furpa_merkez_terminal/shared/data/search_lookup_models.dart';
 import 'package:furpa_merkez_terminal/shared/formatters/app_formatters.dart';
+import 'package:furpa_merkez_terminal/shared/offline/mobile_customer_catalog_repository.dart';
 import 'package:furpa_merkez_terminal/shared/utils/create_form_validation.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/barcode_camera_scan_page.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/terminal_ui_parts.dart';
@@ -15,6 +17,7 @@ class CompanyMovementCreateSheet extends StatefulWidget {
     required this.repository,
     required this.accessToken,
     required this.defaultWarehouseNo,
+    required this.mobileCustomerCatalogRepository,
     required this.title,
     required this.helperText,
     required this.submitLabel,
@@ -24,6 +27,7 @@ class CompanyMovementCreateSheet extends StatefulWidget {
   final CompanyMovementsRepository repository;
   final String accessToken;
   final String defaultWarehouseNo;
+  final MobileCustomerCatalogLocalRepository mobileCustomerCatalogRepository;
   final String title;
   final String helperText;
   final String submitLabel;
@@ -104,6 +108,23 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
         accessToken: widget.accessToken,
         query: query,
       );
+    } on ApiException catch (error) {
+      final catalogItems = await widget.mobileCustomerCatalogRepository
+          .searchCustomers(query: query);
+      if (catalogItems.isNotEmpty) {
+        customers = catalogItems
+            .map((item) => item.toCustomerLookupItem())
+            .toList(growable: false);
+      } else {
+        if (!mounted) {
+          return;
+        }
+
+        setState(() {
+          _lookupError = error.toString().replaceFirst('Exception: ', '').trim();
+        });
+        return;
+      }
     } catch (error) {
       if (!mounted) {
         return;

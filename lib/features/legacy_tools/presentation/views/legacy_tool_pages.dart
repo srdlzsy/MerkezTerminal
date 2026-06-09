@@ -1,10 +1,17 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:furpa_merkez_terminal/core/network/api_client.dart';
+import 'package:furpa_merkez_terminal/core/network/api_exception.dart';
 import 'package:furpa_merkez_terminal/features/legacy_tools/data/legacy_tools_repository.dart';
 import 'package:furpa_merkez_terminal/features/order_operations/given_company_orders/data/models/given_company_order_models.dart';
 import 'package:furpa_merkez_terminal/shared/data/search_lookup_models.dart';
 import 'package:furpa_merkez_terminal/shared/formatters/app_formatters.dart';
+import 'package:furpa_merkez_terminal/shared/offline/mobile_customer_catalog_repository.dart';
+import 'package:furpa_merkez_terminal/shared/offline/mobile_product_catalog_repository.dart';
+import 'package:furpa_merkez_terminal/shared/offline/mobile_warehouse_catalog_repository.dart';
+import 'package:furpa_merkez_terminal/shared/widgets/barcode_camera_scan_page.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/section_card.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/terminal_ui_parts.dart';
 
@@ -14,6 +21,12 @@ class ProductLookupToolPage extends StatefulWidget {
     required this.repository,
     required this.accessToken,
     required this.defaultWarehouseNo,
+    required this.productCatalogRepository,
+    required this.productCatalogSyncService,
+    required this.customerCatalogRepository,
+    required this.customerCatalogSyncService,
+    required this.warehouseCatalogRepository,
+    required this.warehouseCatalogSyncService,
     required this.title,
     required this.subtitle,
     required this.emptyMessage,
@@ -22,6 +35,12 @@ class ProductLookupToolPage extends StatefulWidget {
   final LegacyToolsRepository repository;
   final String accessToken;
   final String defaultWarehouseNo;
+  final MobileProductCatalogLocalRepository productCatalogRepository;
+  final MobileProductCatalogSyncService productCatalogSyncService;
+  final MobileCustomerCatalogLocalRepository customerCatalogRepository;
+  final MobileCustomerCatalogSyncService customerCatalogSyncService;
+  final MobileWarehouseCatalogLocalRepository warehouseCatalogRepository;
+  final MobileWarehouseCatalogSyncService warehouseCatalogSyncService;
   final String title;
   final String subtitle;
   final String emptyMessage;
@@ -33,14 +52,21 @@ class ProductLookupToolPage extends StatefulWidget {
 class _ProductLookupToolPageState extends State<ProductLookupToolPage> {
   final TextEditingController _queryController = TextEditingController();
   bool _isLoading = false;
+  bool _isSyncingCatalog = false;
   bool _hasQuery = false;
+  bool _isUsingOfflineCatalog = false;
   String? _errorMessage;
+  String? _catalogStatusMessage;
+  MobileProductCatalogMetadata? _catalogMetadata;
+  MobileCustomerCatalogMetadata? _customerCatalogMetadata;
+  MobileWarehouseCatalogMetadata? _warehouseCatalogMetadata;
   List<SearchProductLookupItem> _products = const <SearchProductLookupItem>[];
 
   @override
   void initState() {
     super.initState();
     _queryController.addListener(_handleQueryChanged);
+    unawaited(_loadCatalogMetadata());
   }
 
   @override
@@ -66,7 +92,28 @@ class _ProductLookupToolPageState extends State<ProductLookupToolPage> {
     setState(() {
       _products = const <SearchProductLookupItem>[];
       _errorMessage = null;
+      _isUsingOfflineCatalog = false;
       _isLoading = false;
+    });
+  }
+
+  Future<void> _loadCatalogMetadata() async {
+    final productMetadata = await widget.productCatalogRepository.fetchMetadata(
+      warehouseNo: widget.defaultWarehouseNo,
+    );
+    final customerMetadata = await widget.customerCatalogRepository
+        .fetchMetadata();
+    final warehouseMetadata = await widget.warehouseCatalogRepository
+        .fetchMetadata();
+
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _catalogMetadata = productMetadata;
+      _customerCatalogMetadata = customerMetadata;
+      _warehouseCatalogMetadata = warehouseMetadata;
     });
   }
 
@@ -98,7 +145,36 @@ class _ProductLookupToolPageState extends State<ProductLookupToolPage> {
 
       setState(() {
         _products = products;
+        _isUsingOfflineCatalog = false;
+        _catalogStatusMessage = null;
         _isLoading = false;
+      });
+    } on ApiException catch (error) {
+      final catalogProducts = await widget.productCatalogRepository
+          .searchProducts(warehouseNo: widget.defaultWarehouseNo, query: query);
+
+      if (!mounted) {
+        return;
+      }
+
+      if (catalogProducts.isNotEmpty) {
+        setState(() {
+          _products = catalogProducts
+              .map((item) => item.toSearchProductLookupItem())
+              .toList(growable: false);
+          _isUsingOfflineCatalog = true;
+          _catalogStatusMessage =
+              'API erisilemedi; son basarili katalog sync verisi gosteriliyor.';
+          _isLoading = false;
+          _errorMessage = null;
+        });
+        return;
+      }
+
+      setState(() {
+        _isLoading = false;
+        _isUsingOfflineCatalog = false;
+        _errorMessage = error.toString().replaceFirst('Exception: ', '');
       });
     } catch (error) {
       if (!mounted) {
@@ -107,6 +183,101 @@ class _ProductLookupToolPageState extends State<ProductLookupToolPage> {
 
       setState(() {
         _isLoading = false;
+        _isUsingOfflineCatalog = false;
+        _errorMessage = error.toString().replaceFirst('Exception: ', '');
+      });
+    }
+  }
+
+  Future<void> _scanWithCamera() async {
+    if (!supportsCameraBarcodeScanning) {
+      setState(() {
+        _errorMessage = 'Bu cihazda kamera ile barkod okutma desteklenmiyor.';
+      });
+      return;
+    }
+
+    final barcode = await openBarcodeCameraScanner(
+      context,
+      title: '${widget.title} Kamerasi',
+      subtitle: 'Barkodu okutun; fiyat katalogundan veya APIden aranacak.',
+    );
+
+    if (barcode == null || !mounted) {
+      return;
+    }
+
+    _queryController.text = barcode;
+    await _search();
+  }
+
+  Future<void> _syncCatalog() async {
+    if (_isSyncingCatalog) {
+      return;
+    }
+
+    setState(() {
+      _isSyncingCatalog = true;
+      _errorMessage = null;
+      _catalogStatusMessage = 'Mobil katalog sync basladi...';
+    });
+
+    try {
+      setState(() {
+        _catalogStatusMessage = 'Urun katalogu sync ediliyor...';
+      });
+      final productResult = await widget.productCatalogSyncService.syncCatalog(
+        accessToken: widget.accessToken,
+        warehouseNo: widget.defaultWarehouseNo,
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _catalogMetadata = productResult.metadata;
+        _catalogStatusMessage =
+            'Urun katalogu tamamlandi. Cari katalog sync ediliyor...';
+      });
+
+      final customerResult = await widget.customerCatalogSyncService
+          .syncCatalog(accessToken: widget.accessToken);
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _customerCatalogMetadata = customerResult.metadata;
+        _catalogStatusMessage =
+            'Cari katalog tamamlandi. Depo katalog sync ediliyor...';
+      });
+
+      final warehouseResult = await widget.warehouseCatalogSyncService
+          .syncCatalog(accessToken: widget.accessToken);
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _warehouseCatalogMetadata = warehouseResult.metadata;
+        _isSyncingCatalog = false;
+        _catalogStatusMessage =
+            'Mobil katalog sync tamamlandi: '
+            'urun ${productResult.pagesFetched} sayfa / ${productResult.upsertedCount} kayit / ${productResult.deletedCount} silinen, '
+            'cari ${customerResult.pagesFetched} sayfa / ${customerResult.upsertedCount} kayit / ${customerResult.deletedCount} silinen, '
+            'depo ${warehouseResult.pagesFetched} sayfa / ${warehouseResult.upsertedCount} kayit / ${warehouseResult.deletedCount} silinen.';
+      });
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _isSyncingCatalog = false;
+        _catalogStatusMessage = null;
         _errorMessage = error.toString().replaceFirst('Exception: ', '');
       });
     }
@@ -151,6 +322,32 @@ class _ProductLookupToolPageState extends State<ProductLookupToolPage> {
                         )
                       : null,
                 ),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: <Widget>[
+                    OutlinedButton.icon(
+                      onPressed: _isLoading ? null : _scanWithCamera,
+                      icon: const Icon(Icons.photo_camera_back_rounded),
+                      label: const Text('Kamera'),
+                    ),
+                    FilledButton.tonalIcon(
+                      onPressed: _isSyncingCatalog ? null : _syncCatalog,
+                      icon: _isSyncingCatalog
+                          ? const SizedBox.square(
+                              dimension: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.sync_rounded),
+                      label: Text(
+                        _isSyncingCatalog ? 'Sync...' : 'Mobil Katalog Sync',
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                _buildCatalogStatusBlock(),
               ],
             ),
           ),
@@ -159,6 +356,8 @@ class _ProductLookupToolPageState extends State<ProductLookupToolPage> {
             title: 'Sonuclar',
             subtitle: _isLoading
                 ? 'Araniyor...'
+                : _isUsingOfflineCatalog
+                ? '${_products.length} urun local katalogdan bulundu.'
                 : '${_products.length} urun bulundu.',
             child: Column(
               children: <Widget>[
@@ -235,6 +434,44 @@ class _ProductLookupToolPageState extends State<ProductLookupToolPage> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildCatalogStatusBlock() {
+    final message = _catalogStatusMessage;
+    if (_isSyncingCatalog && message != null) {
+      return TerminalMessageBlock.loading(message: message);
+    }
+    if (message != null) {
+      return TerminalMessageBlock.info(message: message);
+    }
+
+    final metadata = _catalogMetadata;
+    final customerMetadata = _customerCatalogMetadata;
+    final warehouseMetadata = _warehouseCatalogMetadata;
+    if ((metadata == null || metadata.syncToken.trim().isEmpty) &&
+        (customerMetadata == null ||
+            customerMetadata.syncToken.trim().isEmpty) &&
+        (warehouseMetadata == null ||
+            warehouseMetadata.syncToken.trim().isEmpty)) {
+      return const TerminalMessageBlock.info(
+        message:
+            'Local kataloglar henuz indirilmedi. Onlineken Mobil Katalog Sync ile ilk tam indirmeyi yapin.',
+      );
+    }
+
+    return TerminalMessageBlock.info(
+      message: <String>[
+        metadata == null || metadata.syncToken.trim().isEmpty
+            ? 'Urun katalogu: henuz yok'
+            : 'Urun katalogu: ${AppFormatters.dateTimeOrDash(metadata.lastCompletedAt)} | ${metadata.itemCount} urun | Depo ${metadata.warehouseNo}',
+        customerMetadata == null || customerMetadata.syncToken.trim().isEmpty
+            ? 'Cari katalogu: henuz yok'
+            : 'Cari katalogu: ${AppFormatters.dateTimeOrDash(customerMetadata.lastCompletedAt)} | ${customerMetadata.itemCount} cari',
+        warehouseMetadata == null || warehouseMetadata.syncToken.trim().isEmpty
+            ? 'Depo katalogu: henuz yok'
+            : 'Depo katalogu: ${AppFormatters.dateTimeOrDash(warehouseMetadata.lastCompletedAt)} | ${warehouseMetadata.itemCount} depo',
+      ].join('\n'),
     );
   }
 }

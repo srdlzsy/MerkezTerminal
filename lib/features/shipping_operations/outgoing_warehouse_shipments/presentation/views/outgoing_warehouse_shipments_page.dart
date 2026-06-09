@@ -11,6 +11,7 @@ import 'package:furpa_merkez_terminal/features/shipping_operations/outgoing_ware
 import 'package:furpa_merkez_terminal/features/shipping_operations/outgoing_warehouse_shipments/presentation/view_models/outgoing_warehouse_shipments_controller.dart';
 import 'package:furpa_merkez_terminal/features/shipping_operations/outgoing_warehouse_shipments/presentation/widgets/outgoing_warehouse_shipment_create_sheet.dart';
 import 'package:furpa_merkez_terminal/shared/formatters/app_formatters.dart';
+import 'package:furpa_merkez_terminal/shared/offline/mobile_warehouse_catalog_repository.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/section_card.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/terminal_ui_parts.dart';
 
@@ -22,6 +23,7 @@ class OutgoingWarehouseShipmentsPage extends StatefulWidget {
     required this.accessToken,
     required this.canCreate,
     required this.defaultWarehouseNo,
+    required this.mobileWarehouseCatalogRepository,
     required this.userWarehouseName,
     required this.title,
     required this.subtitle,
@@ -33,6 +35,7 @@ class OutgoingWarehouseShipmentsPage extends StatefulWidget {
   final String accessToken;
   final bool canCreate;
   final String defaultWarehouseNo;
+  final MobileWarehouseCatalogLocalRepository mobileWarehouseCatalogRepository;
   final String userWarehouseName;
   final String title;
   final String subtitle;
@@ -126,6 +129,8 @@ class _OutgoingWarehouseShipmentsPageState
               widget.receivedWarehouseOrdersRepository,
           accessToken: widget.accessToken,
           defaultWarehouseNo: widget.defaultWarehouseNo,
+          mobileWarehouseCatalogRepository:
+              widget.mobileWarehouseCatalogRepository,
         );
       },
     );

@@ -1,21 +1,16 @@
 import 'dart:math' as math;
 
-import 'package:furpa_merkez_terminal/core/storage/local_json_database.dart';
+import 'package:furpa_merkez_terminal/core/storage/local_database.dart';
+import 'package:furpa_merkez_terminal/core/storage/local_sqlite_database.dart';
 import 'package:furpa_merkez_terminal/features/order_operations/given_company_orders/data/models/given_company_order_models.dart';
-import 'package:furpa_merkez_terminal/features/stock_operations/inventory_counts/data/models/inventory_count_models.dart';
-import 'package:furpa_merkez_terminal/shared/data/search_lookup_models.dart';
 
 class OfflineLookupCacheRepository {
-  OfflineLookupCacheRepository({LocalJsonDatabase? database})
-    : _database = database ?? LocalJsonDatabase();
+  OfflineLookupCacheRepository({LocalDatabase? database})
+    : _database = database ?? LocalSqliteDatabase();
 
-  final LocalJsonDatabase _database;
+  final LocalDatabase _database;
 
   static const String _customerTable = 'offline_lookup_cache.customers.v1';
-  static const String _acceptanceProductTable =
-      'offline_lookup_cache.acceptance_products.v1';
-  static const String _inventoryProductTable =
-      'offline_lookup_cache.inventory_products.v1';
 
   Future<void> cacheCustomers({
     required String userId,
@@ -78,161 +73,6 @@ class OfflineLookupCacheRepository {
     return filtered.take(20).map(_customerFromRow).toList(growable: false);
   }
 
-  Future<void> cacheAcceptanceProducts({
-    required String userId,
-    required String warehouseNo,
-    required String? customerCode,
-    required List<SearchProductLookupItem> items,
-  }) async {
-    final rows = await _database.readTable(_acceptanceProductTable);
-    final now = DateTime.now().toUtc().toIso8601String();
-    final normalizedCustomerCode = customerCode?.trim() ?? '';
-    final updated = _mergeRows(
-      existing: rows,
-      incoming: items
-          .map((item) {
-            return <String, dynamic>{
-              'userId': userId,
-              'warehouseNo': warehouseNo,
-              'customerCode': normalizedCustomerCode,
-              'barcode': item.barcode,
-              'stockCode': item.stockCode,
-              'stockName': item.stockName,
-              'price': item.price,
-              'priceTypeCode': item.priceTypeCode,
-              'unitName': item.unitName,
-              'unitMultiplier': item.unitMultiplier,
-              'secondaryUnitName': item.secondaryUnitName,
-              'secondaryUnitMultiplier': item.secondaryUnitMultiplier,
-              'salesBlockCode': item.salesBlockCode,
-              'orderBlockCode': item.orderBlockCode,
-              'goodsAcceptanceBlockCode': item.goodsAcceptanceBlockCode,
-              'isSalesBlocked': item.isSalesBlocked,
-              'isOrderBlocked': item.isOrderBlocked,
-              'isGoodsAcceptanceBlocked': item.isGoodsAcceptanceBlocked,
-              'productManagerCode': item.productManagerCode,
-              'cachedAt': now,
-            };
-          })
-          .toList(growable: false),
-      keyOf: (row) {
-        return '${row['userId']}|${row['warehouseNo']}|${row['customerCode']}|'
-            '${row['stockCode']}|${row['barcode']}';
-      },
-      maxCount: 600,
-    );
-    await _database.writeTable(_acceptanceProductTable, updated);
-  }
-
-  Future<List<SearchProductLookupItem>> searchAcceptanceProducts({
-    required String userId,
-    required String warehouseNo,
-    required String query,
-    String? customerCode,
-  }) async {
-    final normalizedQuery = _normalize(query);
-    if (normalizedQuery.isEmpty) {
-      return const <SearchProductLookupItem>[];
-    }
-
-    final normalizedCustomerCode = customerCode?.trim() ?? '';
-    final rows = await _database.readTable(_acceptanceProductTable);
-    final filtered =
-        rows
-            .where(
-              (row) =>
-                  row['userId']?.toString() == userId &&
-                  row['warehouseNo']?.toString() == warehouseNo &&
-                  _matchesCustomerCode(
-                    cachedCustomerCode: row['customerCode']?.toString() ?? '',
-                    requestedCustomerCode: normalizedCustomerCode,
-                  ) &&
-                  _productSearchKey(row).contains(normalizedQuery),
-            )
-            .toList(growable: false)
-          ..sort((left, right) {
-            final customerPriority =
-                _customerPriority(
-                  cachedCustomerCode: left['customerCode']?.toString() ?? '',
-                  requestedCustomerCode: normalizedCustomerCode,
-                ).compareTo(
-                  _customerPriority(
-                    cachedCustomerCode: right['customerCode']?.toString() ?? '',
-                    requestedCustomerCode: normalizedCustomerCode,
-                  ),
-                );
-            if (customerPriority != 0) {
-              return customerPriority;
-            }
-            return _compareCachedRows(left, right);
-          });
-
-    return filtered
-        .take(20)
-        .map(_acceptanceProductFromRow)
-        .toList(growable: false);
-  }
-
-  Future<void> cacheInventoryProducts({
-    required String userId,
-    required String warehouseNo,
-    required List<InventoryCountProductLookupItem> items,
-  }) async {
-    final rows = await _database.readTable(_inventoryProductTable);
-    final now = DateTime.now().toUtc().toIso8601String();
-    final updated = _mergeRows(
-      existing: rows,
-      incoming: items
-          .map((item) {
-            return <String, dynamic>{
-              'userId': userId,
-              'warehouseNo': warehouseNo,
-              'barcode': item.barcode,
-              'stockCode': item.stockCode,
-              'stockName': item.stockName,
-              'unitName': item.unitName,
-              'price': item.price,
-              'isGoodsAcceptanceBlocked': item.isGoodsAcceptanceBlocked,
-              'cachedAt': now,
-            };
-          })
-          .toList(growable: false),
-      keyOf: (row) =>
-          '${row['userId']}|${row['warehouseNo']}|${row['stockCode']}|'
-          '${row['barcode']}',
-      maxCount: 600,
-    );
-    await _database.writeTable(_inventoryProductTable, updated);
-  }
-
-  Future<List<InventoryCountProductLookupItem>> searchInventoryProducts({
-    required String userId,
-    required String warehouseNo,
-    required String query,
-  }) async {
-    final normalizedQuery = _normalize(query);
-    if (normalizedQuery.isEmpty) {
-      return const <InventoryCountProductLookupItem>[];
-    }
-
-    final rows = await _database.readTable(_inventoryProductTable);
-    final filtered =
-        rows
-            .where(
-              (row) =>
-                  row['userId']?.toString() == userId &&
-                  row['warehouseNo']?.toString() == warehouseNo &&
-                  _productSearchKey(row).contains(normalizedQuery),
-            )
-            .toList(growable: false)
-          ..sort(_compareCachedRows);
-
-    return filtered
-        .take(20)
-        .map(_inventoryProductFromRow)
-        .toList(growable: false);
-  }
-
   List<Map<String, dynamic>> _mergeRows({
     required List<Map<String, dynamic>> existing,
     required List<Map<String, dynamic>> incoming,
@@ -270,44 +110,11 @@ class OfflineLookupCacheRepository {
     return rightAt.compareTo(leftAt);
   }
 
-  bool _matchesCustomerCode({
-    required String cachedCustomerCode,
-    required String requestedCustomerCode,
-  }) {
-    if (requestedCustomerCode.isEmpty) {
-      return true;
-    }
-    return cachedCustomerCode.isEmpty ||
-        cachedCustomerCode == requestedCustomerCode;
-  }
-
-  int _customerPriority({
-    required String cachedCustomerCode,
-    required String requestedCustomerCode,
-  }) {
-    if (requestedCustomerCode.isEmpty) {
-      return 0;
-    }
-    if (cachedCustomerCode == requestedCustomerCode) {
-      return 0;
-    }
-    if (cachedCustomerCode.isEmpty) {
-      return 1;
-    }
-    return 2;
-  }
-
   String _customerSearchKey(Map<String, dynamic> row) {
     return _normalize(
       '${row['customerCode']} ${row['customerDisplayName']} '
       '${row['customerName']} ${row['customerTitle']} ${row['taxNumber']} '
       '${row['representativeName']}',
-    );
-  }
-
-  String _productSearchKey(Map<String, dynamic> row) {
-    return _normalize(
-      '${row['stockCode']} ${row['stockName']} ${row['barcode']}',
     );
   }
 
@@ -327,44 +134,6 @@ class OfflineLookupCacheRepository {
     );
   }
 
-  SearchProductLookupItem _acceptanceProductFromRow(Map<String, dynamic> row) {
-    return SearchProductLookupItem(
-      warehouseNo: _readInt(row['warehouseNo']),
-      barcode: row['barcode']?.toString() ?? '',
-      stockCode: row['stockCode']?.toString() ?? '',
-      stockName: row['stockName']?.toString() ?? '',
-      price: _readDouble(row['price']),
-      priceTypeCode: _readInt(row['priceTypeCode']),
-      unitName: row['unitName']?.toString() ?? '',
-      unitMultiplier: _readDouble(row['unitMultiplier']),
-      secondaryUnitName: row['secondaryUnitName']?.toString() ?? '',
-      secondaryUnitMultiplier: _readDouble(row['secondaryUnitMultiplier']),
-      salesBlockCode: _readNullableInt(row['salesBlockCode']),
-      orderBlockCode: _readNullableInt(row['orderBlockCode']),
-      goodsAcceptanceBlockCode: _readNullableInt(
-        row['goodsAcceptanceBlockCode'],
-      ),
-      isSalesBlocked: _readBool(row['isSalesBlocked']),
-      isOrderBlocked: _readBool(row['isOrderBlocked']),
-      isGoodsAcceptanceBlocked: _readBool(row['isGoodsAcceptanceBlocked']),
-      productManagerCode: row['productManagerCode']?.toString() ?? '',
-    );
-  }
-
-  InventoryCountProductLookupItem _inventoryProductFromRow(
-    Map<String, dynamic> row,
-  ) {
-    return InventoryCountProductLookupItem(
-      warehouseNo: _readInt(row['warehouseNo']),
-      barcode: row['barcode']?.toString() ?? '',
-      stockCode: row['stockCode']?.toString() ?? '',
-      stockName: row['stockName']?.toString() ?? '',
-      unitName: row['unitName']?.toString() ?? '',
-      price: _readDouble(row['price']),
-      isGoodsAcceptanceBlocked: _readBool(row['isGoodsAcceptanceBlocked']),
-    );
-  }
-
   String _normalize(String value) {
     return value.trim().toLowerCase();
   }
@@ -380,27 +149,10 @@ class OfflineLookupCacheRepository {
     return raw == 'true' || raw == '1';
   }
 
-  double _readDouble(Object? value) {
-    if (value is num) {
-      return value.toDouble();
-    }
-    return double.tryParse(value?.toString() ?? '') ?? 0;
-  }
-
   int _readInt(Object? value) {
     if (value is num) {
       return value.toInt();
     }
     return int.tryParse(value?.toString() ?? '') ?? 0;
-  }
-
-  int? _readNullableInt(Object? value) {
-    if (value == null) {
-      return null;
-    }
-    if (value is num) {
-      return value.toInt();
-    }
-    return int.tryParse(value.toString());
   }
 }

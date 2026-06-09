@@ -1,4 +1,5 @@
-import 'package:furpa_merkez_terminal/core/storage/local_json_database.dart';
+import 'package:furpa_merkez_terminal/core/storage/local_database.dart';
+import 'package:furpa_merkez_terminal/core/storage/local_sqlite_database.dart';
 import 'package:furpa_merkez_terminal/features/acceptance_operations/offline_company_acceptances/data/models/offline_company_acceptance_models.dart';
 
 abstract class OfflineCompanyAcceptancesRepository {
@@ -11,13 +12,13 @@ abstract class OfflineCompanyAcceptancesRepository {
   Future<void> deleteDraft(String id);
 }
 
-class SharedPrefsOfflineCompanyAcceptancesRepository
+class LocalOfflineCompanyAcceptancesRepository
     implements OfflineCompanyAcceptancesRepository {
-  SharedPrefsOfflineCompanyAcceptancesRepository({LocalJsonDatabase? database})
-    : _database = database ?? LocalJsonDatabase();
+  LocalOfflineCompanyAcceptancesRepository({LocalDatabase? database})
+    : _database = database ?? LocalSqliteDatabase();
 
   static const String _storageKey = 'offline_company_acceptance_drafts_v1';
-  final LocalJsonDatabase _database;
+  final LocalDatabase _database;
 
   @override
   Future<List<OfflineCompanyAcceptanceDraft>> fetchDrafts({

@@ -37,7 +37,9 @@ import 'package:furpa_merkez_terminal/features/stock_operations/stock_receipts/d
 import 'package:furpa_merkez_terminal/features/stock_operations/stock_receipts/presentation/views/stock_receipts_page.dart';
 import 'package:furpa_merkez_terminal/features/stock_operations/virman/data/virman_repository.dart';
 import 'package:furpa_merkez_terminal/features/stock_operations/virman/presentation/views/virman_page.dart';
-import 'package:furpa_merkez_terminal/shared/offline/offline_lookup_cache_repository.dart';
+import 'package:furpa_merkez_terminal/shared/offline/mobile_customer_catalog_repository.dart';
+import 'package:furpa_merkez_terminal/shared/offline/mobile_product_catalog_repository.dart';
+import 'package:furpa_merkez_terminal/shared/offline/mobile_warehouse_catalog_repository.dart';
 import 'package:furpa_merkez_terminal/shared/offline/offline_sync_service.dart';
 
 typedef ShellModulePageBuilder =
@@ -129,8 +131,13 @@ class ShellModuleRegistry {
     required this.virmanRepository,
     required this.offlineInventoryCountsRepository,
     required this.offlineCompanyAcceptancesRepository,
-    required this.offlineLookupCacheRepository,
     required this.offlineSyncService,
+    required this.mobileCustomerCatalogLocalRepository,
+    required this.mobileCustomerCatalogSyncService,
+    required this.mobileProductCatalogLocalRepository,
+    required this.mobileProductCatalogSyncService,
+    required this.mobileWarehouseCatalogLocalRepository,
+    required this.mobileWarehouseCatalogSyncService,
     required this.legacyToolsRepository,
   });
 
@@ -154,8 +161,15 @@ class ShellModuleRegistry {
   final VirmanRepository virmanRepository;
   final OfflineInventoryCountsRepository offlineInventoryCountsRepository;
   final OfflineCompanyAcceptancesRepository offlineCompanyAcceptancesRepository;
-  final OfflineLookupCacheRepository offlineLookupCacheRepository;
   final OfflineSyncService offlineSyncService;
+  final MobileCustomerCatalogLocalRepository
+  mobileCustomerCatalogLocalRepository;
+  final MobileCustomerCatalogSyncService mobileCustomerCatalogSyncService;
+  final MobileProductCatalogLocalRepository mobileProductCatalogLocalRepository;
+  final MobileProductCatalogSyncService mobileProductCatalogSyncService;
+  final MobileWarehouseCatalogLocalRepository
+  mobileWarehouseCatalogLocalRepository;
+  final MobileWarehouseCatalogSyncService mobileWarehouseCatalogSyncService;
   final LegacyToolsRepository legacyToolsRepository;
 
   late final List<ShellModuleRoute> routes = _buildRoutes();
@@ -190,6 +204,7 @@ class ShellModuleRegistry {
           accessToken: context.accessToken,
           canCreate: context.canCreate,
           defaultWarehouseNo: context.user.warehouseNo,
+          mobileCustomerCatalogRepository: mobileCustomerCatalogLocalRepository,
           userWarehouseName: context.user.warehouseName,
           title: 'Verilen Firma Siparisleri',
           subtitle:
@@ -204,6 +219,7 @@ class ShellModuleRegistry {
           accessToken: context.accessToken,
           canCreate: false,
           defaultWarehouseNo: context.user.warehouseNo,
+          mobileCustomerCatalogRepository: mobileCustomerCatalogLocalRepository,
           userWarehouseName: context.user.warehouseName,
           title: 'Alinan Firma Siparisleri',
           subtitle:
@@ -220,6 +236,8 @@ class ShellModuleRegistry {
           accessToken: context.accessToken,
           canCreate: context.canCreate,
           defaultWarehouseNo: context.user.warehouseNo,
+          mobileWarehouseCatalogRepository:
+              mobileWarehouseCatalogLocalRepository,
           userWarehouseName: context.user.warehouseName,
         ),
       ),
@@ -243,6 +261,8 @@ class ShellModuleRegistry {
           accessToken: context.accessToken,
           canCreate: context.canCreate,
           defaultWarehouseNo: context.user.warehouseNo,
+          mobileWarehouseCatalogRepository:
+              mobileWarehouseCatalogLocalRepository,
           userWarehouseName: context.user.warehouseName,
           title: 'Giden Depolar Arasi Sevkler',
           subtitle:
@@ -258,6 +278,8 @@ class ShellModuleRegistry {
           accessToken: context.accessToken,
           canCreate: false,
           defaultWarehouseNo: context.user.warehouseNo,
+          mobileWarehouseCatalogRepository:
+              mobileWarehouseCatalogLocalRepository,
           userWarehouseName: context.user.warehouseName,
           title: 'Gelen Depolar Arasi Sevkler',
           subtitle:
@@ -294,6 +316,8 @@ class ShellModuleRegistry {
           repository: warehouseReturnsRepository,
           accessToken: context.accessToken,
           defaultWarehouseNo: context.user.warehouseNo,
+          mobileWarehouseCatalogRepository:
+              mobileWarehouseCatalogLocalRepository,
           userWarehouseName: context.user.warehouseName,
           direction: WarehouseReturnDirection.outgoing,
         ),
@@ -305,6 +329,8 @@ class ShellModuleRegistry {
           repository: warehouseReturnsRepository,
           accessToken: context.accessToken,
           defaultWarehouseNo: context.user.warehouseNo,
+          mobileWarehouseCatalogRepository:
+              mobileWarehouseCatalogLocalRepository,
           userWarehouseName: context.user.warehouseName,
           direction: WarehouseReturnDirection.incoming,
         ),
@@ -317,8 +343,8 @@ class ShellModuleRegistry {
           offlineRepository: offlineInventoryCountsRepository,
           accessToken: context.accessToken,
           canCreate: context.canCreate,
-          lookupCacheRepository: offlineLookupCacheRepository,
           offlineSyncService: offlineSyncService,
+          mobileProductCatalogRepository: mobileProductCatalogLocalRepository,
           currentUserId: context.user.id,
           defaultWarehouseNo: context.user.warehouseNo,
           userWarehouseName: context.user.warehouseName,
@@ -372,6 +398,7 @@ class ShellModuleRegistry {
           accessToken: context.accessToken,
           canCreate: context.canCreate,
           defaultWarehouseNo: context.user.warehouseNo,
+          mobileCustomerCatalogRepository: mobileCustomerCatalogLocalRepository,
           userWarehouseName: context.user.warehouseName,
           title: 'Giden Firma Sevkleri',
           subtitle:
@@ -392,6 +419,7 @@ class ShellModuleRegistry {
           accessToken: context.accessToken,
           canCreate: false,
           defaultWarehouseNo: context.user.warehouseNo,
+          mobileCustomerCatalogRepository: mobileCustomerCatalogLocalRepository,
           userWarehouseName: context.user.warehouseName,
           title: 'Gelen Firma Sevkleri',
           subtitle:
@@ -412,8 +440,9 @@ class ShellModuleRegistry {
           ordersRepository: givenCompanyOrdersRepository,
           accessToken: context.accessToken,
           canCreate: context.canCreate,
-          lookupCacheRepository: offlineLookupCacheRepository,
           offlineSyncService: offlineSyncService,
+          mobileCustomerCatalogRepository: mobileCustomerCatalogLocalRepository,
+          mobileProductCatalogRepository: mobileProductCatalogLocalRepository,
           currentUserId: context.user.id,
           defaultWarehouseNo: context.user.warehouseNo,
           userWarehouseName: context.user.warehouseName,
@@ -427,6 +456,7 @@ class ShellModuleRegistry {
           accessToken: context.accessToken,
           canCreate: context.canCreate,
           defaultWarehouseNo: context.user.warehouseNo,
+          mobileCustomerCatalogRepository: mobileCustomerCatalogLocalRepository,
           userWarehouseName: context.user.warehouseName,
           title: 'Firma Iadeleri',
           subtitle:
@@ -476,6 +506,7 @@ class ShellModuleRegistry {
           onlineRepository: inventoryCountsRepository,
           accessToken: context.accessToken,
           offlineSyncService: offlineSyncService,
+          mobileProductCatalogRepository: mobileProductCatalogLocalRepository,
           currentUserId: context.user.id,
           defaultWarehouseNo: context.user.warehouseNo,
           userWarehouseName: context.user.warehouseName,
@@ -490,6 +521,12 @@ class ShellModuleRegistry {
           repository: legacyToolsRepository,
           accessToken: context.accessToken,
           defaultWarehouseNo: context.user.warehouseNo,
+          productCatalogRepository: mobileProductCatalogLocalRepository,
+          productCatalogSyncService: mobileProductCatalogSyncService,
+          customerCatalogRepository: mobileCustomerCatalogLocalRepository,
+          customerCatalogSyncService: mobileCustomerCatalogSyncService,
+          warehouseCatalogRepository: mobileWarehouseCatalogLocalRepository,
+          warehouseCatalogSyncService: mobileWarehouseCatalogSyncService,
           title: 'Fiyat Gor',
           subtitle:
               'Barkod veya stok kodu ile urun fiyatini ve blok durumlarini hizlica gosterir.',
@@ -537,6 +574,12 @@ class ShellModuleRegistry {
           repository: legacyToolsRepository,
           accessToken: context.accessToken,
           defaultWarehouseNo: context.user.warehouseNo,
+          productCatalogRepository: mobileProductCatalogLocalRepository,
+          productCatalogSyncService: mobileProductCatalogSyncService,
+          customerCatalogRepository: mobileCustomerCatalogLocalRepository,
+          customerCatalogSyncService: mobileCustomerCatalogSyncService,
+          warehouseCatalogRepository: mobileWarehouseCatalogLocalRepository,
+          warehouseCatalogSyncService: mobileWarehouseCatalogSyncService,
           title: 'Var Yok',
           subtitle:
               'Urunun depoda aranabilir durumda olup olmadigini hizli tarama ekraninda gosterir.',

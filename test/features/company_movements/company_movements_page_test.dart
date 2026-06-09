@@ -9,6 +9,9 @@ import 'package:furpa_merkez_terminal/features/company_movements/shared/presenta
 import 'package:furpa_merkez_terminal/features/order_operations/given_company_orders/data/models/given_company_order_models.dart';
 import 'package:furpa_merkez_terminal/features/return_operations/warehouse_returns/data/models/warehouse_return_models.dart';
 import 'package:furpa_merkez_terminal/shared/data/search_lookup_models.dart';
+import 'package:furpa_merkez_terminal/shared/offline/mobile_customer_catalog_repository.dart';
+
+import '../../support/memory_local_database.dart';
 
 void main() {
   testWidgets('opens company return create sheet from header action', (
@@ -22,6 +25,7 @@ void main() {
             accessToken: 'token',
             canCreate: true,
             defaultWarehouseNo: '50',
+            mobileCustomerCatalogRepository: _emptyCustomerCatalogRepository(),
             userWarehouseName: 'MERKEZ DEPO',
             title: 'Firma Iadeleri',
             subtitle: 'Firma iade evraklari listelenir.',
@@ -59,6 +63,7 @@ void main() {
             repository: _FakeCompanyMovementsRepository(),
             accessToken: 'token',
             defaultWarehouseNo: '50',
+            mobileCustomerCatalogRepository: _emptyCustomerCatalogRepository(),
             title: 'Yeni Firma Iadesi',
             helperText: 'Cari secildikten sonra iade satirlari eklenir.',
             submitLabel: 'Iadeyi Kaydet',
@@ -71,6 +76,10 @@ void main() {
     expect(find.text('Yeni Firma Iadesi'), findsOneWidget);
     expect(find.text('Cari'), findsOneWidget);
   });
+}
+
+MobileCustomerCatalogLocalRepository _emptyCustomerCatalogRepository() {
+  return MobileCustomerCatalogLocalRepository(database: MemoryLocalDatabase());
 }
 
 class _FakeCompanyMovementsRepository implements CompanyMovementsRepository {

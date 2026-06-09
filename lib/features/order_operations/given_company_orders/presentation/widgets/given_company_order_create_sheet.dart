@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:furpa_merkez_terminal/core/network/api_exception.dart';
 import 'package:furpa_merkez_terminal/features/order_operations/given_company_orders/data/models/given_company_order_models.dart';
 import 'package:furpa_merkez_terminal/features/order_operations/shared/data/company_orders_repository.dart';
 import 'package:furpa_merkez_terminal/shared/formatters/app_formatters.dart';
+import 'package:furpa_merkez_terminal/shared/offline/mobile_customer_catalog_repository.dart';
 import 'package:furpa_merkez_terminal/shared/utils/create_form_validation.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/barcode_camera_scan_page.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/terminal_ui_parts.dart';
@@ -15,11 +17,13 @@ class GivenCompanyOrderCreateSheet extends StatefulWidget {
     required this.repository,
     required this.accessToken,
     required this.defaultWarehouseNo,
+    required this.mobileCustomerCatalogRepository,
   });
 
   final CompanyOrdersRepository repository;
   final String accessToken;
   final String defaultWarehouseNo;
+  final MobileCustomerCatalogLocalRepository mobileCustomerCatalogRepository;
 
   @override
   State<GivenCompanyOrderCreateSheet> createState() =>
@@ -107,6 +111,8 @@ class _GivenCompanyOrderCreateSheetState
       builder: (context) => _CustomerLookupSheet(
         repository: widget.repository,
         accessToken: widget.accessToken,
+        mobileCustomerCatalogRepository:
+            widget.mobileCustomerCatalogRepository,
       ),
     );
 
@@ -1181,10 +1187,12 @@ class _CustomerLookupSheet extends StatefulWidget {
   const _CustomerLookupSheet({
     required this.repository,
     required this.accessToken,
+    required this.mobileCustomerCatalogRepository,
   });
 
   final CompanyOrdersRepository repository;
   final String accessToken;
+  final MobileCustomerCatalogLocalRepository mobileCustomerCatalogRepository;
 
   @override
   State<_CustomerLookupSheet> createState() => _CustomerLookupSheetState();
@@ -1235,6 +1243,27 @@ class _CustomerLookupSheetState extends State<_CustomerLookupSheet> {
 
       setState(() {
         _items = items;
+        _isLoading = false;
+      });
+    } on ApiException catch (error) {
+      final catalogItems = await widget.mobileCustomerCatalogRepository
+          .searchCustomers(query: query);
+      if (!mounted) {
+        return;
+      }
+
+      if (catalogItems.isNotEmpty) {
+        setState(() {
+          _items = catalogItems
+              .map((item) => item.toCustomerLookupItem())
+              .toList(growable: false);
+          _isLoading = false;
+        });
+        return;
+      }
+
+      setState(() {
+        _errorMessage = error.toString();
         _isLoading = false;
       });
     } catch (error) {

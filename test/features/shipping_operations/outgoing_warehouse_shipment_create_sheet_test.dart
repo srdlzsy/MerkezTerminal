@@ -8,6 +8,9 @@ import 'package:furpa_merkez_terminal/features/return_operations/warehouse_retur
 import 'package:furpa_merkez_terminal/features/shipping_operations/outgoing_warehouse_shipments/data/models/outgoing_warehouse_shipment_models.dart';
 import 'package:furpa_merkez_terminal/features/shipping_operations/outgoing_warehouse_shipments/data/outgoing_warehouse_shipments_repository.dart';
 import 'package:furpa_merkez_terminal/features/shipping_operations/outgoing_warehouse_shipments/presentation/widgets/outgoing_warehouse_shipment_create_sheet.dart';
+import 'package:furpa_merkez_terminal/shared/offline/mobile_warehouse_catalog_repository.dart';
+
+import '../../support/memory_local_database.dart';
 
 void main() {
   testWidgets('renders create sheet header fields without layout exceptions', (
@@ -27,6 +30,8 @@ void main() {
                 _FakeReceivedWarehouseOrdersRepository(),
             accessToken: 'token',
             defaultWarehouseNo: '110',
+            mobileWarehouseCatalogRepository:
+                _emptyWarehouseCatalogRepository(),
           ),
         ),
       ),
@@ -54,6 +59,8 @@ void main() {
                 _FakeReceivedWarehouseOrdersRepository(),
             accessToken: 'token',
             defaultWarehouseNo: '110',
+            mobileWarehouseCatalogRepository:
+                _emptyWarehouseCatalogRepository(),
           ),
         ),
       ),
@@ -82,6 +89,10 @@ void main() {
     expect(tester.takeException(), isNull);
     expect(find.text('Depo Siparisi Sec'), findsWidgets);
   });
+}
+
+MobileWarehouseCatalogLocalRepository _emptyWarehouseCatalogRepository() {
+  return MobileWarehouseCatalogLocalRepository(database: MemoryLocalDatabase());
 }
 
 class _FakeOutgoingWarehouseShipmentsRepository

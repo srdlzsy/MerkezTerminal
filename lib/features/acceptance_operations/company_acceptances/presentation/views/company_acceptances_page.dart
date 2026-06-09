@@ -11,7 +11,8 @@ import 'package:furpa_merkez_terminal/features/acceptance_operations/offline_com
 import 'package:furpa_merkez_terminal/features/company_movements/shared/data/models/company_movement_models.dart';
 import 'package:furpa_merkez_terminal/features/order_operations/given_company_orders/data/given_company_orders_repository.dart';
 import 'package:furpa_merkez_terminal/shared/formatters/app_formatters.dart';
-import 'package:furpa_merkez_terminal/shared/offline/offline_lookup_cache_repository.dart';
+import 'package:furpa_merkez_terminal/shared/offline/mobile_customer_catalog_repository.dart';
+import 'package:furpa_merkez_terminal/shared/offline/mobile_product_catalog_repository.dart';
 import 'package:furpa_merkez_terminal/shared/offline/offline_sync_service.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/section_card.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/terminal_ui_parts.dart';
@@ -24,8 +25,9 @@ class CompanyAcceptancesPage extends StatefulWidget {
     required this.ordersRepository,
     required this.accessToken,
     required this.canCreate,
-    required this.lookupCacheRepository,
     required this.offlineSyncService,
+    required this.mobileCustomerCatalogRepository,
+    required this.mobileProductCatalogRepository,
     required this.currentUserId,
     required this.defaultWarehouseNo,
     required this.userWarehouseName,
@@ -36,8 +38,9 @@ class CompanyAcceptancesPage extends StatefulWidget {
   final GivenCompanyOrdersRepository ordersRepository;
   final String accessToken;
   final bool canCreate;
-  final OfflineLookupCacheRepository lookupCacheRepository;
   final OfflineSyncService offlineSyncService;
+  final MobileCustomerCatalogLocalRepository mobileCustomerCatalogRepository;
+  final MobileProductCatalogLocalRepository mobileProductCatalogRepository;
   final String currentUserId;
   final String defaultWarehouseNo;
   final String userWarehouseName;
@@ -137,9 +140,10 @@ class _CompanyAcceptancesPageState extends State<CompanyAcceptancesPage> {
           repository: widget.repository,
           ordersRepository: widget.ordersRepository,
           accessToken: widget.accessToken,
-          currentUserId: widget.currentUserId,
           defaultWarehouseNo: widget.defaultWarehouseNo,
-          lookupCacheRepository: widget.lookupCacheRepository,
+          mobileCustomerCatalogRepository:
+              widget.mobileCustomerCatalogRepository,
+          mobileProductCatalogRepository: widget.mobileProductCatalogRepository,
         );
       },
     );
@@ -236,6 +240,10 @@ class _CompanyAcceptancesPageState extends State<CompanyAcceptancesPage> {
             ordersRepository: widget.ordersRepository,
             accessToken: widget.accessToken,
             offlineSyncService: widget.offlineSyncService,
+            mobileCustomerCatalogRepository:
+                widget.mobileCustomerCatalogRepository,
+            mobileProductCatalogRepository:
+                widget.mobileProductCatalogRepository,
             currentUserId: widget.currentUserId,
             defaultWarehouseNo: widget.defaultWarehouseNo,
             userWarehouseName: widget.userWarehouseName,

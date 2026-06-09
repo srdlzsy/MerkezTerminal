@@ -10,6 +10,7 @@ import 'package:furpa_merkez_terminal/features/return_operations/warehouse_retur
 import 'package:furpa_merkez_terminal/features/return_operations/warehouse_returns/presentation/views/warehouse_return_pdf_preview_page.dart';
 import 'package:furpa_merkez_terminal/features/return_operations/warehouse_returns/presentation/widgets/warehouse_return_e_despatch_sheet.dart';
 import 'package:furpa_merkez_terminal/shared/formatters/app_formatters.dart';
+import 'package:furpa_merkez_terminal/shared/offline/mobile_customer_catalog_repository.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/section_card.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/terminal_ui_parts.dart';
 
@@ -20,6 +21,7 @@ class CompanyMovementsPage extends StatefulWidget {
     required this.accessToken,
     required this.canCreate,
     required this.defaultWarehouseNo,
+    required this.mobileCustomerCatalogRepository,
     required this.userWarehouseName,
     required this.title,
     required this.subtitle,
@@ -34,6 +36,7 @@ class CompanyMovementsPage extends StatefulWidget {
   final String accessToken;
   final bool canCreate;
   final String defaultWarehouseNo;
+  final MobileCustomerCatalogLocalRepository mobileCustomerCatalogRepository;
   final String userWarehouseName;
   final String title;
   final String subtitle;
@@ -136,6 +139,8 @@ class _CompanyMovementsPageState extends State<CompanyMovementsPage> {
           repository: widget.repository,
           accessToken: widget.accessToken,
           defaultWarehouseNo: widget.defaultWarehouseNo,
+          mobileCustomerCatalogRepository:
+              widget.mobileCustomerCatalogRepository,
           title: widget.createTitle,
           helperText: widget.createHelperText,
           submitLabel: widget.createButtonLabel,

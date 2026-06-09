@@ -7,7 +7,8 @@ import 'package:furpa_merkez_terminal/features/order_operations/given_company_or
 import 'package:furpa_merkez_terminal/features/order_operations/given_company_orders/data/models/given_company_order_models.dart';
 import 'package:furpa_merkez_terminal/shared/data/search_lookup_models.dart';
 import 'package:furpa_merkez_terminal/shared/formatters/app_formatters.dart';
-import 'package:furpa_merkez_terminal/shared/offline/offline_lookup_cache_repository.dart';
+import 'package:furpa_merkez_terminal/shared/offline/mobile_customer_catalog_repository.dart';
+import 'package:furpa_merkez_terminal/shared/offline/mobile_product_catalog_repository.dart';
 import 'package:furpa_merkez_terminal/shared/utils/client_request_id.dart';
 import 'package:furpa_merkez_terminal/shared/utils/create_form_validation.dart';
 import 'package:furpa_merkez_terminal/shared/utils/e_despatch_qr_parser.dart';
@@ -20,17 +21,17 @@ class CompanyAcceptanceCreateSheet extends StatefulWidget {
     required this.repository,
     required this.ordersRepository,
     required this.accessToken,
-    required this.currentUserId,
     required this.defaultWarehouseNo,
-    required this.lookupCacheRepository,
+    required this.mobileCustomerCatalogRepository,
+    required this.mobileProductCatalogRepository,
   });
 
   final CompanyAcceptancesRepository repository;
   final GivenCompanyOrdersRepository ordersRepository;
   final String accessToken;
-  final String currentUserId;
   final String defaultWarehouseNo;
-  final OfflineLookupCacheRepository lookupCacheRepository;
+  final MobileCustomerCatalogLocalRepository mobileCustomerCatalogRepository;
+  final MobileProductCatalogLocalRepository mobileProductCatalogRepository;
 
   @override
   State<CompanyAcceptanceCreateSheet> createState() =>
@@ -802,24 +803,17 @@ class _CompanyAcceptanceCreateSheetState
     String query,
   ) async {
     try {
-      final items = await widget.repository.searchCustomers(
+      return await widget.repository.searchCustomers(
         accessToken: widget.accessToken,
         query: query,
       );
-      await widget.lookupCacheRepository.cacheCustomers(
-        userId: widget.currentUserId,
-        warehouseNo: widget.defaultWarehouseNo,
-        items: items,
-      );
-      return items;
     } on ApiException {
-      final cached = await widget.lookupCacheRepository.searchCustomers(
-        userId: widget.currentUserId,
-        warehouseNo: widget.defaultWarehouseNo,
-        query: query,
-      );
-      if (cached.isNotEmpty) {
-        return cached;
+      final catalogItems = await widget.mobileCustomerCatalogRepository
+          .searchCustomers(query: query);
+      if (catalogItems.isNotEmpty) {
+        return catalogItems
+            .map((item) => item.toCustomerLookupItem())
+            .toList(growable: false);
       }
       rethrow;
     }
@@ -831,7 +825,7 @@ class _CompanyAcceptanceCreateSheetState
   }) async {
     final normalizedCustomerCode = customerCode?.trim();
     try {
-      final items = await widget.repository.searchProducts(
+      return await widget.repository.searchProducts(
         accessToken: widget.accessToken,
         warehouseNo: widget.defaultWarehouseNo,
         query: query,
@@ -840,23 +834,13 @@ class _CompanyAcceptanceCreateSheetState
             ? null
             : normalizedCustomerCode,
       );
-      await widget.lookupCacheRepository.cacheAcceptanceProducts(
-        userId: widget.currentUserId,
-        warehouseNo: widget.defaultWarehouseNo,
-        customerCode: normalizedCustomerCode,
-        items: items,
-      );
-      return items;
     } on ApiException {
-      final cached = await widget.lookupCacheRepository
-          .searchAcceptanceProducts(
-            userId: widget.currentUserId,
-            warehouseNo: widget.defaultWarehouseNo,
-            query: query,
-            customerCode: normalizedCustomerCode,
-          );
-      if (cached.isNotEmpty) {
-        return cached;
+      final catalogItems = await widget.mobileProductCatalogRepository
+          .searchProducts(warehouseNo: widget.defaultWarehouseNo, query: query);
+      if (catalogItems.isNotEmpty) {
+        return catalogItems
+            .map((item) => item.toSearchProductLookupItem())
+            .toList(growable: false);
       }
       rethrow;
     }

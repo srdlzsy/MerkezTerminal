@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:furpa_merkez_terminal/core/network/api_exception.dart';
 import 'package:furpa_merkez_terminal/features/order_operations/shared/data/models/warehouse_order_models.dart';
 import 'package:furpa_merkez_terminal/features/return_operations/warehouse_returns/data/models/warehouse_return_models.dart';
 import 'package:furpa_merkez_terminal/features/return_operations/warehouse_returns/data/warehouse_returns_repository.dart';
 import 'package:furpa_merkez_terminal/shared/formatters/app_formatters.dart';
+import 'package:furpa_merkez_terminal/shared/offline/mobile_warehouse_catalog_repository.dart';
 import 'package:furpa_merkez_terminal/shared/utils/create_form_validation.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/barcode_camera_scan_page.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/terminal_ui_parts.dart';
@@ -14,11 +16,13 @@ class WarehouseReturnCreateSheet extends StatefulWidget {
     required this.repository,
     required this.accessToken,
     required this.defaultWarehouseNo,
+    required this.mobileWarehouseCatalogRepository,
   });
 
   final WarehouseReturnsRepository repository;
   final String accessToken;
   final String defaultWarehouseNo;
+  final MobileWarehouseCatalogLocalRepository mobileWarehouseCatalogRepository;
 
   @override
   State<WarehouseReturnCreateSheet> createState() =>
@@ -101,6 +105,8 @@ class _WarehouseReturnCreateSheetState extends State<WarehouseReturnCreateSheet>
       builder: (context) => _WarehouseLookupSheet(
         repository: widget.repository,
         accessToken: widget.accessToken,
+        mobileWarehouseCatalogRepository:
+            widget.mobileWarehouseCatalogRepository,
       ),
     );
 
@@ -675,10 +681,12 @@ class _WarehouseLookupSheet extends StatefulWidget {
   const _WarehouseLookupSheet({
     required this.repository,
     required this.accessToken,
+    required this.mobileWarehouseCatalogRepository,
   });
 
   final WarehouseReturnsRepository repository;
   final String accessToken;
+  final MobileWarehouseCatalogLocalRepository mobileWarehouseCatalogRepository;
 
   @override
   State<_WarehouseLookupSheet> createState() => _WarehouseLookupSheetState();
@@ -719,6 +727,25 @@ class _WarehouseLookupSheetState extends State<_WarehouseLookupSheet> {
       }
       setState(() {
         _items = items;
+        _isLoading = false;
+      });
+    } on ApiException catch (error) {
+      final catalogItems = await widget.mobileWarehouseCatalogRepository
+          .searchWarehouses(query: _queryController.text);
+      if (!mounted) {
+        return;
+      }
+      if (catalogItems.isNotEmpty) {
+        setState(() {
+          _items = catalogItems
+              .map((item) => item.toWarehouseLookupItem())
+              .toList(growable: false);
+          _isLoading = false;
+        });
+        return;
+      }
+      setState(() {
+        _errorMessage = error.toString();
         _isLoading = false;
       });
     } catch (error) {

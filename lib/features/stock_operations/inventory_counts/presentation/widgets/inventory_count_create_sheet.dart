@@ -4,7 +4,7 @@ import 'package:furpa_merkez_terminal/core/network/api_exception.dart';
 import 'package:furpa_merkez_terminal/features/stock_operations/inventory_counts/data/inventory_counts_repository.dart';
 import 'package:furpa_merkez_terminal/features/stock_operations/inventory_counts/data/models/inventory_count_models.dart';
 import 'package:furpa_merkez_terminal/shared/formatters/app_formatters.dart';
-import 'package:furpa_merkez_terminal/shared/offline/offline_lookup_cache_repository.dart';
+import 'package:furpa_merkez_terminal/shared/offline/mobile_product_catalog_repository.dart';
 import 'package:furpa_merkez_terminal/shared/utils/client_request_id.dart';
 import 'package:furpa_merkez_terminal/shared/utils/create_form_validation.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/barcode_camera_scan_page.dart';
@@ -17,16 +17,14 @@ class InventoryCountCreateSheet extends StatefulWidget {
     super.key,
     required this.repository,
     required this.accessToken,
-    required this.currentUserId,
     required this.defaultWarehouseNo,
-    required this.lookupCacheRepository,
+    required this.mobileProductCatalogRepository,
   });
 
   final InventoryCountsRepository repository;
   final String accessToken;
-  final String currentUserId;
   final String defaultWarehouseNo;
-  final OfflineLookupCacheRepository lookupCacheRepository;
+  final MobileProductCatalogLocalRepository mobileProductCatalogRepository;
 
   @override
   State<InventoryCountCreateSheet> createState() =>
@@ -148,25 +146,18 @@ class _InventoryCountCreateSheetState extends State<InventoryCountCreateSheet>
     String query,
   ) async {
     try {
-      final items = await widget.repository.searchProducts(
+      return await widget.repository.searchProducts(
         accessToken: widget.accessToken,
         warehouseNo: widget.defaultWarehouseNo,
         query: query,
       );
-      await widget.lookupCacheRepository.cacheInventoryProducts(
-        userId: widget.currentUserId,
-        warehouseNo: widget.defaultWarehouseNo,
-        items: items,
-      );
-      return items;
     } on ApiException {
-      final cached = await widget.lookupCacheRepository.searchInventoryProducts(
-        userId: widget.currentUserId,
-        warehouseNo: widget.defaultWarehouseNo,
-        query: query,
-      );
-      if (cached.isNotEmpty) {
-        return cached;
+      final catalogItems = await widget.mobileProductCatalogRepository
+          .searchProducts(warehouseNo: widget.defaultWarehouseNo, query: query);
+      if (catalogItems.isNotEmpty) {
+        return catalogItems
+            .map((item) => item.toInventoryCountProductLookupItem())
+            .toList(growable: false);
       }
       rethrow;
     }
