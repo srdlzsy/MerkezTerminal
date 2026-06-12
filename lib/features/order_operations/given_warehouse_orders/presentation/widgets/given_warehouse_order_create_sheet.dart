@@ -262,10 +262,7 @@ class _GivenWarehouseOrderCreateSheetState
 
   void _submit() {
     if (!validateCreateForm(_formKey)) {
-      setState(
-        () => _validationMessage =
-            'LÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¼tfen zorunlu alanlarÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â± dÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¼zeltin.',
-      );
+      setState(() => _validationMessage = 'Lutfen zorunlu alanlari duzeltin.');
       return;
     }
 
@@ -273,8 +270,7 @@ class _GivenWarehouseOrderCreateSheetState
 
     if (outWarehouseNo == null || outWarehouseNo <= 0) {
       setState(
-        () => _validationMessage =
-            'GeÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â§erli bir karÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¸ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â± depo numarasÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â± girin.',
+        () => _validationMessage = 'Gecerli bir karsi depo numarasi girin.',
       );
       return;
     }
@@ -284,10 +280,7 @@ class _GivenWarehouseOrderCreateSheetState
         .toList(growable: false);
 
     if (activeLines.isEmpty) {
-      setState(
-        () => _validationMessage =
-            'En az bir ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¼rÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¼n satÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â±rÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â± ekleyin.',
-      );
+      setState(() => _validationMessage = 'En az bir urun satiri ekleyin.');
       return;
     }
 
@@ -295,8 +288,7 @@ class _GivenWarehouseOrderCreateSheetState
       final line = activeLines[index];
       if (line.stockCodeController.text.trim().isEmpty) {
         setState(
-          () => _validationMessage =
-              '${index + 1}. satÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â±r iÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â§in ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¼rÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¼n seÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â§in.',
+          () => _validationMessage = '${index + 1}. satir icin urun secin.',
         );
         return;
       }
@@ -367,7 +359,7 @@ class _GivenWarehouseOrderCreateSheetState
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                'Yeni Verilen Depo SipariÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¸i',
+                                'Yeni Verilen Depo Siparisi',
                                 style: theme.textTheme.titleLarge?.copyWith(
                                   fontWeight: FontWeight.bold,
                                 ),
@@ -390,7 +382,7 @@ class _GivenWarehouseOrderCreateSheetState
                     ),
                   ),
 
-                  // ========== ANA ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â°ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¡ERÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â°K (Scroll) ==========
+                  // ========== ANA ICERIK (Scroll) ==========
                   Expanded(
                     child: ListView(
                       controller: _scrollController,
@@ -405,8 +397,7 @@ class _GivenWarehouseOrderCreateSheetState
                           children: [
                             Expanded(
                               child: _buildDateButton(
-                                label:
-                                    'SipariÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¸',
+                                label: 'Siparis',
                                 date: _orderDate,
                                 onPressed: () => _pickDate(isOrderDate: true),
                                 theme: theme,
@@ -425,15 +416,14 @@ class _GivenWarehouseOrderCreateSheetState
                         ),
                         const SizedBox(height: 20),
 
-                        // --- GiriÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¸ Modu SeÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â§ici (Kompakt) ---
+                        // --- Satirlar ---
                         TerminalSectionToolbar(
-                          title:
-                              'SatÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â±rlar',
+                          title: 'Satirlar',
                           actions: const [],
                         ),
                         const SizedBox(height: 10),
 
-                        // --- SatÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â±rlar ---
+                        // --- Satir kartlari ---
                         ..._lines.asMap().entries.map(
                           (entry) => _buildLineCard(
                             index: entry.key,
@@ -474,15 +464,13 @@ class _GivenWarehouseOrderCreateSheetState
 
                         const SizedBox(height: 16),
 
-                        // --- Aksiyon ButonlarÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â± ---
+                        // --- Aksiyon Butonlari ---
                         Row(
                           children: [
                             Expanded(
                               child: OutlinedButton(
                                 onPressed: () => Navigator.of(context).pop(),
-                                child: const Text(
-                                  'VazgeÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â§',
-                                ),
+                                child: const Text('Vazgec'),
                               ),
                             ),
                             const SizedBox(width: 12),
@@ -491,9 +479,7 @@ class _GivenWarehouseOrderCreateSheetState
                               child: FilledButton.icon(
                                 onPressed: _submit,
                                 icon: const Icon(Icons.save_rounded),
-                                label: const Text(
-                                  'SipariÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¸i OluÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¸tur',
-                                ),
+                                label: const Text('Siparisi Olustur'),
                                 style: FilledButton.styleFrom(
                                   padding: const EdgeInsets.symmetric(
                                     vertical: 14,
@@ -683,7 +669,7 @@ class _GivenWarehouseOrderCreateSheetState
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // SatÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â±r baÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¸lÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â±ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¸ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â± + sil butonu
+          // Satir basligi + sil butonu
           Container(
             padding: const EdgeInsets.fromLTRB(12, 8, 8, 4),
             decoration: BoxDecoration(
@@ -743,12 +729,12 @@ class _GivenWarehouseOrderCreateSheetState
             ),
           ),
 
-          // ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â°ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â§erik
+          // Icerik
           Padding(
             padding: const EdgeInsets.all(10),
             child: Column(
               children: [
-                // ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â¦ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œrÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¼n seÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â§me bÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¶lÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¼mÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¼
+                // Urun secme bolumu
                 if (!canScan)
                   Container(
                     width: double.infinity,
@@ -830,7 +816,7 @@ class _GivenWarehouseOrderCreateSheetState
                   },
                 ),
 
-                // ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â¦ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œrÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¼n bilgisi (seÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â§iliyse)
+                // Urun bilgisi (seciliyse)
                 if (product != null) ...[
                   const SizedBox(height: 8),
                   Container(
@@ -849,7 +835,7 @@ class _GivenWarehouseOrderCreateSheetState
                         const SizedBox(width: 6),
                         Expanded(
                           child: Text(
-                            'Birim: ${product.unitName}${product.isOrderBlocked ? ' | ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¯ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¸ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â SipariÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¸ blokeli' : ''}',
+                            'Birim: ${product.unitName}${product.isOrderBlocked ? ' | Siparis blokeli' : ''}',
                             style: TextStyle(
                               fontSize: 11,
                               color: theme.colorScheme.onPrimaryContainer,
@@ -976,8 +962,7 @@ class _WarehouseLookupSheetState extends State<_WarehouseLookupSheet> {
   Widget build(BuildContext context) {
     return _buildLookupSheet(
       title: 'Depo Ara',
-      subtitle:
-          'Depo no veya ad ile arayÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â±n',
+      subtitle: 'Depo no veya ad ile arayin',
       child: ListView.separated(
         shrinkWrap: true,
         itemCount: _items.length,
@@ -1066,11 +1051,7 @@ class _WarehouseLookupSheetState extends State<_WarehouseLookupSheet> {
                       : _errorMessage != null
                       ? Center(child: Text(_errorMessage!))
                       : _items.isEmpty
-                      ? const Center(
-                          child: Text(
-                            'SonuÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â§ bulunamadÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â±',
-                          ),
-                        )
+                      ? const Center(child: Text('Sonuc bulunamadi'))
                       : Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 20),
                           child: child,
@@ -1179,7 +1160,7 @@ class _ProductLookupSheetState extends State<_ProductLookupSheet> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â¦ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œrÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¼n Ara',
+                        'Urun Ara',
                         style: Theme.of(context).textTheme.titleLarge,
                       ),
                       const SizedBox(height: 4),
@@ -1195,8 +1176,7 @@ class _ProductLookupSheetState extends State<_ProductLookupSheet> {
                               controller: _queryController,
                               onSubmitted: (_) => _load(),
                               decoration: const InputDecoration(
-                                hintText:
-                                    'Stok adÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â±, kodu veya barkod',
+                                hintText: 'Stok adi, kodu veya barkod',
                                 border: OutlineInputBorder(),
                                 isDense: true,
                                 contentPadding: EdgeInsets.symmetric(
@@ -1222,11 +1202,7 @@ class _ProductLookupSheetState extends State<_ProductLookupSheet> {
                       : _errorMessage != null
                       ? Center(child: Text(_errorMessage!))
                       : _items.isEmpty
-                      ? const Center(
-                          child: Text(
-                            'SonuÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â§ bulunamadÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â±',
-                          ),
-                        )
+                      ? const Center(child: Text('Sonuc bulunamadi'))
                       : ListView.separated(
                           padding: const EdgeInsets.symmetric(horizontal: 20),
                           itemCount: _items.length,

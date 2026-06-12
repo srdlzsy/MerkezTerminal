@@ -8,6 +8,54 @@ import 'package:furpa_merkez_terminal/shared/offline/mobile_warehouse_catalog_re
 import '../../support/memory_local_database.dart';
 
 void main() {
+  testWidgets('renders create sheet labels without mojibake', (tester) async {
+    tester.view.physicalSize = const Size(390, 1000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: GivenWarehouseOrderCreateSheet(
+            repository: _FakeWarehouseOrdersRepository(),
+            accessToken: 'token',
+            defaultWarehouseNo: '110',
+            mobileWarehouseCatalogRepository:
+                MobileWarehouseCatalogLocalRepository(
+                  database: MemoryLocalDatabase(),
+                ),
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('Yeni Verilen Depo Siparisi'), findsOneWidget);
+    expect(find.text('Kaynak depo: 110'), findsOneWidget);
+    expect(find.text('Siparis'), findsOneWidget);
+    expect(find.text('Satirlar'), findsOneWidget);
+
+    await tester.scrollUntilVisible(
+      find.text('Siparisi Olustur'),
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Vazgec'), findsOneWidget);
+    expect(find.text('Siparisi Olustur'), findsOneWidget);
+
+    final renderedText = tester
+        .widgetList<Text>(find.byType(Text))
+        .map((widget) => widget.data)
+        .whereType<String>()
+        .join('\n');
+
+    expect(renderedText, isNot(contains(String.fromCharCode(0x00C3))));
+    expect(renderedText, isNot(contains(String.fromCharCode(0x00C2))));
+    expect(renderedText, isNot(contains(String.fromCharCode(0x00E2))));
+  });
+
   testWidgets(
     'keeps compact product entry actions in one row on terminal width',
     (tester) async {
