@@ -27,8 +27,7 @@ class ReceivedWarehouseOrdersPage extends StatelessWidget {
       defaultWarehouseNo: defaultWarehouseNo,
       userWarehouseName: userWarehouseName,
       title: 'Alinan Depo Siparisleri',
-      subtitle:
-          'Liste ve detay akisi mevcut tasarim korunarak gercek API ile yuklenir.',
+      subtitle: 'Gelen depo siparislerini listeleyin ve detaylarini inceleyin.',
     );
   }
 }

@@ -87,6 +87,7 @@ class MobileProductCatalogItem {
       stockCode: stockCode,
       stockName: stockName,
       unitName: unitName,
+      unitMultiplier: unitMultiplier,
       price: price,
       isGoodsAcceptanceBlocked: isGoodsAcceptanceBlocked,
     );

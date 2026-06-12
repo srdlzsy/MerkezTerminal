@@ -208,7 +208,7 @@ class ShellModuleRegistry {
           userWarehouseName: context.user.warehouseName,
           title: 'Verilen Firma Siparisleri',
           subtitle:
-              'Firma siparislerinin liste, detay ve create akisi sade ve hizli kullanim icin tek ekranda toplandi.',
+              'Firma siparislerini listeleyin, detaylari acin ve yeni siparis olusturun.',
         ),
       ),
       ShellModuleRoute(
@@ -223,7 +223,7 @@ class ShellModuleRegistry {
           userWarehouseName: context.user.warehouseName,
           title: 'Alinan Firma Siparisleri',
           subtitle:
-              'Gelen firma siparisleri salt okunur liste ve detay akisi ile hedef depo perspektifinde gosterilir.',
+              'Gelen firma siparislerini listeleyin ve detaylarini inceleyin.',
           emptyListMessage:
               'Secilen tarih araliginda alinan firma siparisi bulunamadi.',
         ),
@@ -265,8 +265,7 @@ class ShellModuleRegistry {
               mobileWarehouseCatalogLocalRepository,
           userWarehouseName: context.user.warehouseName,
           title: 'Giden Depolar Arasi Sevkler',
-          subtitle:
-              'Liste, detay ve create akisi dokumandaki giden sevk endpointlerine baglandi.',
+          subtitle: 'Depolar arasi sevkleri listeleyin ve yeni sevk olusturun.',
         ),
       ),
       ShellModuleRoute(
@@ -283,7 +282,7 @@ class ShellModuleRegistry {
           userWarehouseName: context.user.warehouseName,
           title: 'Gelen Depolar Arasi Sevkler',
           subtitle:
-              'Hedef depo perspektifinde gelen sevklerin liste ve detay akisi ayni hizli panelde gosterilir.',
+              'Gelen depo sevklerini listeleyin ve detaylarini inceleyin.',
           emptyListMessage:
               'Secilen tarih araliginda gelen depo sevki bulunamadi.',
         ),
@@ -387,6 +386,7 @@ class ShellModuleRegistry {
           accessToken: context.accessToken,
           canCreate: context.canCreate,
           defaultWarehouseNo: context.user.warehouseNo,
+          mobileProductCatalogRepository: mobileProductCatalogLocalRepository,
           userWarehouseName: context.user.warehouseName,
         ),
       ),
@@ -402,7 +402,7 @@ class ShellModuleRegistry {
           userWarehouseName: context.user.warehouseName,
           title: 'Giden Firma Sevkleri',
           subtitle:
-              'Firma sevklerinin liste, detay, create ve e-irsaliye akisi tek panelde toplandi.',
+              'Firma sevklerini listeleyin, yeni sevk acin ve e-irsaliye hazirlayin.',
           createTitle: 'Yeni Firma Sevki',
           createHelperText:
               'Cari secildikten sonra sevk satirlari barkod veya urun arama ile eklenir.',
@@ -423,7 +423,7 @@ class ShellModuleRegistry {
           userWarehouseName: context.user.warehouseName,
           title: 'Gelen Firma Sevkleri',
           subtitle:
-              'Hedef depo perspektifinde gelen firma sevkleri salt okunur liste ve detay akisi ile gosterilir.',
+              'Gelen firma sevklerini listeleyin ve detaylarini inceleyin.',
           createTitle: 'Yeni Firma Sevki',
           createHelperText: '',
           createButtonLabel: 'Yeni Firma Sevki',
@@ -460,7 +460,7 @@ class ShellModuleRegistry {
           userWarehouseName: context.user.warehouseName,
           title: 'Firma Iadeleri',
           subtitle:
-              'Firma iade evraklari liste, detay, create ve e-irsaliye akislariyla birlikte yonetilir.',
+              'Firma iadelerini listeleyin, yeni iade acin ve e-irsaliye hazirlayin.',
           createTitle: 'Yeni Iade',
           createHelperText:
               'Cari secildikten sonra iade satirlari manuel eklenir ve e-irsaliye adimi detay ekranindan yonetilir.',

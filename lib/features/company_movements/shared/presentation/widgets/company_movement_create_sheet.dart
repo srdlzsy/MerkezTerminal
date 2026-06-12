@@ -7,6 +7,8 @@ import 'package:furpa_merkez_terminal/features/order_operations/given_company_or
 import 'package:furpa_merkez_terminal/shared/data/search_lookup_models.dart';
 import 'package:furpa_merkez_terminal/shared/formatters/app_formatters.dart';
 import 'package:furpa_merkez_terminal/shared/offline/mobile_customer_catalog_repository.dart';
+import 'package:furpa_merkez_terminal/shared/product_entry/product_entry_controller.dart';
+import 'package:furpa_merkez_terminal/shared/product_entry/product_entry_widgets.dart';
 import 'package:furpa_merkez_terminal/shared/utils/create_form_validation.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/barcode_camera_scan_page.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/terminal_ui_parts.dart';
@@ -121,7 +123,10 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
         }
 
         setState(() {
-          _lookupError = error.toString().replaceFirst('Exception: ', '').trim();
+          _lookupError = error
+              .toString()
+              .replaceFirst('Exception: ', '')
+              .trim();
         });
         return;
       }
@@ -283,8 +288,10 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
           'Secildi: ${selected.stockCode} | ${selected.stockName}',
         );
       }
+      _ensureFreshEntryLine();
       _lookupError = null;
     });
+    _focusFreshEntryLine();
 
     if (mergedIntoExisting) {
       _showFeedback('Ayni barkod mevcut satira eklendi; miktar artirildi.');
@@ -322,10 +329,16 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
     _MovementLineDraft line,
     SearchProductLookupItem product,
   ) {
-    final existingLine = _findDuplicateLine(
-      currentLine: line,
-      barcode: product.barcode,
-      stockCode: product.stockCode,
+    final existingLine = productEntryController.findDuplicateLine(
+      ProductEntryDuplicateMergePolicy<_MovementLineDraft>(
+        currentLine: line,
+        targetBarcode: product.barcode,
+        targetStockCode: product.stockCode,
+        lines: _lines,
+        lineBarcode: (line) => line.selectedProduct?.barcode ?? '',
+        lineStockCode: (line) => line.selectedProduct?.stockCode ?? '',
+        canMergeLine: (line) => line.selectedProduct != null,
+      ),
     );
 
     if (existingLine == null) {
@@ -333,50 +346,29 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
       return false;
     }
 
-    existingLine.quantityController.text = _formatQuantity(
-      _readDouble(existingLine.quantityController.text, fallback: 0) +
-          _readDouble(line.quantityController.text, fallback: 0),
-    );
+    existingLine.quantityController.text = productEntryController
+        .formatQuantity(
+          productEntryController.readQuantity(
+                existingLine.quantityController.text,
+                fallback: 0,
+              ) +
+              productEntryController.quantityInputOrUnitMultiplier(
+                line.quantityController.text,
+                product.unitMultiplier,
+              ),
+        );
 
-    if (_readDouble(existingLine.unitPriceController.text, fallback: 0) <= 0) {
+    if (productEntryController.readQuantity(
+          existingLine.unitPriceController.text,
+          fallback: 0,
+        ) <=
+        0) {
       line.applyProduct(product);
       existingLine.unitPriceController.text = line.unitPriceController.text;
     }
 
     _recycleMergedLine(line, createReplacement: _MovementLineDraft.new);
     return true;
-  }
-
-  _MovementLineDraft? _findDuplicateLine({
-    required _MovementLineDraft currentLine,
-    required String barcode,
-    required String stockCode,
-  }) {
-    final targetKey = _productIdentity(barcode: barcode, stockCode: stockCode);
-    if (targetKey == null) {
-      return null;
-    }
-
-    for (final candidate in _lines) {
-      if (identical(candidate, currentLine)) {
-        continue;
-      }
-
-      final selectedProduct = candidate.selectedProduct;
-      if (selectedProduct == null) {
-        continue;
-      }
-
-      final candidateKey = _productIdentity(
-        barcode: selectedProduct.barcode,
-        stockCode: selectedProduct.stockCode,
-      );
-      if (candidateKey == targetKey) {
-        return candidate;
-      }
-    }
-
-    return null;
   }
 
   void _recycleMergedLine(
@@ -394,11 +386,28 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
     _lines.removeAt(lineIndex);
   }
 
-  void _addLine() {
-    setState(() {
+  void _ensureFreshEntryLine() {
+    if (_lines.isEmpty || !_isBlankLine(_lines.first)) {
       _lines.insert(0, _MovementLineDraft());
-      _lookupError = null;
+    }
+  }
+
+  void _focusFreshEntryLine() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _lines.isEmpty) {
+        return;
+      }
+
+      final firstLine = _lines.first;
+      if (_isBlankLine(firstLine)) {
+        firstLine.lookupFocusNode.requestFocus();
+      }
     });
+  }
+
+  bool _isBlankLine(_MovementLineDraft line) {
+    return line.selectedProduct == null &&
+        line.lookupController.text.trim().isEmpty;
   }
 
   void _submit() {
@@ -415,7 +424,18 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
       return;
     }
 
-    if (_lines.any((line) => line.selectedProduct == null)) {
+    final activeLines = _lines
+        .where((line) => !_isBlankLine(line))
+        .toList(growable: false);
+
+    if (activeLines.isEmpty) {
+      setState(() {
+        _lookupError = 'En az bir urun satiri ekleyin.';
+      });
+      return;
+    }
+
+    if (activeLines.any((line) => line.selectedProduct == null)) {
       setState(() {
         _lookupError = 'Tum satirlarda urun secimi tamamlanmali.';
       });
@@ -431,7 +451,7 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
             ? _documentNoController.text.trim()
             : '',
         description: _descriptionController.text.trim(),
-        lines: _lines
+        lines: activeLines
             .map(
               (line) => CompanyMovementCreateLine(
                 stockCode: line.selectedProduct!.stockCode,
@@ -530,18 +550,17 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
             const SizedBox(height: 16),
             TerminalSectionToolbar(
               title: 'Satirlar',
-              actions: <Widget>[
-                OutlinedButton.icon(
-                  onPressed: _addLine,
-                  icon: const Icon(Icons.add_rounded),
-                  label: const Text('Satir Ekle'),
-                ),
-              ],
+              actions: const <Widget>[],
             ),
             const SizedBox(height: 10),
             ..._lines.asMap().entries.map((entry) {
               final index = entry.key;
               final line = entry.value;
+              final isFreshEntry = index == 0 && _isBlankLine(line);
+              final displayLineNo = _lines
+                  .take(index + 1)
+                  .where((item) => !_isBlankLine(item))
+                  .length;
               return Padding(
                 padding: const EdgeInsets.only(bottom: 12),
                 child: Container(
@@ -562,7 +581,9 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
                         children: <Widget>[
                           Expanded(
                             child: Text(
-                              'Satir ${index + 1}',
+                              isFreshEntry
+                                  ? 'Giris satiri'
+                                  : 'Satir $displayLineNo',
                               style: Theme.of(context).textTheme.titleSmall
                                   ?.copyWith(fontWeight: FontWeight.w800),
                             ),
@@ -580,12 +601,16 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
                         ],
                       ),
                       TerminalResponsiveLookupRow(
-                        field: TextFormField(
+                        field: ProductLookupField(
                           controller: line.lookupController,
-                          decoration: const InputDecoration(
-                            labelText: 'Barkod / stok kodu / urun adi',
-                          ),
+                          focusNode: line.lookupFocusNode,
+                          enabled: !line.isLookupStatusLoading,
+                          onSubmit: () => _searchProduct(line),
                           validator: (_) {
+                            if (_isBlankLine(line)) {
+                              return null;
+                            }
+
                             if (line.selectedProduct == null) {
                               return 'Urun secilmeli.';
                             }
@@ -643,6 +668,10 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
                         ],
                         decoration: const InputDecoration(labelText: 'Miktar'),
                         validator: (_) {
+                          if (_isBlankLine(line)) {
+                            return null;
+                          }
+
                           if (line.quantity <= 0) {
                             return 'Miktar > 0 olmali.';
                           }
@@ -676,29 +705,6 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
     );
   }
 
-  static String? _productIdentity({
-    required String barcode,
-    required String stockCode,
-  }) {
-    final normalizedBarcode = barcode.trim();
-    if (normalizedBarcode.isNotEmpty) {
-      return 'b:$normalizedBarcode';
-    }
-
-    final normalizedStockCode = stockCode.trim();
-    if (normalizedStockCode.isNotEmpty) {
-      return 's:$normalizedStockCode';
-    }
-
-    return null;
-  }
-
-  static String _formatQuantity(double value) {
-    final fixed = value.toStringAsFixed(6);
-    final normalized = fixed.replaceFirst(RegExp(r'\.?0+$'), '');
-    return normalized.replaceAll('.', ',');
-  }
-
   void _showFeedback(String message) {
     final messenger = ScaffoldMessenger.maybeOf(context);
     messenger?.hideCurrentSnackBar();
@@ -716,7 +722,7 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
 class _MovementLineDraft {
   _MovementLineDraft()
     : lookupController = TextEditingController(),
-      quantityController = TextEditingController(text: '1'),
+      quantityController = TextEditingController(),
       unitPriceController = TextEditingController(text: '0'),
       unitPointerController = TextEditingController(text: '1'),
       descriptionController = TextEditingController(),
@@ -736,20 +742,30 @@ class _MovementLineDraft {
   final TextEditingController projectCodeController;
   final TextEditingController customerRcController;
   final TextEditingController productRcController;
+  final FocusNode lookupFocusNode = FocusNode();
 
   SearchProductLookupItem? selectedProduct;
   String? lookupStatusMessage;
   bool isLookupStatusLoading = false;
   bool isLookupStatusError = false;
 
-  double get quantity => _readDouble(quantityController.text, fallback: 0);
-  double get unitPrice => _readDouble(unitPriceController.text, fallback: 0);
+  double get quantity =>
+      productEntryController.readQuantity(quantityController.text, fallback: 0);
+  double get unitPrice => productEntryController.readQuantity(
+    unitPriceController.text,
+    fallback: 0,
+  );
   int get unitPointer => _readInt(unitPointerController.text, fallback: 1);
   int get lotNo => _readInt(lotNoController.text, fallback: 0);
 
   void applyProduct(SearchProductLookupItem product) {
     selectedProduct = product;
     lookupController.text = product.displayLabel;
+    if (quantityController.text.trim().isEmpty) {
+      quantityController.text = productEntryController.formatQuantity(
+        productEntryController.unitMultiplierQuantity(product.unitMultiplier),
+      );
+    }
     unitPriceController.text = product.price.toString();
   }
 
@@ -764,6 +780,7 @@ class _MovementLineDraft {
   }
 
   void dispose() {
+    lookupFocusNode.dispose();
     lookupController.dispose();
     quantityController.dispose();
     unitPriceController.dispose();
@@ -775,10 +792,6 @@ class _MovementLineDraft {
     customerRcController.dispose();
     productRcController.dispose();
   }
-}
-
-double _readDouble(String value, {required double fallback}) {
-  return double.tryParse(value.trim().replaceAll(',', '.')) ?? fallback;
 }
 
 int _readInt(String value, {required int fallback}) {

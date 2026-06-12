@@ -133,6 +133,7 @@ class ProductLookupItem {
     required this.stockName,
     required this.price,
     required this.unitName,
+    this.unitMultiplier = 1,
     required this.isOrderBlocked,
   });
 
@@ -142,6 +143,7 @@ class ProductLookupItem {
   final String stockName;
   final double price;
   final String unitName;
+  final double unitMultiplier;
   final bool isOrderBlocked;
 
   String get displayLabel => '$stockCode - $stockName';
@@ -154,6 +156,7 @@ class ProductLookupItem {
       stockName: _readString(json['stockName']),
       price: _readDouble(json['price']),
       unitName: _readString(json['unitName']),
+      unitMultiplier: _readPositiveDouble(json['unitMultiplier']),
       isOrderBlocked: _readBool(json['isOrderBlocked']),
     );
   }
@@ -436,6 +439,11 @@ double _readDouble(Object? value) {
   }
 
   return double.tryParse(value?.toString() ?? '') ?? 0;
+}
+
+double _readPositiveDouble(Object? value, {double fallback = 1}) {
+  final parsed = _readDouble(value);
+  return parsed > 0 ? parsed : fallback;
 }
 
 int _readInt(Object? value) {

@@ -289,8 +289,7 @@ class _CompanyAcceptancesPageState extends State<CompanyAcceptancesPage> {
   Widget _buildHeader() {
     return TerminalListHeaderCard(
       title: 'Firma Mal Kabulleri',
-      subtitle:
-          'Gecmis fisleri listeler; yeni fiste siparisli ve siparissiz satirlar ayni kabul evraginda birlesebilir.',
+      subtitle: 'Gecmis kabulleri listeleyin ve yeni mal kabul baslatin.',
       infoChips: <Widget>[
         TerminalInfoChip(
           label: 'Varsayilan depo',

@@ -5,12 +5,12 @@ import 'package:furpa_merkez_terminal/features/stock_operations/inventory_counts
 import 'package:furpa_merkez_terminal/features/stock_operations/inventory_counts/data/models/inventory_count_models.dart';
 import 'package:furpa_merkez_terminal/shared/formatters/app_formatters.dart';
 import 'package:furpa_merkez_terminal/shared/offline/mobile_product_catalog_repository.dart';
+import 'package:furpa_merkez_terminal/shared/product_entry/product_entry_controller.dart';
+import 'package:furpa_merkez_terminal/shared/product_entry/product_entry_widgets.dart';
 import 'package:furpa_merkez_terminal/shared/utils/client_request_id.dart';
 import 'package:furpa_merkez_terminal/shared/utils/create_form_validation.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/barcode_camera_scan_page.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/terminal_ui_parts.dart';
-
-enum _InventoryEntryMode { barcode, search, camera }
 
 class InventoryCountCreateSheet extends StatefulWidget {
   const InventoryCountCreateSheet({
@@ -38,7 +38,6 @@ class _InventoryCountCreateSheetState extends State<InventoryCountCreateSheet>
   late final TextEditingController _nameController;
   late DateTime _documentDate;
   late List<_InventoryLineDraft> _lines;
-  late _InventoryEntryMode _entryMode;
   String? _validationMessage;
 
   @override
@@ -47,7 +46,6 @@ class _InventoryCountCreateSheetState extends State<InventoryCountCreateSheet>
     _nameController = TextEditingController();
     _documentDate = _normalizeDate(DateTime.now());
     _lines = <_InventoryLineDraft>[_InventoryLineDraft()];
-    _entryMode = _InventoryEntryMode.barcode;
   }
 
   @override
@@ -86,6 +84,7 @@ class _InventoryCountCreateSheetState extends State<InventoryCountCreateSheet>
       builder: (context) {
         return _InventoryProductLookupSheet(
           onSearchProducts: _searchProductsWithFallback,
+          initialQuery: line.barcodeController.text,
         );
       },
     );
@@ -97,48 +96,13 @@ class _InventoryCountCreateSheetState extends State<InventoryCountCreateSheet>
     var mergedIntoExisting = false;
     setState(() {
       mergedIntoExisting = _applyProductToLine(line, product);
+      _ensureFreshEntryLine();
       _validationMessage = null;
     });
+    _focusFreshEntryLine();
 
     if (mergedIntoExisting) {
       _showFeedback('Ayni barkod mevcut satira eklendi; miktar artirildi.');
-    }
-  }
-
-  Future<void> _findProductByBarcode(_InventoryLineDraft line) async {
-    final barcode = line.barcodeController.text.trim();
-    if (barcode.length < 3) {
-      _showFeedback('Barkod alanina gecerli bir deger girin.');
-      return;
-    }
-
-    try {
-      final products = await _searchProductsWithFallback(barcode);
-
-      if (!mounted) {
-        return;
-      }
-
-      if (products.isEmpty) {
-        _showFeedback('Bu barkoda ait urun bulunamadi.');
-        return;
-      }
-
-      var mergedIntoExisting = false;
-      setState(() {
-        mergedIntoExisting = _applyProductToLine(line, products.first);
-        _validationMessage = null;
-      });
-
-      if (mergedIntoExisting) {
-        _showFeedback('Ayni barkod mevcut satira eklendi; miktar artirildi.');
-      }
-    } catch (error) {
-      if (!mounted) {
-        return;
-      }
-
-      _showFeedback(error.toString().replaceFirst('Exception: ', '').trim());
     }
   }
 
@@ -180,17 +144,23 @@ class _InventoryCountCreateSheetState extends State<InventoryCountCreateSheet>
     }
 
     line.barcodeController.text = barcode;
-    await _findProductByBarcode(line);
+    await _searchProduct(line);
   }
 
   bool _applyProductToLine(
     _InventoryLineDraft line,
     InventoryCountProductLookupItem product,
   ) {
-    final existingLine = _findDuplicateLine(
-      currentLine: line,
-      barcode: product.barcode,
-      stockCode: product.stockCode,
+    final existingLine = productEntryController.findDuplicateLine(
+      ProductEntryDuplicateMergePolicy<_InventoryLineDraft>(
+        currentLine: line,
+        targetBarcode: product.barcode,
+        targetStockCode: product.stockCode,
+        lines: _lines,
+        lineBarcode: (line) => line.selectedProduct?.barcode ?? '',
+        lineStockCode: (line) => line.selectedProduct?.stockCode ?? '',
+        canMergeLine: (line) => line.selectedProduct != null,
+      ),
     );
 
     if (existingLine == null) {
@@ -198,44 +168,19 @@ class _InventoryCountCreateSheetState extends State<InventoryCountCreateSheet>
       return false;
     }
 
-    existingLine.quantityController.text = _formatQuantity(
-      _parseDouble(existingLine.quantityController.text) +
-          _parseDouble(line.quantityController.text),
-    );
+    existingLine.quantityController.text = productEntryController
+        .formatQuantity(
+          productEntryController.readQuantity(
+                existingLine.quantityController.text,
+                fallback: 0,
+              ) +
+              productEntryController.quantityInputOrUnitMultiplier(
+                line.quantityController.text,
+                product.unitMultiplier,
+              ),
+        );
     _recycleMergedLine(line, createReplacement: _InventoryLineDraft.new);
     return true;
-  }
-
-  _InventoryLineDraft? _findDuplicateLine({
-    required _InventoryLineDraft currentLine,
-    required String barcode,
-    required String stockCode,
-  }) {
-    final targetKey = _productIdentity(barcode: barcode, stockCode: stockCode);
-    if (targetKey == null) {
-      return null;
-    }
-
-    for (final candidate in _lines) {
-      if (identical(candidate, currentLine)) {
-        continue;
-      }
-
-      final selectedProduct = candidate.selectedProduct;
-      if (selectedProduct == null) {
-        continue;
-      }
-
-      final candidateKey = _productIdentity(
-        barcode: selectedProduct.barcode,
-        stockCode: selectedProduct.stockCode,
-      );
-      if (candidateKey == targetKey) {
-        return candidate;
-      }
-    }
-
-    return null;
   }
 
   void _recycleMergedLine(
@@ -253,21 +198,29 @@ class _InventoryCountCreateSheetState extends State<InventoryCountCreateSheet>
     _lines = _lines.where((item) => item != line).toList(growable: false);
   }
 
-  void _addLine() {
-    setState(() {
+  void _ensureFreshEntryLine() {
+    if (_lines.isEmpty || !_isBlankLine(_lines.first)) {
       _lines = <_InventoryLineDraft>[_InventoryLineDraft(), ..._lines];
-      _validationMessage = null;
-    });
+    }
+  }
 
+  void _focusFreshEntryLine() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_scrollController.hasClients) {
-        _scrollController.animateTo(
-          _scrollController.position.minScrollExtent,
-          duration: const Duration(milliseconds: 140),
-          curve: Curves.easeOut,
-        );
+      if (!mounted || _lines.isEmpty) {
+        return;
+      }
+
+      final firstLine = _lines.first;
+      if (_isBlankLine(firstLine)) {
+        firstLine.barcodeFocusNode.requestFocus();
       }
     });
+  }
+
+  bool _isBlankLine(_InventoryLineDraft line) {
+    return line.selectedProduct == null &&
+        line.stockCodeController.text.trim().isEmpty &&
+        line.barcodeController.text.trim().isEmpty;
   }
 
   void _removeLine(_InventoryLineDraft line) {
@@ -290,11 +243,25 @@ class _InventoryCountCreateSheetState extends State<InventoryCountCreateSheet>
       return;
     }
 
+    final activeLines = _lines
+        .where((line) => !_isBlankLine(line))
+        .toList(growable: false);
+
+    if (activeLines.isEmpty) {
+      setState(() {
+        _validationMessage = 'En az bir urun satiri ekleyin.';
+      });
+      return;
+    }
+
     final requestLines = <InventoryCountCreateLine>[];
-    for (var index = 0; index < _lines.length; index += 1) {
-      final line = _lines[index];
+    for (var index = 0; index < activeLines.length; index += 1) {
+      final line = activeLines[index];
       final stockCode = line.stockCodeController.text.trim();
-      final quantity = _parseDouble(line.quantityController.text);
+      final quantity = productEntryController.readQuantity(
+        line.quantityController.text,
+        fallback: 0,
+      );
 
       if (stockCode.isEmpty) {
         setState(() {
@@ -426,50 +393,16 @@ class _InventoryCountCreateSheetState extends State<InventoryCountCreateSheet>
                           ),
                         ),
                         const SizedBox(height: 16),
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          crossAxisAlignment: WrapCrossAlignment.center,
-                          children: <Widget>[
-                            const Padding(
-                              padding: EdgeInsets.only(right: 4),
-                              child: Text(
-                                'Urun girisi:',
-                                style: TextStyle(fontWeight: FontWeight.w600),
-                              ),
-                            ),
-                            _buildModeChip(
-                              'Barkod ile',
-                              _InventoryEntryMode.barcode,
-                            ),
-                            _buildModeChip(
-                              'Arama ile',
-                              _InventoryEntryMode.search,
-                            ),
-                            _buildModeChip(
-                              'Kamera ile',
-                              _InventoryEntryMode.camera,
-                            ),
-                          ],
+                        TerminalSectionToolbar(
+                          title: 'Satirlar',
+                          actions: const <Widget>[],
                         ),
-                        const SizedBox(height: 12),
+                        const SizedBox(height: 10),
                         ..._lines.asMap().entries.map(
                           (entry) => _buildLineCard(
                             theme: theme,
                             index: entry.key,
                             line: entry.value,
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        SizedBox(
-                          width: double.infinity,
-                          child: OutlinedButton.icon(
-                            onPressed: _addLine,
-                            icon: const Icon(Icons.add_rounded, size: 20),
-                            label: const Text('Yeni Satir Ekle'),
-                            style: OutlinedButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(vertical: 12),
-                            ),
                           ),
                         ),
                         if (_validationMessage != null) ...<Widget>[
@@ -504,29 +437,17 @@ class _InventoryCountCreateSheetState extends State<InventoryCountCreateSheet>
     );
   }
 
-  Widget _buildModeChip(String label, _InventoryEntryMode mode) {
-    final isSelected = _entryMode == mode;
-
-    return ChoiceChip(
-      label: Text(label),
-      selected: isSelected,
-      onSelected: (_) {
-        setState(() {
-          _entryMode = mode;
-          _validationMessage = null;
-        });
-      },
-    );
-  }
-
   Widget _buildLineCard({
     required ThemeData theme,
     required int index,
     required _InventoryLineDraft line,
   }) {
     final product = line.selectedProduct;
-    final isBarcodeMode = _entryMode == _InventoryEntryMode.barcode;
-    final isCameraMode = _entryMode == _InventoryEntryMode.camera;
+    final isFreshEntry = index == 0 && _isBlankLine(line);
+    final displayLineNo = _lines
+        .take(index + 1)
+        .where((item) => !_isBlankLine(item))
+        .length;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -543,7 +464,7 @@ class _InventoryCountCreateSheetState extends State<InventoryCountCreateSheet>
               children: <Widget>[
                 Expanded(
                   child: Text(
-                    'Satir ${index + 1}',
+                    isFreshEntry ? 'Giris satiri' : 'Satir $displayLineNo',
                     style: theme.textTheme.titleSmall?.copyWith(
                       fontWeight: FontWeight.w800,
                     ),
@@ -564,65 +485,30 @@ class _InventoryCountCreateSheetState extends State<InventoryCountCreateSheet>
             padding: const EdgeInsets.all(10),
             child: Column(
               children: <Widget>[
-                if (isBarcodeMode)
-                  TerminalResponsiveLookupRow(
-                    breakpoint: 340,
-                    field: TextField(
-                      controller: line.barcodeController,
-                      keyboardType: TextInputType.number,
-                      textInputAction: TextInputAction.done,
-                      onSubmitted: (_) => _findProductByBarcode(line),
-                      decoration: const InputDecoration(
-                        labelText: 'Barkod',
-                        hintText: 'Tarat veya yaz',
-                        suffixIcon: Icon(
-                          Icons.qr_code_scanner_rounded,
-                          size: 20,
-                        ),
-                      ),
-                    ),
-                    action: FilledButton.tonal(
-                      onPressed: () => _findProductByBarcode(line),
-                      style: FilledButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 12,
-                        ),
-                      ),
-                      child: const Text('Bul'),
-                    ),
-                  )
-                else if (isCameraMode)
-                  SizedBox(
-                    width: double.infinity,
-                    child: FilledButton.tonalIcon(
-                      onPressed: () => _scanProductWithCamera(line),
-                      icon: const Icon(
-                        Icons.photo_camera_back_rounded,
-                        size: 18,
-                      ),
-                      label: Text(
-                        product == null ? 'Kamera ile Oku' : 'Tekrar Kamera Ac',
-                      ),
-                      style: FilledButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                      ),
-                    ),
-                  )
-                else
-                  SizedBox(
-                    width: double.infinity,
-                    child: FilledButton.tonalIcon(
-                      onPressed: () => _searchProduct(line),
-                      icon: const Icon(Icons.search_rounded, size: 18),
-                      label: Text(
-                        product == null ? 'Urun Sec' : 'Urun Degistir',
-                      ),
-                      style: FilledButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                      ),
-                    ),
+                TerminalResponsiveLookupRow(
+                  breakpoint: 340,
+                  field: ProductLookupField(
+                    controller: line.barcodeController,
+                    focusNode: line.barcodeFocusNode,
+                    onSubmit: () => _searchProduct(line),
                   ),
+                  action: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: <Widget>[
+                      FilledButton.icon(
+                        onPressed: () => _searchProduct(line),
+                        icon: const Icon(Icons.search_rounded),
+                        label: const Text('Urun'),
+                      ),
+                      const SizedBox(width: 8),
+                      IconButton.filledTonal(
+                        onPressed: () => _scanProductWithCamera(line),
+                        tooltip: 'Kamera ile oku',
+                        icon: const Icon(Icons.photo_camera_back_rounded),
+                      ),
+                    ],
+                  ),
+                ),
                 const SizedBox(height: 10),
                 TextFormField(
                   controller: line.quantityController,
@@ -634,7 +520,15 @@ class _InventoryCountCreateSheetState extends State<InventoryCountCreateSheet>
                   ],
                   decoration: const InputDecoration(labelText: 'Miktar*'),
                   validator: (value) {
-                    if (_parseDouble(value ?? '') <= 0) {
+                    if (_isBlankLine(line)) {
+                      return null;
+                    }
+
+                    if (productEntryController.readQuantity(
+                          value ?? '',
+                          fallback: 0,
+                        ) <=
+                        0) {
                       return 'Zorunlu';
                     }
 
@@ -676,33 +570,6 @@ class _InventoryCountCreateSheetState extends State<InventoryCountCreateSheet>
     return DateTime(value.year, value.month, value.day);
   }
 
-  static double _parseDouble(String raw) {
-    return double.tryParse(raw.trim().replaceAll(',', '.')) ?? 0;
-  }
-
-  static String? _productIdentity({
-    required String barcode,
-    required String stockCode,
-  }) {
-    final normalizedBarcode = barcode.trim();
-    if (normalizedBarcode.isNotEmpty) {
-      return 'b:$normalizedBarcode';
-    }
-
-    final normalizedStockCode = stockCode.trim();
-    if (normalizedStockCode.isNotEmpty) {
-      return 's:$normalizedStockCode';
-    }
-
-    return null;
-  }
-
-  static String _formatQuantity(double value) {
-    final fixed = value.toStringAsFixed(6);
-    final normalized = fixed.replaceFirst(RegExp(r'\.?0+$'), '');
-    return normalized.replaceAll('.', ',');
-  }
-
   void _showFeedback(String message) {
     final messenger = ScaffoldMessenger.maybeOf(context);
     messenger?.hideCurrentSnackBar();
@@ -721,20 +588,27 @@ class _InventoryLineDraft {
   _InventoryLineDraft()
     : barcodeController = TextEditingController(),
       stockCodeController = TextEditingController(),
-      quantityController = TextEditingController(text: '1');
+      quantityController = TextEditingController();
 
   InventoryCountProductLookupItem? selectedProduct;
   final TextEditingController barcodeController;
   final TextEditingController stockCodeController;
   final TextEditingController quantityController;
+  final FocusNode barcodeFocusNode = FocusNode();
 
   void applyProduct(InventoryCountProductLookupItem product) {
     selectedProduct = product;
     barcodeController.text = product.barcode;
     stockCodeController.text = product.stockCode;
+    if (quantityController.text.trim().isEmpty) {
+      quantityController.text = productEntryController.formatQuantity(
+        productEntryController.unitMultiplierQuantity(product.unitMultiplier),
+      );
+    }
   }
 
   void dispose() {
+    barcodeFocusNode.dispose();
     barcodeController.dispose();
     stockCodeController.dispose();
     quantityController.dispose();
@@ -742,10 +616,14 @@ class _InventoryLineDraft {
 }
 
 class _InventoryProductLookupSheet extends StatefulWidget {
-  const _InventoryProductLookupSheet({required this.onSearchProducts});
+  const _InventoryProductLookupSheet({
+    required this.onSearchProducts,
+    required this.initialQuery,
+  });
 
   final Future<List<InventoryCountProductLookupItem>> Function(String query)
   onSearchProducts;
+  final String initialQuery;
 
   @override
   State<_InventoryProductLookupSheet> createState() =>
@@ -763,7 +641,10 @@ class _InventoryProductLookupSheetState
   @override
   void initState() {
     super.initState();
-    _queryController = TextEditingController();
+    _queryController = TextEditingController(text: widget.initialQuery);
+    if (widget.initialQuery.trim().length >= 2) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _load());
+    }
   }
 
   @override

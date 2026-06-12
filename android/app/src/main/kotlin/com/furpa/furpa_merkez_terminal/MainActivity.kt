@@ -1,5 +1,6 @@
 package com.furpa.furpa_merkez_terminal
 
+import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
@@ -97,7 +98,15 @@ class MainActivity : FlutterActivity() {
                     throw IOException("APK indirilemedi. HTTP $statusCode")
                 }
 
-                val apkFile = File(cacheDir, fileName)
+                val updateDir = File(cacheDir, UPDATE_CACHE_DIR)
+                if (!updateDir.exists() && !updateDir.mkdirs()) {
+                    throw IOException("Guncelleme klasoru hazirlanamadi.")
+                }
+
+                val apkFile = File(updateDir, fileName)
+                if (apkFile.exists() && !apkFile.delete()) {
+                    throw IOException("Eski guncelleme dosyasi silinemedi.")
+                }
                 connection.inputStream.use { input ->
                     FileOutputStream(apkFile).use { output ->
                         val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
@@ -147,7 +156,7 @@ class MainActivity : FlutterActivity() {
                 Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
                 Uri.parse("package:$packageName"),
             )
-            startActivity(settingsIntent)
+            openUnknownSourcesSettings(settingsIntent)
             return false
         }
 
@@ -156,14 +165,24 @@ class MainActivity : FlutterActivity() {
             "$packageName.fileprovider",
             apkFile,
         )
-        val installIntent = Intent(Intent.ACTION_VIEW).apply {
+        val installIntent = Intent(Intent.ACTION_INSTALL_PACKAGE).apply {
             setDataAndType(apkUri, APK_MIME_TYPE)
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            putExtra(Intent.EXTRA_NOT_UNKNOWN_SOURCE, true)
+            putExtra(Intent.EXTRA_RETURN_RESULT, true)
         }
 
         startActivity(installIntent)
         return true
+    }
+
+    private fun openUnknownSourcesSettings(settingsIntent: Intent) {
+        try {
+            startActivity(settingsIntent)
+        } catch (_: ActivityNotFoundException) {
+            startActivity(Intent(Settings.ACTION_SECURITY_SETTINGS))
+        }
     }
 
     private fun canInstallApks(): Boolean {
@@ -179,6 +198,7 @@ class MainActivity : FlutterActivity() {
     private companion object {
         const val UPDATE_CHANNEL = "furpa_merkez_terminal/update"
         const val DEFAULT_APK_FILE_NAME = "furpa-terminal-update.apk"
+        const val UPDATE_CACHE_DIR = "updates"
         const val APK_MIME_TYPE = "application/vnd.android.package-archive"
         const val CONNECT_TIMEOUT_MS = 15_000
         const val READ_TIMEOUT_MS = 60_000

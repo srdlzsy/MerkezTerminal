@@ -5,8 +5,13 @@ import 'package:furpa_merkez_terminal/core/utils/default_filter_dates.dart';
 import 'package:furpa_merkez_terminal/features/stock_operations/virman/data/models/virman_models.dart';
 import 'package:furpa_merkez_terminal/features/stock_operations/virman/data/virman_repository.dart';
 import 'package:furpa_merkez_terminal/features/stock_operations/virman/presentation/view_models/virman_controller.dart';
+import 'package:furpa_merkez_terminal/shared/data/search_lookup_models.dart';
 import 'package:furpa_merkez_terminal/shared/formatters/app_formatters.dart';
+import 'package:furpa_merkez_terminal/shared/offline/mobile_product_catalog_repository.dart';
+import 'package:furpa_merkez_terminal/shared/product_entry/product_entry_controller.dart';
+import 'package:furpa_merkez_terminal/shared/product_entry/product_entry_widgets.dart';
 import 'package:furpa_merkez_terminal/shared/utils/create_form_validation.dart';
+import 'package:furpa_merkez_terminal/shared/widgets/barcode_camera_scan_page.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/section_card.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/terminal_ui_parts.dart';
 
@@ -18,6 +23,7 @@ class VirmanPage extends StatefulWidget {
     required this.canCreate,
     required this.defaultWarehouseNo,
     required this.userWarehouseName,
+    required this.mobileProductCatalogRepository,
   });
 
   final VirmanRepository repository;
@@ -25,6 +31,7 @@ class VirmanPage extends StatefulWidget {
   final bool canCreate;
   final String defaultWarehouseNo;
   final String userWarehouseName;
+  final MobileProductCatalogLocalRepository mobileProductCatalogRepository;
 
   @override
   State<VirmanPage> createState() => _VirmanPageState();
@@ -115,7 +122,10 @@ class _VirmanPageState extends State<VirmanPage> {
       useSafeArea: true,
       showDragHandle: true,
       builder: (context) {
-        return const _VirmanCreateSheet();
+        return _VirmanCreateSheet(
+          defaultWarehouseNo: widget.defaultWarehouseNo,
+          mobileProductCatalogRepository: widget.mobileProductCatalogRepository,
+        );
       },
     );
 
@@ -179,8 +189,7 @@ class _VirmanPageState extends State<VirmanPage> {
   Widget _buildHeader() {
     return TerminalListHeaderCard(
       title: 'Virmanlar',
-      subtitle:
-          'Liste, detay ve yeni virman olusturma akisi ayni operasyon panelinde toplandi.',
+      subtitle: 'Virman kayitlarini listeleyin ve yeni virman olusturun.',
       infoChips: <Widget>[
         TerminalInfoChip(
           label: 'Varsayilan depo',
@@ -476,7 +485,13 @@ class _VirmanDetailSection extends StatelessWidget {
 }
 
 class _VirmanCreateSheet extends StatefulWidget {
-  const _VirmanCreateSheet();
+  const _VirmanCreateSheet({
+    required this.defaultWarehouseNo,
+    required this.mobileProductCatalogRepository,
+  });
+
+  final String defaultWarehouseNo;
+  final MobileProductCatalogLocalRepository mobileProductCatalogRepository;
 
   @override
   State<_VirmanCreateSheet> createState() => _VirmanCreateSheetState();
@@ -522,12 +537,6 @@ class _VirmanCreateSheetState extends State<_VirmanCreateSheet>
     });
   }
 
-  void _addLine() {
-    setState(() {
-      _lines.add(_VirmanDraftLine());
-    });
-  }
-
   void _removeLine(_VirmanDraftLine line) {
     if (_lines.length == 1) {
       return;
@@ -537,6 +546,178 @@ class _VirmanCreateSheetState extends State<_VirmanCreateSheet>
       _lines.remove(line);
       line.dispose();
     });
+  }
+
+  Future<void> _searchProduct(_VirmanDraftLine line) async {
+    final query = line.lookupController.text.trim();
+    if (query.length < 2) {
+      setState(() {
+        _errorMessage = 'Urun aramak icin en az 2 karakter veya barkod girin.';
+      });
+      return;
+    }
+
+    final catalogItems = await widget.mobileProductCatalogRepository
+        .searchProducts(warehouseNo: widget.defaultWarehouseNo, query: query);
+
+    if (!mounted) {
+      return;
+    }
+
+    if (catalogItems.isEmpty) {
+      setState(() {
+        _errorMessage = 'Bu aramaya uygun urun katalogda bulunamadi.';
+      });
+      return;
+    }
+
+    final products = catalogItems
+        .map((item) => item.toSearchProductLookupItem())
+        .toList(growable: false);
+
+    final selected = await showModalBottomSheet<SearchProductLookupItem>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) {
+        return ListView.separated(
+          shrinkWrap: true,
+          itemCount: products.length,
+          separatorBuilder: (_, _) => const Divider(height: 1),
+          itemBuilder: (context, index) {
+            final item = products[index];
+            return ListTile(
+              title: Text(item.displayLabel),
+              subtitle: Text(
+                '${item.unitName}${item.barcode.isNotEmpty ? ' | ${item.barcode}' : ''}',
+              ),
+              onTap: () => Navigator.of(context).pop(item),
+            );
+          },
+        );
+      },
+    );
+
+    if (selected == null || !mounted) {
+      return;
+    }
+
+    var mergedIntoExisting = false;
+    setState(() {
+      mergedIntoExisting = _applyProductToLine(line, selected);
+      _ensureFreshEntryLine();
+      _errorMessage = null;
+    });
+    _focusFreshEntryLine();
+
+    if (mergedIntoExisting) {
+      _showFeedback('Ayni barkod mevcut satira eklendi; miktar artirildi.');
+    }
+  }
+
+  Future<void> _scanProductWithCamera(_VirmanDraftLine line) async {
+    if (!supportsCameraBarcodeScanning) {
+      setState(() {
+        _errorMessage = 'Bu cihazda kamera ile barkod okutma desteklenmiyor.';
+      });
+      return;
+    }
+
+    final barcode = await openBarcodeCameraScanner(
+      context,
+      title: 'Virman Barkod Kamerasi',
+      subtitle: 'Barkodu okutun; bulunan urun satira aktarilacak.',
+    );
+
+    if (barcode == null || !mounted) {
+      return;
+    }
+
+    line.lookupController.text = barcode;
+    await _searchProduct(line);
+  }
+
+  bool _applyProductToLine(
+    _VirmanDraftLine line,
+    SearchProductLookupItem product,
+  ) {
+    final existingLine = productEntryController.findDuplicateLine(
+      ProductEntryDuplicateMergePolicy<_VirmanDraftLine>(
+        currentLine: line,
+        targetBarcode: product.barcode,
+        targetStockCode: product.stockCode,
+        lines: _lines,
+        lineBarcode: (line) => line.barcode,
+        lineStockCode: (line) => line.stockCodeController.text,
+      ),
+    );
+
+    if (existingLine == null) {
+      line.applyProduct(product);
+      return false;
+    }
+
+    existingLine.quantityController.text = productEntryController
+        .formatQuantity(
+          productEntryController.readQuantity(
+                existingLine.quantityController.text,
+                fallback: 0,
+              ) +
+              productEntryController.quantityInputOrUnitMultiplier(
+                line.quantityController.text,
+                product.unitMultiplier,
+              ),
+        );
+    _recycleMergedLine(line);
+    return true;
+  }
+
+  void _recycleMergedLine(_VirmanDraftLine line) {
+    final lineIndex = _lines.indexOf(line);
+    line.dispose();
+
+    if (lineIndex == 0) {
+      _lines[lineIndex] = _VirmanDraftLine();
+      return;
+    }
+
+    _lines.removeAt(lineIndex);
+  }
+
+  void _ensureFreshEntryLine() {
+    if (_lines.isEmpty || !_isBlankLine(_lines.first)) {
+      _lines.insert(0, _VirmanDraftLine());
+    }
+  }
+
+  void _focusFreshEntryLine() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _lines.isEmpty) {
+        return;
+      }
+
+      final firstLine = _lines.first;
+      if (_isBlankLine(firstLine)) {
+        firstLine.lookupFocusNode.requestFocus();
+      }
+    });
+  }
+
+  bool _isBlankLine(_VirmanDraftLine line) {
+    return line.lookupController.text.trim().isEmpty &&
+        line.stockCodeController.text.trim().isEmpty;
+  }
+
+  void _showFeedback(String message) {
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    messenger?.hideCurrentSnackBar();
+    messenger?.showSnackBar(
+      SnackBar(
+        content: Text(message),
+        duration: const Duration(seconds: 2),
+        behavior: SnackBarBehavior.floating,
+        margin: const EdgeInsets.all(16),
+      ),
+    );
   }
 
   void _submit() {
@@ -549,12 +730,25 @@ class _VirmanCreateSheetState extends State<_VirmanCreateSheet>
 
     final requestLines = <VirmanCreateLine>[];
 
-    for (final line in _lines) {
+    final activeLines = _lines
+        .where((line) => !_isBlankLine(line))
+        .toList(growable: false);
+
+    if (activeLines.isEmpty) {
+      setState(() {
+        _errorMessage = 'En az bir urun satiri ekleyin.';
+      });
+      return;
+    }
+
+    for (final line in activeLines) {
       final stockCode = line.stockCodeController.text.trim();
       final movementType = int.tryParse(
         line.movementTypeController.text.trim(),
       );
-      final quantity = double.tryParse(line.quantityController.text.trim());
+      final quantity = double.tryParse(
+        line.quantityController.text.trim().replaceAll(',', '.'),
+      );
       final unitPointer = int.tryParse(line.unitPointerController.text.trim());
       final lotNo = int.tryParse(line.lotNoController.text.trim()) ?? 0;
 
@@ -630,7 +824,7 @@ class _VirmanCreateSheetState extends State<_VirmanCreateSheet>
             const TerminalSheetHeader(
               title: 'Yeni Virman',
               subtitle:
-                  'Virman satirlarinda movementType zorunludur. API dokumanindaki ornege uygun olarak varsayilan deger 2 ile baslatildi.',
+                  'Hareket tipi zorunludur. Varsayilan deger 2 olarak gelir.',
               padding: EdgeInsets.zero,
             ),
             const SizedBox(height: 16),
@@ -659,25 +853,30 @@ class _VirmanCreateSheetState extends State<_VirmanCreateSheet>
             const SizedBox(height: 16),
             TerminalSectionToolbar(
               title: 'Satirlar',
-              actions: <Widget>[
-                FilledButton.tonalIcon(
-                  onPressed: _addLine,
-                  icon: const Icon(Icons.add_rounded),
-                  label: const Text('Satir Ekle'),
-                ),
-              ],
+              actions: const <Widget>[],
             ),
             const SizedBox(height: 12),
             Column(
               children: _lines
-                  .map((line) {
-                    final index = _lines.indexOf(line);
+                  .asMap()
+                  .entries
+                  .map((entry) {
+                    final index = entry.key;
+                    final line = entry.value;
+                    final isFreshEntry = index == 0 && _isBlankLine(line);
+                    final displayLineNo = _lines
+                        .take(index + 1)
+                        .where((item) => !_isBlankLine(item))
+                        .length;
                     return Padding(
                       padding: const EdgeInsets.only(bottom: 12),
                       child: _VirmanDraftLineCard(
-                        index: index,
+                        lineNumber: displayLineNo,
+                        isFreshEntry: isFreshEntry,
                         line: line,
-                        canRemove: _lines.length > 1,
+                        canRemove: !isFreshEntry && _lines.length > 1,
+                        onPickProduct: () => _searchProduct(line),
+                        onScanWithCamera: () => _scanProductWithCamera(line),
                         onRemove: () => _removeLine(line),
                       ),
                     );
@@ -709,15 +908,21 @@ class _VirmanCreateSheetState extends State<_VirmanCreateSheet>
 
 class _VirmanDraftLineCard extends StatelessWidget {
   const _VirmanDraftLineCard({
-    required this.index,
+    required this.lineNumber,
+    required this.isFreshEntry,
     required this.line,
     required this.canRemove,
+    required this.onPickProduct,
+    required this.onScanWithCamera,
     required this.onRemove,
   });
 
-  final int index;
+  final int lineNumber;
+  final bool isFreshEntry;
   final _VirmanDraftLine line;
   final bool canRemove;
+  final VoidCallback onPickProduct;
+  final VoidCallback onScanWithCamera;
   final VoidCallback onRemove;
 
   @override
@@ -738,7 +943,7 @@ class _VirmanDraftLineCard extends StatelessWidget {
           Row(
             children: <Widget>[
               Text(
-                'Satir ${index + 1}',
+                isFreshEntry ? 'Giris satiri' : 'Satir $lineNumber',
                 style: Theme.of(
                   context,
                 ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800),
@@ -752,10 +957,44 @@ class _VirmanDraftLineCard extends StatelessWidget {
                 ),
             ],
           ),
+          TerminalResponsiveLookupRow(
+            field: ProductLookupField(
+              controller: line.lookupController,
+              focusNode: line.lookupFocusNode,
+              onSubmit: onPickProduct,
+            ),
+            action: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                FilledButton.icon(
+                  onPressed: onPickProduct,
+                  icon: const Icon(Icons.search_rounded),
+                  label: const Text('Urun'),
+                ),
+                const SizedBox(width: 8),
+                IconButton.filledTonal(
+                  onPressed: onScanWithCamera,
+                  tooltip: 'Kamera ile oku',
+                  icon: const Icon(Icons.photo_camera_back_rounded),
+                ),
+              ],
+            ),
+          ),
+          if (line.selectedProduct != null) ...<Widget>[
+            const SizedBox(height: 8),
+            TerminalMessageBlock.info(
+              message:
+                  '${line.selectedProduct!.stockCode} | ${line.selectedProduct!.stockName} | ${line.selectedProduct!.unitName}',
+            ),
+          ],
+          const SizedBox(height: 10),
           TextFormField(
             controller: line.stockCodeController,
             decoration: const InputDecoration(labelText: 'Stok Kodu*'),
             validator: (value) {
+              if (isFreshEntry) {
+                return null;
+              }
               if ((value ?? '').trim().isEmpty) {
                 return 'Zorunlu';
               }
@@ -768,7 +1007,12 @@ class _VirmanDraftLineCard extends StatelessWidget {
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
             decoration: const InputDecoration(labelText: 'Miktar*'),
             validator: (value) {
-              final quantity = double.tryParse((value ?? '').trim());
+              if (isFreshEntry) {
+                return null;
+              }
+              final quantity = double.tryParse(
+                (value ?? '').trim().replaceAll(',', '.'),
+              );
               if (quantity == null || quantity <= 0) {
                 return 'Miktar > 0';
               }
@@ -783,15 +1027,17 @@ class _VirmanDraftLineCard extends StatelessWidget {
 
 class _VirmanDraftLine {
   _VirmanDraftLine()
-    : stockCodeController = TextEditingController(),
+    : lookupController = TextEditingController(),
+      stockCodeController = TextEditingController(),
       movementTypeController = TextEditingController(text: '2'),
-      quantityController = TextEditingController(text: '1'),
+      quantityController = TextEditingController(),
       unitPointerController = TextEditingController(text: '1'),
       descriptionController = TextEditingController(),
       partyCodeController = TextEditingController(),
       lotNoController = TextEditingController(text: '0'),
       projectCodeController = TextEditingController();
 
+  final TextEditingController lookupController;
   final TextEditingController stockCodeController;
   final TextEditingController movementTypeController;
   final TextEditingController quantityController;
@@ -800,8 +1046,25 @@ class _VirmanDraftLine {
   final TextEditingController partyCodeController;
   final TextEditingController lotNoController;
   final TextEditingController projectCodeController;
+  final FocusNode lookupFocusNode = FocusNode();
+  SearchProductLookupItem? selectedProduct;
+
+  String get barcode => selectedProduct?.barcode ?? '';
+
+  void applyProduct(SearchProductLookupItem product) {
+    selectedProduct = product;
+    lookupController.text = product.displayLabel;
+    stockCodeController.text = product.stockCode;
+    if (quantityController.text.trim().isEmpty) {
+      quantityController.text = productEntryController.formatQuantity(
+        productEntryController.unitMultiplierQuantity(product.unitMultiplier),
+      );
+    }
+  }
 
   void dispose() {
+    lookupFocusNode.dispose();
+    lookupController.dispose();
     stockCodeController.dispose();
     movementTypeController.dispose();
     quantityController.dispose();

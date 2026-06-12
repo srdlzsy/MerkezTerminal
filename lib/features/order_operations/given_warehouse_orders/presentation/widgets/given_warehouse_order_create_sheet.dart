@@ -4,10 +4,11 @@ import 'package:furpa_merkez_terminal/features/order_operations/shared/data/mode
 import 'package:furpa_merkez_terminal/features/order_operations/shared/data/warehouse_orders_repository.dart';
 import 'package:furpa_merkez_terminal/shared/formatters/app_formatters.dart';
 import 'package:furpa_merkez_terminal/shared/offline/mobile_warehouse_catalog_repository.dart';
+import 'package:furpa_merkez_terminal/shared/product_entry/product_entry_controller.dart';
+import 'package:furpa_merkez_terminal/shared/product_entry/product_entry_widgets.dart';
 import 'package:furpa_merkez_terminal/shared/utils/create_form_validation.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/barcode_camera_scan_page.dart';
-
-enum _ProductEntryMode { barcode, search, camera }
+import 'package:furpa_merkez_terminal/shared/widgets/terminal_ui_parts.dart';
 
 class GivenWarehouseOrderCreateSheet extends StatefulWidget {
   const GivenWarehouseOrderCreateSheet({
@@ -36,7 +37,6 @@ class _GivenWarehouseOrderCreateSheetState
   late DateTime _orderDate;
   late DateTime _deliveryDate;
   late List<_CreateLineDraft> _lines;
-  late _ProductEntryMode _entryMode;
   WarehouseLookupItem? _selectedWarehouse;
   String? _validationMessage;
   final ScrollController _scrollController = ScrollController();
@@ -53,7 +53,6 @@ class _GivenWarehouseOrderCreateSheetState
     _orderDate = _normalizeDate(DateTime.now());
     _deliveryDate = _normalizeDate(DateTime.now());
     _lines = <_CreateLineDraft>[_CreateLineDraft()];
-    _entryMode = _ProductEntryMode.barcode;
   }
 
   @override
@@ -132,6 +131,7 @@ class _GivenWarehouseOrderCreateSheetState
         repository: widget.repository,
         accessToken: widget.accessToken,
         warehouseNo: widget.defaultWarehouseNo,
+        initialQuery: line.barcodeController.text,
       ),
     );
 
@@ -142,55 +142,12 @@ class _GivenWarehouseOrderCreateSheetState
     var mergedIntoExisting = false;
     setState(() {
       mergedIntoExisting = _applyProductToLine(line, product);
+      _ensureFreshEntryLine();
     });
+    _focusFreshEntryLine();
 
     if (mergedIntoExisting) {
       _showFeedback('Ayni barkod mevcut satira eklendi; miktar artirildi.');
-    }
-  }
-
-  Future<void> _findProductByBarcode(_CreateLineDraft line) async {
-    if (!_hasWarehouseSelection) {
-      _showFeedback('Once karsi depo secin, sonra barkod okutun.');
-      return;
-    }
-
-    final barcode = line.barcodeController.text.trim();
-
-    if (barcode.length < 3) {
-      _showFeedback('Barkod alanına geçerli bir değer girin.');
-      return;
-    }
-
-    try {
-      final products = await widget.repository.searchProducts(
-        accessToken: widget.accessToken,
-        warehouseNo: widget.defaultWarehouseNo,
-        query: barcode,
-      );
-
-      if (!mounted) {
-        return;
-      }
-
-      if (products.isEmpty) {
-        _showFeedback('Bu barkoda ait ürün bulunamadı.');
-        return;
-      }
-
-      var mergedIntoExisting = false;
-      setState(() {
-        mergedIntoExisting = _applyProductToLine(line, products.first);
-      });
-
-      if (mergedIntoExisting) {
-        _showFeedback('Ayni barkod mevcut satira eklendi; miktar artirildi.');
-      }
-    } catch (error) {
-      if (!mounted) {
-        return;
-      }
-      _showFeedback(error.toString().replaceFirst('Exception: ', '').trim());
     }
   }
 
@@ -216,30 +173,45 @@ class _GivenWarehouseOrderCreateSheetState
     }
 
     line.barcodeController.text = barcode;
-    await _findProductByBarcode(line);
+    await _searchProduct(line);
   }
 
-  void _addLine() {
-    setState(() {
+  void _ensureFreshEntryLine() {
+    if (_lines.isEmpty || !_isBlankLine(_lines.first)) {
       _lines = <_CreateLineDraft>[_CreateLineDraft(), ..._lines];
-      // Yeni satıra scroll yap
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (_scrollController.hasClients) {
-          _scrollController.animateTo(
-            _scrollController.position.minScrollExtent,
-            duration: const Duration(milliseconds: 140),
-            curve: Curves.easeOut,
-          );
-        }
-      });
+    }
+  }
+
+  void _focusFreshEntryLine() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _lines.isEmpty) {
+        return;
+      }
+
+      final firstLine = _lines.first;
+      if (_isBlankLine(firstLine)) {
+        firstLine.barcodeFocusNode.requestFocus();
+      }
     });
   }
 
+  bool _isBlankLine(_CreateLineDraft line) {
+    return line.selectedProduct == null &&
+        line.stockCodeController.text.trim().isEmpty &&
+        line.barcodeController.text.trim().isEmpty;
+  }
+
   bool _applyProductToLine(_CreateLineDraft line, ProductLookupItem product) {
-    final existingLine = _findDuplicateLine(
-      currentLine: line,
-      barcode: product.barcode,
-      stockCode: product.stockCode,
+    final existingLine = productEntryController.findDuplicateLine(
+      ProductEntryDuplicateMergePolicy<_CreateLineDraft>(
+        currentLine: line,
+        targetBarcode: product.barcode,
+        targetStockCode: product.stockCode,
+        lines: _lines,
+        lineBarcode: (line) => line.selectedProduct?.barcode ?? '',
+        lineStockCode: (line) => line.selectedProduct?.stockCode ?? '',
+        canMergeLine: (line) => line.selectedProduct != null,
+      ),
     );
 
     if (existingLine == null) {
@@ -247,46 +219,19 @@ class _GivenWarehouseOrderCreateSheetState
       return false;
     }
 
-    final additionalQuantity = line.quantityController.text.trim().isEmpty
-        ? 1
-        : _parseDouble(line.quantityController.text);
-    existingLine.quantityController.text = _formatQuantity(
-      _parseDouble(existingLine.quantityController.text) + additionalQuantity,
-    );
+    existingLine.quantityController.text = productEntryController
+        .formatQuantity(
+          productEntryController.readQuantity(
+                existingLine.quantityController.text,
+                fallback: 0,
+              ) +
+              productEntryController.quantityInputOrUnitMultiplier(
+                line.quantityController.text,
+                product.unitMultiplier,
+              ),
+        );
     _recycleMergedLine(line, createReplacement: _CreateLineDraft.new);
     return true;
-  }
-
-  _CreateLineDraft? _findDuplicateLine({
-    required _CreateLineDraft currentLine,
-    required String barcode,
-    required String stockCode,
-  }) {
-    final targetKey = _productIdentity(barcode: barcode, stockCode: stockCode);
-    if (targetKey == null) {
-      return null;
-    }
-
-    for (final candidate in _lines) {
-      if (identical(candidate, currentLine)) {
-        continue;
-      }
-
-      final selectedProduct = candidate.selectedProduct;
-      if (selectedProduct == null) {
-        continue;
-      }
-
-      final candidateKey = _productIdentity(
-        barcode: selectedProduct.barcode,
-        stockCode: selectedProduct.stockCode,
-      );
-      if (candidateKey == targetKey) {
-        return candidate;
-      }
-    }
-
-    return null;
   }
 
   void _recycleMergedLine(
@@ -317,7 +262,10 @@ class _GivenWarehouseOrderCreateSheetState
 
   void _submit() {
     if (!validateCreateForm(_formKey)) {
-      setState(() => _validationMessage = 'Lütfen zorunlu alanları düzeltin.');
+      setState(
+        () => _validationMessage =
+            'LÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¼tfen zorunlu alanlarÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â± dÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¼zeltin.',
+      );
       return;
     }
 
@@ -325,9 +273,33 @@ class _GivenWarehouseOrderCreateSheetState
 
     if (outWarehouseNo == null || outWarehouseNo <= 0) {
       setState(
-        () => _validationMessage = 'Geçerli bir karşı depo numarası girin.',
+        () => _validationMessage =
+            'GeÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â§erli bir karÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¸ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â± depo numarasÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â± girin.',
       );
       return;
+    }
+
+    final activeLines = _lines
+        .where((line) => !_isBlankLine(line))
+        .toList(growable: false);
+
+    if (activeLines.isEmpty) {
+      setState(
+        () => _validationMessage =
+            'En az bir ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¼rÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¼n satÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â±rÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â± ekleyin.',
+      );
+      return;
+    }
+
+    for (var index = 0; index < activeLines.length; index += 1) {
+      final line = activeLines[index];
+      if (line.stockCodeController.text.trim().isEmpty) {
+        setState(
+          () => _validationMessage =
+              '${index + 1}. satÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â±r iÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â§in ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¼rÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¼n seÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â§in.',
+        );
+        return;
+      }
     }
 
     final request = WarehouseOrderCreateRequest(
@@ -335,11 +307,14 @@ class _GivenWarehouseOrderCreateSheetState
       orderDate: _orderDate,
       deliveryDate: _deliveryDate,
       description: '',
-      lines: _lines
+      lines: activeLines
           .map(
             (line) => WarehouseOrderCreateLine(
               stockCode: line.stockCodeController.text.trim(),
-              quantity: _parseDouble(line.quantityController.text),
+              quantity: productEntryController.readQuantity(
+                line.quantityController.text,
+                fallback: 0,
+              ),
               recommendedQuantity: 0,
               unitPrice: 0,
               unitPointer: 1,
@@ -392,7 +367,7 @@ class _GivenWarehouseOrderCreateSheetState
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                'Yeni Verilen Depo Siparişi',
+                                'Yeni Verilen Depo SipariÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¸i',
                                 style: theme.textTheme.titleLarge?.copyWith(
                                   fontWeight: FontWeight.bold,
                                 ),
@@ -415,7 +390,7 @@ class _GivenWarehouseOrderCreateSheetState
                     ),
                   ),
 
-                  // ========== ANA İÇERİK (Scroll) ==========
+                  // ========== ANA ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â°ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¡ERÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â°K (Scroll) ==========
                   Expanded(
                     child: ListView(
                       controller: _scrollController,
@@ -430,7 +405,8 @@ class _GivenWarehouseOrderCreateSheetState
                           children: [
                             Expanded(
                               child: _buildDateButton(
-                                label: 'Sipariş',
+                                label:
+                                    'SipariÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¸',
                                 date: _orderDate,
                                 onPressed: () => _pickDate(isOrderDate: true),
                                 theme: theme,
@@ -449,36 +425,15 @@ class _GivenWarehouseOrderCreateSheetState
                         ),
                         const SizedBox(height: 20),
 
-                        // --- Giriş Modu Seçici (Kompakt) ---
-                        Container(
-                          padding: const EdgeInsets.symmetric(vertical: 8),
-                          child: Wrap(
-                            spacing: 8,
-                            runSpacing: 8,
-                            crossAxisAlignment: WrapCrossAlignment.center,
-                            children: [
-                              const Text(
-                                'Ürün girişi:',
-                                style: TextStyle(fontWeight: FontWeight.w600),
-                              ),
-                              _buildModeChip(
-                                'Barkod ile',
-                                _ProductEntryMode.barcode,
-                              ),
-                              _buildModeChip(
-                                'Arama ile',
-                                _ProductEntryMode.search,
-                              ),
-                              _buildModeChip(
-                                'Kamera ile',
-                                _ProductEntryMode.camera,
-                              ),
-                            ],
-                          ),
+                        // --- GiriÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¸ Modu SeÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â§ici (Kompakt) ---
+                        TerminalSectionToolbar(
+                          title:
+                              'SatÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â±rlar',
+                          actions: const [],
                         ),
-                        const SizedBox(height: 12),
+                        const SizedBox(height: 10),
 
-                        // --- Satırlar ---
+                        // --- SatÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â±rlar ---
                         ..._lines.asMap().entries.map(
                           (entry) => _buildLineCard(
                             index: entry.key,
@@ -487,19 +442,6 @@ class _GivenWarehouseOrderCreateSheetState
                           ),
                         ),
                         const SizedBox(height: 12),
-
-                        // --- Satır Ekle Butonu ---
-                        SizedBox(
-                          width: double.infinity,
-                          child: OutlinedButton.icon(
-                            onPressed: _hasWarehouseSelection ? _addLine : null,
-                            icon: const Icon(Icons.add_rounded, size: 20),
-                            label: const Text('Yeni Satır Ekle'),
-                            style: OutlinedButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(vertical: 12),
-                            ),
-                          ),
-                        ),
 
                         if (_validationMessage != null) ...[
                           const SizedBox(height: 16),
@@ -532,13 +474,15 @@ class _GivenWarehouseOrderCreateSheetState
 
                         const SizedBox(height: 16),
 
-                        // --- Aksiyon Butonları ---
+                        // --- Aksiyon ButonlarÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â± ---
                         Row(
                           children: [
                             Expanded(
                               child: OutlinedButton(
                                 onPressed: () => Navigator.of(context).pop(),
-                                child: const Text('Vazgeç'),
+                                child: const Text(
+                                  'VazgeÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â§',
+                                ),
                               ),
                             ),
                             const SizedBox(width: 12),
@@ -547,7 +491,9 @@ class _GivenWarehouseOrderCreateSheetState
                               child: FilledButton.icon(
                                 onPressed: _submit,
                                 icon: const Icon(Icons.save_rounded),
-                                label: const Text('Siparişi Oluştur'),
+                                label: const Text(
+                                  'SipariÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¸i OluÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¸tur',
+                                ),
                                 style: FilledButton.styleFrom(
                                   padding: const EdgeInsets.symmetric(
                                     vertical: 14,
@@ -579,52 +525,60 @@ class _GivenWarehouseOrderCreateSheetState
         ),
       ),
       child: Column(
-        children: [
-          // Satır: Karşı Depo Seçimi
+        children: <Widget>[
           Padding(
             padding: const EdgeInsets.all(12),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextFormField(
-                    controller: _outWarehouseNoController,
-                    readOnly: true,
-                    onTap: _searchWarehouse,
-                    decoration: const InputDecoration(
-                      labelText: 'Karşı Depo No*',
-                      hintText: 'Depo seçin',
-                      border: OutlineInputBorder(),
-                      isDense: true,
-                      contentPadding: EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 12,
-                      ),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final warehouseField = TextFormField(
+                  controller: _outWarehouseNoController,
+                  readOnly: true,
+                  onTap: _searchWarehouse,
+                  decoration: const InputDecoration(
+                    labelText: 'Karsi Depo No*',
+                    hintText: 'Depo secin',
+                    border: OutlineInputBorder(),
+                    isDense: true,
+                    contentPadding: EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 12,
                     ),
-                    validator: (value) {
-                      final parsed = int.tryParse(value?.trim() ?? '');
-                      if (parsed == null || parsed <= 0) {
-                        return 'Zorunlu';
-                      }
-                      return null;
-                    },
                   ),
-                ),
-                const SizedBox(width: 12),
-                FilledButton.tonal(
+                  validator: (value) {
+                    final parsed = int.tryParse(value?.trim() ?? '');
+                    if (parsed == null || parsed <= 0) {
+                      return 'Zorunlu';
+                    }
+                    return null;
+                  },
+                );
+                final warehouseButton = FilledButton.tonalIcon(
                   onPressed: _searchWarehouse,
-                  child: const Row(
-                    children: [
-                      Icon(Icons.warehouse, size: 18),
-                      SizedBox(width: 6),
-                      Text('Seç'),
+                  icon: const Icon(Icons.warehouse, size: 18),
+                  label: const Text('Sec'),
+                );
+
+                if (constraints.maxWidth < 360) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: <Widget>[
+                      warehouseField,
+                      const SizedBox(height: 8),
+                      warehouseButton,
                     ],
-                  ),
-                ),
-              ],
+                  );
+                }
+
+                return Row(
+                  children: <Widget>[
+                    Expanded(child: warehouseField),
+                    const SizedBox(width: 12),
+                    warehouseButton,
+                  ],
+                );
+              },
             ),
           ),
-
-          // Seçili Depo Bilgisi (varsa)
           if (_selectedWarehouse != null)
             Container(
               width: double.infinity,
@@ -637,34 +591,20 @@ class _GivenWarehouseOrderCreateSheetState
                 ),
               ),
               child: Row(
-                children: [
+                children: <Widget>[
                   Icon(
-                    Icons.check_circle,
-                    color: theme.colorScheme.primary,
+                    Icons.check_circle_outline,
                     size: 18,
+                    color: theme.colorScheme.primary,
                   ),
                   const SizedBox(width: 8),
                   Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          _selectedWarehouse!.displayLabel,
-                          style: const TextStyle(
-                            fontWeight: FontWeight.w600,
-                            fontSize: 13,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        if (_selectedWarehouse!.district.isNotEmpty)
-                          Text(
-                            '${_selectedWarehouse!.district} / ${_selectedWarehouse!.province}',
-                            style: const TextStyle(fontSize: 11),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                      ],
+                    child: Text(
+                      _selectedWarehouse!.displayLabel,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        fontWeight: FontWeight.w600,
+                        color: theme.colorScheme.onPrimaryContainer,
+                      ),
                     ),
                   ),
                 ],
@@ -687,41 +627,34 @@ class _GivenWarehouseOrderCreateSheetState
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.calendar_today,
-            size: 16,
-            color: theme.colorScheme.primary,
-          ),
-          const SizedBox(width: 8),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(label, style: const TextStyle(fontSize: 10)),
-              Text(
-                AppFormatters.date(date),
-                style: const TextStyle(
-                  fontWeight: FontWeight.w600,
-                  fontSize: 12,
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.calendar_today,
+              size: 16,
+              color: theme.colorScheme.primary,
+            ),
+            const SizedBox(width: 6),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(label, style: const TextStyle(fontSize: 10)),
+                Text(
+                  AppFormatters.date(date),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 12,
+                  ),
                 ),
-              ),
-            ],
-          ),
-        ],
+              ],
+            ),
+          ],
+        ),
       ),
-    );
-  }
-
-  Widget _buildModeChip(String label, _ProductEntryMode mode) {
-    return ChoiceChip(
-      label: Text(label, style: const TextStyle(fontSize: 12)),
-      selected: _entryMode == mode,
-      onSelected: (_) => setState(() => _entryMode = mode),
-      visualDensity: VisualDensity.compact,
-      padding: const EdgeInsets.symmetric(horizontal: 8),
     );
   }
 
@@ -731,9 +664,12 @@ class _GivenWarehouseOrderCreateSheetState
     required ThemeData theme,
   }) {
     final product = line.selectedProduct;
-    final isBarcodeMode = _entryMode == _ProductEntryMode.barcode;
-    final isCameraMode = _entryMode == _ProductEntryMode.camera;
     final canScan = _hasWarehouseSelection;
+    final isFreshEntry = index == 0 && _isBlankLine(line);
+    final displayLineNo = _lines
+        .take(index + 1)
+        .where((item) => !_isBlankLine(item))
+        .length;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -747,7 +683,7 @@ class _GivenWarehouseOrderCreateSheetState
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Satır başlığı + sil butonu
+          // SatÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â±r baÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¸lÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â±ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¸ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â± + sil butonu
           Container(
             padding: const EdgeInsets.fromLTRB(12, 8, 8, 4),
             decoration: BoxDecoration(
@@ -769,7 +705,7 @@ class _GivenWarehouseOrderCreateSheetState
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Text(
-                    '#${index + 1}',
+                    isFreshEntry ? 'Giris' : '#$displayLineNo',
                     style: TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.bold,
@@ -780,7 +716,8 @@ class _GivenWarehouseOrderCreateSheetState
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    product?.stockName ?? 'Ürün seçilmedi',
+                    product?.stockName ??
+                        (isFreshEntry ? 'Okutmaya hazir' : 'Urun secilmedi'),
                     style: TextStyle(
                       fontSize: 13,
                       fontWeight: product != null
@@ -806,12 +743,12 @@ class _GivenWarehouseOrderCreateSheetState
             ),
           ),
 
-          // İçerik
+          // ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â°ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â§erik
           Padding(
             padding: const EdgeInsets.all(10),
             child: Column(
               children: [
-                // Ürün seçme bölümü
+                // ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â¦ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œrÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¼n seÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â§me bÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¶lÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¼mÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¼
                 if (!canScan)
                   Container(
                     width: double.infinity,
@@ -828,76 +765,38 @@ class _GivenWarehouseOrderCreateSheetState
                       ),
                     ),
                   )
-                else if (isBarcodeMode)
+                else
                   Row(
                     children: [
                       Expanded(
-                        child: TextFormField(
+                        child: ProductLookupField(
                           controller: line.barcodeController,
+                          focusNode: line.barcodeFocusNode,
                           enabled: canScan,
-                          keyboardType: TextInputType.number,
-                          textInputAction: TextInputAction.done,
-                          onFieldSubmitted: (_) => _findProductByBarcode(line),
-                          decoration: const InputDecoration(
-                            labelText: 'Barkod',
-                            hintText: 'Tarat veya yaz',
-                            border: OutlineInputBorder(),
-                            isDense: true,
-                            contentPadding: EdgeInsets.symmetric(
-                              horizontal: 10,
-                              vertical: 10,
-                            ),
-                            suffixIcon: Icon(Icons.qr_code_scanner, size: 20),
-                          ),
+                          onSubmit: () => _searchProduct(line),
                         ),
                       ),
                       const SizedBox(width: 8),
-                      FilledButton.tonal(
-                        onPressed: canScan
-                            ? () => _findProductByBarcode(line)
-                            : null,
+                      FilledButton.icon(
+                        onPressed: canScan ? () => _searchProduct(line) : null,
+                        icon: const Icon(Icons.search_rounded),
+                        label: const Text('Urun'),
                         style: FilledButton.styleFrom(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 12,
                             vertical: 12,
                           ),
                         ),
-                        child: const Text('Bul'),
+                      ),
+                      const SizedBox(width: 8),
+                      IconButton.filledTonal(
+                        onPressed: canScan
+                            ? () => _scanProductWithCamera(line)
+                            : null,
+                        tooltip: 'Kamera ile oku',
+                        icon: const Icon(Icons.photo_camera_back_rounded),
                       ),
                     ],
-                  )
-                else if (isCameraMode)
-                  SizedBox(
-                    width: double.infinity,
-                    child: FilledButton.tonalIcon(
-                      onPressed: canScan
-                          ? () => _scanProductWithCamera(line)
-                          : null,
-                      icon: const Icon(
-                        Icons.photo_camera_back_rounded,
-                        size: 18,
-                      ),
-                      label: Text(
-                        product == null ? 'Kamera ile Oku' : 'Tekrar Kamera Ac',
-                      ),
-                      style: FilledButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                      ),
-                    ),
-                  )
-                else
-                  SizedBox(
-                    width: double.infinity,
-                    child: FilledButton.tonalIcon(
-                      onPressed: canScan ? () => _searchProduct(line) : null,
-                      icon: const Icon(Icons.search, size: 18),
-                      label: Text(
-                        product == null ? 'Ürün Seç' : 'Ürün Değiştir',
-                      ),
-                      style: FilledButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                      ),
-                    ),
                   ),
 
                 const SizedBox(height: 10),
@@ -917,6 +816,10 @@ class _GivenWarehouseOrderCreateSheetState
                     ),
                   ),
                   validator: (value) {
+                    if (_isBlankLine(line)) {
+                      return null;
+                    }
+
                     final parsed = double.tryParse(
                       (value ?? '').trim().replaceAll(',', '.'),
                     );
@@ -927,7 +830,7 @@ class _GivenWarehouseOrderCreateSheetState
                   },
                 ),
 
-                // Ürün bilgisi (seçiliyse)
+                // ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â¦ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œrÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¼n bilgisi (seÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â§iliyse)
                 if (product != null) ...[
                   const SizedBox(height: 8),
                   Container(
@@ -946,7 +849,7 @@ class _GivenWarehouseOrderCreateSheetState
                         const SizedBox(width: 6),
                         Expanded(
                           child: Text(
-                            'Birim: ${product.unitName}${product.isOrderBlocked ? ' | ⚠️ Sipariş blokeli' : ''}',
+                            'Birim: ${product.unitName}${product.isOrderBlocked ? ' | ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¯ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¸ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â SipariÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¸ blokeli' : ''}',
                             style: TextStyle(
                               fontSize: 11,
                               color: theme.colorScheme.onPrimaryContainer,
@@ -969,32 +872,6 @@ class _GivenWarehouseOrderCreateSheetState
 
   static DateTime _normalizeDate(DateTime value) =>
       DateTime(value.year, value.month, value.day);
-
-  static double _parseDouble(String raw) =>
-      double.tryParse(raw.trim().replaceAll(',', '.')) ?? 0;
-
-  static String? _productIdentity({
-    required String barcode,
-    required String stockCode,
-  }) {
-    final normalizedBarcode = barcode.trim();
-    if (normalizedBarcode.isNotEmpty) {
-      return 'b:$normalizedBarcode';
-    }
-
-    final normalizedStockCode = stockCode.trim();
-    if (normalizedStockCode.isNotEmpty) {
-      return 's:$normalizedStockCode';
-    }
-
-    return null;
-  }
-
-  static String _formatQuantity(double value) {
-    final fixed = value.toStringAsFixed(6);
-    final normalized = fixed.replaceFirst(RegExp(r'\.?0+$'), '');
-    return normalized.replaceAll('.', ',');
-  }
 
   void _showFeedback(String message) {
     final messenger = ScaffoldMessenger.maybeOf(context);
@@ -1099,7 +976,8 @@ class _WarehouseLookupSheetState extends State<_WarehouseLookupSheet> {
   Widget build(BuildContext context) {
     return _buildLookupSheet(
       title: 'Depo Ara',
-      subtitle: 'Depo no veya ad ile arayın',
+      subtitle:
+          'Depo no veya ad ile arayÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â±n',
       child: ListView.separated(
         shrinkWrap: true,
         itemCount: _items.length,
@@ -1188,7 +1066,11 @@ class _WarehouseLookupSheetState extends State<_WarehouseLookupSheet> {
                       : _errorMessage != null
                       ? Center(child: Text(_errorMessage!))
                       : _items.isEmpty
-                      ? const Center(child: Text('Sonuç bulunamadı'))
+                      ? const Center(
+                          child: Text(
+                            'SonuÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â§ bulunamadÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â±',
+                          ),
+                        )
                       : Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 20),
                           child: child,
@@ -1208,11 +1090,13 @@ class _ProductLookupSheet extends StatefulWidget {
     required this.repository,
     required this.accessToken,
     required this.warehouseNo,
+    required this.initialQuery,
   });
 
   final WarehouseOrdersRepository repository;
   final String accessToken;
   final String warehouseNo;
+  final String initialQuery;
 
   @override
   State<_ProductLookupSheet> createState() => _ProductLookupSheetState();
@@ -1227,7 +1111,10 @@ class _ProductLookupSheetState extends State<_ProductLookupSheet> {
   @override
   void initState() {
     super.initState();
-    _queryController = TextEditingController();
+    _queryController = TextEditingController(text: widget.initialQuery);
+    if (widget.initialQuery.trim().length >= 2) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _load());
+    }
   }
 
   @override
@@ -1292,7 +1179,7 @@ class _ProductLookupSheetState extends State<_ProductLookupSheet> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Ürün Ara',
+                        'ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â¦ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œrÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¼n Ara',
                         style: Theme.of(context).textTheme.titleLarge,
                       ),
                       const SizedBox(height: 4),
@@ -1308,7 +1195,8 @@ class _ProductLookupSheetState extends State<_ProductLookupSheet> {
                               controller: _queryController,
                               onSubmitted: (_) => _load(),
                               decoration: const InputDecoration(
-                                hintText: 'Stok adı, kodu veya barkod',
+                                hintText:
+                                    'Stok adÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â±, kodu veya barkod',
                                 border: OutlineInputBorder(),
                                 isDense: true,
                                 contentPadding: EdgeInsets.symmetric(
@@ -1334,7 +1222,11 @@ class _ProductLookupSheetState extends State<_ProductLookupSheet> {
                       : _errorMessage != null
                       ? Center(child: Text(_errorMessage!))
                       : _items.isEmpty
-                      ? const Center(child: Text('Sonuç bulunamadı'))
+                      ? const Center(
+                          child: Text(
+                            'SonuÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â§ bulunamadÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â±',
+                          ),
+                        )
                       : ListView.separated(
                           padding: const EdgeInsets.symmetric(horizontal: 20),
                           itemCount: _items.length,
@@ -1386,6 +1278,7 @@ class _CreateLineDraft {
   final TextEditingController stockCodeController;
   final TextEditingController barcodeController;
   final TextEditingController quantityController;
+  final FocusNode barcodeFocusNode = FocusNode();
   ProductLookupItem? selectedProduct;
 
   void applyProduct(ProductLookupItem product) {
@@ -1393,11 +1286,14 @@ class _CreateLineDraft {
     stockCodeController.text = product.stockCode;
     barcodeController.text = product.barcode;
     if (quantityController.text.trim().isEmpty) {
-      quantityController.text = '1';
+      quantityController.text = productEntryController.formatQuantity(
+        productEntryController.unitMultiplierQuantity(product.unitMultiplier),
+      );
     }
   }
 
   void dispose() {
+    barcodeFocusNode.dispose();
     stockCodeController.dispose();
     barcodeController.dispose();
     quantityController.dispose();

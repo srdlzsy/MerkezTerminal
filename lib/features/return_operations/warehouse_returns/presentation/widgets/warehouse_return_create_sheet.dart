@@ -6,6 +6,8 @@ import 'package:furpa_merkez_terminal/features/return_operations/warehouse_retur
 import 'package:furpa_merkez_terminal/features/return_operations/warehouse_returns/data/warehouse_returns_repository.dart';
 import 'package:furpa_merkez_terminal/shared/formatters/app_formatters.dart';
 import 'package:furpa_merkez_terminal/shared/offline/mobile_warehouse_catalog_repository.dart';
+import 'package:furpa_merkez_terminal/shared/product_entry/product_entry_controller.dart';
+import 'package:furpa_merkez_terminal/shared/product_entry/product_entry_widgets.dart';
 import 'package:furpa_merkez_terminal/shared/utils/create_form_validation.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/barcode_camera_scan_page.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/terminal_ui_parts.dart';
@@ -144,10 +146,17 @@ class _WarehouseReturnCreateSheetState extends State<WarehouseReturnCreateSheet>
       return;
     }
 
+    var mergedIntoExisting = false;
     setState(() {
-      line.applyProduct(product);
+      mergedIntoExisting = _applyProductToLine(line, product);
+      _ensureFreshEntryLine();
       _validationMessage = null;
     });
+    _focusFreshEntryLine();
+
+    if (mergedIntoExisting) {
+      _showFeedback('Ayni barkod mevcut satira eklendi; miktar artirildi.');
+    }
   }
 
   Future<void> _scanProduct(_ReturnLineDraft line) async {
@@ -175,21 +184,77 @@ class _WarehouseReturnCreateSheetState extends State<WarehouseReturnCreateSheet>
     await _searchProduct(line);
   }
 
-  void _addLine() {
-    setState(() {
-      _lines = <_ReturnLineDraft>[..._lines, _ReturnLineDraft()];
-      _validationMessage = null;
-    });
+  void _ensureFreshEntryLine() {
+    if (_lines.isEmpty || !_isBlankLine(_lines.first)) {
+      _lines = <_ReturnLineDraft>[_ReturnLineDraft(), ..._lines];
+    }
+  }
 
+  void _focusFreshEntryLine() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_scrollController.hasClients) {
-        _scrollController.animateTo(
-          _scrollController.position.maxScrollExtent,
-          duration: const Duration(milliseconds: 140),
-          curve: Curves.easeOut,
-        );
+      if (!mounted || _lines.isEmpty) {
+        return;
+      }
+
+      final firstLine = _lines.first;
+      if (_isBlankLine(firstLine)) {
+        firstLine.lookupFocusNode.requestFocus();
       }
     });
+  }
+
+  bool _isBlankLine(_ReturnLineDraft line) {
+    return line.selectedProduct == null &&
+        line.stockCodeController.text.trim().isEmpty &&
+        line.lookupController.text.trim().isEmpty;
+  }
+
+  bool _applyProductToLine(_ReturnLineDraft line, ProductLookupItem product) {
+    final existingLine = productEntryController.findDuplicateLine(
+      ProductEntryDuplicateMergePolicy<_ReturnLineDraft>(
+        currentLine: line,
+        targetBarcode: product.barcode,
+        targetStockCode: product.stockCode,
+        lines: _lines,
+        lineBarcode: (line) => line.selectedProduct?.barcode ?? '',
+        lineStockCode: (line) => line.selectedProduct?.stockCode ?? '',
+        canMergeLine: (line) => line.selectedProduct != null,
+      ),
+    );
+
+    if (existingLine == null) {
+      line.applyProduct(product);
+      return false;
+    }
+
+    existingLine.quantityController.text = productEntryController
+        .formatQuantity(
+          productEntryController.readQuantity(
+                existingLine.quantityController.text,
+                fallback: 0,
+              ) +
+              productEntryController.quantityInputOrUnitMultiplier(
+                line.quantityController.text,
+                product.unitMultiplier,
+              ),
+        );
+    _recycleMergedLine(line, createReplacement: _ReturnLineDraft.new);
+    return true;
+  }
+
+  void _recycleMergedLine(
+    _ReturnLineDraft line, {
+    required _ReturnLineDraft Function() createReplacement,
+  }) {
+    final lineIndex = _lines.indexOf(line);
+    line.dispose();
+
+    if (lineIndex == 0) {
+      _lines[lineIndex] = createReplacement();
+      return;
+    }
+
+    _lines = _lines.where((item) => item != line).toList(growable: false);
   }
 
   void _removeLine(_ReturnLineDraft line) {
@@ -226,9 +291,20 @@ class _WarehouseReturnCreateSheetState extends State<WarehouseReturnCreateSheet>
       return;
     }
 
+    final activeLines = _lines
+        .where((line) => !_isBlankLine(line))
+        .toList(growable: false);
+
+    if (activeLines.isEmpty) {
+      setState(() {
+        _validationMessage = 'En az bir urun satiri ekleyin.';
+      });
+      return;
+    }
+
     final requestLines = <WarehouseReturnCreateLine>[];
-    for (var index = 0; index < _lines.length; index += 1) {
-      final line = _lines[index];
+    for (var index = 0; index < activeLines.length; index += 1) {
+      final line = activeLines[index];
       final stockCode = line.stockCodeController.text.trim();
       if (stockCode.isEmpty) {
         setState(() {
@@ -368,13 +444,7 @@ class _WarehouseReturnCreateSheetState extends State<WarehouseReturnCreateSheet>
                         const SizedBox(height: 16),
                         TerminalSectionToolbar(
                           title: 'Satirlar',
-                          actions: <Widget>[
-                            OutlinedButton.icon(
-                              onPressed: _hasTargetWarehouse ? _addLine : null,
-                              icon: const Icon(Icons.add_rounded),
-                              label: const Text('Satir Ekle'),
-                            ),
-                          ],
+                          actions: const <Widget>[],
                         ),
                         const SizedBox(height: 10),
                         ..._lines.asMap().entries.map(
@@ -495,6 +565,11 @@ class _WarehouseReturnCreateSheetState extends State<WarehouseReturnCreateSheet>
     required _ReturnLineDraft line,
   }) {
     final product = line.selectedProduct;
+    final isFreshEntry = index == 0 && _isBlankLine(line);
+    final displayLineNo = _lines
+        .take(index + 1)
+        .where((item) => !_isBlankLine(item))
+        .length;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -513,7 +588,7 @@ class _WarehouseReturnCreateSheetState extends State<WarehouseReturnCreateSheet>
             children: <Widget>[
               Expanded(
                 child: Text(
-                  'Satir ${index + 1}',
+                  isFreshEntry ? 'Giris satiri' : 'Satir $displayLineNo',
                   style: theme.textTheme.titleSmall?.copyWith(
                     fontWeight: FontWeight.w800,
                   ),
@@ -529,13 +604,16 @@ class _WarehouseReturnCreateSheetState extends State<WarehouseReturnCreateSheet>
           Row(
             children: <Widget>[
               Expanded(
-                child: TextFormField(
+                child: ProductLookupField(
                   controller: line.lookupController,
+                  focusNode: line.lookupFocusNode,
                   enabled: _hasTargetWarehouse,
-                  decoration: const InputDecoration(
-                    labelText: 'Barkod / stok kodu / urun adi',
-                  ),
+                  onSubmit: () => _searchProduct(line),
                   validator: (_) {
+                    if (_isBlankLine(line)) {
+                      return null;
+                    }
+
                     if (line.selectedProduct == null) {
                       return 'Urun secin';
                     }
@@ -588,6 +666,10 @@ class _WarehouseReturnCreateSheetState extends State<WarehouseReturnCreateSheet>
             ],
             decoration: const InputDecoration(labelText: 'Miktar*'),
             validator: (_) {
+              if (_isBlankLine(line)) {
+                return null;
+              }
+
               if (line.quantity <= 0) {
                 return 'Miktar > 0';
               }
@@ -620,7 +702,7 @@ class _ReturnLineDraft {
   _ReturnLineDraft()
     : lookupController = TextEditingController(),
       stockCodeController = TextEditingController(),
-      quantityController = TextEditingController(text: '1'),
+      quantityController = TextEditingController(),
       unitPriceController = TextEditingController(text: '0'),
       unitPointerController = TextEditingController(text: '1'),
       descriptionController = TextEditingController(),
@@ -637,13 +719,15 @@ class _ReturnLineDraft {
   final TextEditingController partyCodeController;
   final TextEditingController lotNoController;
   final TextEditingController projectCodeController;
+  final FocusNode lookupFocusNode = FocusNode();
   ProductLookupItem? selectedProduct;
 
   double get quantity =>
-      double.tryParse(quantityController.text.trim().replaceAll(',', '.')) ?? 0;
-  double get unitPrice =>
-      double.tryParse(unitPriceController.text.trim().replaceAll(',', '.')) ??
-      0;
+      productEntryController.readQuantity(quantityController.text, fallback: 0);
+  double get unitPrice => productEntryController.readQuantity(
+    unitPriceController.text,
+    fallback: 0,
+  );
   int get unitPointer => int.tryParse(unitPointerController.text.trim()) ?? 1;
   int get lotNo => int.tryParse(lotNoController.text.trim()) ?? 0;
 
@@ -651,12 +735,18 @@ class _ReturnLineDraft {
     selectedProduct = product;
     lookupController.text = product.displayLabel;
     stockCodeController.text = product.stockCode;
+    if (quantityController.text.trim().isEmpty) {
+      quantityController.text = productEntryController.formatQuantity(
+        productEntryController.unitMultiplierQuantity(product.unitMultiplier),
+      );
+    }
     if (unitPrice == 0 && product.price > 0) {
       unitPriceController.text = _formatDouble(product.price);
     }
   }
 
   void dispose() {
+    lookupFocusNode.dispose();
     lookupController.dispose();
     stockCodeController.dispose();
     quantityController.dispose();

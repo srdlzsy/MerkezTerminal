@@ -79,7 +79,7 @@ void main() {
     await tester.tap(find.text('50 - MERKEZ DEPO'));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.widgetWithText(ChoiceChip, 'Siparise Bagli Sevk'));
+    await tester.tap(find.text('Siparisli'));
     await tester.pumpAndSettle();
     await tester.drag(find.byType(ListView).first, const Offset(0, -260));
     await tester.pumpAndSettle();
@@ -89,6 +89,63 @@ void main() {
     expect(tester.takeException(), isNull);
     expect(find.text('Depo Siparisi Sec'), findsWidgets);
   });
+
+  testWidgets('keeps fresh manual shipment row and merges duplicate quantity', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 1000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: OutgoingWarehouseShipmentCreateSheet(
+            repository: _FakeOutgoingWarehouseShipmentsRepository(),
+            receivedWarehouseOrdersRepository:
+                _FakeReceivedWarehouseOrdersRepository(),
+            accessToken: 'token',
+            defaultWarehouseNo: '110',
+            mobileWarehouseCatalogRepository:
+                _emptyWarehouseCatalogRepository(),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.widgetWithText(TextField, 'Hedef depo no*'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('50 - MERKEZ DEPO'));
+    await tester.pumpAndSettle();
+
+    await _enterShipmentBarcode(tester);
+
+    const productInfo =
+        'Test Urun | Kod 015792 | Birim KL | Barkod 8690000000012';
+    expect(find.text('Giris satiri'), findsOneWidget);
+    expect(find.text('Satir 1'), findsOneWidget);
+    expect(find.text(productInfo), findsOneWidget);
+
+    await _enterShipmentBarcode(tester);
+
+    expect(find.text(productInfo), findsOneWidget);
+    expect(find.text('4'), findsOneWidget);
+  });
+}
+
+Future<void> _enterShipmentBarcode(WidgetTester tester) async {
+  final productField = find
+      .widgetWithText(TextFormField, 'Barkod / stok kodu / urun adi')
+      .first;
+  await tester.ensureVisible(productField);
+  await tester.pumpAndSettle();
+
+  await tester.enterText(productField, '8690000000012');
+  await tester.tap(find.widgetWithText(FilledButton, 'Urun').first);
+  await tester.pumpAndSettle();
+  await tester.tap(find.text('015792 - Test Urun'));
+  await tester.pumpAndSettle();
 }
 
 MobileWarehouseCatalogLocalRepository _emptyWarehouseCatalogRepository() {
@@ -156,7 +213,18 @@ class _FakeOutgoingWarehouseShipmentsRepository
     required String warehouseNo,
     required String query,
   }) async {
-    return const <ProductLookupItem>[];
+    return const <ProductLookupItem>[
+      ProductLookupItem(
+        warehouseNo: 110,
+        barcode: '8690000000012',
+        stockCode: '015792',
+        stockName: 'Test Urun',
+        price: 125,
+        unitName: 'KL',
+        unitMultiplier: 2,
+        isOrderBlocked: false,
+      ),
+    ];
   }
 
   @override

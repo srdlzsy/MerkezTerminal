@@ -5,6 +5,9 @@ import 'package:furpa_merkez_terminal/features/stock_operations/label_documents/
 import 'package:furpa_merkez_terminal/features/stock_operations/label_documents/data/models/label_document_models.dart';
 import 'package:furpa_merkez_terminal/shared/data/search_lookup_models.dart';
 import 'package:furpa_merkez_terminal/shared/formatters/app_formatters.dart';
+import 'package:furpa_merkez_terminal/shared/product_entry/product_entry_controller.dart';
+import 'package:furpa_merkez_terminal/shared/product_entry/product_entry_widgets.dart';
+import 'package:furpa_merkez_terminal/shared/widgets/barcode_camera_scan_page.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/section_card.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/terminal_ui_parts.dart';
 
@@ -220,7 +223,7 @@ class _LabelDocumentsPageState extends State<LabelDocumentsPage> {
     return TerminalListHeaderCard(
       title: 'Etiket Belgeleri',
       subtitle:
-          'Son belgeler, tum gecmis, belge detayi ve yeni belge olusturma akisi bu ekranda yonetilir.',
+          'Etiket belgelerini listeleyin, detaylari acin ve yeni belge olusturun.',
       infoChips: <Widget>[
         TerminalInfoChip(
           label: 'Varsayilan depo',
@@ -425,33 +428,59 @@ class _LabelDocumentCreateSheet extends StatefulWidget {
 }
 
 class _LabelDocumentCreateSheetState extends State<_LabelDocumentCreateSheet> {
-  final TextEditingController _searchController = TextEditingController();
-  final List<SearchProductLookupItem> _selectedProducts =
-      <SearchProductLookupItem>[];
+  final List<_LabelDocumentLineDraft> _lines = <_LabelDocumentLineDraft>[
+    _LabelDocumentLineDraft(),
+  ];
   String? _errorMessage;
 
   @override
   void dispose() {
-    _searchController.dispose();
+    for (final line in _lines) {
+      line.dispose();
+    }
     super.dispose();
   }
 
-  Future<void> _searchProduct() async {
-    final query = _searchController.text.trim();
+  Future<void> _searchProduct(_LabelDocumentLineDraft line) async {
+    final query = line.lookupController.text.trim();
 
     if (query.length < 2) {
       setState(() {
+        line.setLookupStatus(
+          'Urun aramak icin en az 2 karakter veya barkod girilmeli.',
+          isError: true,
+        );
         _errorMessage =
             'Urun aramak icin en az 2 karakter veya barkod girilmeli.';
       });
       return;
     }
 
-    final products = await widget.repository.searchProducts(
-      accessToken: widget.accessToken,
-      warehouseNo: widget.defaultWarehouseNo,
-      query: query,
-    );
+    List<SearchProductLookupItem> products;
+    try {
+      setState(() {
+        line.setLookupStatus('API araniyor: $query', isLoading: true);
+        _errorMessage = null;
+      });
+
+      products = await widget.repository.searchProducts(
+        accessToken: widget.accessToken,
+        warehouseNo: widget.defaultWarehouseNo,
+        query: query,
+      );
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        line.setLookupStatus(
+          'API hata dondu: ${error.toString().replaceFirst('Exception: ', '').trim()}',
+          isError: true,
+        );
+      });
+      return;
+    }
 
     if (!mounted) {
       return;
@@ -487,32 +516,157 @@ class _LabelDocumentCreateSheetState extends State<_LabelDocumentCreateSheet> {
     );
 
     if (selected == null) {
+      if (mounted) {
+        setState(() {
+          line.setLookupStatus(
+            products.isEmpty
+                ? 'Urun bulunamadi: $query'
+                : '${products.length} sonuc geldi, secim yapilmadi.',
+            isError: products.isEmpty,
+          );
+        });
+      }
       return;
     }
 
+    var mergedIntoExisting = false;
     setState(() {
-      final exists = _selectedProducts.any(
-        (item) => item.stockCode == selected.stockCode,
-      );
-      if (!exists) {
-        _selectedProducts.add(selected);
+      mergedIntoExisting = _applyProductToLine(line, selected);
+      if (!mergedIntoExisting) {
+        line.setLookupStatus(
+          'Secildi: ${selected.stockCode} | ${selected.stockName}',
+        );
       }
+      _ensureFreshEntryLine();
       _errorMessage = null;
+    });
+    _focusFreshEntryLine();
+
+    if (mergedIntoExisting) {
+      _showFeedback('Bu urun zaten etiket belgesine ekli.');
+    }
+  }
+
+  Future<void> _scanProductWithCamera(_LabelDocumentLineDraft line) async {
+    if (!supportsCameraBarcodeScanning) {
+      setState(() {
+        line.setLookupStatus(
+          'Bu cihazda kamera ile barkod okutma desteklenmiyor.',
+          isError: true,
+        );
+      });
+      _showFeedback('Bu cihazda kamera ile barkod okutma desteklenmiyor.');
+      return;
+    }
+
+    final barcode = await openBarcodeCameraScanner(
+      context,
+      title: 'Etiket Belgesi Kamerasi',
+      subtitle: 'Barkodu okutun; bulunan urun belgeye eklenecek.',
+    );
+
+    if (barcode == null || !mounted) {
+      return;
+    }
+
+    line.lookupController.text = barcode;
+    setState(() {
+      line.setLookupStatus('Barkod okundu: $barcode. API aramasi basliyor.');
+    });
+    await _searchProduct(line);
+  }
+
+  bool _applyProductToLine(
+    _LabelDocumentLineDraft line,
+    SearchProductLookupItem product,
+  ) {
+    final existingLine = productEntryController.findDuplicateLine(
+      ProductEntryDuplicateMergePolicy<_LabelDocumentLineDraft>(
+        currentLine: line,
+        targetBarcode: product.barcode,
+        targetStockCode: product.stockCode,
+        lines: _lines,
+        lineBarcode: (line) => line.selectedProduct?.barcode ?? '',
+        lineStockCode: (line) => line.selectedProduct?.stockCode ?? '',
+        canMergeLine: (line) => line.selectedProduct != null,
+      ),
+    );
+
+    if (existingLine == null) {
+      line.applyProduct(product);
+      return false;
+    }
+
+    _recycleMergedLine(line, createReplacement: _LabelDocumentLineDraft.new);
+    return true;
+  }
+
+  void _recycleMergedLine(
+    _LabelDocumentLineDraft line, {
+    required _LabelDocumentLineDraft Function() createReplacement,
+  }) {
+    final lineIndex = _lines.indexOf(line);
+    line.dispose();
+
+    if (lineIndex == 0) {
+      _lines[lineIndex] = createReplacement();
+      return;
+    }
+
+    _lines.removeAt(lineIndex);
+  }
+
+  void _ensureFreshEntryLine() {
+    if (_lines.isEmpty || !_isBlankLine(_lines.first)) {
+      _lines.insert(0, _LabelDocumentLineDraft());
+    }
+  }
+
+  void _focusFreshEntryLine() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _lines.isEmpty) {
+        return;
+      }
+
+      final firstLine = _lines.first;
+      if (_isBlankLine(firstLine)) {
+        firstLine.lookupFocusNode.requestFocus();
+      }
     });
   }
 
+  bool _isBlankLine(_LabelDocumentLineDraft line) {
+    return line.selectedProduct == null &&
+        line.lookupController.text.trim().isEmpty;
+  }
+
   void _submit() {
-    if (_selectedProducts.isEmpty) {
+    final activeLines = _lines
+        .where((line) => !_isBlankLine(line))
+        .toList(growable: false);
+
+    if (activeLines.isEmpty) {
       setState(() {
         _errorMessage = 'En az bir urun secilmeli.';
       });
       return;
     }
 
+    if (activeLines.any((line) => line.selectedProduct == null)) {
+      setState(() {
+        _errorMessage = 'Tum satirlarda urun secimi tamamlanmali.';
+      });
+      return;
+    }
+
     Navigator.of(context).pop(
       CreateLabelDocumentRequest(
-        lines: _selectedProducts
-            .map((item) => CreateLabelDocumentLine(productCode: item.stockCode))
+        lines: activeLines
+            .map(
+              (line) => CreateLabelDocumentLine(
+                productCode: line.selectedProduct!.stockCode,
+              ),
+            )
             .toList(growable: false),
       ),
     );
@@ -534,66 +688,114 @@ class _LabelDocumentCreateSheetState extends State<_LabelDocumentCreateSheet> {
             padding: EdgeInsets.zero,
           ),
           const SizedBox(height: 16),
-          Row(
-            children: <Widget>[
-              Expanded(
-                child: TextField(
-                  controller: _searchController,
-                  decoration: const InputDecoration(
-                    labelText: 'Barkod / stok kodu / urun adi',
+          ..._lines.asMap().entries.map((entry) {
+            final index = entry.key;
+            final line = entry.value;
+            final product = line.selectedProduct;
+            final isFreshEntry = index == 0 && _isBlankLine(line);
+            final displayLineNo = _lines
+                .take(index + 1)
+                .where((item) => !_isBlankLine(item))
+                .length;
+
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                    color: Theme.of(context).colorScheme.outlineVariant,
                   ),
                 ),
-              ),
-              const SizedBox(width: 12),
-              FilledButton.icon(
-                onPressed: _searchProduct,
-                icon: const Icon(Icons.search_rounded),
-                label: const Text('Urun'),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          if (_selectedProducts.isEmpty)
-            const TerminalEmptyState(
-              message: 'Etiket belgesi icin secilen urun yok.',
-            )
-          else
-            Column(
-              children: _selectedProducts
-                  .map((item) {
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
-                      child: Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(14),
-                          border: Border.all(
-                            color: Theme.of(context).colorScheme.outlineVariant,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Row(
+                      children: <Widget>[
+                        Expanded(
+                          child: Text(
+                            isFreshEntry
+                                ? 'Giris satiri'
+                                : 'Satir $displayLineNo',
+                            style: Theme.of(context).textTheme.titleSmall
+                                ?.copyWith(fontWeight: FontWeight.w800),
                           ),
                         ),
-                        child: Row(
-                          children: <Widget>[
-                            Expanded(
-                              child: Text(
-                                '${item.stockCode} - ${item.stockName}',
-                              ),
-                            ),
-                            IconButton(
-                              onPressed: () {
-                                setState(() {
-                                  _selectedProducts.remove(item);
-                                });
-                              },
-                              icon: const Icon(Icons.delete_outline_rounded),
-                            ),
-                          ],
+                        if (!isFreshEntry && _lines.length > 1)
+                          IconButton(
+                            onPressed: () {
+                              setState(() {
+                                _lines.removeAt(index);
+                                line.dispose();
+                              });
+                            },
+                            icon: const Icon(Icons.delete_outline_rounded),
+                            tooltip: 'Satiri sil',
+                          ),
+                      ],
+                    ),
+                    Row(
+                      children: <Widget>[
+                        Expanded(
+                          child: ProductLookupField(
+                            controller: line.lookupController,
+                            focusNode: line.lookupFocusNode,
+                            enabled: !line.isLookupStatusLoading,
+                            onSubmit: () => _searchProduct(line),
+                          ),
                         ),
+                        const SizedBox(width: 12),
+                        FilledButton.icon(
+                          onPressed: line.isLookupStatusLoading
+                              ? null
+                              : () => _searchProduct(line),
+                          icon: const Icon(Icons.search_rounded),
+                          label: const Text('Urun'),
+                        ),
+                        const SizedBox(width: 8),
+                        IconButton.filledTonal(
+                          onPressed: line.isLookupStatusLoading
+                              ? null
+                              : () => _scanProductWithCamera(line),
+                          tooltip: 'Kamera ile oku',
+                          icon: const Icon(Icons.photo_camera_back_rounded),
+                        ),
+                      ],
+                    ),
+                    if (line.lookupStatusMessage != null) ...<Widget>[
+                      const SizedBox(height: 8),
+                      if (line.isLookupStatusLoading)
+                        TerminalMessageBlock.loading(
+                          message: line.lookupStatusMessage!,
+                        )
+                      else if (line.isLookupStatusError)
+                        TerminalMessageBlock.error(
+                          message: line.lookupStatusMessage!,
+                        )
+                      else
+                        TerminalMessageBlock.info(
+                          message: line.lookupStatusMessage!,
+                        ),
+                    ],
+                    if (product != null) ...<Widget>[
+                      const SizedBox(height: 8),
+                      TerminalMessageBlock.info(
+                        message:
+                            '${product.stockCode} | ${product.stockName} | ${product.unitName}${product.barcode.trim().isNotEmpty ? ' | Barkod ${product.barcode}' : ''}',
                       ),
-                    );
-                  })
-                  .toList(growable: false),
+                    ],
+                  ],
+                ),
+              ),
+            );
+          }),
+          const SizedBox(height: 16),
+          if (_lines.every(_isBlankLine))
+            const TerminalEmptyState(
+              message: 'Etiket belgesi icin secilen urun yok.',
             ),
           if (_errorMessage != null) ...<Widget>[
             const SizedBox(height: 12),
@@ -621,5 +823,42 @@ class _LabelDocumentCreateSheetState extends State<_LabelDocumentCreateSheet> {
         ],
       ),
     );
+  }
+
+  void _showFeedback(String message) {
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    messenger?.hideCurrentSnackBar();
+    messenger?.showSnackBar(SnackBar(content: Text(message)));
+  }
+}
+
+class _LabelDocumentLineDraft {
+  _LabelDocumentLineDraft() : lookupController = TextEditingController();
+
+  final TextEditingController lookupController;
+  final FocusNode lookupFocusNode = FocusNode();
+  SearchProductLookupItem? selectedProduct;
+  String? lookupStatusMessage;
+  bool isLookupStatusLoading = false;
+  bool isLookupStatusError = false;
+
+  void applyProduct(SearchProductLookupItem product) {
+    selectedProduct = product;
+    lookupController.text = product.displayLabel;
+  }
+
+  void setLookupStatus(
+    String message, {
+    bool isLoading = false,
+    bool isError = false,
+  }) {
+    lookupStatusMessage = message;
+    isLookupStatusLoading = isLoading;
+    isLookupStatusError = isError;
+  }
+
+  void dispose() {
+    lookupFocusNode.dispose();
+    lookupController.dispose();
   }
 }

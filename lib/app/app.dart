@@ -125,35 +125,37 @@ class _FurpaMerkezAppState extends State<FurpaMerkezApp> {
     }
 
     var progressDialogVisible = true;
-    unawaited(
-      showDialog<void>(
-        context: dialogContext,
-        barrierDismissible: false,
-        builder: (context) {
-          return PopScope(
-            canPop: false,
-            child: AlertDialog(
-              title: const Text('Guncelleme indiriliyor'),
-              content: Row(
-                children: <Widget>[
-                  const SizedBox(
-                    width: 28,
-                    height: 28,
-                    child: CircularProgressIndicator(strokeWidth: 3),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Text('${updateInfo.version} surumu indiriliyor...'),
-                  ),
-                ],
+    final progressDialog =
+        showDialog<void>(
+          context: dialogContext,
+          barrierDismissible: false,
+          builder: (context) {
+            return PopScope(
+              canPop: false,
+              child: AlertDialog(
+                title: const Text('Guncelleme indiriliyor'),
+                content: Row(
+                  children: <Widget>[
+                    const SizedBox(
+                      width: 28,
+                      height: 28,
+                      child: CircularProgressIndicator(strokeWidth: 3),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Text(
+                        '${updateInfo.version} surumu indiriliyor...',
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-          );
-        },
-      ).whenComplete(() {
-        progressDialogVisible = false;
-      }),
-    );
+            );
+          },
+        ).whenComplete(() {
+          progressDialogVisible = false;
+        });
+    unawaited(progressDialog);
 
     try {
       final installerOpened = await widget.dependencies.updateService
@@ -162,7 +164,7 @@ class _FurpaMerkezAppState extends State<FurpaMerkezApp> {
         return;
       }
 
-      _closeProgressDialog(progressDialogVisible);
+      _closeProgressDialog(isVisible: progressDialogVisible);
 
       if (!installerOpened) {
         _showMessage(
@@ -175,24 +177,29 @@ class _FurpaMerkezAppState extends State<FurpaMerkezApp> {
         return;
       }
 
-      _closeProgressDialog(progressDialogVisible);
+      _closeProgressDialog(isVisible: progressDialogVisible);
       _showMessage(error.message ?? 'Guncelleme indirilemedi.');
     } on Object catch (error) {
       if (!mounted) {
         return;
       }
 
-      _closeProgressDialog(progressDialogVisible);
+      _closeProgressDialog(isVisible: progressDialogVisible);
       _showMessage('Guncelleme indirilemedi: $error');
     }
   }
 
-  void _closeProgressDialog(bool progressDialogVisible) {
-    if (!progressDialogVisible) {
+  void _closeProgressDialog({required bool isVisible}) {
+    if (!isVisible) {
       return;
     }
 
-    _navigatorKey.currentState?.pop();
+    final navigator = _navigatorKey.currentState;
+    if (navigator == null || !navigator.canPop()) {
+      return;
+    }
+
+    navigator.pop();
   }
 
   void _showMessage(String message) {

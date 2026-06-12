@@ -75,19 +75,21 @@ class OfflineSyncService {
         onlineResult: result,
       );
     } on ApiException catch (error) {
-      if (!_shouldQueueAfterCreate(error)) {
-        rethrow;
+      if (_shouldTryCreateRecovery(error)) {
+        final recovered = await _recoverInventoryRequest(
+          accessToken: accessToken,
+          clientRequestId: request.clientRequestId ?? '',
+        );
+        if (recovered != null) {
+          return InventoryCountSubmissionResult(
+            status: OfflineSubmissionStatus.recovered,
+            onlineResult: recovered,
+          );
+        }
       }
 
-      final recovered = await _recoverInventoryRequest(
-        accessToken: accessToken,
-        clientRequestId: request.clientRequestId ?? '',
-      );
-      if (recovered != null) {
-        return InventoryCountSubmissionResult(
-          status: OfflineSubmissionStatus.recovered,
-          onlineResult: recovered,
-        );
+      if (!_shouldQueueAfterCreate(error)) {
+        rethrow;
       }
 
       await _offlineInventoryRepository.saveDraft(
@@ -124,19 +126,21 @@ class OfflineSyncService {
         onlineResult: result,
       );
     } on ApiException catch (error) {
-      if (!_shouldQueueAfterCreate(error)) {
-        rethrow;
+      if (_shouldTryCreateRecovery(error)) {
+        final recovered = await _recoverCompanyAcceptanceRequest(
+          accessToken: accessToken,
+          clientRequestId: request.clientRequestId ?? '',
+        );
+        if (recovered != null) {
+          return CompanyAcceptanceSubmissionResult(
+            status: OfflineSubmissionStatus.recovered,
+            onlineResult: recovered,
+          );
+        }
       }
 
-      final recovered = await _recoverCompanyAcceptanceRequest(
-        accessToken: accessToken,
-        clientRequestId: request.clientRequestId ?? '',
-      );
-      if (recovered != null) {
-        return CompanyAcceptanceSubmissionResult(
-          status: OfflineSubmissionStatus.recovered,
-          onlineResult: recovered,
-        );
+      if (!_shouldQueueAfterCreate(error)) {
+        rethrow;
       }
 
       await _offlineCompanyAcceptanceRepository.saveDraft(
@@ -189,7 +193,7 @@ class OfflineSyncService {
         );
       }
 
-      if (error.statusCode == 0 || error.statusCode == 401) {
+      if (_shouldDeferSync(error)) {
         await _offlineInventoryRepository.saveDraft(
           syncingDraft.copyWith(
             status: OfflineRecordStatus.pending,
@@ -247,7 +251,7 @@ class OfflineSyncService {
         );
       }
 
-      if (error.statusCode == 0 || error.statusCode == 401) {
+      if (_shouldDeferSync(error)) {
         await _offlineCompanyAcceptanceRepository.saveDraft(
           syncingDraft.copyWith(
             status: OfflineRecordStatus.pending,
@@ -317,7 +321,28 @@ class OfflineSyncService {
   }
 
   bool _shouldQueueAfterCreate(ApiException error) {
-    return error.statusCode == 0 || error.statusCode == 409;
+    return _isConnectionFailure(error);
+  }
+
+  bool _shouldTryCreateRecovery(ApiException error) {
+    return error.statusCode == 409 || error.statusCode == 0;
+  }
+
+  bool _shouldDeferSync(ApiException error) {
+    return _isConnectionFailure(error) || error.statusCode == 401;
+  }
+
+  bool _isConnectionFailure(ApiException error) {
+    if (error.statusCode != 0) {
+      return false;
+    }
+
+    final title = error.title.toLowerCase();
+    return title == 'timeout' ||
+        title.contains('baglanti') ||
+        title.contains('connection') ||
+        title.contains('internet') ||
+        title.contains('network');
   }
 
   Future<InventoryCountCreateResult?> _recoverInventoryRequest({

@@ -64,7 +64,7 @@ class HomeDashboard extends StatelessWidget {
               ),
               const SizedBox(height: 14),
               Text(
-                'Uygulama ana sayfasi acildi. Soldaki menuden modullere gecebilir ya da asagidaki hizli kartlarla devam edebilirsin.',
+                'Islem yapmak icin menuden bir ekran secin veya hizli erisim kartlarini kullanin.',
                 style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                   color: Colors.white.withAlpha(220),
                   height: 1.45,
@@ -76,26 +76,23 @@ class HomeDashboard extends StatelessWidget {
         const SizedBox(height: 16),
         SectionCard(
           title: 'Hizli Erisim',
-          subtitle:
-              quickMenus.isEmpty
-                  ? 'Kullaniciya atanmis gorunur menu bulunamadi.'
-                  : 'Sik kullanilan ekranlara tek dokunusla gec.',
-          child:
-              quickMenus.isEmpty
-                  ? const _DashboardEmptyState()
-                  : Wrap(
-                    spacing: 12,
-                    runSpacing: 12,
-                    children:
-                        quickMenus
-                            .map(
-                              (menu) => _QuickMenuTile(
-                                menu: menu,
-                                onTap: () => onSelectMenu(menu),
-                              ),
-                            )
-                            .toList(growable: false),
-                  ),
+          subtitle: quickMenus.isEmpty
+              ? 'Kullaniciya atanmis menu bulunamadi.'
+              : 'Sik kullandiginiz ekranlar burada.',
+          child: quickMenus.isEmpty
+              ? const _DashboardEmptyState()
+              : Wrap(
+                  spacing: 12,
+                  runSpacing: 12,
+                  children: quickMenus
+                      .map(
+                        (menu) => _QuickMenuTile(
+                          menu: menu,
+                          onTap: () => onSelectMenu(menu),
+                        ),
+                      )
+                      .toList(growable: false),
+                ),
         ),
       ],
     );
@@ -110,7 +107,9 @@ class _QuickMenuTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final width = MediaQuery.sizeOf(context).width >= 840 ? 280.0 : double.infinity;
+    final width = MediaQuery.sizeOf(context).width >= 840
+        ? 280.0
+        : double.infinity;
 
     return InkWell(
       borderRadius: BorderRadius.circular(18),
@@ -145,10 +144,10 @@ class _QuickMenuTile extends StatelessWidget {
             ),
             const SizedBox(height: 10),
             Text(
-              '${menu.actions.length} yetki aksiyonu',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: const Color(0xFF5C6B80),
-              ),
+              '${menu.actions.length} islem yetkisi',
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: const Color(0xFF5C6B80)),
             ),
           ],
         ),
@@ -165,7 +164,7 @@ class _DashboardEmptyState extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 18),
       child: Text(
-        'Menu donmuyor gibi gorunuyor. /api/auth/me icindeki modules cevabi kontrol edilmeli.',
+        'Bu kullaniciya atanmis menu bulunamadi. Yetkiler icin sistem yoneticinizle gorusun.',
         style: Theme.of(context).textTheme.bodyLarge,
       ),
     );

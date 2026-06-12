@@ -5,11 +5,11 @@ import 'package:furpa_merkez_terminal/features/order_operations/given_company_or
 import 'package:furpa_merkez_terminal/features/order_operations/shared/data/company_orders_repository.dart';
 import 'package:furpa_merkez_terminal/shared/formatters/app_formatters.dart';
 import 'package:furpa_merkez_terminal/shared/offline/mobile_customer_catalog_repository.dart';
+import 'package:furpa_merkez_terminal/shared/product_entry/product_entry_controller.dart';
+import 'package:furpa_merkez_terminal/shared/product_entry/product_entry_widgets.dart';
 import 'package:furpa_merkez_terminal/shared/utils/create_form_validation.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/barcode_camera_scan_page.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/terminal_ui_parts.dart';
-
-enum _CompanyProductEntryMode { barcode, search, camera }
 
 class GivenCompanyOrderCreateSheet extends StatefulWidget {
   const GivenCompanyOrderCreateSheet({
@@ -43,7 +43,6 @@ class _GivenCompanyOrderCreateSheetState
   late DateTime _orderDate;
   late DateTime _deliveryDate;
   late List<_CompanyOrderLineDraft> _lines;
-  late _CompanyProductEntryMode _entryMode;
   CustomerLookupItem? _selectedCustomer;
   String? _validationMessage;
 
@@ -58,7 +57,6 @@ class _GivenCompanyOrderCreateSheetState
     _orderDate = _normalizeDate(DateTime.now());
     _deliveryDate = _normalizeDate(DateTime.now());
     _lines = <_CompanyOrderLineDraft>[_CompanyOrderLineDraft()];
-    _entryMode = _CompanyProductEntryMode.barcode;
   }
 
   @override
@@ -111,8 +109,7 @@ class _GivenCompanyOrderCreateSheetState
       builder: (context) => _CustomerLookupSheet(
         repository: widget.repository,
         accessToken: widget.accessToken,
-        mobileCustomerCatalogRepository:
-            widget.mobileCustomerCatalogRepository,
+        mobileCustomerCatalogRepository: widget.mobileCustomerCatalogRepository,
       ),
     );
 
@@ -125,9 +122,11 @@ class _GivenCompanyOrderCreateSheetState
       _customerCodeController.text = customer.customerCode;
       _validationMessage = null;
       for (final line in _lines) {
-        line.clearProduct();
+        line.dispose();
       }
+      _lines = <_CompanyOrderLineDraft>[_CompanyOrderLineDraft()];
     });
+    _focusFreshEntryLine();
   }
 
   Future<void> _searchProduct(_CompanyOrderLineDraft line) async {
@@ -157,6 +156,7 @@ class _GivenCompanyOrderCreateSheetState
         accessToken: widget.accessToken,
         warehouseNo: widget.defaultWarehouseNo,
         customerCode: customer.customerCode,
+        initialQuery: line.barcodeController.text,
       ),
     );
 
@@ -177,93 +177,13 @@ class _GivenCompanyOrderCreateSheetState
           'Secildi: ${product.stockCode} | ${product.stockName}',
         );
       }
+      _ensureFreshEntryLine();
       _validationMessage = null;
     });
+    _focusFreshEntryLine();
 
     if (mergedIntoExisting) {
       _showFeedback('Ayni barkod mevcut satira eklendi; miktar artirildi.');
-    }
-  }
-
-  Future<void> _findProductByBarcode(_CompanyOrderLineDraft line) async {
-    final customer = _selectedCustomer;
-    if (customer == null) {
-      setState(() {
-        line.setLookupStatus(
-          'Barkod aramasi icin once cari secilmeli.',
-          isError: true,
-        );
-      });
-      _showFeedback('Barkod aramasi icin once musteri secin.');
-      return;
-    }
-
-    final barcode = line.barcodeController.text.trim();
-    if (barcode.length < 3) {
-      setState(() {
-        line.setLookupStatus(
-          'Barkod alanina gecerli bir deger girin.',
-          isError: true,
-        );
-      });
-      _showFeedback('Barkod alanina gecerli bir deger girin.');
-      return;
-    }
-
-    try {
-      setState(() {
-        line.setLookupStatus('API araniyor: $barcode', isLoading: true);
-        _validationMessage = null;
-      });
-
-      final products = await widget.repository.searchProducts(
-        accessToken: widget.accessToken,
-        warehouseNo: widget.defaultWarehouseNo,
-        customerCode: customer.customerCode,
-        query: barcode,
-      );
-
-      if (!mounted) {
-        return;
-      }
-
-      if (products.isEmpty) {
-        setState(() {
-          line.setLookupStatus(
-            'API cevap verdi ama barkoda ait urun bulunamadi: $barcode',
-            isError: true,
-          );
-        });
-        _showFeedback('Bu barkoda ait urun bulunamadi.');
-        return;
-      }
-
-      var mergedIntoExisting = false;
-      setState(() {
-        mergedIntoExisting = _applyProductToLine(line, products.first);
-        if (!mergedIntoExisting) {
-          line.setLookupStatus(
-            '${products.length} sonuc geldi. Secildi: ${products.first.stockCode} | ${products.first.stockName}',
-          );
-        }
-        _validationMessage = null;
-      });
-
-      if (mergedIntoExisting) {
-        _showFeedback('Ayni barkod mevcut satira eklendi; miktar artirildi.');
-      }
-    } catch (error) {
-      if (!mounted) {
-        return;
-      }
-
-      _showFeedback(error.toString().replaceFirst('Exception: ', '').trim());
-      setState(() {
-        line.setLookupStatus(
-          'API hata dondu: ${error.toString().replaceFirst('Exception: ', '').trim()}',
-          isError: true,
-        );
-      });
     }
   }
 
@@ -305,17 +225,23 @@ class _GivenCompanyOrderCreateSheetState
     setState(() {
       line.setLookupStatus('Barkod okundu: $barcode. API aramasi basliyor.');
     });
-    await _findProductByBarcode(line);
+    await _searchProduct(line);
   }
 
   bool _applyProductToLine(
     _CompanyOrderLineDraft line,
     CompanyOrderProductLookupItem product,
   ) {
-    final existingLine = _findDuplicateLine(
-      currentLine: line,
-      barcode: product.barcode,
-      stockCode: product.stockCode,
+    final existingLine = productEntryController.findDuplicateLine(
+      ProductEntryDuplicateMergePolicy<_CompanyOrderLineDraft>(
+        currentLine: line,
+        targetBarcode: product.barcode,
+        targetStockCode: product.stockCode,
+        lines: _lines,
+        lineBarcode: (line) => line.selectedProduct?.barcode ?? '',
+        lineStockCode: (line) => line.selectedProduct?.stockCode ?? '',
+        canMergeLine: (line) => line.selectedProduct != null,
+      ),
     );
 
     if (existingLine == null) {
@@ -323,50 +249,29 @@ class _GivenCompanyOrderCreateSheetState
       return false;
     }
 
-    existingLine.quantityController.text = _formatQuantity(
-      _parseDouble(existingLine.quantityController.text) +
-          _parseDouble(line.quantityController.text),
-    );
+    existingLine.quantityController.text = productEntryController
+        .formatQuantity(
+          productEntryController.readQuantity(
+                existingLine.quantityController.text,
+                fallback: 0,
+              ) +
+              productEntryController.quantityInputOrUnitMultiplier(
+                line.quantityController.text,
+                product.unitMultiplier,
+              ),
+        );
 
-    if (_parseDouble(existingLine.unitPriceController.text) <= 0) {
+    if (productEntryController.readQuantity(
+          existingLine.unitPriceController.text,
+          fallback: 0,
+        ) <=
+        0) {
       line.applyProduct(product);
       existingLine.unitPriceController.text = line.unitPriceController.text;
     }
 
     _recycleMergedLine(line, createReplacement: _CompanyOrderLineDraft.new);
     return true;
-  }
-
-  _CompanyOrderLineDraft? _findDuplicateLine({
-    required _CompanyOrderLineDraft currentLine,
-    required String barcode,
-    required String stockCode,
-  }) {
-    final targetKey = _productIdentity(barcode: barcode, stockCode: stockCode);
-    if (targetKey == null) {
-      return null;
-    }
-
-    for (final candidate in _lines) {
-      if (identical(candidate, currentLine)) {
-        continue;
-      }
-
-      final selectedProduct = candidate.selectedProduct;
-      if (selectedProduct == null) {
-        continue;
-      }
-
-      final candidateKey = _productIdentity(
-        barcode: selectedProduct.barcode,
-        stockCode: selectedProduct.stockCode,
-      );
-      if (candidateKey == targetKey) {
-        return candidate;
-      }
-    }
-
-    return null;
   }
 
   void _recycleMergedLine(
@@ -384,21 +289,29 @@ class _GivenCompanyOrderCreateSheetState
     _lines = _lines.where((item) => item != line).toList(growable: false);
   }
 
-  void _addLine() {
-    setState(() {
+  void _ensureFreshEntryLine() {
+    if (_lines.isEmpty || !_isBlankLine(_lines.first)) {
       _lines = <_CompanyOrderLineDraft>[_CompanyOrderLineDraft(), ..._lines];
-      _validationMessage = null;
-    });
+    }
+  }
 
+  void _focusFreshEntryLine() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_scrollController.hasClients) {
-        _scrollController.animateTo(
-          _scrollController.position.minScrollExtent,
-          duration: const Duration(milliseconds: 140),
-          curve: Curves.easeOut,
-        );
+      if (!mounted || _lines.isEmpty) {
+        return;
+      }
+
+      final firstLine = _lines.first;
+      if (_isBlankLine(firstLine)) {
+        firstLine.barcodeFocusNode.requestFocus();
       }
     });
+  }
+
+  bool _isBlankLine(_CompanyOrderLineDraft line) {
+    return line.selectedProduct == null &&
+        line.stockCodeController.text.trim().isEmpty &&
+        line.barcodeController.text.trim().isEmpty;
   }
 
   void _removeLine(_CompanyOrderLineDraft line) {
@@ -429,7 +342,11 @@ class _GivenCompanyOrderCreateSheetState
       return;
     }
 
-    if (_lines.isEmpty) {
+    final activeLines = _lines
+        .where((line) => !_isBlankLine(line))
+        .toList(growable: false);
+
+    if (activeLines.isEmpty) {
       setState(() {
         _validationMessage = 'En az bir satir olusturulmasi gerekiyor.';
       });
@@ -437,11 +354,17 @@ class _GivenCompanyOrderCreateSheetState
     }
 
     final requestLines = <CompanyOrderCreateLine>[];
-    for (var index = 0; index < _lines.length; index += 1) {
-      final line = _lines[index];
+    for (var index = 0; index < activeLines.length; index += 1) {
+      final line = activeLines[index];
       final stockCode = line.stockCodeController.text.trim();
-      final quantity = _parseDouble(line.quantityController.text);
-      final unitPrice = _parseDouble(line.unitPriceController.text);
+      final quantity = productEntryController.readQuantity(
+        line.quantityController.text,
+        fallback: 0,
+      );
+      final unitPrice = productEntryController.readQuantity(
+        line.unitPriceController.text,
+        fallback: 0,
+      );
 
       if (stockCode.isEmpty) {
         setState(() {
@@ -599,55 +522,16 @@ class _GivenCompanyOrderCreateSheetState
                           ],
                         ),
                         const SizedBox(height: 16),
-                        Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 4),
-                          child: Wrap(
-                            spacing: 8,
-                            runSpacing: 8,
-                            crossAxisAlignment: WrapCrossAlignment.center,
-                            children: <Widget>[
-                              const Padding(
-                                padding: EdgeInsets.only(right: 4),
-                                child: Text(
-                                  'Urun girisi:',
-                                  style: TextStyle(fontWeight: FontWeight.w600),
-                                ),
-                              ),
-                              _buildModeChip(
-                                'Barkod ile',
-                                _CompanyProductEntryMode.barcode,
-                              ),
-                              _buildModeChip(
-                                'Arama ile',
-                                _CompanyProductEntryMode.search,
-                              ),
-                              _buildModeChip(
-                                'Kamera ile',
-                                _CompanyProductEntryMode.camera,
-                              ),
-                            ],
-                          ),
+                        TerminalSectionToolbar(
+                          title: 'Satirlar',
+                          actions: const <Widget>[],
                         ),
-                        const SizedBox(height: 12),
+                        const SizedBox(height: 10),
                         ..._lines.asMap().entries.map(
                           (entry) => _buildLineCard(
                             theme: theme,
                             index: entry.key,
                             line: entry.value,
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        SizedBox(
-                          width: double.infinity,
-                          child: OutlinedButton.icon(
-                            onPressed: _selectedCustomer != null
-                                ? _addLine
-                                : null,
-                            icon: const Icon(Icons.add_rounded, size: 20),
-                            label: const Text('Yeni Satir Ekle'),
-                            style: OutlinedButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(vertical: 12),
-                            ),
                           ),
                         ),
                         if (_validationMessage != null) ...<Widget>[
@@ -817,21 +701,6 @@ class _GivenCompanyOrderCreateSheetState
     );
   }
 
-  Widget _buildModeChip(String label, _CompanyProductEntryMode mode) {
-    return ChoiceChip(
-      label: Text(label, style: const TextStyle(fontSize: 12)),
-      selected: _entryMode == mode,
-      onSelected: (_) {
-        setState(() {
-          _entryMode = mode;
-          _validationMessage = null;
-        });
-      },
-      visualDensity: VisualDensity.compact,
-      padding: const EdgeInsets.symmetric(horizontal: 8),
-    );
-  }
-
   Widget _buildLineCard({
     required ThemeData theme,
     required int index,
@@ -839,8 +708,11 @@ class _GivenCompanyOrderCreateSheetState
   }) {
     final product = line.selectedProduct;
     final customerSelected = _selectedCustomer != null;
-    final isBarcodeMode = _entryMode == _CompanyProductEntryMode.barcode;
-    final isCameraMode = _entryMode == _CompanyProductEntryMode.camera;
+    final isFreshEntry = index == 0 && _isBlankLine(line);
+    final displayLineNo = _lines
+        .take(index + 1)
+        .where((item) => !_isBlankLine(item))
+        .length;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -875,7 +747,7 @@ class _GivenCompanyOrderCreateSheetState
                     borderRadius: BorderRadius.circular(16),
                   ),
                   child: Text(
-                    '#${index + 1}',
+                    isFreshEntry ? 'Giris' : '#$displayLineNo',
                     style: TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.bold,
@@ -886,7 +758,8 @@ class _GivenCompanyOrderCreateSheetState
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    product?.stockName ?? 'Urun secilmedi',
+                    product?.stockName ??
+                        (isFreshEntry ? 'Okutmaya hazir' : 'Urun secilmedi'),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
@@ -915,81 +788,35 @@ class _GivenCompanyOrderCreateSheetState
             padding: const EdgeInsets.all(10),
             child: Column(
               children: <Widget>[
-                if (isBarcodeMode)
-                  Row(
-                    children: <Widget>[
-                      Expanded(
-                        child: TextField(
-                          controller: line.barcodeController,
-                          enabled: customerSelected,
-                          keyboardType: TextInputType.number,
-                          textInputAction: TextInputAction.done,
-                          onSubmitted: (_) {
-                            if (!line.isLookupStatusLoading) {
-                              _findProductByBarcode(line);
-                            }
-                          },
-                          decoration: const InputDecoration(
-                            labelText: 'Barkod',
-                            hintText: 'Tarat veya yaz',
-                            suffixIcon: Icon(
-                              Icons.qr_code_scanner_rounded,
-                              size: 20,
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      FilledButton.tonal(
-                        onPressed:
-                            customerSelected && !line.isLookupStatusLoading
-                            ? () => _findProductByBarcode(line)
-                            : null,
-                        style: FilledButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 12,
-                          ),
-                        ),
-                        child: const Text('Bul'),
-                      ),
-                    ],
-                  )
-                else if (isCameraMode)
-                  SizedBox(
-                    width: double.infinity,
-                    child: FilledButton.tonalIcon(
-                      onPressed: customerSelected && !line.isLookupStatusLoading
-                          ? () => _scanProductWithCamera(line)
-                          : null,
-                      icon: const Icon(
-                        Icons.photo_camera_back_rounded,
-                        size: 18,
-                      ),
-                      label: Text(
-                        product == null ? 'Kamera ile Oku' : 'Tekrar Kamera Ac',
-                      ),
-                      style: FilledButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 12),
+                Row(
+                  children: <Widget>[
+                    Expanded(
+                      child: ProductLookupField(
+                        controller: line.barcodeController,
+                        focusNode: line.barcodeFocusNode,
+                        enabled:
+                            customerSelected && !line.isLookupStatusLoading,
+                        onSubmit: () => _searchProduct(line),
                       ),
                     ),
-                  )
-                else
-                  SizedBox(
-                    width: double.infinity,
-                    child: FilledButton.tonalIcon(
+                    const SizedBox(width: 12),
+                    FilledButton.icon(
                       onPressed: customerSelected && !line.isLookupStatusLoading
                           ? () => _searchProduct(line)
                           : null,
-                      icon: const Icon(Icons.search_rounded, size: 18),
-                      label: Text(
-                        product == null ? 'Urun Sec' : 'Urun Degistir',
-                      ),
-                      style: FilledButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                      ),
+                      icon: const Icon(Icons.search_rounded),
+                      label: const Text('Urun'),
                     ),
-                  ),
+                    const SizedBox(width: 8),
+                    IconButton.filledTonal(
+                      onPressed: customerSelected && !line.isLookupStatusLoading
+                          ? () => _scanProductWithCamera(line)
+                          : null,
+                      tooltip: 'Kamera ile oku',
+                      icon: const Icon(Icons.photo_camera_back_rounded),
+                    ),
+                  ],
+                ),
                 if (!customerSelected) ...<Widget>[
                   const SizedBox(height: 8),
                   Container(
@@ -1034,7 +861,15 @@ class _GivenCompanyOrderCreateSheetState
                   ],
                   decoration: const InputDecoration(labelText: 'Miktar*'),
                   validator: (value) {
-                    if (_parseDouble(value ?? '') <= 0) {
+                    if (_isBlankLine(line)) {
+                      return null;
+                    }
+
+                    if (productEntryController.readQuantity(
+                          value ?? '',
+                          fallback: 0,
+                        ) <=
+                        0) {
                       return 'Zorunlu';
                     }
 
@@ -1076,33 +911,6 @@ class _GivenCompanyOrderCreateSheetState
     return DateTime(value.year, value.month, value.day);
   }
 
-  static double _parseDouble(String raw) {
-    return double.tryParse(raw.trim().replaceAll(',', '.')) ?? 0;
-  }
-
-  static String? _productIdentity({
-    required String barcode,
-    required String stockCode,
-  }) {
-    final normalizedBarcode = barcode.trim();
-    if (normalizedBarcode.isNotEmpty) {
-      return 'b:$normalizedBarcode';
-    }
-
-    final normalizedStockCode = stockCode.trim();
-    if (normalizedStockCode.isNotEmpty) {
-      return 's:$normalizedStockCode';
-    }
-
-    return null;
-  }
-
-  static String _formatQuantity(double value) {
-    final fixed = value.toStringAsFixed(6);
-    final normalized = fixed.replaceFirst(RegExp(r'\.?0+$'), '');
-    return normalized.replaceAll('.', ',');
-  }
-
   void _showFeedback(String message) {
     final messenger = ScaffoldMessenger.maybeOf(context);
     messenger?.hideCurrentSnackBar();
@@ -1121,7 +929,7 @@ class _CompanyOrderLineDraft {
   _CompanyOrderLineDraft()
     : barcodeController = TextEditingController(),
       stockCodeController = TextEditingController(),
-      quantityController = TextEditingController(text: '1'),
+      quantityController = TextEditingController(),
       unitPriceController = TextEditingController(text: '0');
 
   CompanyOrderProductLookupItem? selectedProduct;
@@ -1132,12 +940,23 @@ class _CompanyOrderLineDraft {
   final TextEditingController stockCodeController;
   final TextEditingController quantityController;
   final TextEditingController unitPriceController;
+  final FocusNode barcodeFocusNode = FocusNode();
 
   void applyProduct(CompanyOrderProductLookupItem product) {
     selectedProduct = product;
     barcodeController.text = product.barcode;
     stockCodeController.text = product.stockCode;
-    if (_parseDouble(unitPriceController.text) == 0 && product.price > 0) {
+    if (quantityController.text.trim().isEmpty) {
+      quantityController.text = productEntryController.formatQuantity(
+        productEntryController.unitMultiplierQuantity(product.unitMultiplier),
+      );
+    }
+    if (productEntryController.readQuantity(
+              unitPriceController.text,
+              fallback: 0,
+            ) ==
+            0 &&
+        product.price > 0) {
       unitPriceController.text = _formatNumber(product.price);
     }
   }
@@ -1163,14 +982,11 @@ class _CompanyOrderLineDraft {
   }
 
   void dispose() {
+    barcodeFocusNode.dispose();
     barcodeController.dispose();
     stockCodeController.dispose();
     quantityController.dispose();
     unitPriceController.dispose();
-  }
-
-  static double _parseDouble(String raw) {
-    return double.tryParse(raw.trim().replaceAll(',', '.')) ?? 0;
   }
 
   static String _formatNumber(double value) {
@@ -1328,12 +1144,14 @@ class _CompanyProductLookupSheet extends StatefulWidget {
     required this.accessToken,
     required this.warehouseNo,
     required this.customerCode,
+    required this.initialQuery,
   });
 
   final CompanyOrdersRepository repository;
   final String accessToken;
   final String warehouseNo;
   final String customerCode;
+  final String initialQuery;
 
   @override
   State<_CompanyProductLookupSheet> createState() =>
@@ -1351,7 +1169,10 @@ class _CompanyProductLookupSheetState
   @override
   void initState() {
     super.initState();
-    _queryController = TextEditingController();
+    _queryController = TextEditingController(text: widget.initialQuery);
+    if (widget.initialQuery.trim().length >= 2) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _load());
+    }
   }
 
   @override

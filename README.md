@@ -12,19 +12,19 @@ Flutter tabanli Furpa merkez el terminali uygulamasi.
 
 Varsayilan API adresi:
 
-`http://192.168.254.214:7508`
+`http://10.0.0.100:7508`
 
 Uygulama bu adresi varsayilan olarak kullanir. Gerektiginde derleme aninda `dart-define` ile override edebilirsiniz:
 
 ```bash
-flutter run --dart-define=API_BASE_URL=http://192.168.254.214:7508
-flutter build apk --release --dart-define=API_BASE_URL=http://192.168.254.214:7508
+flutter run --dart-define=API_BASE_URL=http://10.0.0.100:7508
+flutter build apk --release --dart-define=API_BASE_URL=http://10.0.0.100:7508
 ```
 
 Isterseniz platform bazli override da verebilirsiniz:
 
 ```bash
-flutter run --dart-define=API_BASE_URL_ANDROID=http://192.168.254.214:7508
+flutter run --dart-define=API_BASE_URL_ANDROID=http://10.0.0.100:7508
 flutter run --dart-define=API_BASE_URL_DESKTOP=http://localhost:7508
 ```
 
@@ -42,7 +42,7 @@ Izlenecek adimlar:
 4. Ardindan release paket alin:
 
 ```bash
-flutter build appbundle --release --dart-define=API_BASE_URL=http://192.168.254.214:7508
+flutter build appbundle --release --dart-define=API_BASE_URL=http://10.0.0.100:7508
 ```
 
 `key.properties` yoksa build debug signing ile devam eder; bu paket test icin kullanilabilir ama Play Store yayini icin uygun degildir.

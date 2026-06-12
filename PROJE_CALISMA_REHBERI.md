@@ -958,7 +958,7 @@ Ilgili dosya:
 Varsayilan API adresi lokal agdaki HTTP sunucusudur:
 
 ```text
-http://192.168.254.214:7508
+http://10.0.0.100:7508
 ```
 
 Android tarafinda cleartext traffic, iOS tarafinda App Transport Security istisnasi aciktir. Bu lokal ag/VPN senaryosu icin anlasilabilir, ama public release icin HTTPS tercih edilmelidir.

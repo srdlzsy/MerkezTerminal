@@ -315,6 +315,7 @@ class InventoryCountProductLookupItem {
     required this.stockCode,
     required this.stockName,
     required this.unitName,
+    this.unitMultiplier = 1,
     required this.price,
     required this.isGoodsAcceptanceBlocked,
   });
@@ -324,6 +325,7 @@ class InventoryCountProductLookupItem {
   final String stockCode;
   final String stockName;
   final String unitName;
+  final double unitMultiplier;
   final double price;
   final bool isGoodsAcceptanceBlocked;
 
@@ -336,6 +338,7 @@ class InventoryCountProductLookupItem {
       stockCode: _readString(json['stockCode']),
       stockName: _readString(json['stockName']),
       unitName: _readString(json['unitName']),
+      unitMultiplier: _readPositiveDouble(json['unitMultiplier']),
       price: _readDouble(json['price']),
       isGoodsAcceptanceBlocked: _readBool(json['isGoodsAcceptanceBlocked']),
     );
@@ -366,6 +369,11 @@ double _readDouble(Object? value) {
   }
 
   return double.tryParse(value?.toString() ?? '') ?? 0;
+}
+
+double _readPositiveDouble(Object? value, {double fallback = 1}) {
+  final parsed = _readDouble(value);
+  return parsed > 0 ? parsed : fallback;
 }
 
 int _readInt(Object? value) {

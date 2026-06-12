@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 class TerminalListHeaderCard extends StatelessWidget {
   const TerminalListHeaderCard({
@@ -301,6 +302,39 @@ class TerminalResponsiveLookupRow extends StatelessWidget {
           ],
         );
       },
+    );
+  }
+}
+
+class TerminalSubmitOnTab extends StatelessWidget {
+  const TerminalSubmitOnTab({
+    super.key,
+    required this.onSubmit,
+    required this.child,
+    this.enabled = true,
+  });
+
+  final VoidCallback onSubmit;
+  final Widget child;
+  final bool enabled;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!enabled) {
+      return child;
+    }
+
+    return Focus(
+      onKeyEvent: (_, event) {
+        if (event is! KeyDownEvent ||
+            event.logicalKey != LogicalKeyboardKey.tab) {
+          return KeyEventResult.ignored;
+        }
+
+        onSubmit();
+        return KeyEventResult.handled;
+      },
+      child: child,
     );
   }
 }

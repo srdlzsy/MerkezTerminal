@@ -11,6 +11,7 @@ import 'package:furpa_merkez_terminal/shared/formatters/app_formatters.dart';
 import 'package:furpa_merkez_terminal/shared/offline/mobile_customer_catalog_repository.dart';
 import 'package:furpa_merkez_terminal/shared/offline/mobile_product_catalog_repository.dart';
 import 'package:furpa_merkez_terminal/shared/offline/mobile_warehouse_catalog_repository.dart';
+import 'package:furpa_merkez_terminal/shared/product_entry/product_entry_widgets.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/barcode_camera_scan_page.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/section_card.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/terminal_ui_parts.dart';
@@ -302,36 +303,42 @@ class _ProductLookupToolPageState extends State<ProductLookupToolPage> {
             child: Column(
               children: <Widget>[
                 TerminalResponsiveLookupRow(
-                  field: TextField(
+                  breakpoint: 340,
+                  field: ProductLookupField(
                     controller: _queryController,
-                    decoration: const InputDecoration(
-                      labelText: 'Barkod / stok kodu / urun adi',
-                    ),
-                    onSubmitted: (_) => _search(),
+                    enabled: !_isLoading,
+                    onSubmit: _search,
+                    labelText: 'Arama veya barkod',
+                    suffixIcon: _hasQuery
+                        ? IconButton(
+                            onPressed: _isLoading ? null : _clearSearch,
+                            tooltip: 'Temizle',
+                            icon: const Icon(Icons.close_rounded),
+                          )
+                        : null,
                   ),
-                  action: FilledButton.icon(
-                    onPressed: _isLoading ? null : _search,
-                    icon: const Icon(Icons.search_rounded),
-                    label: const Text('Ara'),
+                  action: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: <Widget>[
+                      FilledButton.icon(
+                        onPressed: _isLoading ? null : _search,
+                        icon: const Icon(Icons.search_rounded),
+                        label: const Text('Urun'),
+                      ),
+                      const SizedBox(width: 8),
+                      IconButton.filledTonal(
+                        onPressed: _isLoading ? null : _scanWithCamera,
+                        tooltip: 'Kamera ile oku',
+                        icon: const Icon(Icons.photo_camera_back_rounded),
+                      ),
+                    ],
                   ),
-                  trailingAction: _hasQuery
-                      ? OutlinedButton.icon(
-                          onPressed: _isLoading ? null : _clearSearch,
-                          icon: const Icon(Icons.close_rounded),
-                          label: const Text('Temizle'),
-                        )
-                      : null,
                 ),
                 const SizedBox(height: 12),
                 Wrap(
                   spacing: 8,
                   runSpacing: 8,
                   children: <Widget>[
-                    OutlinedButton.icon(
-                      onPressed: _isLoading ? null : _scanWithCamera,
-                      icon: const Icon(Icons.photo_camera_back_rounded),
-                      label: const Text('Kamera'),
-                    ),
                     FilledButton.tonalIcon(
                       onPressed: _isSyncingCatalog ? null : _syncCatalog,
                       icon: _isSyncingCatalog
@@ -580,6 +587,28 @@ class _CompanyLookupToolPageState extends State<CompanyLookupToolPage> {
     }
   }
 
+  Future<void> _scanWithCamera() async {
+    if (!supportsCameraBarcodeScanning) {
+      setState(() {
+        _errorMessage = 'Bu cihazda kamera ile barkod okutma desteklenmiyor.';
+      });
+      return;
+    }
+
+    final barcode = await openBarcodeCameraScanner(
+      context,
+      title: '${widget.title} Kamerasi',
+      subtitle: 'Barkodu okutun; cari onerileri aranacak.',
+    );
+
+    if (barcode == null || !mounted) {
+      return;
+    }
+
+    _queryController.text = barcode;
+    await _search();
+  }
+
   @override
   Widget build(BuildContext context) {
     return SafeArea(
@@ -597,23 +626,36 @@ class _CompanyLookupToolPageState extends State<CompanyLookupToolPage> {
             title: widget.title,
             subtitle: widget.subtitle,
             child: TerminalResponsiveLookupRow(
-              field: TextField(
+              breakpoint: 340,
+              field: ProductLookupField(
                 controller: _queryController,
-                decoration: const InputDecoration(labelText: 'Barkod'),
-                onSubmitted: (_) => _search(),
+                enabled: !_isLoading,
+                onSubmit: _search,
+                labelText: 'Arama veya barkod',
+                suffixIcon: _hasQuery
+                    ? IconButton(
+                        onPressed: _isLoading ? null : _clearSearch,
+                        tooltip: 'Temizle',
+                        icon: const Icon(Icons.close_rounded),
+                      )
+                    : null,
               ),
-              action: FilledButton.icon(
-                onPressed: _isLoading ? null : _search,
-                icon: const Icon(Icons.search_rounded),
-                label: const Text('Ara'),
+              action: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  FilledButton.icon(
+                    onPressed: _isLoading ? null : _search,
+                    icon: const Icon(Icons.search_rounded),
+                    label: const Text('Urun'),
+                  ),
+                  const SizedBox(width: 8),
+                  IconButton.filledTonal(
+                    onPressed: _isLoading ? null : _scanWithCamera,
+                    tooltip: 'Kamera ile oku',
+                    icon: const Icon(Icons.photo_camera_back_rounded),
+                  ),
+                ],
               ),
-              trailingAction: _hasQuery
-                  ? OutlinedButton.icon(
-                      onPressed: _isLoading ? null : _clearSearch,
-                      icon: const Icon(Icons.close_rounded),
-                      label: const Text('Temizle'),
-                    )
-                  : null,
             ),
           ),
           const SizedBox(height: 16),
@@ -930,9 +972,15 @@ class _PiecesInBoxPageState extends State<PiecesInBoxPage> {
       errorMessage: _errorMessage,
       result: _result,
       formChildren: <Widget>[
-        TextField(
-          controller: _barcodeController,
-          decoration: const InputDecoration(labelText: 'Barkod'),
+        TerminalSubmitOnTab(
+          enabled: !_isLoading,
+          onSubmit: _lookup,
+          child: TextField(
+            controller: _barcodeController,
+            textInputAction: TextInputAction.search,
+            onSubmitted: (_) => _lookup(),
+            decoration: const InputDecoration(labelText: 'Barkod'),
+          ),
         ),
         const SizedBox(height: 12),
         TextField(

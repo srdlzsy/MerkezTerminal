@@ -488,10 +488,17 @@ class _OfflineInventoryCountCreateSheetState
       return;
     }
 
+    var mergedIntoExisting = false;
     setState(() {
-      line.applyLookup(selected);
+      mergedIntoExisting = _applyProductToLine(line, selected);
+      _ensureFreshEntryLine();
       _errorMessage = null;
     });
+    _focusFreshEntryLine();
+
+    if (mergedIntoExisting) {
+      _showFeedback('Ayni barkod mevcut satira eklendi; miktar artirildi.');
+    }
   }
 
   Future<List<InventoryCountProductLookupItem>>
@@ -540,6 +547,96 @@ class _OfflineInventoryCountCreateSheetState
     await _searchProduct(line);
   }
 
+  bool _applyProductToLine(
+    _OfflineLineDraft line,
+    InventoryCountProductLookupItem product,
+  ) {
+    final existingLine = _findDuplicateLine(
+      currentLine: line,
+      barcode: product.barcode,
+      stockCode: product.stockCode,
+    );
+
+    if (existingLine == null) {
+      line.applyLookup(product);
+      return false;
+    }
+
+    existingLine.quantityController.text = _formatQuantity(
+      _readDouble(existingLine.quantityController.text, fallback: 0) +
+          _quantityInputOrUnitMultiplier(
+            line.quantityController.text,
+            product.unitMultiplier,
+          ),
+    );
+    _recycleMergedLine(line);
+    return true;
+  }
+
+  _OfflineLineDraft? _findDuplicateLine({
+    required _OfflineLineDraft currentLine,
+    required String barcode,
+    required String stockCode,
+  }) {
+    final targetKey = _productIdentity(barcode: barcode, stockCode: stockCode);
+    if (targetKey == null) {
+      return null;
+    }
+
+    for (final candidate in _lines) {
+      if (identical(candidate, currentLine)) {
+        continue;
+      }
+
+      final candidateKey = _productIdentity(
+        barcode: candidate.barcodeController.text,
+        stockCode: candidate.stockCodeController.text,
+      );
+      if (candidateKey == targetKey) {
+        return candidate;
+      }
+    }
+
+    return null;
+  }
+
+  void _recycleMergedLine(_OfflineLineDraft line) {
+    final lineIndex = _lines.indexOf(line);
+    line.dispose();
+
+    if (lineIndex == 0) {
+      _lines[lineIndex] = _OfflineLineDraft();
+      return;
+    }
+
+    _lines.removeAt(lineIndex);
+  }
+
+  void _ensureFreshEntryLine() {
+    if (_lines.isEmpty || !_isBlankLine(_lines.first)) {
+      _lines.insert(0, _OfflineLineDraft());
+    }
+  }
+
+  void _focusFreshEntryLine() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _lines.isEmpty) {
+        return;
+      }
+
+      final firstLine = _lines.first;
+      if (_isBlankLine(firstLine)) {
+        firstLine.lookupFocusNode.requestFocus();
+      }
+    });
+  }
+
+  bool _isBlankLine(_OfflineLineDraft line) {
+    return line.lookupController.text.trim().isEmpty &&
+        line.stockCodeController.text.trim().isEmpty &&
+        line.barcodeController.text.trim().isEmpty;
+  }
+
   void _showFeedback(String message) {
     final messenger = ScaffoldMessenger.maybeOf(context);
     messenger?.hideCurrentSnackBar();
@@ -560,6 +657,17 @@ class _OfflineInventoryCountCreateSheetState
       return;
     }
 
+    final activeLines = _lines
+        .where((line) => !_isBlankLine(line))
+        .toList(growable: false);
+
+    if (activeLines.isEmpty) {
+      setState(() {
+        _errorMessage = 'En az bir urun satiri ekleyin.';
+      });
+      return;
+    }
+
     Navigator.of(context).pop(
       OfflineInventoryCountDraft(
         id: generateClientRequestId(),
@@ -571,7 +679,7 @@ class _OfflineInventoryCountCreateSheetState
         status: OfflineRecordStatus.pending,
         lastSyncAttemptAt: null,
         lastError: null,
-        lines: _lines
+        lines: activeLines
             .map(
               (line) => OfflineInventoryCountLine(
                 stockCode: line.stockCodeController.text.trim(),
@@ -626,22 +734,17 @@ class _OfflineInventoryCountCreateSheetState
               const SizedBox(height: 12),
               TerminalSectionToolbar(
                 title: 'Satirlar',
-                actions: <Widget>[
-                  OutlinedButton.icon(
-                    onPressed: () {
-                      setState(() {
-                        _lines.add(_OfflineLineDraft());
-                      });
-                    },
-                    icon: const Icon(Icons.add_rounded),
-                    label: const Text('Satir'),
-                  ),
-                ],
+                actions: const <Widget>[],
               ),
               const SizedBox(height: 10),
               ..._lines.asMap().entries.map((entry) {
                 final index = entry.key;
                 final line = entry.value;
+                final isFreshEntry = index == 0 && _isBlankLine(line);
+                final displayLineNo = _lines
+                    .take(index + 1)
+                    .where((item) => !_isBlankLine(item))
+                    .length;
                 return Padding(
                   padding: const EdgeInsets.only(bottom: 12),
                   child: Container(
@@ -662,12 +765,14 @@ class _OfflineInventoryCountCreateSheetState
                           children: <Widget>[
                             Expanded(
                               child: Text(
-                                'Satir ${index + 1}',
+                                isFreshEntry
+                                    ? 'Giris satiri'
+                                    : 'Satir $displayLineNo',
                                 style: Theme.of(context).textTheme.titleSmall
                                     ?.copyWith(fontWeight: FontWeight.w800),
                               ),
                             ),
-                            if (_lines.length > 1)
+                            if (!isFreshEntry && _lines.length > 1)
                               IconButton(
                                 onPressed: () {
                                   setState(() {
@@ -680,10 +785,16 @@ class _OfflineInventoryCountCreateSheetState
                           ],
                         ),
                         TerminalResponsiveLookupRow(
-                          field: TextField(
-                            controller: line.lookupController,
-                            decoration: const InputDecoration(
-                              labelText: 'Online urun ara',
+                          field: TerminalSubmitOnTab(
+                            onSubmit: () => _searchProduct(line),
+                            child: TextField(
+                              controller: line.lookupController,
+                              focusNode: line.lookupFocusNode,
+                              textInputAction: TextInputAction.search,
+                              onSubmitted: (_) => _searchProduct(line),
+                              decoration: const InputDecoration(
+                                labelText: 'Online urun ara',
+                              ),
                             ),
                           ),
                           action: FilledButton.icon(
@@ -700,12 +811,15 @@ class _OfflineInventoryCountCreateSheetState
                         const SizedBox(height: 10),
                         TextFormField(
                           controller: line.stockCodeController,
-                          decoration: const InputDecoration(
-                            labelText: 'Stok Kodu',
-                          ),
-                          validator: (value) {
-                            if ((value ?? '').trim().isEmpty) {
-                              return 'Stok kodu zorunludur.';
+                            decoration: const InputDecoration(
+                              labelText: 'Stok Kodu',
+                            ),
+                            validator: (value) {
+                              if (_isBlankLine(line)) {
+                                return null;
+                              }
+                              if ((value ?? '').trim().isEmpty) {
+                                return 'Stok kodu zorunludur.';
                             }
                             return null;
                           },
@@ -750,6 +864,9 @@ class _OfflineInventoryCountCreateSheetState
                             labelText: 'Miktar',
                           ),
                           validator: (_) {
+                            if (_isBlankLine(line)) {
+                              return null;
+                            }
                             if (line.quantity <= 0) {
                               return 'Miktar > 0';
                             }
@@ -791,7 +908,7 @@ class _OfflineLineDraft {
       stockCodeController = TextEditingController(),
       stockNameController = TextEditingController(),
       barcodeController = TextEditingController(),
-      quantityController = TextEditingController(text: '1'),
+      quantityController = TextEditingController(),
       unitPointerController = TextEditingController(text: '1');
 
   final TextEditingController lookupController;
@@ -800,6 +917,7 @@ class _OfflineLineDraft {
   final TextEditingController barcodeController;
   final TextEditingController quantityController;
   final TextEditingController unitPointerController;
+  final FocusNode lookupFocusNode = FocusNode();
 
   double get quantity => _readDouble(quantityController.text, fallback: 0);
   int get unitPointer => _readInt(unitPointerController.text, fallback: 1);
@@ -810,9 +928,15 @@ class _OfflineLineDraft {
     barcodeController.text = product.barcode;
     unitPointerController.text = '1';
     lookupController.text = product.displayLabel;
+    if (quantityController.text.trim().isEmpty) {
+      quantityController.text = _formatQuantity(
+        _unitMultiplierQuantity(product.unitMultiplier),
+      );
+    }
   }
 
   void dispose() {
+    lookupFocusNode.dispose();
     lookupController.dispose();
     stockCodeController.dispose();
     stockNameController.dispose();
@@ -820,6 +944,42 @@ class _OfflineLineDraft {
     quantityController.dispose();
     unitPointerController.dispose();
   }
+}
+
+String? _productIdentity({required String barcode, required String stockCode}) {
+  final normalizedBarcode = barcode.trim();
+  if (normalizedBarcode.isNotEmpty) {
+    return 'b:$normalizedBarcode';
+  }
+
+  final normalizedStockCode = stockCode.trim();
+  if (normalizedStockCode.isNotEmpty) {
+    return 's:$normalizedStockCode';
+  }
+
+  return null;
+}
+
+double _unitMultiplierQuantity(double unitMultiplier) {
+  return unitMultiplier > 0 ? unitMultiplier : 1;
+}
+
+double _quantityInputOrUnitMultiplier(String raw, double unitMultiplier) {
+  final normalized = raw.trim();
+  if (normalized.isEmpty) {
+    return _unitMultiplierQuantity(unitMultiplier);
+  }
+
+  final parsed = double.tryParse(normalized.replaceAll(',', '.'));
+  return parsed != null && parsed > 0
+      ? parsed
+      : _unitMultiplierQuantity(unitMultiplier);
+}
+
+String _formatQuantity(double value) {
+  final fixed = value.toStringAsFixed(6);
+  final normalized = fixed.replaceFirst(RegExp(r'\.?0+$'), '');
+  return normalized.replaceAll('.', ',');
 }
 
 double _readDouble(String value, {required double fallback}) {

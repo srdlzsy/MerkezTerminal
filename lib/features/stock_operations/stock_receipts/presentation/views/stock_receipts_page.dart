@@ -187,8 +187,7 @@ class _StockReceiptsPageState extends State<StockReceiptsPage> {
   Widget _buildHeader() {
     return TerminalListHeaderCard(
       title: widget.kind.pageTitle,
-      subtitle:
-          'Liste, detay ve yeni fis olusturma akisi ayni ekranda toplandi.',
+      subtitle: 'Fisleri tarih araligina gore listeleyin ve yeni fis acin.',
       infoChips: <Widget>[
         TerminalInfoChip(
           label: 'Varsayilan depo',

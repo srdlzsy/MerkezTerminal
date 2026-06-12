@@ -31,8 +31,7 @@ class GivenWarehouseOrdersPage extends StatelessWidget {
       defaultWarehouseNo: defaultWarehouseNo,
       userWarehouseName: userWarehouseName,
       title: 'Verilen Depo Siparisleri',
-      subtitle:
-          'Liste, detay ve create akisi el terminali kullanimina gore sade tutuldu.',
+      subtitle: 'Depo siparislerini listeleyin ve yeni siparis olusturun.',
       createSheetBuilder: (context) {
         return GivenWarehouseOrderCreateSheet(
           repository: repository,

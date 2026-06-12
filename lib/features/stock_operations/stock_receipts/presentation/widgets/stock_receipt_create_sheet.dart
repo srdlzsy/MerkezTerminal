@@ -4,7 +4,10 @@ import 'package:furpa_merkez_terminal/features/stock_operations/stock_receipts/d
 import 'package:furpa_merkez_terminal/features/stock_operations/stock_receipts/data/stock_receipts_repository.dart';
 import 'package:furpa_merkez_terminal/shared/data/search_lookup_models.dart';
 import 'package:furpa_merkez_terminal/shared/formatters/app_formatters.dart';
+import 'package:furpa_merkez_terminal/shared/product_entry/product_entry_controller.dart';
+import 'package:furpa_merkez_terminal/shared/product_entry/product_entry_widgets.dart';
 import 'package:furpa_merkez_terminal/shared/utils/create_form_validation.dart';
+import 'package:furpa_merkez_terminal/shared/widgets/barcode_camera_scan_page.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/terminal_ui_parts.dart';
 
 class StockReceiptCreateSheet extends StatefulWidget {
@@ -186,22 +189,59 @@ class _StockReceiptCreateSheetState extends State<StockReceiptCreateSheet>
           'Secildi: ${selected.stockCode} | ${selected.stockName}',
         );
       }
+      _ensureFreshEntryLine();
       _lookupError = null;
     });
+    _focusFreshEntryLine();
 
     if (mergedIntoExisting) {
       _showFeedback('Ayni barkod mevcut satira eklendi; miktar artirildi.');
     }
   }
 
+  Future<void> _scanProductWithCamera(_StockReceiptLineDraft line) async {
+    if (!supportsCameraBarcodeScanning) {
+      setState(() {
+        line.setLookupStatus(
+          'Bu cihazda kamera ile barkod okutma desteklenmiyor.',
+          isError: true,
+        );
+      });
+      _showFeedback('Bu cihazda kamera ile barkod okutma desteklenmiyor.');
+      return;
+    }
+
+    final barcode = await openBarcodeCameraScanner(
+      context,
+      title: '${widget.kind.createTitle} Kamerasi',
+      subtitle: 'Barkodu okutun; bulunan urun satira eklenecek.',
+    );
+
+    if (barcode == null || !mounted) {
+      return;
+    }
+
+    line.lookupController.text = barcode;
+    setState(() {
+      line.setLookupStatus('Barkod okundu: $barcode. API aramasi basliyor.');
+    });
+    await _searchProduct(line);
+  }
+
   bool _applyProductToLine(
     _StockReceiptLineDraft line,
     SearchProductLookupItem product,
   ) {
-    final existingLine = _findDuplicateLine(
-      currentLine: line,
-      barcode: product.barcode,
-      stockCode: product.stockCode,
+    final existingLine = productEntryController.findDuplicateLine(
+      ProductEntryDuplicateMergePolicy<_StockReceiptLineDraft>(
+        currentLine: line,
+        targetBarcode: product.barcode,
+        targetStockCode: product.stockCode,
+        lines: _lines,
+        lineBarcode: (line) => line.selectedProduct?.barcode ?? '',
+        lineStockCode: (line) => line.selectedProduct?.stockCode ?? '',
+        canMergeLine: (line) => line.selectedProduct != null,
+      ),
     );
 
     if (existingLine == null) {
@@ -209,44 +249,19 @@ class _StockReceiptCreateSheetState extends State<StockReceiptCreateSheet>
       return false;
     }
 
-    existingLine.quantityController.text = _formatQuantity(
-      _readDouble(existingLine.quantityController.text, fallback: 0) +
-          _readDouble(line.quantityController.text, fallback: 0),
-    );
+    existingLine.quantityController.text = productEntryController
+        .formatQuantity(
+          productEntryController.readQuantity(
+                existingLine.quantityController.text,
+                fallback: 0,
+              ) +
+              productEntryController.quantityInputOrUnitMultiplier(
+                line.quantityController.text,
+                product.unitMultiplier,
+              ),
+        );
     _recycleMergedLine(line, createReplacement: _StockReceiptLineDraft.new);
     return true;
-  }
-
-  _StockReceiptLineDraft? _findDuplicateLine({
-    required _StockReceiptLineDraft currentLine,
-    required String barcode,
-    required String stockCode,
-  }) {
-    final targetKey = _productIdentity(barcode: barcode, stockCode: stockCode);
-    if (targetKey == null) {
-      return null;
-    }
-
-    for (final candidate in _lines) {
-      if (identical(candidate, currentLine)) {
-        continue;
-      }
-
-      final selectedProduct = candidate.selectedProduct;
-      if (selectedProduct == null) {
-        continue;
-      }
-
-      final candidateKey = _productIdentity(
-        barcode: selectedProduct.barcode,
-        stockCode: selectedProduct.stockCode,
-      );
-      if (candidateKey == targetKey) {
-        return candidate;
-      }
-    }
-
-    return null;
   }
 
   void _recycleMergedLine(
@@ -264,11 +279,28 @@ class _StockReceiptCreateSheetState extends State<StockReceiptCreateSheet>
     _lines.removeAt(lineIndex);
   }
 
-  void _addLine() {
-    setState(() {
+  void _ensureFreshEntryLine() {
+    if (_lines.isEmpty || !_isBlankLine(_lines.first)) {
       _lines.insert(0, _StockReceiptLineDraft());
-      _lookupError = null;
+    }
+  }
+
+  void _focusFreshEntryLine() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _lines.isEmpty) {
+        return;
+      }
+
+      final firstLine = _lines.first;
+      if (_isBlankLine(firstLine)) {
+        firstLine.lookupFocusNode.requestFocus();
+      }
     });
+  }
+
+  bool _isBlankLine(_StockReceiptLineDraft line) {
+    return line.selectedProduct == null &&
+        line.lookupController.text.trim().isEmpty;
   }
 
   void _submit() {
@@ -278,7 +310,18 @@ class _StockReceiptCreateSheetState extends State<StockReceiptCreateSheet>
       return;
     }
 
-    if (_lines.any((line) => line.selectedProduct == null)) {
+    final activeLines = _lines
+        .where((line) => !_isBlankLine(line))
+        .toList(growable: false);
+
+    if (activeLines.isEmpty) {
+      setState(() {
+        _lookupError = 'En az bir urun satiri ekleyin.';
+      });
+      return;
+    }
+
+    if (activeLines.any((line) => line.selectedProduct == null)) {
       setState(() {
         _lookupError = 'Tum satirlarda urun secimi tamamlanmali.';
       });
@@ -295,7 +338,7 @@ class _StockReceiptCreateSheetState extends State<StockReceiptCreateSheet>
             ? _documentNoController.text.trim()
             : '',
         description: _descriptionController.text.trim(),
-        lines: _lines
+        lines: activeLines
             .map(
               (line) => StockReceiptCreateLine(
                 stockCode: line.selectedProduct!.stockCode,
@@ -385,18 +428,17 @@ class _StockReceiptCreateSheetState extends State<StockReceiptCreateSheet>
             const SizedBox(height: 12),
             TerminalSectionToolbar(
               title: 'Satirlar',
-              actions: <Widget>[
-                OutlinedButton.icon(
-                  onPressed: _addLine,
-                  icon: const Icon(Icons.add_rounded),
-                  label: const Text('Satir'),
-                ),
-              ],
+              actions: const <Widget>[],
             ),
             const SizedBox(height: 10),
             ..._lines.asMap().entries.map((entry) {
               final index = entry.key;
               final line = entry.value;
+              final isFreshEntry = index == 0 && _isBlankLine(line);
+              final displayLineNo = _lines
+                  .take(index + 1)
+                  .where((item) => !_isBlankLine(item))
+                  .length;
               return Padding(
                 padding: const EdgeInsets.only(bottom: 12),
                 child: Container(
@@ -417,7 +459,9 @@ class _StockReceiptCreateSheetState extends State<StockReceiptCreateSheet>
                         children: <Widget>[
                           Expanded(
                             child: Text(
-                              'Satir ${index + 1}',
+                              isFreshEntry
+                                  ? 'Giris satiri'
+                                  : 'Satir $displayLineNo',
                               style: Theme.of(context).textTheme.titleSmall
                                   ?.copyWith(fontWeight: FontWeight.w800),
                             ),
@@ -435,12 +479,16 @@ class _StockReceiptCreateSheetState extends State<StockReceiptCreateSheet>
                         ],
                       ),
                       TerminalResponsiveLookupRow(
-                        field: TextFormField(
+                        field: ProductLookupField(
                           controller: line.lookupController,
-                          decoration: const InputDecoration(
-                            labelText: 'Barkod / stok kodu / urun adi',
-                          ),
+                          focusNode: line.lookupFocusNode,
+                          enabled: !line.isLookupStatusLoading,
+                          onSubmit: () => _searchProduct(line),
                           validator: (_) {
+                            if (_isBlankLine(line)) {
+                              return null;
+                            }
+
                             if (line.selectedProduct == null) {
                               return 'Urun secilmeli.';
                             }
@@ -448,12 +496,25 @@ class _StockReceiptCreateSheetState extends State<StockReceiptCreateSheet>
                             return null;
                           },
                         ),
-                        action: FilledButton.icon(
-                          onPressed: line.isLookupStatusLoading
-                              ? null
-                              : () => _searchProduct(line),
-                          icon: const Icon(Icons.search_rounded),
-                          label: const Text('Urun'),
+                        action: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: <Widget>[
+                            FilledButton.icon(
+                              onPressed: line.isLookupStatusLoading
+                                  ? null
+                                  : () => _searchProduct(line),
+                              icon: const Icon(Icons.search_rounded),
+                              label: const Text('Urun'),
+                            ),
+                            const SizedBox(width: 8),
+                            IconButton.filledTonal(
+                              onPressed: line.isLookupStatusLoading
+                                  ? null
+                                  : () => _scanProductWithCamera(line),
+                              tooltip: 'Kamera ile oku',
+                              icon: const Icon(Icons.photo_camera_back_rounded),
+                            ),
+                          ],
                         ),
                       ),
                       if (line.lookupStatusMessage != null) ...<Widget>[
@@ -491,6 +552,10 @@ class _StockReceiptCreateSheetState extends State<StockReceiptCreateSheet>
                         ],
                         decoration: const InputDecoration(labelText: 'Miktar'),
                         validator: (_) {
+                          if (_isBlankLine(line)) {
+                            return null;
+                          }
+
                           if (line.quantity <= 0) {
                             return 'Miktar > 0';
                           }
@@ -523,29 +588,6 @@ class _StockReceiptCreateSheetState extends State<StockReceiptCreateSheet>
     );
   }
 
-  static String? _productIdentity({
-    required String barcode,
-    required String stockCode,
-  }) {
-    final normalizedBarcode = barcode.trim();
-    if (normalizedBarcode.isNotEmpty) {
-      return 'b:$normalizedBarcode';
-    }
-
-    final normalizedStockCode = stockCode.trim();
-    if (normalizedStockCode.isNotEmpty) {
-      return 's:$normalizedStockCode';
-    }
-
-    return null;
-  }
-
-  static String _formatQuantity(double value) {
-    final fixed = value.toStringAsFixed(6);
-    final normalized = fixed.replaceFirst(RegExp(r'\.?0+$'), '');
-    return normalized.replaceAll('.', ',');
-  }
-
   void _showFeedback(String message) {
     final messenger = ScaffoldMessenger.maybeOf(context);
     messenger?.hideCurrentSnackBar();
@@ -563,7 +605,7 @@ class _StockReceiptCreateSheetState extends State<StockReceiptCreateSheet>
 class _StockReceiptLineDraft {
   _StockReceiptLineDraft()
     : lookupController = TextEditingController(),
-      quantityController = TextEditingController(text: '1'),
+      quantityController = TextEditingController(),
       unitPointerController = TextEditingController(text: '1'),
       descriptionController = TextEditingController(),
       partyCodeController = TextEditingController(),
@@ -577,19 +619,26 @@ class _StockReceiptLineDraft {
   final TextEditingController partyCodeController;
   final TextEditingController lotNoController;
   final TextEditingController projectCodeController;
+  final FocusNode lookupFocusNode = FocusNode();
 
   SearchProductLookupItem? selectedProduct;
   String? lookupStatusMessage;
   bool isLookupStatusLoading = false;
   bool isLookupStatusError = false;
 
-  double get quantity => _readDouble(quantityController.text, fallback: 0);
+  double get quantity =>
+      productEntryController.readQuantity(quantityController.text, fallback: 0);
   int get unitPointer => _readInt(unitPointerController.text, fallback: 1);
   int get lotNo => _readInt(lotNoController.text, fallback: 0);
 
   void applyProduct(SearchProductLookupItem product) {
     selectedProduct = product;
     lookupController.text = product.displayLabel;
+    if (quantityController.text.trim().isEmpty) {
+      quantityController.text = productEntryController.formatQuantity(
+        productEntryController.unitMultiplierQuantity(product.unitMultiplier),
+      );
+    }
   }
 
   void setLookupStatus(
@@ -603,6 +652,7 @@ class _StockReceiptLineDraft {
   }
 
   void dispose() {
+    lookupFocusNode.dispose();
     lookupController.dispose();
     quantityController.dispose();
     unitPointerController.dispose();
@@ -611,10 +661,6 @@ class _StockReceiptLineDraft {
     lotNoController.dispose();
     projectCodeController.dispose();
   }
-}
-
-double _readDouble(String value, {required double fallback}) {
-  return double.tryParse(value.trim().replaceAll(',', '.')) ?? fallback;
 }
 
 int _readInt(String value, {required int fallback}) {

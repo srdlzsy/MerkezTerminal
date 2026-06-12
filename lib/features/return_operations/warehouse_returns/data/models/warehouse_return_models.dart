@@ -19,10 +19,7 @@ typedef WarehouseReturnCreateRequest = WarehouseShipmentCreateRequest;
 typedef WarehouseReturnCreateLine = WarehouseShipmentCreateLine;
 typedef WarehouseReturnCreateResult = WarehouseShipmentCreateResult;
 
-enum WarehouseReturnDirection {
-  outgoing,
-  incoming,
-}
+enum WarehouseReturnDirection { outgoing, incoming }
 
 extension WarehouseReturnDirectionX on WarehouseReturnDirection {
   String get pathSegment => switch (this) {
@@ -42,7 +39,7 @@ extension WarehouseReturnDirectionX on WarehouseReturnDirection {
 
   String get pageSubtitle => switch (this) {
     WarehouseReturnDirection.outgoing =>
-      'Liste, detay, e-irsaliye ve PDF akislarini ayni kart yapisinda toplar.',
+      'Iade kayitlarini listeleyin, detaylari acin ve e-irsaliye hazirlayin.',
     WarehouseReturnDirection.incoming =>
       'Alici sube perspektifinde sadece liste ve detay akislarini gosterir.',
   };

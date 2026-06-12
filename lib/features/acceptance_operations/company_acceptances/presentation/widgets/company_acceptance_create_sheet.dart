@@ -446,8 +446,10 @@ class _CompanyAcceptanceCreateSheetState
           'Secildi: ${selected.stockCode} | ${selected.stockName}',
         );
       }
+      _ensureFreshEntryLine();
       _lookupError = null;
     });
+    _focusFreshEntryLine();
 
     if (mergedIntoExisting) {
       _showFeedback('Ayni barkod mevcut satira eklendi; miktar artirildi.');
@@ -498,13 +500,16 @@ class _CompanyAcceptanceCreateSheetState
 
     existingLine.dispatchQuantityController.text = _formatQuantity(
       _readDouble(existingLine.dispatchQuantityController.text, fallback: 0) +
-          _readDouble(line.dispatchQuantityController.text, fallback: 0),
+          _quantityInputOrUnitMultiplier(
+            line.dispatchQuantityController.text,
+            product.unitMultiplier,
+          ),
     );
     existingLine.acceptedQuantityController.text = _formatQuantity(
       _readDouble(existingLine.acceptedQuantityController.text, fallback: 0) +
-          _readDouble(
+          _quantityInputOrUnitMultiplier(
             line.acceptedQuantityController.text,
-            fallback: line.dispatchQuantity,
+            product.unitMultiplier,
           ),
     );
 
@@ -568,11 +573,29 @@ class _CompanyAcceptanceCreateSheetState
     _lines.removeAt(lineIndex);
   }
 
-  void _addLine() {
-    setState(() {
+  void _ensureFreshEntryLine() {
+    if (_lines.isEmpty || !_isBlankLine(_lines.first)) {
       _lines.insert(0, _AcceptanceLineDraft());
-      _lookupError = null;
+    }
+  }
+
+  void _focusFreshEntryLine() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _lines.isEmpty) {
+        return;
+      }
+
+      final firstLine = _lines.first;
+      if (_isBlankLine(firstLine)) {
+        firstLine.lookupFocusNode.requestFocus();
+      }
     });
+  }
+
+  bool _isBlankLine(_AcceptanceLineDraft line) {
+    return line.selectedProduct == null &&
+        line.stockCodeController.text.trim().isEmpty &&
+        line.lookupController.text.trim().isEmpty;
   }
 
   Future<void> _addLinesFromOpenOrders() async {
@@ -677,6 +700,7 @@ class _CompanyAcceptanceCreateSheetState
 
         _lines.add(_AcceptanceLineDraft.fromOrderItem(item));
       }
+      _ensureFreshEntryLine();
       _lookupError = null;
     });
   }
@@ -703,9 +727,20 @@ class _CompanyAcceptanceCreateSheetState
       return;
     }
 
+    final activeLines = _lines
+        .where((line) => !_isBlankLine(line))
+        .toList(growable: false);
+
+    if (activeLines.isEmpty) {
+      setState(() {
+        _lookupError = 'En az bir urun satiri ekleyin.';
+      });
+      return;
+    }
+
     final usedOrderGuids = <String>{};
-    for (var index = 0; index < _lines.length; index += 1) {
-      final line = _lines[index];
+    for (var index = 0; index < activeLines.length; index += 1) {
+      final line = activeLines[index];
       if (line.stockCodeController.text.trim().isEmpty) {
         setState(() {
           _lookupError = '${index + 1}. satir icin urun secin.';
@@ -774,7 +809,7 @@ class _CompanyAcceptanceCreateSheetState
         allowOrderOverReceiving: _allowOrderOverReceiving,
         autoCreateReturnForPartialAcceptance:
             _autoCreateReturnForPartialAcceptance,
-        lines: _lines
+        lines: activeLines
             .map(
               (line) => CompanyAcceptanceCreateLine(
                 stockCode: line.stockCodeController.text.trim(),
@@ -978,6 +1013,11 @@ class _CompanyAcceptanceCreateSheetState
             ..._lines.asMap().entries.map((entry) {
               final index = entry.key;
               final line = entry.value;
+              final isFreshEntry = index == 0 && _isBlankLine(line);
+              final displayLineNo = _lines
+                  .take(index + 1)
+                  .where((item) => !_isBlankLine(item))
+                  .length;
               return Padding(
                 padding: const EdgeInsets.only(bottom: 12),
                 child: Container(
@@ -998,7 +1038,9 @@ class _CompanyAcceptanceCreateSheetState
                         children: <Widget>[
                           Expanded(
                             child: Text(
-                              'Satir ${index + 1}',
+                              isFreshEntry
+                                  ? 'Giris satiri'
+                                  : 'Satir $displayLineNo',
                               style: Theme.of(context).textTheme.titleSmall
                                   ?.copyWith(fontWeight: FontWeight.w800),
                             ),
@@ -1006,7 +1048,7 @@ class _CompanyAcceptanceCreateSheetState
                           if (line.orderGuid != null &&
                               line.orderGuid!.isNotEmpty)
                             const TerminalBadge(label: 'Siparisli'),
-                          if (_lines.length > 1)
+                          if (!isFreshEntry && _lines.length > 1)
                             IconButton(
                               onPressed: () {
                                 setState(() {
@@ -1067,14 +1109,18 @@ class _CompanyAcceptanceCreateSheetState
   }
 
   Widget _buildEDespatchLookupRow() {
-    final lookupField = TextFormField(
-      controller: _ettnController,
-      textInputAction: TextInputAction.search,
-      onFieldSubmitted: (_) => _resolveEDespatchFromInput(),
-      decoration: const InputDecoration(
-        labelText: 'E-Irsaliye ETTN / QR',
-        hintText: 'QR okutun veya UUID girin',
-        suffixIcon: Icon(Icons.qr_code_2_rounded),
+    final lookupField = TerminalSubmitOnTab(
+      enabled: !_isResolvingEDespatch,
+      onSubmit: _resolveEDespatchFromInput,
+      child: TextFormField(
+        controller: _ettnController,
+        textInputAction: TextInputAction.search,
+        onFieldSubmitted: (_) => _resolveEDespatchFromInput(),
+        decoration: const InputDecoration(
+          labelText: 'E-Irsaliye ETTN / QR',
+          hintText: 'QR okutun veya UUID girin',
+          suffixIcon: Icon(Icons.qr_code_2_rounded),
+        ),
       ),
     );
 
@@ -1182,12 +1228,6 @@ class _CompanyAcceptanceCreateSheetState
       label: const Text('Siparis Bagla'),
     );
 
-    final addButton = OutlinedButton.icon(
-      onPressed: _addLine,
-      icon: const Icon(Icons.add_rounded),
-      label: const Text('Satir'),
-    );
-
     return LayoutBuilder(
       builder: (context, constraints) {
         if (constraints.maxWidth < 360) {
@@ -1196,24 +1236,12 @@ class _CompanyAcceptanceCreateSheetState
             children: <Widget>[
               title,
               const SizedBox(height: 8),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: <Widget>[orderButton, addButton],
-              ),
+              Wrap(spacing: 8, runSpacing: 8, children: <Widget>[orderButton]),
             ],
           );
         }
 
-        return Row(
-          children: <Widget>[
-            title,
-            const Spacer(),
-            orderButton,
-            const SizedBox(width: 8),
-            addButton,
-          ],
-        );
+        return Row(children: <Widget>[title, const Spacer(), orderButton]);
       },
     );
   }
@@ -1255,18 +1283,29 @@ class _CompanyAcceptanceCreateSheetState
   }
 
   Widget _buildProductLookupRow(_AcceptanceLineDraft line) {
-    final lookupField = TextFormField(
-      controller: line.lookupController,
-      decoration: const InputDecoration(
-        labelText: 'Barkod / stok kodu / urun adi',
-        hintText: 'Arama veya barkod',
+    final lookupField = TerminalSubmitOnTab(
+      enabled: !line.isLookupStatusLoading,
+      onSubmit: () => _searchProduct(line),
+      child: TextFormField(
+        controller: line.lookupController,
+        focusNode: line.lookupFocusNode,
+        textInputAction: TextInputAction.search,
+        onFieldSubmitted: (_) => _searchProduct(line),
+        decoration: const InputDecoration(
+          labelText: 'Barkod / stok kodu / urun adi',
+          hintText: 'Arama veya barkod',
+        ),
+        validator: (_) {
+          if (_isBlankLine(line)) {
+            return null;
+          }
+
+          if (line.stockCodeController.text.trim().isEmpty) {
+            return 'Urun secin';
+          }
+          return null;
+        },
       ),
-      validator: (_) {
-        if (line.stockCodeController.text.trim().isEmpty) {
-          return 'Urun secin';
-        }
-        return null;
-      },
     );
 
     final searchButton = FilledButton.icon(
@@ -1326,6 +1365,10 @@ class _CompanyAcceptanceCreateSheetState
         decoration: const InputDecoration(labelText: 'Irsaliye Miktari*'),
         onChanged: (_) => setState(() {}),
         validator: (_) {
+          if (_isBlankLine(line)) {
+            return null;
+          }
+
           if (line.dispatchQuantity <= 0) {
             return 'Miktar > 0';
           }
@@ -1344,6 +1387,10 @@ class _CompanyAcceptanceCreateSheetState
         decoration: const InputDecoration(labelText: 'Fiili Kabul*'),
         onChanged: (_) => setState(() {}),
         validator: (_) {
+          if (_isBlankLine(line)) {
+            return null;
+          }
+
           if (line.acceptedQuantity < 0) {
             return 'Negatif olamaz';
           }
@@ -1486,12 +1533,34 @@ class _CompanyAcceptanceCreateSheetState
   }
 }
 
+double _unitMultiplierQuantity(double unitMultiplier) {
+  return unitMultiplier > 0 ? unitMultiplier : 1;
+}
+
+double _quantityInputOrUnitMultiplier(String raw, double unitMultiplier) {
+  final normalized = raw.trim();
+  if (normalized.isEmpty) {
+    return _unitMultiplierQuantity(unitMultiplier);
+  }
+
+  final parsed = double.tryParse(normalized.replaceAll(',', '.'));
+  return parsed != null && parsed > 0
+      ? parsed
+      : _unitMultiplierQuantity(unitMultiplier);
+}
+
+String _formatDraftQuantity(double value) {
+  final fixed = value.toStringAsFixed(6);
+  final normalized = fixed.replaceFirst(RegExp(r'\.?0+$'), '');
+  return normalized.replaceAll('.', ',');
+}
+
 class _AcceptanceLineDraft {
   _AcceptanceLineDraft()
     : lookupController = TextEditingController(),
       stockCodeController = TextEditingController(),
-      dispatchQuantityController = TextEditingController(text: '1'),
-      acceptedQuantityController = TextEditingController(text: '1'),
+      dispatchQuantityController = TextEditingController(),
+      acceptedQuantityController = TextEditingController(),
       unitPriceController = TextEditingController(text: '0'),
       descriptionController = TextEditingController(),
       partyCodeController = TextEditingController(),
@@ -1557,6 +1626,7 @@ class _AcceptanceLineDraft {
   final TextEditingController customerRcController;
   final TextEditingController productRcController;
   final TextEditingController lastConsumingDateController;
+  final FocusNode lookupFocusNode = FocusNode();
 
   SearchProductLookupItem? selectedProduct;
   String? lookupStatusMessage;
@@ -1588,6 +1658,16 @@ class _AcceptanceLineDraft {
     selectedProduct = product;
     lookupController.text = product.displayLabel;
     stockCodeController.text = product.stockCode;
+    if (dispatchQuantityController.text.trim().isEmpty) {
+      dispatchQuantityController.text = _formatDraftQuantity(
+        _unitMultiplierQuantity(product.unitMultiplier),
+      );
+    }
+    if (acceptedQuantityController.text.trim().isEmpty) {
+      acceptedQuantityController.text = _formatDraftQuantity(
+        _unitMultiplierQuantity(product.unitMultiplier),
+      );
+    }
     unitPriceController.text = product.price.toString();
     unitPointer = 1;
   }
@@ -1603,6 +1683,7 @@ class _AcceptanceLineDraft {
   }
 
   void dispose() {
+    lookupFocusNode.dispose();
     lookupController.dispose();
     stockCodeController.dispose();
     dispatchQuantityController.dispose();
