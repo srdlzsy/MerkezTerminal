@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:furpa_merkez_terminal/features/auth/data/models/auth_models.dart';
 import 'package:furpa_merkez_terminal/features/shell/domain/menu_entry.dart';
-import 'package:furpa_merkez_terminal/shared/widgets/furpa_brand.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/section_card.dart';
 
 class HomeDashboard extends StatelessWidget {
@@ -22,79 +21,130 @@ class HomeDashboard extends StatelessWidget {
 
     return ListView(
       padding: EdgeInsets.fromLTRB(
-        16,
-        16,
-        16,
-        24 + MediaQuery.paddingOf(context).bottom,
+        12,
+        12,
+        12,
+        16 + MediaQuery.paddingOf(context).bottom,
       ),
       children: <Widget>[
-        Container(
-          padding: const EdgeInsets.all(24),
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: <Color>[Color(0xFF183259), Color(0xFF2F5B8D)],
-            ),
-            borderRadius: BorderRadius.circular(28),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              const FurpaBrandLockup(
-                scale: 0.7,
-                enclosed: true,
-                showCaption: true,
-              ),
-              const SizedBox(height: 18),
-              Text(
-                user.fullName,
-                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                'Depo ${user.warehouseNo} - ${user.warehouseName}',
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: Colors.white.withAlpha(220),
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(height: 14),
-              Text(
-                'Islem yapmak icin menuden bir ekran secin veya hizli erisim kartlarini kullanin.',
-                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                  color: Colors.white.withAlpha(220),
-                  height: 1.45,
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 16),
+        _UserSummary(user: user),
+        const SizedBox(height: 10),
         SectionCard(
           title: 'Hizli Erisim',
           subtitle: quickMenus.isEmpty
               ? 'Kullaniciya atanmis menu bulunamadi.'
-              : 'Sik kullandiginiz ekranlar burada.',
+              : '${quickMenus.length} ekran kullanima hazir.',
           child: quickMenus.isEmpty
               ? const _DashboardEmptyState()
-              : Wrap(
-                  spacing: 12,
-                  runSpacing: 12,
-                  children: quickMenus
-                      .map(
-                        (menu) => _QuickMenuTile(
+              : LayoutBuilder(
+                  builder: (context, constraints) {
+                    final columnCount = constraints.maxWidth >= 900
+                        ? 3
+                        : constraints.maxWidth >= 560
+                        ? 2
+                        : 1;
+
+                    return GridView.builder(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: quickMenus.length,
+                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: columnCount,
+                        mainAxisExtent: 64,
+                        crossAxisSpacing: 8,
+                        mainAxisSpacing: 8,
+                      ),
+                      itemBuilder: (context, index) {
+                        final menu = quickMenus[index];
+                        return _QuickMenuTile(
                           menu: menu,
                           onTap: () => onSelectMenu(menu),
-                        ),
-                      )
-                      .toList(growable: false),
+                        );
+                      },
+                    );
+                  },
                 ),
         ),
       ],
+    );
+  }
+}
+
+class _UserSummary extends StatelessWidget {
+  const _UserSummary({required this.user});
+
+  final CurrentUser user;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.primary,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Row(
+            children: <Widget>[
+              Container(
+                width: 36,
+                height: 36,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: Colors.white.withAlpha(24),
+                  borderRadius: BorderRadius.circular(9),
+                ),
+                child: const Icon(
+                  Icons.person_outline_rounded,
+                  color: Colors.white,
+                  size: 21,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      user.fullName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 1),
+                    Text(
+                      'Depo ${user.warehouseNo} - ${user.warehouseName}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: Colors.white.withAlpha(210),
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 9),
+          Text(
+            'Islem yapmak icin menuden bir ekran secin veya hizli erisim kartlarini kullanin.',
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: Colors.white.withAlpha(205),
+              height: 1.3,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -107,49 +157,69 @@ class _QuickMenuTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final width = MediaQuery.sizeOf(context).width >= 840
-        ? 280.0
-        : double.infinity;
+    final theme = Theme.of(context);
 
-    return InkWell(
-      borderRadius: BorderRadius.circular(18),
-      onTap: onTap,
-      child: Container(
-        width: width,
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: const Color(0xFFF8FBFF),
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(
-            color: Theme.of(context).colorScheme.outlineVariant.withAlpha(90),
+    return Material(
+      color: theme.colorScheme.surfaceContainerHighest.withAlpha(55),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(9),
+        side: BorderSide(color: theme.colorScheme.outlineVariant.withAlpha(85)),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          child: Row(
+            children: <Widget>[
+              Expanded(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      menu.displayMenuName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      menu.displayModuleName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurface.withAlpha(155),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.primary.withAlpha(18),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  '${menu.actions.length}',
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: theme.colorScheme.primary,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 4),
+              Icon(
+                Icons.chevron_right_rounded,
+                size: 19,
+                color: theme.colorScheme.onSurface.withAlpha(120),
+              ),
+            ],
           ),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            Text(
-              menu.displayModuleName,
-              style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                color: const Color(0xFF5C6B80),
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              menu.displayMenuName,
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                color: const Color(0xFF17213B),
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-            const SizedBox(height: 10),
-            Text(
-              '${menu.actions.length} islem yetkisi',
-              style: Theme.of(
-                context,
-              ).textTheme.bodySmall?.copyWith(color: const Color(0xFF5C6B80)),
-            ),
-          ],
         ),
       ),
     );
@@ -162,10 +232,10 @@ class _DashboardEmptyState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 18),
+      padding: const EdgeInsets.symmetric(vertical: 10),
       child: Text(
         'Bu kullaniciya atanmis menu bulunamadi. Yetkiler icin sistem yoneticinizle gorusun.',
-        style: Theme.of(context).textTheme.bodyLarge,
+        style: Theme.of(context).textTheme.bodyMedium,
       ),
     );
   }
