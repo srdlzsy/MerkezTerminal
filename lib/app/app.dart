@@ -7,7 +7,6 @@ import 'package:furpa_merkez_terminal/app/theme/app_theme.dart';
 import 'package:furpa_merkez_terminal/core/config/app_config.dart';
 import 'package:furpa_merkez_terminal/core/update/app_update_service.dart';
 import 'package:furpa_merkez_terminal/features/auth/presentation/views/login_page.dart';
-import 'package:furpa_merkez_terminal/features/auth/presentation/views/splash_page.dart';
 import 'package:furpa_merkez_terminal/features/shell/presentation/view_models/app_session_controller.dart';
 import 'package:furpa_merkez_terminal/features/shell/presentation/views/home_shell_page.dart';
 
@@ -48,7 +47,7 @@ class _FurpaMerkezAppState extends State<FurpaMerkezApp> {
           debugShowCheckedModeBanner: false,
           theme: AppTheme.light(),
           home: switch (widget.dependencies.sessionController.status) {
-            AppSessionStatus.booting => const SplashPage(),
+            AppSessionStatus.booting => const _BootPlaceholderPage(),
             AppSessionStatus.unauthenticated => LoginPage(
               sessionController: widget.dependencies.sessionController,
             ),
@@ -206,5 +205,14 @@ class _FurpaMerkezAppState extends State<FurpaMerkezApp> {
     _scaffoldMessengerKey.currentState
       ?..hideCurrentSnackBar()
       ..showSnackBar(SnackBar(content: Text(message)));
+  }
+}
+
+class _BootPlaceholderPage extends StatelessWidget {
+  const _BootPlaceholderPage();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Scaffold(backgroundColor: Color(0xFFF6F8FC));
   }
 }
