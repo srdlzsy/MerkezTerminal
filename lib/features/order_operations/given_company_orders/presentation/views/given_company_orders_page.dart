@@ -6,6 +6,9 @@ import 'package:furpa_merkez_terminal/features/order_operations/given_company_or
 import 'package:furpa_merkez_terminal/features/order_operations/given_company_orders/presentation/view_models/given_company_orders_controller.dart';
 import 'package:furpa_merkez_terminal/features/order_operations/given_company_orders/presentation/widgets/given_company_order_create_sheet.dart';
 import 'package:furpa_merkez_terminal/features/order_operations/shared/data/company_orders_repository.dart';
+import 'package:furpa_merkez_terminal/shared/drafts/create_draft.dart';
+import 'package:furpa_merkez_terminal/shared/drafts/create_draft_picker.dart';
+import 'package:furpa_merkez_terminal/shared/drafts/create_draft_repository.dart';
 import 'package:furpa_merkez_terminal/shared/formatters/app_formatters.dart';
 import 'package:furpa_merkez_terminal/shared/offline/mobile_customer_catalog_repository.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/section_card.dart';
@@ -22,6 +25,8 @@ class GivenCompanyOrdersPage extends StatefulWidget {
     required this.userWarehouseName,
     required this.title,
     required this.subtitle,
+    this.currentUserId = '',
+    this.draftRepository,
     this.emptyListMessage =
         'Secilen tarih araliginda firma siparisi bulunamadi.',
   });
@@ -34,6 +39,8 @@ class GivenCompanyOrdersPage extends StatefulWidget {
   final String userWarehouseName;
   final String title;
   final String subtitle;
+  final String currentUserId;
+  final CreateDraftRepository? draftRepository;
   final String emptyListMessage;
 
   @override
@@ -110,6 +117,28 @@ class _GivenCompanyOrdersPageState extends State<GivenCompanyOrdersPage> {
   }
 
   Future<void> _openCreateSheet() async {
+    CreateDraft? draft;
+    if (widget.draftRepository != null) {
+      final launch = await showCreateDraftPicker(
+        context: context,
+        repository: widget.draftRepository!,
+        moduleKey: 'siparis-islemleri.verilen-firma-siparisleri',
+        userId: widget.currentUserId,
+        warehouseNo: widget.defaultWarehouseNo,
+        createTitle: 'Yeni Verilen Firma Siparisi',
+      );
+      if (launch == null || !mounted) {
+        return;
+      }
+      draft =
+          launch.draft ??
+          CreateDraft.empty(
+            moduleKey: 'siparis-islemleri.verilen-firma-siparisleri',
+            userId: widget.currentUserId,
+            warehouseNo: widget.defaultWarehouseNo,
+            title: 'Yeni Verilen Firma Siparisi',
+          );
+    }
     final request = await showModalBottomSheet<CompanyOrderCreateRequest>(
       context: context,
       isScrollControlled: true,
@@ -122,6 +151,8 @@ class _GivenCompanyOrdersPageState extends State<GivenCompanyOrdersPage> {
           defaultWarehouseNo: widget.defaultWarehouseNo,
           mobileCustomerCatalogRepository:
               widget.mobileCustomerCatalogRepository,
+          draft: draft,
+          draftRepository: widget.draftRepository,
         );
       },
     );
@@ -156,6 +187,9 @@ class _GivenCompanyOrdersPageState extends State<GivenCompanyOrdersPage> {
         ),
       ),
     );
+    if (draft != null) {
+      await widget.draftRepository?.deleteDraft(draft.id);
+    }
   }
 
   Future<void> _toggleOrderSelection(CompanyOrderListItem item) async {

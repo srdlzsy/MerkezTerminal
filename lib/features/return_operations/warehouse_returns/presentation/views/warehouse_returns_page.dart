@@ -8,6 +8,9 @@ import 'package:furpa_merkez_terminal/features/return_operations/warehouse_retur
 import 'package:furpa_merkez_terminal/features/return_operations/warehouse_returns/presentation/views/warehouse_return_pdf_preview_page.dart';
 import 'package:furpa_merkez_terminal/features/return_operations/warehouse_returns/presentation/widgets/warehouse_return_create_sheet.dart';
 import 'package:furpa_merkez_terminal/features/return_operations/warehouse_returns/presentation/widgets/warehouse_return_e_despatch_sheet.dart';
+import 'package:furpa_merkez_terminal/shared/drafts/create_draft.dart';
+import 'package:furpa_merkez_terminal/shared/drafts/create_draft_picker.dart';
+import 'package:furpa_merkez_terminal/shared/drafts/create_draft_repository.dart';
 import 'package:furpa_merkez_terminal/shared/formatters/app_formatters.dart';
 import 'package:furpa_merkez_terminal/shared/offline/mobile_warehouse_catalog_repository.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/section_card.dart';
@@ -22,6 +25,8 @@ class WarehouseReturnsPage extends StatefulWidget {
     required this.mobileWarehouseCatalogRepository,
     required this.userWarehouseName,
     required this.direction,
+    this.currentUserId = '',
+    this.draftRepository,
   });
 
   final WarehouseReturnsRepository repository;
@@ -30,6 +35,8 @@ class WarehouseReturnsPage extends StatefulWidget {
   final MobileWarehouseCatalogLocalRepository mobileWarehouseCatalogRepository;
   final String userWarehouseName;
   final WarehouseReturnDirection direction;
+  final String currentUserId;
+  final CreateDraftRepository? draftRepository;
 
   @override
   State<WarehouseReturnsPage> createState() => _WarehouseReturnsPageState();
@@ -215,6 +222,29 @@ class _WarehouseReturnsPageState extends State<WarehouseReturnsPage> {
       return;
     }
 
+    CreateDraft? draft;
+    if (widget.draftRepository != null) {
+      final launch = await showCreateDraftPicker(
+        context: context,
+        repository: widget.draftRepository!,
+        moduleKey: 'iade-islemleri.giden-depo-iadeleri',
+        userId: widget.currentUserId,
+        warehouseNo: widget.defaultWarehouseNo,
+        createTitle: 'Yeni Giden Depo Iadesi',
+      );
+      if (launch == null || !mounted) {
+        return;
+      }
+      draft =
+          launch.draft ??
+          CreateDraft.empty(
+            moduleKey: 'iade-islemleri.giden-depo-iadeleri',
+            userId: widget.currentUserId,
+            warehouseNo: widget.defaultWarehouseNo,
+            title: 'Yeni Giden Depo Iadesi',
+          );
+    }
+
     final request = await showModalBottomSheet<WarehouseReturnCreateRequest>(
       context: context,
       isScrollControlled: true,
@@ -227,6 +257,8 @@ class _WarehouseReturnsPageState extends State<WarehouseReturnsPage> {
           defaultWarehouseNo: widget.defaultWarehouseNo,
           mobileWarehouseCatalogRepository:
               widget.mobileWarehouseCatalogRepository,
+          draft: draft,
+          draftRepository: widget.draftRepository,
         );
       },
     );
@@ -262,6 +294,9 @@ class _WarehouseReturnsPageState extends State<WarehouseReturnsPage> {
         ),
       ),
     );
+    if (draft != null) {
+      await widget.draftRepository?.deleteDraft(draft.id);
+    }
   }
 
   @override

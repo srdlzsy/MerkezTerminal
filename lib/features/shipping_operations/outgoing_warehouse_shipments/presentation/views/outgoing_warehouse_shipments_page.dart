@@ -10,6 +10,9 @@ import 'package:furpa_merkez_terminal/features/shipping_operations/outgoing_ware
 import 'package:furpa_merkez_terminal/features/shipping_operations/outgoing_warehouse_shipments/data/outgoing_warehouse_shipments_repository.dart';
 import 'package:furpa_merkez_terminal/features/shipping_operations/outgoing_warehouse_shipments/presentation/view_models/outgoing_warehouse_shipments_controller.dart';
 import 'package:furpa_merkez_terminal/features/shipping_operations/outgoing_warehouse_shipments/presentation/widgets/outgoing_warehouse_shipment_create_sheet.dart';
+import 'package:furpa_merkez_terminal/shared/drafts/create_draft.dart';
+import 'package:furpa_merkez_terminal/shared/drafts/create_draft_picker.dart';
+import 'package:furpa_merkez_terminal/shared/drafts/create_draft_repository.dart';
 import 'package:furpa_merkez_terminal/shared/formatters/app_formatters.dart';
 import 'package:furpa_merkez_terminal/shared/offline/mobile_warehouse_catalog_repository.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/section_card.dart';
@@ -28,6 +31,9 @@ class OutgoingWarehouseShipmentsPage extends StatefulWidget {
     required this.title,
     required this.subtitle,
     this.emptyListMessage = 'Secilen tarih araliginda sevk bulunamadi.',
+    this.currentUserId = '',
+    this.draftModuleKey = '',
+    this.draftRepository,
   });
 
   final OutgoingWarehouseShipmentsRepository repository;
@@ -40,6 +46,9 @@ class OutgoingWarehouseShipmentsPage extends StatefulWidget {
   final String title;
   final String subtitle;
   final String emptyListMessage;
+  final String currentUserId;
+  final String draftModuleKey;
+  final CreateDraftRepository? draftRepository;
 
   @override
   State<OutgoingWarehouseShipmentsPage> createState() =>
@@ -117,6 +126,29 @@ class _OutgoingWarehouseShipmentsPageState
   }
 
   Future<void> _openCreateSheet() async {
+    CreateDraft? draft;
+    if (widget.draftRepository != null && widget.draftModuleKey.isNotEmpty) {
+      final launch = await showCreateDraftPicker(
+        context: context,
+        repository: widget.draftRepository!,
+        moduleKey: widget.draftModuleKey,
+        userId: widget.currentUserId,
+        warehouseNo: widget.defaultWarehouseNo,
+        createTitle: 'Yeni Giden Depolar Arasi Sevk',
+      );
+      if (launch == null || !mounted) {
+        return;
+      }
+      draft =
+          launch.draft ??
+          CreateDraft.empty(
+            moduleKey: widget.draftModuleKey,
+            userId: widget.currentUserId,
+            warehouseNo: widget.defaultWarehouseNo,
+            title: 'Yeni Giden Depolar Arasi Sevk',
+          );
+    }
+
     final request = await showModalBottomSheet<WarehouseShipmentCreateRequest>(
       context: context,
       isScrollControlled: true,
@@ -131,6 +163,8 @@ class _OutgoingWarehouseShipmentsPageState
           defaultWarehouseNo: widget.defaultWarehouseNo,
           mobileWarehouseCatalogRepository:
               widget.mobileWarehouseCatalogRepository,
+          draft: draft,
+          draftRepository: widget.draftRepository,
         );
       },
     );
@@ -168,6 +202,9 @@ class _OutgoingWarehouseShipmentsPageState
         ),
       ),
     );
+    if (draft != null) {
+      await widget.draftRepository?.deleteDraft(draft.id);
+    }
   }
 
   Future<void> _toggleSelection(WarehouseShipmentListItem item) async {

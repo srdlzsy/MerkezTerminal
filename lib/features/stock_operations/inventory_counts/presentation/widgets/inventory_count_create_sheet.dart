@@ -3,6 +3,9 @@ import 'package:flutter/services.dart';
 import 'package:furpa_merkez_terminal/core/network/api_exception.dart';
 import 'package:furpa_merkez_terminal/features/stock_operations/inventory_counts/data/inventory_counts_repository.dart';
 import 'package:furpa_merkez_terminal/features/stock_operations/inventory_counts/data/models/inventory_count_models.dart';
+import 'package:furpa_merkez_terminal/shared/drafts/create_draft.dart';
+import 'package:furpa_merkez_terminal/shared/drafts/create_draft_repository.dart';
+import 'package:furpa_merkez_terminal/shared/drafts/create_draft_session.dart';
 import 'package:furpa_merkez_terminal/shared/formatters/app_formatters.dart';
 import 'package:furpa_merkez_terminal/shared/offline/mobile_product_catalog_repository.dart';
 import 'package:furpa_merkez_terminal/shared/product_entry/product_entry_controller.dart';
@@ -19,12 +22,16 @@ class InventoryCountCreateSheet extends StatefulWidget {
     required this.accessToken,
     required this.defaultWarehouseNo,
     required this.mobileProductCatalogRepository,
+    this.draft,
+    this.draftRepository,
   });
 
   final InventoryCountsRepository repository;
   final String accessToken;
   final String defaultWarehouseNo;
   final MobileProductCatalogLocalRepository mobileProductCatalogRepository;
+  final CreateDraft? draft;
+  final CreateDraftRepository? draftRepository;
 
   @override
   State<InventoryCountCreateSheet> createState() =>
@@ -39,23 +46,72 @@ class _InventoryCountCreateSheetState extends State<InventoryCountCreateSheet>
   late DateTime _documentDate;
   late List<_InventoryLineDraft> _lines;
   String? _validationMessage;
+  late final CreateDraftSession _draftSession;
 
   @override
   void initState() {
     super.initState();
-    _nameController = TextEditingController();
-    _documentDate = _normalizeDate(DateTime.now());
-    _lines = <_InventoryLineDraft>[_InventoryLineDraft()];
+    final payload = widget.draft?.payload ?? const <String, dynamic>{};
+    _nameController = TextEditingController(
+      text: payload['name']?.toString() ?? '',
+    );
+    _documentDate =
+        DateTime.tryParse(payload['documentDate']?.toString() ?? '') ??
+        _normalizeDate(DateTime.now());
+    _draftSession = CreateDraftSession(
+      draft: widget.draft,
+      repository: widget.draftRepository,
+      hasContent: _hasDraftContent,
+      buildPayload: _buildDraftPayload,
+      buildTitle: () => _nameController.text.trim().isEmpty
+          ? 'Yeni Sayim Sonucu'
+          : 'Sayim - ${_nameController.text.trim()}',
+    );
+    final rawLines = payload['lines'];
+    _lines = rawLines is List
+        ? rawLines
+              .map(_inventoryDraftMap)
+              .whereType<Map<String, dynamic>>()
+              .map(_createLine)
+              .toList(growable: true)
+        : <_InventoryLineDraft>[];
+    _ensureFreshEntryLine();
+    _draftSession.listenTo(<TextEditingController>[_nameController]);
   }
 
   @override
   void dispose() {
+    _draftSession.dispose();
     _scrollController.dispose();
     _nameController.dispose();
     for (final line in _lines) {
       line.dispose();
     }
     super.dispose();
+  }
+
+  _InventoryLineDraft _createLine([Map<String, dynamic>? draft]) {
+    return _InventoryLineDraft(
+      draft: draft,
+      onChanged: _draftSession.scheduleSave,
+    );
+  }
+
+  bool _hasDraftContent() {
+    return _nameController.text.trim().isNotEmpty ||
+        !_isSameDate(_documentDate, _normalizeDate(DateTime.now())) ||
+        _lines.any((line) => line.hasContent);
+  }
+
+  Map<String, dynamic> _buildDraftPayload() {
+    return <String, dynamic>{
+      'name': _nameController.text,
+      'documentDate': _documentDate.toIso8601String(),
+      'lines': _lines
+          .where((line) => line.hasContent)
+          .map((line) => line.toDraftJson())
+          .toList(growable: false),
+    };
   }
 
   Future<void> _pickDate() async {
@@ -73,6 +129,7 @@ class _InventoryCountCreateSheetState extends State<InventoryCountCreateSheet>
     setState(() {
       _documentDate = pickedDate;
     });
+    _draftSession.scheduleSave();
   }
 
   Future<void> _searchProduct(_InventoryLineDraft line) async {
@@ -99,6 +156,7 @@ class _InventoryCountCreateSheetState extends State<InventoryCountCreateSheet>
       _ensureFreshEntryLine();
       _validationMessage = null;
     });
+    _draftSession.scheduleSave();
     _focusFreshEntryLine();
 
     if (mergedIntoExisting) {
@@ -179,7 +237,7 @@ class _InventoryCountCreateSheetState extends State<InventoryCountCreateSheet>
                 product.unitMultiplier,
               ),
         );
-    _recycleMergedLine(line, createReplacement: _InventoryLineDraft.new);
+    _recycleMergedLine(line, createReplacement: _createLine);
     return true;
   }
 
@@ -200,7 +258,7 @@ class _InventoryCountCreateSheetState extends State<InventoryCountCreateSheet>
 
   void _ensureFreshEntryLine() {
     if (_lines.isEmpty || !_isBlankLine(_lines.first)) {
-      _lines = <_InventoryLineDraft>[_InventoryLineDraft(), ..._lines];
+      _lines = <_InventoryLineDraft>[_createLine(), ..._lines];
     }
   }
 
@@ -233,9 +291,10 @@ class _InventoryCountCreateSheetState extends State<InventoryCountCreateSheet>
       line.dispose();
       _validationMessage = null;
     });
+    _draftSession.scheduleSave();
   }
 
-  void _submit() {
+  Future<void> _submit() async {
     if (!validateCreateForm(_formKey)) {
       setState(() {
         _validationMessage = 'Lutfen zorunlu alanlari duzeltin.';
@@ -288,14 +347,18 @@ class _InventoryCountCreateSheetState extends State<InventoryCountCreateSheet>
       );
     }
 
-    Navigator.of(context).pop(
-      InventoryCountCreateRequest(
-        clientRequestId: generateClientRequestId(),
-        name: _nameController.text.trim(),
-        documentDate: _documentDate,
-        lines: requestLines,
-      ),
+    final request = InventoryCountCreateRequest(
+      clientRequestId: generateClientRequestId(),
+      name: _nameController.text.trim(),
+      documentDate: _documentDate,
+      lines: requestLines,
     );
+
+    await _draftSession.complete();
+    if (!mounted) {
+      return;
+    }
+    Navigator.of(context).pop(request);
   }
 
   @override
@@ -570,6 +633,12 @@ class _InventoryCountCreateSheetState extends State<InventoryCountCreateSheet>
     return DateTime(value.year, value.month, value.day);
   }
 
+  static bool _isSameDate(DateTime first, DateTime second) {
+    return first.year == second.year &&
+        first.month == second.month &&
+        first.day == second.day;
+  }
+
   void _showFeedback(String message) {
     final messenger = ScaffoldMessenger.maybeOf(context);
     messenger?.hideCurrentSnackBar();
@@ -585,16 +654,42 @@ class _InventoryCountCreateSheetState extends State<InventoryCountCreateSheet>
 }
 
 class _InventoryLineDraft {
-  _InventoryLineDraft()
+  _InventoryLineDraft({Map<String, dynamic>? draft, this.onChanged})
     : barcodeController = TextEditingController(),
       stockCodeController = TextEditingController(),
-      quantityController = TextEditingController();
+      quantityController = TextEditingController() {
+    if (draft != null) {
+      barcodeController.text = draft['barcode']?.toString() ?? '';
+      stockCodeController.text = draft['stockCode']?.toString() ?? '';
+      quantityController.text = draft['quantity']?.toString() ?? '';
+      final productJson = _inventoryDraftMap(draft['selectedProduct']);
+      if (productJson != null) {
+        selectedProduct = InventoryCountProductLookupItem.fromJson(productJson);
+      }
+    }
+    for (final controller in _controllers) {
+      controller.addListener(_notifyChanged);
+    }
+  }
 
   InventoryCountProductLookupItem? selectedProduct;
   final TextEditingController barcodeController;
   final TextEditingController stockCodeController;
   final TextEditingController quantityController;
   final FocusNode barcodeFocusNode = FocusNode();
+  final VoidCallback? onChanged;
+
+  List<TextEditingController> get _controllers => <TextEditingController>[
+    barcodeController,
+    stockCodeController,
+    quantityController,
+  ];
+
+  bool get hasContent =>
+      selectedProduct != null ||
+      barcodeController.text.trim().isNotEmpty ||
+      stockCodeController.text.trim().isNotEmpty ||
+      quantityController.text.trim().isNotEmpty;
 
   void applyProduct(InventoryCountProductLookupItem product) {
     selectedProduct = product;
@@ -613,6 +708,42 @@ class _InventoryLineDraft {
     stockCodeController.dispose();
     quantityController.dispose();
   }
+
+  Map<String, dynamic> toDraftJson() {
+    return <String, dynamic>{
+      'barcode': barcodeController.text,
+      'stockCode': stockCodeController.text,
+      'quantity': quantityController.text,
+      'selectedProduct': selectedProduct == null
+          ? null
+          : _inventoryProductJson(selectedProduct!),
+    };
+  }
+
+  void _notifyChanged() => onChanged?.call();
+}
+
+Map<String, dynamic>? _inventoryDraftMap(Object? value) {
+  return switch (value) {
+    final Map<String, dynamic> map => Map<String, dynamic>.from(map),
+    final Map map => map.map((key, item) => MapEntry(key.toString(), item)),
+    _ => null,
+  };
+}
+
+Map<String, dynamic> _inventoryProductJson(
+  InventoryCountProductLookupItem item,
+) {
+  return <String, dynamic>{
+    'warehouseNo': item.warehouseNo,
+    'barcode': item.barcode,
+    'stockCode': item.stockCode,
+    'stockName': item.stockName,
+    'unitName': item.unitName,
+    'unitMultiplier': item.unitMultiplier,
+    'price': item.price,
+    'isGoodsAcceptanceBlocked': item.isGoodsAcceptanceBlocked,
+  };
 }
 
 class _InventoryProductLookupSheet extends StatefulWidget {

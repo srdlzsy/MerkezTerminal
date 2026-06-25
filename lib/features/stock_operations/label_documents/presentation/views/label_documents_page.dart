@@ -4,6 +4,10 @@ import 'package:flutter/material.dart';
 import 'package:furpa_merkez_terminal/features/stock_operations/label_documents/data/label_documents_repository.dart';
 import 'package:furpa_merkez_terminal/features/stock_operations/label_documents/data/models/label_document_models.dart';
 import 'package:furpa_merkez_terminal/shared/data/search_lookup_models.dart';
+import 'package:furpa_merkez_terminal/shared/drafts/create_draft.dart';
+import 'package:furpa_merkez_terminal/shared/drafts/create_draft_picker.dart';
+import 'package:furpa_merkez_terminal/shared/drafts/create_draft_repository.dart';
+import 'package:furpa_merkez_terminal/shared/drafts/create_draft_session.dart';
 import 'package:furpa_merkez_terminal/shared/formatters/app_formatters.dart';
 import 'package:furpa_merkez_terminal/shared/product_entry/product_entry_controller.dart';
 import 'package:furpa_merkez_terminal/shared/product_entry/product_entry_widgets.dart';
@@ -21,6 +25,8 @@ class LabelDocumentsPage extends StatefulWidget {
     required this.canCreate,
     required this.defaultWarehouseNo,
     required this.userWarehouseName,
+    required this.currentUserId,
+    this.draftRepository,
   });
 
   final LabelDocumentsRepository repository;
@@ -28,6 +34,8 @@ class LabelDocumentsPage extends StatefulWidget {
   final bool canCreate;
   final String defaultWarehouseNo;
   final String userWarehouseName;
+  final String currentUserId;
+  final CreateDraftRepository? draftRepository;
 
   @override
   State<LabelDocumentsPage> createState() => _LabelDocumentsPageState();
@@ -136,6 +144,29 @@ class _LabelDocumentsPageState extends State<LabelDocumentsPage> {
   }
 
   Future<void> _openCreateSheet() async {
+    CreateDraft? draft;
+    if (widget.draftRepository != null) {
+      final launch = await showCreateDraftPicker(
+        context: context,
+        repository: widget.draftRepository!,
+        moduleKey: 'kasa-islemleri.etiket-belgeleri',
+        userId: widget.currentUserId,
+        warehouseNo: widget.defaultWarehouseNo,
+        createTitle: 'Yeni Etiket Belgesi',
+      );
+      if (launch == null || !mounted) {
+        return;
+      }
+      draft =
+          launch.draft ??
+          CreateDraft.empty(
+            moduleKey: 'kasa-islemleri.etiket-belgeleri',
+            userId: widget.currentUserId,
+            warehouseNo: widget.defaultWarehouseNo,
+            title: 'Yeni Etiket Belgesi',
+          );
+    }
+
     final request = await showModalBottomSheet<CreateLabelDocumentRequest>(
       context: context,
       isScrollControlled: true,
@@ -146,6 +177,8 @@ class _LabelDocumentsPageState extends State<LabelDocumentsPage> {
           repository: widget.repository,
           accessToken: widget.accessToken,
           defaultWarehouseNo: widget.defaultWarehouseNo,
+          draft: draft,
+          draftRepository: widget.draftRepository,
         );
       },
     );
@@ -186,6 +219,9 @@ class _LabelDocumentsPageState extends State<LabelDocumentsPage> {
           ),
         ),
       );
+      if (draft != null) {
+        await widget.draftRepository?.deleteDraft(draft.id);
+      }
     } catch (error) {
       if (!mounted) {
         return;
@@ -416,11 +452,15 @@ class _LabelDocumentCreateSheet extends StatefulWidget {
     required this.repository,
     required this.accessToken,
     required this.defaultWarehouseNo,
+    this.draft,
+    this.draftRepository,
   });
 
   final LabelDocumentsRepository repository;
   final String accessToken;
   final String defaultWarehouseNo;
+  final CreateDraft? draft;
+  final CreateDraftRepository? draftRepository;
 
   @override
   State<_LabelDocumentCreateSheet> createState() =>
@@ -428,17 +468,58 @@ class _LabelDocumentCreateSheet extends StatefulWidget {
 }
 
 class _LabelDocumentCreateSheetState extends State<_LabelDocumentCreateSheet> {
-  final List<_LabelDocumentLineDraft> _lines = <_LabelDocumentLineDraft>[
-    _LabelDocumentLineDraft(),
-  ];
+  late final List<_LabelDocumentLineDraft> _lines;
   String? _errorMessage;
+  late final CreateDraftSession _draftSession;
+
+  @override
+  void initState() {
+    super.initState();
+    _draftSession = CreateDraftSession(
+      draft: widget.draft,
+      repository: widget.draftRepository,
+      hasContent: _hasDraftContent,
+      buildPayload: _buildDraftPayload,
+      buildTitle: () => 'Yeni Etiket Belgesi',
+    );
+    final rawLines = widget.draft?.payload['lines'];
+    _lines = rawLines is List
+        ? rawLines
+              .map(_labelDraftMap)
+              .whereType<Map<String, dynamic>>()
+              .map(_createLine)
+              .toList(growable: true)
+        : <_LabelDocumentLineDraft>[];
+    _ensureFreshEntryLine();
+  }
 
   @override
   void dispose() {
+    _draftSession.dispose();
     for (final line in _lines) {
       line.dispose();
     }
     super.dispose();
+  }
+
+  _LabelDocumentLineDraft _createLine([Map<String, dynamic>? draft]) {
+    return _LabelDocumentLineDraft(
+      draft: draft,
+      onChanged: _draftSession.scheduleSave,
+    );
+  }
+
+  bool _hasDraftContent() {
+    return _lines.any((line) => line.hasContent);
+  }
+
+  Map<String, dynamic> _buildDraftPayload() {
+    return <String, dynamic>{
+      'lines': _lines
+          .where((line) => line.hasContent)
+          .map((line) => line.toDraftJson())
+          .toList(growable: false),
+    };
   }
 
   Future<void> _searchProduct(_LabelDocumentLineDraft line) async {
@@ -540,6 +621,7 @@ class _LabelDocumentCreateSheetState extends State<_LabelDocumentCreateSheet> {
       _ensureFreshEntryLine();
       _errorMessage = null;
     });
+    _draftSession.scheduleSave();
     _focusFreshEntryLine();
 
     if (mergedIntoExisting) {
@@ -597,7 +679,7 @@ class _LabelDocumentCreateSheetState extends State<_LabelDocumentCreateSheet> {
       return false;
     }
 
-    _recycleMergedLine(line, createReplacement: _LabelDocumentLineDraft.new);
+    _recycleMergedLine(line, createReplacement: _createLine);
     return true;
   }
 
@@ -618,7 +700,7 @@ class _LabelDocumentCreateSheetState extends State<_LabelDocumentCreateSheet> {
 
   void _ensureFreshEntryLine() {
     if (_lines.isEmpty || !_isBlankLine(_lines.first)) {
-      _lines.insert(0, _LabelDocumentLineDraft());
+      _lines.insert(0, _createLine());
     }
   }
 
@@ -640,7 +722,7 @@ class _LabelDocumentCreateSheetState extends State<_LabelDocumentCreateSheet> {
         line.lookupController.text.trim().isEmpty;
   }
 
-  void _submit() {
+  Future<void> _submit() async {
     final activeLines = _lines
         .where((line) => !_isBlankLine(line))
         .toList(growable: false);
@@ -659,17 +741,21 @@ class _LabelDocumentCreateSheetState extends State<_LabelDocumentCreateSheet> {
       return;
     }
 
-    Navigator.of(context).pop(
-      CreateLabelDocumentRequest(
-        lines: activeLines
-            .map(
-              (line) => CreateLabelDocumentLine(
-                productCode: line.selectedProduct!.stockCode,
-              ),
-            )
-            .toList(growable: false),
-      ),
+    final request = CreateLabelDocumentRequest(
+      lines: activeLines
+          .map(
+            (line) => CreateLabelDocumentLine(
+              productCode: line.selectedProduct!.stockCode,
+            ),
+          )
+          .toList(growable: false),
     );
+
+    await _draftSession.complete();
+    if (!mounted) {
+      return;
+    }
+    Navigator.of(context).pop(request);
   }
 
   @override
@@ -731,6 +817,7 @@ class _LabelDocumentCreateSheetState extends State<_LabelDocumentCreateSheet> {
                                 _lines.removeAt(index);
                                 line.dispose();
                               });
+                              _draftSession.scheduleSave();
                             },
                             icon: const Icon(Icons.delete_outline_rounded),
                             tooltip: 'Satiri sil',
@@ -833,14 +920,29 @@ class _LabelDocumentCreateSheetState extends State<_LabelDocumentCreateSheet> {
 }
 
 class _LabelDocumentLineDraft {
-  _LabelDocumentLineDraft() : lookupController = TextEditingController();
+  _LabelDocumentLineDraft({Map<String, dynamic>? draft, this.onChanged})
+    : lookupController = TextEditingController() {
+    if (draft != null) {
+      lookupController.text = draft['lookup']?.toString() ?? '';
+      final productJson = _labelDraftMap(draft['selectedProduct']);
+      if (productJson != null) {
+        selectedProduct = SearchProductLookupItem.fromJson(productJson);
+      }
+      lookupStatusMessage = draft['lookupStatusMessage']?.toString();
+    }
+    lookupController.addListener(_notifyChanged);
+  }
 
   final TextEditingController lookupController;
   final FocusNode lookupFocusNode = FocusNode();
+  final VoidCallback? onChanged;
   SearchProductLookupItem? selectedProduct;
   String? lookupStatusMessage;
   bool isLookupStatusLoading = false;
   bool isLookupStatusError = false;
+
+  bool get hasContent =>
+      selectedProduct != null || lookupController.text.trim().isNotEmpty;
 
   void applyProduct(SearchProductLookupItem product) {
     selectedProduct = product;
@@ -861,4 +963,46 @@ class _LabelDocumentLineDraft {
     lookupFocusNode.dispose();
     lookupController.dispose();
   }
+
+  Map<String, dynamic> toDraftJson() {
+    return <String, dynamic>{
+      'lookup': lookupController.text,
+      'lookupStatusMessage': lookupStatusMessage,
+      'selectedProduct': selectedProduct == null
+          ? null
+          : _searchProductJson(selectedProduct!),
+    };
+  }
+
+  void _notifyChanged() => onChanged?.call();
+}
+
+Map<String, dynamic>? _labelDraftMap(Object? value) {
+  return switch (value) {
+    final Map<String, dynamic> map => Map<String, dynamic>.from(map),
+    final Map map => map.map((key, item) => MapEntry(key.toString(), item)),
+    _ => null,
+  };
+}
+
+Map<String, dynamic> _searchProductJson(SearchProductLookupItem item) {
+  return <String, dynamic>{
+    'warehouseNo': item.warehouseNo,
+    'barcode': item.barcode,
+    'stockCode': item.stockCode,
+    'stockName': item.stockName,
+    'price': item.price,
+    'priceTypeCode': item.priceTypeCode,
+    'unitName': item.unitName,
+    'unitMultiplier': item.unitMultiplier,
+    'secondaryUnitName': item.secondaryUnitName,
+    'secondaryUnitMultiplier': item.secondaryUnitMultiplier,
+    'salesBlockCode': item.salesBlockCode,
+    'orderBlockCode': item.orderBlockCode,
+    'goodsAcceptanceBlockCode': item.goodsAcceptanceBlockCode,
+    'isSalesBlocked': item.isSalesBlocked,
+    'isOrderBlocked': item.isOrderBlocked,
+    'isGoodsAcceptanceBlocked': item.isGoodsAcceptanceBlocked,
+    'productManagerCode': item.productManagerCode,
+  };
 }

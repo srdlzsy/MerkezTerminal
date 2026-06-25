@@ -9,6 +9,9 @@ import 'package:furpa_merkez_terminal/features/company_movements/shared/presenta
 import 'package:furpa_merkez_terminal/features/return_operations/warehouse_returns/data/models/warehouse_return_models.dart';
 import 'package:furpa_merkez_terminal/features/return_operations/warehouse_returns/presentation/views/warehouse_return_pdf_preview_page.dart';
 import 'package:furpa_merkez_terminal/features/return_operations/warehouse_returns/presentation/widgets/warehouse_return_e_despatch_sheet.dart';
+import 'package:furpa_merkez_terminal/shared/drafts/create_draft.dart';
+import 'package:furpa_merkez_terminal/shared/drafts/create_draft_picker.dart';
+import 'package:furpa_merkez_terminal/shared/drafts/create_draft_repository.dart';
 import 'package:furpa_merkez_terminal/shared/formatters/app_formatters.dart';
 import 'package:furpa_merkez_terminal/shared/offline/mobile_customer_catalog_repository.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/section_card.dart';
@@ -20,6 +23,9 @@ class CompanyMovementsPage extends StatefulWidget {
     required this.repository,
     required this.accessToken,
     required this.canCreate,
+    this.currentUserId = '',
+    this.draftModuleKey = '',
+    this.draftRepository,
     required this.defaultWarehouseNo,
     required this.mobileCustomerCatalogRepository,
     required this.userWarehouseName,
@@ -35,6 +41,9 @@ class CompanyMovementsPage extends StatefulWidget {
   final CompanyMovementsRepository repository;
   final String accessToken;
   final bool canCreate;
+  final String currentUserId;
+  final String draftModuleKey;
+  final CreateDraftRepository? draftRepository;
   final String defaultWarehouseNo;
   final MobileCustomerCatalogLocalRepository mobileCustomerCatalogRepository;
   final String userWarehouseName;
@@ -129,6 +138,30 @@ class _CompanyMovementsPageState extends State<CompanyMovementsPage> {
   }
 
   Future<void> _openCreateSheet() async {
+    CreateDraft? draft;
+    final draftRepository = widget.draftRepository;
+    if (draftRepository != null && widget.draftModuleKey.isNotEmpty) {
+      final launch = await showCreateDraftPicker(
+        context: context,
+        repository: draftRepository,
+        moduleKey: widget.draftModuleKey,
+        userId: widget.currentUserId,
+        warehouseNo: widget.defaultWarehouseNo,
+        createTitle: widget.createTitle,
+      );
+      if (launch == null || !mounted) {
+        return;
+      }
+      draft =
+          launch.draft ??
+          CreateDraft.empty(
+            moduleKey: widget.draftModuleKey,
+            userId: widget.currentUserId,
+            warehouseNo: widget.defaultWarehouseNo,
+            title: widget.createTitle,
+          );
+    }
+
     final request = await showModalBottomSheet<CompanyMovementCreateRequest>(
       context: context,
       isScrollControlled: true,
@@ -145,6 +178,8 @@ class _CompanyMovementsPageState extends State<CompanyMovementsPage> {
           helperText: widget.createHelperText,
           submitLabel: widget.createButtonLabel,
           showDocumentNoField: widget.showCreateDocumentNoField,
+          draft: draft,
+          draftRepository: draftRepository,
         );
       },
     );
@@ -178,6 +213,10 @@ class _CompanyMovementsPageState extends State<CompanyMovementsPage> {
         ),
       ),
     );
+
+    if (draft != null) {
+      await draftRepository?.deleteDraft(draft.id);
+    }
   }
 
   Future<void> _openEDespatchSheet() async {

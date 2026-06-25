@@ -6,6 +6,9 @@ import 'package:furpa_merkez_terminal/features/stock_operations/stock_receipts/d
 import 'package:furpa_merkez_terminal/features/stock_operations/stock_receipts/data/stock_receipts_repository.dart';
 import 'package:furpa_merkez_terminal/features/stock_operations/stock_receipts/presentation/view_models/stock_receipts_controller.dart';
 import 'package:furpa_merkez_terminal/features/stock_operations/stock_receipts/presentation/widgets/stock_receipt_create_sheet.dart';
+import 'package:furpa_merkez_terminal/shared/drafts/create_draft.dart';
+import 'package:furpa_merkez_terminal/shared/drafts/create_draft_picker.dart';
+import 'package:furpa_merkez_terminal/shared/drafts/create_draft_repository.dart';
 import 'package:furpa_merkez_terminal/shared/formatters/app_formatters.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/section_card.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/terminal_ui_parts.dart';
@@ -19,6 +22,8 @@ class StockReceiptsPage extends StatefulWidget {
     required this.canCreate,
     required this.defaultWarehouseNo,
     required this.userWarehouseName,
+    required this.currentUserId,
+    this.draftRepository,
   });
 
   final StockReceiptsRepository repository;
@@ -27,6 +32,8 @@ class StockReceiptsPage extends StatefulWidget {
   final bool canCreate;
   final String defaultWarehouseNo;
   final String userWarehouseName;
+  final String currentUserId;
+  final CreateDraftRepository? draftRepository;
 
   @override
   State<StockReceiptsPage> createState() => _StockReceiptsPageState();
@@ -112,6 +119,30 @@ class _StockReceiptsPageState extends State<StockReceiptsPage> {
   }
 
   Future<void> _openCreateSheet() async {
+    final moduleKey = 'stok-islemleri.${widget.kind.pathSegment}';
+    CreateDraft? draft;
+    if (widget.draftRepository != null) {
+      final launch = await showCreateDraftPicker(
+        context: context,
+        repository: widget.draftRepository!,
+        moduleKey: moduleKey,
+        userId: widget.currentUserId,
+        warehouseNo: widget.defaultWarehouseNo,
+        createTitle: widget.kind.createTitle,
+      );
+      if (launch == null || !mounted) {
+        return;
+      }
+      draft =
+          launch.draft ??
+          CreateDraft.empty(
+            moduleKey: moduleKey,
+            userId: widget.currentUserId,
+            warehouseNo: widget.defaultWarehouseNo,
+            title: widget.kind.createTitle,
+          );
+    }
+
     final request = await showModalBottomSheet<StockReceiptCreateRequest>(
       context: context,
       isScrollControlled: true,
@@ -123,6 +154,8 @@ class _StockReceiptsPageState extends State<StockReceiptsPage> {
           kind: widget.kind,
           accessToken: widget.accessToken,
           defaultWarehouseNo: widget.defaultWarehouseNo,
+          draft: draft,
+          draftRepository: widget.draftRepository,
         );
       },
     );
@@ -156,6 +189,9 @@ class _StockReceiptsPageState extends State<StockReceiptsPage> {
         ),
       ),
     );
+    if (draft != null) {
+      await widget.draftRepository?.deleteDraft(draft.id);
+    }
   }
 
   @override

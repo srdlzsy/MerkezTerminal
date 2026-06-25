@@ -6,6 +6,9 @@ import 'package:furpa_merkez_terminal/features/acceptance_operations/company_acc
 import 'package:furpa_merkez_terminal/features/order_operations/given_company_orders/data/given_company_orders_repository.dart';
 import 'package:furpa_merkez_terminal/features/order_operations/given_company_orders/data/models/given_company_order_models.dart';
 import 'package:furpa_merkez_terminal/shared/data/search_lookup_models.dart';
+import 'package:furpa_merkez_terminal/shared/drafts/create_draft.dart';
+import 'package:furpa_merkez_terminal/shared/drafts/create_draft_repository.dart';
+import 'package:furpa_merkez_terminal/shared/drafts/create_draft_session.dart';
 import 'package:furpa_merkez_terminal/shared/formatters/app_formatters.dart';
 import 'package:furpa_merkez_terminal/shared/offline/mobile_customer_catalog_repository.dart';
 import 'package:furpa_merkez_terminal/shared/offline/mobile_product_catalog_repository.dart';
@@ -24,6 +27,8 @@ class CompanyAcceptanceCreateSheet extends StatefulWidget {
     required this.defaultWarehouseNo,
     required this.mobileCustomerCatalogRepository,
     required this.mobileProductCatalogRepository,
+    this.draft,
+    this.draftRepository,
   });
 
   final CompanyAcceptancesRepository repository;
@@ -32,6 +37,8 @@ class CompanyAcceptanceCreateSheet extends StatefulWidget {
   final String defaultWarehouseNo;
   final MobileCustomerCatalogLocalRepository mobileCustomerCatalogRepository;
   final MobileProductCatalogLocalRepository mobileProductCatalogRepository;
+  final CreateDraft? draft;
+  final CreateDraftRepository? draftRepository;
 
   @override
   State<CompanyAcceptanceCreateSheet> createState() =>
@@ -57,22 +64,84 @@ class _CompanyAcceptanceCreateSheetState
   bool _isResolvingEDespatch = false;
   String? _lookupError;
   CompanyAcceptanceEDespatchPrefill? _lastEDespatchPrefill;
+  late final CreateDraftSession _draftSession;
 
   @override
   void initState() {
     super.initState();
-    _customerController = TextEditingController();
-    _customerCodeController = TextEditingController();
-    _ettnController = TextEditingController();
-    _documentNoController = TextEditingController();
-    _delivererController = TextEditingController();
-    _receiverController = TextEditingController();
-    _descriptionController = TextEditingController();
-    _lines.add(_AcceptanceLineDraft());
+    final payload = widget.draft?.payload ?? const <String, dynamic>{};
+    _customerController = TextEditingController(
+      text: payload['customerText']?.toString() ?? '',
+    );
+    _customerCodeController = TextEditingController(
+      text: payload['customerCode']?.toString() ?? '',
+    );
+    _ettnController = TextEditingController(
+      text: payload['ettn']?.toString() ?? '',
+    );
+    _documentNoController = TextEditingController(
+      text: payload['documentNo']?.toString() ?? '',
+    );
+    _delivererController = TextEditingController(
+      text: payload['deliverer']?.toString() ?? '',
+    );
+    _receiverController = TextEditingController(
+      text: payload['receiver']?.toString() ?? '',
+    );
+    _descriptionController = TextEditingController(
+      text: payload['description']?.toString() ?? '',
+    );
+    _movementDate =
+        DateTime.tryParse(payload['movementDate']?.toString() ?? '') ??
+        DateTime.now();
+    _documentDate =
+        DateTime.tryParse(payload['documentDate']?.toString() ?? '') ??
+        DateTime.now();
+    _allowOrderOverReceiving =
+        payload['allowOrderOverReceiving'] == true ||
+        payload['allowOrderOverReceiving']?.toString() == 'true';
+    _autoCreateReturnForPartialAcceptance =
+        payload.containsKey('autoCreateReturnForPartialAcceptance')
+        ? payload['autoCreateReturnForPartialAcceptance'] == true ||
+              payload['autoCreateReturnForPartialAcceptance']?.toString() ==
+                  'true'
+        : true;
+    _draftSession = CreateDraftSession(
+      draft: widget.draft,
+      repository: widget.draftRepository,
+      hasContent: _hasDraftContent,
+      buildPayload: _buildDraftPayload,
+      buildTitle: () {
+        final customer = _customerController.text.trim();
+        return customer.isEmpty
+            ? 'Yeni Firma Mal Kabul'
+            : 'Mal Kabul - $customer';
+      },
+    );
+    final rawLines = payload['lines'];
+    if (rawLines is List) {
+      _lines.addAll(
+        rawLines
+            .map(_acceptanceDraftMap)
+            .whereType<Map<String, dynamic>>()
+            .map(_createLine),
+      );
+    }
+    _ensureFreshEntryLine();
+    _draftSession.listenTo(<TextEditingController>[
+      _customerController,
+      _customerCodeController,
+      _ettnController,
+      _documentNoController,
+      _delivererController,
+      _receiverController,
+      _descriptionController,
+    ]);
   }
 
   @override
   void dispose() {
+    _draftSession.dispose();
     _customerController.dispose();
     _customerCodeController.dispose();
     _ettnController.dispose();
@@ -84,6 +153,47 @@ class _CompanyAcceptanceCreateSheetState
       line.dispose();
     }
     super.dispose();
+  }
+
+  _AcceptanceLineDraft _createLine([Map<String, dynamic>? draft]) {
+    return _AcceptanceLineDraft(
+      draft: draft,
+      onChanged: _draftSession.scheduleSave,
+    );
+  }
+
+  bool _hasDraftContent() {
+    return _customerController.text.trim().isNotEmpty ||
+        _customerCodeController.text.trim().isNotEmpty ||
+        _ettnController.text.trim().isNotEmpty ||
+        _documentNoController.text.trim().isNotEmpty ||
+        _delivererController.text.trim().isNotEmpty ||
+        _receiverController.text.trim().isNotEmpty ||
+        _descriptionController.text.trim().isNotEmpty ||
+        _allowOrderOverReceiving ||
+        !_autoCreateReturnForPartialAcceptance ||
+        _lines.any((line) => line.hasContent);
+  }
+
+  Map<String, dynamic> _buildDraftPayload() {
+    return <String, dynamic>{
+      'customerText': _customerController.text,
+      'customerCode': _customerCodeController.text,
+      'ettn': _ettnController.text,
+      'documentNo': _documentNoController.text,
+      'deliverer': _delivererController.text,
+      'receiver': _receiverController.text,
+      'description': _descriptionController.text,
+      'movementDate': _movementDate.toIso8601String(),
+      'documentDate': _documentDate.toIso8601String(),
+      'allowOrderOverReceiving': _allowOrderOverReceiving,
+      'autoCreateReturnForPartialAcceptance':
+          _autoCreateReturnForPartialAcceptance,
+      'lines': _lines
+          .where((line) => line.hasContent)
+          .map((line) => line.toDraftJson())
+          .toList(growable: false),
+    };
   }
 
   Future<void> _pickDate({required bool movementDate}) async {
@@ -106,6 +216,7 @@ class _CompanyAcceptanceCreateSheetState
         _documentDate = pickedDate;
       }
     });
+    _draftSession.scheduleSave();
   }
 
   Future<void> _scanEDespatchQr() async {
@@ -234,6 +345,7 @@ class _CompanyAcceptanceCreateSheetState
         _customerController.text = selectedCustomer.displayLabel;
         _customerCodeController.text = selectedCustomer.customerCode;
       });
+      _draftSession.scheduleSave();
     } catch (_) {
       // QR belge bilgileri yine de kullanilabilir; cari arama basarisizsa
       // kullanici cari kodunu manuel girebilir.
@@ -343,6 +455,7 @@ class _CompanyAcceptanceCreateSheetState
       _customerCodeController.text = selected.customerCode;
       _lookupError = null;
     });
+    _draftSession.scheduleSave();
   }
 
   Future<void> _searchProduct(_AcceptanceLineDraft line) async {
@@ -449,6 +562,7 @@ class _CompanyAcceptanceCreateSheetState
       _ensureFreshEntryLine();
       _lookupError = null;
     });
+    _draftSession.scheduleSave();
     _focusFreshEntryLine();
 
     if (mergedIntoExisting) {
@@ -518,7 +632,7 @@ class _CompanyAcceptanceCreateSheetState
       existingLine.unitPriceController.text = line.unitPriceController.text;
     }
 
-    _recycleMergedLine(line, createReplacement: _AcceptanceLineDraft.new);
+    _recycleMergedLine(line, createReplacement: _createLine);
     return true;
   }
 
@@ -575,7 +689,7 @@ class _CompanyAcceptanceCreateSheetState
 
   void _ensureFreshEntryLine() {
     if (_lines.isEmpty || !_isBlankLine(_lines.first)) {
-      _lines.insert(0, _AcceptanceLineDraft());
+      _lines.insert(0, _createLine());
     }
   }
 
@@ -698,14 +812,20 @@ class _CompanyAcceptanceCreateSheetState
           continue;
         }
 
-        _lines.add(_AcceptanceLineDraft.fromOrderItem(item));
+        _lines.add(
+          _AcceptanceLineDraft.fromOrderItem(
+            item,
+            onChanged: _draftSession.scheduleSave,
+          ),
+        );
       }
       _ensureFreshEntryLine();
       _lookupError = null;
     });
+    _draftSession.scheduleSave();
   }
 
-  void _submit() {
+  Future<void> _submit() async {
     final form = _formKey.currentState;
 
     if (form == null || !validateCreateForm(_formKey)) {
@@ -796,42 +916,45 @@ class _CompanyAcceptanceCreateSheetState
       }
     }
 
-    Navigator.of(context).pop(
-      CompanyAcceptanceCreateRequest(
-        customerCode: customerCode,
-        movementDate: _movementDate,
-        documentDate: _documentDate,
-        documentNo: _documentNoController.text.trim(),
-        clientRequestId: generateClientRequestId(),
-        deliverer: _delivererController.text.trim(),
-        receiver: _receiverController.text.trim(),
-        description: _descriptionController.text.trim(),
-        allowOrderOverReceiving: _allowOrderOverReceiving,
-        autoCreateReturnForPartialAcceptance:
-            _autoCreateReturnForPartialAcceptance,
-        lines: activeLines
-            .map(
-              (line) => CompanyAcceptanceCreateLine(
-                stockCode: line.stockCodeController.text.trim(),
-                dispatchQuantity: line.dispatchQuantity,
-                acceptedQuantity: line.acceptedQuantity,
-                unitPrice: line.unitPrice,
-                unitPointer: line.unitPointer,
-                lastConsumingDate: line.lastConsumingDate,
-                orderGuid: line.orderGuid,
-                description: line.descriptionController.text.trim(),
-                partyCode: line.partyCodeController.text.trim(),
-                lotNo: line.lotNo,
-                projectCode: line.projectCodeController.text.trim(),
-                customerResponsibilityCenter: line.customerRcController.text
-                    .trim(),
-                productResponsibilityCenter: line.productRcController.text
-                    .trim(),
-              ),
-            )
-            .toList(growable: false),
-      ),
+    final request = CompanyAcceptanceCreateRequest(
+      customerCode: customerCode,
+      movementDate: _movementDate,
+      documentDate: _documentDate,
+      documentNo: _documentNoController.text.trim(),
+      clientRequestId: generateClientRequestId(),
+      deliverer: _delivererController.text.trim(),
+      receiver: _receiverController.text.trim(),
+      description: _descriptionController.text.trim(),
+      allowOrderOverReceiving: _allowOrderOverReceiving,
+      autoCreateReturnForPartialAcceptance:
+          _autoCreateReturnForPartialAcceptance,
+      lines: activeLines
+          .map(
+            (line) => CompanyAcceptanceCreateLine(
+              stockCode: line.stockCodeController.text.trim(),
+              dispatchQuantity: line.dispatchQuantity,
+              acceptedQuantity: line.acceptedQuantity,
+              unitPrice: line.unitPrice,
+              unitPointer: line.unitPointer,
+              lastConsumingDate: line.lastConsumingDate,
+              orderGuid: line.orderGuid,
+              description: line.descriptionController.text.trim(),
+              partyCode: line.partyCodeController.text.trim(),
+              lotNo: line.lotNo,
+              projectCode: line.projectCodeController.text.trim(),
+              customerResponsibilityCenter: line.customerRcController.text
+                  .trim(),
+              productResponsibilityCenter: line.productRcController.text.trim(),
+            ),
+          )
+          .toList(growable: false),
     );
+
+    await _draftSession.complete();
+    if (!mounted) {
+      return;
+    }
+    Navigator.of(context).pop(request);
   }
 
   Future<List<CustomerLookupItem>> _searchCustomersWithFallback(
@@ -916,7 +1039,10 @@ class _CompanyAcceptanceCreateSheetState
                 labelText: 'Cari Kodu*',
                 hintText: 'Internet yoksa elle girin',
               ),
-              onChanged: (_) => setState(() {}),
+              onChanged: (_) {
+                setState(() {});
+                _draftSession.scheduleSave();
+              },
               validator: (value) {
                 if ((value ?? '').trim().isEmpty) {
                   return 'Cari kodu zorunlu';
@@ -992,6 +1118,7 @@ class _CompanyAcceptanceCreateSheetState
                 setState(() {
                   _allowOrderOverReceiving = value ?? false;
                 });
+                _draftSession.scheduleSave();
               },
             ),
             CheckboxListTile(
@@ -1005,6 +1132,7 @@ class _CompanyAcceptanceCreateSheetState
                 setState(() {
                   _autoCreateReturnForPartialAcceptance = value ?? true;
                 });
+                _draftSession.scheduleSave();
               },
             ),
             const SizedBox(height: 8),
@@ -1556,7 +1684,7 @@ String _formatDraftQuantity(double value) {
 }
 
 class _AcceptanceLineDraft {
-  _AcceptanceLineDraft()
+  _AcceptanceLineDraft({Map<String, dynamic>? draft, this.onChanged})
     : lookupController = TextEditingController(),
       stockCodeController = TextEditingController(),
       dispatchQuantityController = TextEditingController(),
@@ -1568,29 +1696,60 @@ class _AcceptanceLineDraft {
       projectCodeController = TextEditingController(),
       customerRcController = TextEditingController(),
       productRcController = TextEditingController(),
-      lastConsumingDateController = TextEditingController();
-
-  _AcceptanceLineDraft.fromOrderItem(CompanyOrderDetailItem item)
-    : lookupController = TextEditingController(
-        text: '${item.stockCode} - ${item.stockName}',
-      ),
-      stockCodeController = TextEditingController(text: item.stockCode),
-      dispatchQuantityController = TextEditingController(
-        text: item.remainingQuantity.toString(),
-      ),
-      acceptedQuantityController = TextEditingController(
-        text: item.remainingQuantity.toString(),
-      ),
-      unitPriceController = TextEditingController(
-        text: item.unitPrice.toString(),
-      ),
-      descriptionController = TextEditingController(text: item.description),
-      partyCodeController = TextEditingController(),
-      lotNoController = TextEditingController(text: '0'),
-      projectCodeController = TextEditingController(text: item.projectCode),
-      customerRcController = TextEditingController(),
-      productRcController = TextEditingController(),
       lastConsumingDateController = TextEditingController() {
+    if (draft != null) {
+      lookupController.text = draft['lookup']?.toString() ?? '';
+      stockCodeController.text = draft['stockCode']?.toString() ?? '';
+      dispatchQuantityController.text =
+          draft['dispatchQuantity']?.toString() ?? '';
+      acceptedQuantityController.text =
+          draft['acceptedQuantity']?.toString() ?? '';
+      unitPriceController.text = draft['unitPrice']?.toString() ?? '0';
+      descriptionController.text = draft['description']?.toString() ?? '';
+      partyCodeController.text = draft['partyCode']?.toString() ?? '';
+      lotNoController.text = draft['lotNo']?.toString() ?? '0';
+      projectCodeController.text = draft['projectCode']?.toString() ?? '';
+      customerRcController.text = draft['customerRc']?.toString() ?? '';
+      productRcController.text = draft['productRc']?.toString() ?? '';
+      lastConsumingDateController.text =
+          draft['lastConsumingDate']?.toString() ?? '';
+      orderGuid = draft['orderGuid']?.toString().trim().isEmpty ?? true
+          ? null
+          : draft['orderGuid']?.toString();
+      unitPointer = int.tryParse(draft['unitPointer']?.toString() ?? '') ?? 1;
+      final productJson = _acceptanceDraftMap(draft['selectedProduct']);
+      if (productJson != null) {
+        selectedProduct = SearchProductLookupItem.fromJson(productJson);
+      }
+    }
+    for (final controller in _controllers) {
+      controller.addListener(_notifyChanged);
+    }
+  }
+
+  _AcceptanceLineDraft.fromOrderItem(
+    CompanyOrderDetailItem item, {
+    this.onChanged,
+  }) : lookupController = TextEditingController(
+         text: '${item.stockCode} - ${item.stockName}',
+       ),
+       stockCodeController = TextEditingController(text: item.stockCode),
+       dispatchQuantityController = TextEditingController(
+         text: item.remainingQuantity.toString(),
+       ),
+       acceptedQuantityController = TextEditingController(
+         text: item.remainingQuantity.toString(),
+       ),
+       unitPriceController = TextEditingController(
+         text: item.unitPrice.toString(),
+       ),
+       descriptionController = TextEditingController(text: item.description),
+       partyCodeController = TextEditingController(),
+       lotNoController = TextEditingController(text: '0'),
+       projectCodeController = TextEditingController(text: item.projectCode),
+       customerRcController = TextEditingController(),
+       productRcController = TextEditingController(),
+       lastConsumingDateController = TextEditingController() {
     selectedProduct = SearchProductLookupItem(
       warehouseNo: 0,
       barcode: '',
@@ -1612,6 +1771,9 @@ class _AcceptanceLineDraft {
     );
     orderGuid = item.orderGuid;
     unitPointer = item.unitPointer;
+    for (final controller in _controllers) {
+      controller.addListener(_notifyChanged);
+    }
   }
 
   final TextEditingController lookupController;
@@ -1627,6 +1789,7 @@ class _AcceptanceLineDraft {
   final TextEditingController productRcController;
   final TextEditingController lastConsumingDateController;
   final FocusNode lookupFocusNode = FocusNode();
+  final VoidCallback? onChanged;
 
   SearchProductLookupItem? selectedProduct;
   String? lookupStatusMessage;
@@ -1634,6 +1797,38 @@ class _AcceptanceLineDraft {
   bool isLookupStatusError = false;
   String? orderGuid;
   int unitPointer = 1;
+
+  List<TextEditingController> get _controllers => <TextEditingController>[
+    lookupController,
+    stockCodeController,
+    dispatchQuantityController,
+    acceptedQuantityController,
+    unitPriceController,
+    descriptionController,
+    partyCodeController,
+    lotNoController,
+    projectCodeController,
+    customerRcController,
+    productRcController,
+    lastConsumingDateController,
+  ];
+
+  bool get hasContent =>
+      selectedProduct != null ||
+      orderGuid != null ||
+      lookupController.text.trim().isNotEmpty ||
+      stockCodeController.text.trim().isNotEmpty ||
+      dispatchQuantityController.text.trim().isNotEmpty ||
+      acceptedQuantityController.text.trim().isNotEmpty ||
+      unitPriceController.text.trim() != '0' ||
+      descriptionController.text.trim().isNotEmpty ||
+      partyCodeController.text.trim().isNotEmpty ||
+      (lotNoController.text.trim().isNotEmpty &&
+          lotNoController.text.trim() != '0') ||
+      projectCodeController.text.trim().isNotEmpty ||
+      customerRcController.text.trim().isNotEmpty ||
+      productRcController.text.trim().isNotEmpty ||
+      lastConsumingDateController.text.trim().isNotEmpty;
 
   double get dispatchQuantity =>
       _readDouble(dispatchQuantityController.text, fallback: 0);
@@ -1697,6 +1892,60 @@ class _AcceptanceLineDraft {
     productRcController.dispose();
     lastConsumingDateController.dispose();
   }
+
+  Map<String, dynamic> toDraftJson() {
+    return <String, dynamic>{
+      'lookup': lookupController.text,
+      'stockCode': stockCodeController.text,
+      'dispatchQuantity': dispatchQuantityController.text,
+      'acceptedQuantity': acceptedQuantityController.text,
+      'unitPrice': unitPriceController.text,
+      'unitPointer': unitPointer,
+      'description': descriptionController.text,
+      'partyCode': partyCodeController.text,
+      'lotNo': lotNoController.text,
+      'projectCode': projectCodeController.text,
+      'customerRc': customerRcController.text,
+      'productRc': productRcController.text,
+      'lastConsumingDate': lastConsumingDateController.text,
+      'orderGuid': orderGuid,
+      'selectedProduct': selectedProduct == null
+          ? null
+          : _acceptanceProductJson(selectedProduct!),
+    };
+  }
+
+  void _notifyChanged() => onChanged?.call();
+}
+
+Map<String, dynamic>? _acceptanceDraftMap(Object? value) {
+  return switch (value) {
+    final Map<String, dynamic> map => Map<String, dynamic>.from(map),
+    final Map map => map.map((key, item) => MapEntry(key.toString(), item)),
+    _ => null,
+  };
+}
+
+Map<String, dynamic> _acceptanceProductJson(SearchProductLookupItem item) {
+  return <String, dynamic>{
+    'warehouseNo': item.warehouseNo,
+    'barcode': item.barcode,
+    'stockCode': item.stockCode,
+    'stockName': item.stockName,
+    'price': item.price,
+    'priceTypeCode': item.priceTypeCode,
+    'unitName': item.unitName,
+    'unitMultiplier': item.unitMultiplier,
+    'secondaryUnitName': item.secondaryUnitName,
+    'secondaryUnitMultiplier': item.secondaryUnitMultiplier,
+    'salesBlockCode': item.salesBlockCode,
+    'orderBlockCode': item.orderBlockCode,
+    'goodsAcceptanceBlockCode': item.goodsAcceptanceBlockCode,
+    'isSalesBlocked': item.isSalesBlocked,
+    'isOrderBlocked': item.isOrderBlocked,
+    'isGoodsAcceptanceBlocked': item.isGoodsAcceptanceBlocked,
+    'productManagerCode': item.productManagerCode,
+  };
 }
 
 double _readDouble(String value, {required double fallback}) {

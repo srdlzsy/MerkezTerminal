@@ -6,6 +6,10 @@ import 'package:furpa_merkez_terminal/features/stock_operations/virman/data/mode
 import 'package:furpa_merkez_terminal/features/stock_operations/virman/data/virman_repository.dart';
 import 'package:furpa_merkez_terminal/features/stock_operations/virman/presentation/view_models/virman_controller.dart';
 import 'package:furpa_merkez_terminal/shared/data/search_lookup_models.dart';
+import 'package:furpa_merkez_terminal/shared/drafts/create_draft.dart';
+import 'package:furpa_merkez_terminal/shared/drafts/create_draft_picker.dart';
+import 'package:furpa_merkez_terminal/shared/drafts/create_draft_repository.dart';
+import 'package:furpa_merkez_terminal/shared/drafts/create_draft_session.dart';
 import 'package:furpa_merkez_terminal/shared/formatters/app_formatters.dart';
 import 'package:furpa_merkez_terminal/shared/offline/mobile_product_catalog_repository.dart';
 import 'package:furpa_merkez_terminal/shared/product_entry/product_entry_controller.dart';
@@ -24,6 +28,8 @@ class VirmanPage extends StatefulWidget {
     required this.defaultWarehouseNo,
     required this.userWarehouseName,
     required this.mobileProductCatalogRepository,
+    required this.currentUserId,
+    this.draftRepository,
   });
 
   final VirmanRepository repository;
@@ -32,6 +38,8 @@ class VirmanPage extends StatefulWidget {
   final String defaultWarehouseNo;
   final String userWarehouseName;
   final MobileProductCatalogLocalRepository mobileProductCatalogRepository;
+  final String currentUserId;
+  final CreateDraftRepository? draftRepository;
 
   @override
   State<VirmanPage> createState() => _VirmanPageState();
@@ -116,6 +124,29 @@ class _VirmanPageState extends State<VirmanPage> {
   }
 
   Future<void> _openCreateSheet() async {
+    CreateDraft? draft;
+    if (widget.draftRepository != null) {
+      final launch = await showCreateDraftPicker(
+        context: context,
+        repository: widget.draftRepository!,
+        moduleKey: 'stok-islemleri.virmanlar',
+        userId: widget.currentUserId,
+        warehouseNo: widget.defaultWarehouseNo,
+        createTitle: 'Yeni Virman',
+      );
+      if (launch == null || !mounted) {
+        return;
+      }
+      draft =
+          launch.draft ??
+          CreateDraft.empty(
+            moduleKey: 'stok-islemleri.virmanlar',
+            userId: widget.currentUserId,
+            warehouseNo: widget.defaultWarehouseNo,
+            title: 'Yeni Virman',
+          );
+    }
+
     final request = await showModalBottomSheet<VirmanCreateRequest>(
       context: context,
       isScrollControlled: true,
@@ -125,6 +156,8 @@ class _VirmanPageState extends State<VirmanPage> {
         return _VirmanCreateSheet(
           defaultWarehouseNo: widget.defaultWarehouseNo,
           mobileProductCatalogRepository: widget.mobileProductCatalogRepository,
+          draft: draft,
+          draftRepository: widget.draftRepository,
         );
       },
     );
@@ -158,6 +191,9 @@ class _VirmanPageState extends State<VirmanPage> {
         ),
       ),
     );
+    if (draft != null) {
+      await widget.draftRepository?.deleteDraft(draft.id);
+    }
   }
 
   @override
@@ -488,10 +524,14 @@ class _VirmanCreateSheet extends StatefulWidget {
   const _VirmanCreateSheet({
     required this.defaultWarehouseNo,
     required this.mobileProductCatalogRepository,
+    this.draft,
+    this.draftRepository,
   });
 
   final String defaultWarehouseNo;
   final MobileProductCatalogLocalRepository mobileProductCatalogRepository;
+  final CreateDraft? draft;
+  final CreateDraftRepository? draftRepository;
 
   @override
   State<_VirmanCreateSheet> createState() => _VirmanCreateSheetState();
@@ -500,19 +540,82 @@ class _VirmanCreateSheet extends StatefulWidget {
 class _VirmanCreateSheetState extends State<_VirmanCreateSheet>
     with CreateFormValidation {
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
-  final TextEditingController _descriptionController = TextEditingController();
-  final List<_VirmanDraftLine> _lines = <_VirmanDraftLine>[_VirmanDraftLine()];
-  DateTime _movementDate = DateTime.now();
-  DateTime _documentDate = DateTime.now();
+  late final TextEditingController _descriptionController;
+  late List<_VirmanDraftLine> _lines;
+  late DateTime _movementDate;
+  late DateTime _documentDate;
   String? _errorMessage;
+  late final CreateDraftSession _draftSession;
+
+  @override
+  void initState() {
+    super.initState();
+    final payload = widget.draft?.payload ?? const <String, dynamic>{};
+    _descriptionController = TextEditingController(
+      text: payload['description']?.toString() ?? '',
+    );
+    _movementDate =
+        DateTime.tryParse(payload['movementDate']?.toString() ?? '') ??
+        _normalizeDate(DateTime.now());
+    _documentDate =
+        DateTime.tryParse(payload['documentDate']?.toString() ?? '') ??
+        _normalizeDate(DateTime.now());
+    _draftSession = CreateDraftSession(
+      draft: widget.draft,
+      repository: widget.draftRepository,
+      hasContent: _hasDraftContent,
+      buildPayload: _buildDraftPayload,
+      buildTitle: () => _descriptionController.text.trim().isEmpty
+          ? 'Yeni Virman'
+          : 'Virman - ${_descriptionController.text.trim()}',
+    );
+    final rawLines = payload['lines'];
+    _lines = rawLines is List
+        ? rawLines
+              .map(_virmanDraftMap)
+              .whereType<Map<String, dynamic>>()
+              .map(_createLine)
+              .toList(growable: true)
+        : <_VirmanDraftLine>[];
+    _ensureFreshEntryLine();
+    _draftSession.listenTo(<TextEditingController>[_descriptionController]);
+  }
 
   @override
   void dispose() {
+    _draftSession.dispose();
     _descriptionController.dispose();
     for (final line in _lines) {
       line.dispose();
     }
     super.dispose();
+  }
+
+  _VirmanDraftLine _createLine([Map<String, dynamic>? draft]) {
+    return _VirmanDraftLine(
+      draft: draft,
+      onChanged: _draftSession.scheduleSave,
+    );
+  }
+
+  bool _hasDraftContent() {
+    final today = _normalizeDate(DateTime.now());
+    return _descriptionController.text.trim().isNotEmpty ||
+        !_isSameDate(_movementDate, today) ||
+        !_isSameDate(_documentDate, today) ||
+        _lines.any((line) => line.hasContent);
+  }
+
+  Map<String, dynamic> _buildDraftPayload() {
+    return <String, dynamic>{
+      'movementDate': _movementDate.toIso8601String(),
+      'documentDate': _documentDate.toIso8601String(),
+      'description': _descriptionController.text,
+      'lines': _lines
+          .where((line) => line.hasContent)
+          .map((line) => line.toDraftJson())
+          .toList(growable: false),
+    };
   }
 
   Future<void> _pickDate({required bool isMovementDate}) async {
@@ -535,6 +638,7 @@ class _VirmanCreateSheetState extends State<_VirmanCreateSheet>
         _documentDate = pickedDate;
       }
     });
+    _draftSession.scheduleSave();
   }
 
   void _removeLine(_VirmanDraftLine line) {
@@ -546,6 +650,7 @@ class _VirmanCreateSheetState extends State<_VirmanCreateSheet>
       _lines.remove(line);
       line.dispose();
     });
+    _draftSession.scheduleSave();
   }
 
   Future<void> _searchProduct(_VirmanDraftLine line) async {
@@ -607,6 +712,7 @@ class _VirmanCreateSheetState extends State<_VirmanCreateSheet>
       _ensureFreshEntryLine();
       _errorMessage = null;
     });
+    _draftSession.scheduleSave();
     _focusFreshEntryLine();
 
     if (mergedIntoExisting) {
@@ -676,7 +782,7 @@ class _VirmanCreateSheetState extends State<_VirmanCreateSheet>
     line.dispose();
 
     if (lineIndex == 0) {
-      _lines[lineIndex] = _VirmanDraftLine();
+      _lines[lineIndex] = _createLine();
       return;
     }
 
@@ -685,7 +791,7 @@ class _VirmanCreateSheetState extends State<_VirmanCreateSheet>
 
   void _ensureFreshEntryLine() {
     if (_lines.isEmpty || !_isBlankLine(_lines.first)) {
-      _lines.insert(0, _VirmanDraftLine());
+      _lines.insert(0, _createLine());
     }
   }
 
@@ -720,7 +826,7 @@ class _VirmanCreateSheetState extends State<_VirmanCreateSheet>
     );
   }
 
-  void _submit() {
+  Future<void> _submit() async {
     if (!validateCreateForm(_formKey)) {
       setState(() {
         _errorMessage = 'Lutfen zorunlu alanlari duzeltin.';
@@ -798,15 +904,19 @@ class _VirmanCreateSheetState extends State<_VirmanCreateSheet>
       _errorMessage = null;
     });
 
-    Navigator.of(context).pop(
-      VirmanCreateRequest(
-        movementDate: _movementDate,
-        documentDate: _documentDate,
-        documentNo: '',
-        description: _descriptionController.text.trim(),
-        lines: requestLines,
-      ),
+    final request = VirmanCreateRequest(
+      movementDate: _movementDate,
+      documentDate: _documentDate,
+      documentNo: '',
+      description: _descriptionController.text.trim(),
+      lines: requestLines,
     );
+
+    await _draftSession.complete();
+    if (!mounted) {
+      return;
+    }
+    Navigator.of(context).pop(request);
   }
 
   @override
@@ -1026,7 +1136,7 @@ class _VirmanDraftLineCard extends StatelessWidget {
 }
 
 class _VirmanDraftLine {
-  _VirmanDraftLine()
+  _VirmanDraftLine({Map<String, dynamic>? draft, this.onChanged})
     : lookupController = TextEditingController(),
       stockCodeController = TextEditingController(),
       movementTypeController = TextEditingController(text: '2'),
@@ -1035,7 +1145,26 @@ class _VirmanDraftLine {
       descriptionController = TextEditingController(),
       partyCodeController = TextEditingController(),
       lotNoController = TextEditingController(text: '0'),
-      projectCodeController = TextEditingController();
+      projectCodeController = TextEditingController() {
+    if (draft != null) {
+      lookupController.text = draft['lookup']?.toString() ?? '';
+      stockCodeController.text = draft['stockCode']?.toString() ?? '';
+      movementTypeController.text = draft['movementType']?.toString() ?? '2';
+      quantityController.text = draft['quantity']?.toString() ?? '';
+      unitPointerController.text = draft['unitPointer']?.toString() ?? '1';
+      descriptionController.text = draft['description']?.toString() ?? '';
+      partyCodeController.text = draft['partyCode']?.toString() ?? '';
+      lotNoController.text = draft['lotNo']?.toString() ?? '0';
+      projectCodeController.text = draft['projectCode']?.toString() ?? '';
+      final productJson = _virmanDraftMap(draft['selectedProduct']);
+      if (productJson != null) {
+        selectedProduct = SearchProductLookupItem.fromJson(productJson);
+      }
+    }
+    for (final controller in _controllers) {
+      controller.addListener(_notifyChanged);
+    }
+  }
 
   final TextEditingController lookupController;
   final TextEditingController stockCodeController;
@@ -1047,9 +1176,35 @@ class _VirmanDraftLine {
   final TextEditingController lotNoController;
   final TextEditingController projectCodeController;
   final FocusNode lookupFocusNode = FocusNode();
+  final VoidCallback? onChanged;
   SearchProductLookupItem? selectedProduct;
 
   String get barcode => selectedProduct?.barcode ?? '';
+
+  List<TextEditingController> get _controllers => <TextEditingController>[
+    lookupController,
+    stockCodeController,
+    movementTypeController,
+    quantityController,
+    unitPointerController,
+    descriptionController,
+    partyCodeController,
+    lotNoController,
+    projectCodeController,
+  ];
+
+  bool get hasContent =>
+      selectedProduct != null ||
+      lookupController.text.trim().isNotEmpty ||
+      stockCodeController.text.trim().isNotEmpty ||
+      movementTypeController.text.trim() != '2' ||
+      quantityController.text.trim().isNotEmpty ||
+      unitPointerController.text.trim() != '1' ||
+      descriptionController.text.trim().isNotEmpty ||
+      partyCodeController.text.trim().isNotEmpty ||
+      (lotNoController.text.trim().isNotEmpty &&
+          lotNoController.text.trim() != '0') ||
+      projectCodeController.text.trim().isNotEmpty;
 
   void applyProduct(SearchProductLookupItem product) {
     selectedProduct = product;
@@ -1074,6 +1229,65 @@ class _VirmanDraftLine {
     lotNoController.dispose();
     projectCodeController.dispose();
   }
+
+  Map<String, dynamic> toDraftJson() {
+    return <String, dynamic>{
+      'lookup': lookupController.text,
+      'stockCode': stockCodeController.text,
+      'movementType': movementTypeController.text,
+      'quantity': quantityController.text,
+      'unitPointer': unitPointerController.text,
+      'description': descriptionController.text,
+      'partyCode': partyCodeController.text,
+      'lotNo': lotNoController.text,
+      'projectCode': projectCodeController.text,
+      'selectedProduct': selectedProduct == null
+          ? null
+          : _virmanProductJson(selectedProduct!),
+    };
+  }
+
+  void _notifyChanged() => onChanged?.call();
+}
+
+DateTime _normalizeDate(DateTime value) {
+  return DateTime(value.year, value.month, value.day);
+}
+
+bool _isSameDate(DateTime first, DateTime second) {
+  return first.year == second.year &&
+      first.month == second.month &&
+      first.day == second.day;
+}
+
+Map<String, dynamic>? _virmanDraftMap(Object? value) {
+  return switch (value) {
+    final Map<String, dynamic> map => Map<String, dynamic>.from(map),
+    final Map map => map.map((key, item) => MapEntry(key.toString(), item)),
+    _ => null,
+  };
+}
+
+Map<String, dynamic> _virmanProductJson(SearchProductLookupItem item) {
+  return <String, dynamic>{
+    'warehouseNo': item.warehouseNo,
+    'barcode': item.barcode,
+    'stockCode': item.stockCode,
+    'stockName': item.stockName,
+    'price': item.price,
+    'priceTypeCode': item.priceTypeCode,
+    'unitName': item.unitName,
+    'unitMultiplier': item.unitMultiplier,
+    'secondaryUnitName': item.secondaryUnitName,
+    'secondaryUnitMultiplier': item.secondaryUnitMultiplier,
+    'salesBlockCode': item.salesBlockCode,
+    'orderBlockCode': item.orderBlockCode,
+    'goodsAcceptanceBlockCode': item.goodsAcceptanceBlockCode,
+    'isSalesBlocked': item.isSalesBlocked,
+    'isOrderBlocked': item.isOrderBlocked,
+    'isGoodsAcceptanceBlocked': item.isGoodsAcceptanceBlocked,
+    'productManagerCode': item.productManagerCode,
+  };
 }
 
 String _formatMovementTypes(List<int> movementTypes) {

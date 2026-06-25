@@ -37,6 +37,7 @@ import 'package:furpa_merkez_terminal/features/stock_operations/stock_receipts/d
 import 'package:furpa_merkez_terminal/features/stock_operations/stock_receipts/presentation/views/stock_receipts_page.dart';
 import 'package:furpa_merkez_terminal/features/stock_operations/virman/data/virman_repository.dart';
 import 'package:furpa_merkez_terminal/features/stock_operations/virman/presentation/views/virman_page.dart';
+import 'package:furpa_merkez_terminal/shared/drafts/create_draft_repository.dart';
 import 'package:furpa_merkez_terminal/shared/offline/mobile_customer_catalog_repository.dart';
 import 'package:furpa_merkez_terminal/shared/offline/mobile_product_catalog_repository.dart';
 import 'package:furpa_merkez_terminal/shared/offline/mobile_warehouse_catalog_repository.dart';
@@ -139,6 +140,7 @@ class ShellModuleRegistry {
     required this.mobileWarehouseCatalogLocalRepository,
     required this.mobileWarehouseCatalogSyncService,
     required this.legacyToolsRepository,
+    required this.createDraftRepository,
   });
 
   final GivenCompanyOrdersRepository givenCompanyOrdersRepository;
@@ -171,6 +173,7 @@ class ShellModuleRegistry {
   mobileWarehouseCatalogLocalRepository;
   final MobileWarehouseCatalogSyncService mobileWarehouseCatalogSyncService;
   final LegacyToolsRepository legacyToolsRepository;
+  final CreateDraftRepository createDraftRepository;
 
   late final List<ShellModuleRoute> routes = _buildRoutes();
 
@@ -203,6 +206,8 @@ class ShellModuleRegistry {
           repository: givenCompanyOrdersRepository,
           accessToken: context.accessToken,
           canCreate: context.canCreate,
+          currentUserId: context.user.id,
+          draftRepository: createDraftRepository,
           defaultWarehouseNo: context.user.warehouseNo,
           mobileCustomerCatalogRepository: mobileCustomerCatalogLocalRepository,
           userWarehouseName: context.user.warehouseName,
@@ -218,6 +223,8 @@ class ShellModuleRegistry {
           repository: receivedCompanyOrdersRepository,
           accessToken: context.accessToken,
           canCreate: false,
+          currentUserId: context.user.id,
+          draftRepository: createDraftRepository,
           defaultWarehouseNo: context.user.warehouseNo,
           mobileCustomerCatalogRepository: mobileCustomerCatalogLocalRepository,
           userWarehouseName: context.user.warehouseName,
@@ -235,6 +242,8 @@ class ShellModuleRegistry {
           repository: givenWarehouseOrdersRepository,
           accessToken: context.accessToken,
           canCreate: context.canCreate,
+          currentUserId: context.user.id,
+          draftRepository: createDraftRepository,
           defaultWarehouseNo: context.user.warehouseNo,
           mobileWarehouseCatalogRepository:
               mobileWarehouseCatalogLocalRepository,
@@ -260,6 +269,9 @@ class ShellModuleRegistry {
           receivedWarehouseOrdersRepository: receivedWarehouseOrdersRepository,
           accessToken: context.accessToken,
           canCreate: context.canCreate,
+          currentUserId: context.user.id,
+          draftModuleKey: 'sevk-islemleri.giden-depolar-arasi-sevkler',
+          draftRepository: createDraftRepository,
           defaultWarehouseNo: context.user.warehouseNo,
           mobileWarehouseCatalogRepository:
               mobileWarehouseCatalogLocalRepository,
@@ -276,6 +288,9 @@ class ShellModuleRegistry {
           receivedWarehouseOrdersRepository: receivedWarehouseOrdersRepository,
           accessToken: context.accessToken,
           canCreate: false,
+          currentUserId: context.user.id,
+          draftModuleKey: 'sevk-islemleri.gelen-depolar-arasi-sevkler',
+          draftRepository: createDraftRepository,
           defaultWarehouseNo: context.user.warehouseNo,
           mobileWarehouseCatalogRepository:
               mobileWarehouseCatalogLocalRepository,
@@ -319,6 +334,8 @@ class ShellModuleRegistry {
               mobileWarehouseCatalogLocalRepository,
           userWarehouseName: context.user.warehouseName,
           direction: WarehouseReturnDirection.outgoing,
+          currentUserId: context.user.id,
+          draftRepository: createDraftRepository,
         ),
       ),
       ShellModuleRoute(
@@ -347,6 +364,7 @@ class ShellModuleRegistry {
           currentUserId: context.user.id,
           defaultWarehouseNo: context.user.warehouseNo,
           userWarehouseName: context.user.warehouseName,
+          draftRepository: createDraftRepository,
         ),
       ),
       ShellModuleRoute(
@@ -360,6 +378,8 @@ class ShellModuleRegistry {
           canCreate: context.canCreate,
           defaultWarehouseNo: context.user.warehouseNo,
           userWarehouseName: context.user.warehouseName,
+          currentUserId: context.user.id,
+          draftRepository: createDraftRepository,
         ),
       ),
       ShellModuleRoute(
@@ -386,6 +406,8 @@ class ShellModuleRegistry {
           accessToken: context.accessToken,
           canCreate: context.canCreate,
           defaultWarehouseNo: context.user.warehouseNo,
+          currentUserId: context.user.id,
+          draftRepository: createDraftRepository,
           mobileProductCatalogRepository: mobileProductCatalogLocalRepository,
           userWarehouseName: context.user.warehouseName,
         ),
@@ -397,6 +419,9 @@ class ShellModuleRegistry {
           repository: outgoingCompanyShipmentsRepository,
           accessToken: context.accessToken,
           canCreate: context.canCreate,
+          currentUserId: context.user.id,
+          draftModuleKey: 'sevk-islemleri.giden-firma-sevkleri',
+          draftRepository: createDraftRepository,
           defaultWarehouseNo: context.user.warehouseNo,
           mobileCustomerCatalogRepository: mobileCustomerCatalogLocalRepository,
           userWarehouseName: context.user.warehouseName,
@@ -418,6 +443,9 @@ class ShellModuleRegistry {
           repository: incomingCompanyShipmentsRepository,
           accessToken: context.accessToken,
           canCreate: false,
+          currentUserId: context.user.id,
+          draftModuleKey: 'sevk-islemleri.gelen-firma-sevkleri',
+          draftRepository: createDraftRepository,
           defaultWarehouseNo: context.user.warehouseNo,
           mobileCustomerCatalogRepository: mobileCustomerCatalogLocalRepository,
           userWarehouseName: context.user.warehouseName,
@@ -455,6 +483,9 @@ class ShellModuleRegistry {
           repository: companyReturnsRepository,
           accessToken: context.accessToken,
           canCreate: context.canCreate,
+          currentUserId: context.user.id,
+          draftModuleKey: 'iade-islemleri.firma-iadeleri',
+          draftRepository: createDraftRepository,
           defaultWarehouseNo: context.user.warehouseNo,
           mobileCustomerCatalogRepository: mobileCustomerCatalogLocalRepository,
           userWarehouseName: context.user.warehouseName,
@@ -462,8 +493,7 @@ class ShellModuleRegistry {
           subtitle:
               'Firma iadelerini listeleyin, yeni iade acin ve e-irsaliye hazirlayin.',
           createTitle: 'Yeni Iade',
-          createHelperText:
-              'Cari secildikten sonra iade satirlari manuel eklenir ve e-irsaliye adimi detay ekranindan yonetilir.',
+          createHelperText: 'Cari secildikten sonra iade edilir.',
           createButtonLabel: 'Yeni Iade',
           emptyListMessage: 'Secilen tarih araliginda firma iadesi bulunamadi.',
           showCreateDocumentNoField: false,
@@ -479,6 +509,8 @@ class ShellModuleRegistry {
           canCreate: context.canCreate,
           defaultWarehouseNo: context.user.warehouseNo,
           userWarehouseName: context.user.warehouseName,
+          currentUserId: context.user.id,
+          draftRepository: createDraftRepository,
         ),
       ),
       ShellModuleRoute(
@@ -491,6 +523,8 @@ class ShellModuleRegistry {
           canCreate: context.canCreate,
           defaultWarehouseNo: context.user.warehouseNo,
           userWarehouseName: context.user.warehouseName,
+          currentUserId: context.user.id,
+          draftRepository: createDraftRepository,
         ),
       ),
       ShellModuleRoute(

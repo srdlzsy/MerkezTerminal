@@ -3,6 +3,9 @@ import 'package:flutter/services.dart';
 import 'package:furpa_merkez_terminal/core/network/api_exception.dart';
 import 'package:furpa_merkez_terminal/features/order_operations/given_company_orders/data/models/given_company_order_models.dart';
 import 'package:furpa_merkez_terminal/features/order_operations/shared/data/company_orders_repository.dart';
+import 'package:furpa_merkez_terminal/shared/drafts/create_draft.dart';
+import 'package:furpa_merkez_terminal/shared/drafts/create_draft_repository.dart';
+import 'package:furpa_merkez_terminal/shared/drafts/create_draft_session.dart';
 import 'package:furpa_merkez_terminal/shared/formatters/app_formatters.dart';
 import 'package:furpa_merkez_terminal/shared/offline/mobile_customer_catalog_repository.dart';
 import 'package:furpa_merkez_terminal/shared/product_entry/product_entry_controller.dart';
@@ -18,12 +21,16 @@ class GivenCompanyOrderCreateSheet extends StatefulWidget {
     required this.accessToken,
     required this.defaultWarehouseNo,
     required this.mobileCustomerCatalogRepository,
+    this.draft,
+    this.draftRepository,
   });
 
   final CompanyOrdersRepository repository;
   final String accessToken;
   final String defaultWarehouseNo;
   final MobileCustomerCatalogLocalRepository mobileCustomerCatalogRepository;
+  final CreateDraft? draft;
+  final CreateDraftRepository? draftRepository;
 
   @override
   State<GivenCompanyOrderCreateSheet> createState() =>
@@ -45,22 +52,67 @@ class _GivenCompanyOrderCreateSheetState
   late List<_CompanyOrderLineDraft> _lines;
   CustomerLookupItem? _selectedCustomer;
   String? _validationMessage;
+  late final CreateDraftSession _draftSession;
 
   @override
   void initState() {
     super.initState();
-    _customerCodeController = TextEditingController();
-    _delivererController = TextEditingController();
-    _receiverController = TextEditingController();
-    _description1Controller = TextEditingController();
-    _description2Controller = TextEditingController();
-    _orderDate = _normalizeDate(DateTime.now());
-    _deliveryDate = _normalizeDate(DateTime.now());
-    _lines = <_CompanyOrderLineDraft>[_CompanyOrderLineDraft()];
+    final payload = widget.draft?.payload ?? const <String, dynamic>{};
+    _customerCodeController = TextEditingController(
+      text: payload['customerCode']?.toString() ?? '',
+    );
+    _delivererController = TextEditingController(
+      text: payload['deliverer']?.toString() ?? '',
+    );
+    _receiverController = TextEditingController(
+      text: payload['receiver']?.toString() ?? '',
+    );
+    _description1Controller = TextEditingController(
+      text: payload['description1']?.toString() ?? '',
+    );
+    _description2Controller = TextEditingController(
+      text: payload['description2']?.toString() ?? '',
+    );
+    _orderDate =
+        DateTime.tryParse(payload['orderDate']?.toString() ?? '') ??
+        _normalizeDate(DateTime.now());
+    _deliveryDate =
+        DateTime.tryParse(payload['deliveryDate']?.toString() ?? '') ??
+        _normalizeDate(DateTime.now());
+    final customerJson = _draftMap(payload['selectedCustomer']);
+    if (customerJson != null) {
+      _selectedCustomer = CustomerLookupItem.fromJson(customerJson);
+    }
+    _draftSession = CreateDraftSession(
+      draft: widget.draft,
+      repository: widget.draftRepository,
+      hasContent: _hasDraftContent,
+      buildPayload: _buildDraftPayload,
+      buildTitle: () => _selectedCustomer == null
+          ? 'Yeni Verilen Firma Siparisi'
+          : 'Firma Siparisi - ${_selectedCustomer!.customerDisplayName}',
+    );
+    final rawLines = payload['lines'];
+    _lines = rawLines is List
+        ? rawLines
+              .map(_draftMap)
+              .whereType<Map<String, dynamic>>()
+              .map(_createLine)
+              .toList(growable: true)
+        : <_CompanyOrderLineDraft>[];
+    _ensureFreshEntryLine();
+    _draftSession.listenTo(<TextEditingController>[
+      _customerCodeController,
+      _delivererController,
+      _receiverController,
+      _description1Controller,
+      _description2Controller,
+    ]);
   }
 
   @override
   void dispose() {
+    _draftSession.dispose();
     _scrollController.dispose();
     _customerCodeController.dispose();
     _delivererController.dispose();
@@ -71,6 +123,42 @@ class _GivenCompanyOrderCreateSheetState
       line.dispose();
     }
     super.dispose();
+  }
+
+  _CompanyOrderLineDraft _createLine([Map<String, dynamic>? draft]) {
+    return _CompanyOrderLineDraft(
+      draft: draft,
+      onChanged: _draftSession.scheduleSave,
+    );
+  }
+
+  bool _hasDraftContent() {
+    return _selectedCustomer != null ||
+        _customerCodeController.text.trim().isNotEmpty ||
+        _delivererController.text.trim().isNotEmpty ||
+        _receiverController.text.trim().isNotEmpty ||
+        _description1Controller.text.trim().isNotEmpty ||
+        _description2Controller.text.trim().isNotEmpty ||
+        _lines.any((line) => line.hasContent);
+  }
+
+  Map<String, dynamic> _buildDraftPayload() {
+    return <String, dynamic>{
+      'customerCode': _customerCodeController.text,
+      'deliverer': _delivererController.text,
+      'receiver': _receiverController.text,
+      'description1': _description1Controller.text,
+      'description2': _description2Controller.text,
+      'orderDate': _orderDate.toIso8601String(),
+      'deliveryDate': _deliveryDate.toIso8601String(),
+      'selectedCustomer': _selectedCustomer == null
+          ? null
+          : _companyOrderCustomerJson(_selectedCustomer!),
+      'lines': _lines
+          .where((line) => line.hasContent)
+          .map((line) => line.toDraftJson())
+          .toList(growable: false),
+    };
   }
 
   Future<void> _pickDate({required bool isOrderDate}) async {
@@ -98,6 +186,7 @@ class _GivenCompanyOrderCreateSheetState
         }
       }
     });
+    _draftSession.scheduleSave();
   }
 
   Future<void> _searchCustomer() async {
@@ -124,8 +213,9 @@ class _GivenCompanyOrderCreateSheetState
       for (final line in _lines) {
         line.dispose();
       }
-      _lines = <_CompanyOrderLineDraft>[_CompanyOrderLineDraft()];
+      _lines = <_CompanyOrderLineDraft>[_createLine()];
     });
+    _draftSession.scheduleSave();
     _focusFreshEntryLine();
   }
 
@@ -270,7 +360,7 @@ class _GivenCompanyOrderCreateSheetState
       existingLine.unitPriceController.text = line.unitPriceController.text;
     }
 
-    _recycleMergedLine(line, createReplacement: _CompanyOrderLineDraft.new);
+    _recycleMergedLine(line, createReplacement: _createLine);
     return true;
   }
 
@@ -291,7 +381,7 @@ class _GivenCompanyOrderCreateSheetState
 
   void _ensureFreshEntryLine() {
     if (_lines.isEmpty || !_isBlankLine(_lines.first)) {
-      _lines = <_CompanyOrderLineDraft>[_CompanyOrderLineDraft(), ..._lines];
+      _lines = <_CompanyOrderLineDraft>[_createLine(), ..._lines];
     }
   }
 
@@ -324,9 +414,10 @@ class _GivenCompanyOrderCreateSheetState
       line.dispose();
       _validationMessage = null;
     });
+    _draftSession.scheduleSave();
   }
 
-  void _submit() {
+  Future<void> _submit() async {
     if (!validateCreateForm(_formKey)) {
       setState(() {
         _validationMessage = 'Lutfen zorunlu alanlari duzeltin.';
@@ -398,18 +489,21 @@ class _GivenCompanyOrderCreateSheetState
       );
     }
 
-    Navigator.of(context).pop(
-      CompanyOrderCreateRequest(
-        customerCode: customer.customerCode,
-        orderDate: _orderDate,
-        deliveryDate: _deliveryDate,
-        description1: _description1Controller.text.trim(),
-        description2: _description2Controller.text.trim(),
-        deliverer: _delivererController.text.trim(),
-        receiver: _receiverController.text.trim(),
-        lines: requestLines,
-      ),
+    final request = CompanyOrderCreateRequest(
+      customerCode: customer.customerCode,
+      orderDate: _orderDate,
+      deliveryDate: _deliveryDate,
+      description1: _description1Controller.text.trim(),
+      description2: _description2Controller.text.trim(),
+      deliverer: _delivererController.text.trim(),
+      receiver: _receiverController.text.trim(),
+      lines: requestLines,
     );
+    await _draftSession.complete();
+    if (!mounted) {
+      return;
+    }
+    Navigator.of(context).pop(request);
   }
 
   @override
@@ -926,11 +1020,25 @@ class _GivenCompanyOrderCreateSheetState
 }
 
 class _CompanyOrderLineDraft {
-  _CompanyOrderLineDraft()
+  _CompanyOrderLineDraft({Map<String, dynamic>? draft, this.onChanged})
     : barcodeController = TextEditingController(),
       stockCodeController = TextEditingController(),
       quantityController = TextEditingController(),
-      unitPriceController = TextEditingController(text: '0');
+      unitPriceController = TextEditingController(text: '0') {
+    if (draft != null) {
+      barcodeController.text = draft['barcode']?.toString() ?? '';
+      stockCodeController.text = draft['stockCode']?.toString() ?? '';
+      quantityController.text = draft['quantity']?.toString() ?? '';
+      unitPriceController.text = draft['unitPrice']?.toString() ?? '0';
+      final productJson = _draftMap(draft['selectedProduct']);
+      if (productJson != null) {
+        selectedProduct = CompanyOrderProductLookupItem.fromJson(productJson);
+      }
+    }
+    for (final controller in _controllers) {
+      controller.addListener(_notifyChanged);
+    }
+  }
 
   CompanyOrderProductLookupItem? selectedProduct;
   String? lookupStatusMessage;
@@ -941,6 +1049,21 @@ class _CompanyOrderLineDraft {
   final TextEditingController quantityController;
   final TextEditingController unitPriceController;
   final FocusNode barcodeFocusNode = FocusNode();
+  final VoidCallback? onChanged;
+
+  List<TextEditingController> get _controllers => <TextEditingController>[
+    barcodeController,
+    stockCodeController,
+    quantityController,
+    unitPriceController,
+  ];
+
+  bool get hasContent =>
+      selectedProduct != null ||
+      barcodeController.text.trim().isNotEmpty ||
+      stockCodeController.text.trim().isNotEmpty ||
+      quantityController.text.trim().isNotEmpty ||
+      unitPriceController.text.trim() != '0';
 
   void applyProduct(CompanyOrderProductLookupItem product) {
     selectedProduct = product;
@@ -981,6 +1104,20 @@ class _CompanyOrderLineDraft {
     isLookupStatusError = isError;
   }
 
+  Map<String, dynamic> toDraftJson() {
+    return <String, dynamic>{
+      'barcode': barcodeController.text,
+      'stockCode': stockCodeController.text,
+      'quantity': quantityController.text,
+      'unitPrice': unitPriceController.text,
+      'selectedProduct': selectedProduct == null
+          ? null
+          : _companyOrderProductJson(selectedProduct!),
+    };
+  }
+
+  void _notifyChanged() => onChanged?.call();
+
   void dispose() {
     barcodeFocusNode.dispose();
     barcodeController.dispose();
@@ -997,6 +1134,46 @@ class _CompanyOrderLineDraft {
 
     return raw.replaceAll('.', ',');
   }
+}
+
+Map<String, dynamic>? _draftMap(Object? value) {
+  return switch (value) {
+    final Map<String, dynamic> map => Map<String, dynamic>.from(map),
+    final Map map => map.map((key, item) => MapEntry(key.toString(), item)),
+    _ => null,
+  };
+}
+
+Map<String, dynamic> _companyOrderCustomerJson(CustomerLookupItem item) {
+  return <String, dynamic>{
+    'customerCode': item.customerCode,
+    'customerName': item.customerName,
+    'customerTitle': item.customerTitle,
+    'customerDisplayName': item.customerDisplayName,
+    'taxNumber': item.taxNumber,
+    'representativeCode': item.representativeCode,
+    'representativeName': item.representativeName,
+    'invoiceAddressNo': item.invoiceAddressNo,
+    'shippingAddressNo': item.shippingAddressNo,
+    'isLocked': item.isLocked,
+    'isClosed': item.isClosed,
+  };
+}
+
+Map<String, dynamic> _companyOrderProductJson(
+  CompanyOrderProductLookupItem item,
+) {
+  return <String, dynamic>{
+    'warehouseNo': item.warehouseNo,
+    'barcode': item.barcode,
+    'stockCode': item.stockCode,
+    'stockName': item.stockName,
+    'price': item.price,
+    'unitName': item.unitName,
+    'unitMultiplier': item.unitMultiplier,
+    'isOrderBlocked': item.isOrderBlocked,
+    'isSalesBlocked': item.isSalesBlocked,
+  };
 }
 
 class _CustomerLookupSheet extends StatefulWidget {

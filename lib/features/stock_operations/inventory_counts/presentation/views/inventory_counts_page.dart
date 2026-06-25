@@ -8,6 +8,9 @@ import 'package:furpa_merkez_terminal/features/stock_operations/inventory_counts
 import 'package:furpa_merkez_terminal/features/stock_operations/inventory_counts/presentation/widgets/inventory_count_create_sheet.dart';
 import 'package:furpa_merkez_terminal/features/stock_operations/offline_inventory_counts/data/offline_inventory_counts_repository.dart';
 import 'package:furpa_merkez_terminal/features/stock_operations/offline_inventory_counts/presentation/views/offline_inventory_counts_page.dart';
+import 'package:furpa_merkez_terminal/shared/drafts/create_draft.dart';
+import 'package:furpa_merkez_terminal/shared/drafts/create_draft_picker.dart';
+import 'package:furpa_merkez_terminal/shared/drafts/create_draft_repository.dart';
 import 'package:furpa_merkez_terminal/shared/formatters/app_formatters.dart';
 import 'package:furpa_merkez_terminal/shared/offline/mobile_product_catalog_repository.dart';
 import 'package:furpa_merkez_terminal/shared/offline/offline_sync_service.dart';
@@ -26,6 +29,7 @@ class InventoryCountsPage extends StatefulWidget {
     required this.currentUserId,
     required this.defaultWarehouseNo,
     required this.userWarehouseName,
+    this.draftRepository,
   });
 
   final InventoryCountsRepository repository;
@@ -37,6 +41,7 @@ class InventoryCountsPage extends StatefulWidget {
   final String currentUserId;
   final String defaultWarehouseNo;
   final String userWarehouseName;
+  final CreateDraftRepository? draftRepository;
 
   @override
   State<InventoryCountsPage> createState() => _InventoryCountsPageState();
@@ -113,6 +118,29 @@ class _InventoryCountsPageState extends State<InventoryCountsPage> {
   }
 
   Future<void> _openCreateSheet() async {
+    CreateDraft? draft;
+    if (widget.draftRepository != null) {
+      final launch = await showCreateDraftPicker(
+        context: context,
+        repository: widget.draftRepository!,
+        moduleKey: 'stok-islemleri.sayim-sonuclari',
+        userId: widget.currentUserId,
+        warehouseNo: widget.defaultWarehouseNo,
+        createTitle: 'Yeni Sayim Sonucu',
+      );
+      if (launch == null || !mounted) {
+        return;
+      }
+      draft =
+          launch.draft ??
+          CreateDraft.empty(
+            moduleKey: 'stok-islemleri.sayim-sonuclari',
+            userId: widget.currentUserId,
+            warehouseNo: widget.defaultWarehouseNo,
+            title: 'Yeni Sayim Sonucu',
+          );
+    }
+
     final request = await showModalBottomSheet<InventoryCountCreateRequest>(
       context: context,
       isScrollControlled: true,
@@ -124,6 +152,8 @@ class _InventoryCountsPageState extends State<InventoryCountsPage> {
           accessToken: widget.accessToken,
           defaultWarehouseNo: widget.defaultWarehouseNo,
           mobileProductCatalogRepository: widget.mobileProductCatalogRepository,
+          draft: draft,
+          draftRepository: widget.draftRepository,
         );
       },
     );
@@ -154,6 +184,9 @@ class _InventoryCountsPageState extends State<InventoryCountsPage> {
       switch (submission.status) {
         case OfflineSubmissionStatus.synced:
         case OfflineSubmissionStatus.recovered:
+          if (draft != null) {
+            await widget.draftRepository?.deleteDraft(draft.id);
+          }
           final result = submission.onlineResult;
           await _controller.loadCounts(
             preferredDocumentNo: result?.documentNo,
@@ -179,6 +212,9 @@ class _InventoryCountsPageState extends State<InventoryCountsPage> {
             ),
           );
         case OfflineSubmissionStatus.queued:
+          if (draft != null) {
+            await widget.draftRepository?.deleteDraft(draft.id);
+          }
           messenger.showSnackBar(
             const SnackBar(
               content: Text(

@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:furpa_merkez_terminal/core/network/api_exception.dart';
 import 'package:furpa_merkez_terminal/features/order_operations/shared/data/models/warehouse_order_models.dart';
 import 'package:furpa_merkez_terminal/features/order_operations/shared/data/warehouse_orders_repository.dart';
+import 'package:furpa_merkez_terminal/shared/drafts/create_draft.dart';
+import 'package:furpa_merkez_terminal/shared/drafts/create_draft_repository.dart';
+import 'package:furpa_merkez_terminal/shared/drafts/create_draft_session.dart';
 import 'package:furpa_merkez_terminal/shared/formatters/app_formatters.dart';
 import 'package:furpa_merkez_terminal/shared/offline/mobile_warehouse_catalog_repository.dart';
 import 'package:furpa_merkez_terminal/shared/product_entry/product_entry_controller.dart';
@@ -17,12 +20,16 @@ class GivenWarehouseOrderCreateSheet extends StatefulWidget {
     required this.accessToken,
     required this.defaultWarehouseNo,
     required this.mobileWarehouseCatalogRepository,
+    this.draft,
+    this.draftRepository,
   });
 
   final WarehouseOrdersRepository repository;
   final String accessToken;
   final String defaultWarehouseNo;
   final MobileWarehouseCatalogLocalRepository mobileWarehouseCatalogRepository;
+  final CreateDraft? draft;
+  final CreateDraftRepository? draftRepository;
 
   @override
   State<GivenWarehouseOrderCreateSheet> createState() =>
@@ -40,6 +47,7 @@ class _GivenWarehouseOrderCreateSheetState
   WarehouseLookupItem? _selectedWarehouse;
   String? _validationMessage;
   final ScrollController _scrollController = ScrollController();
+  late final CreateDraftSession _draftSession;
 
   bool get _hasWarehouseSelection {
     return _selectedWarehouse != null ||
@@ -49,20 +57,78 @@ class _GivenWarehouseOrderCreateSheetState
   @override
   void initState() {
     super.initState();
-    _outWarehouseNoController = TextEditingController();
-    _orderDate = _normalizeDate(DateTime.now());
-    _deliveryDate = _normalizeDate(DateTime.now());
-    _lines = <_CreateLineDraft>[_CreateLineDraft()];
+    final payload = widget.draft?.payload ?? const <String, dynamic>{};
+    _outWarehouseNoController = TextEditingController(
+      text: payload['outWarehouseNo']?.toString() ?? '',
+    );
+    _orderDate =
+        DateTime.tryParse(payload['orderDate']?.toString() ?? '') ??
+        _normalizeDate(DateTime.now());
+    _deliveryDate =
+        DateTime.tryParse(payload['deliveryDate']?.toString() ?? '') ??
+        _normalizeDate(DateTime.now());
+    final warehouseJson = _warehouseOrderDraftMap(payload['selectedWarehouse']);
+    if (warehouseJson != null) {
+      _selectedWarehouse = WarehouseLookupItem.fromJson(warehouseJson);
+    }
+    _draftSession = CreateDraftSession(
+      draft: widget.draft,
+      repository: widget.draftRepository,
+      hasContent: _hasDraftContent,
+      buildPayload: _buildDraftPayload,
+      buildTitle: () => _selectedWarehouse == null
+          ? 'Yeni Verilen Depo Siparisi'
+          : 'Depo Siparisi - ${_selectedWarehouse!.warehouseName}',
+    );
+    final rawLines = payload['lines'];
+    _lines = rawLines is List
+        ? rawLines
+              .map(_warehouseOrderDraftMap)
+              .whereType<Map<String, dynamic>>()
+              .map(_createLine)
+              .toList(growable: true)
+        : <_CreateLineDraft>[];
+    _ensureFreshEntryLine();
+    _draftSession.listenTo(<TextEditingController>[_outWarehouseNoController]);
   }
 
   @override
   void dispose() {
+    _draftSession.dispose();
     _outWarehouseNoController.dispose();
     _scrollController.dispose();
     for (final line in _lines) {
       line.dispose();
     }
     super.dispose();
+  }
+
+  _CreateLineDraft _createLine([Map<String, dynamic>? draft]) {
+    return _CreateLineDraft(
+      draft: draft,
+      onChanged: _draftSession.scheduleSave,
+    );
+  }
+
+  bool _hasDraftContent() {
+    return _selectedWarehouse != null ||
+        _outWarehouseNoController.text.trim().isNotEmpty ||
+        _lines.any((line) => line.hasContent);
+  }
+
+  Map<String, dynamic> _buildDraftPayload() {
+    return <String, dynamic>{
+      'outWarehouseNo': _outWarehouseNoController.text,
+      'orderDate': _orderDate.toIso8601String(),
+      'deliveryDate': _deliveryDate.toIso8601String(),
+      'selectedWarehouse': _selectedWarehouse == null
+          ? null
+          : _warehouseLookupJson(_selectedWarehouse!),
+      'lines': _lines
+          .where((line) => line.hasContent)
+          .map((line) => line.toDraftJson())
+          .toList(growable: false),
+    };
   }
 
   Future<void> _pickDate({required bool isOrderDate}) async {
@@ -90,6 +156,7 @@ class _GivenWarehouseOrderCreateSheetState
         }
       }
     });
+    _draftSession.scheduleSave();
   }
 
   Future<void> _searchWarehouse() async {
@@ -114,6 +181,7 @@ class _GivenWarehouseOrderCreateSheetState
       _selectedWarehouse = warehouse;
       _outWarehouseNoController.text = warehouse.warehouseNo.toString();
     });
+    _draftSession.scheduleSave();
   }
 
   Future<void> _searchProduct(_CreateLineDraft line) async {
@@ -178,7 +246,7 @@ class _GivenWarehouseOrderCreateSheetState
 
   void _ensureFreshEntryLine() {
     if (_lines.isEmpty || !_isBlankLine(_lines.first)) {
-      _lines = <_CreateLineDraft>[_CreateLineDraft(), ..._lines];
+      _lines = <_CreateLineDraft>[_createLine(), ..._lines];
     }
   }
 
@@ -230,7 +298,7 @@ class _GivenWarehouseOrderCreateSheetState
                 product.unitMultiplier,
               ),
         );
-    _recycleMergedLine(line, createReplacement: _CreateLineDraft.new);
+    _recycleMergedLine(line, createReplacement: _createLine);
     return true;
   }
 
@@ -258,9 +326,10 @@ class _GivenWarehouseOrderCreateSheetState
       _lines = _lines.where((item) => item != line).toList(growable: false);
       line.dispose();
     });
+    _draftSession.scheduleSave();
   }
 
-  void _submit() {
+  Future<void> _submit() async {
     if (!validateCreateForm(_formKey)) {
       setState(() => _validationMessage = 'Lutfen zorunlu alanlari duzeltin.');
       return;
@@ -319,6 +388,10 @@ class _GivenWarehouseOrderCreateSheetState
           .toList(growable: false),
     );
 
+    await _draftSession.complete();
+    if (!mounted) {
+      return;
+    }
     Navigator.of(context).pop(request);
   }
 
@@ -1246,16 +1319,42 @@ class _ProductLookupSheetState extends State<_ProductLookupSheet> {
 // ==================== DATA MODEL ====================
 
 class _CreateLineDraft {
-  _CreateLineDraft()
+  _CreateLineDraft({Map<String, dynamic>? draft, this.onChanged})
     : stockCodeController = TextEditingController(),
       barcodeController = TextEditingController(),
-      quantityController = TextEditingController();
+      quantityController = TextEditingController() {
+    if (draft != null) {
+      stockCodeController.text = draft['stockCode']?.toString() ?? '';
+      barcodeController.text = draft['barcode']?.toString() ?? '';
+      quantityController.text = draft['quantity']?.toString() ?? '';
+      final productJson = _warehouseOrderDraftMap(draft['selectedProduct']);
+      if (productJson != null) {
+        selectedProduct = ProductLookupItem.fromJson(productJson);
+      }
+    }
+    for (final controller in _controllers) {
+      controller.addListener(_notifyChanged);
+    }
+  }
 
   final TextEditingController stockCodeController;
   final TextEditingController barcodeController;
   final TextEditingController quantityController;
   final FocusNode barcodeFocusNode = FocusNode();
+  final VoidCallback? onChanged;
   ProductLookupItem? selectedProduct;
+
+  List<TextEditingController> get _controllers => <TextEditingController>[
+    stockCodeController,
+    barcodeController,
+    quantityController,
+  ];
+
+  bool get hasContent =>
+      selectedProduct != null ||
+      stockCodeController.text.trim().isNotEmpty ||
+      barcodeController.text.trim().isNotEmpty ||
+      quantityController.text.trim().isNotEmpty;
 
   void applyProduct(ProductLookupItem product) {
     selectedProduct = product;
@@ -1274,4 +1373,48 @@ class _CreateLineDraft {
     barcodeController.dispose();
     quantityController.dispose();
   }
+
+  Map<String, dynamic> toDraftJson() {
+    return <String, dynamic>{
+      'stockCode': stockCodeController.text,
+      'barcode': barcodeController.text,
+      'quantity': quantityController.text,
+      'selectedProduct': selectedProduct == null
+          ? null
+          : _warehouseOrderProductJson(selectedProduct!),
+    };
+  }
+
+  void _notifyChanged() => onChanged?.call();
+}
+
+Map<String, dynamic>? _warehouseOrderDraftMap(Object? value) {
+  return switch (value) {
+    final Map<String, dynamic> map => Map<String, dynamic>.from(map),
+    final Map map => map.map((key, item) => MapEntry(key.toString(), item)),
+    _ => null,
+  };
+}
+
+Map<String, dynamic> _warehouseLookupJson(WarehouseLookupItem item) {
+  return <String, dynamic>{
+    'warehouseNo': item.warehouseNo,
+    'warehouseName': item.warehouseName,
+    'address': item.address,
+    'district': item.district,
+    'province': item.province,
+  };
+}
+
+Map<String, dynamic> _warehouseOrderProductJson(ProductLookupItem item) {
+  return <String, dynamic>{
+    'warehouseNo': item.warehouseNo,
+    'barcode': item.barcode,
+    'stockCode': item.stockCode,
+    'stockName': item.stockName,
+    'price': item.price,
+    'unitName': item.unitName,
+    'unitMultiplier': item.unitMultiplier,
+    'isOrderBlocked': item.isOrderBlocked,
+  };
 }

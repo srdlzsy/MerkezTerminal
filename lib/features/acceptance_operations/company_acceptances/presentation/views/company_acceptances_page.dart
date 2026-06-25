@@ -10,6 +10,9 @@ import 'package:furpa_merkez_terminal/features/acceptance_operations/offline_com
 import 'package:furpa_merkez_terminal/features/acceptance_operations/offline_company_acceptances/presentation/views/offline_company_acceptances_page.dart';
 import 'package:furpa_merkez_terminal/features/company_movements/shared/data/models/company_movement_models.dart';
 import 'package:furpa_merkez_terminal/features/order_operations/given_company_orders/data/given_company_orders_repository.dart';
+import 'package:furpa_merkez_terminal/shared/drafts/create_draft.dart';
+import 'package:furpa_merkez_terminal/shared/drafts/create_draft_picker.dart';
+import 'package:furpa_merkez_terminal/shared/drafts/create_draft_repository.dart';
 import 'package:furpa_merkez_terminal/shared/formatters/app_formatters.dart';
 import 'package:furpa_merkez_terminal/shared/offline/mobile_customer_catalog_repository.dart';
 import 'package:furpa_merkez_terminal/shared/offline/mobile_product_catalog_repository.dart';
@@ -31,6 +34,7 @@ class CompanyAcceptancesPage extends StatefulWidget {
     required this.currentUserId,
     required this.defaultWarehouseNo,
     required this.userWarehouseName,
+    this.draftRepository,
   });
 
   final CompanyAcceptancesRepository repository;
@@ -44,6 +48,7 @@ class CompanyAcceptancesPage extends StatefulWidget {
   final String currentUserId;
   final String defaultWarehouseNo;
   final String userWarehouseName;
+  final CreateDraftRepository? draftRepository;
 
   @override
   State<CompanyAcceptancesPage> createState() => _CompanyAcceptancesPageState();
@@ -130,6 +135,29 @@ class _CompanyAcceptancesPageState extends State<CompanyAcceptancesPage> {
   }
 
   Future<void> _openCreateSheet() async {
+    CreateDraft? draft;
+    if (widget.draftRepository != null) {
+      final launch = await showCreateDraftPicker(
+        context: context,
+        repository: widget.draftRepository!,
+        moduleKey: 'mal-kabul-islemleri.firma-mal-kabulleri',
+        userId: widget.currentUserId,
+        warehouseNo: widget.defaultWarehouseNo,
+        createTitle: 'Yeni Firma Mal Kabul',
+      );
+      if (launch == null || !mounted) {
+        return;
+      }
+      draft =
+          launch.draft ??
+          CreateDraft.empty(
+            moduleKey: 'mal-kabul-islemleri.firma-mal-kabulleri',
+            userId: widget.currentUserId,
+            warehouseNo: widget.defaultWarehouseNo,
+            title: 'Yeni Firma Mal Kabul',
+          );
+    }
+
     final request = await showModalBottomSheet<CompanyAcceptanceCreateRequest>(
       context: context,
       isScrollControlled: true,
@@ -144,6 +172,8 @@ class _CompanyAcceptancesPageState extends State<CompanyAcceptancesPage> {
           mobileCustomerCatalogRepository:
               widget.mobileCustomerCatalogRepository,
           mobileProductCatalogRepository: widget.mobileProductCatalogRepository,
+          draft: draft,
+          draftRepository: widget.draftRepository,
         );
       },
     );
@@ -175,6 +205,9 @@ class _CompanyAcceptancesPageState extends State<CompanyAcceptancesPage> {
       switch (submission.status) {
         case OfflineSubmissionStatus.synced:
         case OfflineSubmissionStatus.recovered:
+          if (draft != null) {
+            await widget.draftRepository?.deleteDraft(draft.id);
+          }
           final result = submission.onlineResult;
           await _controller.loadAcceptances(
             preferredDocumentSerie: result?.documentSerie,
@@ -203,6 +236,9 @@ class _CompanyAcceptancesPageState extends State<CompanyAcceptancesPage> {
             ),
           );
         case OfflineSubmissionStatus.queued:
+          if (draft != null) {
+            await widget.draftRepository?.deleteDraft(draft.id);
+          }
           messenger.showSnackBar(
             const SnackBar(
               content: Text(

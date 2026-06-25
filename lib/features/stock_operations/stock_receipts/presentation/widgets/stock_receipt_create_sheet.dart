@@ -3,6 +3,9 @@ import 'package:flutter/services.dart';
 import 'package:furpa_merkez_terminal/features/stock_operations/stock_receipts/data/models/stock_receipt_models.dart';
 import 'package:furpa_merkez_terminal/features/stock_operations/stock_receipts/data/stock_receipts_repository.dart';
 import 'package:furpa_merkez_terminal/shared/data/search_lookup_models.dart';
+import 'package:furpa_merkez_terminal/shared/drafts/create_draft.dart';
+import 'package:furpa_merkez_terminal/shared/drafts/create_draft_repository.dart';
+import 'package:furpa_merkez_terminal/shared/drafts/create_draft_session.dart';
 import 'package:furpa_merkez_terminal/shared/formatters/app_formatters.dart';
 import 'package:furpa_merkez_terminal/shared/product_entry/product_entry_controller.dart';
 import 'package:furpa_merkez_terminal/shared/product_entry/product_entry_widgets.dart';
@@ -17,12 +20,16 @@ class StockReceiptCreateSheet extends StatefulWidget {
     required this.kind,
     required this.accessToken,
     required this.defaultWarehouseNo,
+    this.draft,
+    this.draftRepository,
   });
 
   final StockReceiptsRepository repository;
   final StockReceiptKind kind;
   final String accessToken;
   final String defaultWarehouseNo;
+  final CreateDraft? draft;
+  final CreateDraftRepository? draftRepository;
 
   @override
   State<StockReceiptCreateSheet> createState() =>
@@ -37,24 +44,65 @@ class _StockReceiptCreateSheetState extends State<StockReceiptCreateSheet>
   late final TextEditingController _acceptorController;
   late final TextEditingController _documentNoController;
   late final TextEditingController _descriptionController;
-  DateTime _movementDate = DateTime.now();
-  DateTime _documentDate = DateTime.now();
+  late DateTime _movementDate;
+  late DateTime _documentDate;
   String? _lookupError;
+  late final CreateDraftSession _draftSession;
 
   bool get _showDocumentNoField => widget.kind != StockReceiptKind.expense;
 
   @override
   void initState() {
     super.initState();
-    _creatorController = TextEditingController();
-    _acceptorController = TextEditingController();
-    _documentNoController = TextEditingController();
-    _descriptionController = TextEditingController();
-    _lines.add(_StockReceiptLineDraft());
+    final payload = widget.draft?.payload ?? const <String, dynamic>{};
+    _creatorController = TextEditingController(
+      text: payload['creator']?.toString() ?? '',
+    );
+    _acceptorController = TextEditingController(
+      text: payload['acceptor']?.toString() ?? '',
+    );
+    _documentNoController = TextEditingController(
+      text: payload['documentNo']?.toString() ?? '',
+    );
+    _descriptionController = TextEditingController(
+      text: payload['description']?.toString() ?? '',
+    );
+    _movementDate =
+        DateTime.tryParse(payload['movementDate']?.toString() ?? '') ??
+        _normalizeDate(DateTime.now());
+    _documentDate =
+        DateTime.tryParse(payload['documentDate']?.toString() ?? '') ??
+        _normalizeDate(DateTime.now());
+    _draftSession = CreateDraftSession(
+      draft: widget.draft,
+      repository: widget.draftRepository,
+      hasContent: _hasDraftContent,
+      buildPayload: _buildDraftPayload,
+      buildTitle: () => _descriptionController.text.trim().isEmpty
+          ? widget.kind.createTitle
+          : '${widget.kind.createTitle} - ${_descriptionController.text.trim()}',
+    );
+    final rawLines = payload['lines'];
+    _lines.addAll(
+      rawLines is List
+          ? rawLines
+                .map(_stockReceiptDraftMap)
+                .whereType<Map<String, dynamic>>()
+                .map(_createLine)
+          : const <_StockReceiptLineDraft>[],
+    );
+    _ensureFreshEntryLine();
+    _draftSession.listenTo(<TextEditingController>[
+      _creatorController,
+      _acceptorController,
+      _documentNoController,
+      _descriptionController,
+    ]);
   }
 
   @override
   void dispose() {
+    _draftSession.dispose();
     _creatorController.dispose();
     _acceptorController.dispose();
     _documentNoController.dispose();
@@ -63,6 +111,39 @@ class _StockReceiptCreateSheetState extends State<StockReceiptCreateSheet>
       line.dispose();
     }
     super.dispose();
+  }
+
+  _StockReceiptLineDraft _createLine([Map<String, dynamic>? draft]) {
+    return _StockReceiptLineDraft(
+      draft: draft,
+      onChanged: _draftSession.scheduleSave,
+    );
+  }
+
+  bool _hasDraftContent() {
+    final today = _normalizeDate(DateTime.now());
+    return _creatorController.text.trim().isNotEmpty ||
+        _acceptorController.text.trim().isNotEmpty ||
+        _documentNoController.text.trim().isNotEmpty ||
+        _descriptionController.text.trim().isNotEmpty ||
+        !_isSameDate(_movementDate, today) ||
+        !_isSameDate(_documentDate, today) ||
+        _lines.any((line) => line.hasContent);
+  }
+
+  Map<String, dynamic> _buildDraftPayload() {
+    return <String, dynamic>{
+      'creator': _creatorController.text,
+      'acceptor': _acceptorController.text,
+      'documentNo': _documentNoController.text,
+      'description': _descriptionController.text,
+      'movementDate': _movementDate.toIso8601String(),
+      'documentDate': _documentDate.toIso8601String(),
+      'lines': _lines
+          .where((line) => line.hasContent)
+          .map((line) => line.toDraftJson())
+          .toList(growable: false),
+    };
   }
 
   Future<void> _pickDate({required bool movementDate}) async {
@@ -85,6 +166,7 @@ class _StockReceiptCreateSheetState extends State<StockReceiptCreateSheet>
         _documentDate = pickedDate;
       }
     });
+    _draftSession.scheduleSave();
   }
 
   Future<void> _searchProduct(_StockReceiptLineDraft line) async {
@@ -192,6 +274,7 @@ class _StockReceiptCreateSheetState extends State<StockReceiptCreateSheet>
       _ensureFreshEntryLine();
       _lookupError = null;
     });
+    _draftSession.scheduleSave();
     _focusFreshEntryLine();
 
     if (mergedIntoExisting) {
@@ -260,7 +343,7 @@ class _StockReceiptCreateSheetState extends State<StockReceiptCreateSheet>
                 product.unitMultiplier,
               ),
         );
-    _recycleMergedLine(line, createReplacement: _StockReceiptLineDraft.new);
+    _recycleMergedLine(line, createReplacement: _createLine);
     return true;
   }
 
@@ -281,7 +364,7 @@ class _StockReceiptCreateSheetState extends State<StockReceiptCreateSheet>
 
   void _ensureFreshEntryLine() {
     if (_lines.isEmpty || !_isBlankLine(_lines.first)) {
-      _lines.insert(0, _StockReceiptLineDraft());
+      _lines.insert(0, _createLine());
     }
   }
 
@@ -303,7 +386,7 @@ class _StockReceiptCreateSheetState extends State<StockReceiptCreateSheet>
         line.lookupController.text.trim().isEmpty;
   }
 
-  void _submit() {
+  Future<void> _submit() async {
     final form = _formKey.currentState;
 
     if (form == null || !validateCreateForm(_formKey)) {
@@ -328,31 +411,33 @@ class _StockReceiptCreateSheetState extends State<StockReceiptCreateSheet>
       return;
     }
 
-    Navigator.of(context).pop(
-      StockReceiptCreateRequest(
-        creator: _creatorController.text.trim(),
-        acceptor: _acceptorController.text.trim(),
-        movementDate: _movementDate,
-        documentDate: _documentDate,
-        documentNo: _showDocumentNoField
-            ? _documentNoController.text.trim()
-            : '',
-        description: _descriptionController.text.trim(),
-        lines: activeLines
-            .map(
-              (line) => StockReceiptCreateLine(
-                stockCode: line.selectedProduct!.stockCode,
-                quantity: line.quantity,
-                unitPointer: line.unitPointer,
-                description: line.descriptionController.text.trim(),
-                partyCode: line.partyCodeController.text.trim(),
-                lotNo: line.lotNo,
-                projectCode: line.projectCodeController.text.trim(),
-              ),
-            )
-            .toList(growable: false),
-      ),
+    final request = StockReceiptCreateRequest(
+      creator: _creatorController.text.trim(),
+      acceptor: _acceptorController.text.trim(),
+      movementDate: _movementDate,
+      documentDate: _documentDate,
+      documentNo: _showDocumentNoField ? _documentNoController.text.trim() : '',
+      description: _descriptionController.text.trim(),
+      lines: activeLines
+          .map(
+            (line) => StockReceiptCreateLine(
+              stockCode: line.selectedProduct!.stockCode,
+              quantity: line.quantity,
+              unitPointer: line.unitPointer,
+              description: line.descriptionController.text.trim(),
+              partyCode: line.partyCodeController.text.trim(),
+              lotNo: line.lotNo,
+              projectCode: line.projectCodeController.text.trim(),
+            ),
+          )
+          .toList(growable: false),
     );
+
+    await _draftSession.complete();
+    if (!mounted) {
+      return;
+    }
+    Navigator.of(context).pop(request);
   }
 
   @override
@@ -473,6 +558,7 @@ class _StockReceiptCreateSheetState extends State<StockReceiptCreateSheet>
                                   line.dispose();
                                   _lines.removeAt(index);
                                 });
+                                _draftSession.scheduleSave();
                               },
                               icon: const Icon(Icons.delete_outline_rounded),
                             ),
@@ -603,14 +689,32 @@ class _StockReceiptCreateSheetState extends State<StockReceiptCreateSheet>
 }
 
 class _StockReceiptLineDraft {
-  _StockReceiptLineDraft()
+  _StockReceiptLineDraft({Map<String, dynamic>? draft, this.onChanged})
     : lookupController = TextEditingController(),
       quantityController = TextEditingController(),
       unitPointerController = TextEditingController(text: '1'),
       descriptionController = TextEditingController(),
       partyCodeController = TextEditingController(),
       lotNoController = TextEditingController(text: '0'),
-      projectCodeController = TextEditingController();
+      projectCodeController = TextEditingController() {
+    if (draft != null) {
+      lookupController.text = draft['lookup']?.toString() ?? '';
+      quantityController.text = draft['quantity']?.toString() ?? '';
+      unitPointerController.text = draft['unitPointer']?.toString() ?? '1';
+      descriptionController.text = draft['description']?.toString() ?? '';
+      partyCodeController.text = draft['partyCode']?.toString() ?? '';
+      lotNoController.text = draft['lotNo']?.toString() ?? '0';
+      projectCodeController.text = draft['projectCode']?.toString() ?? '';
+      lookupStatusMessage = draft['lookupStatusMessage']?.toString();
+      final productJson = _stockReceiptDraftMap(draft['selectedProduct']);
+      if (productJson != null) {
+        selectedProduct = SearchProductLookupItem.fromJson(productJson);
+      }
+    }
+    for (final controller in _controllers) {
+      controller.addListener(_notifyChanged);
+    }
+  }
 
   final TextEditingController lookupController;
   final TextEditingController quantityController;
@@ -620,6 +724,7 @@ class _StockReceiptLineDraft {
   final TextEditingController lotNoController;
   final TextEditingController projectCodeController;
   final FocusNode lookupFocusNode = FocusNode();
+  final VoidCallback? onChanged;
 
   SearchProductLookupItem? selectedProduct;
   String? lookupStatusMessage;
@@ -630,6 +735,27 @@ class _StockReceiptLineDraft {
       productEntryController.readQuantity(quantityController.text, fallback: 0);
   int get unitPointer => _readInt(unitPointerController.text, fallback: 1);
   int get lotNo => _readInt(lotNoController.text, fallback: 0);
+
+  List<TextEditingController> get _controllers => <TextEditingController>[
+    lookupController,
+    quantityController,
+    unitPointerController,
+    descriptionController,
+    partyCodeController,
+    lotNoController,
+    projectCodeController,
+  ];
+
+  bool get hasContent =>
+      selectedProduct != null ||
+      lookupController.text.trim().isNotEmpty ||
+      quantityController.text.trim().isNotEmpty ||
+      unitPointerController.text.trim() != '1' ||
+      descriptionController.text.trim().isNotEmpty ||
+      partyCodeController.text.trim().isNotEmpty ||
+      (lotNoController.text.trim().isNotEmpty &&
+          lotNoController.text.trim() != '0') ||
+      projectCodeController.text.trim().isNotEmpty;
 
   void applyProduct(SearchProductLookupItem product) {
     selectedProduct = product;
@@ -661,8 +787,66 @@ class _StockReceiptLineDraft {
     lotNoController.dispose();
     projectCodeController.dispose();
   }
+
+  Map<String, dynamic> toDraftJson() {
+    return <String, dynamic>{
+      'lookup': lookupController.text,
+      'quantity': quantityController.text,
+      'unitPointer': unitPointerController.text,
+      'description': descriptionController.text,
+      'partyCode': partyCodeController.text,
+      'lotNo': lotNoController.text,
+      'projectCode': projectCodeController.text,
+      'lookupStatusMessage': lookupStatusMessage,
+      'selectedProduct': selectedProduct == null
+          ? null
+          : _stockReceiptProductJson(selectedProduct!),
+    };
+  }
+
+  void _notifyChanged() => onChanged?.call();
 }
 
 int _readInt(String value, {required int fallback}) {
   return int.tryParse(value.trim()) ?? fallback;
+}
+
+DateTime _normalizeDate(DateTime value) {
+  return DateTime(value.year, value.month, value.day);
+}
+
+bool _isSameDate(DateTime first, DateTime second) {
+  return first.year == second.year &&
+      first.month == second.month &&
+      first.day == second.day;
+}
+
+Map<String, dynamic>? _stockReceiptDraftMap(Object? value) {
+  return switch (value) {
+    final Map<String, dynamic> map => Map<String, dynamic>.from(map),
+    final Map map => map.map((key, item) => MapEntry(key.toString(), item)),
+    _ => null,
+  };
+}
+
+Map<String, dynamic> _stockReceiptProductJson(SearchProductLookupItem item) {
+  return <String, dynamic>{
+    'warehouseNo': item.warehouseNo,
+    'barcode': item.barcode,
+    'stockCode': item.stockCode,
+    'stockName': item.stockName,
+    'price': item.price,
+    'priceTypeCode': item.priceTypeCode,
+    'unitName': item.unitName,
+    'unitMultiplier': item.unitMultiplier,
+    'secondaryUnitName': item.secondaryUnitName,
+    'secondaryUnitMultiplier': item.secondaryUnitMultiplier,
+    'salesBlockCode': item.salesBlockCode,
+    'orderBlockCode': item.orderBlockCode,
+    'goodsAcceptanceBlockCode': item.goodsAcceptanceBlockCode,
+    'isSalesBlocked': item.isSalesBlocked,
+    'isOrderBlocked': item.isOrderBlocked,
+    'isGoodsAcceptanceBlocked': item.isGoodsAcceptanceBlocked,
+    'productManagerCode': item.productManagerCode,
+  };
 }

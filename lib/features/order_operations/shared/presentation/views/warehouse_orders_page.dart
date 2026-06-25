@@ -5,12 +5,19 @@ import 'package:furpa_merkez_terminal/core/utils/default_filter_dates.dart';
 import 'package:furpa_merkez_terminal/features/order_operations/shared/data/models/warehouse_order_models.dart';
 import 'package:furpa_merkez_terminal/features/order_operations/shared/data/warehouse_orders_repository.dart';
 import 'package:furpa_merkez_terminal/features/order_operations/shared/presentation/view_models/warehouse_orders_controller.dart';
+import 'package:furpa_merkez_terminal/shared/drafts/create_draft.dart';
+import 'package:furpa_merkez_terminal/shared/drafts/create_draft_picker.dart';
+import 'package:furpa_merkez_terminal/shared/drafts/create_draft_repository.dart';
 import 'package:furpa_merkez_terminal/shared/formatters/app_formatters.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/section_card.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/terminal_ui_parts.dart';
 
 typedef WarehouseOrderCreateSheetBuilder =
-    Widget Function(BuildContext context);
+    Widget Function(
+      BuildContext context,
+      CreateDraft? draft,
+      CreateDraftRepository? draftRepository,
+    );
 
 class WarehouseOrdersPage extends StatefulWidget {
   const WarehouseOrdersPage({
@@ -24,6 +31,10 @@ class WarehouseOrdersPage extends StatefulWidget {
     required this.subtitle,
     this.emptyListMessage = 'Secilen tarih araliginda siparis bulunamadi.',
     this.createSheetBuilder,
+    this.currentUserId = '',
+    this.draftModuleKey = '',
+    this.draftRepository,
+    this.createTitle = 'Yeni Siparis',
   });
 
   final WarehouseOrdersRepository repository;
@@ -35,6 +46,10 @@ class WarehouseOrdersPage extends StatefulWidget {
   final String subtitle;
   final String emptyListMessage;
   final WarehouseOrderCreateSheetBuilder? createSheetBuilder;
+  final String currentUserId;
+  final String draftModuleKey;
+  final CreateDraftRepository? draftRepository;
+  final String createTitle;
 
   @override
   State<WarehouseOrdersPage> createState() => _WarehouseOrdersPageState();
@@ -124,12 +139,36 @@ class _WarehouseOrdersPageState extends State<WarehouseOrdersPage> {
       return;
     }
 
+    CreateDraft? draft;
+    if (widget.draftRepository != null && widget.draftModuleKey.isNotEmpty) {
+      final launch = await showCreateDraftPicker(
+        context: context,
+        repository: widget.draftRepository!,
+        moduleKey: widget.draftModuleKey,
+        userId: widget.currentUserId,
+        warehouseNo: widget.defaultWarehouseNo,
+        createTitle: widget.createTitle,
+      );
+      if (launch == null || !mounted) {
+        return;
+      }
+      draft =
+          launch.draft ??
+          CreateDraft.empty(
+            moduleKey: widget.draftModuleKey,
+            userId: widget.currentUserId,
+            warehouseNo: widget.defaultWarehouseNo,
+            title: widget.createTitle,
+          );
+    }
+
     final request = await showModalBottomSheet<WarehouseOrderCreateRequest>(
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
       showDragHandle: true,
-      builder: createSheetBuilder,
+      builder: (context) =>
+          createSheetBuilder(context, draft, widget.draftRepository),
     );
 
     if (request == null || !mounted) {
@@ -162,6 +201,9 @@ class _WarehouseOrdersPageState extends State<WarehouseOrdersPage> {
         ),
       ),
     );
+    if (draft != null) {
+      await widget.draftRepository?.deleteDraft(draft.id);
+    }
   }
 
   Future<void> _toggleOrderSelection(WarehouseOrderListItem item) async {

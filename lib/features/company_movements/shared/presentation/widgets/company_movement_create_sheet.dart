@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:furpa_merkez_terminal/core/network/api_exception.dart';
@@ -5,6 +7,8 @@ import 'package:furpa_merkez_terminal/features/company_movements/shared/data/com
 import 'package:furpa_merkez_terminal/features/company_movements/shared/data/models/company_movement_models.dart';
 import 'package:furpa_merkez_terminal/features/order_operations/given_company_orders/data/models/given_company_order_models.dart';
 import 'package:furpa_merkez_terminal/shared/data/search_lookup_models.dart';
+import 'package:furpa_merkez_terminal/shared/drafts/create_draft.dart';
+import 'package:furpa_merkez_terminal/shared/drafts/create_draft_repository.dart';
 import 'package:furpa_merkez_terminal/shared/formatters/app_formatters.dart';
 import 'package:furpa_merkez_terminal/shared/offline/mobile_customer_catalog_repository.dart';
 import 'package:furpa_merkez_terminal/shared/product_entry/product_entry_controller.dart';
@@ -24,6 +28,8 @@ class CompanyMovementCreateSheet extends StatefulWidget {
     required this.helperText,
     required this.submitLabel,
     this.showDocumentNoField = true,
+    this.draft,
+    this.draftRepository,
   });
 
   final CompanyMovementsRepository repository;
@@ -34,6 +40,8 @@ class CompanyMovementCreateSheet extends StatefulWidget {
   final String helperText;
   final String submitLabel;
   final bool showDocumentNoField;
+  final CreateDraft? draft;
+  final CreateDraftRepository? draftRepository;
 
   @override
   State<CompanyMovementCreateSheet> createState() =>
@@ -41,16 +49,18 @@ class CompanyMovementCreateSheet extends StatefulWidget {
 }
 
 class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
-    with CreateFormValidation {
+    with CreateFormValidation, WidgetsBindingObserver {
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   final List<_MovementLineDraft> _lines = <_MovementLineDraft>[];
   late final TextEditingController _customerController;
   late final TextEditingController _documentNoController;
   late final TextEditingController _descriptionController;
-  DateTime _movementDate = DateTime.now();
-  DateTime _documentDate = DateTime.now();
   CustomerLookupItem? _selectedCustomer;
   String? _lookupError;
+  Timer? _draftSaveTimer;
+  Future<void> _draftSaveQueue = Future<void>.value();
+  bool _restoringDraft = true;
+  bool _submitted = false;
 
   @override
   void initState() {
@@ -58,11 +68,21 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
     _customerController = TextEditingController();
     _documentNoController = TextEditingController();
     _descriptionController = TextEditingController();
-    _lines.add(_MovementLineDraft());
+    _restoreDraft();
+    _customerController.addListener(_scheduleDraftSave);
+    _documentNoController.addListener(_scheduleDraftSave);
+    _descriptionController.addListener(_scheduleDraftSave);
+    WidgetsBinding.instance.addObserver(this);
+    _restoringDraft = false;
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _draftSaveTimer?.cancel();
+    if (!_submitted) {
+      unawaited(_saveDraft());
+    }
     _customerController.dispose();
     _documentNoController.dispose();
     _descriptionController.dispose();
@@ -72,26 +92,117 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
     super.dispose();
   }
 
-  Future<void> _pickDate({required bool movementDate}) async {
-    final initialDate = movementDate ? _movementDate : _documentDate;
-    final pickedDate = await showDatePicker(
-      context: context,
-      initialDate: initialDate,
-      firstDate: DateTime(DateTime.now().year - 2),
-      lastDate: DateTime(DateTime.now().year + 2, 12, 31),
-    );
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.paused ||
+        state == AppLifecycleState.detached ||
+        state == AppLifecycleState.hidden) {
+      _draftSaveTimer?.cancel();
+      unawaited(_saveDraft());
+    }
+  }
 
-    if (pickedDate == null) {
+  void _restoreDraft() {
+    final payload = widget.draft?.payload;
+    if (payload == null || payload.isEmpty) {
+      _lines.add(_createLine());
       return;
     }
 
-    setState(() {
-      if (movementDate) {
-        _movementDate = pickedDate;
-      } else {
-        _documentDate = pickedDate;
+    _customerController.text = payload['customerText']?.toString() ?? '';
+    _documentNoController.text = payload['documentNo']?.toString() ?? '';
+    _descriptionController.text = payload['description']?.toString() ?? '';
+
+    final customerJson = _asJsonMap(payload['selectedCustomer']);
+    if (customerJson != null) {
+      _selectedCustomer = CustomerLookupItem.fromJson(customerJson);
+    }
+
+    final rawLines = payload['lines'];
+    if (rawLines is List) {
+      for (final rawLine in rawLines) {
+        final lineJson = _asJsonMap(rawLine);
+        if (lineJson != null) {
+          _lines.add(_createLine(lineJson));
+        }
       }
+    }
+
+    _ensureFreshEntryLine();
+  }
+
+  _MovementLineDraft _createLine([Map<String, dynamic>? draft]) {
+    return _MovementLineDraft(draft: draft, onChanged: _scheduleDraftSave);
+  }
+
+  void _scheduleDraftSave() {
+    if (_restoringDraft ||
+        widget.draft == null ||
+        widget.draftRepository == null) {
+      return;
+    }
+
+    _draftSaveTimer?.cancel();
+    _draftSaveTimer = Timer(const Duration(milliseconds: 800), () {
+      unawaited(_saveDraft());
     });
+  }
+
+  Future<void> _saveDraft() {
+    final draft = widget.draft;
+    final repository = widget.draftRepository;
+    if (draft == null || repository == null) {
+      return Future<void>.value();
+    }
+
+    final meaningful = _hasMeaningfulDraftContent;
+    final payload = _draftPayload();
+    _draftSaveQueue = _draftSaveQueue.then((_) {
+      if (!meaningful) {
+        return repository.deleteDraft(draft.id);
+      }
+
+      return repository.saveDraft(
+        draft.copyWith(
+          title: _draftTitle,
+          updatedAt: DateTime.now(),
+          payload: payload,
+        ),
+      );
+    });
+    return _draftSaveQueue;
+  }
+
+  String get _draftTitle {
+    final customer = _selectedCustomer?.customerDisplayName.trim() ?? '';
+    if (customer.isEmpty) {
+      return widget.title;
+    }
+    return '${widget.title} - $customer';
+  }
+
+  bool get _hasMeaningfulDraftContent {
+    return _selectedCustomer != null ||
+        _customerController.text.trim().isNotEmpty ||
+        _documentNoController.text.trim().isNotEmpty ||
+        _descriptionController.text.trim().isNotEmpty ||
+        _lines.any((line) => line.hasMeaningfulContent);
+  }
+
+  Map<String, dynamic> _draftPayload() {
+    return <String, dynamic>{
+      'customerText': _customerController.text,
+      'documentNo': _documentNoController.text,
+      'description': _descriptionController.text,
+      'selectedCustomer': _selectedCustomer == null
+          ? null
+          : _customerToJson(_selectedCustomer!),
+      'lines': _lines
+          .where((line) => line.hasMeaningfulContent)
+          .map((line) => line.toDraftJson())
+          .toList(growable: false),
+    };
   }
 
   Future<void> _searchCustomer() async {
@@ -183,6 +294,7 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
       _customerController.text = selected.displayLabel;
       _lookupError = null;
     });
+    _scheduleDraftSave();
   }
 
   Future<void> _searchProduct(_MovementLineDraft line) async {
@@ -367,7 +479,7 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
       existingLine.unitPriceController.text = line.unitPriceController.text;
     }
 
-    _recycleMergedLine(line, createReplacement: _MovementLineDraft.new);
+    _recycleMergedLine(line, createReplacement: _createLine);
     return true;
   }
 
@@ -388,7 +500,7 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
 
   void _ensureFreshEntryLine() {
     if (_lines.isEmpty || !_isBlankLine(_lines.first)) {
-      _lines.insert(0, _MovementLineDraft());
+      _lines.insert(0, _createLine());
     }
   }
 
@@ -410,7 +522,7 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
         line.lookupController.text.trim().isEmpty;
   }
 
-  void _submit() {
+  Future<void> _submit() async {
     final form = _formKey.currentState;
 
     if (form == null || !validateCreateForm(_formKey)) {
@@ -442,35 +554,40 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
       return;
     }
 
-    Navigator.of(context).pop(
-      CompanyMovementCreateRequest(
-        customerCode: _selectedCustomer!.customerCode,
-        movementDate: _movementDate,
-        documentDate: _documentDate,
-        documentNo: widget.showDocumentNoField
-            ? _documentNoController.text.trim()
-            : '',
-        description: _descriptionController.text.trim(),
-        lines: activeLines
-            .map(
-              (line) => CompanyMovementCreateLine(
-                stockCode: line.selectedProduct!.stockCode,
-                quantity: line.quantity,
-                unitPrice: line.unitPrice,
-                unitPointer: line.unitPointer,
-                description: line.descriptionController.text.trim(),
-                partyCode: line.partyCodeController.text.trim(),
-                lotNo: line.lotNo,
-                projectCode: line.projectCodeController.text.trim(),
-                customerResponsibilityCenter: line.customerRcController.text
-                    .trim(),
-                productResponsibilityCenter: line.productRcController.text
-                    .trim(),
-              ),
-            )
-            .toList(growable: false),
-      ),
+    final request = CompanyMovementCreateRequest(
+      customerCode: _selectedCustomer!.customerCode,
+      movementDate: DateTime.now(),
+      documentDate: DateTime.now(),
+      documentNo: widget.showDocumentNoField
+          ? _documentNoController.text.trim()
+          : '',
+      description: _descriptionController.text.trim(),
+      lines: activeLines
+          .map(
+            (line) => CompanyMovementCreateLine(
+              stockCode: line.selectedProduct!.stockCode,
+              quantity: line.quantity,
+              unitPrice: line.unitPrice,
+              unitPointer: line.unitPointer,
+              description: line.descriptionController.text.trim(),
+              partyCode: line.partyCodeController.text.trim(),
+              lotNo: line.lotNo,
+              projectCode: line.projectCodeController.text.trim(),
+              customerResponsibilityCenter: line.customerRcController.text
+                  .trim(),
+              productResponsibilityCenter: line.productRcController.text.trim(),
+            ),
+          )
+          .toList(growable: false),
     );
+
+    _draftSaveTimer?.cancel();
+    await _saveDraft();
+    if (!mounted) {
+      return;
+    }
+    _submitted = true;
+    Navigator.of(context).pop(request);
   }
 
   @override
@@ -514,23 +631,7 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
               ),
             ),
             const SizedBox(height: 12),
-            Wrap(
-              spacing: 12,
-              runSpacing: 12,
-              children: <Widget>[
-                TerminalFilterButton(
-                  label: 'Hareket Tarihi',
-                  value: AppFormatters.date(_movementDate),
-                  onPressed: () => _pickDate(movementDate: true),
-                ),
-                TerminalFilterButton(
-                  label: 'Belge Tarihi',
-                  value: AppFormatters.date(_documentDate),
-                  onPressed: () => _pickDate(movementDate: false),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
+
             if (widget.showDocumentNoField) ...<Widget>[
               TextFormField(
                 controller: _documentNoController,
@@ -541,13 +642,7 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
               ),
               const SizedBox(height: 12),
             ],
-            TextFormField(
-              controller: _descriptionController,
-              minLines: 2,
-              maxLines: 3,
-              decoration: const InputDecoration(labelText: 'Aciklama'),
-            ),
-            const SizedBox(height: 16),
+
             TerminalSectionToolbar(
               title: 'Satirlar',
               actions: const <Widget>[],
@@ -595,6 +690,7 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
                                   line.dispose();
                                   _lines.removeAt(index);
                                 });
+                                _scheduleDraftSave();
                               },
                               icon: const Icon(Icons.delete_outline_rounded),
                             ),
@@ -720,7 +816,7 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
 }
 
 class _MovementLineDraft {
-  _MovementLineDraft()
+  _MovementLineDraft({Map<String, dynamic>? draft, this.onChanged})
     : lookupController = TextEditingController(),
       quantityController = TextEditingController(),
       unitPriceController = TextEditingController(text: '0'),
@@ -730,7 +826,28 @@ class _MovementLineDraft {
       lotNoController = TextEditingController(text: '0'),
       projectCodeController = TextEditingController(),
       customerRcController = TextEditingController(),
-      productRcController = TextEditingController();
+      productRcController = TextEditingController() {
+    if (draft != null) {
+      lookupController.text = draft['lookup']?.toString() ?? '';
+      quantityController.text = draft['quantity']?.toString() ?? '';
+      unitPriceController.text = draft['unitPrice']?.toString() ?? '0';
+      unitPointerController.text = draft['unitPointer']?.toString() ?? '1';
+      descriptionController.text = draft['description']?.toString() ?? '';
+      partyCodeController.text = draft['partyCode']?.toString() ?? '';
+      lotNoController.text = draft['lotNo']?.toString() ?? '0';
+      projectCodeController.text = draft['projectCode']?.toString() ?? '';
+      customerRcController.text = draft['customerRc']?.toString() ?? '';
+      productRcController.text = draft['productRc']?.toString() ?? '';
+      final productJson = _asJsonMap(draft['selectedProduct']);
+      if (productJson != null) {
+        selectedProduct = SearchProductLookupItem.fromJson(productJson);
+      }
+    }
+
+    for (final controller in _controllers) {
+      controller.addListener(_notifyChanged);
+    }
+  }
 
   final TextEditingController lookupController;
   final TextEditingController quantityController;
@@ -743,6 +860,7 @@ class _MovementLineDraft {
   final TextEditingController customerRcController;
   final TextEditingController productRcController;
   final FocusNode lookupFocusNode = FocusNode();
+  final VoidCallback? onChanged;
 
   SearchProductLookupItem? selectedProduct;
   String? lookupStatusMessage;
@@ -757,6 +875,32 @@ class _MovementLineDraft {
   );
   int get unitPointer => _readInt(unitPointerController.text, fallback: 1);
   int get lotNo => _readInt(lotNoController.text, fallback: 0);
+  bool get hasMeaningfulContent =>
+      selectedProduct != null ||
+      lookupController.text.trim().isNotEmpty ||
+      quantityController.text.trim().isNotEmpty ||
+      unitPriceController.text.trim() != '0' ||
+      unitPointerController.text.trim() != '1' ||
+      descriptionController.text.trim().isNotEmpty ||
+      partyCodeController.text.trim().isNotEmpty ||
+      (lotNoController.text.trim().isNotEmpty &&
+          lotNoController.text.trim() != '0') ||
+      projectCodeController.text.trim().isNotEmpty ||
+      customerRcController.text.trim().isNotEmpty ||
+      productRcController.text.trim().isNotEmpty;
+
+  List<TextEditingController> get _controllers => <TextEditingController>[
+    lookupController,
+    quantityController,
+    unitPriceController,
+    unitPointerController,
+    descriptionController,
+    partyCodeController,
+    lotNoController,
+    projectCodeController,
+    customerRcController,
+    productRcController,
+  ];
 
   void applyProduct(SearchProductLookupItem product) {
     selectedProduct = product;
@@ -779,6 +923,28 @@ class _MovementLineDraft {
     isLookupStatusError = isError;
   }
 
+  Map<String, dynamic> toDraftJson() {
+    return <String, dynamic>{
+      'lookup': lookupController.text,
+      'quantity': quantityController.text,
+      'unitPrice': unitPriceController.text,
+      'unitPointer': unitPointerController.text,
+      'description': descriptionController.text,
+      'partyCode': partyCodeController.text,
+      'lotNo': lotNoController.text,
+      'projectCode': projectCodeController.text,
+      'customerRc': customerRcController.text,
+      'productRc': productRcController.text,
+      'selectedProduct': selectedProduct == null
+          ? null
+          : _productToJson(selectedProduct!),
+    };
+  }
+
+  void _notifyChanged() {
+    onChanged?.call();
+  }
+
   void dispose() {
     lookupFocusNode.dispose();
     lookupController.dispose();
@@ -796,4 +962,50 @@ class _MovementLineDraft {
 
 int _readInt(String value, {required int fallback}) {
   return int.tryParse(value.trim()) ?? fallback;
+}
+
+Map<String, dynamic>? _asJsonMap(Object? value) {
+  return switch (value) {
+    final Map<String, dynamic> map => Map<String, dynamic>.from(map),
+    final Map map => map.map((key, item) => MapEntry(key.toString(), item)),
+    _ => null,
+  };
+}
+
+Map<String, dynamic> _customerToJson(CustomerLookupItem customer) {
+  return <String, dynamic>{
+    'customerCode': customer.customerCode,
+    'customerName': customer.customerName,
+    'customerTitle': customer.customerTitle,
+    'customerDisplayName': customer.customerDisplayName,
+    'taxNumber': customer.taxNumber,
+    'representativeCode': customer.representativeCode,
+    'representativeName': customer.representativeName,
+    'invoiceAddressNo': customer.invoiceAddressNo,
+    'shippingAddressNo': customer.shippingAddressNo,
+    'isLocked': customer.isLocked,
+    'isClosed': customer.isClosed,
+  };
+}
+
+Map<String, dynamic> _productToJson(SearchProductLookupItem product) {
+  return <String, dynamic>{
+    'warehouseNo': product.warehouseNo,
+    'barcode': product.barcode,
+    'stockCode': product.stockCode,
+    'stockName': product.stockName,
+    'price': product.price,
+    'priceTypeCode': product.priceTypeCode,
+    'unitName': product.unitName,
+    'unitMultiplier': product.unitMultiplier,
+    'secondaryUnitName': product.secondaryUnitName,
+    'secondaryUnitMultiplier': product.secondaryUnitMultiplier,
+    'salesBlockCode': product.salesBlockCode,
+    'orderBlockCode': product.orderBlockCode,
+    'goodsAcceptanceBlockCode': product.goodsAcceptanceBlockCode,
+    'isSalesBlocked': product.isSalesBlocked,
+    'isOrderBlocked': product.isOrderBlocked,
+    'isGoodsAcceptanceBlocked': product.isGoodsAcceptanceBlocked,
+    'productManagerCode': product.productManagerCode,
+  };
 }

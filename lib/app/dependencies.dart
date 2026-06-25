@@ -23,6 +23,7 @@ import 'package:furpa_merkez_terminal/features/stock_operations/label_documents/
 import 'package:furpa_merkez_terminal/features/stock_operations/offline_inventory_counts/data/offline_inventory_counts_repository.dart';
 import 'package:furpa_merkez_terminal/features/stock_operations/stock_receipts/data/stock_receipts_repository.dart';
 import 'package:furpa_merkez_terminal/features/stock_operations/virman/data/virman_repository.dart';
+import 'package:furpa_merkez_terminal/shared/drafts/create_draft_repository.dart';
 import 'package:furpa_merkez_terminal/shared/offline/mobile_customer_catalog_repository.dart';
 import 'package:furpa_merkez_terminal/shared/offline/mobile_product_catalog_repository.dart';
 import 'package:furpa_merkez_terminal/shared/offline/mobile_warehouse_catalog_repository.dart';
@@ -39,6 +40,9 @@ class AppDependencies {
     final updateService = AppUpdateService(httpClient: httpClient);
     final tokenStorage = TokenStorage();
     final localDatabase = LocalSqliteDatabase();
+    final createDraftRepository = LocalCreateDraftRepository(
+      database: localDatabase,
+    );
     final offlineInventoryCountsRepository =
         LocalOfflineInventoryCountsRepository(database: localDatabase);
     final offlineCompanyAcceptancesRepository =
@@ -173,6 +177,7 @@ class AppDependencies {
           mobileWarehouseCatalogLocalRepository,
       mobileWarehouseCatalogSyncService: mobileWarehouseCatalogSyncService,
       legacyToolsRepository: legacyToolsRepository,
+      createDraftRepository: createDraftRepository,
     );
 
     return AppDependencies._(
@@ -209,6 +214,7 @@ class AppDependencies {
           mobileWarehouseCatalogLocalRepository,
       mobileWarehouseCatalogSyncService: mobileWarehouseCatalogSyncService,
       legacyToolsRepository: legacyToolsRepository,
+      createDraftRepository: createDraftRepository,
     );
   }
 
@@ -242,6 +248,7 @@ class AppDependencies {
     required this.mobileWarehouseCatalogLocalRepository,
     required this.mobileWarehouseCatalogSyncService,
     required this.legacyToolsRepository,
+    required this.createDraftRepository,
   });
 
   final AppUpdateService updateService;
@@ -268,7 +275,8 @@ class AppDependencies {
   final OfflineInventoryCountsRepository offlineInventoryCountsRepository;
   final OfflineCompanyAcceptancesRepository offlineCompanyAcceptancesRepository;
   final OfflineSyncService offlineSyncService;
-  final MobileCustomerCatalogLocalRepository mobileCustomerCatalogLocalRepository;
+  final MobileCustomerCatalogLocalRepository
+  mobileCustomerCatalogLocalRepository;
   final MobileCustomerCatalogSyncService mobileCustomerCatalogSyncService;
   final MobileProductCatalogLocalRepository mobileProductCatalogLocalRepository;
   final MobileProductCatalogSyncService mobileProductCatalogSyncService;
@@ -276,4 +284,5 @@ class AppDependencies {
   mobileWarehouseCatalogLocalRepository;
   final MobileWarehouseCatalogSyncService mobileWarehouseCatalogSyncService;
   final LegacyToolsRepository legacyToolsRepository;
+  final CreateDraftRepository createDraftRepository;
 }

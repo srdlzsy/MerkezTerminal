@@ -4,6 +4,9 @@ import 'package:furpa_merkez_terminal/features/order_operations/received_warehou
 import 'package:furpa_merkez_terminal/features/order_operations/shared/data/models/warehouse_order_models.dart';
 import 'package:furpa_merkez_terminal/features/shipping_operations/outgoing_warehouse_shipments/data/models/outgoing_warehouse_shipment_models.dart';
 import 'package:furpa_merkez_terminal/features/shipping_operations/outgoing_warehouse_shipments/data/outgoing_warehouse_shipments_repository.dart';
+import 'package:furpa_merkez_terminal/shared/drafts/create_draft.dart';
+import 'package:furpa_merkez_terminal/shared/drafts/create_draft_repository.dart';
+import 'package:furpa_merkez_terminal/shared/drafts/create_draft_session.dart';
 import 'package:furpa_merkez_terminal/shared/formatters/app_formatters.dart';
 import 'package:furpa_merkez_terminal/shared/offline/mobile_warehouse_catalog_repository.dart';
 import 'package:furpa_merkez_terminal/shared/product_entry/product_entry_controller.dart';
@@ -23,6 +26,8 @@ class OutgoingWarehouseShipmentCreateSheet extends StatefulWidget {
     required this.accessToken,
     required this.defaultWarehouseNo,
     required this.mobileWarehouseCatalogRepository,
+    this.draft,
+    this.draftRepository,
   });
 
   final OutgoingWarehouseShipmentsRepository repository;
@@ -30,6 +35,8 @@ class OutgoingWarehouseShipmentCreateSheet extends StatefulWidget {
   final String accessToken;
   final String defaultWarehouseNo;
   final MobileWarehouseCatalogLocalRepository mobileWarehouseCatalogRepository;
+  final CreateDraft? draft;
+  final CreateDraftRepository? draftRepository;
 
   @override
   State<OutgoingWarehouseShipmentCreateSheet> createState() =>
@@ -54,6 +61,7 @@ class _OutgoingWarehouseShipmentCreateSheetState
   _SelectedWarehouseOrder? _selectedOrder;
   String? _validationMessage;
   final ScrollController _scrollController = ScrollController();
+  late final CreateDraftSession _draftSession;
 
   bool get _hasTargetWarehouseSelection {
     return _selectedTargetWarehouse != null ||
@@ -63,18 +71,78 @@ class _OutgoingWarehouseShipmentCreateSheetState
   @override
   void initState() {
     super.initState();
-    _targetWarehouseNoController = TextEditingController();
-    _transitWarehouseNoController = TextEditingController(text: '60');
-    _documentNoController = TextEditingController();
-    _descriptionController = TextEditingController();
-    _movementDate = _normalizedDate(DateTime.now());
-    _documentDate = _normalizedDate(DateTime.now());
-    _mode = _ShipmentCreateMode.manual;
-    _manualLines = <_ManualShipmentLineDraft>[_ManualShipmentLineDraft()];
+    final payload = widget.draft?.payload ?? const <String, dynamic>{};
+    _targetWarehouseNoController = TextEditingController(
+      text: payload['targetWarehouseNo']?.toString() ?? '',
+    );
+    _transitWarehouseNoController = TextEditingController(
+      text: payload['transitWarehouseNo']?.toString() ?? '60',
+    );
+    _documentNoController = TextEditingController(
+      text: payload['documentNo']?.toString() ?? '',
+    );
+    _descriptionController = TextEditingController(
+      text: payload['description']?.toString() ?? '',
+    );
+    _movementDate =
+        DateTime.tryParse(payload['movementDate']?.toString() ?? '') ??
+        _normalizedDate(DateTime.now());
+    _documentDate =
+        DateTime.tryParse(payload['documentDate']?.toString() ?? '') ??
+        _normalizedDate(DateTime.now());
+    _mode = payload['mode']?.toString() == 'orderLinked'
+        ? _ShipmentCreateMode.orderLinked
+        : _ShipmentCreateMode.manual;
+    final warehouseJson = _shipmentDraftMap(payload['selectedTargetWarehouse']);
+    if (warehouseJson != null) {
+      _selectedTargetWarehouse = WarehouseLookupItem.fromJson(warehouseJson);
+    }
+    final selectedOrderJson = _shipmentDraftMap(payload['selectedOrder']);
+    if (selectedOrderJson != null) {
+      _selectedOrder = _SelectedWarehouseOrder.fromDraftJson(selectedOrderJson);
+    }
+    _draftSession = CreateDraftSession(
+      draft: widget.draft,
+      repository: widget.draftRepository,
+      hasContent: _hasDraftContent,
+      buildPayload: _buildDraftPayload,
+      buildTitle: () => _selectedTargetWarehouse == null
+          ? 'Yeni Giden Depolar Arasi Sevk'
+          : 'Depo Sevk - ${_selectedTargetWarehouse!.warehouseName}',
+    );
+    final rawManualLines = payload['manualLines'];
+    _manualLines = rawManualLines is List
+        ? rawManualLines
+              .map(_shipmentDraftMap)
+              .whereType<Map<String, dynamic>>()
+              .map(_createManualLine)
+              .toList(growable: true)
+        : <_ManualShipmentLineDraft>[];
+    _ensureFreshManualEntryLine();
+    final rawLinkedLines = payload['linkedLines'];
+    _linkedLines = rawLinkedLines is List
+        ? rawLinkedLines
+              .map(_shipmentDraftMap)
+              .whereType<Map<String, dynamic>>()
+              .map(
+                (line) => _LinkedShipmentLineDraft.fromDraftJson(
+                  line,
+                  onChanged: _draftSession.scheduleSave,
+                ),
+              )
+              .toList(growable: false)
+        : const <_LinkedShipmentLineDraft>[];
+    _draftSession.listenTo(<TextEditingController>[
+      _targetWarehouseNoController,
+      _transitWarehouseNoController,
+      _documentNoController,
+      _descriptionController,
+    ]);
   }
 
   @override
   void dispose() {
+    _draftSession.dispose();
     _scrollController.dispose();
     _targetWarehouseNoController.dispose();
     _transitWarehouseNoController.dispose();
@@ -87,6 +155,49 @@ class _OutgoingWarehouseShipmentCreateSheetState
       line.dispose();
     }
     super.dispose();
+  }
+
+  _ManualShipmentLineDraft _createManualLine([Map<String, dynamic>? draft]) {
+    return _ManualShipmentLineDraft(
+      draft: draft,
+      onChanged: _draftSession.scheduleSave,
+    );
+  }
+
+  bool _hasDraftContent() {
+    return _selectedTargetWarehouse != null ||
+        _selectedOrder != null ||
+        _targetWarehouseNoController.text.trim().isNotEmpty ||
+        _transitWarehouseNoController.text.trim() != '60' ||
+        _documentNoController.text.trim().isNotEmpty ||
+        _descriptionController.text.trim().isNotEmpty ||
+        _manualLines.any((line) => line.hasContent) ||
+        _linkedLines.isNotEmpty;
+  }
+
+  Map<String, dynamic> _buildDraftPayload() {
+    return <String, dynamic>{
+      'targetWarehouseNo': _targetWarehouseNoController.text,
+      'transitWarehouseNo': _transitWarehouseNoController.text,
+      'documentNo': _documentNoController.text,
+      'description': _descriptionController.text,
+      'movementDate': _movementDate.toIso8601String(),
+      'documentDate': _documentDate.toIso8601String(),
+      'mode': _mode == _ShipmentCreateMode.orderLinked
+          ? 'orderLinked'
+          : 'manual',
+      'selectedTargetWarehouse': _selectedTargetWarehouse == null
+          ? null
+          : _shipmentWarehouseJson(_selectedTargetWarehouse!),
+      'selectedOrder': _selectedOrder?.toDraftJson(),
+      'manualLines': _manualLines
+          .where((line) => line.hasContent)
+          .map((line) => line.toDraftJson())
+          .toList(growable: false),
+      'linkedLines': _linkedLines
+          .map((line) => line.toDraftJson())
+          .toList(growable: false),
+    };
   }
 
   Future<void> _pickDate({required bool isMovementDate}) async {
@@ -114,6 +225,7 @@ class _OutgoingWarehouseShipmentCreateSheetState
         }
       }
     });
+    _draftSession.scheduleSave();
   }
 
   Future<void> _selectTargetWarehouse() async {
@@ -146,6 +258,7 @@ class _OutgoingWarehouseShipmentCreateSheetState
       _linkedLines = const <_LinkedShipmentLineDraft>[];
       _validationMessage = null;
     });
+    _draftSession.scheduleSave();
 
     if (_mode == _ShipmentCreateMode.orderLinked) {
       await _pickWarehouseOrder();
@@ -183,7 +296,12 @@ class _OutgoingWarehouseShipmentCreateSheetState
 
     final linkedLines = selectedOrder.detail.items
         .where((item) => item.remainingQuantity > 0)
-        .map(_LinkedShipmentLineDraft.fromOrderItem)
+        .map(
+          (item) => _LinkedShipmentLineDraft.fromOrderItem(
+            item,
+            onChanged: _draftSession.scheduleSave,
+          ),
+        )
         .toList(growable: false);
 
     if (linkedLines.isEmpty) {
@@ -205,6 +323,7 @@ class _OutgoingWarehouseShipmentCreateSheetState
       _linkedLines = linkedLines;
       _validationMessage = null;
     });
+    _draftSession.scheduleSave();
   }
 
   Future<void> _pickProduct(_ManualShipmentLineDraft line) async {
@@ -258,6 +377,7 @@ class _OutgoingWarehouseShipmentCreateSheetState
       _ensureFreshManualEntryLine();
       _validationMessage = null;
     });
+    _draftSession.scheduleSave();
     _focusFreshManualEntryLine();
 
     if (mergedIntoExisting) {
@@ -337,10 +457,7 @@ class _OutgoingWarehouseShipmentCreateSheetState
                 product.unitMultiplier,
               ),
         );
-    _recycleMergedManualLine(
-      line,
-      createReplacement: _ManualShipmentLineDraft.new,
-    );
+    _recycleMergedManualLine(line, createReplacement: _createManualLine);
     return true;
   }
 
@@ -364,12 +481,13 @@ class _OutgoingWarehouseShipmentCreateSheetState
       _mode = mode;
       _validationMessage = null;
       if (_mode == _ShipmentCreateMode.manual && _manualLines.isEmpty) {
-        _manualLines = <_ManualShipmentLineDraft>[_ManualShipmentLineDraft()];
+        _manualLines = <_ManualShipmentLineDraft>[_createManualLine()];
       }
       if (_mode == _ShipmentCreateMode.manual) {
         _ensureFreshManualEntryLine();
       }
     });
+    _draftSession.scheduleSave();
     if (_mode == _ShipmentCreateMode.manual) {
       _focusFreshManualEntryLine();
     }
@@ -378,7 +496,7 @@ class _OutgoingWarehouseShipmentCreateSheetState
   void _ensureFreshManualEntryLine() {
     if (_manualLines.isEmpty || !_isBlankManualLine(_manualLines.first)) {
       _manualLines = <_ManualShipmentLineDraft>[
-        _ManualShipmentLineDraft(),
+        _createManualLine(),
         ..._manualLines,
       ];
     }
@@ -409,6 +527,7 @@ class _OutgoingWarehouseShipmentCreateSheetState
       setState(() {
         _validationMessage = null;
       });
+      _draftSession.scheduleSave();
       return;
     }
 
@@ -417,9 +536,10 @@ class _OutgoingWarehouseShipmentCreateSheetState
       line.dispose();
       _validationMessage = null;
     });
+    _draftSession.scheduleSave();
   }
 
-  void _submit() {
+  Future<void> _submit() async {
     if (!validateCreateForm(_formKey)) {
       setState(() {
         _validationMessage = 'Lutfen zorunlu alanlari duzeltin.';
@@ -461,17 +581,21 @@ class _OutgoingWarehouseShipmentCreateSheetState
       return;
     }
 
-    Navigator.of(context).pop(
-      WarehouseShipmentCreateRequest(
-        targetWarehouseNo: targetWarehouseNo,
-        transitWarehouseNo: transitWarehouseNo,
-        movementDate: _movementDate,
-        documentDate: _documentDate,
-        documentNo: _documentNoController.text.trim(),
-        description: _descriptionController.text.trim(),
-        lines: requestLines,
-      ),
+    final request = WarehouseShipmentCreateRequest(
+      targetWarehouseNo: targetWarehouseNo,
+      transitWarehouseNo: transitWarehouseNo,
+      movementDate: _movementDate,
+      documentDate: _documentDate,
+      documentNo: _documentNoController.text.trim(),
+      description: _descriptionController.text.trim(),
+      lines: requestLines,
     );
+
+    await _draftSession.complete();
+    if (!mounted) {
+      return;
+    }
+    Navigator.of(context).pop(request);
   }
 
   List<WarehouseShipmentCreateLine>? _buildManualRequestLines() {
@@ -2027,19 +2151,45 @@ class _LookupScaffold extends StatelessWidget {
 }
 
 class _ManualShipmentLineDraft {
-  _ManualShipmentLineDraft()
+  _ManualShipmentLineDraft({Map<String, dynamic>? draft, this.onChanged})
     : stockCodeController = TextEditingController(),
       barcodeController = TextEditingController(),
-      quantityController = TextEditingController();
+      quantityController = TextEditingController() {
+    if (draft != null) {
+      stockCodeController.text = draft['stockCode']?.toString() ?? '';
+      barcodeController.text = draft['barcode']?.toString() ?? '';
+      quantityController.text = draft['quantity']?.toString() ?? '';
+      final productJson = _shipmentDraftMap(draft['selectedProduct']);
+      if (productJson != null) {
+        selectedProduct = ProductLookupItem.fromJson(productJson);
+      }
+    }
+    for (final controller in _controllers) {
+      controller.addListener(_notifyChanged);
+    }
+  }
 
   final TextEditingController stockCodeController;
   final TextEditingController barcodeController;
   final TextEditingController quantityController;
   final FocusNode barcodeFocusNode = FocusNode();
+  final VoidCallback? onChanged;
   ProductLookupItem? selectedProduct;
   String? lookupStatusMessage;
   bool isLookupStatusLoading = false;
   bool isLookupStatusError = false;
+
+  List<TextEditingController> get _controllers => <TextEditingController>[
+    stockCodeController,
+    barcodeController,
+    quantityController,
+  ];
+
+  bool get hasContent =>
+      selectedProduct != null ||
+      stockCodeController.text.trim().isNotEmpty ||
+      barcodeController.text.trim().isNotEmpty ||
+      quantityController.text.trim().isNotEmpty;
 
   void applyProduct(ProductLookupItem product) {
     selectedProduct = product;
@@ -2079,6 +2229,19 @@ class _ManualShipmentLineDraft {
     barcodeController.dispose();
     quantityController.dispose();
   }
+
+  Map<String, dynamic> toDraftJson() {
+    return <String, dynamic>{
+      'stockCode': stockCodeController.text,
+      'barcode': barcodeController.text,
+      'quantity': quantityController.text,
+      'selectedProduct': selectedProduct == null
+          ? null
+          : _shipmentProductJson(selectedProduct!),
+    };
+  }
+
+  void _notifyChanged() => onChanged?.call();
 }
 
 class _LinkedShipmentLineDraft {
@@ -2096,6 +2259,7 @@ class _LinkedShipmentLineDraft {
     required this.lotNo,
     required this.projectCode,
     required this.warehouseOrderNo,
+    this.onChanged,
   }) : quantityController = TextEditingController(text: '$maxQuantity');
 
   final String lineGuid;
@@ -2112,11 +2276,13 @@ class _LinkedShipmentLineDraft {
   final String projectCode;
   final String warehouseOrderNo;
   final TextEditingController quantityController;
+  final VoidCallback? onChanged;
 
   factory _LinkedShipmentLineDraft.fromOrderItem(
-    WarehouseOrderDetailItem item,
-  ) {
-    return _LinkedShipmentLineDraft(
+    WarehouseOrderDetailItem item, {
+    VoidCallback? onChanged,
+  }) {
+    final draft = _LinkedShipmentLineDraft(
       lineGuid: item.lineGuid,
       stockCode: item.stockCode,
       stockName: item.stockName,
@@ -2130,12 +2296,62 @@ class _LinkedShipmentLineDraft {
       lotNo: 0,
       projectCode: item.projectCode,
       warehouseOrderNo: '',
+      onChanged: onChanged,
     );
+    draft.quantityController.addListener(draft._notifyChanged);
+    return draft;
+  }
+
+  factory _LinkedShipmentLineDraft.fromDraftJson(
+    Map<String, dynamic> json, {
+    VoidCallback? onChanged,
+  }) {
+    final draft = _LinkedShipmentLineDraft(
+      lineGuid: json['lineGuid']?.toString() ?? '',
+      stockCode: json['stockCode']?.toString() ?? '',
+      stockName: json['stockName']?.toString() ?? '',
+      unitName: json['unitName']?.toString() ?? '',
+      unitPointer: int.tryParse(json['unitPointer']?.toString() ?? '') ?? 1,
+      orderQuantity:
+          double.tryParse(json['orderQuantity']?.toString() ?? '') ?? 0,
+      maxQuantity: double.tryParse(json['maxQuantity']?.toString() ?? '') ?? 0,
+      unitPrice: double.tryParse(json['unitPrice']?.toString() ?? '') ?? 0,
+      description: json['description']?.toString() ?? '',
+      partyCode: json['partyCode']?.toString() ?? '',
+      lotNo: int.tryParse(json['lotNo']?.toString() ?? '') ?? 0,
+      projectCode: json['projectCode']?.toString() ?? '',
+      warehouseOrderNo: json['warehouseOrderNo']?.toString() ?? '',
+      onChanged: onChanged,
+    );
+    draft.quantityController.text = json['quantity']?.toString() ?? '';
+    draft.quantityController.addListener(draft._notifyChanged);
+    return draft;
   }
 
   void dispose() {
     quantityController.dispose();
   }
+
+  Map<String, dynamic> toDraftJson() {
+    return <String, dynamic>{
+      'lineGuid': lineGuid,
+      'stockCode': stockCode,
+      'stockName': stockName,
+      'unitName': unitName,
+      'unitPointer': unitPointer,
+      'orderQuantity': orderQuantity,
+      'maxQuantity': maxQuantity,
+      'unitPrice': unitPrice,
+      'description': description,
+      'partyCode': partyCode,
+      'lotNo': lotNo,
+      'projectCode': projectCode,
+      'warehouseOrderNo': warehouseOrderNo,
+      'quantity': quantityController.text,
+    };
+  }
+
+  void _notifyChanged() => onChanged?.call();
 }
 
 class _SelectedWarehouseOrder {
@@ -2143,6 +2359,131 @@ class _SelectedWarehouseOrder {
 
   final WarehouseOrderListItem item;
   final WarehouseOrderDetail detail;
+
+  factory _SelectedWarehouseOrder.fromDraftJson(Map<String, dynamic> json) {
+    final itemJson = _shipmentDraftMap(json['item']) ?? <String, dynamic>{};
+    final detailJson = _shipmentDraftMap(json['detail']) ?? <String, dynamic>{};
+    return _SelectedWarehouseOrder(
+      item: WarehouseOrderListItem.fromJson(itemJson),
+      detail: WarehouseOrderDetail.fromJson(detailJson),
+    );
+  }
+
+  Map<String, dynamic> toDraftJson() {
+    return <String, dynamic>{
+      'item': _warehouseOrderItemJson(item),
+      'detail': _warehouseOrderDetailJson(detail),
+    };
+  }
+}
+
+Map<String, dynamic>? _shipmentDraftMap(Object? value) {
+  return switch (value) {
+    final Map<String, dynamic> map => Map<String, dynamic>.from(map),
+    final Map map => map.map((key, item) => MapEntry(key.toString(), item)),
+    _ => null,
+  };
+}
+
+Map<String, dynamic> _shipmentWarehouseJson(WarehouseLookupItem item) {
+  return <String, dynamic>{
+    'warehouseNo': item.warehouseNo,
+    'warehouseName': item.warehouseName,
+    'address': item.address,
+    'district': item.district,
+    'province': item.province,
+  };
+}
+
+Map<String, dynamic> _shipmentProductJson(ProductLookupItem item) {
+  return <String, dynamic>{
+    'warehouseNo': item.warehouseNo,
+    'barcode': item.barcode,
+    'stockCode': item.stockCode,
+    'stockName': item.stockName,
+    'price': item.price,
+    'unitName': item.unitName,
+    'unitMultiplier': item.unitMultiplier,
+    'isOrderBlocked': item.isOrderBlocked,
+  };
+}
+
+Map<String, dynamic> _warehouseOrderItemJson(WarehouseOrderListItem item) {
+  return <String, dynamic>{
+    'documentKey': item.documentKey,
+    'documentDate': item.documentDate?.toIso8601String(),
+    'documentSerie': item.documentSerie,
+    'documentOrderNo': item.documentOrderNo,
+    'documentNumber': item.documentNumber,
+    'warehouseNo': item.warehouseNo,
+    'warehouseName': item.warehouseName,
+    'relatedWarehouseNo': item.relatedWarehouseNo,
+    'relatedWarehouseName': item.relatedWarehouseName,
+    'inWarehouseNo': item.inWarehouseNo,
+    'inWarehouseName': item.inWarehouseName,
+    'outWarehouseNo': item.outWarehouseNo,
+    'outWarehouseName': item.outWarehouseName,
+    'lineCount': item.lineCount,
+    'totalQuantity': item.totalQuantity,
+    'totalAmount': item.totalAmount,
+    'deliveryDate': item.deliveryDate?.toIso8601String(),
+  };
+}
+
+Map<String, dynamic> _warehouseOrderDetailJson(WarehouseOrderDetail detail) {
+  return <String, dynamic>{
+    'header': _warehouseOrderHeaderJson(detail.header),
+    'items': detail.items.map(_warehouseOrderDetailItemJson).toList(),
+  };
+}
+
+Map<String, dynamic> _warehouseOrderHeaderJson(
+  WarehouseOrderDetailHeader item,
+) {
+  return <String, dynamic>{
+    'documentKey': item.documentKey,
+    'documentDate': item.documentDate?.toIso8601String(),
+    'deliveryDate': item.deliveryDate?.toIso8601String(),
+    'documentSerie': item.documentSerie,
+    'documentOrderNo': item.documentOrderNo,
+    'documentNumber': item.documentNumber,
+    'warehouseNo': item.warehouseNo,
+    'warehouseName': item.warehouseName,
+    'relatedWarehouseNo': item.relatedWarehouseNo,
+    'relatedWarehouseName': item.relatedWarehouseName,
+    'inWarehouseNo': item.inWarehouseNo,
+    'inWarehouseName': item.inWarehouseName,
+    'outWarehouseNo': item.outWarehouseNo,
+    'outWarehouseName': item.outWarehouseName,
+    'lineCount': item.lineCount,
+    'totalQuantity': item.totalQuantity,
+    'totalDeliveredQuantity': item.totalDeliveredQuantity,
+    'totalRemainingQuantity': item.totalRemainingQuantity,
+    'totalAmount': item.totalAmount,
+    'isClosed': item.isClosed,
+  };
+}
+
+Map<String, dynamic> _warehouseOrderDetailItemJson(
+  WarehouseOrderDetailItem item,
+) {
+  return <String, dynamic>{
+    'lineNo': item.lineNo,
+    'stockCode': item.stockCode,
+    'stockName': item.stockName,
+    'unitName': item.unitName,
+    'unitPointer': item.unitPointer,
+    'quantity': item.quantity,
+    'deliveredQuantity': item.deliveredQuantity,
+    'remainingQuantity': item.remainingQuantity,
+    'unitPrice': item.unitPrice,
+    'lineAmount': item.lineAmount,
+    'isClosed': item.isClosed,
+    'description': item.description,
+    'packageCode': item.packageCode,
+    'projectCode': item.projectCode,
+    'lineGuid': item.lineGuid,
+  };
 }
 
 class _ResponsiveSearchRow extends StatelessWidget {
