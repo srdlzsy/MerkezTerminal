@@ -146,29 +146,6 @@ class _StockReceiptCreateSheetState extends State<StockReceiptCreateSheet>
     };
   }
 
-  Future<void> _pickDate({required bool movementDate}) async {
-    final initialDate = movementDate ? _movementDate : _documentDate;
-    final pickedDate = await showDatePicker(
-      context: context,
-      initialDate: initialDate,
-      firstDate: DateTime(DateTime.now().year - 2),
-      lastDate: DateTime(DateTime.now().year + 2, 12, 31),
-    );
-
-    if (pickedDate == null) {
-      return;
-    }
-
-    setState(() {
-      if (movementDate) {
-        _movementDate = pickedDate;
-      } else {
-        _documentDate = pickedDate;
-      }
-    });
-    _draftSession.scheduleSave();
-  }
-
   Future<void> _searchProduct(_StockReceiptLineDraft line) async {
     final query = line.lookupController.text.trim();
 
@@ -480,30 +457,6 @@ class _StockReceiptCreateSheetState extends State<StockReceiptCreateSheet>
               ],
             ),
             const SizedBox(height: 12),
-            Wrap(
-              spacing: 12,
-              runSpacing: 12,
-              children: <Widget>[
-                TerminalFilterButton(
-                  label: 'Hareket Tarihi',
-                  value: AppFormatters.date(_movementDate),
-                  onPressed: () => _pickDate(movementDate: true),
-                ),
-                TerminalFilterButton(
-                  label: 'Belge Tarihi',
-                  value: AppFormatters.date(_documentDate),
-                  onPressed: () => _pickDate(movementDate: false),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            if (_showDocumentNoField) ...<Widget>[
-              TextFormField(
-                controller: _documentNoController,
-                decoration: const InputDecoration(labelText: 'Belge No'),
-              ),
-              const SizedBox(height: 12),
-            ],
             TextFormField(
               controller: _descriptionController,
               minLines: 2,

@@ -161,34 +161,6 @@ class _GivenCompanyOrderCreateSheetState
     };
   }
 
-  Future<void> _pickDate({required bool isOrderDate}) async {
-    final pickedDate = await showDatePicker(
-      context: context,
-      initialDate: isOrderDate ? _orderDate : _deliveryDate,
-      firstDate: DateTime(DateTime.now().year - 2),
-      lastDate: DateTime(DateTime.now().year + 2, 12, 31),
-    );
-
-    if (pickedDate == null || !mounted) {
-      return;
-    }
-
-    setState(() {
-      if (isOrderDate) {
-        _orderDate = pickedDate;
-        if (_deliveryDate.isBefore(_orderDate)) {
-          _deliveryDate = _orderDate;
-        }
-      } else {
-        _deliveryDate = pickedDate;
-        if (_orderDate.isAfter(_deliveryDate)) {
-          _orderDate = _deliveryDate;
-        }
-      }
-    });
-    _draftSession.scheduleSave();
-  }
-
   Future<void> _searchCustomer() async {
     final customer = await showModalBottomSheet<CustomerLookupItem>(
       context: context,
@@ -571,51 +543,7 @@ class _GivenCompanyOrderCreateSheetState
                       children: <Widget>[
                         _buildCustomerSection(theme),
                         const SizedBox(height: 16),
-                        Row(
-                          children: <Widget>[
-                            Expanded(
-                              child: _buildDateButton(
-                                theme: theme,
-                                label: 'Siparis',
-                                date: _orderDate,
-                                onPressed: () => _pickDate(isOrderDate: true),
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: _buildDateButton(
-                                theme: theme,
-                                label: 'Teslim',
-                                date: _deliveryDate,
-                                onPressed: () => _pickDate(isOrderDate: false),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 16),
-                        Wrap(
-                          spacing: 12,
-                          runSpacing: 12,
-                          children: <Widget>[
-                            _buildCompactTextField(
-                              controller: _delivererController,
-                              label: 'Teslim Eden',
-                            ),
-                            _buildCompactTextField(
-                              controller: _receiverController,
-                              label: 'Teslim Alan',
-                            ),
-                            _buildCompactTextField(
-                              controller: _description1Controller,
-                              label: 'Aciklama 1',
-                            ),
-                            _buildCompactTextField(
-                              controller: _description2Controller,
-                              label: 'Aciklama 2',
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 16),
+
                         TerminalSectionToolbar(
                           title: 'Satirlar',
                           actions: const <Widget>[],
@@ -738,59 +666,6 @@ class _GivenCompanyOrderCreateSheetState
               ),
             ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildDateButton({
-    required ThemeData theme,
-    required String label,
-    required DateTime date,
-    required VoidCallback onPressed,
-  }) {
-    return OutlinedButton(
-      onPressed: onPressed,
-      style: OutlinedButton.styleFrom(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: <Widget>[
-          Icon(
-            Icons.calendar_today_rounded,
-            size: 16,
-            color: theme.colorScheme.primary,
-          ),
-          const SizedBox(width: 8),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: <Widget>[
-              Text(label, style: const TextStyle(fontSize: 10)),
-              Text(
-                AppFormatters.date(date),
-                style: const TextStyle(
-                  fontWeight: FontWeight.w600,
-                  fontSize: 12,
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildCompactTextField({
-    required TextEditingController controller,
-    required String label,
-  }) {
-    return SizedBox(
-      width: 220,
-      child: TextField(
-        controller: controller,
-        decoration: InputDecoration(labelText: label),
       ),
     );
   }

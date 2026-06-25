@@ -32,7 +32,6 @@ void main() {
 
     expect(find.text('Yeni Verilen Depo Siparisi'), findsOneWidget);
     expect(find.text('Kaynak depo: 110'), findsOneWidget);
-    expect(find.text('Siparis'), findsOneWidget);
     expect(find.text('Satirlar'), findsOneWidget);
 
     await tester.scrollUntilVisible(

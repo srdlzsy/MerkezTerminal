@@ -132,6 +132,62 @@ void main() {
     expect(find.text(productInfo), findsOneWidget);
     expect(find.text('4'), findsOneWidget);
   });
+
+  testWidgets('allows editing order linked shipment lines', (tester) async {
+    tester.view.physicalSize = const Size(390, 1000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: OutgoingWarehouseShipmentCreateSheet(
+            repository: _FakeOutgoingWarehouseShipmentsRepository(),
+            receivedWarehouseOrdersRepository:
+                _FakeReceivedWarehouseOrdersRepository(),
+            accessToken: 'token',
+            defaultWarehouseNo: '110',
+            mobileWarehouseCatalogRepository:
+                _emptyWarehouseCatalogRepository(),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.widgetWithText(TextField, 'Hedef depo no*'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('50 - MERKEZ DEPO'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Siparisli'));
+    await tester.pumpAndSettle();
+    await tester.drag(find.byType(ListView).first, const Offset(0, -260));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(OutlinedButton, 'Depo Siparisi Sec'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('D110.1915'));
+    await tester.pumpAndSettle();
+
+    const orderProductInfo = 'Siparis Urun | Kod SIP001 | Birim AD';
+    expect(find.text('Giris satiri'), findsOneWidget);
+    expect(find.text('Satir 1'), findsOneWidget);
+    expect(find.text(orderProductInfo), findsOneWidget);
+
+    await tester.tap(find.byIcon(Icons.delete_outline_rounded).first);
+    await tester.pumpAndSettle();
+
+    expect(find.text(orderProductInfo), findsNothing);
+    expect(find.text('Satir 1'), findsNothing);
+    expect(find.text('Giris satiri'), findsOneWidget);
+
+    await _enterShipmentBarcode(tester);
+
+    const productInfo =
+        'Test Urun | Kod 015792 | Birim KL | Barkod 8690000000012';
+    expect(find.text('Satir 1'), findsOneWidget);
+    expect(find.text(productInfo), findsOneWidget);
+  });
 }
 
 Future<void> _enterShipmentBarcode(WidgetTester tester) async {
@@ -263,17 +319,75 @@ class _FakeReceivedWarehouseOrdersRepository
     required String documentSerie,
     required int documentOrderNo,
     required String warehouseNo,
-  }) {
-    throw UnimplementedError();
-  }
+  }) async => const WarehouseOrderDetail(
+    header: WarehouseOrderDetailHeader(
+      documentKey: 'D110-1915',
+      documentDate: null,
+      deliveryDate: null,
+      documentSerie: 'D110',
+      documentOrderNo: 1915,
+      documentNumber: 'D110.1915',
+      warehouseNo: 110,
+      warehouseName: 'KAYNAK DEPO',
+      relatedWarehouseNo: 50,
+      relatedWarehouseName: 'MERKEZ DEPO',
+      inWarehouseNo: 110,
+      inWarehouseName: 'KAYNAK DEPO',
+      outWarehouseNo: 50,
+      outWarehouseName: 'MERKEZ DEPO',
+      lineCount: 1,
+      totalQuantity: 6,
+      totalDeliveredQuantity: 2,
+      totalRemainingQuantity: 4,
+      totalAmount: 150,
+      isClosed: false,
+    ),
+    items: <WarehouseOrderDetailItem>[
+      WarehouseOrderDetailItem(
+        lineNo: 1,
+        stockCode: 'SIP001',
+        stockName: 'Siparis Urun',
+        unitName: 'AD',
+        unitPointer: 1,
+        quantity: 6,
+        deliveredQuantity: 2,
+        remainingQuantity: 4,
+        unitPrice: 25,
+        lineAmount: 150,
+        isClosed: false,
+        description: '',
+        packageCode: '',
+        projectCode: '',
+        lineGuid: 'order-line-guid-1',
+      ),
+    ],
+  );
 
   @override
   Future<List<WarehouseOrderListItem>> fetchOrders({
     required String accessToken,
     required WarehouseOrderListFilter filter,
-  }) async {
-    return const <WarehouseOrderListItem>[];
-  }
+  }) async => const <WarehouseOrderListItem>[
+    WarehouseOrderListItem(
+      documentKey: 'D110-1915',
+      documentDate: null,
+      documentSerie: 'D110',
+      documentOrderNo: 1915,
+      documentNumber: 'D110.1915',
+      warehouseNo: 110,
+      warehouseName: 'KAYNAK DEPO',
+      relatedWarehouseNo: 50,
+      relatedWarehouseName: 'MERKEZ DEPO',
+      inWarehouseNo: 110,
+      inWarehouseName: 'KAYNAK DEPO',
+      outWarehouseNo: 50,
+      outWarehouseName: 'MERKEZ DEPO',
+      lineCount: 1,
+      totalQuantity: 6,
+      totalAmount: 150,
+      deliveryDate: null,
+    ),
+  ];
 
   @override
   Future<List<ProductLookupItem>> searchProducts({

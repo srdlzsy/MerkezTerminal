@@ -49,7 +49,11 @@ class _LabelDocumentsPageState extends State<LabelDocumentsPage> {
   List<LabelDocumentListItem> _documents = const <LabelDocumentListItem>[];
   List<LabelDocumentProduct> _selectedDocumentProducts =
       const <LabelDocumentProduct>[];
+  final Map<int, List<LabelDocumentProduct>> _documentProductsCache =
+      <int, List<LabelDocumentProduct>>{};
   LabelDocumentListItem? _selectedDocument;
+  int? _loadingDocumentId;
+  int _detailRequestSerial = 0;
 
   @override
   void initState() {
@@ -58,10 +62,13 @@ class _LabelDocumentsPageState extends State<LabelDocumentsPage> {
   }
 
   Future<void> _loadCurrentMode() async {
+    _detailRequestSerial += 1;
     setState(() {
       _isLoading = true;
+      _loadingDocumentId = null;
       _errorMessage = null;
     });
+    _documentProductsCache.clear();
 
     try {
       final documents = switch (_mode) {
@@ -81,11 +88,7 @@ class _LabelDocumentsPageState extends State<LabelDocumentsPage> {
           : loadedDocuments.first;
       final selectedProducts = selectedDocument == null
           ? const <LabelDocumentProduct>[]
-          : await widget.repository.fetchDocumentProducts(
-              accessToken: widget.accessToken,
-              documentId: selectedDocument.documentId,
-              warehouseNo: widget.defaultWarehouseNo,
-            );
+          : await _fetchDocumentProducts(selectedDocument.documentId);
 
       if (!mounted) {
         return;
@@ -110,37 +113,72 @@ class _LabelDocumentsPageState extends State<LabelDocumentsPage> {
   }
 
   Future<void> _selectDocument(LabelDocumentListItem item) async {
+    if (_selectedDocument?.documentId == item.documentId &&
+        _documentProductsCache.containsKey(item.documentId)) {
+      return;
+    }
+
+    if (_loadingDocumentId == item.documentId) {
+      return;
+    }
+
+    final cachedProducts = _documentProductsCache[item.documentId];
+    if (cachedProducts != null) {
+      setState(() {
+        _selectedDocument = item;
+        _selectedDocumentProducts = cachedProducts;
+        _loadingDocumentId = null;
+        _errorMessage = null;
+      });
+      return;
+    }
+
+    final requestSerial = ++_detailRequestSerial;
     setState(() {
       _selectedDocument = item;
-      _isLoading = true;
+      _selectedDocumentProducts = const <LabelDocumentProduct>[];
+      _loadingDocumentId = item.documentId;
       _errorMessage = null;
     });
 
     try {
-      final detail = await widget.repository.fetchDocumentProducts(
-        accessToken: widget.accessToken,
-        documentId: item.documentId,
-        warehouseNo: widget.defaultWarehouseNo,
-      );
+      final detail = await _fetchDocumentProducts(item.documentId);
 
-      if (!mounted) {
+      if (!mounted || requestSerial != _detailRequestSerial) {
         return;
       }
 
       setState(() {
         _selectedDocumentProducts = detail;
-        _isLoading = false;
+        _loadingDocumentId = null;
       });
     } catch (error) {
-      if (!mounted) {
+      if (!mounted || requestSerial != _detailRequestSerial) {
         return;
       }
 
       setState(() {
-        _isLoading = false;
+        _loadingDocumentId = null;
         _errorMessage = error.toString().replaceFirst('Exception: ', '');
       });
     }
+  }
+
+  Future<List<LabelDocumentProduct>> _fetchDocumentProducts(
+    int documentId,
+  ) async {
+    final cachedProducts = _documentProductsCache[documentId];
+    if (cachedProducts != null) {
+      return cachedProducts;
+    }
+
+    final products = await widget.repository.fetchDocumentProducts(
+      accessToken: widget.accessToken,
+      documentId: documentId,
+      warehouseNo: widget.defaultWarehouseNo,
+    );
+    _documentProductsCache[documentId] = products;
+    return products;
   }
 
   Future<void> _openCreateSheet() async {
@@ -351,6 +389,8 @@ class _LabelDocumentsPageState extends State<LabelDocumentsPage> {
       children: <Widget>[
         ..._documents.map((item) {
           final isSelected = _selectedDocument?.documentId == item.documentId;
+          final isLoadingDetail =
+              isSelected && _loadingDocumentId == item.documentId;
 
           return Padding(
             padding: const EdgeInsets.only(bottom: 10),
@@ -393,7 +433,12 @@ class _LabelDocumentsPageState extends State<LabelDocumentsPage> {
                       ),
                       if (isSelected) ...<Widget>[
                         const SizedBox(height: 12),
-                        if (_selectedDocumentProducts.isEmpty)
+                        if (isLoadingDetail)
+                          const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 20),
+                            child: Center(child: CircularProgressIndicator()),
+                          )
+                        else if (_selectedDocumentProducts.isEmpty)
                           const TerminalEmptyState(
                             message: 'Bu belgeye bagli urun bulunamadi.',
                           )

@@ -211,9 +211,8 @@ class ShellModuleRegistry {
           defaultWarehouseNo: context.user.warehouseNo,
           mobileCustomerCatalogRepository: mobileCustomerCatalogLocalRepository,
           userWarehouseName: context.user.warehouseName,
-          title: 'Verilen Firma Siparisleri',
-          subtitle:
-              'Firma siparislerini listeleyin, detaylari acin ve yeni siparis olusturun.',
+          title: 'Verilen Siparisler',
+          subtitle: 'Firma siparisleri.',
         ),
       ),
       ShellModuleRoute(
@@ -228,9 +227,8 @@ class ShellModuleRegistry {
           defaultWarehouseNo: context.user.warehouseNo,
           mobileCustomerCatalogRepository: mobileCustomerCatalogLocalRepository,
           userWarehouseName: context.user.warehouseName,
-          title: 'Alinan Firma Siparisleri',
-          subtitle:
-              'Gelen firma siparislerini listeleyin ve detaylarini inceleyin.',
+          title: 'Alinan Siparisler',
+          subtitle: 'Gelen firma siparisleri.',
           emptyListMessage:
               'Secilen tarih araliginda alinan firma siparisi bulunamadi.',
         ),
@@ -276,8 +274,8 @@ class ShellModuleRegistry {
           mobileWarehouseCatalogRepository:
               mobileWarehouseCatalogLocalRepository,
           userWarehouseName: context.user.warehouseName,
-          title: 'Giden Depolar Arasi Sevkler',
-          subtitle: 'Depolar arasi sevkleri listeleyin ve yeni sevk olusturun.',
+          title: 'Giden Depo Sevkleri',
+          subtitle: 'Depolar arasi sevkler.',
         ),
       ),
       ShellModuleRoute(
@@ -295,9 +293,8 @@ class ShellModuleRegistry {
           mobileWarehouseCatalogRepository:
               mobileWarehouseCatalogLocalRepository,
           userWarehouseName: context.user.warehouseName,
-          title: 'Gelen Depolar Arasi Sevkler',
-          subtitle:
-              'Gelen depo sevklerini listeleyin ve detaylarini inceleyin.',
+          title: 'Gelen Depo Sevkleri',
+          subtitle: 'Gelen depo sevkleri.',
           emptyListMessage:
               'Secilen tarih araliginda gelen depo sevki bulunamadi.',
         ),
@@ -425,13 +422,11 @@ class ShellModuleRegistry {
           defaultWarehouseNo: context.user.warehouseNo,
           mobileCustomerCatalogRepository: mobileCustomerCatalogLocalRepository,
           userWarehouseName: context.user.warehouseName,
-          title: 'Giden Firma Sevkleri',
-          subtitle:
-              'Firma sevklerini listeleyin, yeni sevk acin ve e-irsaliye hazirlayin.',
-          createTitle: 'Yeni Firma Sevki',
-          createHelperText:
-              'Cari secildikten sonra sevk satirlari barkod veya urun arama ile eklenir.',
-          createButtonLabel: 'Yeni Firma Sevki',
+          title: 'Firma Sevkleri',
+          subtitle: 'Giden firma sevkleri.',
+          createTitle: 'Yeni Sevk',
+          createHelperText: 'Cari sec, urunleri ekle.',
+          createButtonLabel: 'Yeni Sevk',
           emptyListMessage:
               'Secilen tarih araliginda giden firma sevki bulunamadi.',
         ),
@@ -450,11 +445,10 @@ class ShellModuleRegistry {
           mobileCustomerCatalogRepository: mobileCustomerCatalogLocalRepository,
           userWarehouseName: context.user.warehouseName,
           title: 'Gelen Firma Sevkleri',
-          subtitle:
-              'Gelen firma sevklerini listeleyin ve detaylarini inceleyin.',
-          createTitle: 'Yeni Firma Sevki',
+          subtitle: 'Gelen firma sevkleri.',
+          createTitle: 'Yeni Sevk',
           createHelperText: '',
-          createButtonLabel: 'Yeni Firma Sevki',
+          createButtonLabel: 'Yeni Sevk',
           emptyListMessage:
               'Secilen tarih araliginda gelen firma sevki bulunamadi.',
         ),
@@ -490,10 +484,9 @@ class ShellModuleRegistry {
           mobileCustomerCatalogRepository: mobileCustomerCatalogLocalRepository,
           userWarehouseName: context.user.warehouseName,
           title: 'Firma Iadeleri',
-          subtitle:
-              'Firma iadelerini listeleyin, yeni iade acin ve e-irsaliye hazirlayin.',
+          subtitle: 'Firma iadeleri.',
           createTitle: 'Yeni Iade',
-          createHelperText: 'Cari secildikten sonra iade edilir.',
+          createHelperText: 'Cari sec, urunleri ekle.',
           createButtonLabel: 'Yeni Iade',
           emptyListMessage: 'Secilen tarih araliginda firma iadesi bulunamadi.',
           showCreateDocumentNoField: false,
@@ -562,8 +555,7 @@ class ShellModuleRegistry {
           warehouseCatalogRepository: mobileWarehouseCatalogLocalRepository,
           warehouseCatalogSyncService: mobileWarehouseCatalogSyncService,
           title: 'Fiyat Gor',
-          subtitle:
-              'Barkod veya stok kodu ile urun fiyatini ve blok durumlarini hizlica gosterir.',
+          subtitle: 'Urun fiyat sorgusu.',
           emptyMessage: 'Aramaya uygun urun bulunamadi.',
         ),
       ),
@@ -577,8 +569,7 @@ class ShellModuleRegistry {
           accessToken: context.accessToken,
           defaultWarehouseNo: context.user.warehouseNo,
           title: 'Cari Bul',
-          subtitle:
-              'Barkoddan varsayilan tedarikciyi ve cari onerilerini gosterir.',
+          subtitle: 'Cari sorgusu.',
           emptyMessage: 'Bu barkod icin cari onerisi bulunamadi.',
         ),
       ),
@@ -615,8 +606,7 @@ class ShellModuleRegistry {
           warehouseCatalogRepository: mobileWarehouseCatalogLocalRepository,
           warehouseCatalogSyncService: mobileWarehouseCatalogSyncService,
           title: 'Var Yok',
-          subtitle:
-              'Urunun depoda aranabilir durumda olup olmadigini hizli tarama ekraninda gosterir.',
+          subtitle: 'Stok durum sorgusu.',
           emptyMessage: 'Bu aramaya uygun stok bulunamadi.',
         ),
       ),

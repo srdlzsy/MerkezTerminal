@@ -131,34 +131,6 @@ class _GivenWarehouseOrderCreateSheetState
     };
   }
 
-  Future<void> _pickDate({required bool isOrderDate}) async {
-    final pickedDate = await showDatePicker(
-      context: context,
-      initialDate: isOrderDate ? _orderDate : _deliveryDate,
-      firstDate: DateTime(DateTime.now().year - 2),
-      lastDate: DateTime(DateTime.now().year + 2, 12, 31),
-    );
-
-    if (pickedDate == null || !mounted) {
-      return;
-    }
-
-    setState(() {
-      if (isOrderDate) {
-        _orderDate = pickedDate;
-        if (_deliveryDate.isBefore(_orderDate)) {
-          _deliveryDate = _orderDate;
-        }
-      } else {
-        _deliveryDate = pickedDate;
-        if (_orderDate.isAfter(_deliveryDate)) {
-          _orderDate = _deliveryDate;
-        }
-      }
-    });
-    _draftSession.scheduleSave();
-  }
-
   Future<void> _searchWarehouse() async {
     final warehouse = await showModalBottomSheet<WarehouseLookupItem>(
       context: context,
@@ -465,30 +437,6 @@ class _GivenWarehouseOrderCreateSheetState
                         _buildWarehouseSection(theme),
                         const SizedBox(height: 16),
 
-                        // --- Tarihler (Yatay) ---
-                        Row(
-                          children: [
-                            Expanded(
-                              child: _buildDateButton(
-                                label: 'Siparis',
-                                date: _orderDate,
-                                onPressed: () => _pickDate(isOrderDate: true),
-                                theme: theme,
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: _buildDateButton(
-                                label: 'Teslim',
-                                date: _deliveryDate,
-                                onPressed: () => _pickDate(isOrderDate: false),
-                                theme: theme,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 20),
-
                         // --- Satirlar ---
                         TerminalSectionToolbar(
                           title: 'Satirlar',
@@ -670,49 +618,6 @@ class _GivenWarehouseOrderCreateSheetState
               ),
             ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildDateButton({
-    required String label,
-    required DateTime date,
-    required VoidCallback onPressed,
-    required ThemeData theme,
-  }) {
-    return OutlinedButton(
-      onPressed: onPressed,
-      style: OutlinedButton.styleFrom(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      ),
-      child: FittedBox(
-        fit: BoxFit.scaleDown,
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.calendar_today,
-              size: 16,
-              color: theme.colorScheme.primary,
-            ),
-            const SizedBox(width: 6),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(label, style: const TextStyle(fontSize: 10)),
-                Text(
-                  AppFormatters.date(date),
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 12,
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
       ),
     );
   }

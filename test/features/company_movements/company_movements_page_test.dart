@@ -110,7 +110,7 @@ void main() {
     }
 
     await tester.pumpWidget(buildSheet(draft));
-    await tester.enterText(find.byType(TextFormField).at(1), 'IRS-42');
+    await tester.enterText(find.byType(TextFormField).first, 'Cari-42');
     await tester.pump(const Duration(milliseconds: 900));
     await tester.pump();
 
@@ -120,15 +120,15 @@ void main() {
       warehouseNo: '50',
     );
     expect(savedDrafts, hasLength(1));
-    expect(savedDrafts.single.payload['documentNo'], 'IRS-42');
+    expect(savedDrafts.single.payload['customerText'], 'Cari-42');
 
     await tester.pumpWidget(buildSheet(savedDrafts.single));
     await tester.pump();
 
-    final documentNoField = tester.widget<TextFormField>(
-      find.byType(TextFormField).at(1),
+    final customerField = tester.widget<TextFormField>(
+      find.byType(TextFormField).first,
     );
-    expect(documentNoField.controller?.text, 'IRS-42');
+    expect(customerField.controller?.text, 'Cari-42');
   });
 }
 

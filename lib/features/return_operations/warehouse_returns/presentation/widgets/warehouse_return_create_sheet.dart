@@ -149,34 +149,6 @@ class _WarehouseReturnCreateSheetState extends State<WarehouseReturnCreateSheet>
     };
   }
 
-  Future<void> _pickDate({required bool movementDate}) async {
-    final pickedDate = await showDatePicker(
-      context: context,
-      initialDate: movementDate ? _movementDate : _documentDate,
-      firstDate: DateTime(DateTime.now().year - 2),
-      lastDate: DateTime(DateTime.now().year + 2, 12, 31),
-    );
-
-    if (pickedDate == null || !mounted) {
-      return;
-    }
-
-    setState(() {
-      if (movementDate) {
-        _movementDate = pickedDate;
-        if (_documentDate.isBefore(_movementDate)) {
-          _documentDate = _movementDate;
-        }
-      } else {
-        _documentDate = pickedDate;
-        if (_movementDate.isAfter(_documentDate)) {
-          _movementDate = _documentDate;
-        }
-      }
-    });
-    _draftSession.scheduleSave();
-  }
-
   Future<void> _searchWarehouse() async {
     final warehouse = await showModalBottomSheet<WarehouseLookupItem>(
       context: context,
@@ -499,35 +471,7 @@ class _WarehouseReturnCreateSheetState extends State<WarehouseReturnCreateSheet>
                       children: <Widget>[
                         _buildHeaderSection(theme),
                         const SizedBox(height: 16),
-                        Row(
-                          children: <Widget>[
-                            Expanded(
-                              child: _buildDateButton(
-                                label: 'Iade Tarihi',
-                                date: _movementDate,
-                                onPressed: () => _pickDate(movementDate: true),
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: _buildDateButton(
-                                label: 'Belge Tarihi',
-                                date: _documentDate,
-                                onPressed: () => _pickDate(movementDate: false),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 12),
-                        TextFormField(
-                          controller: _descriptionController,
-                          minLines: 2,
-                          maxLines: 3,
-                          decoration: const InputDecoration(
-                            labelText: 'Aciklama',
-                          ),
-                        ),
-                        const SizedBox(height: 16),
+
                         TerminalSectionToolbar(
                           title: 'Satirlar',
                           actions: const <Widget>[],
@@ -608,38 +552,6 @@ class _WarehouseReturnCreateSheetState extends State<WarehouseReturnCreateSheet>
             ],
           ),
           const SizedBox(height: 12),
-          TextFormField(
-            controller: _transitWarehouseController,
-            keyboardType: TextInputType.number,
-            inputFormatters: <TextInputFormatter>[
-              FilteringTextInputFormatter.digitsOnly,
-            ],
-            decoration: const InputDecoration(
-              labelText: 'Transit Depo',
-              hintText: 'Varsayilan 60',
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDateButton({
-    required String label,
-    required DateTime date,
-    required VoidCallback onPressed,
-  }) {
-    return OutlinedButton.icon(
-      onPressed: onPressed,
-      icon: const Icon(Icons.calendar_month_rounded),
-      label: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          Text(label),
-          Text(
-            AppFormatters.date(date),
-            style: const TextStyle(fontWeight: FontWeight.w700),
-          ),
         ],
       ),
     );

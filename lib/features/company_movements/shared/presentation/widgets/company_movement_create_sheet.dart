@@ -632,17 +632,6 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
             ),
             const SizedBox(height: 12),
 
-            if (widget.showDocumentNoField) ...<Widget>[
-              TextFormField(
-                controller: _documentNoController,
-                decoration: const InputDecoration(
-                  labelText: 'Belge No',
-                  hintText: 'IRS-0001',
-                ),
-              ),
-              const SizedBox(height: 12),
-            ],
-
             TerminalSectionToolbar(
               title: 'Satirlar',
               actions: const <Widget>[],

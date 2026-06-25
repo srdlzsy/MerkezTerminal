@@ -55,8 +55,7 @@ class _OutgoingWarehouseShipmentCreateSheetState
   late DateTime _documentDate;
   late _ShipmentCreateMode _mode;
   late List<_ManualShipmentLineDraft> _manualLines;
-  List<_LinkedShipmentLineDraft> _linkedLines =
-      const <_LinkedShipmentLineDraft>[];
+  List<_LinkedShipmentLineDraft> _linkedLines = <_LinkedShipmentLineDraft>[];
   WarehouseLookupItem? _selectedTargetWarehouse;
   _SelectedWarehouseOrder? _selectedOrder;
   String? _validationMessage;
@@ -130,8 +129,11 @@ class _OutgoingWarehouseShipmentCreateSheetState
                   onChanged: _draftSession.scheduleSave,
                 ),
               )
-              .toList(growable: false)
-        : const <_LinkedShipmentLineDraft>[];
+              .toList(growable: true)
+        : <_LinkedShipmentLineDraft>[];
+    if (_mode == _ShipmentCreateMode.orderLinked && _selectedOrder != null) {
+      _ensureFreshLinkedEntryLine();
+    }
     _draftSession.listenTo(<TextEditingController>[
       _targetWarehouseNoController,
       _transitWarehouseNoController,
@@ -172,7 +174,7 @@ class _OutgoingWarehouseShipmentCreateSheetState
         _documentNoController.text.trim().isNotEmpty ||
         _descriptionController.text.trim().isNotEmpty ||
         _manualLines.any((line) => line.hasContent) ||
-        _linkedLines.isNotEmpty;
+        _linkedLines.any((line) => line.hasContent);
   }
 
   Map<String, dynamic> _buildDraftPayload() {
@@ -195,37 +197,10 @@ class _OutgoingWarehouseShipmentCreateSheetState
           .map((line) => line.toDraftJson())
           .toList(growable: false),
       'linkedLines': _linkedLines
+          .where((line) => line.hasContent)
           .map((line) => line.toDraftJson())
           .toList(growable: false),
     };
-  }
-
-  Future<void> _pickDate({required bool isMovementDate}) async {
-    final pickedDate = await showDatePicker(
-      context: context,
-      initialDate: isMovementDate ? _movementDate : _documentDate,
-      firstDate: DateTime(DateTime.now().year - 2),
-      lastDate: DateTime(DateTime.now().year + 2, 12, 31),
-    );
-
-    if (pickedDate == null || !mounted) {
-      return;
-    }
-
-    setState(() {
-      if (isMovementDate) {
-        _movementDate = pickedDate;
-        if (_documentDate.isBefore(_movementDate)) {
-          _documentDate = _movementDate;
-        }
-      } else {
-        _documentDate = pickedDate;
-        if (_movementDate.isAfter(_documentDate)) {
-          _movementDate = _documentDate;
-        }
-      }
-    });
-    _draftSession.scheduleSave();
   }
 
   Future<void> _selectTargetWarehouse() async {
@@ -255,7 +230,7 @@ class _OutgoingWarehouseShipmentCreateSheetState
       for (final line in _linkedLines) {
         line.dispose();
       }
-      _linkedLines = const <_LinkedShipmentLineDraft>[];
+      _linkedLines = <_LinkedShipmentLineDraft>[];
       _validationMessage = null;
     });
     _draftSession.scheduleSave();
@@ -321,6 +296,7 @@ class _OutgoingWarehouseShipmentCreateSheetState
       }
       _selectedOrder = selectedOrder;
       _linkedLines = linkedLines;
+      _ensureFreshLinkedEntryLine();
       _validationMessage = null;
     });
     _draftSession.scheduleSave();
@@ -385,6 +361,65 @@ class _OutgoingWarehouseShipmentCreateSheetState
     }
   }
 
+  Future<void> _pickLinkedProduct(_LinkedShipmentLineDraft line) async {
+    if (!_hasTargetWarehouseSelection) {
+      setState(() {
+        line.setLookupStatus(
+          'Urun aramasi icin once hedef depo secilmeli.',
+          isError: true,
+        );
+      });
+      _showFeedback('Once hedef depo secin, sonra kalem okutun.');
+      return;
+    }
+
+    setState(() {
+      line.setLookupStatus('Urun arama penceresi aciliyor.');
+    });
+
+    final product = await showModalBottomSheet<ProductLookupItem>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      showDragHandle: true,
+      builder: (context) {
+        return _ProductLookupSheet(
+          repository: widget.repository,
+          accessToken: widget.accessToken,
+          warehouseNo: widget.defaultWarehouseNo,
+          initialQuery: line.barcodeController.text,
+        );
+      },
+    );
+
+    if (product == null || !mounted) {
+      if (mounted) {
+        setState(() {
+          line.setLookupStatus('Urun secimi yapilmadi.');
+        });
+      }
+      return;
+    }
+
+    var mergedIntoExisting = false;
+    setState(() {
+      mergedIntoExisting = _applyProductToLinkedLine(line, product);
+      if (!mergedIntoExisting) {
+        line.setLookupStatus(
+          'Secildi: ${product.stockCode} | ${product.stockName}',
+        );
+      }
+      _ensureFreshLinkedEntryLine();
+      _validationMessage = null;
+    });
+    _draftSession.scheduleSave();
+    _focusFreshLinkedEntryLine();
+
+    if (mergedIntoExisting) {
+      _showFeedback('Ayni barkod mevcut satira eklendi; miktar artirildi.');
+    }
+  }
+
   Future<void> _scanProductWithCamera(_ManualShipmentLineDraft line) async {
     if (!_hasTargetWarehouseSelection) {
       setState(() {
@@ -425,6 +460,48 @@ class _OutgoingWarehouseShipmentCreateSheetState
     await _pickProduct(line);
   }
 
+  Future<void> _scanLinkedProductWithCamera(
+    _LinkedShipmentLineDraft line,
+  ) async {
+    if (!_hasTargetWarehouseSelection) {
+      setState(() {
+        line.setLookupStatus(
+          'Kamera ile okuma icin once hedef depo secilmeli.',
+          isError: true,
+        );
+      });
+      _showFeedback('Once hedef depo secin, sonra kamera ile okutun.');
+      return;
+    }
+
+    if (!supportsCameraBarcodeScanning) {
+      setState(() {
+        line.setLookupStatus(
+          'Bu cihazda kamera ile barkod okutma desteklenmiyor.',
+          isError: true,
+        );
+      });
+      _showFeedback('Bu cihazda kamera ile barkod okutma desteklenmiyor.');
+      return;
+    }
+
+    final barcode = await openBarcodeCameraScanner(
+      context,
+      title: 'Depolar Arasi Sevk Kamerasi',
+      subtitle: 'Barkodu okutun; bulunan urun satira eklenecek.',
+    );
+
+    if (barcode == null || !mounted) {
+      return;
+    }
+
+    line.barcodeController.text = barcode;
+    setState(() {
+      line.setLookupStatus('Barkod okundu: $barcode. API aramasi basliyor.');
+    });
+    await _pickLinkedProduct(line);
+  }
+
   bool _applyProductToManualLine(
     _ManualShipmentLineDraft line,
     ProductLookupItem product,
@@ -461,6 +538,43 @@ class _OutgoingWarehouseShipmentCreateSheetState
     return true;
   }
 
+  bool _applyProductToLinkedLine(
+    _LinkedShipmentLineDraft line,
+    ProductLookupItem product,
+  ) {
+    final existingLine = productEntryController.findDuplicateLine(
+      ProductEntryDuplicateMergePolicy<_LinkedShipmentLineDraft>(
+        currentLine: line,
+        targetBarcode: product.barcode,
+        targetStockCode: product.stockCode,
+        lines: _linkedLines,
+        lineBarcode: (line) => line.selectedProduct?.barcode ?? '',
+        lineStockCode: (line) => line.stockCode,
+        canMergeLine: (line) =>
+            !line.isOrderLinked && line.selectedProduct != null,
+      ),
+    );
+
+    if (existingLine == null) {
+      line.applyProduct(product);
+      return false;
+    }
+
+    existingLine.quantityController.text = productEntryController
+        .formatQuantity(
+          productEntryController.readQuantity(
+                existingLine.quantityController.text,
+                fallback: 0,
+              ) +
+              productEntryController.quantityInputOrUnitMultiplier(
+                line.quantityController.text,
+                product.unitMultiplier,
+              ),
+        );
+    _recycleMergedLinkedLine(line, createReplacement: _createLinkedLine);
+    return true;
+  }
+
   void _recycleMergedManualLine(
     _ManualShipmentLineDraft line, {
     required _ManualShipmentLineDraft Function() createReplacement,
@@ -476,6 +590,21 @@ class _OutgoingWarehouseShipmentCreateSheetState
     _manualLines = _manualLines.where((item) => item != line).toList();
   }
 
+  void _recycleMergedLinkedLine(
+    _LinkedShipmentLineDraft line, {
+    required _LinkedShipmentLineDraft Function() createReplacement,
+  }) {
+    final lineIndex = _linkedLines.indexOf(line);
+    line.dispose();
+
+    if (lineIndex == 0) {
+      _linkedLines[lineIndex] = createReplacement();
+      return;
+    }
+
+    _linkedLines = _linkedLines.where((item) => item != line).toList();
+  }
+
   void _switchMode(_ShipmentCreateMode mode) {
     setState(() {
       _mode = mode;
@@ -486,10 +615,15 @@ class _OutgoingWarehouseShipmentCreateSheetState
       if (_mode == _ShipmentCreateMode.manual) {
         _ensureFreshManualEntryLine();
       }
+      if (_mode == _ShipmentCreateMode.orderLinked && _selectedOrder != null) {
+        _ensureFreshLinkedEntryLine();
+      }
     });
     _draftSession.scheduleSave();
     if (_mode == _ShipmentCreateMode.manual) {
       _focusFreshManualEntryLine();
+    } else if (_selectedOrder != null) {
+      _focusFreshLinkedEntryLine();
     }
   }
 
@@ -500,6 +634,48 @@ class _OutgoingWarehouseShipmentCreateSheetState
         ..._manualLines,
       ];
     }
+  }
+
+  _LinkedShipmentLineDraft _createLinkedLine([Map<String, dynamic>? draft]) {
+    if (draft != null) {
+      return _LinkedShipmentLineDraft.fromDraftJson(
+        draft,
+        onChanged: _draftSession.scheduleSave,
+      );
+    }
+
+    return _LinkedShipmentLineDraft.empty(
+      onChanged: _draftSession.scheduleSave,
+    );
+  }
+
+  void _ensureFreshLinkedEntryLine() {
+    if (_linkedLines.isEmpty || !_isBlankLinkedLine(_linkedLines.first)) {
+      _linkedLines = <_LinkedShipmentLineDraft>[
+        _createLinkedLine(),
+        ..._linkedLines,
+      ];
+    }
+  }
+
+  void _focusFreshLinkedEntryLine() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _linkedLines.isEmpty) {
+        return;
+      }
+
+      final firstLine = _linkedLines.first;
+      if (_isBlankLinkedLine(firstLine)) {
+        firstLine.barcodeFocusNode.requestFocus();
+      }
+    });
+  }
+
+  bool _isBlankLinkedLine(_LinkedShipmentLineDraft line) {
+    return !line.isOrderLinked &&
+        line.selectedProduct == null &&
+        line.stockCode.trim().isEmpty &&
+        line.barcodeController.text.trim().isEmpty;
   }
 
   void _focusFreshManualEntryLine() {
@@ -534,6 +710,25 @@ class _OutgoingWarehouseShipmentCreateSheetState
     setState(() {
       _manualLines = _manualLines.where((item) => item != line).toList();
       line.dispose();
+      _validationMessage = null;
+    });
+    _draftSession.scheduleSave();
+  }
+
+  void _removeLinkedLine(_LinkedShipmentLineDraft line) {
+    if (_isBlankLinkedLine(line) && _linkedLines.length == 1) {
+      line.clear();
+      setState(() {
+        _validationMessage = null;
+      });
+      _draftSession.scheduleSave();
+      return;
+    }
+
+    setState(() {
+      _linkedLines = _linkedLines.where((item) => item != line).toList();
+      line.dispose();
+      _ensureFreshLinkedEntryLine();
       _validationMessage = null;
     });
     _draftSession.scheduleSave();
@@ -663,12 +858,24 @@ class _OutgoingWarehouseShipmentCreateSheetState
 
     final lines = <WarehouseShipmentCreateLine>[];
 
-    for (var index = 0; index < _linkedLines.length; index += 1) {
-      final line = _linkedLines[index];
+    final activeLines = _linkedLines
+        .where((line) => !_isBlankLinkedLine(line))
+        .toList(growable: false);
+
+    for (var index = 0; index < activeLines.length; index += 1) {
+      final line = activeLines[index];
+      final stockCode = line.stockCode.trim();
       final quantity = productEntryController.readQuantity(
         line.quantityController.text,
         fallback: 0,
       );
+
+      if (stockCode.isEmpty) {
+        setState(() {
+          _validationMessage = '${index + 1}. satir icin urun secin.';
+        });
+        return null;
+      }
 
       if (quantity <= 0) {
         setState(() {
@@ -678,7 +885,7 @@ class _OutgoingWarehouseShipmentCreateSheetState
         return null;
       }
 
-      if (quantity > line.maxQuantity) {
+      if (line.isOrderLinked && quantity > line.maxQuantity) {
         setState(() {
           _validationMessage =
               '${index + 1}. satir icin miktar kalan siparis miktarini asamaz.';
@@ -689,9 +896,9 @@ class _OutgoingWarehouseShipmentCreateSheetState
       lines.add(
         WarehouseShipmentCreateLine(
           warehouseOrderLineGuid: line.lineGuid,
-          stockCode: line.stockCode,
+          stockCode: stockCode,
           quantity: quantity,
-          unitPrice: line.unitPrice,
+          unitPrice: line.selectedProduct?.price ?? line.unitPrice,
           unitPointer: line.unitPointer,
           description: line.description,
           partyCode: line.partyCode,
@@ -937,106 +1144,6 @@ class _OutgoingWarehouseShipmentCreateSheetState
             },
           ),
           const SizedBox(height: 10),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: <Widget>[
-              _DateField(
-                label: 'Sevk',
-                value: AppFormatters.date(_movementDate),
-                onPressed: () => _pickDate(isMovementDate: true),
-              ),
-              _DateField(
-                label: 'Belge',
-                value: AppFormatters.date(_documentDate),
-                onPressed: () => _pickDate(isMovementDate: false),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final transitField = TextFormField(
-                controller: _transitWarehouseNoController,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(
-                  labelText: 'Transit depo no',
-                  hintText: '60',
-                  border: OutlineInputBorder(),
-                  isDense: true,
-                  contentPadding: EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 10,
-                  ),
-                ),
-                validator: (value) {
-                  final normalized = (value ?? '').trim();
-                  if (normalized.isEmpty) {
-                    return null;
-                  }
-
-                  final parsed = _parseInt(normalized);
-                  if (parsed == null || parsed <= 0) {
-                    return 'Pozitif olmali';
-                  }
-                  return null;
-                },
-              );
-              final documentNoField = TextFormField(
-                controller: _documentNoController,
-                decoration: const InputDecoration(
-                  labelText: 'Belge no',
-                  hintText: 'Opsiyonel',
-                  border: OutlineInputBorder(),
-                  isDense: true,
-                  contentPadding: EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 10,
-                  ),
-                ),
-              );
-
-              if (constraints.maxWidth < 360) {
-                return Column(
-                  children: <Widget>[
-                    transitField,
-                    const SizedBox(height: 8),
-                    documentNoField,
-                  ],
-                );
-              }
-
-              return Row(
-                children: <Widget>[
-                  Expanded(child: transitField),
-                  const SizedBox(width: 8),
-                  Expanded(child: documentNoField),
-                ],
-              );
-            },
-          ),
-          const SizedBox(height: 10),
-          TextField(
-            controller: _descriptionController,
-            maxLines: 1,
-            decoration: const InputDecoration(
-              labelText: 'Aciklama',
-              hintText: 'Opsiyonel',
-              border: OutlineInputBorder(),
-              isDense: true,
-              contentPadding: EdgeInsets.symmetric(
-                horizontal: 10,
-                vertical: 10,
-              ),
-            ),
-          ),
-          if (_selectedTargetWarehouse != null) ...<Widget>[
-            const SizedBox(height: 10),
-            _InfoPill(
-              label: 'Secilen hedef depo',
-              value: _selectedTargetWarehouse!.displayLabel,
-            ),
-          ],
         ],
       ),
     );
@@ -1137,26 +1244,35 @@ class _OutgoingWarehouseShipmentCreateSheetState
                   '${_selectedOrder!.item.documentNoLabel} - ${_selectedOrder!.item.outWarehouseName} -> ${_selectedOrder!.item.inWarehouseName}',
             ),
             const SizedBox(height: 10),
-            if (MediaQuery.sizeOf(context).width >= 720)
-              const Padding(
-                padding: EdgeInsets.only(bottom: 8),
-                child: _LinkedShipmentTableHeader(),
-              ),
             Column(
               children: _linkedLines
                   .asMap()
                   .entries
-                  .map(
-                    (entry) => Padding(
+                  .map((entry) {
+                    final isFreshEntry =
+                        entry.key == 0 && _isBlankLinkedLine(entry.value);
+                    final displayLineNo = _linkedLines
+                        .take(entry.key + 1)
+                        .where((item) => !_isBlankLinkedLine(item))
+                        .length;
+
+                    return Padding(
                       padding: EdgeInsets.only(
                         bottom: entry.key == _linkedLines.length - 1 ? 0 : 8,
                       ),
                       child: _LinkedShipmentLineCard(
-                        index: entry.key,
+                        lineNumber: displayLineNo,
+                        isFreshEntry: isFreshEntry,
                         line: entry.value,
+                        isReadyForScanning: _hasTargetWarehouseSelection,
+                        canRemove: !isFreshEntry,
+                        onPickProduct: () => _pickLinkedProduct(entry.value),
+                        onScanWithCamera: () =>
+                            _scanLinkedProductWithCamera(entry.value),
+                        onRemove: () => _removeLinkedLine(entry.value),
                       ),
-                    ),
-                  )
+                    );
+                  })
                   .toList(growable: false),
             ),
           ],
@@ -1337,187 +1453,178 @@ class _ManualShipmentLineCard extends StatelessWidget {
   }
 }
 
-class _LinkedShipmentTableHeader extends StatelessWidget {
-  const _LinkedShipmentTableHeader();
-
-  @override
-  Widget build(BuildContext context) {
-    final textStyle = Theme.of(context).textTheme.labelLarge?.copyWith(
-      fontWeight: FontWeight.w800,
-      color: const Color(0xFF6B5A4A),
-    );
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 14),
-      child: Row(
-        children: <Widget>[
-          SizedBox(width: 120, child: Text('Stok kodu', style: textStyle)),
-          const SizedBox(width: 12),
-          Expanded(child: Text('Urun', style: textStyle)),
-          const SizedBox(width: 12),
-          SizedBox(width: 96, child: Text('Sip.', style: textStyle)),
-          const SizedBox(width: 12),
-          SizedBox(width: 128, child: Text('Sevk', style: textStyle)),
-        ],
-      ),
-    );
-  }
-}
-
 class _LinkedShipmentLineCard extends StatelessWidget {
-  const _LinkedShipmentLineCard({required this.index, required this.line});
+  const _LinkedShipmentLineCard({
+    required this.lineNumber,
+    required this.isFreshEntry,
+    required this.line,
+    required this.isReadyForScanning,
+    required this.canRemove,
+    required this.onPickProduct,
+    required this.onScanWithCamera,
+    required this.onRemove,
+  });
 
-  final int index;
+  final int lineNumber;
+  final bool isFreshEntry;
   final _LinkedShipmentLineDraft line;
+  final bool isReadyForScanning;
+  final bool canRemove;
+  final VoidCallback onPickProduct;
+  final VoidCallback onScanWithCamera;
+  final VoidCallback onRemove;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final product = line.selectedProduct;
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final isCompact = constraints.maxWidth < 720;
-
-        return Container(
-          width: double.infinity,
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-          decoration: BoxDecoration(
-            color: const Color(0xFFFFF9F3),
-            borderRadius: BorderRadius.circular(22),
-            border: Border.all(
-              color: theme.colorScheme.outlineVariant.withAlpha(84),
-            ),
-          ),
-          child: isCompact
-              ? Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    Text(
-                      '${index + 1}. ${line.stockCode}',
-                      style: theme.textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      line.stockName,
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: const Color(0xFF5E4A36),
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Wrap(
-                      spacing: 10,
-                      runSpacing: 10,
-                      crossAxisAlignment: WrapCrossAlignment.center,
-                      children: <Widget>[
-                        _InfoPill(
-                          label: 'Sip. miktar',
-                          value: AppFormatters.quantity(line.orderQuantity),
-                        ),
-                        _InfoPill(
-                          label: 'Kalan',
-                          value: AppFormatters.quantity(line.maxQuantity),
-                        ),
-                        SizedBox(
-                          width: 140,
-                          child: TextFormField(
-                            controller: line.quantityController,
-                            keyboardType: const TextInputType.numberWithOptions(
-                              decimal: true,
-                            ),
-                            decoration: const InputDecoration(
-                              labelText: 'Sevk miktari',
-                            ),
-                            validator: (value) {
-                              final parsed = double.tryParse(
-                                (value ?? '').trim().replaceAll(',', '.'),
-                              );
-                              if (parsed == null || parsed <= 0) {
-                                return 'Miktar > 0';
-                              }
-                              if (parsed > line.maxQuantity) {
-                                return 'Kalan asildi';
-                              }
-                              return null;
-                            },
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                )
-              : Row(
-                  children: <Widget>[
-                    SizedBox(
-                      width: 120,
-                      child: Text(
-                        line.stockCode,
-                        style: theme.textTheme.titleSmall?.copyWith(
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        line.stockName,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.bodyLarge?.copyWith(
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    SizedBox(
-                      width: 96,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: <Widget>[
-                          Text(
-                            AppFormatters.quantity(line.orderQuantity),
-                            style: theme.textTheme.titleSmall?.copyWith(
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                          Text(
-                            'Kalan ${AppFormatters.quantity(line.maxQuantity)}',
-                            style: theme.textTheme.labelMedium?.copyWith(
-                              color: const Color(0xFF6B5A4A),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    SizedBox(
-                      width: 128,
-                      child: TextFormField(
-                        controller: line.quantityController,
-                        keyboardType: const TextInputType.numberWithOptions(
-                          decimal: true,
-                        ),
-                        decoration: const InputDecoration(labelText: 'Sevk'),
-                        validator: (value) {
-                          final parsed = double.tryParse(
-                            (value ?? '').trim().replaceAll(',', '.'),
-                          );
-                          if (parsed == null || parsed <= 0) {
-                            return 'Miktar > 0';
-                          }
-                          if (parsed > line.maxQuantity) {
-                            return 'Kalan asildi';
-                          }
-                          return null;
-                        },
-                      ),
-                    ),
-                  ],
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF9F3),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: theme.colorScheme.outlineVariant.withAlpha(84),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Row(
+            children: <Widget>[
+              Expanded(
+                child: Text(
+                  isFreshEntry ? 'Giris satiri' : 'Satir $lineNumber',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
-        );
-      },
+              ),
+              if (line.isOrderLinked)
+                const Padding(
+                  padding: EdgeInsets.only(right: 4),
+                  child: _InfoPill(label: 'Bagli', value: 'Siparis'),
+                ),
+              if (canRemove)
+                IconButton(
+                  onPressed: onRemove,
+                  icon: const Icon(Icons.delete_outline_rounded),
+                  tooltip: 'Satiri sil',
+                ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          if (isFreshEntry)
+            Row(
+              children: <Widget>[
+                Expanded(
+                  child: ProductLookupField(
+                    controller: line.barcodeController,
+                    focusNode: line.barcodeFocusNode,
+                    enabled: isReadyForScanning && !line.isLookupStatusLoading,
+                    onSubmit: onPickProduct,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                FilledButton.icon(
+                  onPressed: isReadyForScanning && !line.isLookupStatusLoading
+                      ? onPickProduct
+                      : null,
+                  icon: const Icon(Icons.search_rounded),
+                  label: const Text('Urun'),
+                ),
+                const SizedBox(width: 8),
+                IconButton.filledTonal(
+                  onPressed: isReadyForScanning && !line.isLookupStatusLoading
+                      ? onScanWithCamera
+                      : null,
+                  tooltip: 'Kamera ile oku',
+                  icon: const Icon(Icons.photo_camera_back_rounded),
+                ),
+              ],
+            )
+          else ...<Widget>[
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.surface,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(
+                '${line.stockName} | Kod ${line.stockCode} | Birim ${line.unitName}${product?.barcode.trim().isNotEmpty == true ? ' | Barkod ${product!.barcode}' : ''}',
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: const Color(0xFF2A211B),
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: <Widget>[
+                if (line.isOrderLinked) ...<Widget>[
+                  _InfoPill(
+                    label: 'Sip. miktar',
+                    value: AppFormatters.quantity(line.orderQuantity),
+                  ),
+                  _InfoPill(
+                    label: 'Kalan',
+                    value: AppFormatters.quantity(line.maxQuantity),
+                  ),
+                ],
+                SizedBox(
+                  width: 150,
+                  child: TextFormField(
+                    controller: line.quantityController,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    decoration: const InputDecoration(
+                      labelText: 'Sevk miktari',
+                    ),
+                    validator: (value) {
+                      final parsed = double.tryParse(
+                        (value ?? '').trim().replaceAll(',', '.'),
+                      );
+                      if (parsed == null || parsed <= 0) {
+                        return 'Miktar > 0';
+                      }
+                      if (line.isOrderLinked && parsed > line.maxQuantity) {
+                        return 'Kalan asildi';
+                      }
+                      return null;
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ],
+          if (line.lookupStatusMessage != null) ...<Widget>[
+            const SizedBox(height: 8),
+            if (line.isLookupStatusLoading)
+              TerminalMessageBlock.loading(message: line.lookupStatusMessage!)
+            else if (line.isLookupStatusError)
+              TerminalMessageBlock.error(message: line.lookupStatusMessage!)
+            else
+              TerminalMessageBlock.info(message: line.lookupStatusMessage!),
+          ],
+          if (!isFreshEntry &&
+              !line.isOrderLinked &&
+              product == null) ...<Widget>[
+            const SizedBox(height: 8),
+            TerminalMessageBlock.error(message: 'Bu satir icin urun secin.'),
+          ],
+        ],
+      ),
     );
   }
 }
@@ -2247,9 +2354,9 @@ class _ManualShipmentLineDraft {
 class _LinkedShipmentLineDraft {
   _LinkedShipmentLineDraft({
     required this.lineGuid,
-    required this.stockCode,
-    required this.stockName,
-    required this.unitName,
+    required String stockCode,
+    required String stockName,
+    required String unitName,
     required this.unitPointer,
     required this.orderQuantity,
     required this.maxQuantity,
@@ -2259,13 +2366,27 @@ class _LinkedShipmentLineDraft {
     required this.lotNo,
     required this.projectCode,
     required this.warehouseOrderNo,
+    this.selectedProduct,
     this.onChanged,
-  }) : quantityController = TextEditingController(text: '$maxQuantity');
+  }) : stockCodeController = TextEditingController(text: stockCode),
+       barcodeController = TextEditingController(
+         text: selectedProduct?.barcode ?? '',
+       ),
+       stockNameController = TextEditingController(text: stockName),
+       unitNameController = TextEditingController(text: unitName),
+       quantityController = TextEditingController(
+         text: maxQuantity > 0 ? '$maxQuantity' : '',
+       ) {
+    for (final controller in _controllers) {
+      controller.addListener(_notifyChanged);
+    }
+  }
 
   final String lineGuid;
-  final String stockCode;
-  final String stockName;
-  final String unitName;
+  final TextEditingController stockCodeController;
+  final TextEditingController barcodeController;
+  final TextEditingController stockNameController;
+  final TextEditingController unitNameController;
   final int unitPointer;
   final double orderQuantity;
   final double maxQuantity;
@@ -2276,13 +2397,60 @@ class _LinkedShipmentLineDraft {
   final String projectCode;
   final String warehouseOrderNo;
   final TextEditingController quantityController;
+  final FocusNode barcodeFocusNode = FocusNode();
   final VoidCallback? onChanged;
+  ProductLookupItem? selectedProduct;
+
+  String get stockCode => stockCodeController.text;
+  String get stockName => stockNameController.text;
+  String get unitName => unitNameController.text;
+  bool get isOrderLinked => lineGuid.trim().isNotEmpty;
+  bool get hasContent =>
+      isOrderLinked ||
+      selectedProduct != null ||
+      stockCodeController.text.trim().isNotEmpty ||
+      barcodeController.text.trim().isNotEmpty ||
+      quantityController.text.trim().isNotEmpty;
+  bool get isLookupStatusLoading => _isLookupStatusLoading;
+  bool get isLookupStatusError => _isLookupStatusError;
+  String? get lookupStatusMessage => _lookupStatusMessage;
+
+  String? _lookupStatusMessage;
+  bool _isLookupStatusLoading = false;
+  bool _isLookupStatusError = false;
+
+  List<TextEditingController> get _controllers => <TextEditingController>[
+    stockCodeController,
+    barcodeController,
+    stockNameController,
+    unitNameController,
+    quantityController,
+  ];
+
+  factory _LinkedShipmentLineDraft.empty({VoidCallback? onChanged}) {
+    return _LinkedShipmentLineDraft(
+      lineGuid: '',
+      stockCode: '',
+      stockName: '',
+      unitName: '',
+      unitPointer: 1,
+      orderQuantity: 0,
+      maxQuantity: 0,
+      unitPrice: 0,
+      description: '',
+      partyCode: '',
+      lotNo: 0,
+      projectCode: '',
+      warehouseOrderNo: '',
+      onChanged: onChanged,
+    );
+  }
 
   factory _LinkedShipmentLineDraft.fromOrderItem(
     WarehouseOrderDetailItem item, {
     VoidCallback? onChanged,
   }) {
-    final draft = _LinkedShipmentLineDraft(
+    return _LinkedShipmentLineDraft(
       lineGuid: item.lineGuid,
       stockCode: item.stockCode,
       stockName: item.stockName,
@@ -2298,14 +2466,16 @@ class _LinkedShipmentLineDraft {
       warehouseOrderNo: '',
       onChanged: onChanged,
     );
-    draft.quantityController.addListener(draft._notifyChanged);
-    return draft;
   }
 
   factory _LinkedShipmentLineDraft.fromDraftJson(
     Map<String, dynamic> json, {
     VoidCallback? onChanged,
   }) {
+    final productJson = _shipmentDraftMap(json['selectedProduct']);
+    final selectedProduct = productJson == null
+        ? null
+        : ProductLookupItem.fromJson(productJson);
     final draft = _LinkedShipmentLineDraft(
       lineGuid: json['lineGuid']?.toString() ?? '',
       stockCode: json['stockCode']?.toString() ?? '',
@@ -2321,14 +2491,56 @@ class _LinkedShipmentLineDraft {
       lotNo: int.tryParse(json['lotNo']?.toString() ?? '') ?? 0,
       projectCode: json['projectCode']?.toString() ?? '',
       warehouseOrderNo: json['warehouseOrderNo']?.toString() ?? '',
+      selectedProduct: selectedProduct,
       onChanged: onChanged,
     );
+    draft.barcodeController.text = json['barcode']?.toString() ?? '';
     draft.quantityController.text = json['quantity']?.toString() ?? '';
-    draft.quantityController.addListener(draft._notifyChanged);
     return draft;
   }
 
+  void applyProduct(ProductLookupItem product) {
+    selectedProduct = product;
+    stockCodeController.text = product.stockCode;
+    barcodeController.text = product.barcode;
+    stockNameController.text = product.stockName;
+    unitNameController.text = product.unitName;
+    if (quantityController.text.trim().isEmpty) {
+      quantityController.text = productEntryController.formatQuantity(
+        productEntryController.unitMultiplierQuantity(product.unitMultiplier),
+      );
+    }
+  }
+
+  void clear() {
+    barcodeFocusNode.unfocus();
+    stockCodeController.clear();
+    barcodeController.clear();
+    stockNameController.clear();
+    unitNameController.clear();
+    quantityController.clear();
+    selectedProduct = null;
+    _lookupStatusMessage = null;
+    _isLookupStatusLoading = false;
+    _isLookupStatusError = false;
+  }
+
+  void setLookupStatus(
+    String message, {
+    bool isLoading = false,
+    bool isError = false,
+  }) {
+    _lookupStatusMessage = message;
+    _isLookupStatusLoading = isLoading;
+    _isLookupStatusError = isError;
+  }
+
   void dispose() {
+    barcodeFocusNode.dispose();
+    stockCodeController.dispose();
+    barcodeController.dispose();
+    stockNameController.dispose();
+    unitNameController.dispose();
     quantityController.dispose();
   }
 
@@ -2336,6 +2548,7 @@ class _LinkedShipmentLineDraft {
     return <String, dynamic>{
       'lineGuid': lineGuid,
       'stockCode': stockCode,
+      'barcode': barcodeController.text,
       'stockName': stockName,
       'unitName': unitName,
       'unitPointer': unitPointer,
@@ -2348,6 +2561,9 @@ class _LinkedShipmentLineDraft {
       'projectCode': projectCode,
       'warehouseOrderNo': warehouseOrderNo,
       'quantity': quantityController.text,
+      'selectedProduct': selectedProduct == null
+          ? null
+          : _shipmentProductJson(selectedProduct!),
     };
   }
 
