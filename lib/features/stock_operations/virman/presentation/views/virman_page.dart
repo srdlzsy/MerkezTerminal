@@ -187,7 +187,7 @@ class _VirmanPageState extends State<VirmanPage> {
     messenger.showSnackBar(
       SnackBar(
         content: Text(
-          '${result.documentNoLabel} kaydedildi. ${result.lineCount} satir, toplam ${AppFormatters.quantity(result.totalQuantity)} miktar.',
+          '${result.documentNoLabel} kaydedildi. ${result.lineCount} Mikro hareketi, toplam ${AppFormatters.quantity(result.totalQuantity)} miktar.',
         ),
       ),
     );
@@ -934,7 +934,7 @@ class _VirmanCreateSheetState extends State<_VirmanCreateSheet>
             const TerminalSheetHeader(
               title: 'Yeni Virman',
               subtitle:
-                  'Hareket tipi zorunludur. Varsayilan deger 2 olarak gelir.',
+                  'Satirlar movementType=2 ile gonderilir; backend cikis ve giris hareketlerini birlikte olusturur.',
               padding: EdgeInsets.zero,
             ),
             const SizedBox(height: 16),

@@ -222,10 +222,10 @@ class _FakeVirmanRepository implements VirmanRepository {
       warehouseName: 'KESTEL 1',
       documentType: 0,
       movementGenre: 0,
-      movementTypes: <int>[2],
+      movementTypes: <int>[0, 1],
       description: 'Yeni virman',
-      lineCount: 1,
-      totalQuantity: 8,
+      lineCount: 2,
+      totalQuantity: 16,
       totalAmount: 800,
     );
 
@@ -238,9 +238,9 @@ class _FakeVirmanRepository implements VirmanRepository {
       documentDate: null,
       documentNo: 'VRM-0003',
       warehouseNo: 110,
-      movementTypes: <int>[2],
-      lineCount: 1,
-      totalQuantity: 8,
+      movementTypes: <int>[0, 1],
+      lineCount: 2,
+      totalQuantity: 16,
       totalAmount: 800,
       writeConnectionName: 'testMikroConnection',
     );

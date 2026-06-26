@@ -29,7 +29,6 @@ import 'package:furpa_merkez_terminal/features/stock_operations/inventory_counts
 import 'package:furpa_merkez_terminal/features/stock_operations/inventory_counts/presentation/views/inventory_counts_page.dart';
 import 'package:furpa_merkez_terminal/features/stock_operations/label_documents/data/label_documents_repository.dart';
 import 'package:furpa_merkez_terminal/features/stock_operations/label_documents/presentation/views/label_documents_page.dart';
-import 'package:furpa_merkez_terminal/features/stock_operations/label_printing/presentation/views/label_printing_page.dart';
 import 'package:furpa_merkez_terminal/features/stock_operations/offline_inventory_counts/data/offline_inventory_counts_repository.dart';
 import 'package:furpa_merkez_terminal/features/stock_operations/offline_inventory_counts/presentation/views/offline_inventory_counts_page.dart';
 import 'package:furpa_merkez_terminal/features/stock_operations/stock_receipts/data/models/stock_receipt_models.dart';
@@ -377,22 +376,6 @@ class ShellModuleRegistry {
           userWarehouseName: context.user.warehouseName,
           currentUserId: context.user.id,
           draftRepository: createDraftRepository,
-        ),
-      ),
-      ShellModuleRoute(
-        exactRouteKey: 'kasa-islemleri.kunye-etiket-yazdirma',
-        menuCodes: const <String>['labelPage', 'kunyeEtiketYazdirma'],
-        keywords: const <String>[
-          'etiket basim',
-          'kunye etiket',
-          'etiket yazdirma',
-        ],
-        builder: (context) => LabelPrintingPage(
-          key: context.pageKey,
-          repository: labelDocumentsRepository,
-          accessToken: context.accessToken,
-          defaultWarehouseNo: context.user.warehouseNo,
-          userWarehouseName: context.user.warehouseName,
         ),
       ),
       ShellModuleRoute(

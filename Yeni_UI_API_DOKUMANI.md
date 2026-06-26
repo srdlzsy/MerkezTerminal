@@ -3663,6 +3663,639 @@ Firma mal kabul UI akisi:
 - Otomatik iade olustugunda UI e-irsaliye gonderimini kendiliginden tetiklememelidir. Kullanici "Firma iadesi e-irsaliye gonder" aksiyonuna bastiginda `POST /api/iade-islemleri/firma-iadeleri/{seri}/{sira}/e-irsaliye` cagrilir.
 - Bu ekranda plaka, sofor ve TCKN istenmez. Firma mal kabul icin opsiyonel `deliverer` ve `receiver` alanlari teslim eden/teslim alan notu olarak kullanilabilir.
 
+## Duzeltme Islemleri / Mikro Evrak Duzenleme
+
+Bu modul Mikro tarafinda var olan kayitlari kontrollu sekilde duzeltmek icin eklendi. Ilk kapsam:
+
+- `STOK_HAREKETLERI` belgeleri
+- `CARI_HESAP_HAREKETLERI` belgeleri
+- `STOKLAR` stok kartlari
+- `STOK_DEPO_DETAYLARI` depo bazli stok karti ayarlari
+- `STOK_SATIS_FIYAT_LISTELERI` depo bazli stok satis fiyatlari
+
+Menu:
+
+- Module: `DuzeltmeIslemleri`
+- Menu: `MikroEvrakDuzenleme`
+- Route kok: `/api/duzeltme-islemleri/mikro-evrak-duzenleme`
+
+Yetki kodlari:
+
+- `duzeltme-islemleri.mikro-evrak-duzenleme.list`
+- `duzeltme-islemleri.mikro-evrak-duzenleme.detail`
+- `duzeltme-islemleri.mikro-evrak-duzenleme.update`
+
+Genel kurallar:
+
+- Detay endpointleri Mikro read connection uzerinden okur; guncelleme endpointleri Mikro write connection uzerinden yazar.
+- Stok ve cari hareket belgelerinde `documentSerie` ve `documentOrderNo` zorunludur.
+- `documentType`, `movementType`, `movementKind`, `normalReturn` filtreleri opsiyoneldir. Seri-sira birden fazla evrak tipi/cins/iade kombinasyonuna denk gelirse backend `409 Conflict` doner; UI kullaniciya "evrak tipi/cins/iade filtresi ile daraltin" mesaji gostermelidir.
+- Satir guncellemeleri `movementGuid` ile yapilir. UI detay response'undaki `lines[].movementGuid` degerini satir modelinde saklamalidir.
+- Request body'de `null` gelen alanlar degismez. Bos string gonderilirse ilgili metin alani bosaltma istegi olarak islenir.
+- Kayitlarda Mikro audit alanlari guncellenir: `lastup_user`, `lastup_date`, `degisti`.
+- Bu modul delete veya yeni evrak olusturma yapmaz; sadece whitelist icindeki alanlari gunceller.
+- Stok satis fiyati endpoint'i istisna olarak eksik `STOK_SATIS_FIYAT_LISTELERI` kaydini olusturabilir.
+- Satis fiyati kaydi `stockCode + priceListNo + warehouseNo + unitPointer + paymentPlanNo` birlesimiyle bulunur. Kayit varsa guncellenir, yoksa olusturulur.
+- Satis fiyati upsert islemi `STOK_FIYAT_DEGISIKLIKLERI` tablosunda sentetik fiyat degisiklik evraki olusturmaz.
+- `PUT /stok-kartlari/{stockCode}` global stok kartini degistirir ve tum depolari etkileyebilir.
+- Sadece belirli bir depoyu kapatmak/acmak icin `/stok-kartlari/{stockCode}/depolar/{warehouseNo}` endpoint'i kullanilmalidir.
+
+Endpoint ozeti:
+
+| Endpoint | Request kaynagi | Request modeli | Response | Yetki |
+|---|---|---|---|---|
+| `GET /api/duzeltme-islemleri/mikro-evrak-duzenleme/stok-kartlari` | query | `StockCardSearchHttpRequest` | `StockCardListItemDto[]` | `list` |
+| `GET /api/duzeltme-islemleri/mikro-evrak-duzenleme/stok-kartlari/{stockCode}` | path | `stockCode` | `StockCardDetailDto` | `detail` |
+| `PUT /api/duzeltme-islemleri/mikro-evrak-duzenleme/stok-kartlari/{stockCode}` | path + body | `StockCardPatchHttpRequest` | `StockCardUpdateResponse` | `update` |
+| `GET /api/duzeltme-islemleri/mikro-evrak-duzenleme/stok-kartlari/{stockCode}/depolar` | path + query | `warehouseNo?: int` | `StockCardWarehouseSettingsDto[]` | `detail` |
+| `PUT /api/duzeltme-islemleri/mikro-evrak-duzenleme/stok-kartlari/{stockCode}/depolar/{warehouseNo}` | path + body | `StockCardWarehousePatchHttpRequest` | `StockCardWarehouseUpdateResponse` | `update` |
+| `GET /api/duzeltme-islemleri/mikro-evrak-duzenleme/stok-kartlari/{stockCode}/satis-fiyatlari` | path + query | `warehouseNo?: int` | `StockSalesPriceDto[]` | `detail` |
+| `PUT /api/duzeltme-islemleri/mikro-evrak-duzenleme/stok-kartlari/{stockCode}/satis-fiyatlari/{warehouseNo}` | path + body | `StockSalesPriceUpsertHttpRequest` | `StockSalesPriceUpsertResponse` | `update` |
+| `GET /api/duzeltme-islemleri/mikro-evrak-duzenleme/stok-hareketleri` | query | `StockMovementDocumentLookupHttpRequest` | `StockMovementDocumentDto` | `detail` |
+| `PUT /api/duzeltme-islemleri/mikro-evrak-duzenleme/stok-hareketleri` | body | `UpdateStockMovementDocumentHttpRequest` | `StockMovementDocumentUpdateResponse` | `update` |
+| `GET /api/duzeltme-islemleri/mikro-evrak-duzenleme/cari-hareketleri` | query | `CustomerMovementDocumentLookupHttpRequest` | `CustomerMovementDocumentDto` | `detail` |
+| `PUT /api/duzeltme-islemleri/mikro-evrak-duzenleme/cari-hareketleri` | body | `UpdateCustomerMovementDocumentHttpRequest` | `CustomerMovementDocumentUpdateResponse` | `update` |
+
+### Stok Karti Arama
+
+`GET /api/duzeltme-islemleri/mikro-evrak-duzenleme/stok-kartlari?searchText=sut&take=20`
+
+Query:
+
+- `searchText`: opsiyonel, stok kodu/ad/kisa ad icinde arar
+- `includePassive`: varsayilan `false`
+- `take`: varsayilan `50`, maksimum `200`
+
+Response item:
+
+```json
+{
+  "stockCode": "015550",
+  "name": "URUN ADI",
+  "shortName": "URUN",
+  "supplierCode": "120.01.03106",
+  "unit1Name": "AD",
+  "mainGroupCode": "GIDA",
+  "subGroupCode": "SUT",
+  "categoryCode": "",
+  "isPassive": false,
+  "lastUpdatedAt": "2026-06-19T14:30:00"
+}
+```
+
+### Stok Karti Detay
+
+`GET /api/duzeltme-islemleri/mikro-evrak-duzenleme/stok-kartlari/015550`
+
+Response modeli `StockCardDetailDto`:
+
+```json
+{
+  "stockCode": "015550",
+  "name": "URUN ADI",
+  "shortName": "URUN",
+  "foreignName": "",
+  "supplierCode": "120.01.03106",
+  "stockType": 0,
+  "currencyType": 0,
+  "trackingType": 0,
+  "unit1Name": "AD",
+  "unit2Name": "KOLI",
+  "unit3Name": "",
+  "unit4Name": "",
+  "retailTaxPointer": 8,
+  "wholesaleTaxPointer": 8,
+  "categoryCode": "",
+  "mainGroupCode": "GIDA",
+  "subGroupCode": "SUT",
+  "brandCode": "",
+  "sectorCode": "",
+  "rayonCode": "",
+  "manufacturerCode": "",
+  "responsibilityCode": "",
+  "shelfCode": "",
+  "salesStopped": false,
+  "orderStopped": false,
+  "receivingStopped": false,
+  "isPassive": false,
+  "discountDisabled": false,
+  "createdAt": "2026-01-01T09:00:00",
+  "lastUpdatedAt": "2026-06-19T14:30:00"
+}
+```
+
+### Stok Karti Guncelle
+
+`PUT /api/duzeltme-islemleri/mikro-evrak-duzenleme/stok-kartlari/015550`
+
+Body'de sadece degistirilecek alanlar gonderilmelidir:
+
+```json
+{
+  "name": "YENI URUN ADI",
+  "shortName": "YENI AD",
+  "supplierCode": "120.01.03106",
+  "unit1Name": "AD",
+  "retailTaxPointer": 8,
+  "wholesaleTaxPointer": 8,
+  "salesStopped": false,
+  "orderStopped": false,
+  "receivingStopped": false,
+  "isPassive": false
+}
+```
+
+Response:
+
+```json
+{
+  "summary": {
+    "target": "stok-kartlari",
+    "updatedRowCount": 1,
+    "updatedAt": "2026-06-19T15:20:00",
+    "updateUser": 110
+  },
+  "stockCard": {
+    "stockCode": "015550",
+    "name": "YENI URUN ADI"
+  }
+}
+```
+
+### Stok Kartinin Depo Bazli Durumlari
+
+Tum aktif depolar:
+
+`GET /api/duzeltme-islemleri/mikro-evrak-duzenleme/stok-kartlari/015550/depolar`
+
+Yalnizca 150 numarali depo:
+
+`GET /api/duzeltme-islemleri/mikro-evrak-duzenleme/stok-kartlari/015550/depolar?warehouseNo=150`
+
+Response:
+
+```json
+[
+  {
+    "stockCode": "015550",
+    "warehouseNo": 150,
+    "warehouseName": "ORNEK DEPO",
+    "hasWarehouseDetail": true,
+    "hasAnyOverride": true,
+    "globalSalesStopped": false,
+    "globalOrderStopped": false,
+    "globalReceivingStopped": false,
+    "globalIsPassive": false,
+    "globalDiscountDisabled": false,
+    "salesStopped": true,
+    "orderStopped": false,
+    "receivingStopped": false,
+    "isPassive": false,
+    "discountDisabled": false,
+    "lastUpdatedAt": "2026-06-22T14:30:00"
+  }
+]
+```
+
+Alan anlamlari:
+
+- `global*` alanlari `STOKLAR` tablosundaki tum sistemi etkileyen stok karti degerleridir.
+- `salesStopped`, `orderStopped`, `receivingStopped`, `isPassive`, `discountDisabled` alanlari ilgili depoda gecerli nihai degerlerdir.
+- Depo ozel alani doluysa depo degeri, bos ise global stok karti degeri kullanilir.
+- `hasWarehouseDetail`, Mikro `STOK_DEPO_DETAYLARI` kaydinin varligini belirtir.
+- `hasAnyOverride`, bu modulun yonettigi alanlardan en az birinde depo ozel degeri bulundugunu belirtir.
+
+### Stok Kartini Belirli Depoda Guncelle
+
+Ornek: `015550` urununu yalnizca 150 numarali depoda satisa kapat:
+
+`PUT /api/duzeltme-islemleri/mikro-evrak-duzenleme/stok-kartlari/015550/depolar/150`
+
+```json
+{
+  "salesStopped": true
+}
+```
+
+Ayni depoda satis, siparis ve mal kabulun tamamini kapat:
+
+```json
+{
+  "salesStopped": true,
+  "orderStopped": true,
+  "receivingStopped": true
+}
+```
+
+Guncellenebilir alanlar:
+
+- `salesStopped`: `STOK_DEPO_DETAYLARI.sdp_satisdursun`
+- `orderStopped`: `STOK_DEPO_DETAYLARI.sdp_sipdursun`
+- `receivingStopped`: `STOK_DEPO_DETAYLARI.sdp_malkabuldursun`
+- `isPassive`: `STOK_DEPO_DETAYLARI.sdp_Pasif_fl`
+- `discountDisabled`: `STOK_DEPO_DETAYLARI.sdp_IskontoYapilamaz`
+- `resetToGlobal`: yonetilen depo ozel alanlarini temizler ve global stok karti degerlerine geri doner
+
+Kurallar:
+
+- Body'de `null` veya gonderilmeyen alan degismez.
+- Depo detay kaydi yoksa ilk depo ozel guncellemede otomatik olusturulur.
+- Bu islem `STOKLAR` kaydini degistirmez; diger depolar etkilenmez.
+- `resetToGlobal=true` tum depo ozel blok/pasif/iskonto degerlerini temizler.
+- `resetToGlobal=true` ile ayni request'te baska alanlar da gonderilirse once ayarlar sifirlanir, sonra gonderilen yeni degerler uygulanir.
+
+Global ayarlara geri donme:
+
+```json
+{
+  "resetToGlobal": true
+}
+```
+
+Response:
+
+```json
+{
+  "summary": {
+    "target": "stok-kartlari/015550/depolar/150",
+    "updatedRowCount": 1,
+    "updatedAt": "2026-06-22T14:35:00",
+    "updateUser": 110
+  },
+  "warehouseSettings": {
+    "stockCode": "015550",
+    "warehouseNo": 150,
+    "warehouseName": "ORNEK DEPO",
+    "hasWarehouseDetail": true,
+    "hasAnyOverride": true,
+    "globalSalesStopped": false,
+    "globalOrderStopped": false,
+    "globalReceivingStopped": false,
+    "globalIsPassive": false,
+    "globalDiscountDisabled": false,
+    "salesStopped": true,
+    "orderStopped": false,
+    "receivingStopped": false,
+    "isPassive": false,
+    "discountDisabled": false,
+    "lastUpdatedAt": "2026-06-22T14:35:00"
+  }
+}
+```
+
+### Stok Satis Fiyatlarini Getir
+
+Stok kartinin tum aktif depo fiyatlari:
+
+`GET /api/duzeltme-islemleri/mikro-evrak-duzenleme/stok-kartlari/015550/satis-fiyatlari`
+
+Yalnizca 150 numarali depodaki fiyatlari:
+
+`GET /api/duzeltme-islemleri/mikro-evrak-duzenleme/stok-kartlari/015550/satis-fiyatlari?warehouseNo=150`
+
+Response:
+
+```json
+[
+  {
+    "priceGuid": "8dc423d4-4015-4afb-aee5-909e457e2f81",
+    "stockCode": "015550",
+    "priceListNo": 1,
+    "priceListName": "SATIS FIYATI",
+    "warehouseNo": 150,
+    "warehouseName": "ORNEK DEPO",
+    "paymentPlanNo": 0,
+    "unitPointer": 1,
+    "unitName": "AD",
+    "price": 109.5,
+    "currencyType": 0,
+    "changeReason": 4,
+    "createdAt": "2026-06-25T10:20:00",
+    "lastUpdatedAt": "2026-06-25T10:20:00"
+  }
+]
+```
+
+Aktif fiyat kaydi yoksa response bos dizi olur. Stok karti yoksa `404 Not Found` doner.
+
+### Stok Satis Fiyati Olustur veya Guncelle
+
+`PUT /api/duzeltme-islemleri/mikro-evrak-duzenleme/stok-kartlari/015550/satis-fiyatlari/150`
+
+Minimum body:
+
+```json
+{
+  "price": 109.5
+}
+```
+
+Minimum body kullanildiginda varsayilanlar:
+
+- `priceListNo = 1`
+- `paymentPlanNo = 0`
+- `unitPointer = 1`
+- `currencyType = 0`
+- `changeReason = 4`
+
+Tum alanlarla ornek:
+
+```json
+{
+  "priceListNo": 1,
+  "paymentPlanNo": 0,
+  "unitPointer": 1,
+  "price": 109.5,
+  "currencyType": 0,
+  "changeReason": 4
+}
+```
+
+Kurallar:
+
+- Fiyat sifirdan buyuk olmalidir.
+- Stok karti, depo ve aktif fiyat liste tanimi mevcut olmalidir.
+- Kayit `stockCode + priceListNo + warehouseNo + unitPointer + paymentPlanNo` anahtariyla aranir.
+- Kayit varsa yeni fiyat ve audit alanlari guncellenir.
+- Kayit yoksa Mikro standart alanlariyla yeni `STOK_SATIS_FIYAT_LISTELERI` satiri olusturulur.
+- Daha once iptal/pasif edilmis ayni anahtardaki kayit varsa aktif hale getirilerek guncellenir; ayni anahtarda ikinci kayit uretilmez.
+- Upsert transaction isolation seviyesi `Serializable` oldugu icin es zamanli isteklerde mukerrer fiyat kaydi riski engellenir.
+
+Yeni kayit response'u:
+
+```json
+{
+  "summary": {
+    "target": "stok-kartlari/015550/satis-fiyatlari/150",
+    "updatedRowCount": 1,
+    "updatedAt": "2026-06-25T10:20:00",
+    "updateUser": 110
+  },
+  "created": true,
+  "previousPrice": null,
+  "salesPrice": {
+    "stockCode": "015550",
+    "priceListNo": 1,
+    "warehouseNo": 150,
+    "unitPointer": 1,
+    "paymentPlanNo": 0,
+    "price": 109.5,
+    "currencyType": 0
+  }
+}
+```
+
+Mevcut kayit guncellenirse `created=false` olur ve `previousPrice` eski fiyati tasir.
+
+### Stok Hareket Evraki Getir
+
+`GET /api/duzeltme-islemleri/mikro-evrak-duzenleme/stok-hareketleri?documentSerie=F110&documentOrderNo=12&documentType=0&movementKind=4&normalReturn=0&warehouseNo=110`
+
+Query:
+
+- `documentSerie`: zorunlu, Mikro `sth_evrakno_seri`
+- `documentOrderNo`: zorunlu, Mikro `sth_evrakno_sira`
+- `documentType`: opsiyonel, Mikro `sth_evraktip`
+- `movementType`: opsiyonel, Mikro `sth_tip`
+- `movementKind`: opsiyonel, Mikro `sth_cins`
+- `normalReturn`: opsiyonel, Mikro `sth_normal_iade`
+- `warehouseNo`: opsiyonel; `sth_giris_depo_no` veya `sth_cikis_depo_no` eslesmesi arar
+
+Response modeli `StockMovementDocumentDto`:
+
+```json
+{
+  "header": {
+    "documentSerie": "F110",
+    "documentOrderNo": 12,
+    "documentType": 0,
+    "movementTypes": [1],
+    "movementKind": 4,
+    "normalReturn": 0,
+    "movementDate": "2026-04-21T00:00:00",
+    "documentDate": "2026-04-21T00:00:00",
+    "documentNo": "",
+    "customerCode": "",
+    "customerTitle": "",
+    "inputWarehouseNo": 0,
+    "inputWarehouseName": "",
+    "outputWarehouseNo": 110,
+    "outputWarehouseName": "KESTEL 1",
+    "shippingWarehouseNo": 60,
+    "shippingWarehouseName": "NAKLIYE DEPO",
+    "description": "Gun sonu zayiat",
+    "movementGroupCode1": "VARDIYA-1",
+    "movementGroupCode2": "SEF-01",
+    "movementGroupCode3": "",
+    "customerResponsibilityCenter": "",
+    "stockResponsibilityCenter": "",
+    "projectCode": "",
+    "lineCount": 1,
+    "totalQuantity": 2,
+    "totalAmount": 0
+  },
+  "lines": [
+    {
+      "movementGuid": "d7f6a8ec-9c2b-4e1e-bb1c-6da6cb4a5f67",
+      "rowNo": 0,
+      "stockCode": "015792",
+      "stockName": "URUN ADI",
+      "unitPointer": 1,
+      "unitName": "AD",
+      "quantity": 2,
+      "secondaryQuantity": 0,
+      "unitPrice": 0,
+      "amount": 0,
+      "description": "Gun sonu zayiat",
+      "partyCode": "",
+      "lotNo": 0,
+      "projectCode": "",
+      "inputWarehouseNo": 0,
+      "outputWarehouseNo": 110
+    }
+  ]
+}
+```
+
+### Stok Hareket Evraki Guncelle
+
+`PUT /api/duzeltme-islemleri/mikro-evrak-duzenleme/stok-hareketleri`
+
+Body:
+
+```json
+{
+  "lookup": {
+    "documentSerie": "F110",
+    "documentOrderNo": 12,
+    "documentType": 0,
+    "movementKind": 4,
+    "normalReturn": 0,
+    "warehouseNo": 110
+  },
+  "header": {
+    "movementDate": "2026-04-21",
+    "documentDate": "2026-04-21",
+    "documentNo": "DUZ-001",
+    "description": "Duzeltilen aciklama",
+    "shippingWarehouseNo": 60,
+    "movementGroupCode1": "VARDIYA-1",
+    "movementGroupCode2": "SEF-01"
+  },
+  "lines": [
+    {
+      "movementGuid": "d7f6a8ec-9c2b-4e1e-bb1c-6da6cb4a5f67",
+      "rowNo": 0,
+      "stockCode": "015792",
+      "unitPointer": 1,
+      "quantity": 3,
+      "amount": 0,
+      "description": "Satir aciklamasi",
+      "partyCode": "",
+      "lotNo": 0,
+      "projectCode": ""
+    }
+  ]
+}
+```
+
+Guncellenebilir header alanlari:
+
+- `movementDate`, `documentDate`, `documentNo`, `customerCode`
+- `inputWarehouseNo`, `outputWarehouseNo`, `shippingWarehouseNo`
+- `description`, `movementGroupCode1`, `movementGroupCode2`, `movementGroupCode3`
+- `customerResponsibilityCenter`, `stockResponsibilityCenter`, `projectCode`
+
+Guncellenebilir satir alanlari:
+
+- `rowNo`, `stockCode`, `unitPointer`, `quantity`, `secondaryQuantity`, `amount`
+- `discount1..discount6`, `expense1..expense4`, `taxPointer`, `taxAmount`
+- `netWeight`, `grossWeight`, `description`, `partyCode`, `lotNo`, `projectCode`
+- `customerResponsibilityCenter`, `stockResponsibilityCenter`, `inputWarehouseNo`, `outputWarehouseNo`
+
+Response `StockMovementDocumentUpdateResponse` doner; `document` alaninda kaydin guncel hali bulunur.
+
+### Cari Hareket Evraki Getir
+
+`GET /api/duzeltme-islemleri/mikro-evrak-duzenleme/cari-hareketleri?documentSerie=PS110&documentOrderNo=422&documentType=63&movementKind=6&normalReturn=0&customerCode=120.01.03106`
+
+Query:
+
+- `documentSerie`: zorunlu, Mikro `cha_evrakno_seri`
+- `documentOrderNo`: zorunlu, Mikro `cha_evrakno_sira`
+- `documentType`: opsiyonel, Mikro `cha_evrak_tip`
+- `movementType`: opsiyonel, Mikro `cha_tip`
+- `movementKind`: opsiyonel, Mikro `cha_cinsi`
+- `normalReturn`: opsiyonel, Mikro `cha_normal_Iade`
+- `customerCode`: opsiyonel; `cha_kod` veya `cha_ciro_cari_kodu` eslesmesi arar
+
+Response modeli `CustomerMovementDocumentDto`:
+
+```json
+{
+  "header": {
+    "documentSerie": "PS110",
+    "documentOrderNo": 422,
+    "documentType": 63,
+    "movementTypes": [0],
+    "movementKind": 6,
+    "normalReturn": 0,
+    "movementDate": "2026-04-21T00:00:00",
+    "documentDate": "2026-04-21T00:00:00",
+    "documentNo": "PS1102026000000422",
+    "customerCode": "120.01.03106",
+    "turnoverCustomerCode": "120.01.03106",
+    "customerTitle": "CARI UNVAN",
+    "description": "Aciklama",
+    "sellerCode": "",
+    "projectCode": "",
+    "responsibilityCenter": "",
+    "lineCount": 1,
+    "totalQuantity": 1,
+    "totalAmount": 100,
+    "totalSubAmount": 100
+  },
+  "lines": [
+    {
+      "movementGuid": "9f3db1de-50ef-48a0-a617-7cf5634c4f3a",
+      "rowNo": 0,
+      "customerCode": "120.01.03106",
+      "turnoverCustomerCode": "120.01.03106",
+      "customerTitle": "CARI UNVAN",
+      "movementType": 0,
+      "movementKind": 6,
+      "normalReturn": 0,
+      "quantity": 1,
+      "amount": 100,
+      "subAmount": 100,
+      "dueDay": 0,
+      "description": "Aciklama",
+      "sellerCode": "",
+      "projectCode": "",
+      "responsibilityCenter": ""
+    }
+  ]
+}
+```
+
+### Cari Hareket Evraki Guncelle
+
+`PUT /api/duzeltme-islemleri/mikro-evrak-duzenleme/cari-hareketleri`
+
+Body:
+
+```json
+{
+  "lookup": {
+    "documentSerie": "PS110",
+    "documentOrderNo": 422,
+    "documentType": 63,
+    "movementKind": 6,
+    "normalReturn": 0,
+    "customerCode": "120.01.03106"
+  },
+  "header": {
+    "movementDate": "2026-04-21",
+    "documentDate": "2026-04-21",
+    "documentNo": "PS1102026000000422",
+    "description": "Duzeltilen cari aciklama",
+    "customerCode": "120.01.03106",
+    "turnoverCustomerCode": "120.01.03106"
+  },
+  "lines": [
+    {
+      "movementGuid": "9f3db1de-50ef-48a0-a617-7cf5634c4f3a",
+      "amount": 125,
+      "subAmount": 125,
+      "quantity": 1,
+      "description": "Satir aciklamasi"
+    }
+  ]
+}
+```
+
+Guncellenebilir header alanlari:
+
+- `movementDate`, `documentDate`, `documentNo`
+- `customerCode`, `turnoverCustomerCode`
+- `description`, `sellerCode`, `projectCode`, `responsibilityCenter`
+
+Guncellenebilir satir alanlari:
+
+- `rowNo`, `customerCode`, `turnoverCustomerCode`
+- `quantity`, `amount`, `subAmount`, `dueDay`
+- `discount1..discount6`, `expense1..expense4`, `tax1..tax5`
+- `description`, `sellerCode`, `projectCode`, `responsibilityCenter`
+
+UI is akisi onerisi:
+
+1. Kullanici evrak tipini secer: Stok Hareketi, Cari Hareketi veya Stok Karti.
+2. Stok/cari hareketinde seri-sira girilir; evrak tipi/cins/iade alanlari varsa query'e eklenir.
+3. Detay response'u geldikten sonra UI `movementGuid` alanlarini satir gridinde gizli anahtar olarak saklar.
+4. Kullanici sadece degisen alanlari gonderir; degismeyen alanlar `null` veya body disinda birakilir.
+5. `409 Conflict` gelirse filtreleri daraltma mesaji gosterilir.
+6. Basarili `PUT` response'u guncel belge/kart halini dondurdugu icin UI gridini bu response ile yeniler.
+
 ## Stok Islemleri
 
 ### Zayiat Fisleri Liste
@@ -4252,27 +4885,35 @@ Response:
 ]
 ```
 
-### Kunye Etiket Yazdirma Detayli Liste
+### Manav Kunye Etiket Yazdirma
 
-Belirli bir depo ve tarih icin kunye etiket kayitlarini stok kodu, stok adi, satis fiyati ve urun birimi bilgileriyle getirir. Mevcut `GET /api/kasa-islemleri/kunye-etiket-yazdirma` endpointi degismeden kalir; bu endpoint zengin response gereken ekranlar icindir.
+Belirli bir depo icin manav kunye etiket kayitlarini stok kodu, stok adi, satis fiyati ve urun birimi bilgileriyle getirir. `dateToGet` verilirse secilen gun icindeki kayitlardan, verilmezse son 1 ay icindeki kayitlardan her stok icin son kunye kaydi secilir. Bu ekran Kasa Islemleri altindaki `ManavKunyeEtiketYazdirma` menusu icindir.
 
-`GET /api/kasa-islemleri/kunye-etiket-yazdirma/detayli-etiketler?warehouseNo=110&dateToGet=2026-04-24`
+`GET /api/kasa-islemleri/manav-kunye-etiket-yazdirma/detayli-etiketler?warehouseNo=110&dateToGet=2026-04-24`
+
+Varsayilan son 1 ay sorgusu:
+
+`GET /api/kasa-islemleri/manav-kunye-etiket-yazdirma/detayli-etiketler?warehouseNo=110`
 
 Yetki:
 
-- `kasa-islemleri.kunye-etiket-yazdirma.list`
+- yok; token gerekmez, herkese aciktir
 
 Query:
 
 - `warehouseNo` zorunlu, 1 veya daha buyuk depo numarasi
-- `dateToGet` zorunlu, sorgulanacak sevk tarihi
+- `dateToGet` opsiyonel, verilirse sorgulanacak sevk tarihi
 
 Not:
 
 - response modeli `KunyeLabelTagDto` doner
-- veri `[Furpa].[dbo].[VwKunyeNet]`, `[KUNYENET].[dbo].[FaturaIslem]`, `[KUNYENET].[dbo].[MuhStok]` ve Mikro `dbo.STOKLAR` joinlerinden okunur
+- veri Mikro `dbo.STOKLAR`, `[KUNYENET].[dbo].[MuhStok]`, `[KUNYENET].[dbo].[FaturaIslem]` ve `[Furpa].[dbo].[VwKunyeNet]` joinlerinden okunur
+- `FaturaIslem.StokId` bazinda `ROW_NUMBER() OVER (PARTITION BY StokId ORDER BY ShippingDate DESC)` kullanilarak her stok icin son kunye kaydi secilir
+- sadece Mikro `STOKLAR.sto_model_kodu` degeri `10`, `11`, `12` olan stoklar doner
 - `salesPrice` alani Mikro `dbo.fn_StokSatisFiyati(stockCode, '1', branchNo, '1')` fonksiyonundan gelir
-- tarih filtresi secilen gunun tamamini kapsar
+- `dateToGet` verilirse tarih filtresi secilen gunun tamamini kapsar; verilmezse `ShippingDate` son 1 ay ile sinirlanir
+- liste `ShippingDate desc` siralanir
+- menu permission kodu `kasa-islemleri.manav-kunye-etiket-yazdirma.list`; endpoint anonim oldugu icin API cagrisi token istemez
 
 Response:
 
@@ -4440,7 +5081,7 @@ Onemli not:
 
 - `warehouseNo` body icinden alinmaz; JWT icindeki kullanici deposu kullanilir
 - backend `STOK_HAREKETLERI` tablosuna `sth_evraktip = 6`, `sth_normal_iade = 0`, `sth_cins = 3` olacak sekilde kayit yazar
-- `movementType` alaninin karsiligi satir bazinda `sth_tip` kolonuna yazilir
+- `movementType` alaninin karsiligi satir bazinda `sth_tip` kolonuna yazilir; `2` gonderilirse backend Mikro uyumu icin satiri `1` cikis ve `0` giris olarak iki stok hareketine acar
 - eski yapiya uygun olarak `sth_giris_depo_no` ve `sth_cikis_depo_no` ayni kullanici deposuna yazilir
 - eski yapiya uygun olarak `sth_fiyat_liste_no = -1` ve `sth_teslim_tarihi = 1900-01-01` degerleri kullanilir
 - `documentSerie` backend tarafinda `F{loginKullaniciDepoNo}` olarak uretilir
@@ -4480,9 +5121,9 @@ Response:
   "documentDate": "2026-04-21T00:00:00",
   "documentNo": "",
   "warehouseNo": 110,
-  "movementTypes": [2],
-  "lineCount": 1,
-  "totalQuantity": 3,
+  "movementTypes": [0, 1],
+  "lineCount": 2,
+  "totalQuantity": 6,
   "totalAmount": 0,
   "writeConnectionName": "testMikroConnection"
 }
@@ -6356,10 +6997,12 @@ Kasa Islemleri / Etiket Belgeleri
 Kasa Islemleri / Kunye Etiket Yazdirma
   -> tarih bazli kunye etiket kayitlari icin GET /api/kasa-islemleri/kunye-etiket-yazdirma?dateToGet=...
   -> liste satirlarini LabelTagDto ile goster
-  -> depo ve tarih bazli zengin response icin GET /api/kasa-islemleri/kunye-etiket-yazdirma/detayli-etiketler?warehouseNo=...&dateToGet=...
+
+Kasa Islemleri / Manav Kunye Etiket Yazdirma
+  -> depo bazli zengin response icin GET /api/kasa-islemleri/manav-kunye-etiket-yazdirma/detayli-etiketler?warehouseNo=...
+  -> dateToGet opsiyoneldir; verilirse o gun icinden, verilmezse son 1 ay icinden son kunye kaydi secilir
   -> zengin liste satirlarini KunyeLabelTagDto ile goster
-  -> detayli-etiketler endpointi token istemez
-  -> yetki kodu kasa-islemleri.kunye-etiket-yazdirma.list
+  -> endpoint token istemez
 
 Stok Islemleri / Virmanlar
   -> liste filtreleri: tarih araligi, opsiyonel depo
@@ -6449,7 +7092,7 @@ Kasa Islemleri / Kasa Hareket Aktarimi
 
 ## Fatura Islemleri
 
-Bu bolum 2026-05-06 tarihinde kaynak kod uzerinden yeniden dogrulanmistir.
+Bu bolum 2026-06-19 tarihinde kaynak kod uzerinden yeniden dogrulanmistir.
 
 Kodla dogrulanan ana dosyalar:
 
@@ -6461,6 +7104,7 @@ Kodla dogrulanan ana dosyalar:
 - `src/FurpaMerkezApi.Infrastructure/Modules/FaturaIslemleri/FaturaGonderimi/InvoiceSendingService.cs`
 - `src/FurpaMerkezApi.Infrastructure/Services/EInvoiceDocumentRenderer.cs`
 - `src/FurpaMerkezApi.WebApi/Controllers/Modules/FaturaIslemleri/FaturaGonderimi/FaturaGonderimiController.cs`
+- `src/FurpaMerkezApi.WebApi/Controllers/Modules/EntegrasyonIslemleri/UyumsoftEFatura/UyumsoftEFaturaController.cs`
 
 Bu bolumde daha once karisiklik yaratan nokta, is kurali ile mevcut HTTP endpointlerinin ayni paragrafta ic ice anlatilmasiydi. 2026-05-06 itibariyla iki akis da API tarafinda ayri ayri temsil edilmektedir:
 
@@ -6476,36 +7120,36 @@ Bu bolumde daha once karisiklik yaratan nokta, is kurali ile mevcut HTTP endpoin
   - HTML detay/render gerektiginde Uyumsoft `GetInboxInvoice` ile XML alip `XML -> XSLT -> HTML` render eder
   - gercek print/isaretleme ayrimini koruyup `isPrinted` durumunu ayri endpoint ile gunceller
 
-UI tarafinda artik ayri iki operasyon mantigi vardir:
+UI tarafinda karistirilmamasi gereken net kural:
 
-- `gonderim = Mikro bekleyen faturayi sec, onizle, Uyumsoft'a yolla`
-- `goruntuleme = mevcut/gelen belgeyi ac, render et, yazdirildi durumunu yonet`
+- `fatura-gonderimi`, giden faturalarin ekranidir. Satir `isSent = false` veya `isSent = true` olsa da UI sadece lokal HTML onizleme acar.
+- `fatura-gonderimi` listesinde Uyumsoft resmi PDF acma aksiyonu yoktur; Mikro kaynakta Uyumsoft teknik `invoiceId` kalici saklanmadigi icin gonderilmis giden faturalar Uyumsoft PDF endpointinden cozumlenmez.
+- `fatura-goruntuleme`, gelen/inbox faturalari ve cache listesidir. Giden fatura PDF aksiyonunun ana yolu degildir.
 
-`fatura-gonderimi` tarafinda ayrica ileri seviye operasyonlar da acik tutulmustur:
-
-- Uyumsoft outbox arama
-- outbox belgesi render etme
-- eldeki herhangi bir XML'i manuel preview etme
+`fatura-gonderimi` tarafinda eldeki herhangi bir XML'i manuel preview etme endpoint'i ayrica acik tutulmustur.
 
 ### UI Icin Kisa Karar Agaci
 
 Mevcut API'yi kullanarak ilerleyecekseniz akisi su sekilde okuyun:
 
-1. Mikro'daki bekleyen faturalari listelemek icin `GET /api/fatura-islemleri/fatura-gonderimi`
-2. Kullanici bir bekleyen fatura satirina tiklayip onizleme acmak istediginde:
+1. Giden faturalari listelemek icin `GET /api/fatura-islemleri/fatura-gonderimi`
+2. Liste varsayilan olarak `isSent=0` ile gonderilmemisleri getirir. `isSent=1` gonderilmis giden faturalar icindir.
+3. Kullanici herhangi bir giden fatura satirinda lokal onizleme acmak istediginde:
    - default davranis yeterliyse `GET /api/fatura-islemleri/fatura-gonderimi/{documentSerie}/{documentOrderNo}?scenario=...`
    - XSLT secimini elle kontrol etmek istiyorsaniz `POST /api/fatura-islemleri/fatura-gonderimi/{documentSerie}/{documentOrderNo}/render`
-3. Secilen bekleyen faturalari canli Uyumsoft'a gondermek icin `POST /api/fatura-islemleri/fatura-gonderimi/send`
-4. Yeni eklendi: secilen tarih araligini Uyumsoft'tan cache tabloya almak icin `POST /api/fatura-islemleri/fatura-goruntuleme/senkronize`
-5. Lokal cache/DB'deki gonderilmis belge listesini doldurmak icin `GET /api/fatura-islemleri/fatura-goruntuleme`
-6. Gonderilmis belgeyi resmi PDF olarak acmak icin `GET /api/fatura-islemleri/fatura-goruntuleme/{documentId}` veya `/pdf` alias'i kullanilir.
-7. HTML render/onizleme gerekiyorsa:
+   - UI response icindeki yalnizca `document.htmlContent` alanini tek bir iframe/webview icinde render eder
+   - UI ayrica QR/karekod uretmez; karekodun tek kaynagi secilen XSLT'nin urettigi HTML'dir
+4. Giden fatura satirinda resmi PDF butonu gosterilmez; Uyumsoft outbox/PDF endpoint'i cagrilmaz.
+5. Secilen gonderilmemis faturalarin gonderime hazir olup olmadigini canli gonderim yapmadan kontrol etmek icin `POST /api/fatura-islemleri/fatura-gonderimi/validate`
+6. Kontrol sonucu uygunsa secilen gonderilmemis faturalari canli Uyumsoft'a gondermek icin `POST /api/fatura-islemleri/fatura-gonderimi/send`
+7. Gelen/inbox faturalari icin secilen tarih araligini Uyumsoft'tan cache tabloya almak gerekirse `POST /api/fatura-islemleri/fatura-goruntuleme/senkronize`
+8. Gelen/inbox cache listesini okumak icin `GET /api/fatura-islemleri/fatura-goruntuleme`
+9. Gelen/inbox resmi PDF icin `GET /api/fatura-islemleri/fatura-goruntuleme/{documentId}` veya `/pdf` alias'i kullanilir.
+10. Gelen/inbox HTML render/onizleme gerekiyorsa:
    - default davranis yeterliyse `GET /api/fatura-islemleri/fatura-goruntuleme/{documentId}/detail`
    - XSLT secimini elle kontrol etmek istiyorsaniz `POST /api/fatura-islemleri/fatura-goruntuleme/{documentId}/render`
-8. Kullanici PDF/HTML'i gercekten yazdirdiktan veya acikca onay verdikten sonra `PATCH /api/fatura-islemleri/fatura-goruntuleme/{documentId}/printed`
-9. Uyumsoft outbox tarafindaki giden faturayi sorgulamak gerekiyorsa `POST /api/fatura-islemleri/fatura-gonderimi/outbox/search`
-10. Uyumsoft outbox'taki tekil belgeyi gostermek gerekiyorsa `GET /api/fatura-islemleri/fatura-gonderimi/outbox/{invoiceId}`
-11. UI lokal veya baska bir kaynaktan XML uretip sadece goruntusunu gormek istiyorsa `POST /api/fatura-islemleri/fatura-gonderimi/preview`
+11. Gelen/inbox PDF/HTML gercekten yazdirildiktan veya acikca onaylandiktan sonra `PATCH /api/fatura-islemleri/fatura-goruntuleme/{documentId}/printed`
+12. UI lokal veya baska bir kaynaktan XML uretip sadece goruntusunu gormek istiyorsa `POST /api/fatura-islemleri/fatura-gonderimi/preview`
 
 Temel route'lar:
 
@@ -6580,8 +7224,8 @@ Response `InvoiceViewingListResponse`:
   "pageSize": 50,
   "items": [
     {
-      "documentId": "DOC-001",
-      "invoiceId": "INV-2026-0001",
+      "documentId": "9d6e0f84-3d3c-4c58-a1b0-4c0f8f4fd999",
+      "invoiceId": "FRM2026600075612",
       "customerTitle": "ORNEK MUSTERI",
       "customerTcknVkn": "1234567890",
       "createDate": "2026-05-01T09:15:00",
@@ -6607,8 +7251,8 @@ Liste davranisi:
 - legacy `GetInvoicesAsync(isProcessed, isPrinted)` akisindaki gibi tarih + islenme + yazdirilma filtresi uygulanir
 - tarih filtresi `invoiceDate` veya fallback olarak `createDate` alanina uygulanir
 - tarih araligi gun seviyesindedir; bitis tarihi SQL tarafinda `+1 gun exclusive` mantigi ile uygulanir
-- `documentId` bu listedeki operasyon anahtaridir; UI icinde row key olarak bunun saklanmasi gerekir
-- `invoiceId` ekranda gostereceginiz fatura numarasidir; detay ve update bununla acilmaz
+- `documentId` bu listedeki Uyumsoft teknik UUID/operasyon anahtaridir; UI row key, PDF, detay, render ve printed isteklerinde bunu aynen kullanir
+- `invoiceId` kullaniciya gosterilecek resmi fatura numarasidir; route parametresi olarak kullanilmaz
 - `ProcessedState` ve `PrintedState` legacy WinForms'taki gibi tri-state filtre davranisi saglar
 - `customerTitle` response'a buyuk harfe cevrilmis gelir
 - DB tarafindaki kolon `isStandart` olsa da API response'unda alan `isStandard` olarak gelir
@@ -6682,12 +7326,38 @@ Response:
 
 - `UyumsoftOperationResponseDto`
 - Backend Uyumsoft e-fatura `GetInboxInvoicePdf` operasyonunu `invoiceId = documentId` parametresiyle cagirir.
-- PDF payload Uyumsoft response yapisina gore `scalarValue`, `nodes` veya `rawXml` icinde gelir; UI mevcut entegrasyon endpointindeki `GetInboxInvoicePdf` cevabi gibi yorumlamalidir.
+- PDF payload Uyumsoft response yapisina gore `scalarValue`, `nodes` veya `responsePayloadJson` icinde gelir; UI mevcut entegrasyon endpointindeki `GetInboxInvoicePdf` cevabi gibi yorumlamalidir.
+
+Direkt PDF binary almak isteyen UI ekranlarinda liste satirindaki `documentId` teknik UUID olarak kullanilir:
+
+`GET /api/entegrasyon-islemleri/uyumsoft/e-fatura/inbox/invoices/{documentId}/pdf-file`
+
+Response:
+
+- `Content-Type: application/pdf`
+- `Content-Disposition: inline`
+- JSON beklenmemelidir; UI yeni sekme, iframe veya blob URL ile dogrudan PDF gosterebilir.
+
+UI uygulama kurali:
+
+- `row.documentId` -> teknik UUID -> route'a gonderilir
+- `row.invoiceId` -> resmi fatura numarasi -> ekranda gosterilir
+- UI `row.invoiceId` degerini PDF URL'sine yazmaz
+- UI fatura numarasindan teknik UUID/PDF route'u uretmeye calismaz
+- `row.documentId` bos ise PDF butonu pasif olur ve veri/entegrasyon hatasi gosterilir
 
 Bu endpoint ne icin kullanilmali:
 
 - kullanici liste satirina tiklayip faturanin resmi PDF'ini acmak istediginde
 - fatura goruntuleme ekraninda varsayilan belge acma aksiyonu icin
+
+Frontend ornegi:
+
+```ts
+const pdfPath =
+  `/api/entegrasyon-islemleri/uyumsoft/e-fatura/inbox/invoices/` +
+  `${encodeURIComponent(row.documentId)}/pdf-file`;
+```
 
 Bu endpoint ne yapmaz:
 
@@ -6697,6 +7367,13 @@ Bu endpoint ne yapmaz:
 ### Fatura Goruntuleme HTML Detay
 
 `GET /api/fatura-islemleri/fatura-goruntuleme/{documentId}/detail`
+
+Ornek:
+
+```http
+GET /api/fatura-islemleri/fatura-goruntuleme/78644214-ce3b-4976-9fc3-d5de0d7cfe7e/detail
+Authorization: Bearer {accessToken}
+```
 
 Yetki:
 
@@ -6726,7 +7403,9 @@ Detay davranisi:
 - sonra legacy semantige uygun olarak ayni satirin `documentId` degerini Uyumsoft `GetInboxInvoice` cagrisinda lookup parametresi olarak kullanir
 - bu akis eski `FaturaGoruntuleyici` formunun `documentId` bazli acilisina karsilik gelir
 - UI HTML donusumunu kendi icinde yapmaz; backend'den gelen `htmlContent` dogrudan gosterilir
-- `xmlContent` debug, inceleme veya raw XML sekmesi icin kullanilabilir
+- backend HTML'e yeni bir QR/SVG eklemez; karekod sadece Uyumsoft belgesindeki embedded XSLT veya fallback XSLT tarafindan uretilir
+- UI `document.htmlContent` alanini yalniz bir kez render eder ve ayrica QR kutuphanesi calistirmaz
+- `xmlContent` debug, inceleme veya kaynak belge sekmesi icin kullanilabilir
 - `summary.invoiceId` ve `document.invoiceId` kullanicinin gordugu fatura numarasidir; detay acma anahtari yine `documentId` olarak kalir
 - bu endpoint legacy'deki cift-tik onizlemesine karsilik gelir; tek basina `isPrinted` update etmez
 - response icindeki `document.source` bu modulde `inbox` olur; outbox/onizleme akislari `fatura-gonderimi` altinda ayridir
@@ -6847,6 +7526,7 @@ Komut davranisi:
 - embedded tasarim bulunursa `usedEmbeddedXslt = true` olur
 - embedded tasarim bulunamazsa `Assets/Xslt/efatura.xslt` veya `Assets/Xslt/earsiv.xslt` fallback olarak kullanilir
 - `profile = Auto` ise belge icinden `ProfileID` / `ScenarioId` / `DocumentTypeCode` okunarak `EFatura` veya `EArsiv` secilir
+- renderer XSLT sonucuna ikinci bir QR eklemez; `fatura-goruntuleme/detail`, `fatura-goruntuleme/render`, `fatura-gonderimi/detail`, `fatura-gonderimi/render` ve XML preview ayni ortak kurala tabidir
 - yani legacy'deki "custom varsa onu kullan, yoksa genel fallback" mantigi korunmustur; fark su ki fallback artik backend asset dosyalariyla uygulanir
 
 ### Fatura Goruntuleme WinUI Parity Notlari
@@ -6898,15 +7578,42 @@ Response `InvoiceSendingListResponse`:
       "targetAlias": "urn:mail:ornek@firma.com",
       "invoiceProfileId": "TICARIFATURA",
       "invoiceTypeCode": "SATIS",
-      "scenario": "EFatura",
+      "scenario": 0,
       "lineExtensionTotal": 1000.00,
       "taxTotal": 180.00,
       "chargeTotal": 0.00,
       "payableTotal": 1180.00,
       "shipmentDocumentNo": "IRS-001",
       "shipmentDocumentDate": "2026-05-05T00:00:00",
+      "returnInvoiceNo": "",
+      "returnInvoiceDate": null,
       "warehouseName": "MERKEZ DEPO",
       "description": "Aciklama"
+    },
+    {
+      "documentSerie": "FRP",
+      "documentOrderNo": 21645,
+      "invoiceId": "FRP2026000021645",
+      "documentDate": "2026-06-18T00:00:00",
+      "sentDocumentNo": "FRM2026600076468",
+      "isSent": true,
+      "customerCode": "120002",
+      "customerTitle": "GONDERILMIS MUSTERI",
+      "customerTcknVkn": "1234567890",
+      "targetAlias": "urn:mail:gonderilmis@firma.com",
+      "invoiceProfileId": "TICARIFATURA",
+      "invoiceTypeCode": "SATIS",
+      "scenario": 0,
+      "lineExtensionTotal": 1000.00,
+      "taxTotal": 180.00,
+      "chargeTotal": 0.00,
+      "payableTotal": 1180.00,
+      "shipmentDocumentNo": "",
+      "shipmentDocumentDate": null,
+      "returnInvoiceNo": "",
+      "returnInvoiceDate": null,
+      "warehouseName": "MERKEZ DEPO",
+      "description": ""
     }
   ]
 }
@@ -6917,17 +7624,294 @@ Davranis:
 - kaynak veri Mikro `CARI_HESAP_HAREKETLERI`, `CARI_HESAPLAR`, `CARI_HESAP_ADRESLERI` ve `Furpa.dbo.FaturaSeries` ustunden okunur
 - `Scenario = EFatura` icin yalniz e-fatura mukellefi ve e-fatura serisine bagli kayitlar gelir
 - `Scenario = EArsiv` icin yalniz e-arsiv tarafina dusen kayitlar gelir
+- `InvoiceSendingScenario` JSON response/body degeri sayisaldir: `0 = EFatura`, `1 = EArsiv`; query string tarafinda `EFatura` / `EArsiv` adlari da kullanilabilir
 - `isSent/SentState = 0` ise `cha_belge_no` bos olan kayitlar, `1` ise dolu olan kayitlar, `-1` ise tumu doner
 - `invoiceId` legacy WinForms mantigina uygun sekilde `seri + yil + 9 haneli sira` olarak uretilir
+- `invoiceId`, UBL icindeki `cbc:ID` degeridir; UI bunu PDF URL'si uretmek icin kullanmaz
+- `sentDocumentNo` Mikro `cha_belge_no` alanidir; gonderim sonrasi kullaniciya gosterilen resmi belge numarasidir
+- `isSent = false` ise fatura henuz Uyumsoft'a gonderilmemistir; UI lokal onizleme acar
+- `isSent = true` ise fatura Uyumsoft'a gonderilmis giden faturadir; UI yine lokal onizleme acar
+- giden fatura listesinde resmi Uyumsoft PDF alani/URL'si donmez; mevcut Mikro kaynaginda Uyumsoft teknik `invoiceId` kalici tutulmadigi icin fatura numarasindan PDF cozumleme yapilmaz
+- UI giden fatura ekraninda PDF butonu gostermez ve `invoiceId` / `sentDocumentNo` degerlerinden Uyumsoft PDF URL'si uretmez
 - `invoiceProfileId` alani:
   - e-fatura icin `TICARIFATURA` veya `TEMELFATURA`
   - e-arsiv icin `EARSIVFATURA`
 - `invoiceTypeCode` alani:
   - `IADE`, `ISTISNA`, `OZELMATRAH`, `SATIS`
+- `serviceDocumentId`, sadece `send` response'unda anlik donen Uyumsoft teknik id'dir; Mikro liste kaynagi bunu kalici saklamadigi icin liste ekraninda bu alana bagimli UI yazilmamalidir
+- iade faturalarinda Mikro `EBELGE_EVRAK_HAREKETLERI` kaydi `ebh_related_uid = CARI_HESAP_HAREKETLERI.cha_Guid` ile baglanir
+- `ebh_iade_fat_no1` ve `ebh_iade_fat_tarihi1` degerleri response'ta `returnInvoiceNo` / `returnInvoiceDate` olarak doner
+- iade referansi doluysa UBL'ye `cac:BillingReference/cac:InvoiceDocumentReference` eklenir; XSLT'deki `Iadeye Konu Olan Faturalar` tablosu bu alandan dolar
+
+Onizleme ve PDF butonlari icin kopyalanabilir UI kurali:
+
+```ts
+function canPreviewSendingInvoice(summary: InvoiceSendingListItemDto | null | undefined): boolean {
+  return Boolean(summary?.documentSerie && summary.documentOrderNo);
+}
+```
+
+Onizleme butonu `isSent` degerine bakmaz; giden faturanin HTML'i Mikro verisinden lokal uretilir. Bu ekranda PDF butonu yoktur.
+
+#### Onizleme icin tek kaynak kurali
+
+Gonderilmemis ve gonderilmis giden faturalar ayni lokal onizleme endpoint'ini kullanir:
+
+```http
+GET /api/fatura-islemleri/fatura-gonderimi/FRP26/21791?scenario=EFatura
+Authorization: Bearer {accessToken}
+```
+
+Bu endpoint:
+
+- Uyumsoft'a fatura gondermez
+- Uyumsoft outbox PDF servisini cagirmez
+- Mikro verisinden UBL XML'i yeniden uretir
+- secilen XSLT ile HTML olusturur
+- HTML'e backend tarafinda ek bir QR/SVG eklemez
+- JSON tipinde `InvoiceSendingDetailDto` doner; response dogrudan PDF veya `text/html` degildir
+
+UI'nin kullanacagi alan:
+
+```ts
+const detail = await api.get<InvoiceSendingDetailDto>(
+  `/api/fatura-islemleri/fatura-gonderimi/${encodeURIComponent(invoice.documentSerie)}/${invoice.documentOrderNo}`,
+  { params: { scenario: invoice.scenario } }
+);
+
+previewFrame.srcdoc = detail.document.htmlContent;
+```
+
+Karekod icin kesin UI kurali:
+
+- `document.htmlContent` sadece bir kez DOM'a yazilmalidir
+- ayni HTML hem ana container'a hem iframe'e birlikte yazilmamalidir
+- UI `QRCode`, `qrcode.js`, canvas veya baska bir kutuphane ile ikinci karekod uretmemelidir
+- `document.xmlContent` ekrana HTML olarak render edilmemelidir
+- XSLT karekodu JavaScript ile olusturuyorsa iframe/webview script politikasi buna gore ayarlanmalidir
+
+Backend karekod kurali:
+
+- ortak renderer QRCoder veya baska bir kutuphane ile yeni karekod uretmez
+- XSLT sonucuna statik SVG, canvas veya image eklenmez
+- karekodun tek kaynagi embedded XSLT veya fallback XSLT'dir
+- bu kural hem `fatura-gonderimi` hem `fatura-goruntuleme` HTML detay/render endpointlerinde gecerlidir
+
+UI kontrolu:
+
+```ts
+const html = detail.document.htmlContent;
+const qrContainerCount = (html.match(/\bid\s*=\s*["']qrcode["']/gi) ?? []).length;
+
+console.log({ qrContainerCount });
+// Fallback e-fatura XSLT icin beklenen container sayisi: 1
+```
+
+### Fatura Gonderimi Iade Referansi
+
+#### UI uygulama kurali
+
+Iade referansi endpointleri cagirilirken hedef faturanin kimligi sadece secilen liste/detail satirindan alinmalidir:
+
+```ts
+const documentSerie = invoice.documentSerie;
+const documentOrderNo = invoice.documentOrderNo;
+const scenario = invoice.scenario;
+```
+
+Asagidaki alanlar kullanilmamalidir:
+
+- `invoiceId` icinden seri veya sira cikarmak
+- ekranda gorunen resmi fatura numarasini parcalamak
+- aktif sekmeye bakarak `scenario` degerini yeniden tahmin etmek
+- `EFatura` veya `EArsiv` degerini sabit yazmak
+
+Ornek liste satiri:
+
+```json
+{
+  "documentSerie": "FRP",
+  "documentOrderNo": 21763,
+  "invoiceId": "FRP2026000021763",
+  "invoiceTypeCode": "IADE",
+  "scenario": 0,
+  "returnInvoiceNo": "",
+  "returnInvoiceDate": null
+}
+```
+
+Bu satir icin dogru aday listesi cagrisi:
+
+```http
+GET /api/fatura-islemleri/fatura-gonderimi/FRP/21763/return-reference-candidates?scenario=EFatura
+```
+
+Dogru kaydetme cagrisi:
+
+```http
+PUT /api/fatura-islemleri/fatura-gonderimi/FRP/21763/return-reference
+Content-Type: application/json
+```
+
+```json
+{
+  "scenario": 0,
+  "sourceDocumentSerie": "ABC",
+  "sourceDocumentOrderNo": 123,
+  "useFallbackWhenNotSelected": false
+}
+```
+
+Yanlis ornek:
+
+```http
+PUT /api/fatura-islemleri/fatura-gonderimi/FRP26/21763/return-reference
+```
+
+```json
+{
+  "scenario": 1
+}
+```
+
+Bu ornekte iki hata vardir:
+
+1. `FRP26`, `invoiceId` degerinden turetilmistir; route'ta response'taki gercek `documentSerie` olan `FRP` kullanilmalidir.
+2. Fatura satiri `scenario = 0 (EFatura)` iken body'de `1 (EArsiv)` gonderilmistir. Backend bu durumda yalnizca e-Arsiv kuyrugunda arama yapar ve e-Fatura kaydini bulamaz.
+
+#### Kullanici akisi
+
+1. Liste/detail response'ta `invoiceTypeCode = IADE` ise UI her zaman `Iadeye konu fatura sec/degistir` aksiyonu gostermelidir.
+2. `returnInvoiceNo` bos ise gonderimden once referans secimi zorunludur.
+3. `returnInvoiceNo` doluysa mevcut referans gosterilir; kullanici bunun gecici sorgu/fallback ile doldugunu dusunuyorsa yine aday listesinden dogru faturayi secip guncelleyebilir.
+4. UI adaylari secilen satirin `documentSerie`, `documentOrderNo` ve `scenario` degerleriyle ceker.
+5. Kullanici dogru faturayi secerse referans kaydedilir.
+6. Kullanici secemiyorsa gecici olarak fallback kullanilabilir; fallback ayni carinin son normal faturasini secer.
+7. PUT body'deki `scenario`, aday listesi cagrisi ve secilen fatura satirindaki `scenario` ile ayni olmalidir.
+8. Referans kaydedildikten sonra normal `send` endpoint'i cagrilir.
+
+#### Route parametreleri
+
+- `return-reference` ve `return-reference-candidates` route'larinda path parametresi olarak liste/detail response'undaki `documentSerie` ve `documentOrderNo` aynen kullanilmalidir.
+- UI `invoiceId` veya fatura numarasindan seri/sira parse etmeye calismamalidir. Ornek `invoiceId = FRP2026000021626` ise path'e `FRP26/21626` gibi turetilmis deger gondermek yerine response'taki gercek `documentSerie` kullanilmalidir.
+- Backend geriye uyumluluk icin `ABC26` gibi 3 harf + yil eki gorunen seriler bulunamazsa `ABC` ile de arama dener; yine de UI icin dogru kaynak response alanlaridir.
+
+#### Scenario kurali
+
+- Aday listesi GET sorgusundaki `scenario`, secilen satirin `scenario` alanidir.
+- Kaydetme PUT body'deki `scenario`, secilen satirin `scenario` alanidir.
+- UI `0` degerini bos/false saymamalidir; `0 = EFatura`, `1 = EArsiv` olarak normalize etmelidir.
+- `EFatura` kaydi `EArsiv` ile; `EArsiv` kaydi `EFatura` ile sorgulanmamalidir.
+- Ayni seri/sira diger senaryo filtresinde bulunmadigi icin yanlis scenario genellikle `404 Pending invoice was not found` hatasi uretir.
+- UI state icinde sekme degisse bile acik modal, secildigi fatura satirinin kendi `scenario` degerini korumalidir.
+
+Ornek UI endpoint olusturma:
+
+```ts
+const basePath =
+  `/api/fatura-islemleri/fatura-gonderimi/` +
+  `${encodeURIComponent(invoice.documentSerie)}/` +
+  `${invoice.documentOrderNo}`;
+
+const candidatesUrl =
+  `${basePath}/return-reference-candidates` +
+  `?scenario=${encodeURIComponent(invoice.scenario)}`;
+
+const updateBody = {
+  scenario: invoice.scenario,
+  sourceDocumentSerie: selectedInvoice?.sourceDocumentSerie ?? null,
+  sourceDocumentOrderNo: selectedInvoice?.sourceDocumentOrderNo ?? null,
+  useFallbackWhenNotSelected: selectedInvoice == null
+};
+```
+
+#### Aday listesini getirme
+
+`GET /api/fatura-islemleri/fatura-gonderimi/{documentSerie}/{documentOrderNo}/return-reference-candidates?scenario=EFatura`
+
+Response `InvoiceReturnReferenceCandidatesResponse`:
+
+```json
+{
+  "invoice": {
+    "documentSerie": "FRP",
+    "documentOrderNo": 21763,
+    "invoiceId": "FRP2026000021763",
+    "invoiceTypeCode": "IADE",
+    "scenario": 0,
+    "returnInvoiceNo": "",
+    "returnInvoiceDate": null
+  },
+  "currentReference": null,
+  "fallbackReference": {
+    "sourceDocumentSerie": "ABC",
+    "sourceDocumentOrderNo": 123,
+    "invoiceNo": "ABC2026000000123",
+    "invoiceDate": "2026-06-01T00:00:00",
+    "isFallbackCandidate": true,
+    "isGeneratedInvoiceNo": false
+  },
+  "candidates": []
+}
+```
+
+#### Referansi kaydetme
+
+`PUT /api/fatura-islemleri/fatura-gonderimi/{documentSerie}/{documentOrderNo}/return-reference`
+
+Secilen faturayi kaydetmek icin:
+
+```json
+{
+  "scenario": 0,
+  "sourceDocumentSerie": "ABC",
+  "sourceDocumentOrderNo": 123,
+  "useFallbackWhenNotSelected": false
+}
+```
+
+Gecici fallback'i kaydetmek icin:
+
+```json
+{
+  "scenario": 0,
+  "useFallbackWhenNotSelected": true
+}
+```
+
+#### 404 hata kontrol listesi
+
+`Pending invoice was not found` cevabi alininca UI su alanlari loglayip karsilastirmalidir:
+
+- secilen satirdaki `documentSerie`
+- route'a yazilan `documentSerie`
+- secilen satirdaki `documentOrderNo`
+- route'a yazilan `documentOrderNo`
+- secilen satirdaki `scenario`
+- GET query veya PUT body ile gonderilen `scenario`
+
+Ornek hata:
+
+```text
+Pending invoice was not found for FRP26/21763.
+Scenario=EArsiv.
+Tried series: FRP26, FRP.
+```
+
+Bu mesaj backend'in hem `FRP26` hem `FRP` serisini denedigini, fakat aramayi `EArsiv` filtresiyle yaptigini gosterir. Secilen satir `EFatura` ise once frontend body'deki `scenario` duzeltilmelidir.
+
+Not: Kayit `EBELGE_EVRAK_HAREKETLERI.ebh_related_uid = iade faturasi cha_Guid` uzerinden update/insert edilir. `send` sirasinda iade referansi halen bos ise backend fallback'i otomatik deneyip kaydeder; fallback bulunamazsa gonderim durdurulur.
 
 ### Fatura Gonderimi Detay
 
 `GET /api/fatura-islemleri/fatura-gonderimi/{documentSerie}/{documentOrderNo}?scenario=EFatura`
+
+Calisan ornek:
+
+```http
+GET /api/fatura-islemleri/fatura-gonderimi/FRP26/21791?scenario=EFatura
+Authorization: Bearer {accessToken}
+```
 
 Yetki:
 
@@ -6938,12 +7922,43 @@ Response `InvoiceSendingDetailDto`:
 - `summary`: secilen bekleyen fatura satirinin ozeti
 - `document`: UBL XML'den render edilmis `InvoiceRenderedDocumentDto`
 
+Ornek response iskeleti:
+
+```json
+{
+  "summary": {
+    "documentSerie": "FRP26",
+    "documentOrderNo": 21791,
+    "invoiceId": "FRP2026000021791",
+    "isSent": true,
+    "scenario": 0
+  },
+  "document": {
+    "source": "pending-send",
+    "invoiceId": "FRP2026000021791",
+    "profile": 1,
+    "appliedXsltName": "efatura.xslt",
+    "xsltSource": "embedded-attachment",
+    "usedEmbeddedXslt": true,
+    "xmlContent": "<Invoice>...</Invoice>",
+    "htmlContent": "<html>...</html>"
+  }
+}
+```
+
+UI sadece `document.htmlContent` alanini onizleme yuzeyine verir. `xmlContent`, hata ayiklama veya ham UBL goruntuleme ihtiyaci disinda son kullanici onizlemesinde kullanilmaz.
+
 Davranis:
 
 - secilen kayit Mikro'dan okunur
 - belge tipi stok faturasi ise satirlar `STOK_HAREKETLERI` uzerinden, hizmet/demirbas ise ilgili hizmet sorgusu uzerinden toplanir
 - backend UBL invoice uretir
 - render icin once embedded XSLT denenir; yoksa `Assets/Xslt/efatura.xslt` veya `Assets/Xslt/earsiv.xslt` fallback olur
+- e-fatura XSLT'si firma logosunu ve GIB karekod alanlarini icerir
+- API, XSLT sonucu olusan HTML'e ikinci bir QR/SVG eklemez
+- karekod icerigi ve gorseli tamamen secilen embedded veya fallback XSLT'nin sorumlulugundadir
+- satir ve `Mal Hizmet Toplam Tutari` alanlari iskonto oncesi brut tutari gosterir; ilk `AllowanceCharge/BaseAmount` satir brutunun kaynagidir
+- `Toplam Iskonto` UBL `AllowanceTotalAmount`, `Iskonto Sonrasi Vergi Haric Tutar` ise `TaxExclusiveAmount` alanindan gosterilir
 - bu endpoint sadece onizleme/render icindir; Uyumsoft'a gonderim yapmaz
 
 ### Fatura Gonderimi Render
@@ -6958,7 +7973,7 @@ Request:
 
 ```json
 {
-  "scenario": "EFatura",
+  "scenario": 0,
   "profile": "Auto",
   "preferEmbeddedXslt": true,
   "fallbackToGeneral": true
@@ -6969,6 +7984,58 @@ Davranis:
 
 - `GET detail` ile ayni `InvoiceSendingDetailDto` tipini doner
 - farki, XSLT secimini body ile override edebilmenizdir
+- response yine JSON'dur; UI `document.htmlContent` alanini tek kez render eder
+- QR davranisi `GET detail` ile aynidir: backend yeni QR uretmez, UI da ikinci QR uretmez
+
+### Fatura Gonderimi Validate
+
+`POST /api/fatura-islemleri/fatura-gonderimi/validate`
+
+Yetki:
+
+- `fatura-islemleri.fatura-gonderimi.create`
+
+Request `send` endpoint'i ile aynidir.
+
+Davranis:
+
+- secilen belgeler tekillestirilir
+- Mikro verisinden UBL XML uretilir
+- iade referansi gerekiyorsa fallback sadece simule edilir, Mikro'ya yazilmaz
+- UBL-TR is kurali ve XSD dogrulamalari calistirilir
+- Uyumsoft'a fatura gonderilmez
+- Mikro `cha_belge_no`, `cha_kilitli` veya baska alanlar guncellenmez
+
+Response `ValidateInvoiceDocumentsResponse`:
+
+```json
+{
+  "scenario": 0,
+  "requestedCount": 2,
+  "validCount": 1,
+  "invalidCount": 1,
+  "items": [
+    {
+      "documentSerie": "FAT",
+      "documentOrderNo": 12345,
+      "invoiceId": "FAT2026000012345",
+      "customerCode": "120001",
+      "customerTitle": "ORNEK MUSTERI",
+      "isValid": true,
+      "message": "Gonderim oncesi kontrol basarili."
+    },
+    {
+      "documentSerie": "FAT",
+      "documentOrderNo": 12346,
+      "invoiceId": "FAT2026000012346",
+      "customerCode": "",
+      "customerTitle": "",
+      "isValid": false,
+      "message": "Target customer alias/e-mail is required."
+    }
+  ]
+}
+```
 
 ### Fatura Gonderimi Send
 
@@ -6982,7 +8049,7 @@ Request:
 
 ```json
 {
-  "scenario": "EFatura",
+  "scenario": 0,
   "documents": [
     {
       "documentSerie": "FAT",
@@ -7000,7 +8067,7 @@ Response `SendInvoiceDocumentsResponse`:
 
 ```json
 {
-  "scenario": "EFatura",
+  "scenario": 0,
   "requestedCount": 2,
   "succeededCount": 1,
   "failedCount": 1,
@@ -7034,9 +8101,11 @@ Response `SendInvoiceDocumentsResponse`:
 Davranis:
 
 - secimler duplicate ise backend tekilleştirir
-- gonderim `batch SOAP array` yerine fatura bazli tek tek yapilir; boylece basarili/hatali kayitlar response icinde ayri ayri gorulur
+- gonderim Uyumsoft WCF client ile fatura bazli tek tek yapilir; boylece basarili/hatali kayitlar response icinde ayri ayri gorulur
 - her belge icin UBL invoice uretilir ve Uyumsoft `SendInvoice` operasyonu cagrilir
 - basarili donuste `serviceDocumentNumber` Mikro `cha_belge_no` alanina yazilir
+- `serviceDocumentId` Uyumsoft'un teknik id'sidir ve send response'unda bilgilendirme icin doner; mevcut Mikro tabloya yazilmadigi icin sonraki liste response'unda garanti edilmez
+- sonraki liste ekraninda UI yine lokal onizleme kullanir; `serviceDocumentId` kalici saklanmadigi icin gonderilmis giden fatura PDF'i Uyumsoft'tan acilmaz
 - ayni anda `cha_kilitli = true`, `cha_degisti = true`, `cha_lastup_user = 39` ve `cha_lastup_date = now` set edilir
 - zaten gonderilmis kayitlar response'ta `isSucceeded = false` ile doner; genel request tamamen patlatilmaz
 
@@ -7053,60 +8122,8 @@ UBL / gonderim kurallari:
   - `OzelMatrahKodu dolu -> OZELMATRAH`
   - aksi halde `SATIS`
 - stok satirlarinda iskonto alanlari `AllowanceCharge` olarak satir bazinda XML'e yazilir
+- `AllowanceCharge/MultiplierFactorNumeric` ondalik katsayi olarak yazilir; ornegin `%3 = 0.03`, `%5 = 0.05`. XSLT ekranda bu degeri `100` ile carparak yuzdeyi gosterir.
 - e-arsiv gonderiminde `EArchiveInvoiceInfo DeliveryType="Electronic"` kullanilir
-
-### Fatura Gonderimi Outbox Arama
-
-`POST /api/fatura-islemleri/fatura-gonderimi/outbox/search`
-
-Yetki:
-
-- `fatura-islemleri.fatura-gonderimi.list`
-
-Request body:
-
-- `UyumsoftOperationHttpRequest`
-
-Davranis:
-
-- bu endpoint Uyumsoft `GetOutboxInvoices` operasyonunu API icinden cagirir
-- body icindeki `payloadXml` ve `parameters` dogrudan Uyumsoft sorgusuna aktarilir
-- response normalize edilmis bir liste DTO'su degil, Uyumsoft'un genel response modelidir
-- yani UI bu endpointte "backend business listesi" degil, "Uyumsoft sorgu cevabi" ile calisir
-
-Response:
-
-- `UyumsoftOperationResponseDto`
-
-### Fatura Gonderimi Outbox Belge Render
-
-`GET /api/fatura-islemleri/fatura-gonderimi/outbox/{invoiceId}?profile=Auto&preferEmbeddedXslt=true`
-
-Yetki:
-
-- `fatura-islemleri.fatura-gonderimi.detail`
-
-Query:
-
-```text
-profile             opsiyonel; Auto, EFatura, EArsiv
-preferEmbeddedXslt  opsiyonel; default true
-```
-
-Response `InvoiceRenderedDocumentDto`:
-
-```json
-{
-  "source": "outbox",
-  "invoiceId": "INV-2026-0001",
-  "profile": "EFatura",
-  "appliedXsltName": "efatura.xslt",
-  "xsltSource": "asset-efatura",
-  "usedEmbeddedXslt": false,
-  "xmlContent": "<Invoice>...</Invoice>",
-  "htmlContent": "<html>...</html>"
-}
-```
 
 ### Fatura Gonderimi XML Preview
 
@@ -7139,7 +8156,7 @@ Bu endpoint ne zaman kullanilmali:
 
 Fatura modulu notlari:
 
-- is kurali tarafinda sade ozet sunudur: `fatura-gonderimi` bekleyen faturayi secip Uyumsoft'a yollama akisidir, `fatura-goruntuleme` ise Uyumsoft tarafindaki giden faturayi acma/yazdirma akisidir
+- is kurali tarafinda sade ozet sunudur: `fatura-gonderimi` giden faturayi lokal onizleme ve bekleyen kaydi Uyumsoft'a yollama akisidir, `fatura-goruntuleme` ise Uyumsoft gelen/inbox faturasini acma/yazdirma akisidir
 - bu repoda `fatura-gonderimi` icin artik dogrudan pending list, detay/render ve send endpointleri vardir
 - `fatura-goruntuleme` tarafi artik `uyumsoft_inbox_invoices` cache tablosundan liste alir; varsayilan acista Uyumsoft `GetInboxInvoicePdf` ile PDF datasini, HTML detayda `GetInboxInvoice` ile render datasini alir
 - yeni eklendi: `POST /api/fatura-islemleri/fatura-goruntuleme/senkronize` ile secilen tarih araligi manuel olarak Uyumsoft'tan cache'e alinabilir
@@ -7148,6 +8165,7 @@ Fatura modulu notlari:
 - `fatura-gonderimi` detail/send akisinda invoice XML Mikro verisinden backend tarafinda yeniden uretilir; UI ham XML kurmak zorunda degildir
 - `fatura-gonderimi` send akisinda basarili sonuclarda Mikro `cha_belge_no` geri yazilir ve kayit kilitlenir
 - render sirasinda once embedded XSLT denenir; yoksa WebApi icindeki `Assets/Xslt/efatura.xslt` veya `Assets/Xslt/earsiv.xslt` fallback olarak kullanilir
+- ortak renderer artik ek karekod uretmez; fatura-gonderimi ve fatura-goruntuleme HTML'inde karekodun tek kaynagi secilen XSLT'dir
 - `fatura-goruntuleme` PDF/detail lookup anahtari `documentId`'dir; `invoiceId` ise kullaniciya gosterilen numaradir
 
 ## UI Tasarim Onerisi
@@ -7337,6 +8355,24 @@ Operasyon modulu notlari:
 
 Bu modul, eski `Furpa.WorkerService` akisini yeni API icinde worker + manuel endpoint ayrimi ile yonetmek icin eklendi. UI tarafinda bu ekran "entegrasyon gorevi sec, preview al, dry-run yap veya outbox'a at, sonra job durumunu izle" mantigiyla kurgulanmalidir.
 
+Sonuc odakli kullanim icin onerilen ana yollar:
+
+- Urun master: `live/products/preview` ile kontrol et, secili urun icin `live/products/{productCode}/dispatch`, toplu secim icin `live/products/dispatch` kullan. Job/outbox akisini ikincil/teknik arac olarak goster.
+- Mikro -> AXATA evrak kurtarma: once `manual/tasks/{taskCode}/documents/candidates`, sonra `preview`, son olarak gercek gonderim icin `dispatch` kullan. `execute/Outbox` AXATA'ya gondermez, sadece dosya hazirlar.
+- AXATA -> Mikro C01 sevk: once `live/axata/outbound-deliveries/c01/preview`, uygun kayit varsa `import` kullan. Import ekraninda `acknowledge` secimi kullaniciya acik gosterilmelidir.
+- C02/C03/C4 kuyruklari: sadece `outbound-deliveries/preview` ile goruntule. Bu profiller icin otomatik Mikro yazma aksiyonu sunma.
+- Manuel body/import ekranlari: yalnizca operasyon AXATA body bilgisini elle sagladiginda kullanilacak yardimci araclar olarak konumlandir.
+
+AXATA ekranlari icin genel sadelik ilkesi:
+
+- UI ana hedefi "Mikro ve AXATA arasindaki durumu goster, uygun aksiyonu oner, kullanici onayi ile islemi tamamla" olmalidir.
+- Her ekran once is sonucunu gostermelidir: bekleyen kayit, hatali kayit, gonderilebilir kayit, aktarildi/aktarilmadi durumu.
+- Teknik kavramlar (`job`, `outbox`, `scheduler`, `fetch profile`, servis operasyon adi, raw payload) ana ekranda baskin olmamalidir; gerekirse "Gelismis/teknik detay" bolumunde katlanabilir sekilde gosterilmelidir.
+- Kullaniciya ayni is icin birden fazla benzer buton sunma. Ana aksiyonlar `Onizle`, `Gonder`, `Mikro'ya Isle`, `Kabul Et`, `Tekrar Dene` gibi sonuc odakli olmalidir.
+- Veri yazan aksiyonlar her zaman acikca ayristirilmalidir: AXATA'ya yazar, Mikro'ya yazar, sadece kontrol eder, sadece dosya hazirlar.
+- Manuel islemler kurtarma ve operasyon destegi icindir; normal akis yerine gecen ana yol gibi sunulmamalidir.
+- Liste ve fark ekranlari karar vermeye yardim etmelidir; kullanici ham payload veya servis alanlari icinde kaybolmadan hangi kayit icin hangi aksiyonun onerildigini gormelidir.
+
 Temel route:
 
 - `api/integrations/axata-sync`
@@ -7375,11 +8411,22 @@ Mevcut endpointler:
   - eski worker parity icin planlanan AXATA fetch/import profillerini listeler
   - her profil icin bugunku fallback route ve implementasyon durumu gorulebilir
   - response `AxataSynchronizationFetchProfilesOverviewDto`
+- `GET /api/integrations/axata-sync/live/products/preview?productCode=URUN001&take=20`
+  - Mikro aktif stok, tum barkod ve birimlerini AXATA `addSKUMaster` paketinde onizler; veri yazmaz
+  - response `AxataProductSynchronizationPreviewDto`
+- `POST /api/integrations/axata-sync/live/products/dispatch`
+  - `productCodes` bos ise `take` kadar aktif urunu, dolu ise secili urunleri 100'luk paketlerle AXATA `addSKUMaster` operasyonuna gonderir
+  - response `AxataProductSynchronizationExecuteDto`
+- `POST /api/integrations/axata-sync/live/products/{productCode}/dispatch`
+  - tek Mikro urununu master, tum barkodlari ve birimleriyle AXATA'ya canli gonderir
+  - response `AxataProductSynchronizationExecuteDto`
 - `GET /api/integrations/axata-sync/live/audit/overview?startDate=2026-06-08&endDate=2026-06-08&warehouseNo=50&take=50`
   - eski worker calisirken Mikro ve AXATA arasindaki farklari kontrol eder; veri yazmaz
   - Mikro -> AXATA siparis tarafinda `ssip_special1` worker basari bayragini raporlar
+  - `ssip_special1=1` oldugu halde belge genelinde Mikro sevk linki olmayan siparisleri `STOK_HAREKETLERI_EK.sth_subesip_uid` uzerinden yakalar; kismi linkli belgeleri ayri fark listesine alir
   - AXATA -> Mikro sevk tarafinda `getOutBoundDeliveryListAsync` ile `C01/C02/C03/C4`, `Status=0` kuyrugunu okur
   - C01 icin Mikro siparis satiri ve sevk fisi linkini de kontrol eder
+  - response icindeki `operations` UI kontrol kulesi kartlari icin hazir aksiyon/route bilgisi tasir
   - response `AxataIntegrationAuditDto`
 - `GET /api/integrations/axata-sync/live/axata/outbound-deliveries/preview?movementType=C02&take=20`
   - AXATA `AxataServicePool.svc/getOutBoundDeliveryListAsync` uzerinden secili `MovementType` ve `Status=0` kuyrugunu canli okur
@@ -7387,6 +8434,12 @@ Mevcut endpointler:
   - Mikro'ya veri yazmaz ve AXATA ack/status guncellemez
   - C02/C03/C4 icin UI'nin kuyruk kontrol ekraninda kullanacagi guvenli preview endpoint'idir
   - response `AxataOutboundDeliveryQueuePreviewDto`
+- `GET /api/integrations/axata-sync/live/axata/outbound-deliveries/by-date?date=2026-06-19`
+  - AXATA `ENT006` tablosundaki sevk basliklarini secilen tarihe gore listeler
+  - tarih filtresi `ENT006.S06ITAR = yyyyMMdd` seklinde uygulanir
+  - `ENT007` satirlari teslimat numarasina gore ozetlenir; satir sayisi ve toplam miktar response'a eklenir
+  - Mikro'ya veya AXATA'ya veri yazmaz
+  - response `AxataOutboundDeliveriesByDateDto`
 - `GET /api/integrations/axata-sync/tasks/{taskCode}/preview?warehouseNo=1&take=10`
   - secili task icin canli veriden preview payload dondurur
   - response `AxataSynchronizationPreviewDto`
@@ -7424,13 +8477,13 @@ Mevcut endpointler:
   - response `AxataSynchronizationManualDocumentBatchDto`
   - `ContinueOnError = true` ise hatali evraklar `Failures` icine yazilir, diger evraklar devam eder
 - `POST /api/integrations/axata-sync/manual/tasks/{taskCode}/documents/dispatch`
-  - secilen tek evraki eski AXATA worker kontratina uygun SOAP envelope ile canli gonderir
+  - secilen tek evraki eski AXATA worker kontratina uygun WCF client ile canli gonderir
   - response `AxataSynchronizationManualDispatchDto`
   - su an `issued-warehouse-order-sync` ve `company-receiving-sync` icin tanimlidir
   - `issued-warehouse-order-sync` worker parity icin `C01` hareket kodu ile `addOutboundOrder*` operasyonunu kullanir
   - `company-receiving-sync` worker parity icin `G01` hareket kodu ile `addInboundOrder*` operasyonunu kullanir
 - `POST /api/integrations/axata-sync/manual/tasks/{taskCode}/documents/dispatch-batch`
-  - secilen birden fazla evraki canli SOAP dispatch ile toplu gonderir
+  - secilen birden fazla evraki canli WCF dispatch ile toplu gonderir
   - response `AxataSynchronizationManualDispatchBatchDto`
   - `ContinueOnError = true` ise red alan veya hata veren evraklar `Failures` icine yazilir
 - `GET /api/integrations/axata-sync/live/axata/outbound-deliveries/c01/preview?take=20`
@@ -7440,6 +8493,17 @@ Mevcut endpointler:
 - `POST /api/integrations/axata-sync/live/axata/outbound-deliveries/c01/import`
   - AXATA C01 bekleyen teslimatlarini Mikro depolar arasi sevk fisine cevirir
   - Mikro fis ve `STOK_HAREKETLERI_EK` linkleri basarili yazildiktan sonra AXATA `AxataServicePoolEXT.svc/updIntegrationTableAsync` ile `ENT006.S06STAT=1` yapar
+  - response `AxataOutboundDeliveryImportExecuteDto`
+- `GET /api/integrations/axata-sync/live/axata/outbound-deliveries/c01/documents/{documentSerie}/{documentOrderNo}/preview?status=1`
+  - `sentWarehouseOrdersMissingMikroShipments` listesindeki tek belge icin AXATA'dan `OrderNumber=seri.sira`, `MovementType=C01` teslimat detayini arar
+  - `status` bos verilirse once `0`, sonra `1` denenir
+  - Mikro'ya veri yazmaz; satir, depo, kalan miktar ve link durumunu kontrol eder
+  - response `AxataOutboundDeliveryImportPreviewDto`
+- `POST /api/integrations/axata-sync/live/axata/outbound-deliveries/c01/documents/{documentSerie}/{documentOrderNo}/import`
+  - AXATA'da teslimati kesilmis ama Mikro sevk linki eksik C01 belgeyi Mikro depolar arasi sevk fisine cevirir
+  - AXATA satirlari Mikro siparis satirlariyla guvenli eslesmezse veya AXATA miktari Mikro kalan siparis miktarini asarsa veri yazmaz
+  - Guvenli eslesme sirasi: `S07KALN + S07SKOD`, 1-bazli satir no farki, son olarak tekil stok + kalan miktar eslesmesi
+  - body `AxataOutboundDeliveryDocumentImportExecuteHttpRequest`
   - response `AxataOutboundDeliveryImportExecuteDto`
 - `POST /api/integrations/axata-sync/manual/axata/outbound-deliveries/inter-warehouse-shipments`
   - AXATA outbound delivery verisini AXATA-native body ile Mikro depolar arasi sevke cevirir
@@ -7491,14 +8555,17 @@ UI icin endpoint davranis rehberi:
 | Genel Durum | `GET /api/integrations/axata-sync` | Task listesini, aktif/pasif durumlari, worker/scheduler bilgisini ve son job'lari getirir | Hayir | Sayfa acilisinda cagir |
 | Genel Durum | `GET /api/integrations/axata-sync/health` | Mikro SQL, Furpa SQL, AXATA Main ve EXT endpoint erisimini kontrol eder | Hayir | "Baglanti testi" veya otomatik durum karti |
 | Profil Katalogu | `GET /api/integrations/axata-sync/fetch-profiles` | AXATA servislerinden hangi profillerin okunabilecegini ve backendde hangi seviyede desteklendigini listeler | Hayir | UI butonlarini capability'ye gore ac/kapat |
-| Fark Analizi | `GET /api/integrations/axata-sync/live/audit/overview` | Mikro siparis bayragi ile AXATA pending sevk kuyrugunu birlikte kontrol eder | Hayir | "Kontrol et" butonu |
+| Fark Analizi | `GET /api/integrations/axata-sync/live/audit/overview` | Mikro kaynakli siparis gonderimini, AXATA kaynakli sevk donusunu, pending/iptal AXATA sevklerini ve Mikro link durumunu birlikte kontrol eder | Hayir | "Kontrol et" butonu |
 | AXATA Kuyruk | `GET /api/integrations/axata-sync/live/axata/outbound-deliveries/preview` | C01/C02/C03/C4 pending outbound delivery kuyrugunu canli okur | Hayir | "AXATA kuyrugunu goster" butonu |
+| AXATA Sevk Tarihi | `GET /api/integrations/axata-sync/live/axata/outbound-deliveries/by-date` | AXATA `ENT006.S06ITAR` tarihine gore sevk basliklarini ve `ENT007` satir ozetini listeler | Hayir | "Tarihe gore sevkleri getir" |
 | C01 Import | `GET /api/integrations/axata-sync/live/axata/outbound-deliveries/c01/preview` | C01 pending teslimatlari Mikro siparis satirlariyla eslestirir | Hayir | "C01 import onizle" butonu |
 | C01 Import | `POST /api/integrations/axata-sync/live/axata/outbound-deliveries/c01/import` | Uygun C01 teslimatini Mikro depolar arasi sevk fisine cevirir; istenirse AXATA ack atar | Evet | "C01'i Mikro'ya isle" butonu |
+| C01 Rescue | `GET /api/integrations/axata-sync/live/axata/outbound-deliveries/c01/documents/{serie}/{sira}/preview` | AXATA'da C01 sevki olusmus ama belge genelinde Mikro sevk linki olmayan tek belgeyi AXATA'dan belge bazinda arar | Hayir | "Eksik sevki onizle" |
+| C01 Rescue | `POST /api/integrations/axata-sync/live/axata/outbound-deliveries/c01/documents/{serie}/{sira}/import` | AXATA teslimat detayi bulunur ve Mikro siparisiyle eslesirse eksik Mikro sevkini olusturur | Evet | "Eksik sevki Mikro'ya dusur" |
 | Mikro -> AXATA Manuel | `GET /manual/tasks/{taskCode}/documents/candidates` | Manuel kurtarma icin Mikro evrak adaylarini listeler | Hayir | "Evraklari getir" |
 | Mikro -> AXATA Manuel | `POST /manual/tasks/{taskCode}/documents/preview` | Secili Mikro evrakindan AXATA payload preview uretir | Hayir | "Payload onizle" |
 | Mikro -> AXATA Manuel | `POST /manual/tasks/{taskCode}/documents/execute` | Secili evrak icin `DryRun` veya `Outbox` calistirir | Outbox modunda dosya yazar | "Outbox'a hazirla" |
-| Mikro -> AXATA Manuel | `POST /manual/tasks/{taskCode}/documents/dispatch` | Secili evraki AXATA Main servise canli SOAP ile gonderir | AXATA'ya yazar | "AXATA'ya gonder" |
+| Mikro -> AXATA Manuel | `POST /manual/tasks/{taskCode}/documents/dispatch` | Secili evraki AXATA Main servise WCF client ile gonderir | AXATA'ya yazar | "AXATA'ya gonder" |
 | AXATA Body Manuel | `POST /manual/axata/outbound-deliveries/inter-warehouse-shipments` | Hazir AXATA outbound delivery body bilgisinden Mikro sevk fisi olusturur | Evet | "Body'den sevk olustur" |
 | AXATA Body Manuel | `POST /manual/axata/inbound-atf/company-receivings` | Hazir AXATA inbound ATF body bilgisinden Mikro firma mal kabul olusturur | Evet | "ATF'den mal kabul olustur" |
 | Serbest Incoming | `POST /manual/incoming/company-receivings` | Serbest body ile Mikro firma mal kabul olusturur | Evet | "Manuel mal kabul olustur" |
@@ -7515,7 +8582,10 @@ UI'da asil karistirilmamasi gereken farklar:
 | `dispatch` | Mikro evrakini AXATA Main servisine canli gonderir | AXATA tarafina yazar |
 | `live/audit/overview` | Mikro ve AXATA durumunu karsilastirir | Mudahale yapmaz |
 | `outbound-deliveries/preview` | AXATA C01/C02/C03/C4 pending kuyrugunu okur | Mikro'ya yazmaz, ack atmaz |
+| `outbound-deliveries/by-date` | AXATA `ENT006.S06ITAR` tarihine gore sevkleri listeler | Mikro'ya yazmaz, ack atmaz; pending filtrelemez |
 | `c01/import` | AXATA C01 teslimatini Mikro sevke cevirir | Mikro'ya yazar, `acknowledge=true` ise AXATA EXT status gunceller |
+| `c01/documents/{serie}/{sira}/preview` | C01 teslimatini AXATA'da belge no ile arar, status verilmezse `0` sonra `1` dener | Veri yazmaz |
+| `c01/documents/{serie}/{sira}/import` | AXATA'da C01 sevki olusmus ama belge genelinde Mikro sevk linki olmayan belgeyi Mikro'ya dusurur | Mikro'ya yazar, `acknowledge=true` ise AXATA EXT status gunceller |
 | `manual/axata/*` | AXATA verisi body olarak UI/operasyon tarafindan saglanir | AXATA'dan canli fetch yapmaz |
 | `manual/incoming/*` | Mikro'ya manuel belge yazar | AXATA status guncellemez |
 
@@ -7524,11 +8594,11 @@ Task bazli UI buton kurali:
 | Task/profil | Liste | Preview | Outbox execute | Live dispatch | Live queue preview | Live import/ack |
 |---|---|---|---|---|---|---|
 | `firm-master-sync` | Yok | Var | Var | Yok | Yok | Yok |
-| `product-master-sync` | Yok | Var | Var | Yok | Yok | Yok |
+| `product-master-sync` | Yok | Var | Var | Var (`Live`) | Yok | Yok |
 | `issued-warehouse-order-sync` | Var | Var | Var | Var | Yok | Yok |
 | `company-receiving-sync` | Var | Var | Var | Var | Yok | Yok |
 | `inventory-count-sync` | Var | Var | Var | Yok | Yok | Yok |
-| `C01 outbound delivery` | AXATA kuyrugu | Var | Yok | Yok | Var | Var |
+| `C01 outbound delivery` | AXATA kuyrugu + belge bazli rescue | Var | Yok | Yok | Var | Var |
 | `C02 outbound delivery` | AXATA kuyrugu | Kuyruk preview | Yok | Yok | Var | Yok |
 | `C03 outbound delivery` | AXATA kuyrugu | Kuyruk preview | Yok | Yok | Var | Yok |
 | `C4 outbound delivery` | AXATA kuyrugu | Kuyruk preview | Yok | Yok | Var | Yok |
@@ -7540,11 +8610,32 @@ Ekranda gosterilecek durum alanlari:
 | Response alani | Nerede gelir | UI yorumu |
 |---|---|---|
 | `isInSync` | audit overview | Tum kontrol basliklari temizse true |
+| `workflowSummary.mikroOrderDocumentCount` | audit overview | Secilen tarihte Mikro'ya dusen ve akisin baslangic evrenini olusturan siparis sayisi |
+| `workflowSummary.axataOrderDocumentCount` | audit overview | Mikro siparis numarasi ile AXATA `ENT000/ENT001` tarafinda gercekten bulunan siparis sayisi |
+| `workflowSummary.axataShipmentDocumentCount` | audit overview | Secilen Mikro siparislerine bagli tum AXATA C01 SEV belge sayisi; sevk tarihi farkli gun olabilir |
+| `workflowSummary.partiallyShippedDocumentCount` | audit overview | Toplam AXATA SEV miktari Mikro siparis miktarindan dusuk olan siparis sayisi |
+| `workflowSummary.fullyShippedDocumentCount` | audit overview | Toplam AXATA SEV miktari Mikro siparis miktarina esit olan siparis sayisi |
+| `workflowSummary.mikroLinkedShipmentDocumentCount` | audit overview | En az bir Mikro sevk hareketi siparis satirina baglanmis siparis sayisi |
+| `workflowSummary.fullySynchronizedDocumentCount` | audit overview | AXATA siparisi, toplam SEV ve Mikro siparis baglantisi miktar olarak tamamlanan siparis sayisi |
+| `workflowSummary.manualActionRequiredDocumentCount` | audit overview | Evrak bazinda manuel aksiyon onerilen siparis sayisi |
+| `flowOverview` | audit overview | Mikro -> AXATA -> Mikro akisini okunur ozet olarak verir; ana sayilar, fark adimlari ve aksiyon gruplari burada toplanir |
+| `flowOverview.steps` | audit overview | 1 Mikro siparis, 2 AXATA siparis, 3 AXATA sevk, 4 Mikro sevk donusu, 5 tamamlanan akis kartlari |
+| `flowOverview.actionGroups` | audit overview | "Mikro'ya aktar", "AXATA ACK", "siparisi yeniden gonder", "bekle", "manuel incele" gibi aksiyonlara gore gruplanmis belgeler |
+| `orderLifecycles` | audit overview | Her Mikro siparisi icin AXATA siparis, tum SEV'ler, Mikro baglanti durumu ve onerilen aksiyonu tek kayitta verir |
 | `summary.unsentWarehouseOrderDocumentCount` | audit overview | Mikro'da AXATA'ya gitmemis depo siparisi sayisi |
+| `summary.sentWarehouseOrderMissingMikroShipmentDocumentCount` | audit overview | AXATA'ya gonderildi isaretli ama belge genelinde Mikro sevk linki olmayan belge sayisi |
+| `summary.sentWarehouseOrderMissingMikroShipmentLineCount` | audit overview | Belge genelinde hic Mikro sevk linki olmayan satir sayisi |
+| `summary.sentWarehouseOrderMissingMikroShipmentQuantity` | audit overview | Belge genelinde hic Mikro sevk linki olmayan toplam miktar |
+| `summary.sentWarehouseOrderShipmentDifferenceDocumentCount` | audit overview | En az bir sevk linki olan ama eksik link veya miktar farki bulunan belge sayisi |
+| `summary.sentWarehouseOrderShipmentDifferenceLineCount` | audit overview | Kismi sevk/satir farki icindeki problemli satir sayisi |
+| `summary.sentWarehouseOrderShipmentDifferenceQuantity` | audit overview | Kismi sevk/satir farki icindeki miktar farki |
 | `summary.pendingOutboundDeliveryDocumentCount` | audit overview | AXATA'da Status=0 bekleyen sevk sayisi |
 | `unsyncedWarehouseOrders` | audit overview | Mikro -> AXATA tarafinda tekrar gonderim adayi |
+| `sentWarehouseOrdersMissingMikroShipments` | audit overview | AXATA'ya gitmis gorunen ama belge genelinde Mikro sevk fisi/linki olmayan belgeler; C01 rescue adayi |
+| `sentWarehouseOrdersWithShipmentDifferences` | audit overview | Belge icinde en az bir Mikro sevk linki var ama eksik link veya miktar farki bulunur; kismi sevk/fark inceleme listesi |
 | `pendingOutboundDeliveries` | audit overview | AXATA -> Mikro tarafinda bekleyen kuyruk |
 | `interventionCandidates` | audit overview | C01 icin backendin guvenli mudahale adayi gordugu kayitlar |
+| `operations` | audit overview | Kontrol kulesi kartlari; her operasyon icin route, sayac, severity ve yazma durumu verir |
 | `currentHandling` | queue preview | Profilin sadece preview mu, import destekli mi oldugunu gosterir |
 | `hasLiveImport` | queue preview | True ise ilgili profil icin canli import yolu vardir |
 | `canImport` | C01 import preview | True ise C01 import endpoint'i ile Mikro'ya yazilabilir |
@@ -7560,6 +8651,7 @@ Kullaniciya onerilen metinler:
 - `Dispatch`: "Secili evrak AXATA servislerine canli gonderilecek."
 - `AXATA synchronization is disabled in configuration.`: "AXATA entegrasyonu sunucu ayarlarinda kapali. Manuel gonderim icin sistem ayari acilmali."
 - `C01 import`: "AXATA'daki C01 teslimat Mikro'da sevk fisine cevrilecek. Basarili olursa AXATA status guncellenebilir."
+- `C01 rescue`: "AXATA'da sevki kesilmis gorunen bu belge Mikro'da sevk linki bulamadigi icin belge bazinda tekrar kontrol edilecek."
 - `C02/C03/C4 preview`: "Bu hareket tipi icin simdilik sadece AXATA kuyrugu goruntulenir; Mikro'ya yazma yapilmaz."
 - `manual/axata body`: "Bu ekranda AXATA'dan veri cekilmez; girilen body Mikro belgesine cevrilir."
 
@@ -7579,6 +8671,49 @@ Ornek preview:
 GET /api/integrations/axata-sync/tasks/product-master-sync/preview?take=5
 Authorization: Bearer {token}
 ```
+
+Canli urun master job:
+
+```http
+POST /api/integrations/axata-sync/tasks/product-master-sync/execute
+Authorization: Bearer {token}
+Content-Type: application/json
+```
+
+```json
+{
+  "executionMode": "Live"
+}
+```
+
+Tek urun:
+
+```http
+GET /api/integrations/axata-sync/live/products/preview?productCode=URUN001&take=1
+POST /api/integrations/axata-sync/live/products/URUN001/dispatch
+```
+
+Secili veya toplu urun gonderme:
+
+```http
+POST /api/integrations/axata-sync/live/products/dispatch
+Authorization: Bearer {token}
+Content-Type: application/json
+```
+
+```json
+{
+  "productCodes": ["URUN001", "URUN002"],
+  "continueOnError": true
+}
+```
+
+`productCodes=[]` ve `take=500` gonderilirse sirali ilk 500 aktif Mikro urunu aktarilir.
+Payload AXATA `SKUMaster` icinde `ENT004` master, `ENT003_List` barkodlar ve
+`ENT004_UNIT_List` birimleri birlikte tasir. Canli urun endpointleri worker
+kuyruguna bagli degildir. Zamanli otomatik aktarim icin global `WorkerEnabled`,
+`SchedulerEnabled` ve `product-master-sync.ScheduleEnabled` alanlarinin ucunun
+da `true` olmasi gerekir.
 
 Ornek manual job:
 
@@ -7618,15 +8753,73 @@ GET /api/integrations/axata-sync/live/audit/overview?startDate=2026-06-08&endDat
 Authorization: Bearer {token}
 ```
 
+Varsayilan `statuses` degeri `0,1` kabul edilir. Yani endpoint AXATA SQL `ENT006/ENT007`
+tarafinda hem bekleyen (`Status=0`) hem tamamlanmis (`Status=1`) sevk kayitlarini okur.
+Sadece bekleyen kuyrugu izlemek istenirse `statuses=0`, tamamlanmis sevk donuslerini
+incelemek icin `statuses=1`, ikisini birlikte gormek icin `statuses=0,1` gonderilebilir.
+
+Tek belgeyi debug etmek icin:
+
+```http
+GET /api/integrations/axata-sync/live/audit/overview?startDate=2026-06-01&endDate=2026-06-16&warehouseNo=50&documentSerie=F50&documentOrderNo=15035&statuses=0,1&take=50
+Authorization: Bearer {token}
+```
+
 Bu cagri veri yazmaz. Amaci eski worker calisirken durumu anlamaktir:
 
-- `isInSync=true` ise secili tarih araliginda Mikro siparis bayraklari tamam ve AXATA pending sevk kuyrugu bos demektir
+- Ana izleme evreni secilen `startDate/endDate` araliginda Mikro `DEPOLAR_ARASI_SIPARISLER.ssip_tarih` alanina dusen siparislerdir
+- Her Mikro siparisi AXATA `ENT000/ENT001` icinde evrak numarasi ile dogrudan aranir; `ssip_special1=1` yalnizca worker gonderim bayragidir ve AXATA'da gercek kayit bulundugunun yerine kullanilmaz
+- Secilen Mikro siparisine ait AXATA C01 `ENT006/ENT007` SEV kayitlari sevk tarihinden bagimsiz aranir; boylece bir gun acilan siparisin sonraki gun kesilen sevki ayni yasam dongusunde gorulur
+- Bir siparise ait birden fazla SEV miktari toplanir ve `PartiallyShipped`, `FullyShipped` veya `OverShipped` olarak siniflandirilir
+- Mikro donusu `STOK_HAREKETLERI_EK.sth_subesip_uid` ile bagli gercek `STOK_HAREKETLERI.sth_miktar` toplami uzerinden `WaitingForMikroTransfer`, `PartiallyLinked` veya `FullyLinked` olarak siniflandirilir
+- `orderLifecycles[].recommendedAction` yeniden siparis gonderme, C01 import, tamamlanmis SEV rescue, sadece AXATA ACK, bekleme veya manuel fark inceleme kararini evrak bazinda verir
+- `isInSync=true` ise secili tarih araliginda Mikro kaynakli siparis gonderim bayraklari tamam, AXATA `Status=0` bekleyen sevk kuyrugu bos, iptal/zero olmayan AXATA sevkleri Mikro'ya dusmus/baglanmis ve AXATA sevk kayitlarinda satirsiz/anomali belge yok demektir
 - `unsyncedWarehouseOrders` Mikro'da olup worker basari bayragi tum satirlarda `1` olmayan depolar arasi siparisleri gosterir
+- Entegrasyon iki yonludur: siparis tarafi Mikro kaynaklidir (`DEPOLAR_ARASI_SIPARISLER` -> AXATA), sevk donusu AXATA kaynaklidir (`ENT006/ENT007` -> Mikro sevk fisi/linki)
+- Sevk donus problemi AXATA C01 sevklerinden hesaplanir; pozitif miktarli, iptal olmayan AXATA sevkinde `linkedMovementLineCount == 0` ise kritik `sentWarehouseOrdersMissingMikroShipments`, `linkedMovementLineCount > 0` olup eksik link veya miktar farki varsa uyari `sentWarehouseOrdersWithShipmentDifferences` listesine ayrilir
+- `sentWarehouseOrdersMissingMikroShipments` AXATA'da C01 sevki olustugu halde Mikro'da belge genelinde hic `STOK_HAREKETLERI_EK.sth_subesip_uid` linki olmayan kritik sevk donus eksiklerini gosterir
+- `sentWarehouseOrdersWithShipmentDifferences` belgede en az bir Mikro sevk linki oldugu halde eksik link veya siparis-teslim miktar farki bulunan kismi sevk/satir farki durumlarini gosterir; UI bunu dogrudan import aksiyonu degil inceleme uyarisi olarak ele almalidir
 - Mikro siparis kontrolu merkezden cikan depo sevk akisi icin `ssip_cikdepo` uzerinden yapilir; `warehouseNo=50` merkezden cikacak depo siparislerini denetler
-- `pendingOutboundDeliveries` AXATA'da `Status=0` bekleyen sevkleri gosterir
-- `interventionCandidates` C01 icin guvenli mudahale adaylarini gosterir
-- `MikroShipmentExistsPendingAck` ise Mikro fis/link zaten vardir; duplicate fis acmadan sadece AXATA ack gerekebilir
-- `ReadyForImport` ise Mikro siparis satiri eslesmistir ama sevk fisi yoktur; C01 import ile mudahale edilebilir
+- Audit tarih filtresi siparis kontrolunde Mikro `ssip_tarih`, sevk kontrolunde AXATA `ENT006.S06ITAR` uzerinden calisir; `ssip_lastup_date` sadece Mikro siparis problem listelerinde en yeni guncellenen belgeyi one almak icin kullanilir
+- AXATA sevk kontrolu `AxataConnection` uzerinden `ENT006` baslik ve `ENT007` satir tablolarindan okunur; WCF `getOutBoundDeliveryList` ana audit kaynagi degil, canli import/ack ve fallback icindir
+- `summary.axataOutboundDeliveryDocumentCount`, `summary.axataOutboundDeliveryLineCount`, `summary.axataCompletedOutboundDeliveryDocumentCount`, `summary.axataCancelledOutboundDeliveryDocumentCount` ve `summary.axataEmptyOutboundDeliveryDocumentCount` secili `statuses` evreninin AXATA SQL ozetidir
+- AXATA `S06IPTKOD` dolu olan veya `S06STTU=3` ve toplam sevk miktari `0` olan belgeler iptal/zero sevk olarak ayrilir; Mikro sevk fisi beklenmez
+- `summary.sentWarehouseOrderMissingAxataOutboundDeliveryDocumentCount` Mikro'da `ssip_special1=1` gorunup secili AXATA sevk evreninde karsiligi bulunmayan ikincil tutarsizliklari gosterir; bu alan ana sevk donus alarmi degil inceleme bilgisidir
+- `pendingOutboundDeliveries` yalnizca AXATA `Status=0` bekleyen sevkleri gosterir
+- `axataOutboundDeliveries` secili `statuses` icindeki tum AXATA sevklerini sinirli liste olarak dondurur; `Status=1` tamamlanmis belgeler burada gorulur, `axataShipmentState/isCancelled/cancellationCode` alanlari iptal/zero ayrimini destekler
+- `interventionCandidates` C01 icin guvenli mudahale adaylarini gosterir; UI manuel butonlari bu listeye veya `canIntervene=true` olan satirlara baglamalidir
+- `operations` UI'nin "siparis AXATA'ya dustu mu", "bekleyen AXATA sevki var mi", "AXATA sevki kesilmis ama Mikro'ya dusmemis mi" kartlarini besler
+- `Synchronized` ise AXATA sevki `Status=1` durumundadir ve Mikro sevk/link zaten vardir; UI bunu yesil/tamamlandi gostermeli, import/ack butonu acmamalidir
+- `MikroShipmentExistsPendingAck` ise AXATA sevki `Status=0` durumundayken Mikro fis/link zaten vardir; duplicate fis acmadan sadece AXATA ack gerekebilir
+- `ReadyForImport` ise AXATA satirlari Mikro siparis satirlariyla guvenli eslesmistir, sevk fisi yoktur ve C01 import ile mudahale edilebilir
+
+`axataOutboundDeliveries[]` UI karar tablosu:
+
+| AXATA `status` | `mikroCheckState` | Mikro link/miktar anlami | UI durumu | UI aksiyonu |
+|---|---|---|---|---|
+| `1` | `Synchronized` | AXATA sevk tamamlanmis, Mikro sevk linki mevcut | Yesil / Tamamlandi | Buton gosterme |
+| `0` | `ReadyForImport` | AXATA sevki bekliyor, Mikro sevk linki yok, satirlar guvenli eslesmis | Sari / Aktarilabilir | C01 import butonu goster |
+| `0` | `MikroShipmentExistsPendingAck` | Mikro sevk linki zaten var, AXATA hala bekliyor | Sari / ACK bekliyor | Sadece ACK/onarim aksiyonu goster; yeni fis uretme |
+| `1` | `ReadyForImport` | AXATA tamamlanmis gorunuyor ama Mikro sevk linki yok | Kirmizi / Mikro donus eksik | Belge bazli rescue/import aksiyonu goster |
+| `0` veya `1` | `OrderNotFound`, `OrderLineMismatch`, `Blocked` | Siparis veya satir eslesmesi guvenli degil | Kirmizi / Manuel inceleme | Otomatik import butonu gosterme |
+| `0` veya `1` | `CancelledInAxata`, `EmptyAxataDelivery` | AXATA iptal/sifir miktarli veya satirsiz | Gri / Iptal veya bos | Mikro sevk bekleme, import butonu gosterme |
+
+Ornek yorum:
+
+```json
+{
+  "status": "1",
+  "axataDeliveryNo": "D110.2040",
+  "quantity": 195,
+  "mikroDeliveredQuantity": 195,
+  "existingLinkedMovementLineCount": 3,
+  "mikroCheckState": "Synchronized",
+  "canIntervene": false,
+  "warning": "Mikro sevk linki mevcut ve AXATA status tamamlandi; islem gerekmiyor."
+}
+```
+
+Bu ornek "AXATA sevk etmis, Mikro'da sevk/link var, miktar tam, islem yok" demektir. UI bu satiri hata veya mudahale adayi gibi gostermemelidir.
 
 Ornek outbound delivery kuyruk preview:
 
@@ -7667,10 +8860,43 @@ Import davranisi:
 - AXATA fetch: `AxataServicePool.svc/getOutBoundDeliveryListAsync`
 - Query: `CompanyCode=01`, `WarehouseCode=01`, `MovementType=C01`, `Status=0`
 - Mikro eslesme: `S06TESL` degeri `DocumentSerie.DocumentOrderNo` olarak okunur
-- Satir eslesme: `S07KALN + S07SKOD` -> `ssip_satirno + ssip_stok_kod`
+- Satir eslesme: once `S07KALN + S07SKOD` -> `ssip_satirno + ssip_stok_kod`, sonra 1-bazli satir no farki, son olarak tekil stok + kalan miktar kontrolu
 - Mikro yazim: depolar arasi sevk fisi, `STOK_HAREKETLERI_EK.sth_subesip_uid` linki ve `ssip_teslim_miktar` guncellemesi
 - AXATA ack: Mikro yazim basarili olursa `AxataServicePoolEXT.svc/updIntegrationTableAsync` ile `ENT006.S06STAT=1`, `IDField=S06SIRA`
 - `acknowledge=false` verilirse Mikro yazilir ama AXATA status guncellenmez; bu sadece kontrollu test/kurtarma icin kullanilmalidir
+
+Ornek C01 belge bazli rescue preview:
+
+```http
+GET /api/integrations/axata-sync/live/axata/outbound-deliveries/c01/documents/F50/15035/preview?status=1
+Authorization: Bearer {token}
+```
+
+Bu cagri `sentWarehouseOrdersMissingMikroShipments` listesinden secilen belge icin AXATA'da `OrderNumber=F50.15035`, `MovementType=C01`, `Status=1` teslimat detayini arar. `status` bos birakilirsa backend once `0`, sonra `1` dener. Veri yazmaz.
+
+Ornek C01 belge bazli rescue import:
+
+```http
+POST /api/integrations/axata-sync/live/axata/outbound-deliveries/c01/documents/F50/15035/import
+Authorization: Bearer {token}
+Content-Type: application/json
+```
+
+```json
+{
+  "status": "1",
+  "acknowledge": false
+}
+```
+
+Rescue davranisi:
+
+- AXATA fetch: `AxataServicePool.svc/getOutBoundDeliveryListAsync`
+- Query: `CompanyCode=01`, `WarehouseCode=01`, `MovementType=C01`, `OrderNumber=F50.15035`, `Status=1`
+- Mikro eslesme: `S06TESL` -> `DocumentSerie.DocumentOrderNo`; satir eslesmesi guvenli eslesme kuralini kullanir (`S07KALN + S07SKOD`, 1-bazli satir no farki, tekil stok + kalan miktar)
+- Mikro yazim: AXATA teslimat miktari Mikro kalan miktarini asmiyorsa depolar arasi sevk fisi, `STOK_HAREKETLERI_EK.sth_subesip_uid` linki ve `ssip_teslim_miktar` guncellemesi
+- `sentWarehouseOrdersWithShipmentDifferences` listesindeki kismi sevk/satir farki belgeleri icin otomatik import onerilmez; once AXATA satirlariyla fark incelemesi yapilmalidir
+- `acknowledge=false` tavsiye edilir; belge AXATA'da zaten `Status=1` ise tekrar ack gerekmeyebilir
 
 Ornek manuel evrak preview:
 
@@ -7720,6 +8946,8 @@ Manuel kurtarma akis onerisi:
 - Senaryo `AXATA -> Mikro`:
   - AXATA C01 depo sevkleri bekliyorsa once `live/axata/outbound-deliveries/c01/preview` ile kontrol et
   - eslesmeler dogruysa `live/axata/outbound-deliveries/c01/import` ile Mikro sevki yaz ve AXATA ack at
+  - `sentWarehouseOrdersMissingMikroShipments` icinde C01 belge gorunuyorsa once `live/axata/outbound-deliveries/c01/documents/{serie}/{sira}/preview?status=1` ile AXATA teslimat detayini dogrula
+  - belge bazli preview `canImport=true` donerse `live/axata/outbound-deliveries/c01/documents/{serie}/{sira}/import` ile eksik Mikro sevkini olustur
   - AXATA C02/C03/C4 teslimatlari bekliyorsa `live/axata/outbound-deliveries/preview?movementType=C02|C03|C4` ile sadece kuyruk durumunu goster
   - AXATA outbound delivery verisi eldeyse `manual/axata/outbound-deliveries/inter-warehouse-shipments` ile dogrudan Mikro sevki yaz
   - AXATA inbound ATF verisi eldeyse `manual/axata/inbound-atf/company-receivings` ile dogrudan Mikro firma mal kabule cevir
@@ -7727,7 +8955,7 @@ Manuel kurtarma akis onerisi:
   - coklu belge geliyorsa `.../company-receivings/batch` veya `.../inventory-counts/batch` ile tek cagrida islenebilir
   - depo sevki zaten bekleyen belge olarak Mikro'ya dusmus ama kabulde takildiysa once `manual/incoming/warehouse-receivings` ile listele, gerekirse detay endpoint'i ile satirlari kontrol et, sonra `.../accept` veya `.../accept-batch` kullan
 - Not:
-  - C01 icin backend AXATA'dan canli SOAP fetch/import yapar; C02/C03/C04 icin canli kuyruk preview vardir ama import/ack ayri fazdir; G01/G02 fetch-import akislari ayri fazdir
+  - C01 icin backend AXATA'dan WCF client ile canli fetch/import yapar; C02/C03/C04 icin canli kuyruk preview vardir ama import/ack ayri fazdir; G01/G02 fetch-import akislari ayri fazdir
   - `dispatch` endpoint'leri AXATA'ya canli yazim yapar; `execute` endpoint'leri ise sadece `DryRun/Outbox` icindir
   - eski worker operasyon isimleri kullanildigi icin canli AXATA dispatch sahada endpoint/credential ile dogrulanmalidir
 
@@ -7743,13 +8971,13 @@ Entegrasyon modulu notlari:
 - `manual/tasks/{taskCode}/documents/dispatch*` endpoint'leri yalnizca AXATA'ya canli gonderim icindir; `Outbox` yerine kullanilir
 - `manual/incoming/*` endpoint'leri worker'dan bagimsiz operasyonel kurtarma katmanidir
 - `manual/axata/*` endpoint'leri AXATA-native request body'sini minimum donusumle Mikro write use-case'lerine baglar
-- `live/audit/overview` endpoint'i eski worker calisirken kontrol/durum tespiti icindir; Mikro veya AXATA verisi yazmaz
+- `live/audit/overview` endpoint'i eski worker calisirken kontrol/durum tespiti icindir; AXATA SQL `ENT006/ENT007` ve Mikro siparis/sevk linklerini okur, Mikro veya AXATA verisi yazmaz
 - `live/axata/outbound-deliveries/preview` endpoint'i C01/C02/C03/C4 AXATA pending kuyrugunu canli okur; Mikro veya AXATA verisi yazmaz
 - `live/axata/outbound-deliveries/c01/*` endpoint'leri AXATA'dan canli C01 cekip Mikro'ya yazar; AXATA ack sadece Mikro kaydi basarili olursa atilir
 - `live/axata/outbound-deliveries/c01/import` gerekiyorsa mudahale icindir; mevcut worker'in yerine otomatik calisan yeni worker olarak dusunulmemelidir
 - toplu endpoint'lerde `ContinueOnError = true` ise HTTP 200 donup basarisiz item'lari `Failures` listesinde raporlar
-- `Outbox` modu su an gercek SOAP dispatch degil, payload uretim ve dosyalama asamasidir
-- canli AXATA import/ack adapter'i su an C01 depo sevki icin aktiftir; C02/C03/C4 icin kuyruk preview vardir, import yoktur
+- `Outbox` modu su an gercek WCF dispatch degil, payload uretim ve dosyalama asamasidir
+- canli AXATA import/ack adapter'i su an C01 depo sevki icin aktiftir; pending kuyruk importu ve belge bazli rescue desteklenir; C02/C03/C4 icin kuyruk preview vardir, import yoktur
 - `GET /api/integrations/axata-sync` icindeki her task artik `supportsManualDocuments`, `supportsLiveDispatch` ve varsa `liveOperationName` alanlarini da dondurur
 - `GET /api/integrations/axata-sync/fetch-profiles` ile UI eski worker parity icin hedeflenen `C01/C02/C03/C04(query C4)/G01/G02` ve benzeri fetch profillerini okuyabilir
 
@@ -7788,6 +9016,10 @@ UI manuel aktarim senaryolari:
 - AXATA C01 depo sevkleri AXATA'da bekliyorsa:
   - `live/axata/outbound-deliveries/c01/preview`
   - `live/axata/outbound-deliveries/c01/import`
+- AXATA'ya gonderilmis C01 siparisin sevki AXATA'da kesilmis ama Mikro sevk linki yoksa:
+  - once `live/audit/overview` icindeki `sentWarehouseOrdersMissingMikroShipments` listesinden belgeyi sec
+  - `live/axata/outbound-deliveries/c01/documents/{documentSerie}/{documentOrderNo}/preview?status=1`
+  - uygun ise `live/axata/outbound-deliveries/c01/documents/{documentSerie}/{documentOrderNo}/import`
 - AXATA C02/C03/C4 teslimatlari AXATA'da bekliyorsa:
   - `live/axata/outbound-deliveries/preview?movementType=C02`
   - `live/axata/outbound-deliveries/preview?movementType=C03`
@@ -7802,12 +9034,13 @@ UI manuel aktarim senaryolari:
 
 UI'nin kullaniciya acik soylemesi gereken kritik sinirlar:
 
-- C01 depo sevki icin AXATA'dan canli SOAP fetch/import vardir
+- C01 depo sevki icin AXATA'dan WCF client ile canli fetch/import vardir; pending kuyruk ve belge bazli rescue desteklenir
 - C02/C03/C04 icin "AXATA'dan cek ve kuyrukta goster" akisi vardir; "Mikro'ya yaz ve ack at" akisi henuz yoktur
 - G01/G02 icin "AXATA'dan cek ve Mikro'ya yaz" akisi henuz yoktur
 - `dispatch*` endpoint'leri sadece `issued-warehouse-order-sync` ve `company-receiving-sync` icin aktiflenmelidir
 - `depolar-arasi-sevk` belge detayi icin ayrica AXATA dispatch butonu acilmamalidir
-- `firm-master-sync` ve `product-master-sync` icin UI sadece preview/job/outbox deneyimi sunmalidir
+- `firm-master-sync` icin UI sadece preview/job/outbox deneyimi sunmalidir
+- `product-master-sync` icin preview, toplu canli dispatch ve urun koduyla tekli canli dispatch sunulabilir
 - `inventory-count-sync` icin UI canli dispatch butonu gostermemelidir
 - `Outbox` basarisi "AXATA kabul etti" degil, "payload dosyalandi" anlamina gelir
 
@@ -7820,6 +9053,9 @@ UI ekran parcasi onerisi:
 - `Kontrol / Fark Analizi` sekmesi:
   - `GET /api/integrations/axata-sync/live/audit/overview`
   - "siparisler AXATA'ya gitti mi", "AXATA sevkleri Mikro'ya dustu mu", "mudahaale adayi var mi" kartlari
+  - kartlar icin once `operations` listesi okunmalidir; `state`, `severity`, `documentCount`, `previewRoute`, `executeRoute`, `canExecute`, `writesData` UI buton durumunu belirler
+  - `sentWarehouseOrdersMissingMikroShipments` tablosunda belge satiri secilirse C01 belge bazli rescue preview/import route'lari kullanilir
+  - `sentWarehouseOrdersWithShipmentDifferences` tablosu kismi sevk/satir farki incelemesi icindir; dogrudan import/ack butonu gostermemelidir
   - varsayilan tarih bugun olmali; tarih araligi ve depo filtresi opsiyonel verilmelidir
 - `Mikro -> AXATA Manuel` sekmesi:
   - task secimi
@@ -7859,7 +9095,7 @@ UI'da sonraki faz icin acilabilecek ekranlar:
   - amac: AXATA'ya ack atilamayan veya yarim kalmis entegrasyonlari operasyon ekibi gorsun
   - bu ekran ancak backend'de kalici audit/retry tablolari eklenirse anlamli olur
 - `Transport Profili` sekmesi
-  - amac: task'in `V1` mi `V2` mi SOAP operasyonu kullanacagini gostermek
+  - amac: task'in `V1` mi `V2` mi WCF operasyonu kullanacagini gostermek
   - ozellikle eski worker'da `addOutboundOrderV2Async` ve `addInboundOrderV2Async` kullanimi varsa faydalidir
 
 UI tarafinda simdiden scaffold edilebilecek ama mevcut backend'de henuz aktif olmayan endpoint aileleri:
@@ -8242,15 +9478,16 @@ Liste ve detay response'lari:
 
 Detayli ve Uyumsoft odakli ayri dokuman icin bkz. [UYUMSOFT_ENTEGRASYON_DOKUMANI.md](UYUMSOFT_ENTEGRASYON_DOKUMANI.md).
 
-Bu bolum, yeni eklenen Uyumsoft connected-service query modullerini anlatir. Bu moduller operasyonel sevk/iade ekranlarindaki mevcut `e-irsaliye gonder` ve `PDF getir` endpoint'lerinin yerine gecmez; onlar mevcut business akislari icin kullanilmaya devam eder. Yeni moduller, daha cok entegrasyon/operasyon destek ekibi icin "Uyumsoft'ta ne var, hangi GET operasyonlari acik, ilgili dokuman/paged query sonucu ne donuyor" ihtiyacini karsilar.
+Bu bolum, Uyumsoft WCF client tabanli query modullerini anlatir. Bu moduller operasyonel sevk/iade ekranlarindaki mevcut `e-irsaliye gonder` ve `PDF getir` endpoint'lerinin yerine gecmez; onlar mevcut business akislari icin kullanilmaya devam eder. Yeni moduller, daha cok entegrasyon/operasyon destek ekibi icin "Uyumsoft'ta ne var, hangi GET operasyonlari acik, ilgili dokuman/paged query sonucu ne donuyor" ihtiyacini karsilar.
 
 Bu entegrasyonun kapsami:
 
 - Uyumsoft `BasicIntegration` servisi icin `e-fatura` query modulu
 - Uyumsoft `BasicDespatchIntegration` servisi icin `e-irsaliye` query modulu
 - sadece whitelist'e alinmis `Get*` operasyonlarinin acilmasi
-- request body'sinde scalar parametre + XML fragment (`payloadXml`) destegi
+- request body'sinde `parameters` listesiyle scalar parametre ve typed query model alani destegi
 - response'un generic ve recursive bir agac modeli ile normalize edilmesi
+- e-fatura `GetInboxInvoiceList` ve `GetOutboxInvoiceList` cevaplarinda frontend icin ayrica typed `invoiceList` alani donulmesi
 - ileride `Send*`, `Save*`, `Query*`, `Change*`, `Set*` ailelerinin ayni omurgaya eklenebilecek sekilde tasarlanmasi
 
 Bu moduller su an nerede kullanilir:
@@ -8266,7 +9503,7 @@ Bu moduller ileride neler icin kullanilabilir:
 
 - e-fatura remote inbox/outbox dashboard
 - Uyumsoft durum loglari, red/cevap takibi
-- operasyonel belge tekrar sorgulama ve raw XML inceleme
+- operasyonel belge tekrar sorgulama ve typed response/payload JSON inceleme
 - portal parity amacli alias/kullanici listeleme
 - query builder bazli ileri seviye filtre ekranlari
 - `SendInvoice`, `SendDespatch`, `SaveAsDraft`, `TransformAndSend` gibi yazan operasyonlar icin ayni route ailesinin genisletilmesi
@@ -8279,6 +9516,68 @@ Mevcut business akislardan farki:
 - yeni moduller `invoiceId`, `despatchId`, `query`, `request` gibi Uyumsoft-side parametrelerle calisir
 - UI bu modulleri normal depo/firma sevk detay ekraninda ana aksiyon gibi degil, entegrasyon/yonetim araci gibi konumlandirmalidir
 
+### UI Icin Tek E-Fatura Kimlik Sozlesmesi
+
+Frontend e-fatura liste, detay ve PDF islemlerinde asagidaki eslemeyi aynen uygulamalidir:
+
+| API alani | Anlami | UI kullanimi |
+|---|---|---|
+| `invoiceUuid` | Uyumsoft teknik `InvoiceId` degeri | Row key ve tum teknik belge route'larinin path parametresi |
+| `invoiceNumber` | Uyumsoft resmi `DocumentId` degeri | Kullaniciya gosterilen fatura numarasi ve arama metni |
+| `direction` | Belgenin kutusu: `inbox` veya `outbox` | Badge/sekme bilgisi; PDF yolunu UI bununla yeniden uretmez |
+| `pdfFilePath` | Backend'in UUID ve kutu bilgisinden olusturdugu hazir binary PDF yolu | `PDF Goster` aksiyonunda dogrudan cagrilir |
+| `localDocumentId` | Uyumsoft outbox lokal belge referansi | Yardimci bilgi; teknik route anahtari degildir |
+
+Kesin kurallar:
+
+1. Liste kaynagi `response.invoiceList.items` alanidir.
+2. UI resmi fatura numarasini `row.invoiceNumber` ile gosterir.
+3. UI teknik kimlik olarak sadece `row.invoiceUuid` kullanir.
+4. UI PDF URL'si uretmez; `row.pdfFilePath` degerini dogrudan cagirir.
+5. UI `invoiceNumber`, `localDocumentId` veya ekranda gorunen metinden UUID/route turetmez.
+6. UI yeni ekranlarda fatura numarasindan teknik UUID cozumleme denemesi yapmaz; UUID istegi hata verirse invoiceNumber ile otomatik fallback yapmaz.
+7. `invoiceUuid` veya `pdfFilePath` bos ise PDF butonu pasif olur; satir veri hatasi olarak ele alinir.
+8. `/pdf-file` cevabi JSON degil `application/pdf` binary veridir; istemci blob olarak okumali veya yetkili yeni sekme/iframe akisi kullanmalidir.
+
+Kopyalanabilir temel UI akisi:
+
+```ts
+type UyumsoftInvoiceRow = {
+  invoiceUuid: string | null;
+  invoiceNumber: string | null;
+  direction: "inbox" | "outbox";
+  pdfFilePath: string | null;
+};
+
+function canOpenInvoicePdf(row: UyumsoftInvoiceRow): boolean {
+  return Boolean(row.invoiceUuid && row.pdfFilePath);
+}
+
+async function openInvoicePdf(row: UyumsoftInvoiceRow, token: string) {
+  if (!row.invoiceUuid || !row.pdfFilePath) {
+    throw new Error("Faturanin teknik UUID/PDF yolu API cevabinda bulunamadi.");
+  }
+
+  const response = await fetch(row.pdfFilePath, {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+
+  if (!response.ok) {
+    throw new Error(`Fatura PDF alinamadi. HTTP ${response.status}`);
+  }
+
+  const pdfBlob = await response.blob();
+  const objectUrl = URL.createObjectURL(pdfBlob);
+  window.open(objectUrl, "_blank", "noopener,noreferrer");
+}
+```
+
+Isim benzerligine dikkat:
+
+- route sablonundaki `{invoiceUuid}` Uyumsoft teknik kimligini ifade eder
+- frontend response'undaki `invoiceUuid` bu route'a gonderilecek degerdir
+- frontend response'undaki `invoiceNumber` route'a gonderilmez
+
 ### Route Aileleri
 
 #### E-Fatura
@@ -8289,18 +9588,20 @@ Mevcut business akislardan farki:
 - `POST /api/entegrasyon-islemleri/uyumsoft/e-fatura/get/{operationName}`
 - `GET /api/entegrasyon-islemleri/uyumsoft/e-fatura/system/date`
 - `GET /api/entegrasyon-islemleri/uyumsoft/e-fatura/system/date/formatted?format=yyyy-MM-dd`
-- `GET /api/entegrasyon-islemleri/uyumsoft/e-fatura/inbox/invoices/{invoiceId}`
-- `GET /api/entegrasyon-islemleri/uyumsoft/e-fatura/inbox/invoices/{invoiceId}/data`
-- `GET /api/entegrasyon-islemleri/uyumsoft/e-fatura/inbox/invoices/{invoiceId}/view`
-- `GET /api/entegrasyon-islemleri/uyumsoft/e-fatura/inbox/invoices/{invoiceId}/pdf`
-- `GET /api/entegrasyon-islemleri/uyumsoft/e-fatura/inbox/invoices/{invoiceId}/status-with-logs`
-- `GET /api/entegrasyon-islemleri/uyumsoft/e-fatura/outbox/invoices/{invoiceId}`
-- `GET /api/entegrasyon-islemleri/uyumsoft/e-fatura/outbox/invoices/{invoiceId}/data`
-- `GET /api/entegrasyon-islemleri/uyumsoft/e-fatura/outbox/invoices/{invoiceId}/view`
-- `GET /api/entegrasyon-islemleri/uyumsoft/e-fatura/outbox/invoices/{invoiceId}/pdf`
-- `GET /api/entegrasyon-islemleri/uyumsoft/e-fatura/outbox/invoices/{invoiceId}/status-with-logs`
-- `GET /api/entegrasyon-islemleri/uyumsoft/e-fatura/outbox/invoices/{invoiceId}/response-view`
-- `GET /api/entegrasyon-islemleri/uyumsoft/e-fatura/invoices/{invoiceId}/envelope`
+- `GET /api/entegrasyon-islemleri/uyumsoft/e-fatura/inbox/invoices/{invoiceUuid}`
+- `GET /api/entegrasyon-islemleri/uyumsoft/e-fatura/inbox/invoices/{invoiceUuid}/data`
+- `GET /api/entegrasyon-islemleri/uyumsoft/e-fatura/inbox/invoices/{invoiceUuid}/view`
+- `GET /api/entegrasyon-islemleri/uyumsoft/e-fatura/inbox/invoices/{invoiceUuid}/pdf`
+- `GET /api/entegrasyon-islemleri/uyumsoft/e-fatura/inbox/invoices/{invoiceUuid}/pdf-file`
+- `GET /api/entegrasyon-islemleri/uyumsoft/e-fatura/inbox/invoices/{invoiceUuid}/status-with-logs`
+- `GET /api/entegrasyon-islemleri/uyumsoft/e-fatura/outbox/invoices/{invoiceUuid}`
+- `GET /api/entegrasyon-islemleri/uyumsoft/e-fatura/outbox/invoices/{invoiceUuid}/data`
+- `GET /api/entegrasyon-islemleri/uyumsoft/e-fatura/outbox/invoices/{invoiceUuid}/view`
+- `GET /api/entegrasyon-islemleri/uyumsoft/e-fatura/outbox/invoices/{invoiceUuid}/pdf`
+- `GET /api/entegrasyon-islemleri/uyumsoft/e-fatura/outbox/invoices/{invoiceUuid}/pdf-file`
+- `GET /api/entegrasyon-islemleri/uyumsoft/e-fatura/outbox/invoices/{invoiceUuid}/status-with-logs`
+- `GET /api/entegrasyon-islemleri/uyumsoft/e-fatura/outbox/invoices/{invoiceUuid}/response-view`
+- `GET /api/entegrasyon-islemleri/uyumsoft/e-fatura/invoices/{invoiceUuid}/envelope`
 
 #### E-Irsaliye
 
@@ -8327,6 +9628,10 @@ Not:
 - generic `GET/POST .../get/{operationName}` route'lari katalogdaki tum whitelist `Get*` operasyonlarini kapsar
 - hazir alias `GET` route'lari katalogdaki sik kullanilan sistem tarihi ve tekil remote belge sorgularini operation formu kurmadan cagirabilmek icin vardir
 - bu modullerde `/pdf`, `/view`, `/envelope` ile biten route'lar binary dosya degil, JSON `UyumsoftOperationResponseDto` doner
+- e-fatura icin `/pdf-file` ile biten inbox/outbox route'lari istisnadir; direkt `application/pdf` binary response doner ve liste ekranlarindaki `PDF Goster` aksiyonlari icin onerilir
+- `{invoiceUuid}` route'lari Uyumsoft teknik UUID bekler. Liste response'unda bu deger `invoiceList.items[].invoiceUuid` alanindadir.
+- Liste cevabi ayrica hazir `invoiceList.items[].pdfFilePath` dondurur; yeni UI bu yolu dogrudan cagirir.
+- fatura numarasiyla PDF cozumleme route'u yoktur; teknik UUID yoksa PDF butonu pasif kalir.
 
 ### Yetki Kodlari
 
@@ -8355,7 +9660,7 @@ Not:
 
 ### Konfigurasyon ve Kimlik Bilgisi Modeli
 
-Backend, `userInfo` bilgisini UI'dan almaz; server-side config ile SOAP envelope icine kendisi yerlestirir. Bu nedenle UI kullanicisi username/password gormez ve gondermez.
+Backend, `userInfo` bilgisini UI'dan almaz; server-side config ile WCF client tarafinda kendisi olusturur. Bu nedenle UI kullanicisi username/password gormez ve gondermez.
 
 Su an kullanilan config anahtarlari:
 
@@ -8425,7 +9730,6 @@ Amac:
 
 Query:
 
-- `payloadXml` opsiyonel
 - `parameter` tekrar eden query parametresidir ve `name=value` formatinda gonderilir
 
 Response:
@@ -8436,7 +9740,7 @@ Not:
 
 - browser, test araci veya hizli operator kullanimi icin pratiktir
 - kisa scalar parametreli operasyonlarda UI dogrudan bu route'u kullanabilir
-- uzun veya kompleks XML payload'lar icin URL encode ve uzunluk sebepleriyle `POST` tercih edilmelidir
+- cok sayida parametre veya kompleks query model alanlari icin `POST` tercih edilmelidir
 - ayni davranis `e-irsaliye` modulu icin de gecerlidir
 
 #### `POST /api/entegrasyon-islemleri/uyumsoft/e-fatura/get/{operationName}`
@@ -8458,7 +9762,12 @@ Not:
 - ayni davranis `e-irsaliye` modulu icin de gecerlidir
 - `operationName` buyuk/kucuk harf duyarli gibi dusunulmemeli; backend case-insensitive bakar
 - buna ragmen UI exact isimleri her zaman `GET .../operations` cevabindan alip kullanmalidir
-- `payloadXml` ile kompleks `<query>...</query>` veya `<request>...</request>` yapilari gonderilecekse ana tercih bu route olmalidir
+- cok alanli typed query modellerinde ana tercih bu route olmalidir
+- `GetInboxInvoiceList` ve `GetOutboxInvoiceList` operasyonlarinda generic alanlara ek olarak typed `invoiceList` alani dolar
+- `invoiceList.items[].invoiceUuid`, Uyumsoft `InvoiceId` degeridir ve PDF/detail endpointlerine gonderilecek teknik anahtardir
+- `invoiceList.items[].invoiceNumber`, Uyumsoft `DocumentId` degeridir ve kullaniciya gosterilen resmi fatura numarasidir
+- `invoiceList.items[].direction`, satirin `inbox` veya `outbox` kaynagindan geldigini belirtir
+- `invoiceList.items[].pdfFilePath`, ilgili kutu ve teknik UUID icin backend tarafindan hazirlanmis PDF endpoint yoludur; UI bu alani dogrudan kullanir
 
 #### Hazir alias `GET` route'lari
 
@@ -8483,7 +9792,6 @@ Tek endpoint uzerinden farkli operasyonlar `query string` ile de cagrilabilir.
 
 Format:
 
-- `payloadXml` opsiyoneldir
 - her scalar parametre icin ayri `parameter=name=value` query parametresi gonderilir
 
 Ornekler:
@@ -8502,19 +9810,14 @@ GET /api/entegrasyon-islemleri/uyumsoft/e-irsaliye/get/GetDespatchEnvelope?param
 Authorization: Bearer {token}
 ```
 
-Not:
-
-- `payloadXml` query string ile de gonderilebilir; ancak gercek UI akislari icin uzun XML'lerde `POST` kullanmak daha guvenlidir
-
 ### `POST` Request Body Formati
 
-Tek endpoint uzerinden farkli operasyonlar cagirildigi icin request body'si generic tutulmustur.
+Tek endpoint uzerinden farkli operasyonlar cagirildigi icin request body'si generic tutulmustur. Backend bu parametreleri generated WCF metod imzasina gore scalar argumanlara veya typed query model property'lerine basar.
 
 Model:
 
 ```json
 {
-  "payloadXml": "<query>...</query>",
   "parameters": [
     { "name": "format", "value": "yyyy-MM-dd" }
   ]
@@ -8524,14 +9827,9 @@ Model:
 Alan kurallari:
 
 - `parameters`
-  - scalar child element'ler icin kullanilir
-  - ornek: `format`, `invoiceId`, `despatchId`, `isInbox`
-- `payloadXml`
-  - kompleks query/request objeleri icin kullanilir
-  - root wrapper gerekmez; backend bunu kendisi fragment olarak parse eder
-  - gonderilen XML, Uyumsoft operasyonunun bekledigi child element adi ile baslamalidir
-  - ornek: `<query>...</query>`, `<request>...</request>`
-- `parameters` ve `payloadXml` birlikte kullanilabilir
+  - scalar metod argumanlari ve query model property'leri icin kullanilir
+  - ornek: `format`, `invoiceId`, `despatchId`, `isInbox`, `PageIndex`, `PageSize`, `IsArchived`
+  - array alanlarda ayni `name` birden fazla kez gonderilebilir; ornek `despatchId` / `despatchIds`
 
 Ornekler:
 
@@ -8567,6 +9865,59 @@ Content-Type: application/json
 }
 ```
 
+Paged e-fatura outbox listesi:
+
+```http
+POST /api/entegrasyon-islemleri/uyumsoft/e-fatura/get/GetOutboxInvoiceList
+Authorization: Bearer {token}
+Content-Type: application/json
+```
+
+```json
+{
+  "parameters": [
+    { "name": "PageIndex", "value": "0" },
+    { "name": "PageSize", "value": "20" },
+    { "name": "IsArchived", "value": "false" }
+  ]
+}
+```
+
+Bu operasyonun response'unda frontend listeyi `invoiceList.items` uzerinden okumali, `invoiceUuid` degerini row key olarak saklamali ve PDF aksiyonunda `pdfFilePath` alanini dogrudan kullanmalidir.
+
+Kisaltilmis response ornegi:
+
+```json
+{
+  "serviceKey": "e-invoice",
+  "operationName": "GetOutboxInvoiceList",
+  "isSucceeded": true,
+  "invoiceList": {
+    "pageIndex": 0,
+    "pageSize": 20,
+    "totalCount": 1,
+    "totalPages": 1,
+    "items": [
+      {
+        "invoiceUuid": "9d6e0f84-3d3c-4c58-a1b0-4c0f8f4fd999",
+        "invoiceNumber": "FRM2026600075612",
+        "direction": "outbox",
+        "pdfFilePath": "/api/entegrasyon-islemleri/uyumsoft/e-fatura/outbox/invoices/9d6e0f84-3d3c-4c58-a1b0-4c0f8f4fd999/pdf-file",
+        "localDocumentId": "FRM2026600075612",
+        "scenario": "eInvoice",
+        "status": "Completed",
+        "createDateUtc": "2026-06-18T08:30:00Z",
+        "payableAmount": 1250.00,
+        "documentCurrencyCode": "TRY",
+        "isArchived": false
+      }
+    ]
+  },
+  "nodes": [],
+  "responsePayloadJson": "..."
+}
+```
+
 Paged e-irsaliye outbox listesi:
 
 ```http
@@ -8577,7 +9928,11 @@ Content-Type: application/json
 
 ```json
 {
-  "payloadXml": "<query><PageIndex>1</PageIndex><PageSize>20</PageSize><IsArchived>false</IsArchived></query>"
+  "parameters": [
+    { "name": "PageIndex", "value": "1" },
+    { "name": "PageSize", "value": "20" },
+    { "name": "IsArchived", "value": "false" }
+  ]
 }
 ```
 
@@ -8614,6 +9969,32 @@ GET /api/entegrasyon-islemleri/uyumsoft/e-fatura/outbox/invoices/9d6e0f84-3d3c-4
 Authorization: Bearer {token}
 ```
 
+Tekil e-fatura PDF dosyasi:
+
+```http
+GET /api/entegrasyon-islemleri/uyumsoft/e-fatura/outbox/invoices/9d6e0f84-3d3c-4c58-a1b0-4c0f8f4fd999/pdf-file
+Authorization: Bearer {token}
+```
+
+Frontend uygulama ornegi:
+
+```ts
+if (!row.pdfFilePath) {
+  throw new Error("PDF yolu API cevabinda bulunamadi.");
+}
+
+const pdfUrl = row.pdfFilePath;
+```
+
+UI `pdfFilePath` degerini degistirmeden cagirir. `FRM2026600075612` gibi resmi fatura numarasindan URL uretmez.
+
+Fatura numarasiyla giden e-fatura PDF cozumleme:
+
+- `fatura-gonderimi` ekraninda kullanilmaz.
+- Mikro liste kaynaginda Uyumsoft teknik `invoiceId`/ETTN kalici tutulmadigi icin `FRP...` gibi fatura numarasindan Uyumsoft PDF route'u uretilmez.
+- Generic Uyumsoft outbox listesi kullaniliyorsa UI sadece API cevabinda hazir gelen `invoiceList.items[].pdfFilePath` alanini cagirir; bu alan yoksa PDF butonu pasif kalir.
+- Frontend `invoiceId`, `invoiceNumber`, `sentDocumentNo` veya lokal belge referansindan kendi PDF URL'sini uretmemelidir.
+
 Tekil e-irsaliye makbuz PDF sorgusu:
 
 ```http
@@ -8631,13 +10012,14 @@ Authorization: Bearer {token}
 Not:
 
 - bu alias route'lar da `UyumsoftOperationResponseDto` JSON modeli doner
-- path'te `/pdf` gecmesi binary dosya indirilecegi anlamina gelmez; PDF verisi response icindeki node/attribute/rawXml alanlarinda gelir
+- path'te `/pdf` gecmesi binary dosya indirilecegi anlamina gelmez; PDF verisi response icindeki node/attribute/responsePayloadJson alanlarinda gelir
+- e-fatura `/pdf-file` route'lari bu kuralin disindadir ve dogrudan PDF binary doner
 
 UI request form onerisi:
 
 - operasyon secildiginde `requestHint` alani yardim metni olarak gosterilsin
-- "scalar parametre" ve "payloadXml" ayni ekranda ama ayrik bloklar halinde sunulsun
-- `payloadXml` icin monospaced multiline editor kullanilsin
+- scalar parametre ve query model alanlari ayni dinamik formda sunulsun
+- cok degerli alanlar icin ayni parametre adini tekrar ekleyebilen liste UI'i kullanilsin
 - request history / son kullanilan operasyon parametreleri lokal olarak cache'lenebilir
 - sik kullanilan tekil belge sorgulari icin ayni ekranda ayrica hazir alias butonlari sunulabilir
 
@@ -8654,7 +10036,8 @@ Tum operasyonlar normalize edilmis tek bir response modeline dondurulur:
 - `scalarValue`
 - `resultAttributes`
 - `nodes`
-- `rawXml`
+- `invoiceList`
+- `responsePayloadJson`
 
 Alan anlami:
 
@@ -8667,9 +10050,68 @@ Alan anlami:
 - `nodes`
   - kompleks response'lar icin recursive tree yapisidir
   - paged result, item listesi, ic ice child node yapilari buradan okunur
-- `rawXml`
-  - SOAP body'nin tamamini degil, ilgili `...Result` element'inin XML'ini verir
-  - debug/raw inceleme sekmesi icin uygundur
+- `invoiceList`
+  - sadece e-fatura `GetInboxInvoiceList` ve `GetOutboxInvoiceList` cevaplarinda dolan typed liste alanidir
+  - `pageIndex`, `pageSize`, `totalCount`, `totalPages`, `items` alanlarini tasir
+  - diger operasyonlarda `null` olur
+  - `items[].invoiceUuid`: Uyumsoft teknik `InvoiceId`; PDF/detail route'una gonderilir
+  - `items[].invoiceNumber`: Uyumsoft resmi `DocumentId`; ekranda fatura no olarak gosterilir
+  - `items[].direction`: `inbox` veya `outbox`
+  - `items[].pdfFilePath`: UI'nin dogrudan cagiracagi `application/pdf` endpoint yolu
+  - `items[].localDocumentId`, `scenario`, `scenarioCode`: outbox'a ozel alanlardir; inbox satirlarinda bos olabilir
+  - `items[].isNew`, `isSeen`: inbox'a ozel alanlardir; outbox satirlarinda bos olabilir
+- `responsePayloadJson`
+  - WCF response objesinin JSON karsiligini verir
+  - debug/response inceleme sekmesi icin uygundur
+
+#### `invoiceList.items[]` Alan Sozlesmesi
+
+| Alan | Tip | UI davranisi |
+|---|---|---|
+| `invoiceUuid` | `string/null` | Teknik Uyumsoft kimligi. Row key olarak saklanir; kullaniciya ana fatura no olarak gosterilmez. |
+| `invoiceNumber` | `string/null` | Resmi fatura numarasi. Ana liste kolonunda gosterilir ve metin aramasinda kullanilir. |
+| `direction` | `string` | `inbox` veya `outbox`. Salt okunur kutu bilgisidir. |
+| `pdfFilePath` | `string/null` | PDF butonunun dogrudan cagiracagi relative API yolu. Bos ise buton pasif olur. |
+| `localDocumentId` | `string/null` | Outbox lokal belge referansi. Route anahtari degildir. |
+| `scenario` | `string/null` | Outbox senaryosu; ornek `eInvoice`, `eArchive`. |
+| `scenarioCode` | `number/null` | Uyumsoft senaryo kodu. UI etiketi icin `scenario` tercih edilir. |
+| `type` | `string` | Uyumsoft fatura turu metni. |
+| `typeCode` | `number` | Uyumsoft fatura turu kodu. |
+| `targetTcknVkn` | `string/null` | Hedef taraf TCKN/VKN bilgisi. |
+| `targetTitle` | `string/null` | Hedef taraf unvani. |
+| `envelopeIdentifier` | `string/null` | Uyumsoft zarf tanimlayicisi. |
+| `status` | `string` | Belge durum metni. |
+| `statusCode` | `number` | Belge durum kodu. |
+| `envelopeStatus` | `string` | Zarf durum metni. |
+| `envelopeStatusCode` | `number` | Zarf durum kodu. |
+| `message` | `string/null` | Uyumsoft belge durum/aciklama mesaji. |
+| `createDateUtc` | `date-time` | Uyumsoft kayit olusturma zamani, UTC. UI lokal saat dilimine cevirerek gosterebilir. |
+| `executionDate` | `date-time/null` | Belgenin islem/yurutme zamani. |
+| `payableAmount` | `decimal` | Odenecek toplam tutar. |
+| `taxTotal` | `decimal` | Toplam vergi. |
+| `taxExclusiveAmount` | `decimal` | Vergi haric toplam. |
+| `documentCurrencyCode` | `string/null` | Belge para birimi; ornek `TRY`. |
+| `exchangeRate` | `decimal` | Kur bilgisi. |
+| `vat1`, `vat8`, `vat10`, `vat18`, `vat20` | `decimal` | Oran bazli KDV tutarlari. |
+| `vat0TaxableAmount`, `vat1TaxableAmount`, `vat8TaxableAmount`, `vat10TaxableAmount`, `vat18TaxableAmount`, `vat20TaxableAmount` | `decimal` | Oran bazli vergilendirilebilir matrahlar. |
+| `orderDocumentId` | `string/null` | Iliskili siparis belge numarasi. |
+| `isArchived` | `boolean` | Uyumsoft arsiv durumu. |
+| `invoiceTipType` | `string` | Fatura tip sinifi; ornek satis/iade karsiligi enum metni. |
+| `invoiceTipTypeCode` | `number` | Fatura tip sinifi kodu. |
+| `isNew` | `boolean/null` | Yalniz inbox satirlarinda yeni belge bilgisi. |
+| `isSeen` | `boolean/null` | Yalniz inbox satirlarinda gorulme bilgisi. |
+
+UI liste kolonlari icin minimum zorunlu set:
+
+- `invoiceNumber`
+- `targetTitle`
+- `targetTcknVkn`
+- `createDateUtc` veya `executionDate`
+- `payableAmount`
+- `documentCurrencyCode`
+- `status`
+- `direction`
+- `pdfFilePath`
 
 UI render onerisi:
 
@@ -8692,15 +10134,18 @@ Bu modullerde exception middleware davranisi su sekildedir:
 
 - `400 Bad Request`
   - eksik/hatali scalar parameter
-  - invalid `payloadXml`
+  - eksik/hatali typed query parameter
   - katalogda olmayan `operationName`
 - `401 Unauthorized`
   - token yok/gecersiz
 - `403 Forbidden`
   - ilgili module permission'i yok
+- `404 Not Found`
+  - teknik UUID ile istenen remote belge/PDF bulunamadi
+  - UI bu durumda ayni istegi tekrar tekrar denemez ve baska satirin UUID'sini kullanmaz
 - `409 Conflict`
   - Uyumsoft remote service request'i reddetti
-  - SOAP fault dondu
+  - WCF servis hatasi dondu
   - server-side endpoint/credential/config eksik
 - `500 Internal Server Error`
   - beklenmeyen parse/runtime problemi
@@ -8709,6 +10154,8 @@ UI notu:
 
 - `409` cevaplarini "servis reddetti / uzak servis cevabi" gibi kullaniciya daha anlamli bir dille gostermek dogru olur
 - `400` cevaplari ise lokal request form hatasi gibi ele alinmalidir
+- hata response'undaki `correlationId`, destek/log incelemesi icin UI tarafinda kaydedilmelidir
+- `pdfFilePath` cagrisi `404` donerse UI `invoiceNumber` ile fallback yapmamalidir; satiri yenileyip yeni `invoiceUuid/pdfFilePath` almak veya hatayi kullaniciya gostermek gerekir
 
 ### E-Fatura Modulu: Dahil Olan GET Operasyonlari
 
@@ -8869,20 +10316,19 @@ Neden su an sadece GET acildi:
 - `Operasyon Explorer` sekmesi
   - kategori filtreli operasyon listesi
   - secili operasyon request hint'i
-  - dynamic form + payloadXml editor
+  - dynamic parameter formu
 - `Sonuc` sekmesi
   - summary
   - tree
-  - raw xml
+  - response payload
 - opsiyonel `Template/History` alanlari
   - son kullanilan operasyon parametreleri
-  - sik kullanilan query XML'leri
+  - sik kullanilan query parametre setleri
 
 UI'nin dikkat etmesi gereken sinirlar:
 
 - backend sadece katalogdaki operasyonlari cagirir
 - UI operationName'i manuel string olarak uretmemelidir
-- `payloadXml` dogrudan XML fragment oldugu icin text-area validation ve escaping konusunda dikkatli davranilmalidir
 - `Get...Pdf` operasyonlari base64 veya data node dondugu icin UI raw sonucu dogrudan preview etmeyebilir; gerekirse ayrik base64 decode araci sonraki fazda eklenebilir
 - mevcut business `e-irsaliye gonder` butonlari bu modullere tasinmamalidir
 
@@ -9023,13 +10469,64 @@ public sealed record UyumsoftOperationResponseDto(
     string? ScalarValue,
     IReadOnlyDictionary<string, string?> ResultAttributes,
     IReadOnlyCollection<UyumsoftResponseNodeDto> Nodes,
-    string RawXml);
+    UyumsoftInvoiceListDto? InvoiceList,
+    string ResponsePayloadJson);
 
 public sealed record UyumsoftResponseNodeDto(
     string Name,
     string? Value,
     IReadOnlyDictionary<string, string?> Attributes,
     IReadOnlyCollection<UyumsoftResponseNodeDto> Children);
+
+public sealed record UyumsoftInvoiceListDto(
+    int PageIndex,
+    int PageSize,
+    int TotalCount,
+    int TotalPages,
+    IReadOnlyCollection<UyumsoftInvoiceListItemDto> Items);
+
+public sealed record UyumsoftInvoiceListItemDto(
+    string? InvoiceUuid,
+    string? InvoiceNumber,
+    string Direction,
+    string? PdfFilePath,
+    string? LocalDocumentId,
+    string? Scenario,
+    int? ScenarioCode,
+    string Type,
+    int TypeCode,
+    string? TargetTcknVkn,
+    string? TargetTitle,
+    string? EnvelopeIdentifier,
+    string Status,
+    int StatusCode,
+    string EnvelopeStatus,
+    int EnvelopeStatusCode,
+    string? Message,
+    DateTime CreateDateUtc,
+    DateTime? ExecutionDate,
+    decimal PayableAmount,
+    decimal TaxTotal,
+    decimal TaxExclusiveAmount,
+    string? DocumentCurrencyCode,
+    decimal ExchangeRate,
+    decimal Vat1,
+    decimal Vat8,
+    decimal Vat10,
+    decimal Vat18,
+    decimal Vat20,
+    decimal Vat0TaxableAmount,
+    decimal Vat1TaxableAmount,
+    decimal Vat8TaxableAmount,
+    decimal Vat10TaxableAmount,
+    decimal Vat18TaxableAmount,
+    decimal Vat20TaxableAmount,
+    string? OrderDocumentId,
+    bool IsArchived,
+    string InvoiceTipType,
+    int InvoiceTipTypeCode,
+    bool? IsNew,
+    bool? IsSeen);
 ```
 
 ### Auth ve Yetki Modelleri
@@ -10430,6 +11927,12 @@ public enum InvoiceDocumentProfile
     EArsiv = 2
 }
 
+public enum InvoiceSendingScenario
+{
+    EFatura = 0,
+    EArsiv = 1
+}
+
 public sealed record InvoiceRenderedDocumentDto(
     string Source,
     string InvoiceId,
@@ -10684,8 +12187,8 @@ public sealed record AxataSynchronizationManualDispatchDto(
     int? ServiceState,
     string ServiceMessage,
     string PayloadJson,
-    string RequestXml,
-    string ResponseXml,
+    string RequestPayloadJson,
+    string ResponsePayloadJson,
     IReadOnlyCollection<string> Notes);
 
 public sealed record AxataSynchronizationManualDispatchBatchDto(
@@ -10708,10 +12211,16 @@ public sealed record AxataIntegrationAuditDto(
     DateTime EndDate,
     int? WarehouseNo,
     AxataIntegrationAuditSummaryDto Summary,
+    AxataOrderWorkflowSummaryDto WorkflowSummary,
+    IReadOnlyCollection<AxataOrderLifecycleDto> OrderLifecycles,
     IReadOnlyCollection<AxataOutboundDeliveryMovementSummaryDto> OutboundDeliverySummaries,
     IReadOnlyCollection<AxataUnsyncedWarehouseOrderDto> UnsyncedWarehouseOrders,
+    IReadOnlyCollection<AxataSentWarehouseOrderMissingShipmentDto> SentWarehouseOrdersMissingMikroShipments,
+    IReadOnlyCollection<AxataSentWarehouseOrderMissingShipmentDto> SentWarehouseOrdersWithShipmentDifferences,
     IReadOnlyCollection<AxataPendingOutboundDeliveryDto> PendingOutboundDeliveries,
+    IReadOnlyCollection<AxataPendingOutboundDeliveryDto> AxataOutboundDeliveries,
     IReadOnlyCollection<AxataPendingOutboundDeliveryDto> InterventionCandidates,
+    IReadOnlyCollection<AxataIntegrationAuditOperationDto> Operations,
     IReadOnlyCollection<string> Notes);
 
 public sealed record AxataIntegrationAuditSummaryDto(
@@ -10719,12 +12228,32 @@ public sealed record AxataIntegrationAuditSummaryDto(
     int SentWarehouseOrderDocumentCount,
     int PartiallySentWarehouseOrderDocumentCount,
     int UnsentWarehouseOrderDocumentCount,
+    int SentWarehouseOrderMissingMikroShipmentDocumentCount,
+    int SentWarehouseOrderMissingMikroShipmentLineCount,
+    double SentWarehouseOrderMissingMikroShipmentQuantity,
+    int SentWarehouseOrderMissingMikroShipmentWithAxataDeliveryDocumentCount,
+    int SentWarehouseOrderMissingMikroShipmentWithAxataDeliveryLineCount,
+    double SentWarehouseOrderMissingMikroShipmentWithAxataDeliveryQuantity,
+    int SentWarehouseOrderMissingAxataOutboundDeliveryDocumentCount,
+    int SentWarehouseOrderMissingAxataOutboundDeliveryLineCount,
+    double SentWarehouseOrderMissingAxataOutboundDeliveryQuantity,
+    int SentWarehouseOrderShipmentDifferenceDocumentCount,
+    int SentWarehouseOrderShipmentDifferenceLineCount,
+    double SentWarehouseOrderShipmentDifferenceQuantity,
     int PendingOutboundDeliveryDocumentCount,
     int PendingOutboundDeliveryLineCount,
     double PendingOutboundDeliveryQuantity,
     int C01PendingDocumentCount,
     int C01MissingInMikroDocumentCount,
-    int C01MikroExistsPendingAckDocumentCount);
+    int C01MikroExistsPendingAckDocumentCount,
+    int AxataOutboundDeliveryDocumentCount,
+    int AxataOutboundDeliveryLineCount,
+    double AxataOutboundDeliveryQuantity,
+    int AxataCompletedOutboundDeliveryDocumentCount,
+    int AxataCancelledOutboundDeliveryDocumentCount,
+    int AxataCancelledOutboundDeliveryLineCount,
+    double AxataCancelledOutboundDeliveryQuantity,
+    int AxataEmptyOutboundDeliveryDocumentCount);
 
 public sealed record AxataOutboundDeliveryMovementSummaryDto(
     string MovementType,
@@ -10735,6 +12264,21 @@ public sealed record AxataOutboundDeliveryMovementSummaryDto(
     int MikroMissingDocumentCount,
     int MikroExistsPendingAckDocumentCount,
     string CheckLevel);
+
+public sealed record AxataIntegrationAuditOperationDto(
+    string Code,
+    string Title,
+    string State,
+    string Severity,
+    int DocumentCount,
+    int LineCount,
+    double Quantity,
+    string? ListRoute,
+    string? PreviewRoute,
+    string? ExecuteRoute,
+    bool CanExecute,
+    bool WritesData,
+    string Description);
 
 public sealed record AxataUnsyncedWarehouseOrderDto(
     string DocumentSerie,
@@ -10748,6 +12292,27 @@ public sealed record AxataUnsyncedWarehouseOrderDto(
     double TotalQuantity,
     double SentQuantity,
     double UnsentQuantity,
+    string State,
+    DateTime? LastUpdateDate,
+    string Warning);
+
+public sealed record AxataSentWarehouseOrderMissingShipmentDto(
+    string DocumentSerie,
+    int DocumentOrderNo,
+    DateTime DocumentDate,
+    int InWarehouseNo,
+    int OutWarehouseNo,
+    int LineCount,
+    int SentLineCount,
+    int MissingMovementLinkLineCount,
+    double TotalQuantity,
+    double SentQuantity,
+    double MissingMovementLinkQuantity,
+    double DeliveredQuantity,
+    int LinkedMovementLineCount,
+    int DifferenceLineCount,
+    double DifferenceQuantity,
+    string DifferenceReason,
     string State,
     DateTime? LastUpdateDate,
     string Warning);
@@ -10798,6 +12363,31 @@ public sealed record AxataOutboundDeliveryQueueDocumentDto(
     bool HasLiveImport,
     string CurrentHandling,
     string? Warning);
+
+public sealed record AxataOutboundDeliveriesByDateDto(
+    DateTime Date,
+    decimal AxataDateNumber,
+    DateTime GeneratedAtUtc,
+    int TotalDocumentCount,
+    int TotalLineCount,
+    double TotalQuantity,
+    IReadOnlyCollection<AxataOutboundDeliveryByDateItemDto> Items);
+
+public sealed record AxataOutboundDeliveryByDateItemDto(
+    long AxataSequenceNo,
+    string AxataDeliveryNo,
+    string DocumentSerie,
+    int? DocumentOrderNo,
+    string Status,
+    string? MovementType,
+    string? SourceWarehouseCode,
+    string? TargetWarehouseCode,
+    DateTime? AxataDate,
+    DateTime? TransferDate,
+    int LineCount,
+    double Quantity,
+    string? VehiclePlate,
+    string? DriverName);
 
 public sealed record AxataOutboundDeliveryImportPreviewDto(
     string MovementType,
@@ -10976,9 +12566,23 @@ Bu bolumde yalnizca endpointlerin dogrudan baglandigi HTTP request modelleri yer
 ### Stok ve Etiket Request Modelleri
 
 - `LabelTagListHttpRequest`: `DateToGet`
+- `ManavKunyeDetailedLabelTagListHttpRequest`: `WarehouseNo`, `DateToGet` opsiyonel
 - `LabelPriceChangedProductListHttpRequest`: `DateTimeFilter`
 - `CreateLabelDocumentHttpRequest`: `Lines`
 - `CreateLabelDocumentLineHttpRequest`: `ProductCode`
+
+### Mikro Evrak Duzenleme Request Modelleri
+
+- `StockCardSearchHttpRequest`: `SearchText`, `IncludePassive`, `Take`
+- `StockCardPatchHttpRequest`: `Name`, `ShortName`, `ForeignName`, `SupplierCode`, `StockType`, `CurrencyType`, `TrackingType`, `Unit1Name`, `Unit2Name`, `Unit3Name`, `Unit4Name`, `RetailTaxPointer`, `WholesaleTaxPointer`, `CategoryCode`, `MainGroupCode`, `SubGroupCode`, `BrandCode`, `SectorCode`, `RayonCode`, `ManufacturerCode`, `ResponsibilityCode`, `ShelfCode`, `SalesStopped`, `OrderStopped`, `ReceivingStopped`, `IsPassive`, `DiscountDisabled`
+- `StockMovementDocumentLookupHttpRequest`: `DocumentSerie`, `DocumentOrderNo`, `DocumentType`, `MovementType`, `MovementKind`, `NormalReturn`, `WarehouseNo`
+- `UpdateStockMovementDocumentHttpRequest`: `Lookup`, `Header`, `Lines`
+- `StockMovementHeaderPatchHttpRequest`: `MovementDate`, `DocumentDate`, `DocumentNo`, `CustomerCode`, `InputWarehouseNo`, `OutputWarehouseNo`, `Description`, `MovementGroupCode1`, `MovementGroupCode2`, `MovementGroupCode3`, `CustomerResponsibilityCenter`, `StockResponsibilityCenter`, `ProjectCode`
+- `StockMovementLinePatchHttpRequest`: `MovementGuid`, `RowNo`, `StockCode`, `UnitPointer`, `Quantity`, `SecondaryQuantity`, `Amount`, `Discount1..Discount6`, `Expense1..Expense4`, `TaxPointer`, `TaxAmount`, `NetWeight`, `GrossWeight`, `Description`, `PartyCode`, `LotNo`, `ProjectCode`, `CustomerResponsibilityCenter`, `StockResponsibilityCenter`, `InputWarehouseNo`, `OutputWarehouseNo`
+- `CustomerMovementDocumentLookupHttpRequest`: `DocumentSerie`, `DocumentOrderNo`, `DocumentType`, `MovementType`, `MovementKind`, `NormalReturn`, `CustomerCode`
+- `UpdateCustomerMovementDocumentHttpRequest`: `Lookup`, `Header`, `Lines`
+- `CustomerMovementHeaderPatchHttpRequest`: `MovementDate`, `DocumentDate`, `DocumentNo`, `CustomerCode`, `TurnoverCustomerCode`, `Description`, `SellerCode`, `ProjectCode`, `ResponsibilityCenter`
+- `CustomerMovementLinePatchHttpRequest`: `MovementGuid`, `RowNo`, `CustomerCode`, `TurnoverCustomerCode`, `Quantity`, `Amount`, `SubAmount`, `DueDay`, `Discount1..Discount6`, `Expense1..Expense4`, `Tax1..Tax5`, `Description`, `SellerCode`, `ProjectCode`, `ResponsibilityCenter`
 
 ### Ayar Request Modelleri
 
@@ -11035,13 +12639,11 @@ Bu bolumde yalnizca endpointlerin dogrudan baglandigi HTTP request modelleri yer
 - `GET /api/fatura-islemleri/fatura-gonderimi/{documentSerie}/{documentOrderNo}` endpoint'i body almaz; `scenario` query parametresi kullanir
 - `POST /api/fatura-islemleri/fatura-gonderimi/{documentSerie}/{documentOrderNo}/render` endpoint'i body'de `InvoiceSendingRenderHttpRequest` alir
 - `POST /api/fatura-islemleri/fatura-gonderimi/send` endpoint'i body'de `InvoiceSendingBatchHttpRequest` alir
-- `POST /api/fatura-islemleri/fatura-gonderimi/outbox/search` body'de `UyumsoftOperationHttpRequest` alir
 - `POST /api/fatura-islemleri/fatura-goruntuleme/senkronize` endpoint'i body'de `InvoiceViewingSynchronizationHttpRequest` alir
 - `GET /api/fatura-islemleri/fatura-goruntuleme/{documentId}` ve `/pdf` endpointleri body almaz; `documentId` path parametresiyle Uyumsoft `GetInboxInvoicePdf` cagirir
 - `GET /api/fatura-islemleri/fatura-goruntuleme/{documentId}/detail` endpoint'i body almaz; HTML detay icin `documentId` path parametresi kullanir
 - `POST /api/fatura-islemleri/fatura-goruntuleme/{documentId}/render` endpoint'i body'de `InvoiceViewingRenderHttpRequest` alir
 - `PATCH /api/fatura-islemleri/fatura-goruntuleme/{documentId}/printed` endpoint'i body'de `InvoiceViewingPrintedStateHttpRequest` alir
-- `GET /api/fatura-islemleri/fatura-gonderimi/outbox/{invoiceId}` endpoint'i body almaz; `invoiceId` path parametresiyle birlikte `profile` ve `preferEmbeddedXslt` query parametrelerini kullanir
 
 ### Operasyon Request Modelleri
 
@@ -11050,15 +12652,17 @@ Bu bolumde yalnizca endpointlerin dogrudan baglandigi HTTP request modelleri yer
 
 ### Entegrasyon Request Modelleri
 
-- `UyumsoftOperationHttpRequest`: `PayloadXml`, `Parameters`
+- `UyumsoftOperationHttpRequest`: `Parameters`
 - `UyumsoftOperationParameterHttpRequest`: `Name`, `Value`
 - `AxataSynchronizationExecuteHttpRequest`: `TaskCode`, `ExecutionMode`, `WarehouseNo`
 - `AxataSynchronizationExecuteTaskHttpRequest`: `ExecutionMode`, `WarehouseNo`
 - `AxataSynchronizationManualDocumentCandidatesHttpRequest`: `WarehouseNo`, `StartDate`, `EndDate`, `Skip`, `Take`
-- `AxataIntegrationAuditHttpRequest`: `StartDate`, `EndDate`, `WarehouseNo`, `Take`
+- `AxataIntegrationAuditHttpRequest`: `StartDate`, `EndDate`, `WarehouseNo`, `Take`, `DocumentSerie`, `DocumentOrderNo`
 - `AxataOutboundDeliveryQueuePreviewHttpRequest`: `MovementType`, `Take`
+- `AxataOutboundDeliveriesByDateHttpRequest`: `Date`
 - `AxataOutboundDeliveryImportPreviewHttpRequest`: `Take`
 - `AxataOutboundDeliveryImportExecuteHttpRequest`: `Take`, `ContinueOnError`, `Acknowledge`
+- `AxataOutboundDeliveryDocumentImportExecuteHttpRequest`: `Status`, `Acknowledge`
 - `AxataSynchronizationManualDocumentHttpRequest`: `WarehouseNo`, `DocumentSerie`, `DocumentOrderNo`, `DocumentNo`, `DocumentDate`
 - `AxataSynchronizationManualDocumentExecuteHttpRequest`: `WarehouseNo`, `DocumentSerie`, `DocumentOrderNo`, `DocumentNo`, `DocumentDate`, `ExecutionMode`
 - `AxataSynchronizationManualDocumentItemHttpRequest`: `DocumentSerie`, `DocumentOrderNo`, `DocumentNo`, `DocumentDate`
@@ -11086,8 +12690,11 @@ Bu bolumde yalnizca endpointlerin dogrudan baglandigi HTTP request modelleri yer
 - `GET /api/integrations/axata-sync/manual/tasks/{taskCode}/documents/candidates` endpoint'i body almaz; `warehouseNo`, `startDate`, `endDate`, `skip`, `take` query parametresi kullanir
 - `issued-warehouse-order-sync` task'inda `warehouseNo` hedef depo degil AXATA kaynak/cikis depodur; Mikro filtre `ssip_cikdepo = warehouseNo` olur
 - `GET /api/integrations/axata-sync/live/axata/outbound-deliveries/preview` endpoint'i body almaz; query'de `movementType` ve `take` kullanir; `movementType` bos ise `C01` kabul edilir, `C04` alias'i `C4` olarak sorgulanir
+- `GET /api/integrations/axata-sync/live/axata/outbound-deliveries/by-date` endpoint'i body almaz; query'de zorunlu `date` kullanir. Ornek: `date=2026-06-19`. Backend bu tarihi `yyyyMMdd` sayisal AXATA tarihine cevirip `ENT006.S06ITAR` alaninda filtreler
+- `GET /api/integrations/axata-sync/live/axata/outbound-deliveries/c01/documents/{documentSerie}/{documentOrderNo}/preview` endpoint'i body almaz; `status` query parametresi opsiyoneldir ve sadece `0` veya `1` olabilir
+- `POST /api/integrations/axata-sync/live/axata/outbound-deliveries/c01/documents/{documentSerie}/{documentOrderNo}/import` body'de `status` ve `acknowledge` alir; `acknowledge=false` kontrollu rescue icin onerilir
 - `ExecutionMode` su an yalnizca `DryRun` veya `Outbox` olabilir
-- `dispatch` ve `dispatch-batch` endpoint'leri `ExecutionMode` almaz; bunlar dogrudan canli AXATA SOAP gonderimidir
+- `dispatch` ve `dispatch-batch` endpoint'leri `ExecutionMode` almaz; bunlar dogrudan canli AXATA WCF gonderimidir
 - `issued-warehouse-order-sync` dispatch payload'i worker parity icin `C01`, `company-receiving-sync` dispatch payload'i `G01` hareket kodu ile gonderilir
 - `manual/tasks/{taskCode}/documents/preview` ve `manual/tasks/{taskCode}/documents/execute` request body alanlari task'a gore kullanilir:
   - `issued-warehouse-order-sync`: `DocumentSerie` + `DocumentOrderNo`
@@ -11115,9 +12722,9 @@ Bu bolumde yalnizca endpointlerin dogrudan baglandigi HTTP request modelleri yer
 - `AxataInboundAtfCompanyReceivingLineHttpRequest` icinde yalnizca `Quantity` vardir; bu endpoint native ATF miktarini tam kabul sayar. Kismi kabul/iade gerekiyorsa `manual/incoming/company-receivings` endpoint'ine `dispatchQuantity` ve `acceptedQuantity` ayrimiyla payload gonderilmelidir.
 - E-irsaliye olusturan endpointler body'de `SendEDespatchHttpRequest`, path'te `documentSerie` ve `documentOrderNo`, query'de opsiyonel `warehouseNo` alir.
 - `POST /api/entegrasyon-islemleri/uyumsoft/e-fatura/get/{operationName}` ve `POST /api/entegrasyon-islemleri/uyumsoft/e-irsaliye/get/{operationName}` endpoint'leri body'de `UyumsoftOperationHttpRequest` alir.
-- `GET /api/entegrasyon-islemleri/uyumsoft/e-fatura/get/{operationName}` ve `GET /api/entegrasyon-islemleri/uyumsoft/e-irsaliye/get/{operationName}` endpoint'leri body almaz; opsiyonel `payloadXml` ve tekrar eden `parameter=name=value` query parametresi kullanir.
+- `GET /api/entegrasyon-islemleri/uyumsoft/e-fatura/get/{operationName}` ve `GET /api/entegrasyon-islemleri/uyumsoft/e-irsaliye/get/{operationName}` endpoint'leri body almaz; tekrar eden `parameter=name=value` query parametresi kullanir.
 - `GET /api/entegrasyon-islemleri/uyumsoft/e-fatura/system/date/formatted` endpoint'i `format` query parametresi alir.
-- `GET /api/entegrasyon-islemleri/uyumsoft/e-fatura/.../{invoiceId}` alias route'lari `invoiceId` path parametresiyle calisir.
+- `GET /api/entegrasyon-islemleri/uyumsoft/e-fatura/.../{invoiceUuid}` alias route'lari `invoiceUuid` path parametresiyle calisir.
 - `GET /api/entegrasyon-islemleri/uyumsoft/e-irsaliye/.../{despatchId}` alias route'lari `despatchId` path parametresiyle calisir; `GET /api/entegrasyon-islemleri/uyumsoft/e-irsaliye/despatches/{despatchId}/envelope` icin ek olarak `isInbox` query parametresi zorunludur.
 - Cok sayida detay endpointi ayri request class'i kullanmaz; path parametreleri ve opsiyonel `warehouseNo` query parametresi ile calisir.
 - `GET /api/kasa-islemleri/etiket-belgeleri`, `GET /api/kasa-islemleri/etiket-belgeleri/son`, `GET /api/kasa-islemleri/etiket-belgeleri/tumu` ve `GET /api/kasa-islemleri/etiket-belgeleri/{documentId}` endpointleri ayri request class'i yerine dogrudan action parametreleri kullanir.
