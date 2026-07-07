@@ -104,6 +104,17 @@ void main() {
       find.widgetWithText(TextFormField, 'Cari Kodu*'),
       'CR001',
     );
+    await tester.pump();
+
+    final immediateDrafts = await draftRepository.fetchDrafts(
+      moduleKey: 'mal-kabul-islemleri.firma-mal-kabulleri',
+      userId: '7',
+      warehouseNo: '110',
+    );
+    expect(immediateDrafts, hasLength(1));
+    expect(immediateDrafts.single.payload['customerText'], 'Test Cari');
+    expect(immediateDrafts.single.payload['customerCode'], 'CR001');
+
     await _pickProduct(tester);
     await tester.pump(const Duration(milliseconds: 900));
     await tester.pump();

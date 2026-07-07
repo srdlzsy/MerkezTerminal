@@ -1188,6 +1188,7 @@ class _CompanyAcceptanceCreateSheetState
                                   line.dispose();
                                   _lines.removeAt(index);
                                 });
+                                _draftSession.scheduleSave();
                               },
                               icon: const Icon(Icons.delete_outline_rounded),
                             ),

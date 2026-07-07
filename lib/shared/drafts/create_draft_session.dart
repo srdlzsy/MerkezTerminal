@@ -23,6 +23,7 @@ class CreateDraftSession with WidgetsBindingObserver {
 
   Timer? _timer;
   Future<void> _saveQueue = Future<void>.value();
+  bool _immediateSaveScheduled = false;
   bool _submitted = false;
   bool _disposed = false;
 
@@ -35,6 +36,16 @@ class CreateDraftSession with WidgetsBindingObserver {
   void scheduleSave() {
     if (_disposed || draft == null || repository == null) {
       return;
+    }
+
+    if (!_immediateSaveScheduled) {
+      _immediateSaveScheduled = true;
+      scheduleMicrotask(() {
+        _immediateSaveScheduled = false;
+        if (!_disposed) {
+          unawaited(flush());
+        }
+      });
     }
 
     _timer?.cancel();
