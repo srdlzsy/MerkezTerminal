@@ -455,7 +455,7 @@ class _OutgoingWarehouseShipmentCreateSheetState
 
     line.barcodeController.text = barcode;
     setState(() {
-      line.setLookupStatus('Barkod okundu: $barcode. API aramasi basliyor.');
+      line.setLookupStatus('Barkod okundu: $barcode. Urun araniyor.');
     });
     await _pickProduct(line);
   }
@@ -497,7 +497,7 @@ class _OutgoingWarehouseShipmentCreateSheetState
 
     line.barcodeController.text = barcode;
     setState(() {
-      line.setLookupStatus('Barkod okundu: $barcode. API aramasi basliyor.');
+      line.setLookupStatus('Barkod okundu: $barcode. Urun araniyor.');
     });
     await _pickLinkedProduct(line);
   }

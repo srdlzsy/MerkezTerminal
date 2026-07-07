@@ -98,7 +98,7 @@ abstract final class MenuBlueprintRegistry {
       uiNotes: <String>[
         'E-irsaliye bilgileri create ekraninda degil, detay ekranindaki modal ile alinmali.',
         'warehouseOrderNo varsa kullaniciya siparise bagli sevk oldugu gosterilebilir.',
-        'Satir eslestirmesi icin movementGuid saklanmali; sadece stok kodu yeterli degil.',
+        'Satir eslestirmesi sistem tarafinda korunur; kullaniciya stok ve miktar bilgisi yeterlidir.',
       ],
     ),
     'sevk-islemleri.gelen-depolar-arasi-sevkler': const MenuBlueprint(
@@ -119,7 +119,7 @@ abstract final class MenuBlueprintRegistry {
       ],
       uiNotes: <String>[
         'Liste ekraninda kaynak depo, hedef depo, sevk durumu, plaka, sofor ve toplam miktar gosterilmeli.',
-        'Detaydaki movementGuid degeri mal kabul ekranina tasinmali.',
+        'Detaydaki satir eslestirmesi mal kabul ekranina sistem tarafindan tasinmali.',
       ],
     ),
     'sevk-islemleri.giden-firma-sevkleri': const MenuBlueprint(
@@ -182,7 +182,7 @@ abstract final class MenuBlueprintRegistry {
     'mal-kabul-islemleri.depo-mal-kabulleri': const MenuBlueprint(
       title: 'Depo Mal Kabulleri',
       subtitle:
-          'Bekleyen gelen sevk ve iadeleri listeler, movementGuid bazli kabul akisini yonetir.',
+          'Bekleyen gelen sevk ve iadeleri listeler, satir bazli kabul akisini yonetir.',
       endpoints: <EndpointSpec>[
         EndpointSpec(
           label: 'Liste',
@@ -204,8 +204,8 @@ abstract final class MenuBlueprintRegistry {
       uiNotes: <String>[
         'Liste bekleyen gelen sevkleri ve gelen depo iadelerini gosterir; yeni bos fis acilmaz.',
         'isReturn=false normal gelen depo sevkini, isReturn=true gelen depo iadesini ifade eder.',
-        'UI her satir icin receivedQuantity alanini sevk miktariyla onceden doldurabilir.',
-        'Eksik veya fazla durumda allowDiscrepancy kullanicidan acik onay alinarak gonderilmeli; fark sth_FormulMiktar uzerinde izlenir.',
+        'UI her satir icin sayilan miktari sevk miktariyla onceden doldurabilir.',
+        'Eksik veya fazla durumda kullanicidan acik fark onayi alinmali.',
       ],
     ),
     'mal-kabul-islemleri.mal-kabul-farklari': const MenuBlueprint(
@@ -297,7 +297,7 @@ abstract final class MenuBlueprintRegistry {
       ],
       uiNotes: <String>[
         'Bu ekran depolar arasi sevkin iade varyanti gibi dusunulmeli.',
-        'Create request icinde warehouseOrderLineGuid yoktur; siparis baglama yapilmaz.',
+        'Bu iade akisinda siparis baglantisi kullanilmaz.',
       ],
     ),
     'iade-islemleri.gelen-depo-iadeleri': const MenuBlueprint(

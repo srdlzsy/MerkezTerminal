@@ -263,6 +263,7 @@ class _CompanyAcceptanceCreateSheetState
       _isResolvingEDespatch = true;
       _lookupError = null;
     });
+    _draftSession.scheduleSave();
 
     try {
       final prefill = await widget.repository.resolveEDespatchByEttn(
@@ -284,6 +285,7 @@ class _CompanyAcceptanceCreateSheetState
               ? 'Bu ETTN ile gelen e-irsaliye bulunamadi; QR belge bilgileri forma aktarildi.'
               : 'Bu ETTN ile gelen e-irsaliye bulunamadi: $ettn';
         });
+        _draftSession.scheduleSave();
         return;
       }
 
@@ -296,6 +298,7 @@ class _CompanyAcceptanceCreateSheetState
         _isResolvingEDespatch = false;
         _lookupError = null;
       });
+      _draftSession.scheduleSave();
 
       await _fillCustomerFromQrSenderIfNeeded(qrPayload);
 
@@ -314,6 +317,7 @@ class _CompanyAcceptanceCreateSheetState
         _isResolvingEDespatch = false;
         _lookupError = error.toString().replaceFirst('Exception: ', '');
       });
+      _draftSession.scheduleSave();
 
       await _fillCustomerFromQrSenderIfNeeded(qrPayload);
     }
@@ -475,7 +479,7 @@ class _CompanyAcceptanceCreateSheetState
     List<SearchProductLookupItem> products;
     try {
       setState(() {
-        line.setLookupStatus('API araniyor: $query', isLoading: true);
+        line.setLookupStatus('Urun araniyor: $query', isLoading: true);
         _lookupError = null;
       });
 
@@ -590,9 +594,10 @@ class _CompanyAcceptanceCreateSheetState
 
     setState(() {
       line.lookupController.text = barcode;
-      line.setLookupStatus('Barkod okundu: $barcode. API aramasi basliyor.');
+      line.setLookupStatus('Barkod okundu: $barcode. Urun araniyor.');
       _lookupError = null;
     });
+    _draftSession.scheduleSave();
 
     await _searchProduct(line);
   }
@@ -1019,7 +1024,7 @@ class _CompanyAcceptanceCreateSheetState
             const TerminalSheetHeader(
               title: 'Yeni Firma Mal Kabul',
               subtitle:
-                  'Ayni fis icinde siparisli ve siparissiz satirlar bir arada gidebilir. Siparisli satirlarda orderGuid otomatik tasinir.',
+                  'Ayni fis icinde siparisli ve siparissiz satirlar bir arada gidebilir. Siparisli satirlarda siparis baglantisi otomatik tasinir.',
               padding: EdgeInsets.zero,
             ),
             const SizedBox(height: 16),

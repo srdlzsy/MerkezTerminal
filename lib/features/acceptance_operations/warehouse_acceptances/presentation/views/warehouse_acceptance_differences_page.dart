@@ -315,7 +315,6 @@ class _DifferenceCard extends StatelessWidget {
                 label: 'Fark',
                 value: AppFormatters.quantity(item.differenceQuantity.abs()),
               ),
-              _DifferenceMetric(label: 'Guid', value: item.shortGuid),
             ],
           ),
           if (item.description.isNotEmpty) ...<Widget>[

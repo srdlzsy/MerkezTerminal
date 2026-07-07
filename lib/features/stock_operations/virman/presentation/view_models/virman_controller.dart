@@ -80,14 +80,11 @@ class VirmanController extends ChangeNotifier with SafeChangeNotifier {
       }
 
       _virmans = items;
-      _selectedVirman = items.isEmpty
-          ? null
-          : _findPreferredVirman(
-                  items,
-                  preferredDocumentSerie: preferredDocumentSerie,
-                  preferredDocumentOrderNo: preferredDocumentOrderNo,
-                ) ??
-                items.first;
+      _selectedVirman = _findPreferredVirman(
+        items,
+        preferredDocumentSerie: preferredDocumentSerie,
+        preferredDocumentOrderNo: preferredDocumentOrderNo,
+      );
       _selectedVirmanDetail = null;
       _detailError = null;
       _isLoadingList = false;

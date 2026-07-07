@@ -82,14 +82,11 @@ class GivenCompanyOrdersController extends ChangeNotifier
       }
 
       _orders = items;
-      _selectedOrder = items.isEmpty
-          ? null
-          : _findPreferredOrder(
-                  items,
-                  preferredDocumentSerie: preferredDocumentSerie,
-                  preferredDocumentOrderNo: preferredDocumentOrderNo,
-                ) ??
-                items.first;
+      _selectedOrder = _findPreferredOrder(
+        items,
+        preferredDocumentSerie: preferredDocumentSerie,
+        preferredDocumentOrderNo: preferredDocumentOrderNo,
+      );
       _selectedOrderDetail = null;
       _detailError = null;
       _isLoadingList = false;

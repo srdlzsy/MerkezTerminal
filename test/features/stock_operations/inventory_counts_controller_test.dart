@@ -6,7 +6,7 @@ import 'package:furpa_merkez_terminal/features/stock_operations/inventory_counts
 import 'package:furpa_merkez_terminal/features/stock_operations/inventory_counts/presentation/view_models/inventory_counts_controller.dart';
 
 void main() {
-  test('loadCounts selects first record and loads its detail', () async {
+  test('loadCounts keeps detail closed until a record is selected', () async {
     final repository = _FakeInventoryCountsRepository();
     final controller = InventoryCountsController(
       repository: repository,
@@ -17,6 +17,11 @@ void main() {
     await controller.loadCounts();
 
     expect(controller.counts, hasLength(2));
+    expect(controller.selectedCount, isNull);
+    expect(controller.selectedCountDetail, isNull);
+
+    await controller.selectCount(controller.counts.first);
+
     expect(controller.selectedCount?.documentNo, 25);
     expect(controller.selectedCountDetail?.items, hasLength(1));
   });

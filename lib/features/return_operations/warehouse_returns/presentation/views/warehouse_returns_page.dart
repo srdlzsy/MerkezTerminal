@@ -942,7 +942,7 @@ class _ReturnItemCard extends StatelessWidget {
     final summary = <String>[
       'Kod ${item.stockCode}',
       'Miktar ${AppFormatters.quantity(item.quantity)}',
-      'Birim ${item.unitName}/${item.unitPointer}',
+      'Birim ${item.unitName}',
       if (item.unitPrice > 0) 'Fiyat ${AppFormatters.currency(item.unitPrice)}',
       if (item.lineAmount > 0)
         'Tutar ${AppFormatters.currency(item.lineAmount)}',
@@ -950,10 +950,6 @@ class _ReturnItemCard extends StatelessWidget {
     final detail = <String>[
       if (item.warehouseOrderNo.isNotEmpty) 'Bagli ${item.warehouseOrderNo}',
       if (item.description.isNotEmpty) 'Aciklama ${item.description}',
-      if (item.projectCode.isNotEmpty) 'Proje ${item.projectCode}',
-      if (item.partyCode.isNotEmpty) 'Parti ${item.partyCode}',
-      if (item.lotNo > 0) 'Lot ${item.lotNo}',
-      if (item.movementGuid.isNotEmpty) 'Guid ${item.movementGuid}',
     ].join(' | ');
 
     return Container(

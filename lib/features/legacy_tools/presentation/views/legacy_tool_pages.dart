@@ -382,6 +382,12 @@ class _ProductLookupToolPageState extends State<ProductLookupToolPage> {
                   TerminalEmptyState(message: widget.emptyMessage)
                 else
                   ..._products.map((item) {
+                    final blockLabels = <String>[
+                      if (item.isOrderBlocked) 'Siparis',
+                      if (item.isSalesBlocked) 'Satis',
+                      if (item.isGoodsAcceptanceBlocked) 'Kabul',
+                    ];
+
                     return Padding(
                       padding: const EdgeInsets.only(bottom: 10),
                       child: Container(
@@ -427,10 +433,10 @@ class _ProductLookupToolPageState extends State<ProductLookupToolPage> {
                             Text(
                               'Kod ${item.stockCode} | Barkod ${item.barcode.isEmpty ? '-' : item.barcode} | Fiyat ${AppFormatters.currency(item.price)} | Birim ${item.unitName}',
                             ),
-                            const SizedBox(height: 4),
-                            Text(
-                              'Siparis blok ${item.isOrderBlocked ? 'evet' : 'hayir'} | Satis blok ${item.isSalesBlocked ? 'evet' : 'hayir'} | Kabul blok ${item.isGoodsAcceptanceBlocked ? 'evet' : 'hayir'}',
-                            ),
+                            if (blockLabels.isNotEmpty) ...<Widget>[
+                              const SizedBox(height: 4),
+                              Text('Bloklu: ${blockLabels.join(', ')}'),
+                            ],
                           ],
                         ),
                       ),

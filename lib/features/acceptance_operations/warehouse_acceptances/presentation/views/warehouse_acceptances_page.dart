@@ -656,7 +656,7 @@ class _AcceptanceReadyBodyState extends State<_AcceptanceReadyBody> {
               ),
             ),
             child: Text(
-              'Her satirda varsayilan olarak ${widget.isReturn ? 'iade' : 'sevk'} miktari gelir. Gerekirse sayilan miktari guncelleyin; eslestirme movementGuid ile yapilir.',
+              'Her satirda varsayilan olarak ${widget.isReturn ? 'iade' : 'sevk'} miktari gelir. Gerekirse sayilan miktari guncelleyin.',
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                 height: 1.35,
                 color: const Color(0xFF5B4738),
@@ -762,7 +762,7 @@ class _AcceptanceReadyBodyState extends State<_AcceptanceReadyBody> {
                       child: Padding(
                         padding: const EdgeInsets.only(top: 4),
                         child: Text(
-                          'Eksik veya fazla kabul oldugunu onayliyorum. Bu durumda allowDiscrepancy=true gonderilecek.',
+                          'Eksik veya fazla kabul oldugunu onayliyorum.',
                           style: Theme.of(context).textTheme.bodyMedium
                               ?.copyWith(
                                 color: const Color(0xFF6A4D00),
@@ -864,7 +864,7 @@ class _AcceptanceLineCard extends StatelessWidget {
           ),
           const SizedBox(height: 4),
           Text(
-            'Kod ${draft.stockCode} | Evrak ${AppFormatters.quantity(draft.shippedQuantity)} | Birim ${draft.unitName}/${draft.unitPointer}',
+            'Kod ${draft.stockCode} | Evrak ${AppFormatters.quantity(draft.shippedQuantity)} | Birim ${draft.unitName}',
             style: theme.textTheme.bodyMedium?.copyWith(
               color: const Color(0xFF6B5A4A),
               fontWeight: FontWeight.w700,
@@ -907,7 +907,6 @@ class _AcceptanceLineCard extends StatelessWidget {
                 label: 'Fark',
                 value: AppFormatters.quantity(draft.differenceValue.abs()),
               ),
-              _MiniMetric(label: 'Guid', value: draft.shortGuid),
             ],
           ),
         ],

@@ -108,14 +108,11 @@ class CompanyMovementsController extends ChangeNotifier
       }
 
       _movements = items;
-      _selectedMovement = items.isEmpty
-          ? null
-          : _findPreferredMovement(
-                  items,
-                  preferredDocumentSerie: preferredDocumentSerie,
-                  preferredDocumentOrderNo: preferredDocumentOrderNo,
-                ) ??
-                items.first;
+      _selectedMovement = _findPreferredMovement(
+        items,
+        preferredDocumentSerie: preferredDocumentSerie,
+        preferredDocumentOrderNo: preferredDocumentOrderNo,
+      );
       _selectedMovementDetail = null;
       _detailError = null;
       _sendEDespatchError = null;

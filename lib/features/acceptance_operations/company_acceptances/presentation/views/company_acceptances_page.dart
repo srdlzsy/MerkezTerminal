@@ -545,7 +545,7 @@ class _CompanyAcceptancesPageState extends State<CompanyAcceptancesPage> {
                                                   ),
                                                   const SizedBox(height: 6),
                                                   Text(
-                                                    'Kod ${line.stockCode} | Miktar ${AppFormatters.quantity(line.quantity)} | Birim ${line.unitName}/${line.unitPointer}${line.orderGuid.isNotEmpty ? ' | Siparis ${line.orderGuid}' : ''}',
+                                                    'Kod ${line.stockCode} | Miktar ${AppFormatters.quantity(line.quantity)} | Birim ${line.unitName}',
                                                   ),
                                                 ],
                                               ),

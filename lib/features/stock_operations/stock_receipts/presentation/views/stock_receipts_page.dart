@@ -441,7 +441,7 @@ class _StockReceiptsPageState extends State<StockReceiptsPage> {
                                                   ),
                                                   const SizedBox(height: 6),
                                                   Text(
-                                                    'Kod ${line.stockCode} | Miktar ${AppFormatters.quantity(line.quantity)} | Birim ${line.unitName}/${line.unitPointer}',
+                                                    'Kod ${line.stockCode} | Miktar ${AppFormatters.quantity(line.quantity)} | Birim ${line.unitName}',
                                                   ),
                                                 ],
                                               ),

@@ -84,14 +84,11 @@ class CompanyAcceptancesController extends ChangeNotifier
       }
 
       _acceptances = items;
-      _selectedAcceptance = items.isEmpty
-          ? null
-          : _findPreferredAcceptance(
-                  items,
-                  preferredDocumentSerie: preferredDocumentSerie,
-                  preferredDocumentOrderNo: preferredDocumentOrderNo,
-                ) ??
-                items.first;
+      _selectedAcceptance = _findPreferredAcceptance(
+        items,
+        preferredDocumentSerie: preferredDocumentSerie,
+        preferredDocumentOrderNo: preferredDocumentOrderNo,
+      );
       _selectedAcceptanceDetail = null;
       _detailError = null;
       _isLoadingList = false;

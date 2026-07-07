@@ -111,14 +111,11 @@ class WarehouseReturnsController extends ChangeNotifier
       }
 
       _returns = items;
-      _selectedReturn = items.isEmpty
-          ? null
-          : _findPreferredReturn(
-                  items,
-                  preferredDocumentSerie: preferredDocumentSerie,
-                  preferredDocumentOrderNo: preferredDocumentOrderNo,
-                ) ??
-                items.first;
+      _selectedReturn = _findPreferredReturn(
+        items,
+        preferredDocumentSerie: preferredDocumentSerie,
+        preferredDocumentOrderNo: preferredDocumentOrderNo,
+      );
       _selectedReturnDetail = null;
       _detailError = null;
       _sendEDespatchError = null;

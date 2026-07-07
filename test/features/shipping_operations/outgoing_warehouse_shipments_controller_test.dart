@@ -9,20 +9,28 @@ import 'package:furpa_merkez_terminal/features/shipping_operations/outgoing_ware
 import 'package:furpa_merkez_terminal/features/shipping_operations/outgoing_warehouse_shipments/presentation/view_models/outgoing_warehouse_shipments_controller.dart';
 
 void main() {
-  test('loadShipments selects first record and loads detail', () async {
-    final repository = _FakeOutgoingWarehouseShipmentsRepository();
-    final controller = OutgoingWarehouseShipmentsController(
-      repository: repository,
-      accessToken: 'token',
-      defaultWarehouseNo: '110',
-    );
+  test(
+    'loadShipments keeps detail closed until a record is selected',
+    () async {
+      final repository = _FakeOutgoingWarehouseShipmentsRepository();
+      final controller = OutgoingWarehouseShipmentsController(
+        repository: repository,
+        accessToken: 'token',
+        defaultWarehouseNo: '110',
+      );
 
-    await controller.loadShipments();
+      await controller.loadShipments();
 
-    expect(controller.shipments, hasLength(2));
-    expect(controller.selectedShipment?.documentNoLabel, 'F110.3694');
-    expect(controller.selectedShipmentDetail?.items, hasLength(1));
-  });
+      expect(controller.shipments, hasLength(2));
+      expect(controller.selectedShipment, isNull);
+      expect(controller.selectedShipmentDetail, isNull);
+
+      await controller.selectShipment(controller.shipments.first);
+
+      expect(controller.selectedShipment?.documentNoLabel, 'F110.3694');
+      expect(controller.selectedShipmentDetail?.items, hasLength(1));
+    },
+  );
 
   test('createShipment reloads list and selects created document', () async {
     final repository = _FakeOutgoingWarehouseShipmentsRepository();

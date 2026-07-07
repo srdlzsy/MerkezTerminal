@@ -7,6 +7,8 @@ import 'package:furpa_merkez_terminal/features/company_movements/shared/data/mod
 import 'package:furpa_merkez_terminal/features/order_operations/given_company_orders/data/given_company_orders_repository.dart';
 import 'package:furpa_merkez_terminal/features/order_operations/given_company_orders/data/models/given_company_order_models.dart';
 import 'package:furpa_merkez_terminal/shared/data/search_lookup_models.dart';
+import 'package:furpa_merkez_terminal/shared/drafts/create_draft.dart';
+import 'package:furpa_merkez_terminal/shared/drafts/create_draft_repository.dart';
 import 'package:furpa_merkez_terminal/shared/offline/mobile_customer_catalog_repository.dart';
 import 'package:furpa_merkez_terminal/shared/offline/mobile_product_catalog_repository.dart';
 
@@ -54,6 +56,85 @@ void main() {
       expect(find.text('4'), findsNWidgets(2));
     },
   );
+
+  testWidgets('autosaves and restores company acceptance draft fields', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 1000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final database = MemoryLocalDatabase();
+    final draftRepository = LocalCreateDraftRepository(database: database);
+    final draft = CreateDraft.empty(
+      moduleKey: 'mal-kabul-islemleri.firma-mal-kabulleri',
+      userId: '7',
+      warehouseNo: '110',
+      title: 'Yeni Firma Mal Kabul',
+    );
+
+    Widget buildSheet(CreateDraft currentDraft) {
+      return MaterialApp(
+        home: Scaffold(
+          body: CompanyAcceptanceCreateSheet(
+            key: ValueKey(currentDraft.updatedAt.microsecondsSinceEpoch),
+            repository: _FakeCompanyAcceptancesRepository(),
+            ordersRepository: _FakeGivenCompanyOrdersRepository(),
+            accessToken: 'token',
+            defaultWarehouseNo: '110',
+            mobileCustomerCatalogRepository:
+                MobileCustomerCatalogLocalRepository(database: database),
+            mobileProductCatalogRepository: MobileProductCatalogLocalRepository(
+              database: database,
+            ),
+            draft: currentDraft,
+            draftRepository: draftRepository,
+          ),
+        ),
+      );
+    }
+
+    await tester.pumpWidget(buildSheet(draft));
+    await tester.enterText(
+      find.widgetWithText(TextFormField, 'Cari Arama'),
+      'Test Cari',
+    );
+    await tester.enterText(
+      find.widgetWithText(TextFormField, 'Cari Kodu*'),
+      'CR001',
+    );
+    await _pickProduct(tester);
+    await tester.pump(const Duration(milliseconds: 900));
+    await tester.pump();
+
+    final savedDrafts = await draftRepository.fetchDrafts(
+      moduleKey: 'mal-kabul-islemleri.firma-mal-kabulleri',
+      userId: '7',
+      warehouseNo: '110',
+    );
+    expect(savedDrafts, hasLength(1));
+    expect(savedDrafts.single.payload['customerText'], 'Test Cari');
+    expect(savedDrafts.single.payload['customerCode'], 'CR001');
+    final lines = savedDrafts.single.payload['lines'] as List<dynamic>;
+    expect(lines, hasLength(1));
+    expect((lines.single as Map<String, dynamic>)['stockCode'], '015792');
+
+    await tester.pumpWidget(buildSheet(savedDrafts.single));
+    await tester.pump();
+
+    final customerField = tester.widget<TextFormField>(
+      find.widgetWithText(TextFormField, 'Cari Arama'),
+    );
+    final customerCodeField = tester.widget<TextFormField>(
+      find.widgetWithText(TextFormField, 'Cari Kodu*'),
+    );
+    expect(customerField.controller?.text, 'Test Cari');
+    expect(customerCodeField.controller?.text, 'CR001');
+    await tester.drag(find.byType(ListView).first, const Offset(0, -900));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('015792 | Test Urun | KL'), findsOneWidget);
+  });
 }
 
 Future<void> _pickProduct(WidgetTester tester) async {
@@ -66,10 +147,7 @@ Future<void> _pickProduct(WidgetTester tester) async {
     await tester.pumpAndSettle();
   }
 
-  await tester.enterText(
-    lookupFinder.first,
-    '8690000000012',
-  );
+  await tester.enterText(lookupFinder.first, '8690000000012');
 
   final searchButton = find.widgetWithText(FilledButton, 'Urun').first;
   await tester.ensureVisible(searchButton);

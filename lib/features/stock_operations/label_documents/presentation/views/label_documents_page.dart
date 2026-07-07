@@ -83,12 +83,6 @@ class _LabelDocumentsPageState extends State<LabelDocumentsPage> {
       };
 
       final loadedDocuments = await documents;
-      final selectedDocument = loadedDocuments.isEmpty
-          ? null
-          : loadedDocuments.first;
-      final selectedProducts = selectedDocument == null
-          ? const <LabelDocumentProduct>[]
-          : await _fetchDocumentProducts(selectedDocument.documentId);
 
       if (!mounted) {
         return;
@@ -96,8 +90,8 @@ class _LabelDocumentsPageState extends State<LabelDocumentsPage> {
 
       setState(() {
         _documents = loadedDocuments;
-        _selectedDocument = selectedDocument;
-        _selectedDocumentProducts = selectedProducts;
+        _selectedDocument = null;
+        _selectedDocumentProducts = const <LabelDocumentProduct>[];
         _isLoading = false;
       });
     } catch (error) {
@@ -417,7 +411,7 @@ class _LabelDocumentsPageState extends State<LabelDocumentsPage> {
                         children: <Widget>[
                           Expanded(
                             child: TerminalLabeledValue(
-                              label: 'Belge Id',
+                              label: 'Belge',
                               value: '#${item.documentId}',
                             ),
                           ),
@@ -472,7 +466,7 @@ class _LabelDocumentsPageState extends State<LabelDocumentsPage> {
                                     ),
                                     const SizedBox(height: 6),
                                     Text(
-                                      'Kod ${product.productCode} | Barkod ${product.barcode.isEmpty ? '-' : product.barcode} | Fiyat ${AppFormatters.currency(product.price)}${product.oldPrice > 0 ? ' | Eski ${AppFormatters.currency(product.oldPrice)}' : ''}',
+                                      'Kod ${product.productCode} | Barkod ${product.barcode.isEmpty ? '-' : product.barcode}',
                                     ),
                                   ],
                                 ),
@@ -585,7 +579,7 @@ class _LabelDocumentCreateSheetState extends State<_LabelDocumentCreateSheet> {
     List<SearchProductLookupItem> products;
     try {
       setState(() {
-        line.setLookupStatus('API araniyor: $query', isLoading: true);
+        line.setLookupStatus('Urun araniyor: $query', isLoading: true);
         _errorMessage = null;
       });
 
@@ -698,7 +692,7 @@ class _LabelDocumentCreateSheetState extends State<_LabelDocumentCreateSheet> {
 
     line.lookupController.text = barcode;
     setState(() {
-      line.setLookupStatus('Barkod okundu: $barcode. API aramasi basliyor.');
+      line.setLookupStatus('Barkod okundu: $barcode. Urun araniyor.');
     });
     await _searchProduct(line);
   }
@@ -815,7 +809,7 @@ class _LabelDocumentCreateSheetState extends State<_LabelDocumentCreateSheet> {
           const TerminalSheetHeader(
             title: 'Yeni Etiket Belgesi',
             subtitle:
-                'Belgeye eklenecek her satir yalnizca productCode alanindan olusur.',
+                'Belgeye eklenecek urunleri barkodla veya urun aramayla secin.',
             padding: EdgeInsets.zero,
           ),
           const SizedBox(height: 16),

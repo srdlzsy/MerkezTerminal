@@ -488,22 +488,14 @@ class _VirmanDetailSection extends StatelessWidget {
                           ),
                           const SizedBox(height: 6),
                           Text(
-                            'Kod ${line.stockCode} | Miktar ${AppFormatters.quantity(line.quantity)} | Birim ${line.unitName}/${line.unitPointer}',
+                            'Kod ${line.stockCode} | Miktar ${AppFormatters.quantity(line.quantity)} | Birim ${line.unitName}',
                           ),
-                          if (line.description.isNotEmpty ||
-                              line.partyCode.isNotEmpty ||
-                              line.lotNo > 0 ||
-                              line.projectCode.isNotEmpty) ...<Widget>[
+                          if (line.description.isNotEmpty) ...<Widget>[
                             const SizedBox(height: 4),
                             Text(
                               [
                                 if (line.description.isNotEmpty)
                                   'Aciklama ${line.description}',
-                                if (line.partyCode.isNotEmpty)
-                                  'Parti ${line.partyCode}',
-                                if (line.lotNo > 0) 'Lot ${line.lotNo}',
-                                if (line.projectCode.isNotEmpty)
-                                  'Proje ${line.projectCode}',
                               ].join(' | '),
                               style: Theme.of(context).textTheme.bodySmall,
                             ),

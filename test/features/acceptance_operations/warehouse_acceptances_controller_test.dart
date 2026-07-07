@@ -5,20 +5,28 @@ import 'package:furpa_merkez_terminal/features/acceptance_operations/warehouse_a
 import 'package:furpa_merkez_terminal/features/shipping_operations/outgoing_warehouse_shipments/data/models/outgoing_warehouse_shipment_models.dart';
 
 void main() {
-  test('loadAcceptances selects first record and loads detail', () async {
-    final repository = _FakeWarehouseAcceptancesRepository();
-    final controller = WarehouseAcceptancesController(
-      repository: repository,
-      accessToken: 'token',
-      defaultWarehouseNo: '110',
-    );
+  test(
+    'loadAcceptances keeps detail closed until a record is selected',
+    () async {
+      final repository = _FakeWarehouseAcceptancesRepository();
+      final controller = WarehouseAcceptancesController(
+        repository: repository,
+        accessToken: 'token',
+        defaultWarehouseNo: '110',
+      );
 
-    await controller.loadAcceptances();
+      await controller.loadAcceptances();
 
-    expect(controller.acceptances, hasLength(2));
-    expect(controller.selectedAcceptance?.documentNoLabel, 'F110.3694');
-    expect(controller.selectedAcceptanceDetail?.items, hasLength(1));
-  });
+      expect(controller.acceptances, hasLength(2));
+      expect(controller.selectedAcceptance, isNull);
+      expect(controller.selectedAcceptanceDetail, isNull);
+
+      await controller.selectAcceptance(controller.acceptances.first);
+
+      expect(controller.selectedAcceptance?.documentNoLabel, 'F110.3694');
+      expect(controller.selectedAcceptanceDetail?.items, hasLength(1));
+    },
+  );
 
   test('acceptShipment stores last result and reloads pending list', () async {
     final repository = _FakeWarehouseAcceptancesRepository();
@@ -29,6 +37,7 @@ void main() {
     );
 
     await controller.loadAcceptances();
+    await controller.selectAcceptance(controller.acceptances.first);
     final result = await controller.acceptShipment(
       const WarehouseAcceptanceRequest(
         allowDiscrepancy: false,
@@ -44,7 +53,8 @@ void main() {
     expect(result?.documentNoLabel, 'F110.3694');
     expect(controller.lastAcceptanceResult?.totalReceivedQuantity, 10);
     expect(controller.acceptances, hasLength(1));
-    expect(controller.selectedAcceptance?.documentNoLabel, 'F110.3695');
+    expect(controller.selectedAcceptance, isNull);
+    expect(controller.selectedAcceptanceDetail, isNull);
   });
 }
 

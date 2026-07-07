@@ -659,15 +659,20 @@ class _CountItemCard extends StatelessWidget {
     final summary = <String>[
       'Kod ${item.stockCode}',
       'Barkod ${item.barcode.isEmpty ? '-' : item.barcode}',
-      'Birim ${item.unitName}/${item.unitPointer}',
+      'Birim ${item.unitName}',
       'Toplam ${AppFormatters.quantity(item.totalQuantity)}',
     ].join(' | ');
     final detail = <String>[
-      if (item.quantity1 > 0) 'Q1 ${AppFormatters.quantity(item.quantity1)}',
-      if (item.quantity2 > 0) 'Q2 ${AppFormatters.quantity(item.quantity2)}',
-      if (item.quantity3 > 0) 'Q3 ${AppFormatters.quantity(item.quantity3)}',
-      if (item.quantity4 > 0) 'Q4 ${AppFormatters.quantity(item.quantity4)}',
-      if (item.quantity5 > 0) 'Q5 ${AppFormatters.quantity(item.quantity5)}',
+      if (item.quantity1 > 0)
+        'Miktar 1 ${AppFormatters.quantity(item.quantity1)}',
+      if (item.quantity2 > 0)
+        'Miktar 2 ${AppFormatters.quantity(item.quantity2)}',
+      if (item.quantity3 > 0)
+        'Miktar 3 ${AppFormatters.quantity(item.quantity3)}',
+      if (item.quantity4 > 0)
+        'Miktar 4 ${AppFormatters.quantity(item.quantity4)}',
+      if (item.quantity5 > 0)
+        'Miktar 5 ${AppFormatters.quantity(item.quantity5)}',
     ].join(' | ');
 
     return Container(

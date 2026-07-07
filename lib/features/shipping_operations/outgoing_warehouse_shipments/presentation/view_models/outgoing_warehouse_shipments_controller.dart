@@ -112,14 +112,11 @@ class OutgoingWarehouseShipmentsController extends ChangeNotifier
       }
 
       _shipments = items;
-      _selectedShipment = items.isEmpty
-          ? null
-          : _findPreferredShipment(
-                  items,
-                  preferredDocumentSerie: preferredDocumentSerie,
-                  preferredDocumentOrderNo: preferredDocumentOrderNo,
-                ) ??
-                items.first;
+      _selectedShipment = _findPreferredShipment(
+        items,
+        preferredDocumentSerie: preferredDocumentSerie,
+        preferredDocumentOrderNo: preferredDocumentOrderNo,
+      );
       _selectedShipmentDetail = null;
       _detailError = null;
       _sendEDespatchError = null;

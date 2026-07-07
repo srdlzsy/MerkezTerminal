@@ -285,7 +285,7 @@ class _GivenCompanyOrderCreateSheetState
 
     line.barcodeController.text = barcode;
     setState(() {
-      line.setLookupStatus('Barkod okundu: $barcode. API aramasi basliyor.');
+      line.setLookupStatus('Barkod okundu: $barcode. Urun araniyor.');
     });
     await _searchProduct(line);
   }

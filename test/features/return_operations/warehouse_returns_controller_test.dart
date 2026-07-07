@@ -8,7 +8,7 @@ import 'package:furpa_merkez_terminal/features/return_operations/warehouse_retur
 import 'package:furpa_merkez_terminal/features/shipping_operations/outgoing_warehouse_shipments/data/models/outgoing_warehouse_shipment_models.dart';
 
 void main() {
-  test('loadReturns selects first record and loads detail', () async {
+  test('loadReturns keeps detail closed until a record is selected', () async {
     final repository = _FakeWarehouseReturnsRepository();
     final controller = WarehouseReturnsController(
       repository: repository,
@@ -20,6 +20,11 @@ void main() {
     await controller.loadReturns();
 
     expect(controller.returns, hasLength(2));
+    expect(controller.selectedReturn, isNull);
+    expect(controller.selectedReturnDetail, isNull);
+
+    await controller.selectReturn(controller.returns.first);
+
     expect(controller.selectedReturn?.documentNoLabel, 'F110.42');
     expect(controller.selectedReturnDetail?.items, hasLength(1));
   });
@@ -34,6 +39,7 @@ void main() {
     );
 
     await controller.loadReturns();
+    await controller.selectReturn(controller.returns.first);
     final result = await controller.sendEDespatch(
       const EDespatchSendRequest(
         plaque: '16 ABC 123',
@@ -57,6 +63,7 @@ void main() {
     );
 
     await controller.loadReturns();
+    await controller.selectReturn(controller.returns.first);
     final document = await controller.fetchEDespatchPdf();
 
     expect(document?.fileName, 'F110_42-e-irsaliye.pdf');

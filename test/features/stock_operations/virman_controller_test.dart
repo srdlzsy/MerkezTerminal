@@ -6,7 +6,7 @@ import 'package:furpa_merkez_terminal/features/stock_operations/virman/data/virm
 import 'package:furpa_merkez_terminal/features/stock_operations/virman/presentation/view_models/virman_controller.dart';
 
 void main() {
-  test('loadVirmans selects first record and loads detail', () async {
+  test('loadVirmans keeps detail closed until a record is selected', () async {
     final repository = _FakeVirmanRepository();
     final controller = VirmanController(
       repository: repository,
@@ -17,6 +17,11 @@ void main() {
     await controller.loadVirmans();
 
     expect(controller.virmans, hasLength(2));
+    expect(controller.selectedVirman, isNull);
+    expect(controller.selectedVirmanDetail, isNull);
+
+    await controller.selectVirman(controller.virmans.first);
+
     expect(controller.selectedVirman?.documentNoLabel, 'F110.15');
     expect(controller.selectedVirmanDetail?.items, hasLength(1));
   });

@@ -633,7 +633,7 @@ class _OrderItemCard extends StatelessWidget {
     final theme = Theme.of(context);
     final summary = <String>[
       'Kod ${item.stockCode}',
-      'Birim ${item.unitName}/${item.unitPointer}',
+      'Birim ${item.unitName}',
       'Miktar ${AppFormatters.quantity(item.quantity)}',
       'Teslim ${AppFormatters.quantity(item.deliveredQuantity)}',
       'Kalan ${AppFormatters.quantity(item.remainingQuantity)}',
@@ -643,10 +643,7 @@ class _OrderItemCard extends StatelessWidget {
     ].join(' | ');
     final detail = <String>[
       if (item.description.trim().isNotEmpty) 'Aciklama ${item.description}',
-      if (item.packageCode.trim().isNotEmpty) 'Paket ${item.packageCode}',
-      if (item.projectCode.trim().isNotEmpty) 'Proje ${item.projectCode}',
       if (item.isClosed) 'Durum Kapali',
-      if (item.lineGuid.trim().isNotEmpty) 'Guid ${item.lineGuid}',
     ].join(' | ');
 
     return Container(

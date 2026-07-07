@@ -4,7 +4,7 @@ import 'package:furpa_merkez_terminal/features/order_operations/given_warehouse_
 import 'package:furpa_merkez_terminal/features/order_operations/given_warehouse_orders/presentation/view_models/given_warehouse_orders_controller.dart';
 
 void main() {
-  test('loadOrders selects first record and loads its detail', () async {
+  test('loadOrders keeps detail closed until a record is selected', () async {
     final repository = _FakeGivenWarehouseOrdersRepository();
     final controller = GivenWarehouseOrdersController(
       repository: repository,
@@ -15,6 +15,11 @@ void main() {
     await controller.loadOrders();
 
     expect(controller.orders, hasLength(2));
+    expect(controller.selectedOrder, isNull);
+    expect(controller.selectedOrderDetail, isNull);
+
+    await controller.selectOrder(controller.orders.first);
+
     expect(controller.selectedOrder?.documentNoLabel, 'D110.1915');
     expect(controller.selectedOrderDetail?.items, hasLength(1));
   });

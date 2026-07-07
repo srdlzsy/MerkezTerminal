@@ -163,7 +163,7 @@ class _StockReceiptCreateSheetState extends State<StockReceiptCreateSheet>
     List<SearchProductLookupItem> products;
     try {
       setState(() {
-        line.setLookupStatus('API araniyor: $query', isLoading: true);
+        line.setLookupStatus('Urun araniyor: $query', isLoading: true);
         _lookupError = null;
       });
 
@@ -283,7 +283,7 @@ class _StockReceiptCreateSheetState extends State<StockReceiptCreateSheet>
 
     line.lookupController.text = barcode;
     setState(() {
-      line.setLookupStatus('Barkod okundu: $barcode. API aramasi basliyor.');
+      line.setLookupStatus('Barkod okundu: $barcode. Urun araniyor.');
     });
     await _searchProduct(line);
   }

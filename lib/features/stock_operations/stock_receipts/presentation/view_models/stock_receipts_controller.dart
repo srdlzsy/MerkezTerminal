@@ -84,14 +84,11 @@ class StockReceiptsController extends ChangeNotifier with SafeChangeNotifier {
       }
 
       _receipts = items;
-      _selectedReceipt = items.isEmpty
-          ? null
-          : _findPreferredReceipt(
-                  items,
-                  preferredDocumentSerie: preferredDocumentSerie,
-                  preferredDocumentOrderNo: preferredDocumentOrderNo,
-                ) ??
-                items.first;
+      _selectedReceipt = _findPreferredReceipt(
+        items,
+        preferredDocumentSerie: preferredDocumentSerie,
+        preferredDocumentOrderNo: preferredDocumentOrderNo,
+      );
       _selectedReceiptDetail = null;
       _detailError = null;
       _isLoadingList = false;

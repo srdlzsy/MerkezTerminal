@@ -751,14 +751,12 @@ class _MovementDetailBody extends StatelessWidget {
                   .map((item) {
                     final extra = <String>[
                       'Kod ${item.stockCode}',
-                      'Birim ${item.unitName}/${item.unitPointer}',
+                      'Birim ${item.unitName}',
                       'Miktar ${AppFormatters.quantity(item.quantity)}',
                       if (item.unitPrice > 0)
                         'Fiyat ${AppFormatters.currency(item.unitPrice)}',
                       if (item.lineAmount > 0)
                         'Tutar ${AppFormatters.currency(item.lineAmount)}',
-                      if (item.orderGuid.isNotEmpty)
-                        'Siparis ${item.orderGuid}',
                     ].join(' | ');
 
                     return Padding(

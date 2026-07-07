@@ -80,14 +80,11 @@ class InventoryCountsController extends ChangeNotifier with SafeChangeNotifier {
       }
 
       _counts = items;
-      _selectedCount = items.isEmpty
-          ? null
-          : _findPreferredCount(
-                  items,
-                  preferredDocumentNo: preferredDocumentNo,
-                  preferredDocumentDate: preferredDocumentDate,
-                ) ??
-                items.first;
+      _selectedCount = _findPreferredCount(
+        items,
+        preferredDocumentNo: preferredDocumentNo,
+        preferredDocumentDate: preferredDocumentDate,
+      );
       _selectedCountDetail = null;
       _detailError = null;
       _isLoadingList = false;

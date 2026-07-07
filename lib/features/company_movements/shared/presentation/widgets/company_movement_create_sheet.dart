@@ -314,7 +314,7 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
     List<SearchProductLookupItem> products;
     try {
       setState(() {
-        line.setLookupStatus('API araniyor: $query', isLoading: true);
+        line.setLookupStatus('Urun araniyor: $query', isLoading: true);
         _lookupError = null;
       });
 
@@ -430,7 +430,7 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
 
     setState(() {
       line.lookupController.text = barcode;
-      line.setLookupStatus('Barkod okundu: $barcode. API aramasi basliyor.');
+      line.setLookupStatus('Barkod okundu: $barcode. Urun araniyor.');
       _lookupError = null;
     });
 
