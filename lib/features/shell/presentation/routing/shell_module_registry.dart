@@ -451,6 +451,7 @@ class ShellModuleRegistry {
           currentUserId: context.user.id,
           defaultWarehouseNo: context.user.warehouseNo,
           userWarehouseName: context.user.warehouseName,
+          draftRepository: createDraftRepository,
         ),
       ),
       ShellModuleRoute(
