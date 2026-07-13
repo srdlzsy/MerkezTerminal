@@ -69,7 +69,7 @@ void main() {
     // ignore: avoid_dynamic_calls
     expect(await widgetsAppState.didPopRoute(), isTrue);
     await tester.pump();
-    expect(find.text('Hizli Erisim'), findsOneWidget);
+    expect(find.text('Tum Menuler'), findsOneWidget);
     expect(find.text('Content: Birinci Menu'), findsNothing);
   });
 }

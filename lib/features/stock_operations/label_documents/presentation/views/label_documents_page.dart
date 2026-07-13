@@ -13,6 +13,7 @@ import 'package:furpa_merkez_terminal/shared/product_entry/product_entry_control
 import 'package:furpa_merkez_terminal/shared/product_entry/product_entry_widgets.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/barcode_camera_scan_page.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/section_card.dart';
+import 'package:furpa_merkez_terminal/shared/widgets/terminal_create_page.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/terminal_ui_parts.dart';
 
 enum _LabelDocumentsMode { recent, all }
@@ -47,8 +48,6 @@ class _LabelDocumentsPageState extends State<LabelDocumentsPage> {
   bool _isCreating = false;
   String? _errorMessage;
   List<LabelDocumentListItem> _documents = const <LabelDocumentListItem>[];
-  List<LabelDocumentProduct> _selectedDocumentProducts =
-      const <LabelDocumentProduct>[];
   final Map<int, List<LabelDocumentProduct>> _documentProductsCache =
       <int, List<LabelDocumentProduct>>{};
   LabelDocumentListItem? _selectedDocument;
@@ -91,7 +90,6 @@ class _LabelDocumentsPageState extends State<LabelDocumentsPage> {
       setState(() {
         _documents = loadedDocuments;
         _selectedDocument = null;
-        _selectedDocumentProducts = const <LabelDocumentProduct>[];
         _isLoading = false;
       });
     } catch (error) {
@@ -107,30 +105,13 @@ class _LabelDocumentsPageState extends State<LabelDocumentsPage> {
   }
 
   Future<void> _selectDocument(LabelDocumentListItem item) async {
-    if (_selectedDocument?.documentId == item.documentId &&
-        _documentProductsCache.containsKey(item.documentId)) {
-      return;
-    }
-
     if (_loadingDocumentId == item.documentId) {
-      return;
-    }
-
-    final cachedProducts = _documentProductsCache[item.documentId];
-    if (cachedProducts != null) {
-      setState(() {
-        _selectedDocument = item;
-        _selectedDocumentProducts = cachedProducts;
-        _loadingDocumentId = null;
-        _errorMessage = null;
-      });
       return;
     }
 
     final requestSerial = ++_detailRequestSerial;
     setState(() {
       _selectedDocument = item;
-      _selectedDocumentProducts = const <LabelDocumentProduct>[];
       _loadingDocumentId = item.documentId;
       _errorMessage = null;
     });
@@ -143,18 +124,35 @@ class _LabelDocumentsPageState extends State<LabelDocumentsPage> {
       }
 
       setState(() {
-        _selectedDocumentProducts = detail;
         _loadingDocumentId = null;
       });
+
+      await Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (context) {
+            return _LabelDocumentDetailPage(document: item, products: detail);
+          },
+        ),
+      );
+
+      if (mounted) {
+        setState(() {
+          _selectedDocument = null;
+        });
+      }
     } catch (error) {
       if (!mounted || requestSerial != _detailRequestSerial) {
         return;
       }
 
+      final message = error.toString().replaceFirst('Exception: ', '');
       setState(() {
         _loadingDocumentId = null;
-        _errorMessage = error.toString().replaceFirst('Exception: ', '');
+        _selectedDocument = null;
       });
+      final messenger = ScaffoldMessenger.maybeOf(context);
+      messenger?.hideCurrentSnackBar();
+      messenger?.showSnackBar(SnackBar(content: Text(message)));
     }
   }
 
@@ -199,11 +197,9 @@ class _LabelDocumentsPageState extends State<LabelDocumentsPage> {
           );
     }
 
-    final request = await showModalBottomSheet<CreateLabelDocumentRequest>(
+    final request = await openTerminalCreatePage<CreateLabelDocumentRequest>(
       context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      showDragHandle: true,
+      title: 'Yeni Etiket Belgesi',
       builder: (context) {
         return _LabelDocumentCreateSheet(
           repository: widget.repository,
@@ -380,108 +376,160 @@ class _LabelDocumentsPageState extends State<LabelDocumentsPage> {
     }
 
     return Column(
-      children: <Widget>[
-        ..._documents.map((item) {
-          final isSelected = _selectedDocument?.documentId == item.documentId;
-          final isLoadingDetail =
-              isSelected && _loadingDocumentId == item.documentId;
+      children: _documents
+          .map((item) {
+            final isSelected = _selectedDocument?.documentId == item.documentId;
+            final isLoadingDetail =
+                isSelected && _loadingDocumentId == item.documentId;
 
-          return Padding(
-            padding: const EdgeInsets.only(bottom: 10),
-            child: Material(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(18),
-              child: InkWell(
-                borderRadius: BorderRadius.circular(18),
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: TerminalPdaRecordCard(
+                isSelected: isSelected,
                 onTap: () => _selectDocument(item),
-                child: Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(18),
-                    border: Border.all(
-                      color: isSelected
-                          ? Theme.of(context).colorScheme.primary
-                          : Theme.of(context).colorScheme.outlineVariant,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    TerminalPdaCardHeader(
+                      title: '#${item.documentId}',
+                      subtitle: 'Etiket belgesi',
+                      trailing: isLoadingDetail
+                          ? const SizedBox(
+                              width: 22,
+                              height: 22,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2.4,
+                              ),
+                            )
+                          : Icon(
+                              Icons.chevron_right_rounded,
+                              size: 28,
+                              color: Theme.of(context).colorScheme.primary,
+                            ),
                     ),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: <Widget>[
-                      Row(
-                        children: <Widget>[
-                          Expanded(
-                            child: TerminalLabeledValue(
-                              label: 'Belge',
-                              value: '#${item.documentId}',
-                            ),
-                          ),
-                          Expanded(
-                            child: TerminalLabeledValue(
-                              label: 'Olusturma',
-                              value: AppFormatters.dateTimeOrDash(
-                                item.createDate,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      if (isSelected) ...<Widget>[
-                        const SizedBox(height: 12),
-                        if (isLoadingDetail)
-                          const Padding(
-                            padding: EdgeInsets.symmetric(vertical: 20),
-                            child: Center(child: CircularProgressIndicator()),
-                          )
-                        else if (_selectedDocumentProducts.isEmpty)
-                          const TerminalEmptyState(
-                            message: 'Bu belgeye bagli urun bulunamadi.',
-                          )
-                        else
-                          ..._selectedDocumentProducts.map((product) {
-                            return Padding(
-                              padding: const EdgeInsets.only(bottom: 8),
-                              child: Container(
-                                width: double.infinity,
-                                padding: const EdgeInsets.all(12),
-                                decoration: BoxDecoration(
-                                  color: Colors.white,
-                                  borderRadius: BorderRadius.circular(14),
-                                  border: Border.all(
-                                    color: Theme.of(
-                                      context,
-                                    ).colorScheme.outlineVariant.withAlpha(82),
-                                  ),
-                                ),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: <Widget>[
-                                    Text(
-                                      product.productName,
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .titleSmall
-                                          ?.copyWith(
-                                            fontWeight: FontWeight.w800,
-                                          ),
-                                    ),
-                                    const SizedBox(height: 6),
-                                    Text(
-                                      'Kod ${product.productCode} | Barkod ${product.barcode.isEmpty ? '-' : product.barcode}',
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            );
-                          }),
+                    const SizedBox(height: 10),
+                    TerminalPdaInfoGrid(
+                      items: <TerminalPdaInfo>[
+                        TerminalPdaInfo(
+                          label: 'Olusturma',
+                          value: AppFormatters.dateTimeOrDash(item.createDate),
+                        ),
+                        const TerminalPdaInfo(
+                          label: 'Detay',
+                          value: 'Ayri sayfada ac',
+                        ),
                       ],
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               ),
+            );
+          })
+          .toList(growable: false),
+    );
+  }
+}
+
+class _LabelDocumentDetailPage extends StatelessWidget {
+  const _LabelDocumentDetailPage({
+    required this.document,
+    required this.products,
+  });
+
+  final LabelDocumentListItem document;
+  final List<LabelDocumentProduct> products;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Text('#${document.documentId}')),
+      body: SafeArea(
+        child: ListView(
+          padding: EdgeInsets.fromLTRB(
+            16,
+            16,
+            16,
+            20 + MediaQuery.paddingOf(context).bottom,
+          ),
+          children: <Widget>[
+            SectionCard(
+              title: 'Etiket Belgesi',
+              subtitle: 'Belge detaylari',
+              child: TerminalPdaInfoGrid(
+                items: <TerminalPdaInfo>[
+                  TerminalPdaInfo(
+                    label: 'Belge',
+                    value: '#${document.documentId}',
+                  ),
+                  TerminalPdaInfo(
+                    label: 'Olusturma',
+                    value: AppFormatters.dateTimeOrDash(document.createDate),
+                  ),
+                  TerminalPdaInfo(label: 'Urun', value: '${products.length}'),
+                ],
+              ),
             ),
-          );
-        }),
-      ],
+            const SizedBox(height: 12),
+            SectionCard(
+              title: 'Urunler',
+              subtitle: products.isEmpty
+                  ? 'Bu belgeye bagli urun bulunamadi.'
+                  : '${products.length} urun bulundu.',
+              child: products.isEmpty
+                  ? const TerminalEmptyState(
+                      message: 'Bu belgeye bagli urun bulunamadi.',
+                    )
+                  : Column(
+                      children: products
+                          .map(
+                            (product) => Padding(
+                              padding: const EdgeInsets.only(bottom: 8),
+                              child: _LabelDocumentProductCard(
+                                product: product,
+                              ),
+                            ),
+                          )
+                          .toList(growable: false),
+                    ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _LabelDocumentProductCard extends StatelessWidget {
+  const _LabelDocumentProductCard({required this.product});
+
+  final LabelDocumentProduct product;
+
+  @override
+  Widget build(BuildContext context) {
+    return TerminalPdaDetailPanel(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Text(
+            product.productName,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(
+              context,
+            ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800),
+          ),
+          const SizedBox(height: 8),
+          TerminalPdaInfoGrid(
+            items: <TerminalPdaInfo>[
+              TerminalPdaInfo(label: 'Kod', value: product.productCode),
+              TerminalPdaInfo(
+                label: 'Barkod',
+                value: product.barcode.isEmpty ? '-' : product.barcode,
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }
@@ -561,7 +609,10 @@ class _LabelDocumentCreateSheetState extends State<_LabelDocumentCreateSheet> {
     };
   }
 
-  Future<void> _searchProduct(_LabelDocumentLineDraft line) async {
+  Future<void> _searchProduct(
+    _LabelDocumentLineDraft line, {
+    bool autoSelectSingle = false,
+  }) async {
     final query = line.lookupController.text.trim();
 
     if (query.length < 2) {
@@ -606,34 +657,39 @@ class _LabelDocumentCreateSheetState extends State<_LabelDocumentCreateSheet> {
       return;
     }
 
-    final selected = await showModalBottomSheet<SearchProductLookupItem>(
-      context: context,
-      showDragHandle: true,
-      builder: (context) {
-        if (products.isEmpty) {
-          return const Padding(
-            padding: EdgeInsets.all(24),
-            child: TerminalEmptyState(message: 'Urun bulunamadi.'),
-          );
-        }
-
-        return ListView.separated(
-          shrinkWrap: true,
-          itemCount: products.length,
-          separatorBuilder: (_, _) => const Divider(height: 1),
-          itemBuilder: (context, index) {
-            final item = products[index];
-            return ListTile(
-              title: Text(item.displayLabel),
-              subtitle: Text(
-                '${item.unitName} | ${AppFormatters.currency(item.price)}',
-              ),
-              onTap: () => Navigator.of(context).pop(item),
+    SearchProductLookupItem? selected;
+    if (autoSelectSingle && products.length == 1) {
+      selected = products.single;
+    } else {
+      selected = await showModalBottomSheet<SearchProductLookupItem>(
+        context: context,
+        showDragHandle: true,
+        builder: (context) {
+          if (products.isEmpty) {
+            return const Padding(
+              padding: EdgeInsets.all(24),
+              child: TerminalEmptyState(message: 'Urun bulunamadi.'),
             );
-          },
-        );
-      },
-    );
+          }
+
+          return ListView.separated(
+            shrinkWrap: true,
+            itemCount: products.length,
+            separatorBuilder: (_, _) => const Divider(height: 1),
+            itemBuilder: (context, index) {
+              final item = products[index];
+              return ListTile(
+                title: Text(item.displayLabel),
+                subtitle: Text(
+                  '${item.unitName} | ${AppFormatters.currency(item.price)}',
+                ),
+                onTap: () => Navigator.of(context).pop(item),
+              );
+            },
+          );
+        },
+      );
+    }
 
     if (selected == null) {
       if (mounted) {
@@ -648,13 +704,14 @@ class _LabelDocumentCreateSheetState extends State<_LabelDocumentCreateSheet> {
       }
       return;
     }
+    final pickedProduct = selected;
 
     var mergedIntoExisting = false;
     setState(() {
-      mergedIntoExisting = _applyProductToLine(line, selected);
+      mergedIntoExisting = _applyProductToLine(line, pickedProduct);
       if (!mergedIntoExisting) {
         line.setLookupStatus(
-          'Secildi: ${selected.stockCode} | ${selected.stockName}',
+          'Secildi: ${pickedProduct.stockCode} | ${pickedProduct.stockName}',
         );
       }
       _ensureFreshEntryLine();
@@ -694,7 +751,7 @@ class _LabelDocumentCreateSheetState extends State<_LabelDocumentCreateSheet> {
     setState(() {
       line.setLookupStatus('Barkod okundu: $barcode. Urun araniyor.');
     });
-    await _searchProduct(line);
+    await _searchProduct(line, autoSelectSingle: true);
   }
 
   bool _applyProductToLine(
@@ -823,98 +880,90 @@ class _LabelDocumentCreateSheetState extends State<_LabelDocumentCreateSheet> {
                 .where((item) => !_isBlankLine(item))
                 .length;
 
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 10),
-              child: Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(
-                    color: Theme.of(context).colorScheme.outlineVariant,
-                  ),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    Row(
-                      children: <Widget>[
-                        Expanded(
-                          child: Text(
-                            isFreshEntry
-                                ? 'Giris satiri'
-                                : 'Satir $displayLineNo',
-                            style: Theme.of(context).textTheme.titleSmall
-                                ?.copyWith(fontWeight: FontWeight.w800),
-                          ),
-                        ),
-                        if (!isFreshEntry && _lines.length > 1)
-                          IconButton(
-                            onPressed: () {
-                              setState(() {
-                                _lines.removeAt(index);
-                                line.dispose();
-                              });
-                              _draftSession.scheduleSave();
-                            },
-                            icon: const Icon(Icons.delete_outline_rounded),
-                            tooltip: 'Satiri sil',
-                          ),
-                      ],
-                    ),
-                    Row(
-                      children: <Widget>[
-                        Expanded(
-                          child: ProductLookupField(
-                            controller: line.lookupController,
-                            focusNode: line.lookupFocusNode,
-                            enabled: !line.isLookupStatusLoading,
-                            onSubmit: () => _searchProduct(line),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        FilledButton.icon(
-                          onPressed: line.isLookupStatusLoading
-                              ? null
-                              : () => _searchProduct(line),
-                          icon: const Icon(Icons.search_rounded),
-                          label: const Text('Urun'),
-                        ),
-                        const SizedBox(width: 8),
-                        IconButton.filledTonal(
-                          onPressed: line.isLookupStatusLoading
-                              ? null
-                              : () => _scanProductWithCamera(line),
-                          tooltip: 'Kamera ile oku',
-                          icon: const Icon(Icons.photo_camera_back_rounded),
-                        ),
-                      ],
-                    ),
-                    if (line.lookupStatusMessage != null) ...<Widget>[
-                      const SizedBox(height: 8),
-                      if (line.isLookupStatusLoading)
-                        TerminalMessageBlock.loading(
-                          message: line.lookupStatusMessage!,
-                        )
-                      else if (line.isLookupStatusError)
-                        TerminalMessageBlock.error(
-                          message: line.lookupStatusMessage!,
-                        )
-                      else
-                        TerminalMessageBlock.info(
-                          message: line.lookupStatusMessage!,
-                        ),
-                    ],
-                    if (product != null) ...<Widget>[
-                      const SizedBox(height: 8),
-                      TerminalMessageBlock.info(
-                        message:
-                            '${product.stockCode} | ${product.stockName} | ${product.unitName}${product.barcode.trim().isNotEmpty ? ' | Barkod ${product.barcode}' : ''}',
+            return TerminalPdaLineCard(
+              title: isFreshEntry ? 'Giris satiri' : 'Satir $displayLineNo',
+              subtitle:
+                  product?.stockName ??
+                  (isFreshEntry ? 'Okutmaya hazir' : 'Urun secilmedi'),
+              isEntryLine: isFreshEntry,
+              leading: Icon(
+                isFreshEntry
+                    ? Icons.qr_code_scanner_rounded
+                    : Icons.inventory_2_rounded,
+                color: Theme.of(context).colorScheme.primary,
+              ),
+              trailing: !isFreshEntry && _lines.length > 1
+                  ? IconButton(
+                      onPressed: () {
+                        setState(() {
+                          _lines.removeAt(index);
+                          line.dispose();
+                        });
+                        _draftSession.scheduleSave();
+                      },
+                      icon: const Icon(Icons.delete_outline_rounded),
+                      tooltip: 'Satiri sil',
+                    )
+                  : null,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  if (isFreshEntry)
+                    TerminalResponsiveLookupRow(
+                      field: ProductLookupField(
+                        controller: line.lookupController,
+                        focusNode: line.lookupFocusNode,
+                        enabled: !line.isLookupStatusLoading,
+                        onSubmit: () => _searchProduct(line),
                       ),
-                    ],
+                      action: FilledButton.icon(
+                        onPressed: line.isLookupStatusLoading
+                            ? null
+                            : () => _searchProduct(line),
+                        icon: const Icon(Icons.search_rounded),
+                        label: const Text('Urun'),
+                      ),
+                      trailingAction: IconButton.filledTonal(
+                        onPressed: line.isLookupStatusLoading
+                            ? null
+                            : () => _scanProductWithCamera(line),
+                        tooltip: 'Kamera ile oku',
+                        icon: const Icon(Icons.photo_camera_back_rounded),
+                      ),
+                    )
+                  else if (product != null)
+                    TerminalPdaInfoGrid(
+                      minTileWidth: 92,
+                      items: <TerminalPdaInfo>[
+                        TerminalPdaInfo(label: 'Kod', value: product.stockCode),
+                        TerminalPdaInfo(
+                          label: 'Birim',
+                          value: product.unitName,
+                        ),
+                        if (product.barcode.trim().isNotEmpty)
+                          TerminalPdaInfo(
+                            label: 'Barkod',
+                            value: product.barcode,
+                          ),
+                      ],
+                    ),
+                  if (isFreshEntry &&
+                      line.lookupStatusMessage != null) ...<Widget>[
+                    const SizedBox(height: 8),
+                    if (line.isLookupStatusLoading)
+                      TerminalMessageBlock.loading(
+                        message: line.lookupStatusMessage!,
+                      )
+                    else if (line.isLookupStatusError)
+                      TerminalMessageBlock.error(
+                        message: line.lookupStatusMessage!,
+                      )
+                    else
+                      TerminalMessageBlock.info(
+                        message: line.lookupStatusMessage!,
+                      ),
                   ],
-                ),
+                ],
               ),
             );
           }),

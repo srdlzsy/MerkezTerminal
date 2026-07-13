@@ -302,7 +302,10 @@ class _OutgoingWarehouseShipmentCreateSheetState
     _draftSession.scheduleSave();
   }
 
-  Future<void> _pickProduct(_ManualShipmentLineDraft line) async {
+  Future<void> _pickProduct(
+    _ManualShipmentLineDraft line, {
+    bool autoSelectSingle = false,
+  }) async {
     if (!_hasTargetWarehouseSelection) {
       setState(() {
         line.setLookupStatus(
@@ -318,7 +321,28 @@ class _OutgoingWarehouseShipmentCreateSheetState
       line.setLookupStatus('Urun arama penceresi aciliyor.');
     });
 
-    final product = await showModalBottomSheet<ProductLookupItem>(
+    ProductLookupItem? product;
+    final query = line.barcodeController.text.trim();
+    if (autoSelectSingle && query.isNotEmpty) {
+      try {
+        final products = await widget.repository.searchProducts(
+          accessToken: widget.accessToken,
+          warehouseNo: widget.defaultWarehouseNo,
+          query: query,
+        );
+        if (products.length == 1) {
+          product = products.single;
+        }
+      } catch (_) {
+        product = null;
+      }
+    }
+
+    if (!mounted) {
+      return;
+    }
+
+    product ??= await showModalBottomSheet<ProductLookupItem>(
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
@@ -341,13 +365,14 @@ class _OutgoingWarehouseShipmentCreateSheetState
       }
       return;
     }
+    final pickedProduct = product;
 
     var mergedIntoExisting = false;
     setState(() {
-      mergedIntoExisting = _applyProductToManualLine(line, product);
+      mergedIntoExisting = _applyProductToManualLine(line, pickedProduct);
       if (!mergedIntoExisting) {
         line.setLookupStatus(
-          'Secildi: ${product.stockCode} | ${product.stockName}',
+          'Secildi: ${pickedProduct.stockCode} | ${pickedProduct.stockName}',
         );
       }
       _ensureFreshManualEntryLine();
@@ -361,7 +386,10 @@ class _OutgoingWarehouseShipmentCreateSheetState
     }
   }
 
-  Future<void> _pickLinkedProduct(_LinkedShipmentLineDraft line) async {
+  Future<void> _pickLinkedProduct(
+    _LinkedShipmentLineDraft line, {
+    bool autoSelectSingle = false,
+  }) async {
     if (!_hasTargetWarehouseSelection) {
       setState(() {
         line.setLookupStatus(
@@ -377,7 +405,28 @@ class _OutgoingWarehouseShipmentCreateSheetState
       line.setLookupStatus('Urun arama penceresi aciliyor.');
     });
 
-    final product = await showModalBottomSheet<ProductLookupItem>(
+    ProductLookupItem? product;
+    final query = line.barcodeController.text.trim();
+    if (autoSelectSingle && query.isNotEmpty) {
+      try {
+        final products = await widget.repository.searchProducts(
+          accessToken: widget.accessToken,
+          warehouseNo: widget.defaultWarehouseNo,
+          query: query,
+        );
+        if (products.length == 1) {
+          product = products.single;
+        }
+      } catch (_) {
+        product = null;
+      }
+    }
+
+    if (!mounted) {
+      return;
+    }
+
+    product ??= await showModalBottomSheet<ProductLookupItem>(
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
@@ -400,13 +449,14 @@ class _OutgoingWarehouseShipmentCreateSheetState
       }
       return;
     }
+    final pickedProduct = product;
 
     var mergedIntoExisting = false;
     setState(() {
-      mergedIntoExisting = _applyProductToLinkedLine(line, product);
+      mergedIntoExisting = _applyProductToLinkedLine(line, pickedProduct);
       if (!mergedIntoExisting) {
         line.setLookupStatus(
-          'Secildi: ${product.stockCode} | ${product.stockName}',
+          'Secildi: ${pickedProduct.stockCode} | ${pickedProduct.stockName}',
         );
       }
       _ensureFreshLinkedEntryLine();
@@ -457,7 +507,7 @@ class _OutgoingWarehouseShipmentCreateSheetState
     setState(() {
       line.setLookupStatus('Barkod okundu: $barcode. Urun araniyor.');
     });
-    await _pickProduct(line);
+    await _pickProduct(line, autoSelectSingle: true);
   }
 
   Future<void> _scanLinkedProductWithCamera(
@@ -499,7 +549,7 @@ class _OutgoingWarehouseShipmentCreateSheetState
     setState(() {
       line.setLookupStatus('Barkod okundu: $barcode. Urun araniyor.');
     });
-    await _pickLinkedProduct(line);
+    await _pickLinkedProduct(line, autoSelectSingle: true);
   }
 
   bool _applyProductToManualLine(
@@ -1322,40 +1372,21 @@ class _ManualShipmentLineCard extends StatelessWidget {
     final theme = Theme.of(context);
     final product = line.selectedProduct;
 
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: theme.colorScheme.outlineVariant.withAlpha(90),
-        ),
-      ),
+    return TerminalPdaLineCard(
+      title: isFreshEntry ? 'Giris satiri' : 'Satir $lineNumber',
+      subtitle: product?.stockName,
+      isEntryLine: isFreshEntry,
+      trailing: canRemove
+          ? IconButton(
+              onPressed: onRemove,
+              icon: const Icon(Icons.delete_outline_rounded),
+              tooltip: 'Satiri sil',
+            )
+          : null,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          Row(
-            children: <Widget>[
-              Expanded(
-                child: Text(
-                  isFreshEntry ? 'Giris satiri' : 'Satir $lineNumber',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ),
-              if (canRemove)
-                IconButton(
-                  onPressed: onRemove,
-                  icon: const Icon(Icons.delete_outline_rounded),
-                  tooltip: 'Satiri sil',
-                ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          if (!isReadyForScanning)
+          if (isFreshEntry && !isReadyForScanning)
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(10),
@@ -1371,82 +1402,72 @@ class _ManualShipmentLineCard extends StatelessWidget {
                 ),
               ),
             )
-          else
-            Row(
-              children: <Widget>[
-                Expanded(
-                  child: ProductLookupField(
-                    controller: line.barcodeController,
-                    focusNode: line.barcodeFocusNode,
-                    enabled: isReadyForScanning && !line.isLookupStatusLoading,
-                    onSubmit: onPickProduct,
+          else if (isFreshEntry)
+            TerminalResponsiveLookupRow(
+              field: ProductLookupField(
+                controller: line.barcodeController,
+                focusNode: line.barcodeFocusNode,
+                enabled: isReadyForScanning && !line.isLookupStatusLoading,
+                onSubmit: onPickProduct,
+              ),
+              action: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  FilledButton.icon(
+                    onPressed: isReadyForScanning && !line.isLookupStatusLoading
+                        ? onPickProduct
+                        : null,
+                    icon: const Icon(Icons.search_rounded),
+                    label: const Text('Urun'),
                   ),
-                ),
-                const SizedBox(width: 12),
-                FilledButton.icon(
-                  onPressed: isReadyForScanning && !line.isLookupStatusLoading
-                      ? onPickProduct
-                      : null,
-                  icon: const Icon(Icons.search_rounded),
-                  label: const Text('Urun'),
-                ),
-                const SizedBox(width: 8),
-                IconButton.filledTonal(
-                  onPressed: isReadyForScanning && !line.isLookupStatusLoading
-                      ? onScanWithCamera
-                      : null,
-                  tooltip: 'Kamera ile oku',
-                  icon: const Icon(Icons.photo_camera_back_rounded),
-                ),
-              ],
+                  const SizedBox(width: 8),
+                  IconButton.filledTonal(
+                    onPressed: isReadyForScanning && !line.isLookupStatusLoading
+                        ? onScanWithCamera
+                        : null,
+                    tooltip: 'Kamera ile oku',
+                    icon: const Icon(Icons.photo_camera_back_rounded),
+                  ),
+                ],
+              ),
             ),
-          const SizedBox(height: 8),
-          if (line.lookupStatusMessage != null) ...<Widget>[
+          if (isFreshEntry && line.lookupStatusMessage != null) ...<Widget>[
+            const SizedBox(height: 8),
             if (line.isLookupStatusLoading)
               TerminalMessageBlock.loading(message: line.lookupStatusMessage!)
             else if (line.isLookupStatusError)
               TerminalMessageBlock.error(message: line.lookupStatusMessage!)
             else
               TerminalMessageBlock.info(message: line.lookupStatusMessage!),
-            const SizedBox(height: 8),
           ],
-          if (product != null)
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: const Color(0xFFF6EFE7),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Text(
-                '${product.stockName} | Kod ${product.stockCode} | Birim ${product.unitName}${product.barcode.trim().isNotEmpty ? ' | Barkod ${product.barcode}' : ''}',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: const Color(0xFF2A211B),
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
+          if (!isFreshEntry && product != null) ...<Widget>[
+            TerminalPdaInfoGrid(
+              minTileWidth: 92,
+              items: <TerminalPdaInfo>[
+                TerminalPdaInfo(label: 'Kod', value: product.stockCode),
+                TerminalPdaInfo(label: 'Birim', value: product.unitName),
+                if (product.barcode.trim().isNotEmpty)
+                  TerminalPdaInfo(label: 'Barkod', value: product.barcode),
+              ],
             ),
-          const SizedBox(height: 8),
-          TextFormField(
-            controller: line.quantityController,
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            decoration: const InputDecoration(labelText: 'Miktar'),
-            validator: (value) {
-              if (isFreshEntry) {
+          ],
+          if (!isFreshEntry) ...<Widget>[
+            const SizedBox(height: 8),
+            TerminalQuantityStepper(
+              controller: line.quantityController,
+              label: 'Miktar',
+              onMinimumReached: canRemove ? onRemove : null,
+              validator: (value) {
+                final parsed = double.tryParse(
+                  (value ?? '').trim().replaceAll(',', '.'),
+                );
+                if (parsed == null || parsed <= 0) {
+                  return 'Miktar > 0';
+                }
                 return null;
-              }
-
-              final parsed = double.tryParse(
-                (value ?? '').trim().replaceAll(',', '.'),
-              );
-              if (parsed == null || parsed <= 0) {
-                return 'Miktar > 0';
-              }
-              return null;
-            },
-          ),
+              },
+            ),
+          ],
         ],
       ),
     );
@@ -1476,96 +1497,65 @@ class _LinkedShipmentLineCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     final product = line.selectedProduct;
 
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: const Color(0xFFFFF9F3),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: theme.colorScheme.outlineVariant.withAlpha(84),
-        ),
-      ),
+    return TerminalPdaLineCard(
+      title: isFreshEntry ? 'Giris satiri' : 'Satir $lineNumber',
+      subtitle: isFreshEntry ? null : line.stockName,
+      isEntryLine: isFreshEntry,
+      leading: line.isOrderLinked
+          ? const _InfoPill(label: 'Bagli', value: 'Siparis')
+          : null,
+      trailing: canRemove
+          ? IconButton(
+              onPressed: onRemove,
+              icon: const Icon(Icons.delete_outline_rounded),
+              tooltip: 'Satiri sil',
+            )
+          : null,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          Row(
-            children: <Widget>[
-              Expanded(
-                child: Text(
-                  isFreshEntry ? 'Giris satiri' : 'Satir $lineNumber',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ),
-              if (line.isOrderLinked)
-                const Padding(
-                  padding: EdgeInsets.only(right: 4),
-                  child: _InfoPill(label: 'Bagli', value: 'Siparis'),
-                ),
-              if (canRemove)
-                IconButton(
-                  onPressed: onRemove,
-                  icon: const Icon(Icons.delete_outline_rounded),
-                  tooltip: 'Satiri sil',
-                ),
-            ],
-          ),
-          const SizedBox(height: 6),
           if (isFreshEntry)
-            Row(
-              children: <Widget>[
-                Expanded(
-                  child: ProductLookupField(
-                    controller: line.barcodeController,
-                    focusNode: line.barcodeFocusNode,
-                    enabled: isReadyForScanning && !line.isLookupStatusLoading,
-                    onSubmit: onPickProduct,
+            TerminalResponsiveLookupRow(
+              field: ProductLookupField(
+                controller: line.barcodeController,
+                focusNode: line.barcodeFocusNode,
+                enabled: isReadyForScanning && !line.isLookupStatusLoading,
+                onSubmit: onPickProduct,
+              ),
+              action: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  FilledButton.icon(
+                    onPressed: isReadyForScanning && !line.isLookupStatusLoading
+                        ? onPickProduct
+                        : null,
+                    icon: const Icon(Icons.search_rounded),
+                    label: const Text('Urun'),
                   ),
-                ),
-                const SizedBox(width: 12),
-                FilledButton.icon(
-                  onPressed: isReadyForScanning && !line.isLookupStatusLoading
-                      ? onPickProduct
-                      : null,
-                  icon: const Icon(Icons.search_rounded),
-                  label: const Text('Urun'),
-                ),
-                const SizedBox(width: 8),
-                IconButton.filledTonal(
-                  onPressed: isReadyForScanning && !line.isLookupStatusLoading
-                      ? onScanWithCamera
-                      : null,
-                  tooltip: 'Kamera ile oku',
-                  icon: const Icon(Icons.photo_camera_back_rounded),
-                ),
-              ],
+                  const SizedBox(width: 8),
+                  IconButton.filledTonal(
+                    onPressed: isReadyForScanning && !line.isLookupStatusLoading
+                        ? onScanWithCamera
+                        : null,
+                    tooltip: 'Kamera ile oku',
+                    icon: const Icon(Icons.photo_camera_back_rounded),
+                  ),
+                ],
+              ),
             )
           else ...<Widget>[
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: theme.colorScheme.surface,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Text(
-                '${line.stockName} | Kod ${line.stockCode} | Birim ${line.unitName}${product?.barcode.trim().isNotEmpty == true ? ' | Barkod ${product!.barcode}' : ''}',
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: const Color(0xFF2A211B),
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
+            TerminalPdaInfoGrid(
+              minTileWidth: 92,
+              items: <TerminalPdaInfo>[
+                TerminalPdaInfo(label: 'Kod', value: line.stockCode),
+                TerminalPdaInfo(label: 'Birim', value: line.unitName),
+                if (product?.barcode.trim().isNotEmpty == true)
+                  TerminalPdaInfo(label: 'Barkod', value: product!.barcode),
+              ],
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 10),
             Wrap(
               spacing: 10,
               runSpacing: 10,
@@ -1582,15 +1572,12 @@ class _LinkedShipmentLineCard extends StatelessWidget {
                   ),
                 ],
                 SizedBox(
-                  width: 150,
-                  child: TextFormField(
+                  width: 210,
+                  child: TerminalQuantityStepper(
                     controller: line.quantityController,
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
-                    ),
-                    decoration: const InputDecoration(
-                      labelText: 'Sevk miktari',
-                    ),
+                    label: 'Sevk miktari',
+                    maximum: line.isOrderLinked ? line.maxQuantity : null,
+                    onMinimumReached: canRemove ? onRemove : null,
                     validator: (value) {
                       final parsed = double.tryParse(
                         (value ?? '').trim().replaceAll(',', '.'),

@@ -17,6 +17,7 @@ import 'package:furpa_merkez_terminal/shared/product_entry/product_entry_widgets
 import 'package:furpa_merkez_terminal/shared/utils/create_form_validation.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/barcode_camera_scan_page.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/section_card.dart';
+import 'package:furpa_merkez_terminal/shared/widgets/terminal_create_page.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/terminal_ui_parts.dart';
 
 class VirmanPage extends StatefulWidget {
@@ -115,12 +116,57 @@ class _VirmanPageState extends State<VirmanPage> {
   }
 
   Future<void> _toggleSelection(VirmanListItem item) async {
-    if (_controller.selectedVirman?.documentNoLabel == item.documentNoLabel) {
-      _controller.clearSelection();
+    await _controller.selectVirman(item);
+    if (!mounted) {
       return;
     }
 
-    await _controller.selectVirman(item);
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (context) {
+          return ListenableBuilder(
+            listenable: _controller,
+            builder: (context, child) {
+              final detail = _controller.selectedVirmanDetail;
+
+              return Scaffold(
+                appBar: AppBar(title: Text(item.documentNoLabel)),
+                body: SafeArea(
+                  child: ListView(
+                    padding: EdgeInsets.fromLTRB(
+                      16,
+                      16,
+                      16,
+                      20 + MediaQuery.paddingOf(context).bottom,
+                    ),
+                    children: <Widget>[
+                      _VirmanSummaryCard(item: item),
+                      const SizedBox(height: 12),
+                      if (_controller.isLoadingDetail)
+                        const Center(child: CircularProgressIndicator())
+                      else if (_controller.detailError != null)
+                        TerminalMessageBlock.error(
+                          message: _controller.detailError!,
+                        )
+                      else if (detail == null)
+                        const TerminalEmptyState(
+                          message: 'Detay bilgisi yuklenemedi.',
+                        )
+                      else
+                        _VirmanDetailSection(detail: detail),
+                    ],
+                  ),
+                ),
+              );
+            },
+          );
+        },
+      ),
+    );
+
+    if (mounted) {
+      _controller.clearSelection();
+    }
   }
 
   Future<void> _openCreateSheet() async {
@@ -147,11 +193,9 @@ class _VirmanPageState extends State<VirmanPage> {
           );
     }
 
-    final request = await showModalBottomSheet<VirmanCreateRequest>(
+    final request = await openTerminalCreatePage<VirmanCreateRequest>(
       context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      showDragHandle: true,
+      title: 'Yeni Virman',
       builder: (context) {
         return _VirmanCreateSheet(
           defaultWarehouseNo: widget.defaultWarehouseNo,
@@ -322,112 +366,89 @@ class _VirmanPageState extends State<VirmanPage> {
 
                     return Padding(
                       padding: const EdgeInsets.only(bottom: 12),
-                      child: Material(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(18),
-                        child: InkWell(
-                          borderRadius: BorderRadius.circular(18),
-                          onTap: () => _toggleSelection(item),
-                          child: Container(
-                            padding: const EdgeInsets.all(14),
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(18),
-                              border: Border.all(
-                                color: isExpanded
-                                    ? Theme.of(context).colorScheme.primary
-                                    : Theme.of(context)
-                                          .colorScheme
-                                          .outlineVariant
-                                          .withAlpha(90),
-                              ),
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: <Widget>[
-                                Row(
-                                  children: <Widget>[
-                                    Expanded(
-                                      child: TerminalLabeledValue(
-                                        label: 'Belge',
-                                        value: item.documentNoLabel,
-                                      ),
-                                    ),
-                                    Expanded(
-                                      child: TerminalLabeledValue(
-                                        label: 'Belge Trh',
-                                        value: AppFormatters.dateOrDash(
-                                          item.documentDate,
-                                        ),
-                                      ),
-                                    ),
-                                    TerminalBadge(
-                                      label: '${item.lineCount} satir',
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 8),
-                                Row(
-                                  children: <Widget>[
-                                    Expanded(
-                                      child: TerminalLabeledValue(
-                                        label: 'Hareket',
-                                        value: AppFormatters.dateOrDash(
-                                          item.movementDate,
-                                        ),
-                                      ),
-                                    ),
-                                    Expanded(
-                                      child: TerminalLabeledValue(
-                                        label: 'Tipler',
-                                        value: _formatMovementTypes(
-                                          item.movementTypes,
-                                        ),
-                                      ),
-                                    ),
-                                    Expanded(
-                                      child: TerminalLabeledValue(
-                                        label: 'Toplam',
-                                        value: AppFormatters.quantity(
-                                          item.totalQuantity,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                if (item.description.isNotEmpty) ...<Widget>[
-                                  const SizedBox(height: 8),
-                                  Text(
-                                    item.description,
-                                    maxLines: 2,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .bodyMedium
-                                        ?.copyWith(
-                                          color: const Color(0xFF5C6B80),
-                                        ),
+                      child: TerminalPdaRecordCard(
+                        isSelected: isExpanded,
+                        onTap: () => _toggleSelection(item),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: <Widget>[
+                            TerminalPdaCardHeader(
+                              title: item.documentNoLabel,
+                              subtitle: item.description.isEmpty
+                                  ? 'Virman'
+                                  : item.description,
+                              trailing: Column(
+                                crossAxisAlignment: CrossAxisAlignment.end,
+                                mainAxisSize: MainAxisSize.min,
+                                children: <Widget>[
+                                  TerminalBadge(
+                                    label: '${item.lineCount} satir',
                                   ),
-                                ],
-                                if (isExpanded) ...<Widget>[
-                                  const SizedBox(height: 12),
-                                  if (_controller.isLoadingDetail)
-                                    const Center(
-                                      child: CircularProgressIndicator(),
-                                    )
-                                  else if (_controller.detailError != null)
-                                    TerminalMessageBlock.error(
-                                      message: _controller.detailError!,
-                                    )
-                                  else if (detail == null)
-                                    const TerminalEmptyState(
-                                      message: 'Detay bilgisi yuklenemedi.',
+                                  const SizedBox(height: 4),
+                                  if (isExpanded && _controller.isLoadingDetail)
+                                    const SizedBox(
+                                      width: 22,
+                                      height: 22,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2.4,
+                                      ),
                                     )
                                   else
-                                    _VirmanDetailSection(detail: detail),
+                                    Icon(
+                                      Icons.chevron_right_rounded,
+                                      size: 28,
+                                      color: Theme.of(
+                                        context,
+                                      ).colorScheme.primary,
+                                    ),
                                 ],
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            TerminalPdaInfoGrid(
+                              items: <TerminalPdaInfo>[
+                                TerminalPdaInfo(
+                                  label: 'Belge Trh',
+                                  value: AppFormatters.dateOrDash(
+                                    item.documentDate,
+                                  ),
+                                ),
+                                TerminalPdaInfo(
+                                  label: 'Hareket',
+                                  value: AppFormatters.dateOrDash(
+                                    item.movementDate,
+                                  ),
+                                ),
+                                TerminalPdaInfo(
+                                  label: 'Tipler',
+                                  value: _formatMovementTypes(
+                                    item.movementTypes,
+                                  ),
+                                ),
+                                TerminalPdaInfo(
+                                  label: 'Toplam',
+                                  value: AppFormatters.quantity(
+                                    item.totalQuantity,
+                                  ),
+                                ),
                               ],
                             ),
-                          ),
+                            if (isExpanded &&
+                                !_controller.isLoadingDetail &&
+                                _controller.detailError != null) ...<Widget>[
+                              const SizedBox(height: 8),
+                              TerminalMessageBlock.error(
+                                message: _controller.detailError!,
+                              ),
+                            ] else if (isExpanded &&
+                                !_controller.isLoadingDetail &&
+                                detail == null) ...<Widget>[
+                              const SizedBox(height: 8),
+                              const TerminalMessageBlock.info(
+                                message: 'Detay ayri sayfada aciliyor.',
+                              ),
+                            ],
+                          ],
                         ),
                       ),
                     );
@@ -458,18 +479,7 @@ class _VirmanDetailSection extends StatelessWidget {
                 .map((line) {
                   return Padding(
                     padding: const EdgeInsets.only(bottom: 8),
-                    child: Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(
-                          color: Theme.of(
-                            context,
-                          ).colorScheme.outlineVariant.withAlpha(82),
-                        ),
-                      ),
+                    child: TerminalPdaDetailPanel(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: <Widget>[
@@ -487,8 +497,21 @@ class _VirmanDetailSection extends StatelessWidget {
                             ],
                           ),
                           const SizedBox(height: 6),
-                          Text(
-                            'Kod ${line.stockCode} | Miktar ${AppFormatters.quantity(line.quantity)} | Birim ${line.unitName}',
+                          TerminalPdaInfoGrid(
+                            items: <TerminalPdaInfo>[
+                              TerminalPdaInfo(
+                                label: 'Kod',
+                                value: line.stockCode,
+                              ),
+                              TerminalPdaInfo(
+                                label: 'Miktar',
+                                value: AppFormatters.quantity(line.quantity),
+                              ),
+                              TerminalPdaInfo(
+                                label: 'Birim',
+                                value: line.unitName,
+                              ),
+                            ],
                           ),
                           if (line.description.isNotEmpty) ...<Widget>[
                             const SizedBox(height: 4),
@@ -508,6 +531,50 @@ class _VirmanDetailSection extends StatelessWidget {
                 .toList(growable: false),
           ),
       ],
+    );
+  }
+}
+
+class _VirmanSummaryCard extends StatelessWidget {
+  const _VirmanSummaryCard({required this.item});
+
+  final VirmanListItem item;
+
+  @override
+  Widget build(BuildContext context) {
+    return SectionCard(
+      title: 'Virman Detayi',
+      subtitle: item.documentNoLabel,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          TerminalPdaInfoGrid(
+            items: <TerminalPdaInfo>[
+              TerminalPdaInfo(label: 'Belge', value: item.documentNoLabel),
+              TerminalPdaInfo(
+                label: 'Belge Trh',
+                value: AppFormatters.dateOrDash(item.documentDate),
+              ),
+              TerminalPdaInfo(
+                label: 'Hareket',
+                value: AppFormatters.dateOrDash(item.movementDate),
+              ),
+              TerminalPdaInfo(
+                label: 'Toplam',
+                value: AppFormatters.quantity(item.totalQuantity),
+              ),
+              TerminalPdaInfo(label: 'Satir', value: '${item.lineCount}'),
+            ],
+          ),
+          if (item.description.isNotEmpty) ...<Widget>[
+            const SizedBox(height: 8),
+            Text(
+              item.description,
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+          ],
+        ],
+      ),
     );
   }
 }
@@ -645,7 +712,10 @@ class _VirmanCreateSheetState extends State<_VirmanCreateSheet>
     _draftSession.scheduleSave();
   }
 
-  Future<void> _searchProduct(_VirmanDraftLine line) async {
+  Future<void> _searchProduct(
+    _VirmanDraftLine line, {
+    bool autoSelectSingle = false,
+  }) async {
     final query = line.lookupController.text.trim();
     if (query.length < 2) {
       setState(() {
@@ -672,35 +742,41 @@ class _VirmanCreateSheetState extends State<_VirmanCreateSheet>
         .map((item) => item.toSearchProductLookupItem())
         .toList(growable: false);
 
-    final selected = await showModalBottomSheet<SearchProductLookupItem>(
-      context: context,
-      showDragHandle: true,
-      builder: (context) {
-        return ListView.separated(
-          shrinkWrap: true,
-          itemCount: products.length,
-          separatorBuilder: (_, _) => const Divider(height: 1),
-          itemBuilder: (context, index) {
-            final item = products[index];
-            return ListTile(
-              title: Text(item.displayLabel),
-              subtitle: Text(
-                '${item.unitName}${item.barcode.isNotEmpty ? ' | ${item.barcode}' : ''}',
-              ),
-              onTap: () => Navigator.of(context).pop(item),
-            );
-          },
-        );
-      },
-    );
+    SearchProductLookupItem? selected;
+    if (autoSelectSingle && products.length == 1) {
+      selected = products.single;
+    } else {
+      selected = await showModalBottomSheet<SearchProductLookupItem>(
+        context: context,
+        showDragHandle: true,
+        builder: (context) {
+          return ListView.separated(
+            shrinkWrap: true,
+            itemCount: products.length,
+            separatorBuilder: (_, _) => const Divider(height: 1),
+            itemBuilder: (context, index) {
+              final item = products[index];
+              return ListTile(
+                title: Text(item.displayLabel),
+                subtitle: Text(
+                  '${item.unitName}${item.barcode.isNotEmpty ? ' | ${item.barcode}' : ''}',
+                ),
+                onTap: () => Navigator.of(context).pop(item),
+              );
+            },
+          );
+        },
+      );
+    }
 
     if (selected == null || !mounted) {
       return;
     }
+    final pickedProduct = selected;
 
     var mergedIntoExisting = false;
     setState(() {
-      mergedIntoExisting = _applyProductToLine(line, selected);
+      mergedIntoExisting = _applyProductToLine(line, pickedProduct);
       _ensureFreshEntryLine();
       _errorMessage = null;
     });
@@ -731,7 +807,7 @@ class _VirmanCreateSheetState extends State<_VirmanCreateSheet>
     }
 
     line.lookupController.text = barcode;
-    await _searchProduct(line);
+    await _searchProduct(line, autoSelectSingle: true);
   }
 
   bool _applyProductToLine(
@@ -1029,98 +1105,83 @@ class _VirmanDraftLineCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: Theme.of(context).colorScheme.outlineVariant.withAlpha(86),
-        ),
-      ),
+    final product = line.selectedProduct;
+
+    return TerminalPdaLineCard(
+      title: isFreshEntry ? 'Giris satiri' : 'Satir $lineNumber',
+      subtitle: product?.stockName,
+      isEntryLine: isFreshEntry,
+      trailing: canRemove
+          ? IconButton(
+              onPressed: onRemove,
+              icon: const Icon(Icons.delete_outline_rounded),
+              tooltip: 'Satiri sil',
+            )
+          : null,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          Row(
-            children: <Widget>[
-              Text(
-                isFreshEntry ? 'Giris satiri' : 'Satir $lineNumber',
-                style: Theme.of(
-                  context,
-                ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800),
+          if (isFreshEntry)
+            TerminalResponsiveLookupRow(
+              field: ProductLookupField(
+                controller: line.lookupController,
+                focusNode: line.lookupFocusNode,
+                onSubmit: onPickProduct,
               ),
-              const Spacer(),
-              if (canRemove)
-                IconButton(
-                  onPressed: onRemove,
-                  icon: const Icon(Icons.delete_outline_rounded),
-                  tooltip: 'Satiri sil',
-                ),
-            ],
-          ),
-          TerminalResponsiveLookupRow(
-            field: ProductLookupField(
-              controller: line.lookupController,
-              focusNode: line.lookupFocusNode,
-              onSubmit: onPickProduct,
-            ),
-            action: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: <Widget>[
-                FilledButton.icon(
-                  onPressed: onPickProduct,
-                  icon: const Icon(Icons.search_rounded),
-                  label: const Text('Urun'),
-                ),
-                const SizedBox(width: 8),
-                IconButton.filledTonal(
-                  onPressed: onScanWithCamera,
-                  tooltip: 'Kamera ile oku',
-                  icon: const Icon(Icons.photo_camera_back_rounded),
-                ),
+              action: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  FilledButton.icon(
+                    onPressed: onPickProduct,
+                    icon: const Icon(Icons.search_rounded),
+                    label: const Text('Urun'),
+                  ),
+                  const SizedBox(width: 8),
+                  IconButton.filledTonal(
+                    onPressed: onScanWithCamera,
+                    tooltip: 'Kamera ile oku',
+                    icon: const Icon(Icons.photo_camera_back_rounded),
+                  ),
+                ],
+              ),
+            )
+          else if (product != null)
+            TerminalPdaInfoGrid(
+              minTileWidth: 92,
+              items: <TerminalPdaInfo>[
+                TerminalPdaInfo(label: 'Kod', value: product.stockCode),
+                TerminalPdaInfo(label: 'Birim', value: product.unitName),
+                if (product.barcode.trim().isNotEmpty)
+                  TerminalPdaInfo(label: 'Barkod', value: product.barcode),
               ],
             ),
-          ),
-          if (line.selectedProduct != null) ...<Widget>[
-            const SizedBox(height: 8),
-            TerminalMessageBlock.info(
-              message:
-                  '${line.selectedProduct!.stockCode} | ${line.selectedProduct!.stockName} | ${line.selectedProduct!.unitName}',
+          if (!isFreshEntry) ...<Widget>[
+            const SizedBox(height: 10),
+            TextFormField(
+              controller: line.stockCodeController,
+              decoration: const InputDecoration(labelText: 'Stok Kodu*'),
+              validator: (value) {
+                if ((value ?? '').trim().isEmpty) {
+                  return 'Zorunlu';
+                }
+                return null;
+              },
+            ),
+            const SizedBox(height: 10),
+            TerminalQuantityStepper(
+              controller: line.quantityController,
+              onMinimumReached: canRemove ? onRemove : null,
+              validator: (value) {
+                final quantity = double.tryParse(
+                  (value ?? '').trim().replaceAll(',', '.'),
+                );
+                if (quantity == null || quantity <= 0) {
+                  return 'Miktar > 0';
+                }
+                return null;
+              },
             ),
           ],
-          const SizedBox(height: 10),
-          TextFormField(
-            controller: line.stockCodeController,
-            decoration: const InputDecoration(labelText: 'Stok Kodu*'),
-            validator: (value) {
-              if (isFreshEntry) {
-                return null;
-              }
-              if ((value ?? '').trim().isEmpty) {
-                return 'Zorunlu';
-              }
-              return null;
-            },
-          ),
-          const SizedBox(height: 10),
-          TextFormField(
-            controller: line.quantityController,
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            decoration: const InputDecoration(labelText: 'Miktar*'),
-            validator: (value) {
-              if (isFreshEntry) {
-                return null;
-              }
-              final quantity = double.tryParse(
-                (value ?? '').trim().replaceAll(',', '.'),
-              );
-              if (quantity == null || quantity <= 0) {
-                return 'Miktar > 0';
-              }
-              return null;
-            },
-          ),
         ],
       ),
     );

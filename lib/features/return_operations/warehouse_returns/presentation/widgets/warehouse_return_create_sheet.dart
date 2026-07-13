@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:furpa_merkez_terminal/core/network/api_exception.dart';
 import 'package:furpa_merkez_terminal/features/order_operations/shared/data/models/warehouse_order_models.dart';
 import 'package:furpa_merkez_terminal/features/return_operations/warehouse_returns/data/models/warehouse_return_models.dart';
@@ -175,13 +174,37 @@ class _WarehouseReturnCreateSheetState extends State<WarehouseReturnCreateSheet>
     _draftSession.scheduleSave();
   }
 
-  Future<void> _searchProduct(_ReturnLineDraft line) async {
+  Future<void> _searchProduct(
+    _ReturnLineDraft line, {
+    bool autoSelectSingle = false,
+  }) async {
     if (!_hasTargetWarehouse) {
       _showFeedback('Once hedef depoyu secin.');
       return;
     }
 
-    final product = await showModalBottomSheet<ProductLookupItem>(
+    ProductLookupItem? product;
+    final query = line.lookupController.text.trim();
+    if (autoSelectSingle && query.isNotEmpty) {
+      try {
+        final products = await widget.repository.searchProducts(
+          accessToken: widget.accessToken,
+          warehouseNo: widget.defaultWarehouseNo,
+          query: query,
+        );
+        if (products.length == 1) {
+          product = products.single;
+        }
+      } catch (_) {
+        product = null;
+      }
+    }
+
+    if (!mounted) {
+      return;
+    }
+
+    product ??= await showModalBottomSheet<ProductLookupItem>(
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
@@ -197,10 +220,11 @@ class _WarehouseReturnCreateSheetState extends State<WarehouseReturnCreateSheet>
     if (product == null || !mounted) {
       return;
     }
+    final pickedProduct = product;
 
     var mergedIntoExisting = false;
     setState(() {
-      mergedIntoExisting = _applyProductToLine(line, product);
+      mergedIntoExisting = _applyProductToLine(line, pickedProduct);
       _ensureFreshEntryLine();
       _validationMessage = null;
     });
@@ -234,7 +258,7 @@ class _WarehouseReturnCreateSheetState extends State<WarehouseReturnCreateSheet>
     }
 
     line.lookupController.text = barcode;
-    await _searchProduct(line);
+    await _searchProduct(line, autoSelectSingle: true);
   }
 
   void _ensureFreshEntryLine() {
@@ -569,111 +593,74 @@ class _WarehouseReturnCreateSheetState extends State<WarehouseReturnCreateSheet>
         .where((item) => !_isBlankLine(item))
         .length;
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: theme.colorScheme.outlineVariant.withAlpha(90),
-        ),
-      ),
+    return TerminalPdaLineCard(
+      title: isFreshEntry ? 'Giris satiri' : 'Satir $displayLineNo',
+      subtitle: product?.stockName,
+      isEntryLine: isFreshEntry,
+      trailing: !isFreshEntry && _lines.length > 1
+          ? IconButton(
+              onPressed: () => _removeLine(line),
+              icon: const Icon(Icons.delete_outline_rounded),
+              tooltip: 'Satiri sil',
+            )
+          : null,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          Row(
-            children: <Widget>[
-              Expanded(
-                child: Text(
-                  isFreshEntry ? 'Giris satiri' : 'Satir $displayLineNo',
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.w800,
+          if (isFreshEntry)
+            TerminalResponsiveLookupRow(
+              field: ProductLookupField(
+                controller: line.lookupController,
+                focusNode: line.lookupFocusNode,
+                enabled: _hasTargetWarehouse,
+                onSubmit: () => _searchProduct(line),
+              ),
+              action: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  FilledButton.icon(
+                    onPressed: _hasTargetWarehouse
+                        ? () => _searchProduct(line)
+                        : null,
+                    icon: const Icon(Icons.search_rounded),
+                    label: const Text('Urun'),
                   ),
-                ),
+                  const SizedBox(width: 8),
+                  IconButton.filledTonal(
+                    onPressed: _hasTargetWarehouse
+                        ? () => _scanProduct(line)
+                        : null,
+                    tooltip: 'Kamera ile oku',
+                    icon: const Icon(Icons.photo_camera_back_rounded),
+                  ),
+                ],
               ),
-              if (_lines.length > 1)
-                IconButton(
-                  onPressed: () => _removeLine(line),
-                  icon: const Icon(Icons.delete_outline_rounded),
-                ),
-            ],
-          ),
-          Row(
-            children: <Widget>[
-              Expanded(
-                child: ProductLookupField(
-                  controller: line.lookupController,
-                  focusNode: line.lookupFocusNode,
-                  enabled: _hasTargetWarehouse,
-                  onSubmit: () => _searchProduct(line),
-                  validator: (_) {
-                    if (_isBlankLine(line)) {
-                      return null;
-                    }
-
-                    if (line.selectedProduct == null) {
-                      return 'Urun secin';
-                    }
-                    return null;
-                  },
-                ),
-              ),
-              const SizedBox(width: 12),
-              FilledButton.icon(
-                onPressed: _hasTargetWarehouse
-                    ? () => _searchProduct(line)
-                    : null,
-                icon: const Icon(Icons.search_rounded),
-                label: const Text('Urun'),
-              ),
-              const SizedBox(width: 8),
-              IconButton.filledTonal(
-                onPressed: _hasTargetWarehouse
-                    ? () => _scanProduct(line)
-                    : null,
-                tooltip: 'Kamera ile oku',
-                icon: const Icon(Icons.photo_camera_back_rounded),
-              ),
-            ],
-          ),
-          if (product != null) ...<Widget>[
-            const SizedBox(height: 8),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: theme.colorScheme.primaryContainer.withAlpha(70),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Text(
-                '${product.stockCode} | ${product.stockName} | ${product.unitName}${product.barcode.isNotEmpty ? ' | ${product.barcode}' : ''}',
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: theme.colorScheme.onPrimaryContainer,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
+            )
+          else if (product != null)
+            TerminalPdaInfoGrid(
+              minTileWidth: 92,
+              items: <TerminalPdaInfo>[
+                TerminalPdaInfo(label: 'Kod', value: product.stockCode),
+                TerminalPdaInfo(label: 'Birim', value: product.unitName),
+                if (product.barcode.isNotEmpty)
+                  TerminalPdaInfo(label: 'Barkod', value: product.barcode),
+              ],
+            ),
+          if (!isFreshEntry) ...<Widget>[
+            const SizedBox(height: 10),
+            TerminalQuantityStepper(
+              controller: line.quantityController,
+              onMinimumReached: !isFreshEntry && _lines.length > 1
+                  ? () => _removeLine(line)
+                  : null,
+              validator: (_) {
+                if (line.quantity <= 0) {
+                  return 'Miktar > 0';
+                }
+                return null;
+              },
             ),
           ],
-          const SizedBox(height: 10),
-          TextFormField(
-            controller: line.quantityController,
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            inputFormatters: <TextInputFormatter>[
-              FilteringTextInputFormatter.allow(RegExp(r'[0-9,\.]')),
-            ],
-            decoration: const InputDecoration(labelText: 'Miktar*'),
-            validator: (_) {
-              if (_isBlankLine(line)) {
-                return null;
-              }
-
-              if (line.quantity <= 0) {
-                return 'Miktar > 0';
-              }
-              return null;
-            },
-          ),
         ],
       ),
     );

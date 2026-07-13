@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:furpa_merkez_terminal/core/network/api_exception.dart';
 import 'package:furpa_merkez_terminal/features/stock_operations/inventory_counts/data/inventory_counts_repository.dart';
 import 'package:furpa_merkez_terminal/features/stock_operations/inventory_counts/data/models/inventory_count_models.dart';
@@ -132,8 +131,28 @@ class _InventoryCountCreateSheetState extends State<InventoryCountCreateSheet>
     _draftSession.scheduleSave();
   }
 
-  Future<void> _searchProduct(_InventoryLineDraft line) async {
-    final product = await showModalBottomSheet<InventoryCountProductLookupItem>(
+  Future<void> _searchProduct(
+    _InventoryLineDraft line, {
+    bool autoSelectSingle = false,
+  }) async {
+    InventoryCountProductLookupItem? product;
+    final query = line.barcodeController.text.trim();
+    if (autoSelectSingle && query.isNotEmpty) {
+      try {
+        final products = await _searchProductsWithFallback(query);
+        if (products.length == 1) {
+          product = products.single;
+        }
+      } catch (_) {
+        product = null;
+      }
+    }
+
+    if (!mounted) {
+      return;
+    }
+
+    product ??= await showModalBottomSheet<InventoryCountProductLookupItem>(
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
@@ -149,10 +168,11 @@ class _InventoryCountCreateSheetState extends State<InventoryCountCreateSheet>
     if (product == null || !mounted) {
       return;
     }
+    final pickedProduct = product;
 
     var mergedIntoExisting = false;
     setState(() {
-      mergedIntoExisting = _applyProductToLine(line, product);
+      mergedIntoExisting = _applyProductToLine(line, pickedProduct);
       _ensureFreshEntryLine();
       _validationMessage = null;
     });
@@ -202,7 +222,7 @@ class _InventoryCountCreateSheetState extends State<InventoryCountCreateSheet>
     }
 
     line.barcodeController.text = barcode;
-    await _searchProduct(line);
+    await _searchProduct(line, autoSelectSingle: true);
   }
 
   bool _applyProductToLine(
@@ -512,118 +532,84 @@ class _InventoryCountCreateSheetState extends State<InventoryCountCreateSheet>
         .where((item) => !_isBlankLine(item))
         .length;
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: theme.colorScheme.outlineVariant),
+    return TerminalPdaLineCard(
+      title: isFreshEntry ? 'Giris satiri' : 'Satir $displayLineNo',
+      subtitle:
+          product?.stockName ??
+          (isFreshEntry ? 'Okutmaya hazir' : 'Urun secilmedi'),
+      isEntryLine: isFreshEntry,
+      leading: Icon(
+        isFreshEntry
+            ? Icons.qr_code_scanner_rounded
+            : Icons.inventory_2_rounded,
+        color: theme.colorScheme.primary,
       ),
+      trailing: !isFreshEntry && _lines.length > 1
+          ? IconButton(
+              onPressed: () => _removeLine(line),
+              icon: const Icon(Icons.delete_outline, size: 22),
+              tooltip: 'Satiri sil',
+            )
+          : null,
       child: Column(
         children: <Widget>[
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 12, 12, 6),
-            child: Row(
-              children: <Widget>[
-                Expanded(
-                  child: Text(
-                    isFreshEntry ? 'Giris satiri' : 'Satir $displayLineNo',
-                    style: theme.textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.w800,
-                    ),
+          if (isFreshEntry)
+            TerminalResponsiveLookupRow(
+              breakpoint: 340,
+              field: ProductLookupField(
+                controller: line.barcodeController,
+                focusNode: line.barcodeFocusNode,
+                onSubmit: () => _searchProduct(line),
+              ),
+              action: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  FilledButton.icon(
+                    onPressed: () => _searchProduct(line),
+                    icon: const Icon(Icons.search_rounded),
+                    label: const Text('Urun'),
                   ),
-                ),
-                if (_lines.length > 1)
-                  IconButton(
-                    onPressed: () => _removeLine(line),
-                    icon: const Icon(Icons.delete_outline, size: 20),
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(),
-                    visualDensity: VisualDensity.compact,
-                  ),
-              ],
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(10),
-            child: Column(
-              children: <Widget>[
-                TerminalResponsiveLookupRow(
-                  breakpoint: 340,
-                  field: ProductLookupField(
-                    controller: line.barcodeController,
-                    focusNode: line.barcodeFocusNode,
-                    onSubmit: () => _searchProduct(line),
-                  ),
-                  action: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: <Widget>[
-                      FilledButton.icon(
-                        onPressed: () => _searchProduct(line),
-                        icon: const Icon(Icons.search_rounded),
-                        label: const Text('Urun'),
-                      ),
-                      const SizedBox(width: 8),
-                      IconButton.filledTonal(
-                        onPressed: () => _scanProductWithCamera(line),
-                        tooltip: 'Kamera ile oku',
-                        icon: const Icon(Icons.photo_camera_back_rounded),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 10),
-                TextFormField(
-                  controller: line.quantityController,
-                  keyboardType: const TextInputType.numberWithOptions(
-                    decimal: true,
-                  ),
-                  inputFormatters: <TextInputFormatter>[
-                    FilteringTextInputFormatter.allow(RegExp(r'[0-9,\.]')),
-                  ],
-                  decoration: const InputDecoration(labelText: 'Miktar*'),
-                  validator: (value) {
-                    if (_isBlankLine(line)) {
-                      return null;
-                    }
-
-                    if (productEntryController.readQuantity(
-                          value ?? '',
-                          fallback: 0,
-                        ) <=
-                        0) {
-                      return 'Zorunlu';
-                    }
-
-                    return null;
-                  },
-                ),
-                if (product != null) ...<Widget>[
-                  const SizedBox(height: 8),
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: theme.colorScheme.primaryContainer.withAlpha(75),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Text(
-                      [
-                        'Barkod: ${product.barcode.isEmpty ? '-' : product.barcode}',
-                        'Birim: ${product.unitName}',
-                        if (product.isGoodsAcceptanceBlocked)
-                          'Sayim/tesellum uyari bayragi var',
-                      ].join(' | '),
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: theme.colorScheme.onPrimaryContainer,
-                      ),
-                    ),
+                  const SizedBox(width: 8),
+                  IconButton.filledTonal(
+                    onPressed: () => _scanProductWithCamera(line),
+                    tooltip: 'Kamera ile oku',
+                    icon: const Icon(Icons.photo_camera_back_rounded),
                   ),
                 ],
+              ),
+            )
+          else if (product != null)
+            TerminalPdaInfoGrid(
+              minTileWidth: 92,
+              items: <TerminalPdaInfo>[
+                TerminalPdaInfo(label: 'Kod', value: product.stockCode),
+                TerminalPdaInfo(label: 'Birim', value: product.unitName),
+                if (product.barcode.isNotEmpty)
+                  TerminalPdaInfo(label: 'Barkod', value: product.barcode),
+                if (product.isGoodsAcceptanceBlocked)
+                  const TerminalPdaInfo(label: 'Uyari', value: 'Bayrak var'),
               ],
             ),
-          ),
+          if (!isFreshEntry) ...<Widget>[
+            const SizedBox(height: 10),
+            TerminalQuantityStepper(
+              controller: line.quantityController,
+              onMinimumReached: !isFreshEntry && _lines.length > 1
+                  ? () => _removeLine(line)
+                  : null,
+              validator: (value) {
+                if (productEntryController.readQuantity(
+                      value ?? '',
+                      fallback: 0,
+                    ) <=
+                    0) {
+                  return 'Zorunlu';
+                }
+
+                return null;
+              },
+            ),
+          ],
         ],
       ),
     );

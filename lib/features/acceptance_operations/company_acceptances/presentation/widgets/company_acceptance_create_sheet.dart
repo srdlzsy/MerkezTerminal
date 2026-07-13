@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:furpa_merkez_terminal/core/network/api_exception.dart';
 import 'package:furpa_merkez_terminal/features/acceptance_operations/company_acceptances/data/company_acceptances_repository.dart';
 import 'package:furpa_merkez_terminal/features/acceptance_operations/company_acceptances/data/models/company_acceptance_models.dart';
@@ -462,7 +461,10 @@ class _CompanyAcceptanceCreateSheetState
     _draftSession.scheduleSave();
   }
 
-  Future<void> _searchProduct(_AcceptanceLineDraft line) async {
+  Future<void> _searchProduct(
+    _AcceptanceLineDraft line, {
+    bool autoSelectSingle = false,
+  }) async {
     final query = line.lookupController.text.trim();
 
     if (query.length < 2) {
@@ -516,33 +518,38 @@ class _CompanyAcceptanceCreateSheetState
       return;
     }
 
-    setState(() {
-      line.setLookupStatus(
-        '${products.length} urun bulundu. Listeden secim bekleniyor.',
-      );
-    });
-
-    final selected = await showModalBottomSheet<SearchProductLookupItem>(
-      context: context,
-      showDragHandle: true,
-      builder: (context) {
-        return ListView.separated(
-          shrinkWrap: true,
-          itemCount: products.length,
-          separatorBuilder: (_, _) => const Divider(height: 1),
-          itemBuilder: (context, index) {
-            final item = products[index];
-            return ListTile(
-              title: Text(item.displayLabel),
-              subtitle: Text(
-                '${item.unitName} | ${AppFormatters.currency(item.price)}',
-              ),
-              onTap: () => Navigator.of(context).pop(item),
-            );
-          },
+    SearchProductLookupItem? selected;
+    if (autoSelectSingle && products.length == 1) {
+      selected = products.single;
+    } else {
+      setState(() {
+        line.setLookupStatus(
+          '${products.length} urun bulundu. Listeden secim bekleniyor.',
         );
-      },
-    );
+      });
+
+      selected = await showModalBottomSheet<SearchProductLookupItem>(
+        context: context,
+        showDragHandle: true,
+        builder: (context) {
+          return ListView.separated(
+            shrinkWrap: true,
+            itemCount: products.length,
+            separatorBuilder: (_, _) => const Divider(height: 1),
+            itemBuilder: (context, index) {
+              final item = products[index];
+              return ListTile(
+                title: Text(item.displayLabel),
+                subtitle: Text(
+                  '${item.unitName} | ${AppFormatters.currency(item.price)}',
+                ),
+                onTap: () => Navigator.of(context).pop(item),
+              );
+            },
+          );
+        },
+      );
+    }
 
     if (selected == null) {
       if (mounted) {
@@ -554,13 +561,14 @@ class _CompanyAcceptanceCreateSheetState
       }
       return;
     }
+    final pickedProduct = selected;
 
     var mergedIntoExisting = false;
     setState(() {
-      mergedIntoExisting = _applyProductToLine(line, selected);
+      mergedIntoExisting = _applyProductToLine(line, pickedProduct);
       if (!mergedIntoExisting) {
         line.setLookupStatus(
-          'Secildi: ${selected.stockCode} | ${selected.stockName}',
+          'Secildi: ${pickedProduct.stockCode} | ${pickedProduct.stockName}',
         );
       }
       _ensureFreshEntryLine();
@@ -599,7 +607,7 @@ class _CompanyAcceptanceCreateSheetState
     });
     _draftSession.scheduleSave();
 
-    await _searchProduct(line);
+    await _searchProduct(line, autoSelectSingle: true);
   }
 
   bool _applyProductToLine(
@@ -1194,8 +1202,43 @@ class _CompanyAcceptanceCreateSheetState
                             ),
                         ],
                       ),
-                      _buildProductLookupRow(line),
-                      if (line.lookupStatusMessage != null) ...<Widget>[
+                      if (isFreshEntry)
+                        _buildProductLookupRow(line)
+                      else
+                        TerminalPdaInfoGrid(
+                          minTileWidth: 92,
+                          items: <TerminalPdaInfo>[
+                            TerminalPdaInfo(
+                              label: 'Urun',
+                              value:
+                                  line.selectedProduct?.stockName ??
+                                  line.lookupController.text.trim(),
+                            ),
+                            TerminalPdaInfo(
+                              label: 'Kod',
+                              value: line.stockCodeController.text.trim(),
+                            ),
+                            TerminalPdaInfo(
+                              label: 'Birim',
+                              value: line.selectedProduct?.unitName ?? '-',
+                            ),
+                            if (line.selectedProduct?.barcode
+                                    .trim()
+                                    .isNotEmpty ==
+                                true)
+                              TerminalPdaInfo(
+                                label: 'Barkod',
+                                value: line.selectedProduct!.barcode,
+                              ),
+                            if (line.unitPrice > 0)
+                              TerminalPdaInfo(
+                                label: 'Fiyat',
+                                value: AppFormatters.currency(line.unitPrice),
+                              ),
+                          ],
+                        ),
+                      if (isFreshEntry &&
+                          line.lookupStatusMessage != null) ...<Widget>[
                         const SizedBox(height: 8),
                         if (line.isLookupStatusLoading)
                           TerminalMessageBlock.loading(
@@ -1210,15 +1253,10 @@ class _CompanyAcceptanceCreateSheetState
                             message: line.lookupStatusMessage!,
                           ),
                       ],
-                      if (line.selectedProduct != null) ...<Widget>[
-                        const SizedBox(height: 8),
-                        TerminalMessageBlock.info(
-                          message:
-                              '${line.selectedProduct!.stockCode} | ${line.selectedProduct!.stockName} | ${line.selectedProduct!.unitName} | ${AppFormatters.currency(line.selectedProduct!.price)}',
-                        ),
+                      if (!isFreshEntry) ...<Widget>[
+                        const SizedBox(height: 12),
+                        _buildQuantityFields(line),
                       ],
-                      const SizedBox(height: 12),
-                      _buildQuantityFields(line),
                       if (line.returnQuantity > 0) ...<Widget>[
                         const SizedBox(height: 8),
                         TerminalMessageBlock.info(
@@ -1490,19 +1528,22 @@ class _CompanyAcceptanceCreateSheetState
 
   Widget _buildQuantityFields(_AcceptanceLineDraft line) {
     Widget dispatchField() {
-      return TextFormField(
+      return TerminalQuantityStepper(
         controller: line.dispatchQuantityController,
-        keyboardType: const TextInputType.numberWithOptions(decimal: true),
-        inputFormatters: <TextInputFormatter>[
-          FilteringTextInputFormatter.allow(RegExp(r'[0-9,\.]')),
-        ],
-        decoration: const InputDecoration(labelText: 'Irsaliye Miktari*'),
+        label: 'Irsaliye Miktari*',
+        onMinimumReached: () {
+          final index = _lines.indexOf(line);
+          if (index < 0 || _lines.length <= 1) {
+            return;
+          }
+          setState(() {
+            line.dispose();
+            _lines.removeAt(index);
+          });
+          _draftSession.scheduleSave();
+        },
         onChanged: (_) => setState(() {}),
         validator: (_) {
-          if (_isBlankLine(line)) {
-            return null;
-          }
-
           if (line.dispatchQuantity <= 0) {
             return 'Miktar > 0';
           }
@@ -1512,19 +1553,12 @@ class _CompanyAcceptanceCreateSheetState
     }
 
     Widget acceptedField() {
-      return TextFormField(
+      return TerminalQuantityStepper(
         controller: line.acceptedQuantityController,
-        keyboardType: const TextInputType.numberWithOptions(decimal: true),
-        inputFormatters: <TextInputFormatter>[
-          FilteringTextInputFormatter.allow(RegExp(r'[0-9,\.]')),
-        ],
-        decoration: const InputDecoration(labelText: 'Fiili Kabul*'),
+        label: 'Fiili Kabul*',
+        maximum: line.dispatchQuantity,
         onChanged: (_) => setState(() {}),
         validator: (_) {
-          if (_isBlankLine(line)) {
-            return null;
-          }
-
           if (line.acceptedQuantity < 0) {
             return 'Negatif olamaz';
           }

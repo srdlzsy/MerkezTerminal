@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:furpa_merkez_terminal/features/stock_operations/stock_receipts/data/models/stock_receipt_models.dart';
 import 'package:furpa_merkez_terminal/features/stock_operations/stock_receipts/data/stock_receipts_repository.dart';
 import 'package:furpa_merkez_terminal/shared/data/search_lookup_models.dart';
@@ -146,7 +145,10 @@ class _StockReceiptCreateSheetState extends State<StockReceiptCreateSheet>
     };
   }
 
-  Future<void> _searchProduct(_StockReceiptLineDraft line) async {
+  Future<void> _searchProduct(
+    _StockReceiptLineDraft line, {
+    bool autoSelectSingle = false,
+  }) async {
     final query = line.lookupController.text.trim();
 
     if (query.length < 2) {
@@ -201,33 +203,38 @@ class _StockReceiptCreateSheetState extends State<StockReceiptCreateSheet>
       return;
     }
 
-    setState(() {
-      line.setLookupStatus(
-        '${products.length} urun bulundu. Listeden secim bekleniyor.',
-      );
-    });
-
-    final selected = await showModalBottomSheet<SearchProductLookupItem>(
-      context: context,
-      showDragHandle: true,
-      builder: (context) {
-        return ListView.separated(
-          shrinkWrap: true,
-          itemCount: products.length,
-          separatorBuilder: (_, _) => const Divider(height: 1),
-          itemBuilder: (context, index) {
-            final item = products[index];
-            return ListTile(
-              title: Text(item.displayLabel),
-              subtitle: Text(
-                '${item.unitName} | ${AppFormatters.currency(item.price)}',
-              ),
-              onTap: () => Navigator.of(context).pop(item),
-            );
-          },
+    SearchProductLookupItem? selected;
+    if (autoSelectSingle && products.length == 1) {
+      selected = products.single;
+    } else {
+      setState(() {
+        line.setLookupStatus(
+          '${products.length} urun bulundu. Listeden secim bekleniyor.',
         );
-      },
-    );
+      });
+
+      selected = await showModalBottomSheet<SearchProductLookupItem>(
+        context: context,
+        showDragHandle: true,
+        builder: (context) {
+          return ListView.separated(
+            shrinkWrap: true,
+            itemCount: products.length,
+            separatorBuilder: (_, _) => const Divider(height: 1),
+            itemBuilder: (context, index) {
+              final item = products[index];
+              return ListTile(
+                title: Text(item.displayLabel),
+                subtitle: Text(
+                  '${item.unitName} | ${AppFormatters.currency(item.price)}',
+                ),
+                onTap: () => Navigator.of(context).pop(item),
+              );
+            },
+          );
+        },
+      );
+    }
 
     if (selected == null) {
       if (mounted) {
@@ -239,13 +246,14 @@ class _StockReceiptCreateSheetState extends State<StockReceiptCreateSheet>
       }
       return;
     }
+    final pickedProduct = selected;
 
     var mergedIntoExisting = false;
     setState(() {
-      mergedIntoExisting = _applyProductToLine(line, selected);
+      mergedIntoExisting = _applyProductToLine(line, pickedProduct);
       if (!mergedIntoExisting) {
         line.setLookupStatus(
-          'Secildi: ${selected.stockCode} | ${selected.stockName}',
+          'Secildi: ${pickedProduct.stockCode} | ${pickedProduct.stockName}',
         );
       }
       _ensureFreshEntryLine();
@@ -285,7 +293,7 @@ class _StockReceiptCreateSheetState extends State<StockReceiptCreateSheet>
     setState(() {
       line.setLookupStatus('Barkod okundu: $barcode. Urun araniyor.');
     });
-    await _searchProduct(line);
+    await _searchProduct(line, autoSelectSingle: true);
   }
 
   bool _applyProductToLine(
@@ -504,7 +512,7 @@ class _StockReceiptCreateSheetState extends State<StockReceiptCreateSheet>
                                   ?.copyWith(fontWeight: FontWeight.w800),
                             ),
                           ),
-                          if (_lines.length > 1)
+                          if (!isFreshEntry && _lines.length > 1)
                             IconButton(
                               onPressed: () {
                                 setState(() {
@@ -517,46 +525,58 @@ class _StockReceiptCreateSheetState extends State<StockReceiptCreateSheet>
                             ),
                         ],
                       ),
-                      TerminalResponsiveLookupRow(
-                        field: ProductLookupField(
-                          controller: line.lookupController,
-                          focusNode: line.lookupFocusNode,
-                          enabled: !line.isLookupStatusLoading,
-                          onSubmit: () => _searchProduct(line),
-                          validator: (_) {
-                            if (_isBlankLine(line)) {
-                              return null;
-                            }
-
-                            if (line.selectedProduct == null) {
-                              return 'Urun secilmeli.';
-                            }
-
-                            return null;
-                          },
-                        ),
-                        action: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: <Widget>[
-                            FilledButton.icon(
-                              onPressed: line.isLookupStatusLoading
-                                  ? null
-                                  : () => _searchProduct(line),
-                              icon: const Icon(Icons.search_rounded),
-                              label: const Text('Urun'),
+                      if (isFreshEntry)
+                        TerminalResponsiveLookupRow(
+                          field: ProductLookupField(
+                            controller: line.lookupController,
+                            focusNode: line.lookupFocusNode,
+                            enabled: !line.isLookupStatusLoading,
+                            onSubmit: () => _searchProduct(line),
+                          ),
+                          action: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: <Widget>[
+                              FilledButton.icon(
+                                onPressed: line.isLookupStatusLoading
+                                    ? null
+                                    : () => _searchProduct(line),
+                                icon: const Icon(Icons.search_rounded),
+                                label: const Text('Urun'),
+                              ),
+                              const SizedBox(width: 8),
+                              IconButton.filledTonal(
+                                onPressed: line.isLookupStatusLoading
+                                    ? null
+                                    : () => _scanProductWithCamera(line),
+                                tooltip: 'Kamera ile oku',
+                                icon: const Icon(
+                                  Icons.photo_camera_back_rounded,
+                                ),
+                              ),
+                            ],
+                          ),
+                        )
+                      else if (line.selectedProduct != null)
+                        TerminalPdaInfoGrid(
+                          minTileWidth: 92,
+                          items: <TerminalPdaInfo>[
+                            TerminalPdaInfo(
+                              label: 'Kod',
+                              value: line.selectedProduct!.stockCode,
                             ),
-                            const SizedBox(width: 8),
-                            IconButton.filledTonal(
-                              onPressed: line.isLookupStatusLoading
-                                  ? null
-                                  : () => _scanProductWithCamera(line),
-                              tooltip: 'Kamera ile oku',
-                              icon: const Icon(Icons.photo_camera_back_rounded),
+                            TerminalPdaInfo(
+                              label: 'Birim',
+                              value: line.selectedProduct!.unitName,
                             ),
+                            if (line.selectedProduct!.barcode.isNotEmpty)
+                              TerminalPdaInfo(
+                                label: 'Barkod',
+                                value: line.selectedProduct!.barcode,
+                              ),
                           ],
                         ),
-                      ),
-                      if (line.lookupStatusMessage != null) ...<Widget>[
+                      if (isFreshEntry &&
+                          line.lookupStatusMessage != null) ...<Widget>[
                         const SizedBox(height: 8),
                         if (line.isLookupStatusLoading)
                           TerminalMessageBlock.loading(
@@ -571,36 +591,28 @@ class _StockReceiptCreateSheetState extends State<StockReceiptCreateSheet>
                             message: line.lookupStatusMessage!,
                           ),
                       ],
-                      if (line.selectedProduct != null) ...<Widget>[
-                        const SizedBox(height: 8),
-                        TerminalMessageBlock.info(
-                          message:
-                              '${line.selectedProduct!.stockCode} | ${line.selectedProduct!.stockName} | ${line.selectedProduct!.unitName}',
+                      if (!isFreshEntry) ...<Widget>[
+                        const SizedBox(height: 10),
+                        TerminalQuantityStepper(
+                          controller: line.quantityController,
+                          label: 'Miktar',
+                          onMinimumReached: !isFreshEntry && _lines.length > 1
+                              ? () {
+                                  setState(() {
+                                    line.dispose();
+                                    _lines.removeAt(index);
+                                  });
+                                  _draftSession.scheduleSave();
+                                }
+                              : null,
+                          validator: (_) {
+                            if (line.quantity <= 0) {
+                              return 'Miktar > 0';
+                            }
+                            return null;
+                          },
                         ),
                       ],
-                      const SizedBox(height: 10),
-                      TextFormField(
-                        controller: line.quantityController,
-                        keyboardType: const TextInputType.numberWithOptions(
-                          decimal: true,
-                        ),
-                        inputFormatters: <TextInputFormatter>[
-                          FilteringTextInputFormatter.allow(
-                            RegExp(r'[0-9,\.]'),
-                          ),
-                        ],
-                        decoration: const InputDecoration(labelText: 'Miktar'),
-                        validator: (_) {
-                          if (_isBlankLine(line)) {
-                            return null;
-                          }
-
-                          if (line.quantity <= 0) {
-                            return 'Miktar > 0';
-                          }
-                          return null;
-                        },
-                      ),
                     ],
                   ),
                 ),

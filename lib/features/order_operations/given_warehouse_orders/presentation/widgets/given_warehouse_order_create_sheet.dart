@@ -156,13 +156,37 @@ class _GivenWarehouseOrderCreateSheetState
     _draftSession.scheduleSave();
   }
 
-  Future<void> _searchProduct(_CreateLineDraft line) async {
+  Future<void> _searchProduct(
+    _CreateLineDraft line, {
+    bool autoSelectSingle = false,
+  }) async {
     if (!_hasWarehouseSelection) {
       _showFeedback('Once karsi depo secin, sonra kalem okutun.');
       return;
     }
 
-    final product = await showModalBottomSheet<ProductLookupItem>(
+    ProductLookupItem? product;
+    final query = line.barcodeController.text.trim();
+    if (autoSelectSingle && query.isNotEmpty) {
+      try {
+        final products = await widget.repository.searchProducts(
+          accessToken: widget.accessToken,
+          warehouseNo: widget.defaultWarehouseNo,
+          query: query,
+        );
+        if (products.length == 1) {
+          product = products.single;
+        }
+      } catch (_) {
+        product = null;
+      }
+    }
+
+    if (!mounted) {
+      return;
+    }
+
+    product ??= await showModalBottomSheet<ProductLookupItem>(
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
@@ -178,10 +202,11 @@ class _GivenWarehouseOrderCreateSheetState
     if (product == null || !mounted) {
       return;
     }
+    final pickedProduct = product;
 
     var mergedIntoExisting = false;
     setState(() {
-      mergedIntoExisting = _applyProductToLine(line, product);
+      mergedIntoExisting = _applyProductToLine(line, pickedProduct);
       _ensureFreshEntryLine();
     });
     _focusFreshEntryLine();
@@ -213,7 +238,7 @@ class _GivenWarehouseOrderCreateSheetState
     }
 
     line.barcodeController.text = barcode;
-    await _searchProduct(line);
+    await _searchProduct(line, autoSelectSingle: true);
   }
 
   void _ensureFreshEntryLine() {
@@ -635,200 +660,92 @@ class _GivenWarehouseOrderCreateSheetState
         .where((item) => !_isBlankLine(item))
         .length;
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: theme.colorScheme.outlineVariant.withAlpha(80),
-        ),
+    return TerminalPdaLineCard(
+      title: isFreshEntry ? 'Giris satiri' : 'Satir $displayLineNo',
+      subtitle:
+          product?.stockName ??
+          (isFreshEntry ? 'Okutmaya hazir' : 'Urun secilmedi'),
+      isEntryLine: isFreshEntry,
+      leading: Icon(
+        isFreshEntry
+            ? Icons.qr_code_scanner_rounded
+            : Icons.inventory_2_rounded,
+        color: theme.colorScheme.primary,
       ),
+      trailing: !isFreshEntry && _lines.length > 1
+          ? IconButton(
+              onPressed: () => _removeLine(line),
+              icon: const Icon(Icons.delete_outline, size: 22),
+              tooltip: 'Satiri sil',
+            )
+          : null,
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Satir basligi + sil butonu
-          Container(
-            padding: const EdgeInsets.fromLTRB(12, 8, 8, 4),
-            decoration: BoxDecoration(
-              color: theme.colorScheme.surfaceContainerHighest.withAlpha(30),
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(12),
-                topRight: Radius.circular(12),
+          if (isFreshEntry && !canScan)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF6EFE7),
+                borderRadius: BorderRadius.circular(10),
               ),
-            ),
-            child: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 2,
-                  ),
-                  decoration: BoxDecoration(
-                    color: theme.colorScheme.primaryContainer,
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Text(
-                    isFreshEntry ? 'Giris' : '#$displayLineNo',
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.bold,
-                      color: theme.colorScheme.onPrimaryContainer,
-                    ),
-                  ),
+              child: Text(
+                'Bu satirda isleme baslamak icin once karsi depo secin.',
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: const Color(0xFF5B4738),
+                  fontWeight: FontWeight.w600,
                 ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    product?.stockName ??
-                        (isFreshEntry ? 'Okutmaya hazir' : 'Urun secilmedi'),
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: product != null
-                          ? FontWeight.w600
-                          : FontWeight.w400,
-                      color: product != null
-                          ? null
-                          : theme.colorScheme.onSurfaceVariant,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                if (_lines.length > 1)
-                  IconButton(
-                    onPressed: () => _removeLine(line),
-                    icon: const Icon(Icons.delete_outline, size: 20),
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(),
-                    visualDensity: VisualDensity.compact,
-                  ),
+              ),
+            )
+          else if (isFreshEntry)
+            TerminalResponsiveLookupRow(
+              field: ProductLookupField(
+                controller: line.barcodeController,
+                focusNode: line.barcodeFocusNode,
+                enabled: canScan,
+                onSubmit: () => _searchProduct(line),
+              ),
+              action: FilledButton.icon(
+                onPressed: canScan ? () => _searchProduct(line) : null,
+                icon: const Icon(Icons.search_rounded),
+                label: const Text('Urun'),
+              ),
+              trailingAction: IconButton.filledTonal(
+                onPressed: canScan ? () => _scanProductWithCamera(line) : null,
+                tooltip: 'Kamera ile oku',
+                icon: const Icon(Icons.photo_camera_back_rounded),
+              ),
+            )
+          else if (product != null)
+            TerminalPdaInfoGrid(
+              minTileWidth: 92,
+              items: <TerminalPdaInfo>[
+                TerminalPdaInfo(label: 'Kod', value: product.stockCode),
+                TerminalPdaInfo(label: 'Birim', value: product.unitName),
+                if (product.barcode.isNotEmpty)
+                  TerminalPdaInfo(label: 'Barkod', value: product.barcode),
+                if (product.isOrderBlocked)
+                  const TerminalPdaInfo(label: 'Durum', value: 'Blokeli'),
               ],
             ),
-          ),
-
-          // Icerik
-          Padding(
-            padding: const EdgeInsets.all(10),
-            child: Column(
-              children: [
-                // Urun secme bolumu
-                if (!canScan)
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF6EFE7),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Text(
-                      'Bu satirda isleme baslamak icin once karsi depo secin.',
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: const Color(0xFF5B4738),
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  )
-                else
-                  Row(
-                    children: [
-                      Expanded(
-                        child: ProductLookupField(
-                          controller: line.barcodeController,
-                          focusNode: line.barcodeFocusNode,
-                          enabled: canScan,
-                          onSubmit: () => _searchProduct(line),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      FilledButton.icon(
-                        onPressed: canScan ? () => _searchProduct(line) : null,
-                        icon: const Icon(Icons.search_rounded),
-                        label: const Text('Urun'),
-                        style: FilledButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 12,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      IconButton.filledTonal(
-                        onPressed: canScan
-                            ? () => _scanProductWithCamera(line)
-                            : null,
-                        tooltip: 'Kamera ile oku',
-                        icon: const Icon(Icons.photo_camera_back_rounded),
-                      ),
-                    ],
-                  ),
-
-                const SizedBox(height: 10),
-
-                TextFormField(
-                  controller: line.quantityController,
-                  keyboardType: const TextInputType.numberWithOptions(
-                    decimal: true,
-                  ),
-                  decoration: const InputDecoration(
-                    labelText: 'Miktar*',
-                    border: OutlineInputBorder(),
-                    isDense: true,
-                    contentPadding: EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 10,
-                    ),
-                  ),
-                  validator: (value) {
-                    if (_isBlankLine(line)) {
-                      return null;
-                    }
-
-                    final parsed = double.tryParse(
-                      (value ?? '').trim().replaceAll(',', '.'),
-                    );
-                    if (parsed == null || parsed <= 0) {
-                      return 'Zorunlu';
-                    }
-                    return null;
-                  },
-                ),
-
-                // Urun bilgisi (seciliyse)
-                if (product != null) ...[
-                  const SizedBox(height: 8),
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: theme.colorScheme.primaryContainer.withAlpha(80),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(
-                          Icons.info_outline,
-                          size: 14,
-                          color: theme.colorScheme.onPrimaryContainer,
-                        ),
-                        const SizedBox(width: 6),
-                        Expanded(
-                          child: Text(
-                            'Birim: ${product.unitName}${product.isOrderBlocked ? ' | Siparis blokeli' : ''}',
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: theme.colorScheme.onPrimaryContainer,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ],
+          if (!isFreshEntry) ...<Widget>[
+            const SizedBox(height: 10),
+            TerminalQuantityStepper(
+              controller: line.quantityController,
+              onMinimumReached: !isFreshEntry && _lines.length > 1
+                  ? () => _removeLine(line)
+                  : null,
+              validator: (value) {
+                final parsed = double.tryParse(
+                  (value ?? '').trim().replaceAll(',', '.'),
+                );
+                if (parsed == null || parsed <= 0) {
+                  return 'Zorunlu';
+                }
+                return null;
+              },
             ),
-          ),
+          ],
         ],
       ),
     );

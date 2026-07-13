@@ -42,20 +42,23 @@ void main() {
 
     await _pickProduct(tester);
 
-    const productInfo = '015792 | Test Urun | AD | 8690000000012';
-    expect(find.text(productInfo), findsOneWidget);
+    final productInfo = find.text('Test Urun');
+    expect(productInfo, findsOneWidget);
+    expect(find.text('015792'), findsOneWidget);
+    expect(find.text('AD'), findsOneWidget);
+    expect(find.text('8690000000012'), findsOneWidget);
 
     expect(find.text('Giris satiri'), findsOneWidget);
     expect(find.text('Satir 1'), findsOneWidget);
     expect(find.text('Satir 2'), findsNothing);
     expect(
-      tester.getTopLeft(find.text(productInfo)).dy,
+      tester.getTopLeft(productInfo).dy,
       greaterThan(tester.getTopLeft(find.text('Giris satiri')).dy),
     );
 
     await _pickProduct(tester);
 
-    expect(find.text(productInfo), findsOneWidget);
+    expect(productInfo, findsOneWidget);
     expect(find.text('4'), findsOneWidget);
   });
 }

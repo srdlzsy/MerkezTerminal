@@ -15,6 +15,7 @@ import 'package:furpa_merkez_terminal/shared/drafts/create_draft_repository.dart
 import 'package:furpa_merkez_terminal/shared/formatters/app_formatters.dart';
 import 'package:furpa_merkez_terminal/shared/offline/mobile_customer_catalog_repository.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/section_card.dart';
+import 'package:furpa_merkez_terminal/shared/widgets/terminal_create_page.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/terminal_ui_parts.dart';
 
 class CompanyMovementsPage extends StatefulWidget {
@@ -129,12 +130,56 @@ class _CompanyMovementsPageState extends State<CompanyMovementsPage> {
   }
 
   Future<void> _toggleSelection(CompanyMovementListItem item) async {
-    if (_controller.selectedMovement?.documentNoLabel == item.documentNoLabel) {
-      _controller.clearSelection();
+    await _controller.selectMovement(item);
+    if (!mounted) {
       return;
     }
 
-    await _controller.selectMovement(item);
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (context) {
+          return ListenableBuilder(
+            listenable: _controller,
+            builder: (context, child) {
+              return Scaffold(
+                appBar: AppBar(title: Text(item.documentNoLabel)),
+                body: SafeArea(
+                  child: ListView(
+                    padding: EdgeInsets.fromLTRB(
+                      16,
+                      16,
+                      16,
+                      20 + MediaQuery.paddingOf(context).bottom,
+                    ),
+                    children: <Widget>[
+                      _MovementCard(
+                        item: item,
+                        detail: _controller.selectedMovementDetail,
+                        isExpanded: true,
+                        isLoadingDetail: _controller.isLoadingDetail,
+                        detailError: _controller.detailError,
+                        canSendEDespatch: _controller.canSendEDespatch,
+                        canViewEDespatchPdf: _controller.canViewEDespatchPdf,
+                        isSendingEDespatch: _controller.isSendingEDespatch,
+                        isLoadingPdf: _controller.isLoadingPdf,
+                        lastEDespatchResult: _controller.lastEDespatchResult,
+                        onSendEDespatch: _openEDespatchSheet,
+                        onShowPdf: _openPdfPreview,
+                        onTap: () {},
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          );
+        },
+      ),
+    );
+
+    if (mounted) {
+      _controller.clearSelection();
+    }
   }
 
   Future<void> _openCreateSheet() async {
@@ -162,11 +207,9 @@ class _CompanyMovementsPageState extends State<CompanyMovementsPage> {
           );
     }
 
-    final request = await showModalBottomSheet<CompanyMovementCreateRequest>(
+    final request = await openTerminalCreatePage<CompanyMovementCreateRequest>(
       context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      showDragHandle: true,
+      title: widget.createTitle,
       builder: (context) {
         return CompanyMovementCreateSheet(
           repository: widget.repository,
@@ -499,104 +542,70 @@ class _MovementCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return Material(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(24),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(24),
-        onTap: onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 140),
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: isExpanded ? const Color(0xFFFFF8F0) : Colors.white,
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(
-              color: isExpanded
-                  ? theme.colorScheme.primary.withAlpha(110)
-                  : theme.colorScheme.outlineVariant.withAlpha(88),
-              width: isExpanded ? 1.4 : 1,
+    return TerminalPdaRecordCard(
+      isSelected: isExpanded,
+      onTap: onTap,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          TerminalPdaCardHeader(
+            title: item.documentNoLabel,
+            subtitle: item.customerDisplayName,
+            trailing: Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                TerminalBadge(label: '${item.lineCount} satir'),
+                const SizedBox(height: 4),
+                Icon(
+                  isExpanded
+                      ? Icons.keyboard_arrow_up_rounded
+                      : Icons.chevron_right_rounded,
+                  size: 26,
+                  color: theme.colorScheme.primary,
+                ),
+              ],
             ),
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              Row(
-                children: <Widget>[
-                  Expanded(
-                    child: TerminalLabeledValue(
-                      label: 'Belge',
-                      value: item.documentNoLabel,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: TerminalLabeledValue(
-                      label: 'Belge Trh',
-                      value: AppFormatters.dateOrDash(item.documentDate),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    flex: 2,
-                    child: TerminalLabeledValue(
-                      label: 'Cari',
-                      value: item.customerDisplayName,
-                    ),
-                  ),
-                ],
+          const SizedBox(height: 10),
+          TerminalPdaInfoGrid(
+            items: <TerminalPdaInfo>[
+              TerminalPdaInfo(
+                label: 'Belge Trh',
+                value: AppFormatters.dateOrDash(item.documentDate),
               ),
-              const SizedBox(height: 8),
-              Row(
-                children: <Widget>[
-                  Expanded(
-                    child: TerminalLabeledValue(
-                      label: 'Hareket',
-                      value: AppFormatters.dateOrDash(item.movementDate),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: TerminalLabeledValue(
-                      label: 'Miktar',
-                      value: AppFormatters.quantity(item.totalQuantity),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  TerminalBadge(label: '${item.lineCount} satir'),
-                  const SizedBox(width: 4),
-                  Icon(
-                    isExpanded
-                        ? Icons.keyboard_arrow_up_rounded
-                        : Icons.keyboard_arrow_down_rounded,
-                    color: theme.colorScheme.primary,
-                  ),
-                ],
+              TerminalPdaInfo(
+                label: 'Hareket',
+                value: AppFormatters.dateOrDash(item.movementDate),
               ),
-              AnimatedSize(
-                duration: const Duration(milliseconds: 140),
-                curve: Curves.easeInOut,
-                child: isExpanded
-                    ? Padding(
-                        padding: const EdgeInsets.only(top: 14),
-                        child: _MovementDetailBody(
-                          detail: detail,
-                          isLoading: isLoadingDetail,
-                          errorMessage: detailError,
-                          canSendEDespatch: canSendEDespatch,
-                          canViewEDespatchPdf: canViewEDespatchPdf,
-                          isSendingEDespatch: isSendingEDespatch,
-                          isLoadingPdf: isLoadingPdf,
-                          lastEDespatchResult: lastEDespatchResult,
-                          onSendEDespatch: onSendEDespatch,
-                          onShowPdf: onShowPdf,
-                        ),
-                      )
-                    : const SizedBox.shrink(),
+              TerminalPdaInfo(
+                label: 'Miktar',
+                value: AppFormatters.quantity(item.totalQuantity),
               ),
             ],
           ),
-        ),
+          AnimatedSize(
+            duration: const Duration(milliseconds: 140),
+            curve: Curves.easeInOut,
+            child: isExpanded
+                ? Padding(
+                    padding: const EdgeInsets.only(top: 12),
+                    child: _MovementDetailBody(
+                      detail: detail,
+                      isLoading: isLoadingDetail,
+                      errorMessage: detailError,
+                      canSendEDespatch: canSendEDespatch,
+                      canViewEDespatchPdf: canViewEDespatchPdf,
+                      isSendingEDespatch: isSendingEDespatch,
+                      isLoadingPdf: isLoadingPdf,
+                      lastEDespatchResult: lastEDespatchResult,
+                      onSendEDespatch: onSendEDespatch,
+                      onShowPdf: onShowPdf,
+                    ),
+                  )
+                : const SizedBox.shrink(),
+          ),
+        ],
       ),
     );
   }
@@ -644,16 +653,7 @@ class _MovementDetailBody extends StatelessWidget {
       return const TerminalEmptyState(message: 'Detay bilgisi yuklenemedi.');
     }
 
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF6EFE7),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: Theme.of(context).colorScheme.outlineVariant.withAlpha(86),
-        ),
-      ),
+    return TerminalPdaDetailPanel(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[

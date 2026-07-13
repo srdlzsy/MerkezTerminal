@@ -16,6 +16,7 @@ import 'package:furpa_merkez_terminal/shared/drafts/create_draft_repository.dart
 import 'package:furpa_merkez_terminal/shared/formatters/app_formatters.dart';
 import 'package:furpa_merkez_terminal/shared/offline/mobile_warehouse_catalog_repository.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/section_card.dart';
+import 'package:furpa_merkez_terminal/shared/widgets/terminal_create_page.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/terminal_ui_parts.dart';
 
 class OutgoingWarehouseShipmentsPage extends StatefulWidget {
@@ -149,25 +150,24 @@ class _OutgoingWarehouseShipmentsPageState
           );
     }
 
-    final request = await showModalBottomSheet<WarehouseShipmentCreateRequest>(
-      context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      showDragHandle: true,
-      builder: (context) {
-        return OutgoingWarehouseShipmentCreateSheet(
-          repository: widget.repository,
-          receivedWarehouseOrdersRepository:
-              widget.receivedWarehouseOrdersRepository,
-          accessToken: widget.accessToken,
-          defaultWarehouseNo: widget.defaultWarehouseNo,
-          mobileWarehouseCatalogRepository:
-              widget.mobileWarehouseCatalogRepository,
-          draft: draft,
-          draftRepository: widget.draftRepository,
+    final request =
+        await openTerminalCreatePage<WarehouseShipmentCreateRequest>(
+          context: context,
+          title: 'Yeni Sevk',
+          builder: (context) {
+            return OutgoingWarehouseShipmentCreateSheet(
+              repository: widget.repository,
+              receivedWarehouseOrdersRepository:
+                  widget.receivedWarehouseOrdersRepository,
+              accessToken: widget.accessToken,
+              defaultWarehouseNo: widget.defaultWarehouseNo,
+              mobileWarehouseCatalogRepository:
+                  widget.mobileWarehouseCatalogRepository,
+              draft: draft,
+              draftRepository: widget.draftRepository,
+            );
+          },
         );
-      },
-    );
 
     if (request == null || !mounted) {
       return;
@@ -208,12 +208,56 @@ class _OutgoingWarehouseShipmentsPageState
   }
 
   Future<void> _toggleSelection(WarehouseShipmentListItem item) async {
-    if (_controller.selectedShipment?.documentNoLabel == item.documentNoLabel) {
-      _controller.clearSelection();
+    await _controller.selectShipment(item);
+    if (!mounted) {
       return;
     }
 
-    await _controller.selectShipment(item);
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (context) {
+          return ListenableBuilder(
+            listenable: _controller,
+            builder: (context, child) {
+              return Scaffold(
+                appBar: AppBar(title: Text(item.documentNoLabel)),
+                body: SafeArea(
+                  child: ListView(
+                    padding: EdgeInsets.fromLTRB(
+                      16,
+                      16,
+                      16,
+                      20 + MediaQuery.paddingOf(context).bottom,
+                    ),
+                    children: <Widget>[
+                      _ShipmentAccordionCard(
+                        item: item,
+                        isExpanded: true,
+                        detail: _controller.selectedShipmentDetail,
+                        isLoadingDetail: _controller.isLoadingDetail,
+                        detailError: _controller.detailError,
+                        canSendEDespatch: _controller.canSendEDespatch,
+                        canViewEDespatchPdf: _controller.canViewEDespatchPdf,
+                        lastEDespatchResult: _controller.lastEDespatchResult,
+                        isSendingEDespatch: _controller.isSendingEDespatch,
+                        isLoadingPdf: _controller.isLoadingPdf,
+                        onSendEDespatch: _openEDespatchSheet,
+                        onShowPdf: _openPdfPreview,
+                        onTap: () {},
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          );
+        },
+      ),
+    );
+
+    if (mounted) {
+      _controller.clearSelection();
+    }
   }
 
   Future<void> _openEDespatchSheet() async {
@@ -542,156 +586,71 @@ class _ShipmentAccordionCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return Material(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(28),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(28),
-        onTap: onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 140),
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: isExpanded ? const Color(0xFFFFF8F0) : Colors.white,
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(
-              color: isExpanded
-                  ? theme.colorScheme.primary.withAlpha(110)
-                  : theme.colorScheme.outlineVariant.withAlpha(88),
-              width: isExpanded ? 1.4 : 1,
+    return TerminalPdaRecordCard(
+      isSelected: isExpanded,
+      onTap: onTap,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          TerminalPdaCardHeader(
+            title: item.documentNoLabel,
+            subtitle: '${item.sourceWarehouse} -> ${item.targetWarehouse}',
+            trailing: Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                _StateBadge(state: item.shippingState),
+                const SizedBox(height: 4),
+                Icon(
+                  isExpanded
+                      ? Icons.keyboard_arrow_up_rounded
+                      : Icons.chevron_right_rounded,
+                  size: 26,
+                  color: theme.colorScheme.primary,
+                ),
+              ],
             ),
-            boxShadow: <BoxShadow>[
-              BoxShadow(
-                color: Colors.black.withAlpha(isExpanded ? 10 : 5),
-                blurRadius: isExpanded ? 12 : 8,
-                offset: const Offset(0, 4),
+          ),
+          const SizedBox(height: 10),
+          TerminalPdaInfoGrid(
+            items: <TerminalPdaInfo>[
+              TerminalPdaInfo(
+                label: 'Belge Trh',
+                value: AppFormatters.dateOrDash(item.documentDate),
+              ),
+              TerminalPdaInfo(
+                label: 'Sevk Trh',
+                value: AppFormatters.dateOrDash(item.movementDate),
+              ),
+              TerminalPdaInfo(
+                label: 'Miktar',
+                value: AppFormatters.quantity(item.totalQuantity),
               ),
             ],
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: <Widget>[
-                  Expanded(
-                    flex: 5,
-                    child: _ShipmentInlineField(
-                      label: 'Belge',
-                      value: item.documentNoLabel,
+          AnimatedSize(
+            duration: const Duration(milliseconds: 140),
+            curve: Curves.easeInOut,
+            child: isExpanded
+                ? Padding(
+                    padding: const EdgeInsets.only(top: 12),
+                    child: _ShipmentDetailBody(
+                      detail: detail,
+                      isLoading: isLoadingDetail,
+                      errorMessage: detailError,
+                      canSendEDespatch: canSendEDespatch,
+                      canViewEDespatchPdf: canViewEDespatchPdf,
+                      lastEDespatchResult: lastEDespatchResult,
+                      isSendingEDespatch: isSendingEDespatch,
+                      isLoadingPdf: isLoadingPdf,
+                      onSendEDespatch: onSendEDespatch,
+                      onShowPdf: onShowPdf,
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    flex: 3,
-                    child: _ShipmentInlineField(
-                      label: 'Belge Trh',
-                      value: AppFormatters.dateOrDash(item.documentDate),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    flex: 4,
-                    child: _ShipmentInlineField(
-                      label: 'Depo',
-                      value:
-                          '${item.sourceWarehouse} -> ${item.targetWarehouse}',
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 6),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: <Widget>[
-                  Expanded(
-                    flex: 3,
-                    child: _ShipmentInlineField(
-                      label: 'Sevk Trh',
-                      value: AppFormatters.dateOrDash(item.movementDate),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    flex: 3,
-                    child: _ShipmentInlineField(
-                      label: 'Miktar',
-                      value: AppFormatters.quantity(item.totalQuantity),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  _StateBadge(state: item.shippingState),
-                  const SizedBox(width: 2),
-                  Icon(
-                    isExpanded
-                        ? Icons.keyboard_arrow_up_rounded
-                        : Icons.keyboard_arrow_down_rounded,
-                    size: 22,
-                    color: theme.colorScheme.primary,
-                  ),
-                ],
-              ),
-              AnimatedSize(
-                duration: const Duration(milliseconds: 140),
-                curve: Curves.easeInOut,
-                child: isExpanded
-                    ? Padding(
-                        padding: const EdgeInsets.only(top: 18),
-                        child: _ShipmentDetailBody(
-                          detail: detail,
-                          isLoading: isLoadingDetail,
-                          errorMessage: detailError,
-                          canSendEDespatch: canSendEDespatch,
-                          canViewEDespatchPdf: canViewEDespatchPdf,
-                          lastEDespatchResult: lastEDespatchResult,
-                          isSendingEDespatch: isSendingEDespatch,
-                          isLoadingPdf: isLoadingPdf,
-                          onSendEDespatch: onSendEDespatch,
-                          onShowPdf: onShowPdf,
-                        ),
-                      )
-                    : const SizedBox.shrink(),
-              ),
-            ],
+                  )
+                : const SizedBox.shrink(),
           ),
-        ),
+        ],
       ),
-    );
-  }
-}
-
-class _ShipmentInlineField extends StatelessWidget {
-  const _ShipmentInlineField({required this.label, required this.value});
-
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisSize: MainAxisSize.min,
-      children: <Widget>[
-        Text(
-          label,
-          softWrap: true,
-          style: theme.textTheme.labelSmall?.copyWith(
-            color: const Color(0xFF6B5A4A),
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-        const SizedBox(height: 2),
-        Text(
-          value,
-          softWrap: true,
-          style: theme.textTheme.titleSmall?.copyWith(
-            color: const Color(0xFF231C17),
-            fontWeight: FontWeight.w800,
-          ),
-        ),
-      ],
     );
   }
 }
@@ -737,16 +696,7 @@ class _ShipmentDetailBody extends StatelessWidget {
       return const _EmptyState(message: 'Detay bilgisi yuklenemedi.');
     }
 
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF6EFE7),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: Theme.of(context).colorScheme.outlineVariant.withAlpha(86),
-        ),
-      ),
+    return TerminalPdaDetailPanel(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[

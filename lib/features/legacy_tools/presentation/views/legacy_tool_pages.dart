@@ -390,18 +390,7 @@ class _ProductLookupToolPageState extends State<ProductLookupToolPage> {
 
                     return Padding(
                       padding: const EdgeInsets.only(bottom: 10),
-                      child: Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(
-                            color: Theme.of(
-                              context,
-                            ).colorScheme.outlineVariant.withAlpha(82),
-                          ),
-                        ),
+                      child: TerminalPdaDetailPanel(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: <Widget>[
@@ -430,8 +419,27 @@ class _ProductLookupToolPageState extends State<ProductLookupToolPage> {
                               ],
                             ),
                             const SizedBox(height: 6),
-                            Text(
-                              'Kod ${item.stockCode} | Barkod ${item.barcode.isEmpty ? '-' : item.barcode} | Fiyat ${AppFormatters.currency(item.price)} | Birim ${item.unitName}',
+                            TerminalPdaInfoGrid(
+                              items: <TerminalPdaInfo>[
+                                TerminalPdaInfo(
+                                  label: 'Kod',
+                                  value: item.stockCode,
+                                ),
+                                TerminalPdaInfo(
+                                  label: 'Barkod',
+                                  value: item.barcode.isEmpty
+                                      ? '-'
+                                      : item.barcode,
+                                ),
+                                TerminalPdaInfo(
+                                  label: 'Fiyat',
+                                  value: AppFormatters.currency(item.price),
+                                ),
+                                TerminalPdaInfo(
+                                  label: 'Birim',
+                                  value: item.unitName,
+                                ),
+                              ],
                             ),
                             if (blockLabels.isNotEmpty) ...<Widget>[
                               const SizedBox(height: 4),
@@ -688,18 +696,7 @@ class _CompanyLookupToolPageState extends State<CompanyLookupToolPage> {
                   ..._customers.map((item) {
                     return Padding(
                       padding: const EdgeInsets.only(bottom: 10),
-                      child: Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(
-                            color: Theme.of(
-                              context,
-                            ).colorScheme.outlineVariant.withAlpha(82),
-                          ),
-                        ),
+                      child: TerminalPdaDetailPanel(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: <Widget>[
@@ -709,12 +706,33 @@ class _CompanyLookupToolPageState extends State<CompanyLookupToolPage> {
                                   ?.copyWith(fontWeight: FontWeight.w800),
                             ),
                             const SizedBox(height: 6),
-                            Text(
-                              'Kod ${item.customerCode} | Vergi ${item.taxNumber.isEmpty ? '-' : item.taxNumber}',
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              'Temsilci ${item.representativeName.isEmpty ? '-' : item.representativeName} | Kilitli ${item.isLocked ? 'evet' : 'hayir'} | Kapali ${item.isClosed ? 'evet' : 'hayir'}',
+                            TerminalPdaInfoGrid(
+                              items: <TerminalPdaInfo>[
+                                TerminalPdaInfo(
+                                  label: 'Kod',
+                                  value: item.customerCode,
+                                ),
+                                TerminalPdaInfo(
+                                  label: 'Vergi',
+                                  value: item.taxNumber.isEmpty
+                                      ? '-'
+                                      : item.taxNumber,
+                                ),
+                                TerminalPdaInfo(
+                                  label: 'Temsilci',
+                                  value: item.representativeName.isEmpty
+                                      ? '-'
+                                      : item.representativeName,
+                                ),
+                                TerminalPdaInfo(
+                                  label: 'Kilitli',
+                                  value: item.isLocked ? 'evet' : 'hayir',
+                                ),
+                                TerminalPdaInfo(
+                                  label: 'Kapali',
+                                  value: item.isClosed ? 'evet' : 'hayir',
+                                ),
+                              ],
                             ),
                           ],
                         ),
@@ -1088,18 +1106,7 @@ class _JsonActionPage extends StatelessWidget {
                   ...result.entries.map((entry) {
                     return Padding(
                       padding: const EdgeInsets.only(bottom: 8),
-                      child: Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(14),
-                          border: Border.all(
-                            color: Theme.of(
-                              context,
-                            ).colorScheme.outlineVariant.withAlpha(82),
-                          ),
-                        ),
+                      child: TerminalPdaDetailPanel(
                         child: Text('${entry.key}: ${entry.value}'),
                       ),
                     );

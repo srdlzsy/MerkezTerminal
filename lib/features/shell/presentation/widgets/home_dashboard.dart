@@ -9,15 +9,19 @@ class HomeDashboard extends StatelessWidget {
     required this.user,
     required this.menus,
     required this.onSelectMenu,
+    this.offlineQueueCount = 0,
+    this.offlineFailedCount = 0,
   });
 
   final CurrentUser user;
   final List<MenuEntry> menus;
   final ValueChanged<MenuEntry> onSelectMenu;
+  final int offlineQueueCount;
+  final int offlineFailedCount;
 
   @override
   Widget build(BuildContext context) {
-    final quickMenus = menus.take(8).toList(growable: false);
+    final menuGroups = _groupMenusByModule(menus);
 
     return ListView(
       padding: EdgeInsets.fromLTRB(
@@ -27,53 +31,70 @@ class HomeDashboard extends StatelessWidget {
         16 + MediaQuery.paddingOf(context).bottom,
       ),
       children: <Widget>[
-        _UserSummary(user: user),
+        _UserSummary(
+          user: user,
+          offlineQueueCount: offlineQueueCount,
+          offlineFailedCount: offlineFailedCount,
+        ),
         const SizedBox(height: 10),
         SectionCard(
-          title: 'Hizli Erisim',
-          subtitle: quickMenus.isEmpty
+          title: 'Tum Menuler',
+          subtitle: menus.isEmpty
               ? 'Kullaniciya atanmis menu bulunamadi.'
-              : '${quickMenus.length} ekran kullanima hazir.',
-          child: quickMenus.isEmpty
+              : '${menus.length} ekran kullanima hazir.',
+          child: menus.isEmpty
               ? const _DashboardEmptyState()
-              : LayoutBuilder(
-                  builder: (context, constraints) {
-                    final columnCount = constraints.maxWidth >= 900
-                        ? 3
-                        : constraints.maxWidth >= 560
-                        ? 2
-                        : 1;
-
-                    return GridView.builder(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      itemCount: quickMenus.length,
-                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: columnCount,
-                        mainAxisExtent: 64,
-                        crossAxisSpacing: 8,
-                        mainAxisSpacing: 8,
+              : Column(
+                  children: <Widget>[
+                    for (var index = 0; index < menuGroups.length; index += 1)
+                      Padding(
+                        padding: EdgeInsets.only(top: index == 0 ? 0 : 10),
+                        child: _MenuModuleGroup(
+                          group: menuGroups[index],
+                          onSelectMenu: onSelectMenu,
+                        ),
                       ),
-                      itemBuilder: (context, index) {
-                        final menu = quickMenus[index];
-                        return _QuickMenuTile(
-                          menu: menu,
-                          onTap: () => onSelectMenu(menu),
-                        );
-                      },
-                    );
-                  },
+                  ],
                 ),
         ),
       ],
     );
   }
+
+  List<_MenuModuleGroupData> _groupMenusByModule(List<MenuEntry> menus) {
+    final groups = <_MenuModuleGroupData>[];
+    for (final menu in menus) {
+      final existingIndex = groups.indexWhere(
+        (group) => group.moduleCode == menu.moduleCode,
+      );
+      if (existingIndex == -1) {
+        groups.add(
+          _MenuModuleGroupData(
+            moduleCode: menu.moduleCode,
+            moduleName: menu.displayModuleName,
+            menus: <MenuEntry>[menu],
+          ),
+        );
+        continue;
+      }
+
+      groups[existingIndex].menus.add(menu);
+    }
+
+    return groups;
+  }
 }
 
 class _UserSummary extends StatelessWidget {
-  const _UserSummary({required this.user});
+  const _UserSummary({
+    required this.user,
+    required this.offlineQueueCount,
+    required this.offlineFailedCount,
+  });
 
   final CurrentUser user;
+  final int offlineQueueCount;
+  final int offlineFailedCount;
 
   @override
   Widget build(BuildContext context) {
@@ -135,7 +156,7 @@ class _UserSummary extends StatelessWidget {
           ),
           const SizedBox(height: 9),
           Text(
-            'Islem yapmak icin menuden bir ekran secin veya hizli erisim kartlarini kullanin.',
+            'Islem yapmak icin asagidaki menu listesinden bir ekran secin.',
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
             style: theme.textTheme.bodySmall?.copyWith(
@@ -143,14 +164,114 @@ class _UserSummary extends StatelessWidget {
               height: 1.3,
             ),
           ),
+          if (offlineQueueCount > 0) ...<Widget>[
+            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.white.withAlpha(26),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.white.withAlpha(38)),
+              ),
+              child: Row(
+                children: <Widget>[
+                  Icon(
+                    offlineFailedCount > 0
+                        ? Icons.error_outline_rounded
+                        : Icons.cloud_upload_outlined,
+                    color: Colors.white,
+                    size: 19,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      offlineFailedCount > 0
+                          ? '$offlineQueueCount offline kayit var, $offlineFailedCount hata bekliyor.'
+                          : '$offlineQueueCount offline kayit senkron bekliyor.',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w800,
+                        height: 1.25,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ],
       ),
     );
   }
 }
 
-class _QuickMenuTile extends StatelessWidget {
-  const _QuickMenuTile({required this.menu, required this.onTap});
+class _MenuModuleGroupData {
+  _MenuModuleGroupData({
+    required this.moduleCode,
+    required this.moduleName,
+    required this.menus,
+  });
+
+  final String moduleCode;
+  final String moduleName;
+  final List<MenuEntry> menus;
+}
+
+class _MenuModuleGroup extends StatelessWidget {
+  const _MenuModuleGroup({required this.group, required this.onSelectMenu});
+
+  final _MenuModuleGroupData group;
+  final ValueChanged<MenuEntry> onSelectMenu;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Padding(
+          padding: const EdgeInsets.fromLTRB(2, 0, 2, 6),
+          child: Row(
+            children: <Widget>[
+              Expanded(
+                child: Text(
+                  group.moduleName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.labelLarge?.copyWith(
+                    color: const Color(0xFF5C6B80),
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+              Text(
+                '${group.menus.length}',
+                style: theme.textTheme.labelMedium?.copyWith(
+                  color: theme.colorScheme.primary,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
+          ),
+        ),
+        for (var index = 0; index < group.menus.length; index += 1)
+          Padding(
+            padding: EdgeInsets.only(top: index == 0 ? 0 : 6),
+            child: _PdaMenuTile(
+              menu: group.menus[index],
+              onTap: () => onSelectMenu(group.menus[index]),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _PdaMenuTile extends StatelessWidget {
+  const _PdaMenuTile({required this.menu, required this.onTap});
 
   final MenuEntry menu;
   final VoidCallback onTap;
@@ -159,66 +280,56 @@ class _QuickMenuTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return Material(
-      color: theme.colorScheme.surfaceContainerHighest.withAlpha(55),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(9),
-        side: BorderSide(color: theme.colorScheme.outlineVariant.withAlpha(85)),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-          child: Row(
-            children: <Widget>[
-              Expanded(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    Text(
-                      menu.displayMenuName,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      menu.displayModuleName,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurface.withAlpha(155),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.primary.withAlpha(18),
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: Text(
-                  '${menu.actions.length}',
-                  style: theme.textTheme.labelSmall?.copyWith(
+    return SizedBox(
+      height: 58,
+      child: Material(
+        color: theme.colorScheme.surfaceContainerHighest.withAlpha(55),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(9),
+          side: BorderSide(
+            color: theme.colorScheme.outlineVariant.withAlpha(85),
+          ),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            child: Row(
+              children: <Widget>[
+                Container(
+                  width: 34,
+                  height: 34,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.primary.withAlpha(18),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(
+                    Icons.apps_rounded,
+                    size: 19,
                     color: theme.colorScheme.primary,
-                    fontWeight: FontWeight.w800,
                   ),
                 ),
-              ),
-              const SizedBox(width: 4),
-              Icon(
-                Icons.chevron_right_rounded,
-                size: 19,
-                color: theme.colorScheme.onSurface.withAlpha(120),
-              ),
-            ],
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    menu.displayMenuName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Icon(
+                  Icons.chevron_right_rounded,
+                  size: 24,
+                  color: theme.colorScheme.onSurface.withAlpha(120),
+                ),
+              ],
+            ),
           ),
         ),
       ),

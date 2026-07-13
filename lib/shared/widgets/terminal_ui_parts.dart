@@ -306,7 +306,7 @@ class TerminalResponsiveLookupRow extends StatelessWidget {
   }
 }
 
-class TerminalSubmitOnTab extends StatelessWidget {
+class TerminalSubmitOnTab extends StatefulWidget {
   const TerminalSubmitOnTab({
     super.key,
     required this.onSubmit,
@@ -319,23 +319,47 @@ class TerminalSubmitOnTab extends StatelessWidget {
   final bool enabled;
 
   @override
+  State<TerminalSubmitOnTab> createState() => _TerminalSubmitOnTabState();
+}
+
+class _TerminalSubmitOnTabState extends State<TerminalSubmitOnTab> {
+  DateTime? _lastSubmitAt;
+
+  @override
   Widget build(BuildContext context) {
-    if (!enabled) {
-      return child;
+    if (!widget.enabled) {
+      return widget.child;
     }
 
     return Focus(
       onKeyEvent: (_, event) {
-        if (event is! KeyDownEvent ||
-            event.logicalKey != LogicalKeyboardKey.tab) {
+        if (event is! KeyDownEvent || !_isScannerSubmitKey(event.logicalKey)) {
           return KeyEventResult.ignored;
         }
 
-        onSubmit();
+        _submitOnce();
         return KeyEventResult.handled;
       },
-      child: child,
+      child: widget.child,
     );
+  }
+
+  bool _isScannerSubmitKey(LogicalKeyboardKey key) {
+    return key == LogicalKeyboardKey.tab ||
+        key == LogicalKeyboardKey.enter ||
+        key == LogicalKeyboardKey.numpadEnter;
+  }
+
+  void _submitOnce() {
+    final now = DateTime.now();
+    final lastSubmitAt = _lastSubmitAt;
+    if (lastSubmitAt != null &&
+        now.difference(lastSubmitAt) < const Duration(milliseconds: 120)) {
+      return;
+    }
+
+    _lastSubmitAt = now;
+    widget.onSubmit();
   }
 }
 
@@ -389,6 +413,534 @@ class TerminalSectionToolbar extends StatelessWidget {
         );
       },
     );
+  }
+}
+
+class TerminalPdaInfo {
+  const TerminalPdaInfo({required this.label, required this.value});
+
+  final String label;
+  final String value;
+}
+
+class TerminalPdaInfoGrid extends StatelessWidget {
+  const TerminalPdaInfoGrid({
+    super.key,
+    required this.items,
+    this.minTileWidth = 132,
+    this.spacing = 6,
+  });
+
+  final List<TerminalPdaInfo> items;
+  final double minTileWidth;
+  final double spacing;
+
+  @override
+  Widget build(BuildContext context) {
+    if (items.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final maxWidth = constraints.maxWidth;
+        final columns = constraints.hasBoundedWidth
+            ? ((maxWidth + spacing) / (minTileWidth + spacing)).floor().clamp(
+                1,
+                3,
+              )
+            : 1;
+        final tileWidth = constraints.hasBoundedWidth
+            ? (maxWidth - (spacing * (columns - 1))) / columns
+            : minTileWidth;
+
+        return Wrap(
+          spacing: spacing,
+          runSpacing: spacing,
+          children: items
+              .map(
+                (item) => SizedBox(
+                  width: tileWidth,
+                  child: TerminalPdaInfoTile(
+                    label: item.label,
+                    value: item.value,
+                  ),
+                ),
+              )
+              .toList(growable: false),
+        );
+      },
+    );
+  }
+}
+
+class TerminalPdaInfoTile extends StatelessWidget {
+  const TerminalPdaInfoTile({
+    super.key,
+    required this.label,
+    required this.value,
+  });
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Container(
+      constraints: const BoxConstraints(minHeight: 34),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest.withAlpha(44),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: theme.colorScheme.outlineVariant.withAlpha(72),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: const Color(0xFF5F6C7B),
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 1),
+          Text(
+            value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.titleSmall?.copyWith(
+              height: 1.05,
+              color: const Color(0xFF1C2D40),
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class TerminalPdaRecordCard extends StatelessWidget {
+  const TerminalPdaRecordCard({
+    super.key,
+    required this.child,
+    required this.onTap,
+    this.isSelected = false,
+  });
+
+  final Widget child;
+  final VoidCallback onTap;
+  final bool isSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final borderColor = isSelected
+        ? theme.colorScheme.primary.withAlpha(150)
+        : theme.colorScheme.outlineVariant.withAlpha(118);
+    final stripeColor = isSelected
+        ? theme.colorScheme.primary
+        : theme.colorScheme.primary.withAlpha(92);
+    final backgroundColor = isSelected
+        ? theme.colorScheme.primaryContainer.withAlpha(70)
+        : const Color(0xFFF8FAFD);
+
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(8),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(8),
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 140),
+          width: double.infinity,
+          constraints: const BoxConstraints(minHeight: 72),
+          decoration: BoxDecoration(
+            color: backgroundColor,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: borderColor, width: isSelected ? 1.4 : 1),
+            boxShadow: <BoxShadow>[
+              BoxShadow(
+                color: Colors.black.withAlpha(isSelected ? 18 : 10),
+                blurRadius: isSelected ? 11 : 8,
+                offset: const Offset(0, 3),
+              ),
+            ],
+          ),
+          child: Stack(
+            children: <Widget>[
+              Positioned.fill(
+                right: null,
+                child: Container(
+                  width: 5,
+                  decoration: BoxDecoration(
+                    color: stripeColor,
+                    borderRadius: const BorderRadius.only(
+                      topLeft: Radius.circular(8),
+                      bottomLeft: Radius.circular(8),
+                    ),
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(15, 10, 10, 10),
+                child: child,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class TerminalPdaCardHeader extends StatelessWidget {
+  const TerminalPdaCardHeader({
+    super.key,
+    required this.title,
+    this.subtitle,
+    this.trailing,
+  });
+
+  final String title;
+  final String? subtitle;
+  final Widget? trailing;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              Text(
+                title,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.titleMedium?.copyWith(
+                  height: 1.12,
+                  color: const Color(0xFF182230),
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              if (subtitle != null) ...<Widget>[
+                const SizedBox(height: 4),
+                Text(
+                  subtitle!,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    height: 1.25,
+                    color: const Color(0xFF536171),
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+        if (trailing != null) ...<Widget>[const SizedBox(width: 8), trailing!],
+      ],
+    );
+  }
+}
+
+class TerminalPdaDetailPanel extends StatelessWidget {
+  const TerminalPdaDetailPanel({super.key, required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest.withAlpha(56),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: theme.colorScheme.outlineVariant.withAlpha(86),
+        ),
+      ),
+      child: child,
+    );
+  }
+}
+
+class TerminalPdaLineCard extends StatelessWidget {
+  const TerminalPdaLineCard({
+    super.key,
+    required this.title,
+    required this.child,
+    this.subtitle,
+    this.leading,
+    this.trailing,
+    this.isEntryLine = false,
+  });
+
+  final String title;
+  final String? subtitle;
+  final Widget? leading;
+  final Widget? trailing;
+  final Widget child;
+  final bool isEntryLine;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 7),
+      decoration: BoxDecoration(
+        color: isEntryLine
+            ? theme.colorScheme.primaryContainer.withAlpha(42)
+            : theme.colorScheme.surface,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: isEntryLine
+              ? theme.colorScheme.primary.withAlpha(102)
+              : theme.colorScheme.outlineVariant.withAlpha(96),
+        ),
+        boxShadow: <BoxShadow>[
+          BoxShadow(
+            color: Colors.black.withAlpha(4),
+            blurRadius: 5,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Padding(
+            padding: const EdgeInsets.fromLTRB(8, 7, 8, 5),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: <Widget>[
+                if (leading != null) ...<Widget>[
+                  IconTheme.merge(
+                    data: const IconThemeData(size: 18),
+                    child: leading!,
+                  ),
+                  const SizedBox(width: 6),
+                ],
+                Expanded(
+                  child: Row(
+                    children: <Widget>[
+                      Flexible(
+                        child: Text(
+                          title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.titleSmall?.copyWith(
+                            height: 1.05,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                      ),
+                      if (subtitle != null) ...<Widget>[
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: Text(
+                            subtitle!,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.labelMedium?.copyWith(
+                              height: 1.05,
+                              color: theme.colorScheme.onSurface.withAlpha(150),
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                if (trailing != null) ...<Widget>[
+                  const SizedBox(width: 6),
+                  IconButtonTheme(
+                    data: IconButtonThemeData(
+                      style: IconButton.styleFrom(
+                        minimumSize: const Size(34, 34),
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        padding: EdgeInsets.zero,
+                      ),
+                    ),
+                    child: trailing!,
+                  ),
+                ],
+              ],
+            ),
+          ),
+          const Divider(height: 1),
+          Padding(padding: const EdgeInsets.all(7), child: child),
+        ],
+      ),
+    );
+  }
+}
+
+class TerminalQuantityStepper extends StatelessWidget {
+  const TerminalQuantityStepper({
+    super.key,
+    required this.controller,
+    this.label = 'Miktar*',
+    this.step = 1,
+    this.minimum = 0,
+    this.maximum,
+    this.enabled = true,
+    this.validator,
+    this.onChanged,
+    this.onMinimumReached,
+  });
+
+  final TextEditingController controller;
+  final String label;
+  final double step;
+  final double minimum;
+  final double? maximum;
+  final bool enabled;
+  final FormFieldValidator<String>? validator;
+  final ValueChanged<String>? onChanged;
+  final VoidCallback? onMinimumReached;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        IconButton.filledTonal(
+          onPressed: enabled ? () => _changeBy(context, -step) : null,
+          icon: const Icon(Icons.remove_rounded, size: 20),
+          tooltip: 'Azalt',
+          constraints: const BoxConstraints.tightFor(width: 38, height: 38),
+          padding: EdgeInsets.zero,
+          style: IconButton.styleFrom(
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          ),
+        ),
+        const SizedBox(width: 6),
+        Expanded(
+          child: TextFormField(
+            controller: controller,
+            enabled: enabled,
+            textAlign: TextAlign.center,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            inputFormatters: <TextInputFormatter>[
+              FilteringTextInputFormatter.allow(RegExp(r'[0-9,\.]')),
+            ],
+            decoration: InputDecoration(
+              labelText: label,
+              isDense: true,
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 8,
+                vertical: 8,
+              ),
+              filled: true,
+              fillColor: theme.colorScheme.surface,
+            ),
+            validator: validator,
+            onChanged: onChanged,
+          ),
+        ),
+        const SizedBox(width: 6),
+        IconButton.filled(
+          onPressed: enabled ? () => _changeBy(context, step) : null,
+          icon: const Icon(Icons.add_rounded, size: 20),
+          tooltip: 'Artir',
+          constraints: const BoxConstraints.tightFor(width: 38, height: 38),
+          padding: EdgeInsets.zero,
+          style: IconButton.styleFrom(
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _changeBy(BuildContext context, double delta) async {
+    final current = _readQuantity(controller.text);
+    var next = current + delta;
+    if (next < minimum) {
+      next = minimum;
+    }
+    final max = maximum;
+    if (max != null && next > max) {
+      next = max;
+    }
+    final reachesMinimum =
+        delta < 0 && next <= minimum && onMinimumReached != null;
+    if (reachesMinimum) {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (context) {
+          return AlertDialog(
+            title: const Text('Kalem silinsin mi?'),
+            content: const Text(
+              'Miktar 0 olacak. Bu kalemi listeden silmek istiyor musunuz?',
+            ),
+            actions: <Widget>[
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: const Text('Vazgec'),
+              ),
+              FilledButton.icon(
+                onPressed: () => Navigator.of(context).pop(true),
+                icon: const Icon(Icons.delete_outline_rounded),
+                label: const Text('Sil'),
+              ),
+            ],
+          );
+        },
+      );
+      if (confirmed != true || !context.mounted) {
+        return;
+      }
+    }
+    controller.text = _formatQuantity(next);
+    controller.selection = TextSelection.collapsed(
+      offset: controller.text.length,
+    );
+    onChanged?.call(controller.text);
+    if (reachesMinimum) {
+      onMinimumReached?.call();
+    }
+  }
+
+  static double _readQuantity(String value) {
+    final normalized = value.trim().replaceAll(',', '.');
+    if (normalized.isEmpty) {
+      return 0;
+    }
+    return double.tryParse(normalized) ?? 0;
+  }
+
+  static String _formatQuantity(double value) {
+    if (value == value.roundToDouble()) {
+      return value.toInt().toString();
+    }
+    return value
+        .toStringAsFixed(3)
+        .replaceFirst(RegExp(r'0+$'), '')
+        .replaceFirst(RegExp(r'\.$'), '');
   }
 }
 

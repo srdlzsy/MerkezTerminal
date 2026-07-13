@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:furpa_merkez_terminal/core/network/api_exception.dart';
 import 'package:furpa_merkez_terminal/features/acceptance_operations/company_acceptances/data/company_acceptances_repository.dart';
 import 'package:furpa_merkez_terminal/features/acceptance_operations/offline_company_acceptances/data/models/offline_company_acceptance_models.dart';
@@ -18,6 +17,7 @@ import 'package:furpa_merkez_terminal/shared/utils/client_request_id.dart';
 import 'package:furpa_merkez_terminal/shared/utils/create_form_validation.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/barcode_camera_scan_page.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/section_card.dart';
+import 'package:furpa_merkez_terminal/shared/widgets/terminal_create_page.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/terminal_ui_parts.dart';
 
 class OfflineCompanyAcceptancesPage extends StatefulWidget {
@@ -100,11 +100,9 @@ class _OfflineCompanyAcceptancesPageState
   }
 
   Future<void> _openCreateSheet() async {
-    final draft = await showModalBottomSheet<OfflineCompanyAcceptanceDraft>(
+    final draft = await openTerminalCreatePage<OfflineCompanyAcceptanceDraft>(
       context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      showDragHandle: true,
+      title: 'Yeni Offline Mal Kabul',
       builder: (context) {
         return _OfflineCompanyAcceptanceCreateSheet(
           repository: widget.onlineRepository,
@@ -326,34 +324,45 @@ class _OfflineCompanyAcceptancesPageState
 
                       return Padding(
                         padding: const EdgeInsets.only(bottom: 12),
-                        child: Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.all(14),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(18),
-                            border: Border.all(
-                              color: Theme.of(
-                                context,
-                              ).colorScheme.outlineVariant.withAlpha(90),
-                            ),
-                          ),
+                        child: TerminalPdaDetailPanel(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: <Widget>[
                               _buildDraftTitleRow(draft: draft, title: title),
                               const SizedBox(height: 8),
-                              Text(
-                                '$customerLabel | Belge ${AppFormatters.date(draft.documentDate)} | Hareket ${AppFormatters.date(draft.movementDate)}',
+                              TerminalPdaInfoGrid(
+                                items: <TerminalPdaInfo>[
+                                  TerminalPdaInfo(
+                                    label: 'Cari',
+                                    value: customerLabel,
+                                  ),
+                                  TerminalPdaInfo(
+                                    label: 'Belge',
+                                    value: AppFormatters.date(
+                                      draft.documentDate,
+                                    ),
+                                  ),
+                                  TerminalPdaInfo(
+                                    label: 'Hareket',
+                                    value: AppFormatters.date(
+                                      draft.movementDate,
+                                    ),
+                                  ),
+                                  TerminalPdaInfo(
+                                    label: 'Olusturma',
+                                    value: AppFormatters.dateTime(
+                                      draft.createdAt,
+                                    ),
+                                  ),
+                                  if (draft.lastSyncAttemptAt != null)
+                                    TerminalPdaInfo(
+                                      label: 'Son deneme',
+                                      value: AppFormatters.dateTime(
+                                        draft.lastSyncAttemptAt!,
+                                      ),
+                                    ),
+                                ],
                               ),
-                              const SizedBox(height: 4),
-                              Text(
-                                'Olusturma ${AppFormatters.dateTime(draft.createdAt)}',
-                              ),
-                              if (draft.lastSyncAttemptAt != null)
-                                Text(
-                                  'Son deneme ${AppFormatters.dateTime(draft.lastSyncAttemptAt!)}',
-                                ),
                               if ((draft.lastError ?? '')
                                   .trim()
                                   .isNotEmpty) ...<Widget>[
@@ -386,7 +395,27 @@ class _OfflineCompanyAcceptancesPageState
 
                                 return Padding(
                                   padding: const EdgeInsets.only(bottom: 6),
-                                  child: Text('$label | $extras'),
+                                  child: TerminalPdaDetailPanel(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: <Widget>[
+                                        Text(
+                                          label,
+                                          maxLines: 2,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .titleSmall
+                                              ?.copyWith(
+                                                fontWeight: FontWeight.w800,
+                                              ),
+                                        ),
+                                        const SizedBox(height: 6),
+                                        Text(extras),
+                                      ],
+                                    ),
+                                  ),
                                 );
                               }),
                               if (draft.lines.length > 5)
@@ -611,7 +640,10 @@ class _OfflineCompanyAcceptanceCreateSheetState
     });
   }
 
-  Future<void> _searchProduct(_OfflineCompanyAcceptanceLineDraft line) async {
+  Future<void> _searchProduct(
+    _OfflineCompanyAcceptanceLineDraft line, {
+    bool autoSelectSingle = false,
+  }) async {
     final query = line.lookupController.text.trim();
 
     if (query.length < 2) {
@@ -636,35 +668,41 @@ class _OfflineCompanyAcceptanceCreateSheetState
       return;
     }
 
-    final selected = await showModalBottomSheet<SearchProductLookupItem>(
-      context: context,
-      showDragHandle: true,
-      builder: (context) {
-        return ListView.separated(
-          shrinkWrap: true,
-          itemCount: products.length,
-          separatorBuilder: (_, _) => const Divider(height: 1),
-          itemBuilder: (context, index) {
-            final item = products[index];
-            return ListTile(
-              title: Text(item.displayLabel),
-              subtitle: Text(
-                '${item.unitName} | ${AppFormatters.currency(item.price)}',
-              ),
-              onTap: () => Navigator.of(context).pop(item),
-            );
-          },
-        );
-      },
-    );
+    SearchProductLookupItem? selected;
+    if (autoSelectSingle && products.length == 1) {
+      selected = products.single;
+    } else {
+      selected = await showModalBottomSheet<SearchProductLookupItem>(
+        context: context,
+        showDragHandle: true,
+        builder: (context) {
+          return ListView.separated(
+            shrinkWrap: true,
+            itemCount: products.length,
+            separatorBuilder: (_, _) => const Divider(height: 1),
+            itemBuilder: (context, index) {
+              final item = products[index];
+              return ListTile(
+                title: Text(item.displayLabel),
+                subtitle: Text(
+                  '${item.unitName} | ${AppFormatters.currency(item.price)}',
+                ),
+                onTap: () => Navigator.of(context).pop(item),
+              );
+            },
+          );
+        },
+      );
+    }
 
     if (selected == null) {
       return;
     }
+    final pickedProduct = selected;
 
     var mergedIntoExisting = false;
     setState(() {
-      mergedIntoExisting = _applyProductToLine(line, selected);
+      mergedIntoExisting = _applyProductToLine(line, pickedProduct);
       _ensureFreshEntryLine();
       _validationMessage = null;
     });
@@ -724,7 +762,7 @@ class _OfflineCompanyAcceptanceCreateSheetState
       _validationMessage = null;
     });
 
-    await _searchProduct(line);
+    await _searchProduct(line, autoSelectSingle: true);
   }
 
   bool _applyProductToLine(
@@ -1213,109 +1251,80 @@ class _OfflineCompanyAcceptanceCreateSheetState
                     .where((item) => !_isBlankLine(item))
                     .length;
 
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                        color: Theme.of(
-                          context,
-                        ).colorScheme.outlineVariant.withAlpha(90),
-                      ),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: <Widget>[
-                        Row(
-                          children: <Widget>[
-                            Expanded(
-                              child: Text(
-                                isFreshEntry
-                                    ? 'Giris satiri'
-                                    : 'Satir $displayLineNo',
-                                style: Theme.of(context).textTheme.titleSmall
-                                    ?.copyWith(fontWeight: FontWeight.w800),
-                              ),
-                            ),
-                            if ((line.orderGuid ?? '').trim().isNotEmpty)
-                              const TerminalBadge(label: 'Siparisli'),
-                            if (!isFreshEntry && _lines.length > 1)
-                              IconButton(
-                                onPressed: () {
-                                  setState(() {
-                                    line.dispose();
-                                    _lines.removeAt(index);
-                                  });
-                                },
-                                icon: const Icon(Icons.delete_outline_rounded),
-                              ),
-                          ],
+                return TerminalPdaLineCard(
+                  title: isFreshEntry ? 'Giris satiri' : 'Satir $displayLineNo',
+                  subtitle: line.stockNameController.text.trim().isEmpty
+                      ? (isFreshEntry ? 'Okutmaya hazir' : 'Urun secilmedi')
+                      : line.stockNameController.text.trim(),
+                  isEntryLine: isFreshEntry,
+                  leading: Icon(
+                    isFreshEntry
+                        ? Icons.qr_code_scanner_rounded
+                        : Icons.inventory_2_rounded,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: <Widget>[
+                      if ((line.orderGuid ?? '').trim().isNotEmpty)
+                        const TerminalBadge(label: 'Siparisli'),
+                      if (!isFreshEntry && _lines.length > 1)
+                        IconButton(
+                          onPressed: () {
+                            setState(() {
+                              line.dispose();
+                              _lines.removeAt(index);
+                            });
+                          },
+                          icon: const Icon(Icons.delete_outline_rounded),
+                          tooltip: 'Satiri sil',
                         ),
-                        _buildProductLookupRow(line),
-                        if (line.selectedProduct != null) ...<Widget>[
-                          const SizedBox(height: 8),
-                          TerminalMessageBlock.info(
-                            message:
-                                '${line.selectedProduct!.stockCode} | ${line.selectedProduct!.stockName} | ${line.selectedProduct!.unitName} | ${AppFormatters.currency(line.selectedProduct!.price)}',
-                          ),
-                        ],
-                        const SizedBox(height: 10),
-                        Wrap(
-                          spacing: 10,
-                          runSpacing: 10,
-                          children: <Widget>[
-                            SizedBox(
-                              width: 160,
-                              child: TextFormField(
-                                controller: line.stockCodeController,
-                                decoration: const InputDecoration(
-                                  labelText: 'Stok Kodu*',
-                                ),
-                                validator: (value) {
-                                  if (_isBlankLine(line)) {
-                                    return null;
-                                  }
-                                  if ((value ?? '').trim().isEmpty) {
-                                    return 'Zorunlu';
-                                  }
-                                  return null;
-                                },
-                              ),
+                    ],
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      if (isFreshEntry)
+                        _buildProductLookupRow(line)
+                      else ...<Widget>[
+                        TerminalPdaInfoGrid(
+                          minTileWidth: 92,
+                          items: <TerminalPdaInfo>[
+                            TerminalPdaInfo(
+                              label: 'Urun',
+                              value: line.stockNameController.text.trim(),
                             ),
-                            SizedBox(
-                              width: 220,
-                              child: TextField(
-                                controller: line.stockNameController,
-                                decoration: const InputDecoration(
-                                  labelText: 'Stok Adi',
-                                ),
-                              ),
+                            TerminalPdaInfo(
+                              label: 'Kod',
+                              value: line.stockCodeController.text.trim(),
                             ),
-                            SizedBox(
-                              width: 180,
-                              child: TextField(
-                                controller: line.barcodeController,
-                                decoration: const InputDecoration(
-                                  labelText: 'Barkod',
-                                ),
-                              ),
+                            TerminalPdaInfo(
+                              label: 'Birim',
+                              value: line.selectedProduct?.unitName ?? '-',
                             ),
+                            if (line.barcodeController.text.trim().isNotEmpty)
+                              TerminalPdaInfo(
+                                label: 'Barkod',
+                                value: line.barcodeController.text.trim(),
+                              ),
+                            if (line.unitPrice > 0)
+                              TerminalPdaInfo(
+                                label: 'Fiyat',
+                                value: AppFormatters.currency(line.unitPrice),
+                              ),
                           ],
                         ),
                         const SizedBox(height: 10),
                         _buildQuantityFields(line),
-                        if (line.returnQuantity > 0) ...<Widget>[
-                          const SizedBox(height: 8),
-                          TerminalMessageBlock.info(
-                            message:
-                                'Iade farki ${AppFormatters.quantity(line.returnQuantity)}. ${_autoCreateReturnForPartialAcceptance ? 'Firma iadesi olusur, e-irsaliye manuel gonderilir.' : 'Otomatik iade kapali; fark manuel iade bekler.'}',
-                          ),
-                        ],
                       ],
-                    ),
+                      if (line.returnQuantity > 0) ...<Widget>[
+                        const SizedBox(height: 8),
+                        TerminalMessageBlock.info(
+                          message:
+                              'Iade farki ${AppFormatters.quantity(line.returnQuantity)}. ${_autoCreateReturnForPartialAcceptance ? 'Firma iadesi olusur, e-irsaliye manuel gonderilir.' : 'Otomatik iade kapali; fark manuel iade bekler.'}',
+                        ),
+                      ],
+                    ],
                   ),
                 );
               }),
@@ -1394,22 +1403,12 @@ class _OfflineCompanyAcceptanceCreateSheetState
             children: <Widget>[
               title,
               const SizedBox(height: 8),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: <Widget>[orderButton],
-              ),
+              Wrap(spacing: 8, runSpacing: 8, children: <Widget>[orderButton]),
             ],
           );
         }
 
-        return Row(
-          children: <Widget>[
-            title,
-            const Spacer(),
-            orderButton,
-          ],
-        );
+        return Row(children: <Widget>[title, const Spacer(), orderButton]);
       },
     );
   }
@@ -1510,18 +1509,21 @@ class _OfflineCompanyAcceptanceCreateSheetState
 
   Widget _buildQuantityFields(_OfflineCompanyAcceptanceLineDraft line) {
     Widget dispatchField() {
-      return TextFormField(
+      return TerminalQuantityStepper(
         controller: line.dispatchQuantityController,
-        keyboardType: const TextInputType.numberWithOptions(decimal: true),
-        inputFormatters: <TextInputFormatter>[
-          FilteringTextInputFormatter.allow(RegExp(r'[0-9,\.]')),
-        ],
-        decoration: const InputDecoration(labelText: 'Irsaliye Miktari*'),
+        label: 'Irsaliye Miktari*',
+        onMinimumReached: () {
+          final index = _lines.indexOf(line);
+          if (index < 0 || _lines.length <= 1) {
+            return;
+          }
+          setState(() {
+            line.dispose();
+            _lines.removeAt(index);
+          });
+        },
         onChanged: (_) => setState(() {}),
         validator: (_) {
-          if (_isBlankLine(line)) {
-            return null;
-          }
           if (line.dispatchQuantity <= 0) {
             return 'Miktar > 0';
           }
@@ -1531,18 +1533,12 @@ class _OfflineCompanyAcceptanceCreateSheetState
     }
 
     Widget acceptedField() {
-      return TextFormField(
+      return TerminalQuantityStepper(
         controller: line.acceptedQuantityController,
-        keyboardType: const TextInputType.numberWithOptions(decimal: true),
-        inputFormatters: <TextInputFormatter>[
-          FilteringTextInputFormatter.allow(RegExp(r'[0-9,\.]')),
-        ],
-        decoration: const InputDecoration(labelText: 'Sayilan Miktar*'),
+        label: 'Sayilan Miktar*',
+        maximum: line.dispatchQuantity,
         onChanged: (_) => setState(() {}),
         validator: (_) {
-          if (_isBlankLine(line)) {
-            return null;
-          }
           if (line.acceptedQuantity < 0) {
             return 'Negatif olamaz';
           }

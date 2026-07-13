@@ -1397,7 +1397,118 @@ Belirli dosya analizi:
 dart analyze lib/features/stock_operations/inventory_counts/presentation/view_models/inventory_counts_controller.dart
 ```
 
-## 19. Ozet
+## 19. Guncel PDA Uyum Durumu
+
+2026-07-13 itibariyle proje ana akislar icin PDA uyumlu ve saha kullanimi icin kullanilabilir seviyededir. Son PDA uyum calismasindan sonra `flutter analyze` temiz calismis, `flutter test` ise 72/72 basarili gecmistir.
+
+Bu ifade "hic manuel test gerekmiyor" anlamina gelmez. PDA uyumlu demek:
+
+- ekranlar dar terminal genisliginde okunabilir
+- ana menuler PDA'da liste mantigiyla erisilebilir
+- liste kartlari secilebilir/kart oldugu belli olacak sekilde gorunur
+- detaylar ana listenin icinde sikismak yerine ayri sayfada acilir
+- create ekranlari bottom sheet gibi dar alanda kalmak yerine tam ekran sayfa hissi verir
+- create ekranlarindaki bos "Giris satiri" yanlislikla silinmez
+- urun/barkod girisleri Enter/Tab/PDA okuyucu akisina daha uygundur
+- kart icindeki bilgiler mumkun oldugunca alt alta yigilmak yerine siktiginda yan yana grid olarak gosterilir
+- PDA'da gereksiz cift header veya cift kapatma ikonlari azaltilmistir
+
+Saha cihazinda yine de minimum manuel kontrol yapilmalidir:
+
+1. Login ve session restore.
+2. Home menude tum yetkili menulerin gorunmesi.
+3. Ana liste ekranlarinda kart secimi.
+4. Detay ekranlarinin ayri sayfa olarak acilip geri donebilmesi.
+5. Create ekranlarinda ilk giris satirinin silinmemesi.
+6. Barkod okuyucunun Enter/Tab davranisi.
+7. Kamera ile barkod okutma izni ve sonucu.
+8. Offline create destekli ekranlarda internet kapali/acik senaryosu.
+9. Kritik ekranlarda 320-390 px civari terminal genisliginde tasma olmamasi.
+
+### PDA UI standardi
+
+Yeni ekran veya yeni kart eklerken mevcut PDA parcalari tekrar kullanilmalidir:
+
+- Liste kaydi: `TerminalPdaRecordCard`
+- Detay paneli: `TerminalPdaDetailPanel`
+- Bilgi alani: `TerminalPdaInfoGrid` ve `TerminalPdaInfo`
+- Create satiri: `TerminalPdaLineCard`
+- Liste ust bolumu / filtre basligi: `TerminalListHeaderCard`
+- Bolum kapsayici: `SectionCard`
+- Tam ekran create acma: `openTerminalCreatePage`
+- Barkod/urun giris satiri: `TerminalResponsiveLookupRow`, `ProductLookupField`
+- Terminal geri bildirimleri: `TerminalFeedback`
+
+Kural:
+
+- Yeni liste kartlari duz beyaz `Container` olarak yazilmamali.
+- Detay bilgisi ana liste icinde genisleyerek tum ekrani doldurmamali; ayri sayfa daha okunur.
+- Create satirlarinda silme butonu sadece gercek kayit satirlari icin gorunmeli; bos giris satiri korunmali.
+- Barkod, stok kodu, birim, miktar gibi bilgiler tek uzun metin olarak degil, mumkunse `TerminalPdaInfoGrid` icinde parca parca gosterilmeli.
+- PDA ekraninda sikan bilgiler yan yana, sikmayanlar alt satira akacak sekilde tasarlanmali.
+- Kucuk lookup/secim pencereleri bottom sheet kalabilir; ama ana liste/detay/create akislari tam ekran veya PDA uyumlu yuzey olmalidir.
+
+### PDA uyumu etkileyen ana dosyalar
+
+Ortak UI parcalari:
+
+```text
+lib/shared/widgets/terminal_ui_parts.dart
+lib/shared/widgets/terminal_create_page.dart
+lib/shared/widgets/section_card.dart
+lib/shared/product_entry/product_entry_widgets.dart
+lib/shared/product_entry/product_entry_controller.dart
+lib/shared/utils/terminal_feedback.dart
+```
+
+Home ve menu:
+
+```text
+lib/features/shell/presentation/views/home_shell_page.dart
+lib/features/shell/presentation/widgets/home_dashboard.dart
+lib/features/shell/presentation/widgets/module_navigation_panel.dart
+```
+
+PDA uyumu guncellenmis ana akis ornekleri:
+
+```text
+lib/features/order_operations/given_company_orders/presentation/views/given_company_orders_page.dart
+lib/features/order_operations/given_company_orders/presentation/widgets/given_company_order_create_sheet.dart
+lib/features/order_operations/given_warehouse_orders/presentation/widgets/given_warehouse_order_create_sheet.dart
+lib/features/order_operations/shared/presentation/views/warehouse_orders_page.dart
+lib/features/shipping_operations/outgoing_warehouse_shipments/presentation/views/outgoing_warehouse_shipments_page.dart
+lib/features/shipping_operations/outgoing_warehouse_shipments/presentation/widgets/outgoing_warehouse_shipment_create_sheet.dart
+lib/features/return_operations/warehouse_returns/presentation/views/warehouse_returns_page.dart
+lib/features/return_operations/warehouse_returns/presentation/widgets/warehouse_return_create_sheet.dart
+lib/features/acceptance_operations/company_acceptances/presentation/views/company_acceptances_page.dart
+lib/features/acceptance_operations/company_acceptances/presentation/widgets/company_acceptance_create_sheet.dart
+lib/features/acceptance_operations/warehouse_acceptances/presentation/views/warehouse_acceptances_page.dart
+lib/features/stock_operations/inventory_counts/presentation/views/inventory_counts_page.dart
+lib/features/stock_operations/inventory_counts/presentation/widgets/inventory_count_create_sheet.dart
+lib/features/stock_operations/stock_receipts/presentation/views/stock_receipts_page.dart
+lib/features/stock_operations/virman/presentation/views/virman_page.dart
+lib/features/stock_operations/label_documents/presentation/views/label_documents_page.dart
+lib/features/stock_operations/label_printing/presentation/views/label_printing_page.dart
+lib/features/stock_operations/offline_inventory_counts/presentation/views/offline_inventory_counts_page.dart
+lib/features/acceptance_operations/offline_company_acceptances/presentation/views/offline_company_acceptances_page.dart
+lib/features/company_movements/shared/presentation/views/company_movements_page.dart
+lib/features/company_movements/shared/presentation/widgets/company_movement_create_sheet.dart
+lib/features/legacy_tools/presentation/views/legacy_tool_pages.dart
+```
+
+### PDA degisikligi sonrasi test beklentisi
+
+PDA UI degisikligi sadece gorunum gibi dursa da create satiri, barkod focus, satir silme veya detay navigasyonu davranisini etkileyebilir. Bu yuzden en az su komutlar calistirilmelidir:
+
+```bash
+dart format lib test
+flutter analyze
+flutter test
+```
+
+Eger testler eski tek satir metinleri ariyorsa, test kullanici davranisini koruyacak sekilde guncellenmelidir. Ornek: `"Kod | Urun | Birim | Barkod"` gibi tek metin yerine `Kod`, `Urun`, `Birim`, `Barkod` alanlarinin ayri ayri gorundugu assert edilebilir.
+
+## 20. Ozet
 
 Bu projeyi anlamanin en kisa yolu su:
 
@@ -1415,3 +1526,85 @@ Bir sey eklerken once su soruyu sor:
 > Bu degisiklik sadece UI degisikligi mi, yoksa model + repository + menu + offline + test zincirini de etkiliyor mu?
 
 Bu soruya dogru cevap verdiginde projede kaybolman cok azalir.
+
+## 21. Genis Commit Mesaji Ornegi
+
+Asagidaki ornek, son PDA uyum calismasi gibi genis kapsamli bir degisiklik icin kullanilabilir. Commit atarken gerekirse dosya listesi kisaltilabilir, ama kapsam ve test bilgisi korunmalidir.
+
+```text
+feat(pda): terminal ekranlarini PDA kullanimina uygun hale getir
+
+Bu commit, Furpa Merkez Terminal uygulamasindaki ana liste, detay ve
+create akislarini PDA/terminal cihaz kullanimi icin daha tutarli ve
+kullanilabilir hale getirir.
+
+Genel PDA UI duzenlemeleri:
+- Ortak PDA kart ve bilgi bilesenleri genisletildi.
+- Liste kayitlari TerminalPdaRecordCard yapisina tasindi.
+- Detay alanlari TerminalPdaDetailPanel ile daha okunur hale getirildi.
+- Kod, barkod, birim, miktar gibi bilgiler TerminalPdaInfoGrid icinde
+  yan yana sigacak sekilde gosterilmeye baslandi.
+- Create satirlari TerminalPdaLineCard yapisina alindi.
+- Duz beyaz Container gibi secilebilirligi zayif kartlar azaltildi.
+- Kart radius/padding/renk/border yapisi PDA ekraninda daha net olacak
+  sekilde standartlastirildi.
+- IntrinsicHeight kaynakli dar ekran layout problemi kaldirildi.
+
+Home ve menu:
+- Home giris ekrani PDA mantigina daha uygun liste/menu yapisina cekildi.
+- Yetkili tum menu gruplarinin PDA ekraninda daha kolay taranmasi saglandi.
+- Menu gecisi ve terminal geri tusu akisi korunacak sekilde duzenlendi.
+
+Liste ve detay davranisi:
+- Detaylar ana liste icinde acilmak yerine ayri sayfa mantigina tasindi.
+- Verilen firma siparisleri, depo siparisleri, sevkiyatlar, iadeler,
+  sayimlar, stok fisleri, virman, etiket islemleri, mal kabul ve cari
+  hareket ekranlarinda detay gorunumleri PDA uyumlu hale getirildi.
+- Etiket islemleri detayi da ayri sayfa mantigina alindi.
+- Liste kartlarinda bilgiler alt alta yigilmak yerine siktiginda yan yana
+  gosterilecek sekilde duzenlendi.
+
+Create ekranlari:
+- Create ekranlari bottom sheet hissinden uzaklastirilip tam ekran sayfa
+  deneyimine yaklastirildi.
+- Create ekranlarindaki ekstra/cift header ve cift kapatma ikonlari
+  temizlendi.
+- Bos "Giris satiri"nin silinmemesi saglandi.
+- Satir silme butonlari sadece gercek eklenmis satirlar icin gosterilecek
+  sekilde duzenlendi.
+- Urun/barkod giris alanlari PDA okuyucu Enter/Tab akisina daha uygun hale
+  getirildi.
+- Iade, sevkiyat, siparis, sayim, mal kabul, virman ve offline create
+  satirlari ortak PDA satir karti yapisina yaklastirildi.
+
+Offline ve legacy ekranlar:
+- Offline sayim ve offline firma mal kabul taslak kartlari PDA uyumlu
+  detay paneli ve bilgi grid yapisina tasindi.
+- Offline create satir kartlari ortak create satiri yapisina alindi.
+- Fiyat gor, cari bul ve diger legacy arac sonuc kartlari PDA bilgi paneli
+  mantigina uyarlandi.
+
+Geri bildirim ve barkod akis:
+- TerminalFeedback yardimcisi ile basari/uyari/hata mesajlari ortak hale
+  getirildi.
+- Barkod/kamera okuma sonrasi kullanici geri bildirimi iyilestirildi.
+- TerminalSubmitOnTab ile Tab/Enter/NumpadEnter davranisi PDA okuyuculara
+  daha uygun hale getirildi.
+
+Testler:
+- Eski tek satir urun bilgi metinlerine bagli testler yeni PDA grid
+  gosterimine gore guncellendi.
+- Dar terminal genisliginde layout tasma riskleri icin mevcut widget testleri
+  korunarak guncellendi.
+
+Dogrulama:
+- dart format lib test
+- flutter analyze
+- flutter test
+
+Son durum:
+- flutter analyze temiz.
+- flutter test 72/72 basarili.
+- Proje ana liste/detay/create akislarinda PDA uyumlu ve saha testi icin
+  kullanilabilir seviyede.
+```

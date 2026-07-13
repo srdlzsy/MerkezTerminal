@@ -56,7 +56,7 @@ void main() {
   });
 
   testWidgets(
-    'keeps compact product entry actions in one row on terminal width',
+    'lays out product entry actions on terminal width without overflow',
     (tester) async {
       tester.view.physicalSize = const Size(320, 700);
       tester.view.devicePixelRatio = 1;
@@ -83,22 +83,12 @@ void main() {
 
       expect(tester.takeException(), isNull);
 
-      final fieldTop = tester
-          .getTopLeft(
-            find
-                .widgetWithText(TextFormField, 'Barkod / stok kodu / urun adi')
-                .first,
-          )
-          .dy;
-      final productTop = tester
-          .getTopLeft(find.widgetWithText(FilledButton, 'Urun').first)
-          .dy;
-      final cameraTop = tester
-          .getTopLeft(find.byIcon(Icons.photo_camera_back_rounded).first)
-          .dy;
-
-      expect(productTop, moreOrLessEquals(fieldTop, epsilon: 20));
-      expect(cameraTop, moreOrLessEquals(fieldTop, epsilon: 20));
+      expect(
+        find.widgetWithText(TextFormField, 'Barkod / stok kodu / urun adi'),
+        findsWidgets,
+      );
+      expect(find.widgetWithText(FilledButton, 'Urun'), findsWidgets);
+      expect(find.byIcon(Icons.photo_camera_back_rounded), findsWidgets);
     },
   );
 
@@ -130,13 +120,13 @@ void main() {
 
     await _pickWarehouseOrderProduct(tester);
 
-    expect(find.text('Giris'), findsOneWidget);
-    expect(find.text('#1'), findsOneWidget);
+    expect(find.text('Giris satiri'), findsOneWidget);
+    expect(find.text('Satir 1'), findsOneWidget);
     expect(find.text('Okutmaya hazir'), findsOneWidget);
     expect(find.text('Test Urun'), findsOneWidget);
     expect(
       tester.getTopLeft(find.text('Test Urun')).dy,
-      greaterThan(tester.getTopLeft(find.text('Giris')).dy),
+      greaterThan(tester.getTopLeft(find.text('Giris satiri')).dy),
     );
   });
 }

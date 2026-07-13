@@ -121,15 +121,16 @@ void main() {
 
     await _enterShipmentBarcode(tester);
 
-    const productInfo =
-        'Test Urun | Kod 015792 | Birim KL | Barkod 8690000000012';
     expect(find.text('Giris satiri'), findsOneWidget);
     expect(find.text('Satir 1'), findsOneWidget);
-    expect(find.text(productInfo), findsOneWidget);
+    expect(find.text('Test Urun'), findsOneWidget);
+    expect(find.text('015792'), findsOneWidget);
+    expect(find.text('KL'), findsOneWidget);
+    expect(find.text('8690000000012'), findsWidgets);
 
     await _enterShipmentBarcode(tester);
 
-    expect(find.text(productInfo), findsOneWidget);
+    expect(find.text('Test Urun'), findsOneWidget);
     expect(find.text('4'), findsOneWidget);
   });
 
@@ -169,24 +170,25 @@ void main() {
     await tester.tap(find.text('D110.1915'));
     await tester.pumpAndSettle();
 
-    const orderProductInfo = 'Siparis Urun | Kod SIP001 | Birim AD';
     expect(find.text('Giris satiri'), findsOneWidget);
     expect(find.text('Satir 1'), findsOneWidget);
-    expect(find.text(orderProductInfo), findsOneWidget);
+    expect(find.text('Siparis Urun'), findsOneWidget);
+    expect(find.text('SIP001'), findsOneWidget);
+    expect(find.text('AD'), findsOneWidget);
 
     await tester.tap(find.byIcon(Icons.delete_outline_rounded).first);
     await tester.pumpAndSettle();
 
-    expect(find.text(orderProductInfo), findsNothing);
+    expect(find.text('Siparis Urun'), findsNothing);
+    expect(find.text('SIP001'), findsNothing);
     expect(find.text('Satir 1'), findsNothing);
     expect(find.text('Giris satiri'), findsOneWidget);
 
     await _enterShipmentBarcode(tester);
 
-    const productInfo =
-        'Test Urun | Kod 015792 | Birim KL | Barkod 8690000000012';
     expect(find.text('Satir 1'), findsOneWidget);
-    expect(find.text(productInfo), findsOneWidget);
+    expect(find.text('Test Urun'), findsOneWidget);
+    expect(find.text('015792'), findsOneWidget);
   });
 }
 

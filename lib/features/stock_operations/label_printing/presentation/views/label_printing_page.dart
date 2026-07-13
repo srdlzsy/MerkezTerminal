@@ -244,18 +244,7 @@ class _LabelPrintingPageState extends State<LabelPrintingPage> {
           .map((item) {
             return Padding(
               padding: const EdgeInsets.only(bottom: 10),
-              child: Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(
-                    color: Theme.of(
-                      context,
-                    ).colorScheme.outlineVariant.withAlpha(82),
-                  ),
-                ),
+              child: TerminalPdaDetailPanel(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
@@ -266,16 +255,36 @@ class _LabelPrintingPageState extends State<LabelPrintingPage> {
                       ),
                     ),
                     const SizedBox(height: 6),
-                    Text(
-                      '${item.branchName} | Tag ${item.takenTag} | ${AppFormatters.quantity(item.quantity)}',
+                    TerminalPdaInfoGrid(
+                      items: <TerminalPdaInfo>[
+                        TerminalPdaInfo(label: 'Sube', value: item.branchName),
+                        TerminalPdaInfo(label: 'Tag', value: item.takenTag),
+                        TerminalPdaInfo(
+                          label: 'Miktar',
+                          value: AppFormatters.quantity(item.quantity),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '${item.goodsType} / ${item.goodsGenus} | Uretim ${AppFormatters.dateOrDash(item.productionDate)} | Sevk ${AppFormatters.dateOrDash(item.shippingDate)}',
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Uretici ${item.manufacturer} | Alici ${item.buyer} | Alis ${AppFormatters.currency(item.buyingPrice)}',
+                    const SizedBox(height: 8),
+                    TerminalPdaInfoGrid(
+                      items: <TerminalPdaInfo>[
+                        TerminalPdaInfo(
+                          label: 'Tip',
+                          value: '${item.goodsType} / ${item.goodsGenus}',
+                        ),
+                        TerminalPdaInfo(
+                          label: 'Uretim',
+                          value: AppFormatters.dateOrDash(item.productionDate),
+                        ),
+                        TerminalPdaInfo(
+                          label: 'Sevk',
+                          value: AppFormatters.dateOrDash(item.shippingDate),
+                        ),
+                        TerminalPdaInfo(
+                          label: 'Alis',
+                          value: AppFormatters.currency(item.buyingPrice),
+                        ),
+                      ],
                     ),
                   ],
                 ),
@@ -298,18 +307,7 @@ class _LabelPrintingPageState extends State<LabelPrintingPage> {
           .map((item) {
             return Padding(
               padding: const EdgeInsets.only(bottom: 10),
-              child: Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(
-                    color: Theme.of(
-                      context,
-                    ).colorScheme.outlineVariant.withAlpha(82),
-                  ),
-                ),
+              child: TerminalPdaDetailPanel(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
@@ -320,15 +318,28 @@ class _LabelPrintingPageState extends State<LabelPrintingPage> {
                       ),
                     ),
                     const SizedBox(height: 6),
-                    Text(
-                      'Kod ${item.productCode} | Barkod ${item.barcode.isEmpty ? '-' : item.barcode}',
+                    TerminalPdaInfoGrid(
+                      items: <TerminalPdaInfo>[
+                        TerminalPdaInfo(label: 'Kod', value: item.productCode),
+                        TerminalPdaInfo(
+                          label: 'Barkod',
+                          value: item.barcode.isEmpty ? '-' : item.barcode,
+                        ),
+                        TerminalPdaInfo(
+                          label: 'Yeni',
+                          value: AppFormatters.currency(item.price),
+                        ),
+                        TerminalPdaInfo(
+                          label: 'Eski',
+                          value: AppFormatters.currency(item.oldPrice),
+                        ),
+                        TerminalPdaInfo(label: 'Birim', value: item.unitName),
+                        TerminalPdaInfo(
+                          label: 'Degisim',
+                          value: item.priceChangeDate,
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Yeni ${AppFormatters.currency(item.price)} | Eski ${AppFormatters.currency(item.oldPrice)} | Birim ${item.unitName}',
-                    ),
-                    const SizedBox(height: 4),
-                    Text('Degisim: ${item.priceChangeDate}'),
                   ],
                 ),
               ),

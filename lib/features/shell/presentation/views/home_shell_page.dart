@@ -7,6 +7,7 @@ import 'package:furpa_merkez_terminal/features/shell/presentation/routing/shell_
 import 'package:furpa_merkez_terminal/features/shell/presentation/view_models/app_session_controller.dart';
 import 'package:furpa_merkez_terminal/features/shell/presentation/widgets/home_dashboard.dart';
 import 'package:furpa_merkez_terminal/features/shell/presentation/widgets/module_navigation_panel.dart';
+import 'package:furpa_merkez_terminal/shared/offline/offline_record_status.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/furpa_brand.dart';
 
 class HomeShellPage extends StatefulWidget {
@@ -29,6 +30,8 @@ class _HomeShellPageState extends State<HomeShellPage>
   final List<MenuEntry> _menuBackStack = <MenuEntry>[];
   MenuEntry? _selectedMenu;
   bool _isSidebarExpanded = false;
+  _OfflineQueueSummary _offlineQueueSummary =
+      const _OfflineQueueSummary.empty();
   Timer? _offlineSyncTimer;
 
   @override
@@ -109,6 +112,8 @@ class _HomeShellPageState extends State<HomeShellPage>
         ? HomeDashboard(
             user: user,
             menus: availableMenus,
+            offlineQueueCount: _offlineQueueSummary.total,
+            offlineFailedCount: _offlineQueueSummary.failed,
             onSelectMenu: _openMenu,
           )
         : _buildContent(
@@ -135,8 +140,10 @@ class _HomeShellPageState extends State<HomeShellPage>
                       _WideTopBar(
                         userName: user.fullName,
                         warehouseName: user.warehouseName,
+                        offlineQueueSummary: _offlineQueueSummary,
                         isSidebarExpanded: _isSidebarExpanded,
                         onHomeTap: _goHome,
+                        onSyncOffline: () => unawaited(_triggerOfflineSync()),
                         onToggleMenu: () {
                           setState(() {
                             _isSidebarExpanded = !_isSidebarExpanded;
@@ -168,6 +175,11 @@ class _HomeShellPageState extends State<HomeShellPage>
             ),
           ),
           actions: <Widget>[
+            if (_offlineQueueSummary.total > 0)
+              _OfflineQueueIconButton(
+                summary: _offlineQueueSummary,
+                onPressed: () => unawaited(_triggerOfflineSync()),
+              ),
             IconButton(
               onPressed: _goHome,
               tooltip: 'Anasayfa',
@@ -296,7 +308,13 @@ class _HomeShellPageState extends State<HomeShellPage>
     final user = widget.sessionController.currentUser;
     final accessToken = widget.sessionController.accessToken;
 
-    if (user == null || accessToken == null || accessToken.trim().isEmpty) {
+    if (user == null) {
+      await _refreshOfflineQueueSummary();
+      return;
+    }
+
+    if (accessToken == null || accessToken.trim().isEmpty) {
+      await _refreshOfflineQueueSummary();
       return;
     }
 
@@ -305,11 +323,49 @@ class _HomeShellPageState extends State<HomeShellPage>
       userId: user.id,
       warehouseNo: user.warehouseNo,
     );
+    await _refreshOfflineQueueSummary();
   }
 
   Future<void> _handleAppResume() async {
     await widget.sessionController.refreshSessionOnResume();
     await _triggerOfflineSync();
+  }
+
+  Future<void> _refreshOfflineQueueSummary() async {
+    final user = widget.sessionController.currentUser;
+    if (user == null) {
+      if (mounted && _offlineQueueSummary.total > 0) {
+        setState(() {
+          _offlineQueueSummary = const _OfflineQueueSummary.empty();
+        });
+      }
+      return;
+    }
+
+    try {
+      final inventoryDrafts = await widget
+          .moduleRegistry
+          .offlineInventoryCountsRepository
+          .fetchDrafts(userId: user.id, warehouseNo: user.warehouseNo);
+      final companyAcceptanceDrafts = await widget
+          .moduleRegistry
+          .offlineCompanyAcceptancesRepository
+          .fetchDrafts(userId: user.id, warehouseNo: user.warehouseNo);
+      final summary = _OfflineQueueSummary.fromStatuses(<OfflineRecordStatus>[
+        ...inventoryDrafts.map((item) => item.status),
+        ...companyAcceptanceDrafts.map((item) => item.status),
+      ]);
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _offlineQueueSummary = summary;
+      });
+    } catch (_) {
+      // Minimal fake registries in widget tests do not expose offline stores.
+    }
   }
 }
 
@@ -317,16 +373,20 @@ class _WideTopBar extends StatelessWidget {
   const _WideTopBar({
     required this.userName,
     required this.warehouseName,
+    required this.offlineQueueSummary,
     required this.isSidebarExpanded,
     required this.onHomeTap,
+    required this.onSyncOffline,
     required this.onToggleMenu,
     required this.onSignOut,
   });
 
   final String userName;
   final String warehouseName;
+  final _OfflineQueueSummary offlineQueueSummary;
   final bool isSidebarExpanded;
   final VoidCallback onHomeTap;
+  final VoidCallback onSyncOffline;
   final VoidCallback onToggleMenu;
   final VoidCallback onSignOut;
 
@@ -369,6 +429,22 @@ class _WideTopBar extends StatelessWidget {
               ],
             ),
           ),
+          if (offlineQueueSummary.total > 0) ...<Widget>[
+            OutlinedButton.icon(
+              onPressed: onSyncOffline,
+              icon: Icon(
+                offlineQueueSummary.failed > 0
+                    ? Icons.error_outline_rounded
+                    : Icons.cloud_upload_outlined,
+              ),
+              label: Text(
+                offlineQueueSummary.failed > 0
+                    ? 'Offline ${offlineQueueSummary.total} / Hata ${offlineQueueSummary.failed}'
+                    : 'Offline ${offlineQueueSummary.total}',
+              ),
+            ),
+            const SizedBox(width: 10),
+          ],
           OutlinedButton.icon(
             onPressed: onHomeTap,
             icon: const Icon(Icons.home_rounded),
@@ -383,5 +459,57 @@ class _WideTopBar extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+class _OfflineQueueIconButton extends StatelessWidget {
+  const _OfflineQueueIconButton({
+    required this.summary,
+    required this.onPressed,
+  });
+
+  final _OfflineQueueSummary summary;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      onPressed: onPressed,
+      tooltip: summary.failed > 0
+          ? '${summary.total} offline kayit, ${summary.failed} hata. Tekrar dene'
+          : '${summary.total} offline kayit senkron bekliyor',
+      icon: Badge(
+        label: Text(summary.total > 99 ? '99+' : '${summary.total}'),
+        child: Icon(
+          summary.failed > 0
+              ? Icons.error_outline_rounded
+              : Icons.cloud_upload_outlined,
+        ),
+      ),
+    );
+  }
+}
+
+class _OfflineQueueSummary {
+  const _OfflineQueueSummary({required this.total, required this.failed});
+
+  const _OfflineQueueSummary.empty() : total = 0, failed = 0;
+
+  final int total;
+  final int failed;
+
+  factory _OfflineQueueSummary.fromStatuses(
+    Iterable<OfflineRecordStatus> statuses,
+  ) {
+    var total = 0;
+    var failed = 0;
+    for (final status in statuses) {
+      total += 1;
+      if (status == OfflineRecordStatus.failed) {
+        failed += 1;
+      }
+    }
+
+    return _OfflineQueueSummary(total: total, failed: failed);
   }
 }

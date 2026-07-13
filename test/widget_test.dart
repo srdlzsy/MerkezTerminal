@@ -111,10 +111,11 @@ void main() {
       );
 
       expect(tester.takeException(), isNull);
-      expect(find.text('Hizli Erisim'), findsOneWidget);
+      expect(find.text('Tum Menuler'), findsOneWidget);
+      expect(find.text('Sayim Sonuclari'), findsOneWidget);
       expect(
         find.text(
-          'Islem yapmak icin menuden bir ekran secin veya hizli erisim kartlarini kullanin.',
+          'Islem yapmak icin asagidaki menu listesinden bir ekran secin.',
         ),
         findsOneWidget,
       );

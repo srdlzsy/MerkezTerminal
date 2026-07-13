@@ -104,13 +104,53 @@ class _WarehouseAcceptancesPageState extends State<WarehouseAcceptancesPage> {
   }
 
   Future<void> _toggleSelection(WarehouseAcceptanceListItem item) async {
-    if (_controller.selectedAcceptance?.documentNoLabel ==
-        item.documentNoLabel) {
-      _controller.clearSelection();
+    await _controller.selectAcceptance(item);
+    if (!mounted) {
       return;
     }
 
-    await _controller.selectAcceptance(item);
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (context) {
+          return ListenableBuilder(
+            listenable: _controller,
+            builder: (context, child) {
+              return Scaffold(
+                appBar: AppBar(title: Text(item.documentNoLabel)),
+                body: SafeArea(
+                  child: ListView(
+                    padding: EdgeInsets.fromLTRB(
+                      16,
+                      16,
+                      16,
+                      20 + MediaQuery.paddingOf(context).bottom,
+                    ),
+                    children: <Widget>[
+                      _AcceptanceAccordionCard(
+                        item: item,
+                        isExpanded: true,
+                        detail: _controller.selectedAcceptanceDetail,
+                        isLoadingDetail: _controller.isLoadingDetail,
+                        isSubmitting: _controller.isSubmitting,
+                        detailError: _controller.detailError,
+                        submitError: _controller.submitError,
+                        canSubmit: widget.canSubmit,
+                        onSubmit: _submitAcceptance,
+                        onTap: () {},
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          );
+        },
+      ),
+    );
+
+    if (mounted) {
+      _controller.clearSelection();
+    }
   }
 
   Future<void> _submitAcceptance(WarehouseAcceptanceRequest request) async {
@@ -347,122 +387,73 @@ class _AcceptanceAccordionCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return Material(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(28),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(28),
-        onTap: onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 140),
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: isExpanded ? const Color(0xFFFFF8F0) : Colors.white,
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(
-              color: isExpanded
-                  ? theme.colorScheme.primary.withAlpha(110)
-                  : theme.colorScheme.outlineVariant.withAlpha(88),
-              width: isExpanded ? 1.4 : 1,
+    return TerminalPdaRecordCard(
+      isSelected: isExpanded,
+      onTap: onTap,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          TerminalPdaCardHeader(
+            title: item.documentNoLabel,
+            subtitle: '${item.sourceWarehouse} -> ${item.targetWarehouse}',
+            trailing: Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                _DocumentTypeBadge(isReturn: item.isReturn),
+                const SizedBox(height: 6),
+                _StateBadge(state: item.shippingState),
+                const SizedBox(height: 4),
+                Icon(
+                  isExpanded
+                      ? Icons.keyboard_arrow_up_rounded
+                      : Icons.chevron_right_rounded,
+                  size: 28,
+                  color: theme.colorScheme.primary,
+                ),
+              ],
             ),
-            boxShadow: <BoxShadow>[
-              BoxShadow(
-                color: Colors.black.withAlpha(isExpanded ? 10 : 5),
-                blurRadius: isExpanded ? 12 : 8,
-                offset: const Offset(0, 4),
+          ),
+          const SizedBox(height: 10),
+          TerminalPdaInfoGrid(
+            items: <TerminalPdaInfo>[
+              TerminalPdaInfo(
+                label: 'Sevk Trh',
+                value: AppFormatters.dateOrDash(item.movementDate),
+              ),
+              TerminalPdaInfo(
+                label: item.isReturn ? 'Iade' : 'Siparis',
+                value: item.warehouseOrderNo.isEmpty
+                    ? '-'
+                    : item.warehouseOrderNo,
+              ),
+              TerminalPdaInfo(
+                label: 'Miktar',
+                value: AppFormatters.quantity(item.totalQuantity),
               ),
             ],
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: <Widget>[
-                  Expanded(
-                    flex: 4,
-                    child: _InlineField(
-                      label: 'Belge',
-                      value: item.documentNoLabel,
+          AnimatedSize(
+            duration: const Duration(milliseconds: 140),
+            curve: Curves.easeInOut,
+            child: isExpanded
+                ? Padding(
+                    padding: const EdgeInsets.only(top: 14),
+                    child: _AcceptanceDetailBody(
+                      key: ValueKey(item.documentNoLabel),
+                      isReturn: detail?.header.isReturn ?? item.isReturn,
+                      detail: detail,
+                      isLoading: isLoadingDetail,
+                      isSubmitting: isSubmitting,
+                      detailError: detailError,
+                      submitError: submitError,
+                      canSubmit: canSubmit,
+                      onSubmit: onSubmit,
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    flex: 3,
-                    child: _InlineField(
-                      label: 'Sevk Trh',
-                      value: AppFormatters.dateOrDash(item.movementDate),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    flex: 5,
-                    child: _InlineField(
-                      label: 'Rota',
-                      value:
-                          '${item.sourceWarehouse} -> ${item.targetWarehouse}',
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 6),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: <Widget>[
-                  Expanded(
-                    flex: 3,
-                    child: _InlineField(
-                      label: item.isReturn ? 'Iade' : 'Siparis',
-                      value: item.warehouseOrderNo.isEmpty
-                          ? '-'
-                          : item.warehouseOrderNo,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    flex: 2,
-                    child: _InlineField(
-                      label: 'Miktar',
-                      value: AppFormatters.quantity(item.totalQuantity),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  _DocumentTypeBadge(isReturn: item.isReturn),
-                  const SizedBox(width: 8),
-                  _StateBadge(state: item.shippingState),
-                  const SizedBox(width: 2),
-                  Icon(
-                    isExpanded
-                        ? Icons.keyboard_arrow_up_rounded
-                        : Icons.keyboard_arrow_down_rounded,
-                    size: 22,
-                    color: theme.colorScheme.primary,
-                  ),
-                ],
-              ),
-              AnimatedSize(
-                duration: const Duration(milliseconds: 140),
-                curve: Curves.easeInOut,
-                child: isExpanded
-                    ? Padding(
-                        padding: const EdgeInsets.only(top: 14),
-                        child: _AcceptanceDetailBody(
-                          key: ValueKey(item.documentNoLabel),
-                          isReturn: detail?.header.isReturn ?? item.isReturn,
-                          detail: detail,
-                          isLoading: isLoadingDetail,
-                          isSubmitting: isSubmitting,
-                          detailError: detailError,
-                          submitError: submitError,
-                          canSubmit: canSubmit,
-                          onSubmit: onSubmit,
-                        ),
-                      )
-                    : const SizedBox.shrink(),
-              ),
-            ],
+                  )
+                : const SizedBox.shrink(),
           ),
-        ),
+        ],
       ),
     );
   }
@@ -630,16 +621,7 @@ class _AcceptanceReadyBodyState extends State<_AcceptanceReadyBody> {
   Widget build(BuildContext context) {
     final submitError = widget.submitError;
 
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF6EFE7),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: Theme.of(context).colorScheme.outlineVariant.withAlpha(86),
-        ),
-      ),
+    return TerminalPdaDetailPanel(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
@@ -831,47 +813,29 @@ class _AcceptanceLineCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: theme.colorScheme.outlineVariant.withAlpha(82),
-        ),
-      ),
+    return TerminalPdaLineCard(
+      title: draft.stockName,
+      subtitle: 'Kod ${draft.stockCode}',
+      trailing: _DifferenceBadge(type: draft.differenceType),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: <Widget>[
-              Expanded(
-                child: Text(
-                  draft.stockName,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w800,
-                    color: const Color(0xFF231C17),
-                  ),
-                ),
+          TerminalPdaInfoGrid(
+            minTileWidth: 90,
+            items: <TerminalPdaInfo>[
+              TerminalPdaInfo(
+                label: 'Evrak',
+                value: AppFormatters.quantity(draft.shippedQuantity),
               ),
-              const SizedBox(width: 8),
-              _DifferenceBadge(type: draft.differenceType),
+              TerminalPdaInfo(label: 'Birim', value: draft.unitName),
+              TerminalPdaInfo(
+                label: 'Fark',
+                value: AppFormatters.quantity(draft.differenceValue.abs()),
+              ),
             ],
           ),
-          const SizedBox(height: 4),
-          Text(
-            'Kod ${draft.stockCode} | Evrak ${AppFormatters.quantity(draft.shippedQuantity)} | Birim ${draft.unitName}',
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: const Color(0xFF6B5A4A),
-              fontWeight: FontWeight.w700,
-            ),
-          ),
           if (draft.extraInfo.isNotEmpty) ...<Widget>[
-            const SizedBox(height: 2),
+            const SizedBox(height: 8),
             Text(
               draft.extraInfo,
               maxLines: 2,
@@ -882,32 +846,19 @@ class _AcceptanceLineCard extends StatelessWidget {
             ),
           ],
           const SizedBox(height: 10),
-          Wrap(
-            spacing: 10,
-            runSpacing: 10,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            children: <Widget>[
-              SizedBox(
-                width: 150,
-                child: TextField(
-                  controller: draft.receivedQuantityController,
-                  keyboardType: const TextInputType.numberWithOptions(
-                    decimal: true,
-                  ),
-                  inputFormatters: <TextInputFormatter>[
-                    FilteringTextInputFormatter.allow(RegExp(r'[0-9,\.]')),
-                  ],
-                  decoration: const InputDecoration(
-                    labelText: 'Sayilan miktar',
-                  ),
-                  onChanged: (_) => onChanged(),
-                ),
+          SizedBox(
+            width: 160,
+            child: TextField(
+              controller: draft.receivedQuantityController,
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
               ),
-              _MiniMetric(
-                label: 'Fark',
-                value: AppFormatters.quantity(draft.differenceValue.abs()),
-              ),
-            ],
+              inputFormatters: <TextInputFormatter>[
+                FilteringTextInputFormatter.allow(RegExp(r'[0-9,\.]')),
+              ],
+              decoration: const InputDecoration(labelText: 'Sayilan miktar'),
+              onChanged: (_) => onChanged(),
+            ),
           ),
         ],
       ),
@@ -1027,42 +978,6 @@ class _AcceptanceLineDraft {
 
   void dispose() {
     receivedQuantityController.dispose();
-  }
-}
-
-class _InlineField extends StatelessWidget {
-  const _InlineField({required this.label, required this.value});
-
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisSize: MainAxisSize.min,
-      children: <Widget>[
-        Text(
-          label,
-          style: theme.textTheme.labelSmall?.copyWith(
-            color: const Color(0xFF6B5A4A),
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-        const SizedBox(height: 2),
-        Text(
-          value,
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
-          style: theme.textTheme.titleSmall?.copyWith(
-            color: const Color(0xFF231C17),
-            fontWeight: FontWeight.w800,
-          ),
-        ),
-      ],
-    );
   }
 }
 

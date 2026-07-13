@@ -14,6 +14,7 @@ import 'package:furpa_merkez_terminal/shared/drafts/create_draft_repository.dart
 import 'package:furpa_merkez_terminal/shared/formatters/app_formatters.dart';
 import 'package:furpa_merkez_terminal/shared/offline/mobile_warehouse_catalog_repository.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/section_card.dart';
+import 'package:furpa_merkez_terminal/shared/widgets/terminal_create_page.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/terminal_ui_parts.dart';
 
 class WarehouseReturnsPage extends StatefulWidget {
@@ -113,12 +114,57 @@ class _WarehouseReturnsPageState extends State<WarehouseReturnsPage> {
   }
 
   Future<void> _toggleSelection(WarehouseReturnListItem item) async {
-    if (_controller.selectedReturn?.documentNoLabel == item.documentNoLabel) {
-      _controller.clearSelection();
+    await _controller.selectReturn(item);
+    if (!mounted) {
       return;
     }
 
-    await _controller.selectReturn(item);
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (context) {
+          return ListenableBuilder(
+            listenable: _controller,
+            builder: (context, child) {
+              return Scaffold(
+                appBar: AppBar(title: Text(item.documentNoLabel)),
+                body: SafeArea(
+                  child: ListView(
+                    padding: EdgeInsets.fromLTRB(
+                      16,
+                      16,
+                      16,
+                      20 + MediaQuery.paddingOf(context).bottom,
+                    ),
+                    children: <Widget>[
+                      _ReturnAccordionCard(
+                        item: item,
+                        direction: widget.direction,
+                        isExpanded: true,
+                        detail: _controller.selectedReturnDetail,
+                        isLoadingDetail: _controller.isLoadingDetail,
+                        detailError: _controller.detailError,
+                        lastEDespatchResult: _controller.lastEDespatchResult,
+                        isSendingEDespatch: _controller.isSendingEDespatch,
+                        isLoadingPdf: _controller.isLoadingPdf,
+                        canSendEDespatch: _controller.canSendEDespatch,
+                        canViewEDespatchPdf: _controller.canViewEDespatchPdf,
+                        onSendEDespatch: _openEDespatchSheet,
+                        onShowPdf: _openPdfPreview,
+                        onTap: () {},
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          );
+        },
+      ),
+    );
+
+    if (mounted) {
+      _controller.clearSelection();
+    }
   }
 
   Future<void> _openEDespatchSheet() async {
@@ -245,11 +291,9 @@ class _WarehouseReturnsPageState extends State<WarehouseReturnsPage> {
           );
     }
 
-    final request = await showModalBottomSheet<WarehouseReturnCreateRequest>(
+    final request = await openTerminalCreatePage<WarehouseReturnCreateRequest>(
       context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      showDragHandle: true,
+      title: 'Yeni Iade',
       builder: (context) {
         return WarehouseReturnCreateSheet(
           repository: widget.repository,
@@ -532,130 +576,105 @@ class _ReturnAccordionCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return Material(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(28),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(28),
-        onTap: onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 140),
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: isExpanded ? const Color(0xFFFFF8F0) : Colors.white,
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(
-              color: isExpanded
-                  ? theme.colorScheme.primary.withAlpha(110)
-                  : theme.colorScheme.outlineVariant.withAlpha(88),
-              width: isExpanded ? 1.4 : 1,
-            ),
-            boxShadow: <BoxShadow>[
-              BoxShadow(
-                color: Colors.black.withAlpha(isExpanded ? 10 : 5),
-                blurRadius: isExpanded ? 12 : 8,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: Column(
+    return TerminalPdaRecordCard(
+      isSelected: isExpanded,
+      onTap: onTap,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: <Widget>[
-                        Text(
-                          item.documentNoLabel,
-                          style: theme.textTheme.headlineSmall?.copyWith(
-                            fontWeight: FontWeight.w800,
-                            color: const Color(0xFF1F1A16),
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          '${item.sourceWarehouse} -> ${item.targetWarehouse}',
-                          style: theme.textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w700,
-                            color: const Color(0xFF3A2B20),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: <Widget>[
-                      _StateBadge(state: item.shippingState),
-                      const SizedBox(height: 10),
-                      Icon(
-                        isExpanded
-                            ? Icons.keyboard_arrow_up_rounded
-                            : Icons.keyboard_arrow_down_rounded,
-                        size: 30,
-                        color: theme.colorScheme.primary,
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      item.documentNoLabel,
+                      style: theme.textTheme.headlineSmall?.copyWith(
+                        fontWeight: FontWeight.w800,
+                        color: const Color(0xFF1F1A16),
                       ),
-                    ],
-                  ),
-                ],
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      '${item.sourceWarehouse} -> ${item.targetWarehouse}',
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                        color: const Color(0xFF3A2B20),
+                      ),
+                    ),
+                  ],
+                ),
               ),
-              const SizedBox(height: 14),
-              Wrap(
-                spacing: 12,
-                runSpacing: 12,
+              const SizedBox(width: 12),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
                 children: <Widget>[
-                  _TileInfoPill(
-                    label: 'Belge tarihi',
-                    value: AppFormatters.dateOrDash(item.documentDate),
-                  ),
-                  _TileInfoPill(
-                    label: 'Iade tarihi',
-                    value: AppFormatters.dateOrDash(item.movementDate),
-                  ),
-                  _TileInfoPill(
-                    label: direction == WarehouseReturnDirection.outgoing
-                        ? 'Hedef depo'
-                        : 'Kaynak depo',
-                    value: direction == WarehouseReturnDirection.outgoing
-                        ? '${item.targetWarehouseNo}'
-                        : '${item.sourceWarehouseNo}',
-                  ),
-                  _TileInfoPill(label: 'Satir', value: '${item.lineCount}'),
-                  _TileInfoPill(
-                    label: 'Toplam miktar',
-                    value: AppFormatters.quantity(item.totalQuantity),
+                  _StateBadge(state: item.shippingState),
+                  const SizedBox(height: 10),
+                  Icon(
+                    isExpanded
+                        ? Icons.keyboard_arrow_up_rounded
+                        : Icons.keyboard_arrow_down_rounded,
+                    size: 30,
+                    color: theme.colorScheme.primary,
                   ),
                 ],
-              ),
-              AnimatedSize(
-                duration: const Duration(milliseconds: 140),
-                curve: Curves.easeInOut,
-                child: isExpanded
-                    ? Padding(
-                        padding: const EdgeInsets.only(top: 18),
-                        child: _ReturnDetailBody(
-                          direction: direction,
-                          detail: detail,
-                          isLoading: isLoadingDetail,
-                          errorMessage: detailError,
-                          lastEDespatchResult: lastEDespatchResult,
-                          isSendingEDespatch: isSendingEDespatch,
-                          isLoadingPdf: isLoadingPdf,
-                          canSendEDespatch: canSendEDespatch,
-                          canViewEDespatchPdf: canViewEDespatchPdf,
-                          onSendEDespatch: onSendEDespatch,
-                          onShowPdf: onShowPdf,
-                        ),
-                      )
-                    : const SizedBox.shrink(),
               ),
             ],
           ),
-        ),
+          const SizedBox(height: 14),
+          Wrap(
+            spacing: 12,
+            runSpacing: 12,
+            children: <Widget>[
+              _TileInfoPill(
+                label: 'Belge tarihi',
+                value: AppFormatters.dateOrDash(item.documentDate),
+              ),
+              _TileInfoPill(
+                label: 'Iade tarihi',
+                value: AppFormatters.dateOrDash(item.movementDate),
+              ),
+              _TileInfoPill(
+                label: direction == WarehouseReturnDirection.outgoing
+                    ? 'Hedef depo'
+                    : 'Kaynak depo',
+                value: direction == WarehouseReturnDirection.outgoing
+                    ? '${item.targetWarehouseNo}'
+                    : '${item.sourceWarehouseNo}',
+              ),
+              _TileInfoPill(label: 'Satir', value: '${item.lineCount}'),
+              _TileInfoPill(
+                label: 'Toplam miktar',
+                value: AppFormatters.quantity(item.totalQuantity),
+              ),
+            ],
+          ),
+          AnimatedSize(
+            duration: const Duration(milliseconds: 140),
+            curve: Curves.easeInOut,
+            child: isExpanded
+                ? Padding(
+                    padding: const EdgeInsets.only(top: 18),
+                    child: _ReturnDetailBody(
+                      direction: direction,
+                      detail: detail,
+                      isLoading: isLoadingDetail,
+                      errorMessage: detailError,
+                      lastEDespatchResult: lastEDespatchResult,
+                      isSendingEDespatch: isSendingEDespatch,
+                      isLoadingPdf: isLoadingPdf,
+                      canSendEDespatch: canSendEDespatch,
+                      canViewEDespatchPdf: canViewEDespatchPdf,
+                      onSendEDespatch: onSendEDespatch,
+                      onShowPdf: onShowPdf,
+                    ),
+                  )
+                : const SizedBox.shrink(),
+          ),
+        ],
       ),
     );
   }
@@ -709,16 +728,7 @@ class _ReturnDetailBody extends StatelessWidget {
       return const _EmptyState(message: 'Detay bilgisi yuklenemedi.');
     }
 
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF6EFE7),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: Theme.of(context).colorScheme.outlineVariant.withAlpha(86),
-        ),
-      ),
+    return TerminalPdaDetailPanel(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[

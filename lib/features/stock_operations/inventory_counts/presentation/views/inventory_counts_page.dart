@@ -15,6 +15,7 @@ import 'package:furpa_merkez_terminal/shared/formatters/app_formatters.dart';
 import 'package:furpa_merkez_terminal/shared/offline/mobile_product_catalog_repository.dart';
 import 'package:furpa_merkez_terminal/shared/offline/offline_sync_service.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/section_card.dart';
+import 'package:furpa_merkez_terminal/shared/widgets/terminal_create_page.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/terminal_ui_parts.dart';
 
 class InventoryCountsPage extends StatefulWidget {
@@ -141,11 +142,9 @@ class _InventoryCountsPageState extends State<InventoryCountsPage> {
           );
     }
 
-    final request = await showModalBottomSheet<InventoryCountCreateRequest>(
+    final request = await openTerminalCreatePage<InventoryCountCreateRequest>(
       context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      showDragHandle: true,
+      title: 'Yeni Sayim',
       builder: (context) {
         return InventoryCountCreateSheet(
           repository: widget.repository,
@@ -270,17 +269,49 @@ class _InventoryCountsPageState extends State<InventoryCountsPage> {
   }
 
   Future<void> _toggleSelection(InventoryCountListItem item) async {
-    final selected = _controller.selectedCount;
-    final isSameSelection =
-        selected?.documentNo == item.documentNo &&
-        selected?.documentDate == item.documentDate;
-
-    if (isSameSelection) {
-      _controller.clearSelection();
+    await _controller.selectCount(item);
+    if (!mounted) {
       return;
     }
 
-    await _controller.selectCount(item);
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (context) {
+          return ListenableBuilder(
+            listenable: _controller,
+            builder: (context, child) {
+              return Scaffold(
+                appBar: AppBar(title: Text('#${item.documentNo}')),
+                body: SafeArea(
+                  child: ListView(
+                    padding: EdgeInsets.fromLTRB(
+                      16,
+                      16,
+                      16,
+                      20 + MediaQuery.paddingOf(context).bottom,
+                    ),
+                    children: <Widget>[
+                      _InventoryCountAccordionCard(
+                        item: item,
+                        isExpanded: true,
+                        detail: _controller.selectedCountDetail,
+                        isLoadingDetail: _controller.isLoadingDetail,
+                        detailError: _controller.detailError,
+                        onTap: () {},
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          );
+        },
+      ),
+    );
+
+    if (mounted) {
+      _controller.clearSelection();
+    }
   }
 
   @override
@@ -476,104 +507,63 @@ class _InventoryCountAccordionCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return Material(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(28),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(28),
-        onTap: onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 140),
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: isExpanded ? const Color(0xFFFFF8F0) : Colors.white,
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(
-              color: isExpanded
-                  ? theme.colorScheme.primary.withAlpha(110)
-                  : theme.colorScheme.outlineVariant.withAlpha(88),
-              width: isExpanded ? 1.4 : 1,
+    return TerminalPdaRecordCard(
+      isSelected: isExpanded,
+      onTap: onTap,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          TerminalPdaCardHeader(
+            title: item.name.isEmpty ? '#${item.documentNo}' : item.name,
+            subtitle: 'Belge #${item.documentNo}',
+            trailing: Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                TerminalBadge(label: '${item.lineCount} satir'),
+                const SizedBox(height: 4),
+                Icon(
+                  isExpanded
+                      ? Icons.keyboard_arrow_up_rounded
+                      : Icons.chevron_right_rounded,
+                  size: 26,
+                  color: theme.colorScheme.primary,
+                ),
+              ],
             ),
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: <Widget>[
-                  Expanded(
-                    flex: 3,
-                    child: _InlineField(
-                      label: 'Belge No',
-                      value: '#${item.documentNo}',
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    flex: 3,
-                    child: _InlineField(
-                      label: 'Belge Trh',
-                      value: AppFormatters.dateOrDash(item.documentDate),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    flex: 5,
-                    child: _InlineField(
-                      label: 'Sayim Adi',
-                      value: item.name.isEmpty ? '-' : item.name,
-                    ),
-                  ),
-                ],
+          const SizedBox(height: 10),
+          TerminalPdaInfoGrid(
+            items: <TerminalPdaInfo>[
+              TerminalPdaInfo(
+                label: 'Belge Trh',
+                value: AppFormatters.dateOrDash(item.documentDate),
               ),
-              const SizedBox(height: 6),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: <Widget>[
-                  Expanded(
-                    flex: 4,
-                    child: _InlineField(
-                      label: 'Olusturma',
-                      value: AppFormatters.dateTimeOrDash(item.createdAt),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    flex: 3,
-                    child: _InlineField(
-                      label: 'Miktar',
-                      value: AppFormatters.quantity(item.totalQuantity),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  _Badge(label: '${item.lineCount} satir'),
-                  const SizedBox(width: 2),
-                  Icon(
-                    isExpanded
-                        ? Icons.keyboard_arrow_up_rounded
-                        : Icons.keyboard_arrow_down_rounded,
-                    size: 22,
-                    color: theme.colorScheme.primary,
-                  ),
-                ],
+              TerminalPdaInfo(
+                label: 'Olusturma',
+                value: AppFormatters.dateTimeOrDash(item.createdAt),
               ),
-              AnimatedSize(
-                duration: const Duration(milliseconds: 140),
-                curve: Curves.easeInOut,
-                child: isExpanded
-                    ? Padding(
-                        padding: const EdgeInsets.only(top: 14),
-                        child: _DetailBody(
-                          detail: detail,
-                          isLoading: isLoadingDetail,
-                          errorMessage: detailError,
-                        ),
-                      )
-                    : const SizedBox.shrink(),
+              TerminalPdaInfo(
+                label: 'Miktar',
+                value: AppFormatters.quantity(item.totalQuantity),
               ),
             ],
           ),
-        ),
+          AnimatedSize(
+            duration: const Duration(milliseconds: 140),
+            curve: Curves.easeInOut,
+            child: isExpanded
+                ? Padding(
+                    padding: const EdgeInsets.only(top: 12),
+                    child: _DetailBody(
+                      detail: detail,
+                      isLoading: isLoadingDetail,
+                      errorMessage: detailError,
+                    ),
+                  )
+                : const SizedBox.shrink(),
+          ),
+        ],
       ),
     );
   }
@@ -609,16 +599,7 @@ class _DetailBody extends StatelessWidget {
 
     final currentDetail = detail!;
 
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF6EFE7),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: Theme.of(context).colorScheme.outlineVariant.withAlpha(86),
-        ),
-      ),
+    return TerminalPdaDetailPanel(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
@@ -728,42 +709,6 @@ class _CountItemCard extends StatelessWidget {
           ],
         ],
       ),
-    );
-  }
-}
-
-class _InlineField extends StatelessWidget {
-  const _InlineField({required this.label, required this.value});
-
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisSize: MainAxisSize.min,
-      children: <Widget>[
-        Text(
-          label,
-          style: theme.textTheme.labelSmall?.copyWith(
-            color: const Color(0xFF6B5A4A),
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-        const SizedBox(height: 2),
-        Text(
-          value,
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
-          style: theme.textTheme.titleSmall?.copyWith(
-            color: const Color(0xFF231C17),
-            fontWeight: FontWeight.w800,
-          ),
-        ),
-      ],
     );
   }
 }

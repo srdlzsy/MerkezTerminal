@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:furpa_merkez_terminal/shared/utils/terminal_feedback.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
 bool get supportsCameraBarcodeScanning {
@@ -99,6 +100,7 @@ class _BarcodeCameraScanPageState extends State<BarcodeCameraScanPage> {
 
       _didPop = true;
       await _controller.stop();
+      await TerminalFeedback.success();
       if (!mounted) {
         return;
       }

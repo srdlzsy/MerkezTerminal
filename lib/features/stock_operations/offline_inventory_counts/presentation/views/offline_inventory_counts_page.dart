@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:furpa_merkez_terminal/core/network/api_exception.dart';
 import 'package:furpa_merkez_terminal/features/stock_operations/inventory_counts/data/inventory_counts_repository.dart';
 import 'package:furpa_merkez_terminal/features/stock_operations/inventory_counts/data/models/inventory_count_models.dart';
@@ -13,8 +12,10 @@ import 'package:furpa_merkez_terminal/shared/offline/offline_record_status.dart'
 import 'package:furpa_merkez_terminal/shared/offline/offline_sync_service.dart';
 import 'package:furpa_merkez_terminal/shared/utils/client_request_id.dart';
 import 'package:furpa_merkez_terminal/shared/utils/create_form_validation.dart';
+import 'package:furpa_merkez_terminal/shared/utils/terminal_feedback.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/barcode_camera_scan_page.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/section_card.dart';
+import 'package:furpa_merkez_terminal/shared/widgets/terminal_create_page.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/terminal_ui_parts.dart';
 
 class OfflineInventoryCountsPage extends StatefulWidget {
@@ -92,11 +93,9 @@ class _OfflineInventoryCountsPageState
   }
 
   Future<void> _openCreateSheet() async {
-    final draft = await showModalBottomSheet<OfflineInventoryCountDraft>(
+    final draft = await openTerminalCreatePage<OfflineInventoryCountDraft>(
       context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      showDragHandle: true,
+      title: 'Yeni Offline Sayim',
       builder: (context) {
         return _OfflineInventoryCountCreateSheet(
           onlineRepository: widget.onlineRepository,
@@ -158,10 +157,16 @@ class _OfflineInventoryCountsPageState
       };
 
       if (result.status == OfflineDraftSyncResultStatus.failed) {
+        unawaited(TerminalFeedback.error());
         setState(() {
           _errorMessage = message;
         });
       } else {
+        unawaited(
+          result.status == OfflineDraftSyncResultStatus.deferred
+              ? TerminalFeedback.warning()
+              : TerminalFeedback.success(),
+        );
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text(message)));
@@ -259,18 +264,7 @@ class _OfflineInventoryCountsPageState
 
                       return Padding(
                         padding: const EdgeInsets.only(bottom: 12),
-                        child: Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.all(14),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(18),
-                            border: Border.all(
-                              color: Theme.of(
-                                context,
-                              ).colorScheme.outlineVariant.withAlpha(90),
-                            ),
-                          ),
+                        child: TerminalPdaDetailPanel(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: <Widget>[
@@ -290,13 +284,29 @@ class _OfflineInventoryCountsPageState
                                 ],
                               ),
                               const SizedBox(height: 8),
-                              Text(
-                                'Belge Trh ${AppFormatters.date(draft.documentDate)} | Olusturma ${AppFormatters.dateTime(draft.createdAt)}',
+                              TerminalPdaInfoGrid(
+                                items: <TerminalPdaInfo>[
+                                  TerminalPdaInfo(
+                                    label: 'Belge Trh',
+                                    value: AppFormatters.date(
+                                      draft.documentDate,
+                                    ),
+                                  ),
+                                  TerminalPdaInfo(
+                                    label: 'Olusturma',
+                                    value: AppFormatters.dateTime(
+                                      draft.createdAt,
+                                    ),
+                                  ),
+                                  if (draft.lastSyncAttemptAt != null)
+                                    TerminalPdaInfo(
+                                      label: 'Son deneme',
+                                      value: AppFormatters.dateTime(
+                                        draft.lastSyncAttemptAt!,
+                                      ),
+                                    ),
+                                ],
                               ),
-                              if (draft.lastSyncAttemptAt != null)
-                                Text(
-                                  'Son deneme ${AppFormatters.dateTime(draft.lastSyncAttemptAt!)}',
-                                ),
                               if ((draft.lastError ?? '')
                                   .trim()
                                   .isNotEmpty) ...<Widget>[
@@ -309,8 +319,27 @@ class _OfflineInventoryCountsPageState
                               ...draft.lines.take(5).map((line) {
                                 return Padding(
                                   padding: const EdgeInsets.only(bottom: 6),
-                                  child: Text(
-                                    '${line.stockCode} - ${line.stockName.isEmpty ? '-' : line.stockName} | ${AppFormatters.quantity(line.quantity)}',
+                                  child: TerminalPdaDetailPanel(
+                                    child: TerminalPdaInfoGrid(
+                                      items: <TerminalPdaInfo>[
+                                        TerminalPdaInfo(
+                                          label: 'Kod',
+                                          value: line.stockCode,
+                                        ),
+                                        TerminalPdaInfo(
+                                          label: 'Urun',
+                                          value: line.stockName.isEmpty
+                                              ? '-'
+                                              : line.stockName,
+                                        ),
+                                        TerminalPdaInfo(
+                                          label: 'Miktar',
+                                          value: AppFormatters.quantity(
+                                            line.quantity,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
                                   ),
                                 );
                               }),
@@ -439,10 +468,14 @@ class _OfflineInventoryCountCreateSheetState
     });
   }
 
-  Future<void> _searchProduct(_OfflineLineDraft line) async {
+  Future<void> _searchProduct(
+    _OfflineLineDraft line, {
+    bool autoSelectSingle = false,
+  }) async {
     final query = line.lookupController.text.trim();
 
     if (query.length < 2) {
+      unawaited(TerminalFeedback.warning());
       setState(() {
         _errorMessage = 'Online urun aramak icin en az 2 karakter girilmeli.';
       });
@@ -456,6 +489,7 @@ class _OfflineInventoryCountCreateSheetState
     }
 
     if (products.isEmpty) {
+      unawaited(TerminalFeedback.warning());
       setState(() {
         _errorMessage = 'Bu aramaya uygun urun bulunamadi.';
       });
@@ -463,41 +497,49 @@ class _OfflineInventoryCountCreateSheetState
       return;
     }
 
-    final selected =
-        await showModalBottomSheet<InventoryCountProductLookupItem>(
-          context: context,
-          showDragHandle: true,
-          builder: (context) {
-            return ListView.separated(
-              shrinkWrap: true,
-              itemCount: products.length,
-              separatorBuilder: (_, _) => const Divider(height: 1),
-              itemBuilder: (context, index) {
-                final item = products[index];
-                return ListTile(
-                  title: Text(item.displayLabel),
-                  subtitle: Text(item.barcode.isEmpty ? '-' : item.barcode),
-                  onTap: () => Navigator.of(context).pop(item),
-                );
-              },
-            );
-          },
-        );
+    InventoryCountProductLookupItem? selected;
+    if (autoSelectSingle && products.length == 1) {
+      selected = products.single;
+    } else {
+      selected = await showModalBottomSheet<InventoryCountProductLookupItem>(
+        context: context,
+        showDragHandle: true,
+        builder: (context) {
+          return ListView.separated(
+            shrinkWrap: true,
+            itemCount: products.length,
+            separatorBuilder: (_, _) => const Divider(height: 1),
+            itemBuilder: (context, index) {
+              final item = products[index];
+              return ListTile(
+                title: Text(item.displayLabel),
+                subtitle: Text(item.barcode.isEmpty ? '-' : item.barcode),
+                onTap: () => Navigator.of(context).pop(item),
+              );
+            },
+          );
+        },
+      );
+    }
 
     if (selected == null) {
       return;
     }
+    final pickedProduct = selected;
 
     var mergedIntoExisting = false;
     setState(() {
-      mergedIntoExisting = _applyProductToLine(line, selected);
+      mergedIntoExisting = _applyProductToLine(line, pickedProduct);
       _ensureFreshEntryLine();
       _errorMessage = null;
     });
     _focusFreshEntryLine();
 
     if (mergedIntoExisting) {
+      unawaited(TerminalFeedback.success());
       _showFeedback('Ayni barkod mevcut satira eklendi; miktar artirildi.');
+    } else {
+      unawaited(TerminalFeedback.success());
     }
   }
 
@@ -523,6 +565,7 @@ class _OfflineInventoryCountCreateSheetState
 
   Future<void> _scanProductWithCamera(_OfflineLineDraft line) async {
     if (!supportsCameraBarcodeScanning) {
+      unawaited(TerminalFeedback.warning());
       setState(() {
         _errorMessage = 'Bu cihazda kamera ile barkod okutma desteklenmiyor.';
       });
@@ -544,7 +587,7 @@ class _OfflineInventoryCountCreateSheetState
       _errorMessage = null;
     });
 
-    await _searchProduct(line);
+    await _searchProduct(line, autoSelectSingle: true);
   }
 
   bool _applyProductToLine(
@@ -662,12 +705,14 @@ class _OfflineInventoryCountCreateSheetState
         .toList(growable: false);
 
     if (activeLines.isEmpty) {
+      unawaited(TerminalFeedback.warning());
       setState(() {
         _errorMessage = 'En az bir urun satiri ekleyin.';
       });
       return;
     }
 
+    unawaited(TerminalFeedback.success());
     Navigator.of(context).pop(
       OfflineInventoryCountDraft(
         id: generateClientRequestId(),
@@ -745,45 +790,34 @@ class _OfflineInventoryCountCreateSheetState
                     .take(index + 1)
                     .where((item) => !_isBlankLine(item))
                     .length;
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                        color: Theme.of(
-                          context,
-                        ).colorScheme.outlineVariant.withAlpha(90),
-                      ),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: <Widget>[
-                        Row(
-                          children: <Widget>[
-                            Expanded(
-                              child: Text(
-                                isFreshEntry
-                                    ? 'Giris satiri'
-                                    : 'Satir $displayLineNo',
-                                style: Theme.of(context).textTheme.titleSmall
-                                    ?.copyWith(fontWeight: FontWeight.w800),
-                              ),
-                            ),
-                            if (!isFreshEntry && _lines.length > 1)
-                              IconButton(
-                                onPressed: () {
-                                  setState(() {
-                                    line.dispose();
-                                    _lines.removeAt(index);
-                                  });
-                                },
-                                icon: const Icon(Icons.delete_outline_rounded),
-                              ),
-                          ],
-                        ),
+                return TerminalPdaLineCard(
+                  title: isFreshEntry ? 'Giris satiri' : 'Satir $displayLineNo',
+                  subtitle: line.stockNameController.text.trim().isEmpty
+                      ? (isFreshEntry ? 'Okutmaya hazir' : 'Urun secilmedi')
+                      : line.stockNameController.text.trim(),
+                  isEntryLine: isFreshEntry,
+                  leading: Icon(
+                    isFreshEntry
+                        ? Icons.qr_code_scanner_rounded
+                        : Icons.inventory_2_rounded,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                  trailing: !isFreshEntry && _lines.length > 1
+                      ? IconButton(
+                          onPressed: () {
+                            setState(() {
+                              line.dispose();
+                              _lines.removeAt(index);
+                            });
+                          },
+                          icon: const Icon(Icons.delete_outline_rounded),
+                          tooltip: 'Satiri sil',
+                        )
+                      : null,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      if (isFreshEntry)
                         TerminalResponsiveLookupRow(
                           field: TerminalSubmitOnTab(
                             onSubmit: () => _searchProduct(line),
@@ -807,66 +841,35 @@ class _OfflineInventoryCountCreateSheetState
                             tooltip: 'Kamera ile oku',
                             icon: const Icon(Icons.photo_camera_back_rounded),
                           ),
-                        ),
-                        const SizedBox(height: 10),
-                        TextFormField(
-                          controller: line.stockCodeController,
-                            decoration: const InputDecoration(
-                              labelText: 'Stok Kodu',
+                        )
+                      else ...<Widget>[
+                        TerminalPdaInfoGrid(
+                          minTileWidth: 92,
+                          items: <TerminalPdaInfo>[
+                            TerminalPdaInfo(
+                              label: 'Kod',
+                              value: line.stockCodeController.text.trim(),
                             ),
-                            validator: (value) {
-                              if (_isBlankLine(line)) {
-                                return null;
-                              }
-                              if ((value ?? '').trim().isEmpty) {
-                                return 'Stok kodu zorunludur.';
-                            }
-                            return null;
-                          },
-                        ),
-                        const SizedBox(height: 10),
-                        Wrap(
-                          spacing: 10,
-                          runSpacing: 10,
-                          children: <Widget>[
-                            SizedBox(
-                              width: 220,
-                              child: TextFormField(
-                                controller: line.stockNameController,
-                                decoration: const InputDecoration(
-                                  labelText: 'Stok Adi',
-                                ),
+                            if (line.barcodeController.text.trim().isNotEmpty)
+                              TerminalPdaInfo(
+                                label: 'Barkod',
+                                value: line.barcodeController.text.trim(),
                               ),
-                            ),
-                            SizedBox(
-                              width: 180,
-                              child: TextFormField(
-                                controller: line.barcodeController,
-                                decoration: const InputDecoration(
-                                  labelText: 'Barkod',
-                                ),
-                              ),
-                            ),
                           ],
                         ),
                         const SizedBox(height: 10),
-                        TextFormField(
+                        TerminalQuantityStepper(
                           controller: line.quantityController,
-                          keyboardType: const TextInputType.numberWithOptions(
-                            decimal: true,
-                          ),
-                          inputFormatters: <TextInputFormatter>[
-                            FilteringTextInputFormatter.allow(
-                              RegExp(r'[0-9,\.]'),
-                            ),
-                          ],
-                          decoration: const InputDecoration(
-                            labelText: 'Miktar',
-                          ),
+                          label: 'Miktar',
+                          onMinimumReached: !isFreshEntry && _lines.length > 1
+                              ? () {
+                                  setState(() {
+                                    line.dispose();
+                                    _lines.removeAt(index);
+                                  });
+                                }
+                              : null,
                           validator: (_) {
-                            if (_isBlankLine(line)) {
-                              return null;
-                            }
                             if (line.quantity <= 0) {
                               return 'Miktar > 0';
                             }
@@ -874,7 +877,7 @@ class _OfflineInventoryCountCreateSheetState
                           },
                         ),
                       ],
-                    ),
+                    ],
                   ),
                 );
               }),

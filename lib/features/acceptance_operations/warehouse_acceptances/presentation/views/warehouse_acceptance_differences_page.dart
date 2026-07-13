@@ -251,16 +251,7 @@ class _DifferenceCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: theme.colorScheme.outlineVariant.withAlpha(82),
-        ),
-      ),
+    return TerminalPdaDetailPanel(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
@@ -295,23 +286,21 @@ class _DifferenceCard extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
           ),
           const SizedBox(height: 10),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: <Widget>[
-              _DifferenceMetric(
+          TerminalPdaInfoGrid(
+            items: <TerminalPdaInfo>[
+              TerminalPdaInfo(
                 label: 'Evrak',
                 value: AppFormatters.dateOrDash(item.movementDate),
               ),
-              _DifferenceMetric(
+              TerminalPdaInfo(
                 label: 'Miktar',
                 value: AppFormatters.quantity(item.quantity),
               ),
-              _DifferenceMetric(
+              TerminalPdaInfo(
                 label: 'Kabul',
                 value: AppFormatters.quantity(item.receivedQuantity),
               ),
-              _DifferenceMetric(
+              TerminalPdaInfo(
                 label: 'Fark',
                 value: AppFormatters.quantity(item.differenceQuantity.abs()),
               ),
@@ -329,34 +318,6 @@ class _DifferenceCard extends StatelessWidget {
             ),
           ],
         ],
-      ),
-    );
-  }
-}
-
-class _DifferenceMetric extends StatelessWidget {
-  const _DifferenceMetric({required this.label, required this.value});
-
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF7F9FD),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: Theme.of(context).colorScheme.outlineVariant.withAlpha(82),
-        ),
-      ),
-      child: Text(
-        '$label: $value',
-        style: Theme.of(context).textTheme.labelLarge?.copyWith(
-          fontWeight: FontWeight.w700,
-          color: const Color(0xFF231C17),
-        ),
       ),
     );
   }

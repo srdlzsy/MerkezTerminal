@@ -48,11 +48,13 @@ void main() {
 
       expect(find.text('Giris satiri'), findsOneWidget);
       expect(find.text('Satir 1'), findsOneWidget);
-      expect(find.textContaining('015792 | Test Urun | KL'), findsOneWidget);
+      expect(find.text('Test Urun'), findsOneWidget);
+      expect(find.text('015792'), findsOneWidget);
+      expect(find.text('KL'), findsOneWidget);
 
       await _pickProduct(tester);
 
-      expect(find.textContaining('015792 | Test Urun | KL'), findsOneWidget);
+      expect(find.text('Test Urun'), findsOneWidget);
       expect(find.text('4'), findsNWidgets(2));
     },
   );
@@ -144,7 +146,9 @@ void main() {
     expect(customerCodeField.controller?.text, 'CR001');
     await tester.drag(find.byType(ListView).first, const Offset(0, -900));
     await tester.pumpAndSettle();
-    expect(find.textContaining('015792 | Test Urun | KL'), findsOneWidget);
+    expect(find.text('Test Urun'), findsOneWidget);
+    expect(find.text('015792'), findsOneWidget);
+    expect(find.text('KL'), findsOneWidget);
   });
 }
 

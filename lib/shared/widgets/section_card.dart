@@ -16,49 +16,56 @@ class SectionCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: theme.colorScheme.outlineVariant.withAlpha(88),
-        ),
-        boxShadow: <BoxShadow>[
-          BoxShadow(
-            color: Colors.black.withAlpha(4),
-            blurRadius: 8,
-            offset: const Offset(0, 3),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          Text(
-            title,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: theme.textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.w800,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isCompact = constraints.maxWidth < 420;
+
+        return Container(
+          width: double.infinity,
+          padding: EdgeInsets.all(isCompact ? 10 : 12),
+          decoration: BoxDecoration(
+            color: theme.colorScheme.surface,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: theme.colorScheme.outlineVariant.withAlpha(100),
             ),
-          ),
-          if (subtitle != null) ...<Widget>[
-            const SizedBox(height: 4),
-            Text(
-              subtitle!,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: theme.textTheme.bodySmall?.copyWith(
-                height: 1.35,
-                color: theme.colorScheme.onSurface.withAlpha(168),
+            boxShadow: <BoxShadow>[
+              BoxShadow(
+                color: Colors.black.withAlpha(5),
+                blurRadius: 7,
+                offset: const Offset(0, 2),
               ),
-            ),
-          ],
-          const SizedBox(height: 10),
-          child,
-        ],
-      ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Text(
+                title,
+                maxLines: isCompact ? 2 : 1,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              if (subtitle != null) ...<Widget>[
+                const SizedBox(height: 4),
+                Text(
+                  subtitle!,
+                  maxLines: isCompact ? 2 : 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    height: 1.35,
+                    color: theme.colorScheme.onSurface.withAlpha(168),
+                  ),
+                ),
+              ],
+              SizedBox(height: isCompact ? 8 : 10),
+              child,
+            ],
+          ),
+        );
+      },
     );
   }
 }

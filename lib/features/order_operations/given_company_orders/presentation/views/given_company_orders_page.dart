@@ -12,6 +12,7 @@ import 'package:furpa_merkez_terminal/shared/drafts/create_draft_repository.dart
 import 'package:furpa_merkez_terminal/shared/formatters/app_formatters.dart';
 import 'package:furpa_merkez_terminal/shared/offline/mobile_customer_catalog_repository.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/section_card.dart';
+import 'package:furpa_merkez_terminal/shared/widgets/terminal_create_page.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/terminal_ui_parts.dart';
 
 class GivenCompanyOrdersPage extends StatefulWidget {
@@ -139,11 +140,9 @@ class _GivenCompanyOrdersPageState extends State<GivenCompanyOrdersPage> {
             title: 'Yeni Verilen Firma Siparisi',
           );
     }
-    final request = await showModalBottomSheet<CompanyOrderCreateRequest>(
+    final request = await openTerminalCreatePage<CompanyOrderCreateRequest>(
       context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      showDragHandle: true,
+      title: 'Yeni Siparis',
       builder: (context) {
         return GivenCompanyOrderCreateSheet(
           repository: widget.repository,
@@ -193,12 +192,49 @@ class _GivenCompanyOrdersPageState extends State<GivenCompanyOrdersPage> {
   }
 
   Future<void> _toggleOrderSelection(CompanyOrderListItem item) async {
-    if (_controller.selectedOrder?.documentKey == item.documentKey) {
-      _controller.clearSelection();
+    await _controller.selectOrder(item);
+    if (!mounted) {
       return;
     }
 
-    await _controller.selectOrder(item);
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (context) {
+          return ListenableBuilder(
+            listenable: _controller,
+            builder: (context, child) {
+              return Scaffold(
+                appBar: AppBar(title: Text(item.documentNoLabel)),
+                body: SafeArea(
+                  child: ListView(
+                    padding: EdgeInsets.fromLTRB(
+                      16,
+                      16,
+                      16,
+                      20 + MediaQuery.paddingOf(context).bottom,
+                    ),
+                    children: <Widget>[
+                      _CompanyOrderAccordionCard(
+                        item: item,
+                        isExpanded: true,
+                        detail: _controller.selectedOrderDetail,
+                        isLoadingDetail: _controller.isLoadingDetail,
+                        detailError: _controller.detailError,
+                        onTap: () {},
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          );
+        },
+      ),
+    );
+
+    if (mounted) {
+      _controller.clearSelection();
+    }
   }
 
   @override
@@ -382,144 +418,77 @@ class _CompanyOrderAccordionCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return Material(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(28),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(28),
-        onTap: onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 140),
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: isExpanded ? const Color(0xFFFFF8F0) : Colors.white,
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(
-              color: isExpanded
-                  ? theme.colorScheme.primary.withAlpha(110)
-                  : theme.colorScheme.outlineVariant.withAlpha(88),
-              width: isExpanded ? 1.4 : 1,
+    return TerminalPdaRecordCard(
+      isSelected: isExpanded,
+      onTap: onTap,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          TerminalPdaCardHeader(
+            title: item.documentNoLabel,
+            subtitle: item.customerDisplayName,
+            trailing: Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                TerminalBadge(label: '${item.lineCount} satir'),
+                const SizedBox(height: 4),
+                Icon(
+                  isExpanded
+                      ? Icons.keyboard_arrow_up_rounded
+                      : Icons.chevron_right_rounded,
+                  size: 26,
+                  color: theme.colorScheme.primary,
+                ),
+              ],
             ),
-            boxShadow: <BoxShadow>[
-              BoxShadow(
-                color: Colors.black.withAlpha(isExpanded ? 10 : 5),
-                blurRadius: isExpanded ? 12 : 8,
-                offset: const Offset(0, 4),
+          ),
+          const SizedBox(height: 10),
+          TerminalPdaInfoGrid(
+            items: <TerminalPdaInfo>[
+              TerminalPdaInfo(
+                label: 'Belge Trh',
+                value: AppFormatters.dateOrDash(item.documentDate),
+              ),
+              TerminalPdaInfo(
+                label: 'Teslim',
+                value: AppFormatters.dateOrDash(item.deliveryDate),
+              ),
+              TerminalPdaInfo(
+                label: 'Miktar',
+                value: AppFormatters.quantity(item.totalQuantity),
+              ),
+              TerminalPdaInfo(
+                label: 'Kalan',
+                value: AppFormatters.quantity(item.totalRemainingQuantity),
+              ),
+              TerminalPdaInfo(
+                label: 'Tutar',
+                value: AppFormatters.currency(item.totalAmount),
+              ),
+              TerminalPdaInfo(
+                label: 'Adres',
+                value: item.customerAddress.isEmpty
+                    ? '-'
+                    : item.customerAddress,
               ),
             ],
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: <Widget>[
-                  Expanded(
-                    flex: 4,
-                    child: _InlineField(
-                      label: 'Belge',
-                      value: item.documentNoLabel,
+          AnimatedSize(
+            duration: const Duration(milliseconds: 140),
+            curve: Curves.easeInOut,
+            child: isExpanded
+                ? Padding(
+                    padding: const EdgeInsets.only(top: 12),
+                    child: _DetailBody(
+                      detail: detail,
+                      isLoading: isLoadingDetail,
+                      errorMessage: detailError,
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    flex: 3,
-                    child: _InlineField(
-                      label: 'Belge Trh',
-                      value: AppFormatters.dateOrDash(item.documentDate),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    flex: 5,
-                    child: _InlineField(
-                      label: 'Musteri',
-                      value: item.customerDisplayName,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 6),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: <Widget>[
-                  Expanded(
-                    flex: 4,
-                    child: _InlineField(
-                      label: 'Teslim',
-                      value: AppFormatters.dateOrDash(item.deliveryDate),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    flex: 5,
-                    child: _InlineField(
-                      label: 'Adres',
-                      value: item.customerAddress.isEmpty
-                          ? '-'
-                          : item.customerAddress,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  _AccentBadge(label: '${item.lineCount} satir'),
-                  const SizedBox(width: 2),
-                  Icon(
-                    isExpanded
-                        ? Icons.keyboard_arrow_up_rounded
-                        : Icons.keyboard_arrow_down_rounded,
-                    size: 22,
-                    color: theme.colorScheme.primary,
-                  ),
-                ],
-              ),
-              const SizedBox(height: 6),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: <Widget>[
-                  Expanded(
-                    flex: 3,
-                    child: _InlineField(
-                      label: 'Miktar',
-                      value: AppFormatters.quantity(item.totalQuantity),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    flex: 3,
-                    child: _InlineField(
-                      label: 'Kalan',
-                      value: AppFormatters.quantity(
-                        item.totalRemainingQuantity,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    flex: 3,
-                    child: _InlineField(
-                      label: 'Tutar',
-                      value: AppFormatters.currency(item.totalAmount),
-                    ),
-                  ),
-                ],
-              ),
-              AnimatedSize(
-                duration: const Duration(milliseconds: 140),
-                curve: Curves.easeInOut,
-                child: isExpanded
-                    ? Padding(
-                        padding: const EdgeInsets.only(top: 14),
-                        child: _DetailBody(
-                          detail: detail,
-                          isLoading: isLoadingDetail,
-                          errorMessage: detailError,
-                        ),
-                      )
-                    : const SizedBox.shrink(),
-              ),
-            ],
+                  )
+                : const SizedBox.shrink(),
           ),
-        ),
+        ],
       ),
     );
   }
@@ -553,16 +522,7 @@ class _DetailBody extends StatelessWidget {
       return const _EmptyState(message: 'Detay bilgisi yuklenemedi.');
     }
 
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF6EFE7),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: Theme.of(context).colorScheme.outlineVariant.withAlpha(86),
-        ),
-      ),
+    return TerminalPdaDetailPanel(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
@@ -681,44 +641,6 @@ class _OrderItemCard extends StatelessWidget {
           ],
         ],
       ),
-    );
-  }
-}
-
-class _InlineField extends StatelessWidget {
-  const _InlineField({required this.label, required this.value});
-
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisSize: MainAxisSize.min,
-      children: <Widget>[
-        Text(
-          label,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: theme.textTheme.labelSmall?.copyWith(
-            color: const Color(0xFF6B5A4A),
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-        const SizedBox(height: 2),
-        Text(
-          value,
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
-          style: theme.textTheme.titleSmall?.copyWith(
-            color: const Color(0xFF231C17),
-            fontWeight: FontWeight.w800,
-          ),
-        ),
-      ],
     );
   }
 }
