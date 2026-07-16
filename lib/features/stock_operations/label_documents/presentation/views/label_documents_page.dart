@@ -663,6 +663,8 @@ class _LabelDocumentCreateSheetState extends State<_LabelDocumentCreateSheet> {
     } else {
       selected = await showModalBottomSheet<SearchProductLookupItem>(
         context: context,
+        isScrollControlled: true,
+        useSafeArea: true,
         showDragHandle: true,
         builder: (context) {
           if (products.isEmpty) {
@@ -672,20 +674,34 @@ class _LabelDocumentCreateSheetState extends State<_LabelDocumentCreateSheet> {
             );
           }
 
-          return ListView.separated(
-            shrinkWrap: true,
-            itemCount: products.length,
-            separatorBuilder: (_, _) => const Divider(height: 1),
-            itemBuilder: (context, index) {
-              final item = products[index];
-              return ListTile(
-                title: Text(item.displayLabel),
-                subtitle: Text(
-                  '${item.unitName} | ${AppFormatters.currency(item.price)}',
-                ),
-                onTap: () => Navigator.of(context).pop(item),
-              );
-            },
+          return FractionallySizedBox(
+            heightFactor: 0.82,
+            child: ListView.separated(
+              itemCount: products.length,
+              separatorBuilder: (_, _) => const Divider(height: 1),
+              itemBuilder: (context, index) {
+                final item = products[index];
+                return ListTile(
+                  dense: true,
+                  visualDensity: VisualDensity.compact,
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 2,
+                  ),
+                  title: Text(
+                    item.displayLabel,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  subtitle: Text(
+                    '${item.unitName} | ${AppFormatters.currency(item.price)}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  onTap: () => Navigator.of(context).pop(item),
+                );
+              },
+            ),
           );
         },
       );
@@ -693,14 +709,16 @@ class _LabelDocumentCreateSheetState extends State<_LabelDocumentCreateSheet> {
 
     if (selected == null) {
       if (mounted) {
-        setState(() {
-          line.setLookupStatus(
-            products.isEmpty
-                ? 'Urun bulunamadi: $query'
-                : '${products.length} sonuc geldi, secim yapilmadi.',
-            isError: products.isEmpty,
-          );
-        });
+        if (products.isEmpty) {
+          setState(() {
+            line.setLookupStatus('Urun bulunamadi: $query', isError: true);
+          });
+        } else {
+          setState(() {
+            line.clearLookupStatus();
+          });
+          _refocusLine(line.lookupFocusNode);
+        }
       }
       return;
     }
@@ -1005,6 +1023,14 @@ class _LabelDocumentCreateSheetState extends State<_LabelDocumentCreateSheet> {
     messenger?.hideCurrentSnackBar();
     messenger?.showSnackBar(SnackBar(content: Text(message)));
   }
+
+  void _refocusLine(FocusNode focusNode) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        focusNode.requestFocus();
+      }
+    });
+  }
 }
 
 class _LabelDocumentLineDraft {
@@ -1045,6 +1071,12 @@ class _LabelDocumentLineDraft {
     lookupStatusMessage = message;
     isLookupStatusLoading = isLoading;
     isLookupStatusError = isError;
+  }
+
+  void clearLookupStatus() {
+    lookupStatusMessage = null;
+    isLookupStatusLoading = false;
+    isLookupStatusError = false;
   }
 
   void dispose() {

@@ -360,8 +360,9 @@ class _OutgoingWarehouseShipmentCreateSheetState
     if (product == null || !mounted) {
       if (mounted) {
         setState(() {
-          line.setLookupStatus('Urun secimi yapilmadi.');
+          line.clearLookupStatus();
         });
+        _refocusLine(line.barcodeFocusNode);
       }
       return;
     }
@@ -444,8 +445,9 @@ class _OutgoingWarehouseShipmentCreateSheetState
     if (product == null || !mounted) {
       if (mounted) {
         setState(() {
-          line.setLookupStatus('Urun secimi yapilmadi.');
+          line.clearLookupStatus();
         });
+        _refocusLine(line.barcodeFocusNode);
       }
       return;
     }
@@ -1225,37 +1227,7 @@ class _OutgoingWarehouseShipmentCreateSheetState
             ),
           ],
           const SizedBox(height: 10),
-          Column(
-            children: _manualLines
-                .asMap()
-                .entries
-                .map((entry) {
-                  final isFreshEntry =
-                      entry.key == 0 && _isBlankManualLine(entry.value);
-                  final displayLineNo = _manualLines
-                      .take(entry.key + 1)
-                      .where((item) => !_isBlankManualLine(item))
-                      .length;
-
-                  return Padding(
-                    padding: EdgeInsets.only(
-                      bottom: entry.key == _manualLines.length - 1 ? 0 : 10,
-                    ),
-                    child: _ManualShipmentLineCard(
-                      lineNumber: displayLineNo,
-                      isFreshEntry: isFreshEntry,
-                      line: entry.value,
-                      isReadyForScanning: _hasTargetWarehouseSelection,
-                      canRemove: !isFreshEntry && _manualLines.length > 1,
-                      onPickProduct: () => _pickProduct(entry.value),
-                      onScanWithCamera: () =>
-                          _scanProductWithCamera(entry.value),
-                      onRemove: () => _removeManualLine(entry.value),
-                    ),
-                  );
-                })
-                .toList(growable: false),
-          ),
+          _buildLazyManualLineList(),
         ],
       ),
     );
@@ -1287,48 +1259,176 @@ class _OutgoingWarehouseShipmentCreateSheetState
             ),
           ),
           if (_selectedOrder != null) ...<Widget>[
-            const SizedBox(height: 10),
-            _InfoPill(
-              label: 'Secilen siparis',
-              value:
-                  '${_selectedOrder!.item.documentNoLabel} - ${_selectedOrder!.item.outWarehouseName} -> ${_selectedOrder!.item.inWarehouseName}',
+            const SizedBox(height: 6),
+            Text(
+              '${_selectedOrder!.item.documentNoLabel} - ${_selectedOrder!.item.outWarehouseName} -> ${_selectedOrder!.item.inWarehouseName}',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                fontWeight: FontWeight.w700,
+                color: Theme.of(context).colorScheme.primary,
+              ),
             ),
-            const SizedBox(height: 10),
-            Column(
-              children: _linkedLines
-                  .asMap()
-                  .entries
-                  .map((entry) {
-                    final isFreshEntry =
-                        entry.key == 0 && _isBlankLinkedLine(entry.value);
-                    final displayLineNo = _linkedLines
-                        .take(entry.key + 1)
-                        .where((item) => !_isBlankLinkedLine(item))
-                        .length;
-
-                    return Padding(
-                      padding: EdgeInsets.only(
-                        bottom: entry.key == _linkedLines.length - 1 ? 0 : 8,
-                      ),
-                      child: _LinkedShipmentLineCard(
-                        lineNumber: displayLineNo,
-                        isFreshEntry: isFreshEntry,
-                        line: entry.value,
-                        isReadyForScanning: _hasTargetWarehouseSelection,
-                        canRemove: !isFreshEntry,
-                        onPickProduct: () => _pickLinkedProduct(entry.value),
-                        onScanWithCamera: () =>
-                            _scanLinkedProductWithCamera(entry.value),
-                        onRemove: () => _removeLinkedLine(entry.value),
-                      ),
-                    );
-                  })
-                  .toList(growable: false),
-            ),
+            const SizedBox(height: 6),
+            _buildLazyLinkedLineList(),
           ],
         ],
       ),
     );
+  }
+
+  Widget _buildLazyManualLineList() {
+    final entryIndex = _manualLines.indexWhere(_isBlankManualLine);
+    final filledIndexes = <int>[
+      for (var index = 0; index < _manualLines.length; index++)
+        if (!_isBlankManualLine(_manualLines[index])) index,
+    ];
+
+    return Column(
+      children: <Widget>[
+        if (entryIndex != -1)
+          _ManualShipmentLineCard(
+            lineNumber: 0,
+            isFreshEntry: true,
+            line: _manualLines[entryIndex],
+            isReadyForScanning: _hasTargetWarehouseSelection,
+            canRemove: false,
+            onPickProduct: () => _pickProduct(_manualLines[entryIndex]),
+            onScanWithCamera: () =>
+                _scanProductWithCamera(_manualLines[entryIndex]),
+            onRemove: () => _removeManualLine(_manualLines[entryIndex]),
+          ),
+        if (entryIndex != -1 && filledIndexes.isNotEmpty)
+          const SizedBox(height: 8),
+        if (filledIndexes.isNotEmpty && filledIndexes.length <= 3)
+          ...filledIndexes.asMap().entries.map((entry) {
+            final visibleIndex = entry.key;
+            final index = entry.value;
+            final line = _manualLines[index];
+            return Padding(
+              padding: EdgeInsets.only(
+                bottom: visibleIndex == filledIndexes.length - 1 ? 0 : 8,
+              ),
+              child: _ManualShipmentLineCard(
+                lineNumber: visibleIndex + 1,
+                isFreshEntry: false,
+                line: line,
+                isReadyForScanning: _hasTargetWarehouseSelection,
+                canRemove: _manualLines.length > 1,
+                onPickProduct: () => _pickProduct(line),
+                onScanWithCamera: () => _scanProductWithCamera(line),
+                onRemove: () => _removeManualLine(line),
+              ),
+            );
+          })
+        else if (filledIndexes.isNotEmpty)
+          SizedBox(
+            height: _lazyLineListHeight(filledIndexes.length),
+            child: ListView.builder(
+              padding: EdgeInsets.zero,
+              itemCount: filledIndexes.length,
+              itemBuilder: (context, visibleIndex) {
+                final index = filledIndexes[visibleIndex];
+                final line = _manualLines[index];
+                return Padding(
+                  padding: EdgeInsets.only(
+                    bottom: visibleIndex == filledIndexes.length - 1 ? 0 : 8,
+                  ),
+                  child: _ManualShipmentLineCard(
+                    lineNumber: visibleIndex + 1,
+                    isFreshEntry: false,
+                    line: line,
+                    isReadyForScanning: _hasTargetWarehouseSelection,
+                    canRemove: _manualLines.length > 1,
+                    onPickProduct: () => _pickProduct(line),
+                    onScanWithCamera: () => _scanProductWithCamera(line),
+                    onRemove: () => _removeManualLine(line),
+                  ),
+                );
+              },
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildLazyLinkedLineList() {
+    final entryIndex = _linkedLines.indexWhere(_isBlankLinkedLine);
+    final filledIndexes = <int>[
+      for (var index = 0; index < _linkedLines.length; index++)
+        if (!_isBlankLinkedLine(_linkedLines[index])) index,
+    ];
+
+    return Column(
+      children: <Widget>[
+        if (filledIndexes.isNotEmpty && filledIndexes.length <= 3)
+          ...filledIndexes.asMap().entries.map((entry) {
+            final visibleIndex = entry.key;
+            final index = entry.value;
+            final line = _linkedLines[index];
+            return Padding(
+              padding: EdgeInsets.only(
+                bottom: visibleIndex == filledIndexes.length - 1 ? 0 : 8,
+              ),
+              child: _LinkedShipmentLineCard(
+                lineNumber: visibleIndex + 1,
+                isFreshEntry: false,
+                line: line,
+                isReadyForScanning: _hasTargetWarehouseSelection,
+                canRemove: true,
+                onPickProduct: () => _pickLinkedProduct(line),
+                onScanWithCamera: () => _scanLinkedProductWithCamera(line),
+                onRemove: () => _removeLinkedLine(line),
+              ),
+            );
+          })
+        else if (filledIndexes.isNotEmpty)
+          SizedBox(
+            height: _lazyLineListHeight(filledIndexes.length),
+            child: ListView.builder(
+              padding: EdgeInsets.zero,
+              itemCount: filledIndexes.length,
+              itemBuilder: (context, visibleIndex) {
+                final index = filledIndexes[visibleIndex];
+                final line = _linkedLines[index];
+                return Padding(
+                  padding: EdgeInsets.only(
+                    bottom: visibleIndex == filledIndexes.length - 1 ? 0 : 8,
+                  ),
+                  child: _LinkedShipmentLineCard(
+                    lineNumber: visibleIndex + 1,
+                    isFreshEntry: false,
+                    line: line,
+                    isReadyForScanning: _hasTargetWarehouseSelection,
+                    canRemove: true,
+                    onPickProduct: () => _pickLinkedProduct(line),
+                    onScanWithCamera: () => _scanLinkedProductWithCamera(line),
+                    onRemove: () => _removeLinkedLine(line),
+                  ),
+                );
+              },
+            ),
+          ),
+        if (entryIndex != -1 && filledIndexes.isNotEmpty)
+          const SizedBox(height: 8),
+        if (entryIndex != -1)
+          _LinkedShipmentLineCard(
+            lineNumber: 0,
+            isFreshEntry: true,
+            line: _linkedLines[entryIndex],
+            isReadyForScanning: _hasTargetWarehouseSelection,
+            canRemove: false,
+            onPickProduct: () => _pickLinkedProduct(_linkedLines[entryIndex]),
+            onScanWithCamera: () =>
+                _scanLinkedProductWithCamera(_linkedLines[entryIndex]),
+            onRemove: () => _removeLinkedLine(_linkedLines[entryIndex]),
+          ),
+      ],
+    );
+  }
+
+  double _lazyLineListHeight(int itemCount) {
+    return (itemCount * 74.0).clamp(74.0, 420.0).toDouble();
   }
 
   static int? _parseInt(String value) {
@@ -1343,6 +1443,14 @@ class _OutgoingWarehouseShipmentCreateSheetState
     final messenger = ScaffoldMessenger.maybeOf(context);
     messenger?.hideCurrentSnackBar();
     messenger?.showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  void _refocusLine(FocusNode focusNode) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        focusNode.requestFocus();
+      }
+    });
   }
 }
 
@@ -1371,6 +1479,20 @@ class _ManualShipmentLineCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final product = line.selectedProduct;
+
+    if (!isFreshEntry && product != null) {
+      return TerminalCompactProductLineCard(
+        lineNo: lineNumber,
+        stockCode: product.stockCode,
+        stockName: product.stockName,
+        quantityController: line.quantityController,
+        unitLabel: product.unitName,
+        barcode: product.barcode,
+        canDelete: canRemove,
+        onDelete: onRemove,
+        onMinimumReached: canRemove ? onRemove : null,
+      );
+    }
 
     return TerminalPdaLineCard(
       title: isFreshEntry ? 'Giris satiri' : 'Satir $lineNumber',
@@ -1498,6 +1620,25 @@ class _LinkedShipmentLineCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final product = line.selectedProduct;
+
+    if (!isFreshEntry) {
+      return TerminalCompactProductLineCard(
+        lineNo: lineNumber,
+        stockCode: line.stockCode,
+        stockName: line.stockName,
+        quantityController: line.quantityController,
+        unitLabel: line.unitName,
+        barcode: product?.barcode,
+        priceLabel: line.isOrderLinked
+            ? 'Kalan ${AppFormatters.quantity(line.maxQuantity)}'
+            : null,
+        warningLabel: line.isOrderLinked ? 'Siparisli' : null,
+        maximumQuantity: line.isOrderLinked ? line.maxQuantity : null,
+        canDelete: canRemove,
+        onDelete: onRemove,
+        onMinimumReached: canRemove ? onRemove : null,
+      );
+    }
 
     return TerminalPdaLineCard(
       title: isFreshEntry ? 'Giris satiri' : 'Satir $lineNumber',
@@ -2002,16 +2143,20 @@ class _WarehouseLookupSheetState extends State<_WarehouseLookupSheet> {
       isEmpty: _items.isEmpty,
       emptyMessage: 'Sonuc bulunamadi.',
       child: ListView.separated(
-        shrinkWrap: true,
-        physics: const NeverScrollableScrollPhysics(),
         itemCount: _items.length,
-        separatorBuilder: (context, index) => const SizedBox(height: 10),
+        separatorBuilder: (context, index) => const SizedBox(height: 4),
         itemBuilder: (context, index) {
           final item = _items[index];
 
           return ListTile(
+            dense: true,
+            visualDensity: VisualDensity.compact,
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 10,
+              vertical: 2,
+            ),
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(18),
+              borderRadius: BorderRadius.circular(8),
               side: BorderSide(
                 color: Theme.of(
                   context,
@@ -2020,9 +2165,15 @@ class _WarehouseLookupSheetState extends State<_WarehouseLookupSheet> {
             ),
             title: Text(
               item.displayLabel,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: const TextStyle(fontWeight: FontWeight.w700),
             ),
-            subtitle: Text('${item.district} ${item.province}'.trim()),
+            subtitle: Text(
+              '${item.district} ${item.province}'.trim(),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
             onTap: () => Navigator.of(context).pop(item),
           );
         },
@@ -2124,16 +2275,20 @@ class _ProductLookupSheetState extends State<_ProductLookupSheet> {
       isEmpty: _items.isEmpty,
       emptyMessage: 'Sonuc bulunamadi.',
       child: ListView.separated(
-        shrinkWrap: true,
-        physics: const NeverScrollableScrollPhysics(),
         itemCount: _items.length,
-        separatorBuilder: (context, index) => const SizedBox(height: 10),
+        separatorBuilder: (context, index) => const SizedBox(height: 4),
         itemBuilder: (context, index) {
           final item = _items[index];
 
           return ListTile(
+            dense: true,
+            visualDensity: VisualDensity.compact,
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 10,
+              vertical: 2,
+            ),
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(18),
+              borderRadius: BorderRadius.circular(8),
               side: BorderSide(
                 color: Theme.of(
                   context,
@@ -2142,10 +2297,14 @@ class _ProductLookupSheetState extends State<_ProductLookupSheet> {
             ),
             title: Text(
               item.displayLabel,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: const TextStyle(fontWeight: FontWeight.w700),
             ),
             subtitle: Text(
               'Birim: ${item.unitName}  |  Fiyat: ${AppFormatters.currency(item.price)}',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
             trailing: item.isOrderBlocked
                 ? const Icon(Icons.warning_amber_rounded)
@@ -2194,48 +2353,46 @@ class _LookupScaffold extends StatelessWidget {
           heightFactor: 0.88,
           child: Material(
             color: Theme.of(context).scaffoldBackgroundColor,
-            child: ListView(
+            child: Padding(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-              children: <Widget>[
-                SectionCard(
-                  title: title,
-                  subtitle: subtitle,
-                  child: _ResponsiveSearchRow(
-                    textField: TextField(
-                      controller: queryController,
-                      decoration: InputDecoration(
-                        labelText: 'Arama',
-                        hintText: hintText,
+              child: Column(
+                children: <Widget>[
+                  SectionCard(
+                    title: title,
+                    subtitle: subtitle,
+                    child: _ResponsiveSearchRow(
+                      textField: TextField(
+                        controller: queryController,
+                        decoration: InputDecoration(
+                          labelText: 'Arama',
+                          hintText: hintText,
+                        ),
+                        onSubmitted: (_) => onSearch(),
                       ),
-                    ),
-                    button: FilledButton.icon(
-                      onPressed: onSearch,
-                      icon: const Icon(Icons.search_rounded),
-                      label: const Text('Ara'),
+                      button: FilledButton.icon(
+                        onPressed: isLoading ? null : onSearch,
+                        icon: const Icon(Icons.search_rounded),
+                        label: const Text('Ara'),
+                      ),
                     ),
                   ),
-                ),
-                const SizedBox(height: 16),
-                if (errorMessage != null)
-                  _ValidationBlock(message: errorMessage!)
-                else if (isLoading)
-                  const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 32),
-                    child: Center(child: CircularProgressIndicator()),
-                  )
-                else if (isEmpty)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 32),
-                    child: Center(
-                      child: Text(
-                        emptyMessage,
-                        style: Theme.of(context).textTheme.bodyLarge,
-                      ),
-                    ),
-                  )
-                else
-                  child,
-              ],
+                  const SizedBox(height: 12),
+                  Expanded(
+                    child: errorMessage != null
+                        ? _ValidationBlock(message: errorMessage!)
+                        : isLoading
+                        ? const Center(child: CircularProgressIndicator())
+                        : isEmpty
+                        ? Center(
+                            child: Text(
+                              emptyMessage,
+                              style: Theme.of(context).textTheme.bodyLarge,
+                            ),
+                          )
+                        : child,
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -2315,6 +2472,12 @@ class _ManualShipmentLineDraft {
     lookupStatusMessage = message;
     isLookupStatusLoading = isLoading;
     isLookupStatusError = isError;
+  }
+
+  void clearLookupStatus() {
+    lookupStatusMessage = null;
+    isLookupStatusLoading = false;
+    isLookupStatusError = false;
   }
 
   void dispose() {
@@ -2520,6 +2683,12 @@ class _LinkedShipmentLineDraft {
     _lookupStatusMessage = message;
     _isLookupStatusLoading = isLoading;
     _isLookupStatusError = isError;
+  }
+
+  void clearLookupStatus() {
+    _lookupStatusMessage = null;
+    _isLookupStatusLoading = false;
+    _isLookupStatusError = false;
   }
 
   void dispose() {

@@ -200,6 +200,9 @@ class _GivenWarehouseOrderCreateSheetState
     );
 
     if (product == null || !mounted) {
+      if (mounted) {
+        _refocusLine(line.barcodeFocusNode);
+      }
       return;
     }
     final pickedProduct = product;
@@ -256,6 +259,14 @@ class _GivenWarehouseOrderCreateSheetState
       final firstLine = _lines.first;
       if (_isBlankLine(firstLine)) {
         firstLine.barcodeFocusNode.requestFocus();
+      }
+    });
+  }
+
+  void _refocusLine(FocusNode focusNode) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        focusNode.requestFocus();
       }
     });
   }
@@ -452,88 +463,91 @@ class _GivenWarehouseOrderCreateSheetState
                     ),
                   ),
 
-                  // ========== ANA ICERIK (Scroll) ==========
                   Expanded(
-                    child: ListView(
+                    child: CustomScrollView(
                       controller: _scrollController,
-                      padding: const EdgeInsets.all(16),
-                      children: [
-                        // --- Depo Bilgileri (Kompakt) ---
-                        _buildWarehouseSection(theme),
-                        const SizedBox(height: 16),
-
-                        // --- Satirlar ---
-                        TerminalSectionToolbar(
-                          title: 'Satirlar',
-                          actions: const [],
-                        ),
-                        const SizedBox(height: 10),
-
-                        // --- Satir kartlari ---
-                        ..._lines.asMap().entries.map(
-                          (entry) => _buildLineCard(
-                            index: entry.key,
-                            line: entry.value,
-                            theme: theme,
+                      slivers: <Widget>[
+                        SliverPadding(
+                          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                          sliver: SliverList.list(
+                            children: <Widget>[
+                              _buildWarehouseSection(theme),
+                              const SizedBox(height: 12),
+                              TerminalSectionToolbar(
+                                title: 'Satirlar',
+                                actions: const [],
+                              ),
+                              const SizedBox(height: 8),
+                              _buildEntryLineCard(theme),
+                            ],
                           ),
                         ),
-                        const SizedBox(height: 12),
-
-                        if (_validationMessage != null) ...[
-                          const SizedBox(height: 16),
-                          Container(
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: theme.colorScheme.errorContainer,
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Row(
-                              children: [
-                                Icon(
-                                  Icons.error_outline,
-                                  color: theme.colorScheme.error,
-                                  size: 20,
-                                ),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: Text(
-                                    _validationMessage!,
-                                    style: theme.textTheme.bodyMedium?.copyWith(
-                                      color: theme.colorScheme.onErrorContainer,
+                        _buildLazyLineSliver(theme),
+                        SliverPadding(
+                          padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                          sliver: SliverToBoxAdapter(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: <Widget>[
+                                if (_validationMessage != null) ...[
+                                  Container(
+                                    padding: const EdgeInsets.all(12),
+                                    decoration: BoxDecoration(
+                                      color: theme.colorScheme.errorContainer,
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        Icon(
+                                          Icons.error_outline,
+                                          color: theme.colorScheme.error,
+                                          size: 20,
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Expanded(
+                                          child: Text(
+                                            _validationMessage!,
+                                            style: theme.textTheme.bodyMedium
+                                                ?.copyWith(
+                                                  color: theme
+                                                      .colorScheme
+                                                      .onErrorContainer,
+                                                ),
+                                          ),
+                                        ),
+                                      ],
                                     ),
                                   ),
+                                  const SizedBox(height: 10),
+                                ],
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: OutlinedButton(
+                                        onPressed: () =>
+                                            Navigator.of(context).pop(),
+                                        child: const Text('Vazgec'),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      flex: 2,
+                                      child: FilledButton.icon(
+                                        onPressed: _submit,
+                                        icon: const Icon(Icons.save_rounded),
+                                        label: const Text('Siparisi Olustur'),
+                                        style: FilledButton.styleFrom(
+                                          padding: const EdgeInsets.symmetric(
+                                            vertical: 14,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ],
                             ),
                           ),
-                        ],
-
-                        const SizedBox(height: 16),
-
-                        // --- Aksiyon Butonlari ---
-                        Row(
-                          children: [
-                            Expanded(
-                              child: OutlinedButton(
-                                onPressed: () => Navigator.of(context).pop(),
-                                child: const Text('Vazgec'),
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              flex: 2,
-                              child: FilledButton.icon(
-                                onPressed: _submit,
-                                icon: const Icon(Icons.save_rounded),
-                                label: const Text('Siparisi Olustur'),
-                                style: FilledButton.styleFrom(
-                                  padding: const EdgeInsets.symmetric(
-                                    vertical: 14,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
                         ),
                       ],
                     ),
@@ -647,6 +661,40 @@ class _GivenWarehouseOrderCreateSheetState
     );
   }
 
+  Widget _buildEntryLineCard(ThemeData theme) {
+    final entryIndex = _lines.indexWhere(_isBlankLine);
+    final index = entryIndex == -1 ? 0 : entryIndex;
+    return _buildLineCard(index: index, line: _lines[index], theme: theme);
+  }
+
+  Widget _buildLazyLineSliver(ThemeData theme) {
+    final indexes = _filledLineIndexes();
+    if (indexes.isEmpty) {
+      return const SliverToBoxAdapter(child: SizedBox.shrink());
+    }
+
+    return SliverPadding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      sliver: SliverList(
+        delegate: SliverChildBuilderDelegate((context, visibleIndex) {
+          final index = indexes[visibleIndex];
+          return _buildLineCard(
+            index: index,
+            line: _lines[index],
+            theme: theme,
+          );
+        }, childCount: indexes.length),
+      ),
+    );
+  }
+
+  List<int> _filledLineIndexes() {
+    return <int>[
+      for (var index = 0; index < _lines.length; index++)
+        if (!_isBlankLine(_lines[index])) index,
+    ];
+  }
+
   Widget _buildLineCard({
     required int index,
     required _CreateLineDraft line,
@@ -659,6 +707,21 @@ class _GivenWarehouseOrderCreateSheetState
         .take(index + 1)
         .where((item) => !_isBlankLine(item))
         .length;
+
+    if (!isFreshEntry && product != null) {
+      return TerminalCompactProductLineCard(
+        lineNo: displayLineNo,
+        stockCode: product.stockCode,
+        stockName: product.stockName,
+        quantityController: line.quantityController,
+        unitLabel: product.unitName,
+        barcode: product.barcode,
+        warningLabel: product.isOrderBlocked ? 'Blokeli' : null,
+        canDelete: _lines.length > 1,
+        onDelete: () => _removeLine(line),
+        onMinimumReached: _lines.length > 1 ? () => _removeLine(line) : null,
+      );
+    }
 
     return TerminalPdaLineCard(
       title: isFreshEntry ? 'Giris satiri' : 'Satir $displayLineNo',
@@ -859,12 +922,17 @@ class _WarehouseLookupSheetState extends State<_WarehouseLookupSheet> {
       title: 'Depo Ara',
       subtitle: 'Depo no veya ad ile arayin',
       child: ListView.separated(
-        shrinkWrap: true,
         itemCount: _items.length,
-        separatorBuilder: (_, _) => const SizedBox(height: 8),
+        separatorBuilder: (_, _) => const SizedBox(height: 4),
         itemBuilder: (context, index) {
           final item = _items[index];
           return ListTile(
+            dense: true,
+            visualDensity: VisualDensity.compact,
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 10,
+              vertical: 2,
+            ),
             tileColor: Theme.of(
               context,
             ).colorScheme.surfaceContainerHighest.withAlpha(40),
@@ -873,9 +941,15 @@ class _WarehouseLookupSheetState extends State<_WarehouseLookupSheet> {
             ),
             title: Text(
               item.displayLabel,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: const TextStyle(fontWeight: FontWeight.w600),
             ),
-            subtitle: Text('${item.district} ${item.province}'.trim()),
+            subtitle: Text(
+              '${item.district} ${item.province}'.trim(),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
             onTap: () => Navigator.of(context).pop(item),
           );
         },
@@ -1099,12 +1173,18 @@ class _ProductLookupSheetState extends State<_ProductLookupSheet> {
                       : _items.isEmpty
                       ? const Center(child: Text('Sonuc bulunamadi'))
                       : ListView.separated(
-                          padding: const EdgeInsets.symmetric(horizontal: 20),
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
                           itemCount: _items.length,
-                          separatorBuilder: (_, _) => const SizedBox(height: 8),
+                          separatorBuilder: (_, _) => const SizedBox(height: 4),
                           itemBuilder: (context, index) {
                             final item = _items[index];
                             return ListTile(
+                              dense: true,
+                              visualDensity: VisualDensity.compact,
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 2,
+                              ),
                               tileColor: Theme.of(context)
                                   .colorScheme
                                   .surfaceContainerHighest
@@ -1114,12 +1194,16 @@ class _ProductLookupSheetState extends State<_ProductLookupSheet> {
                               ),
                               title: Text(
                                 item.displayLabel,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                                 style: const TextStyle(
                                   fontWeight: FontWeight.w600,
                                 ),
                               ),
                               subtitle: Text(
                                 'Birim: ${item.unitName} | Fiyat: ${AppFormatters.currency(item.price)}',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                               ),
                               trailing: item.isOrderBlocked
                                   ? const Icon(Icons.warning_amber_rounded)

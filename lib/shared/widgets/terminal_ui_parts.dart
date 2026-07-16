@@ -796,6 +796,469 @@ class TerminalPdaLineCard extends StatelessWidget {
   }
 }
 
+class TerminalCompactProductLineCard extends StatelessWidget {
+  const TerminalCompactProductLineCard({
+    super.key,
+    required this.lineNo,
+    required this.stockCode,
+    required this.stockName,
+    required this.quantityController,
+    this.unitLabel,
+    this.priceLabel,
+    this.barcode,
+    this.warningLabel,
+    this.canDelete = true,
+    this.onDelete,
+    this.onMinimumReached,
+    this.quantityStep = 1,
+    this.maximumQuantity,
+  });
+
+  final int lineNo;
+  final String stockCode;
+  final String stockName;
+  final TextEditingController quantityController;
+  final String? unitLabel;
+  final String? priceLabel;
+  final String? barcode;
+  final String? warningLabel;
+  final bool canDelete;
+  final VoidCallback? onDelete;
+  final VoidCallback? onMinimumReached;
+  final double quantityStep;
+  final double? maximumQuantity;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 6),
+      padding: const EdgeInsets.fromLTRB(8, 7, 7, 7),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: theme.colorScheme.outlineVariant.withAlpha(96),
+        ),
+      ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final isTight = constraints.maxWidth < 350;
+          final details = _TerminalCompactProductLineDetails(
+            lineNo: lineNo,
+            stockCode: stockCode,
+            stockName: stockName,
+            unitLabel: unitLabel,
+            priceLabel: priceLabel,
+            barcode: barcode,
+            warningLabel: warningLabel,
+            showLineLabel: true,
+          );
+          final controls = Row(
+            mainAxisSize: isTight ? MainAxisSize.max : MainAxisSize.min,
+            children: <Widget>[
+              SizedBox(
+                width: isTight ? 132 : 118,
+                child: _TerminalCompactQuantityControl(
+                  controller: quantityController,
+                  step: quantityStep,
+                  maximum: maximumQuantity,
+                  onMinimumReached: onMinimumReached,
+                ),
+              ),
+              const SizedBox(width: 4),
+              IconButton(
+                onPressed: canDelete ? onDelete : null,
+                icon: const Icon(Icons.delete_outline_rounded, size: 20),
+                tooltip: 'Satiri sil',
+                constraints: const BoxConstraints.tightFor(
+                  width: 34,
+                  height: 34,
+                ),
+                padding: EdgeInsets.zero,
+                style: IconButton.styleFrom(
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+              ),
+            ],
+          );
+
+          if (isTight) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[details, const SizedBox(height: 6), controls],
+            );
+          }
+
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: <Widget>[
+              Expanded(child: details),
+              const SizedBox(width: 8),
+              controls,
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+class TerminalCompactProductLineSummary extends StatelessWidget {
+  const TerminalCompactProductLineSummary({
+    super.key,
+    required this.lineNo,
+    required this.stockCode,
+    required this.stockName,
+    this.unitLabel,
+    this.priceLabel,
+    this.barcode,
+    this.warningLabel,
+    this.trailing,
+  });
+
+  final int lineNo;
+  final String stockCode;
+  final String stockName;
+  final String? unitLabel;
+  final String? priceLabel;
+  final String? barcode;
+  final String? warningLabel;
+  final Widget? trailing;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(8, 7, 7, 7),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: Theme.of(context).colorScheme.outlineVariant.withAlpha(96),
+        ),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: <Widget>[
+          Expanded(
+            child: _TerminalCompactProductLineDetails(
+              lineNo: lineNo,
+              stockCode: stockCode,
+              stockName: stockName,
+              unitLabel: unitLabel,
+              priceLabel: priceLabel,
+              barcode: barcode,
+              warningLabel: warningLabel,
+              showLineLabel: false,
+            ),
+          ),
+          if (trailing != null) ...<Widget>[
+            const SizedBox(width: 6),
+            trailing!,
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _TerminalCompactProductLineDetails extends StatelessWidget {
+  const _TerminalCompactProductLineDetails({
+    required this.lineNo,
+    required this.stockCode,
+    required this.stockName,
+    required this.unitLabel,
+    required this.priceLabel,
+    required this.barcode,
+    required this.warningLabel,
+    required this.showLineLabel,
+  });
+
+  final int lineNo;
+  final String stockCode;
+  final String stockName;
+  final String? unitLabel;
+  final String? priceLabel;
+  final String? barcode;
+  final String? warningLabel;
+  final bool showLineLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Container(
+          width: 28,
+          height: 28,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: theme.colorScheme.primaryContainer.withAlpha(92),
+            borderRadius: BorderRadius.circular(7),
+          ),
+          child: Text(
+            '$lineNo',
+            style: theme.textTheme.labelLarge?.copyWith(
+              height: 1,
+              color: theme.colorScheme.primary,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+        ),
+        const SizedBox(width: 7),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              Row(
+                children: <Widget>[
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 92),
+                    child: Text(
+                      stockCode,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.labelLarge?.copyWith(
+                        height: 1.05,
+                        color: const Color(0xFF22356A),
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 5),
+                  Expanded(
+                    child: Text(
+                      stockName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        height: 1.05,
+                        color: const Color(0xFF2E3946),
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Wrap(
+                spacing: 5,
+                runSpacing: 3,
+                children: <Widget>[
+                  if (showLineLabel)
+                    _TerminalMiniLineMeta(text: 'Satir $lineNo'),
+                  if ((unitLabel ?? '').trim().isNotEmpty)
+                    _TerminalMiniLineMeta(text: unitLabel!),
+                  if ((priceLabel ?? '').trim().isNotEmpty)
+                    _TerminalMiniLineMeta(text: priceLabel!),
+                  if ((barcode ?? '').trim().isNotEmpty)
+                    _TerminalMiniLineMeta(text: barcode!),
+                  if ((warningLabel ?? '').trim().isNotEmpty)
+                    _TerminalMiniLineMeta(
+                      text: warningLabel!,
+                      color: theme.colorScheme.error,
+                    ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _TerminalMiniLineMeta extends StatelessWidget {
+  const _TerminalMiniLineMeta({required this.text, this.color});
+
+  final String text;
+  final Color? color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      text,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+        height: 1.05,
+        color: color ?? const Color(0xFF607080),
+        fontWeight: FontWeight.w700,
+      ),
+    );
+  }
+}
+
+class _TerminalCompactQuantityControl extends StatelessWidget {
+  const _TerminalCompactQuantityControl({
+    required this.controller,
+    required this.step,
+    this.maximum,
+    required this.onMinimumReached,
+  });
+
+  final TextEditingController controller;
+  final double step;
+  final double? maximum;
+  final VoidCallback? onMinimumReached;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: <Widget>[
+        _TerminalCompactQuantityButton(
+          icon: Icons.remove_rounded,
+          tooltip: 'Azalt',
+          onPressed: () => _changeBy(context, -step),
+        ),
+        Expanded(
+          child: SizedBox(
+            height: 34,
+            child: TextFormField(
+              controller: controller,
+              textAlign: TextAlign.center,
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
+              inputFormatters: <TextInputFormatter>[
+                FilteringTextInputFormatter.allow(RegExp(r'[0-9,\.]')),
+              ],
+              decoration: const InputDecoration(
+                isDense: true,
+                contentPadding: EdgeInsets.symmetric(
+                  horizontal: 4,
+                  vertical: 7,
+                ),
+              ),
+              style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                height: 1,
+                fontWeight: FontWeight.w900,
+              ),
+              validator: (value) {
+                if (_readQuantity(value ?? '') <= 0) {
+                  return '';
+                }
+                final max = maximum;
+                if (max != null && _readQuantity(value ?? '') > max) {
+                  return '';
+                }
+
+                return null;
+              },
+            ),
+          ),
+        ),
+        _TerminalCompactQuantityButton(
+          icon: Icons.add_rounded,
+          tooltip: 'Artir',
+          onPressed: () => _changeBy(context, step),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _changeBy(BuildContext context, double delta) async {
+    final current = _readQuantity(controller.text);
+    var next = current + delta;
+    if (next < 0) {
+      next = 0;
+    }
+    final max = maximum;
+    if (max != null && next > max) {
+      next = max;
+    }
+
+    final reachesMinimum = delta < 0 && next <= 0 && onMinimumReached != null;
+    if (reachesMinimum) {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (context) {
+          return AlertDialog(
+            title: const Text('Kalem silinsin mi?'),
+            content: const Text(
+              'Miktar 0 olacak. Bu kalemi listeden silmek istiyor musunuz?',
+            ),
+            actions: <Widget>[
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: const Text('Vazgec'),
+              ),
+              FilledButton.icon(
+                onPressed: () => Navigator.of(context).pop(true),
+                icon: const Icon(Icons.delete_outline_rounded),
+                label: const Text('Sil'),
+              ),
+            ],
+          );
+        },
+      );
+      if (confirmed != true || !context.mounted) {
+        return;
+      }
+    }
+
+    controller.text = _formatCompactQuantity(next);
+    controller.selection = TextSelection.collapsed(
+      offset: controller.text.length,
+    );
+    if (reachesMinimum) {
+      onMinimumReached?.call();
+    }
+  }
+
+  static double _readQuantity(String value) {
+    final normalized = value.trim().replaceAll(',', '.');
+    if (normalized.isEmpty) {
+      return 0;
+    }
+    return double.tryParse(normalized) ?? 0;
+  }
+
+  static String _formatCompactQuantity(double value) {
+    if (value == value.roundToDouble()) {
+      return value.toInt().toString();
+    }
+    return value
+        .toStringAsFixed(3)
+        .replaceFirst(RegExp(r'0+$'), '')
+        .replaceFirst(RegExp(r'\.$'), '')
+        .replaceAll('.', ',');
+  }
+}
+
+class _TerminalCompactQuantityButton extends StatelessWidget {
+  const _TerminalCompactQuantityButton({
+    required this.icon,
+    required this.tooltip,
+    required this.onPressed,
+  });
+
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton.filledTonal(
+      onPressed: onPressed,
+      icon: Icon(icon, size: 18),
+      tooltip: tooltip,
+      constraints: const BoxConstraints.tightFor(width: 30, height: 34),
+      padding: EdgeInsets.zero,
+      style: IconButton.styleFrom(
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(7)),
+      ),
+    );
+  }
+}
+
 class TerminalQuantityStepper extends StatelessWidget {
   const TerminalQuantityStepper({
     super.key,

@@ -748,28 +748,47 @@ class _VirmanCreateSheetState extends State<_VirmanCreateSheet>
     } else {
       selected = await showModalBottomSheet<SearchProductLookupItem>(
         context: context,
+        isScrollControlled: true,
+        useSafeArea: true,
         showDragHandle: true,
         builder: (context) {
-          return ListView.separated(
-            shrinkWrap: true,
-            itemCount: products.length,
-            separatorBuilder: (_, _) => const Divider(height: 1),
-            itemBuilder: (context, index) {
-              final item = products[index];
-              return ListTile(
-                title: Text(item.displayLabel),
-                subtitle: Text(
-                  '${item.unitName}${item.barcode.isNotEmpty ? ' | ${item.barcode}' : ''}',
-                ),
-                onTap: () => Navigator.of(context).pop(item),
-              );
-            },
+          return FractionallySizedBox(
+            heightFactor: 0.82,
+            child: ListView.separated(
+              itemCount: products.length,
+              separatorBuilder: (_, _) => const Divider(height: 1),
+              itemBuilder: (context, index) {
+                final item = products[index];
+                return ListTile(
+                  dense: true,
+                  visualDensity: VisualDensity.compact,
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 2,
+                  ),
+                  title: Text(
+                    item.displayLabel,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  subtitle: Text(
+                    '${item.unitName}${item.barcode.isNotEmpty ? ' | ${item.barcode}' : ''}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  onTap: () => Navigator.of(context).pop(item),
+                );
+              },
+            ),
           );
         },
       );
     }
 
     if (selected == null || !mounted) {
+      if (mounted) {
+        _refocusLine(line.lookupFocusNode);
+      }
       return;
     }
     final pickedProduct = selected;
@@ -872,6 +891,14 @@ class _VirmanCreateSheetState extends State<_VirmanCreateSheet>
       final firstLine = _lines.first;
       if (_isBlankLine(firstLine)) {
         firstLine.lookupFocusNode.requestFocus();
+      }
+    });
+  }
+
+  void _refocusLine(FocusNode focusNode) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        focusNode.requestFocus();
       }
     });
   }
@@ -1106,6 +1133,20 @@ class _VirmanDraftLineCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final product = line.selectedProduct;
+
+    if (!isFreshEntry && product != null) {
+      return TerminalCompactProductLineCard(
+        lineNo: lineNumber,
+        stockCode: product.stockCode,
+        stockName: product.stockName,
+        quantityController: line.quantityController,
+        unitLabel: product.unitName,
+        barcode: product.barcode,
+        canDelete: canRemove,
+        onDelete: onRemove,
+        onMinimumReached: canRemove ? onRemove : null,
+      );
+    }
 
     return TerminalPdaLineCard(
       title: isFreshEntry ? 'Giris satiri' : 'Satir $lineNumber',

@@ -249,8 +249,9 @@ class _GivenCompanyOrderCreateSheetState
     if (product == null || !mounted) {
       if (mounted) {
         setState(() {
-          line.setLookupStatus('Urun secimi yapilmadi.');
+          line.clearLookupStatus();
         });
+        _refocusLine(line.barcodeFocusNode);
       }
       return;
     }
@@ -562,42 +563,56 @@ class _GivenCompanyOrderCreateSheetState
                     ),
                   ),
                   Expanded(
-                    child: ListView(
+                    child: CustomScrollView(
                       controller: _scrollController,
-                      padding: const EdgeInsets.all(16),
-                      children: <Widget>[
-                        _buildCustomerSection(theme),
-                        const SizedBox(height: 16),
-
-                        TerminalSectionToolbar(
-                          title: 'Satirlar',
-                          actions: const <Widget>[],
-                        ),
-                        const SizedBox(height: 10),
-                        ..._lines.asMap().entries.map(
-                          (entry) => _buildLineCard(
-                            theme: theme,
-                            index: entry.key,
-                            line: entry.value,
+                      slivers: <Widget>[
+                        SliverPadding(
+                          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                          sliver: SliverList.list(
+                            children: <Widget>[
+                              _buildCustomerSection(theme),
+                              const SizedBox(height: 12),
+                              TerminalSectionToolbar(
+                                title: 'Satirlar (${_activeLineCount()})',
+                                actions: const <Widget>[],
+                              ),
+                              const SizedBox(height: 8),
+                              _buildEntryLineCard(theme),
+                            ],
                           ),
                         ),
-                        if (_validationMessage != null) ...<Widget>[
-                          const SizedBox(height: 16),
-                          _ValidationBlock(message: _validationMessage!),
-                        ],
-                        const SizedBox(height: 16),
-                        TerminalFormActionRow(
-                          submitFlex: 2,
-                          cancel: OutlinedButton(
-                            onPressed: () => Navigator.of(context).pop(),
-                            child: const Text('Vazgec'),
-                          ),
-                          submit: FilledButton.icon(
-                            onPressed: _submit,
-                            icon: const Icon(Icons.save_rounded),
-                            label: const Text('Siparisi Olustur'),
-                            style: FilledButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(vertical: 14),
+                        _buildLazyLineSliver(theme),
+                        SliverPadding(
+                          padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                          sliver: SliverToBoxAdapter(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: <Widget>[
+                                if (_validationMessage != null) ...<Widget>[
+                                  _ValidationBlock(
+                                    message: _validationMessage!,
+                                  ),
+                                  const SizedBox(height: 10),
+                                ],
+                                TerminalFormActionRow(
+                                  submitFlex: 2,
+                                  cancel: OutlinedButton(
+                                    onPressed: () =>
+                                        Navigator.of(context).pop(),
+                                    child: const Text('Vazgec'),
+                                  ),
+                                  submit: FilledButton.icon(
+                                    onPressed: _submit,
+                                    icon: const Icon(Icons.save_rounded),
+                                    label: const Text('Siparisi Olustur'),
+                                    style: FilledButton.styleFrom(
+                                      padding: const EdgeInsets.symmetric(
+                                        vertical: 14,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         ),
@@ -695,6 +710,44 @@ class _GivenCompanyOrderCreateSheetState
     );
   }
 
+  Widget _buildEntryLineCard(ThemeData theme) {
+    final entryIndex = _lines.indexWhere(_isBlankLine);
+    final line = entryIndex == -1 ? _lines.first : _lines[entryIndex];
+    return _buildLineCard(
+      theme: theme,
+      index: entryIndex == -1 ? 0 : entryIndex,
+      line: line,
+    );
+  }
+
+  Widget _buildLazyLineSliver(ThemeData theme) {
+    final indexes = _filledLineIndexes();
+    if (indexes.isEmpty) {
+      return const SliverToBoxAdapter(child: SizedBox.shrink());
+    }
+
+    return SliverPadding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      sliver: SliverList(
+        delegate: SliverChildBuilderDelegate((context, visibleIndex) {
+          final index = indexes[visibleIndex];
+          return _buildLineCard(
+            theme: theme,
+            index: index,
+            line: _lines[index],
+          );
+        }, childCount: indexes.length),
+      ),
+    );
+  }
+
+  List<int> _filledLineIndexes() {
+    return <int>[
+      for (var index = 0; index < _lines.length; index++)
+        if (!_isBlankLine(_lines[index])) index,
+    ];
+  }
+
   Widget _buildLineCard({
     required ThemeData theme,
     required int index,
@@ -707,6 +760,26 @@ class _GivenCompanyOrderCreateSheetState
         .take(index + 1)
         .where((item) => !_isBlankLine(item))
         .length;
+
+    if (!isFreshEntry && product != null) {
+      return TerminalCompactProductLineCard(
+        lineNo: displayLineNo,
+        stockCode: product.stockCode,
+        stockName: product.stockName,
+        quantityController: line.quantityController,
+        unitLabel: product.unitName,
+        priceLabel: AppFormatters.currency(
+          productEntryController.readQuantity(
+            line.unitPriceController.text,
+            fallback: product.price,
+          ),
+        ),
+        barcode: product.barcode,
+        canDelete: _lines.length > 1,
+        onDelete: () => _removeLine(line),
+        onMinimumReached: _lines.length > 1 ? () => _removeLine(line) : null,
+      );
+    }
 
     return TerminalPdaLineCard(
       title: isFreshEntry ? 'Giris satiri' : 'Satir $displayLineNo',
@@ -818,6 +891,10 @@ class _GivenCompanyOrderCreateSheetState
     );
   }
 
+  int _activeLineCount() {
+    return _lines.where((line) => !_isBlankLine(line)).length;
+  }
+
   static DateTime _normalizeDate(DateTime value) {
     return DateTime(value.year, value.month, value.day);
   }
@@ -833,6 +910,14 @@ class _GivenCompanyOrderCreateSheetState
         margin: const EdgeInsets.all(16),
       ),
     );
+  }
+
+  void _refocusLine(FocusNode focusNode) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        focusNode.requestFocus();
+      }
+    });
   }
 }
 
@@ -919,6 +1004,12 @@ class _CompanyOrderLineDraft {
     lookupStatusMessage = message;
     isLookupStatusLoading = isLoading;
     isLookupStatusError = isError;
+  }
+
+  void clearLookupStatus() {
+    lookupStatusMessage = null;
+    isLookupStatusLoading = false;
+    isLookupStatusError = false;
   }
 
   Map<String, dynamic> toDraftJson() {
@@ -1100,12 +1191,17 @@ class _CustomerLookupSheetState extends State<_CustomerLookupSheet> {
       isEmpty: _items.isEmpty,
       emptyMessage: 'Sonuc bulunamadi.',
       child: ListView.separated(
-        shrinkWrap: true,
         itemCount: _items.length,
-        separatorBuilder: (_, _) => const SizedBox(height: 8),
+        separatorBuilder: (_, _) => const SizedBox(height: 4),
         itemBuilder: (context, index) {
           final item = _items[index];
           return ListTile(
+            dense: true,
+            visualDensity: VisualDensity.compact,
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 10,
+              vertical: 2,
+            ),
             tileColor: Theme.of(
               context,
             ).colorScheme.surfaceContainerHighest.withAlpha(40),
@@ -1114,6 +1210,8 @@ class _CustomerLookupSheetState extends State<_CustomerLookupSheet> {
             ),
             title: Text(
               item.displayLabel,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: const TextStyle(fontWeight: FontWeight.w600),
             ),
             subtitle: Text(
@@ -1231,12 +1329,17 @@ class _CompanyProductLookupSheetState
       isEmpty: _items.isEmpty,
       emptyMessage: 'Sonuc bulunamadi.',
       child: ListView.separated(
-        shrinkWrap: true,
         itemCount: _items.length,
-        separatorBuilder: (_, _) => const SizedBox(height: 8),
+        separatorBuilder: (_, _) => const SizedBox(height: 4),
         itemBuilder: (context, index) {
           final item = _items[index];
           return ListTile(
+            dense: true,
+            visualDensity: VisualDensity.compact,
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 10,
+              vertical: 2,
+            ),
             tileColor: Theme.of(
               context,
             ).colorScheme.surfaceContainerHighest.withAlpha(40),
@@ -1245,6 +1348,8 @@ class _CompanyProductLookupSheetState
             ),
             title: Text(
               item.displayLabel,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: const TextStyle(fontWeight: FontWeight.w600),
             ),
             subtitle: Text(
@@ -1254,6 +1359,8 @@ class _CompanyProductLookupSheetState
                 if (item.isOrderBlocked) 'Siparis blokeli',
                 if (item.isSalesBlocked) 'Satis blokeli',
               ].join(' | '),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
             onTap: () => Navigator.of(context).pop(item),
           );

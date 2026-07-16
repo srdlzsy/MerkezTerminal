@@ -258,6 +258,11 @@ class MobileCustomerCatalogLocalRepository {
   static const String _itemTable = 'mobile_customer_catalog.items.v1';
   static const String _metadataKey = 'mobile_customer_catalog.metadata.v1';
 
+  IndexedLocalDatabase? get _indexedDatabase {
+    final database = _database;
+    return database is IndexedLocalDatabase ? database : null;
+  }
+
   Future<MobileCustomerCatalogMetadata?> fetchMetadata() async {
     final document = await _database.readDocument(_metadataKey);
     if (document == null) {
@@ -275,24 +280,44 @@ class MobileCustomerCatalogLocalRepository {
       return const <MobileCustomerCatalogItem>[];
     }
 
-    final rows = await _database.readTable(_itemTable);
-    final items =
-        rows
-            .map(MobileCustomerCatalogItem.fromJson)
-            .where((item) => !item.isDeleted)
-            .where((item) => _customerSearchKey(item).contains(normalizedQuery))
-            .toList(growable: false)
-          ..sort(
-            (left, right) => _searchScore(
-              left,
-              normalizedQuery,
-            ).compareTo(_searchScore(right, normalizedQuery)),
-          );
+    final indexedDatabase = _indexedDatabase;
+    if (indexedDatabase != null) {
+      final indexedCount = await indexedDatabase.countIndexedRows(_itemTable);
+      if (indexedCount > 0) {
+        final exactRow = await indexedDatabase.findIndexedTableRow(
+          _itemTable,
+          lookupKey: normalizedQuery,
+        );
+        final rows = await indexedDatabase.searchIndexedTable(
+          _itemTable,
+          normalizedQuery: normalizedQuery,
+          limit: _candidateLimit(limit),
+        );
+        return _filterCustomerRows(
+          <JsonMap>[?exactRow, ...rows],
+          normalizedQuery: normalizedQuery,
+          limit: limit,
+        );
+      }
+    }
 
-    return items.take(limit).toList(growable: false);
+    final rows = await _database.readTable(_itemTable);
+    return _filterCustomerRows(
+      rows,
+      normalizedQuery: normalizedQuery,
+      limit: limit,
+    );
   }
 
   Future<int> countItems() async {
+    final indexedDatabase = _indexedDatabase;
+    if (indexedDatabase != null) {
+      final indexedCount = await indexedDatabase.countIndexedRows(_itemTable);
+      if (indexedCount > 0) {
+        return indexedCount;
+      }
+    }
+
     final rows = await _database.readTable(_itemTable);
     return rows.where((row) => !_readBool(row['isDeleted'])).length;
   }
@@ -301,6 +326,36 @@ class MobileCustomerCatalogLocalRepository {
     required List<MobileCustomerCatalogItem> items,
     required List<String> deletedCustomerCodes,
   }) async {
+    final indexedDatabase = _indexedDatabase;
+    if (indexedDatabase != null) {
+      final upserts = <LocalIndexedRow>[];
+      final deletes = <String>[];
+      final now = DateTime.now().toUtc();
+
+      for (final item in items) {
+        final key = _itemKey(item.customerCode);
+        if (key == null) {
+          continue;
+        }
+        if (item.isDeleted) {
+          deletes.add(key);
+          continue;
+        }
+        upserts.add(_indexedRow(item.copyWith(cachedAt: now)));
+      }
+
+      for (final customerCode in deletedCustomerCodes) {
+        final key = _itemKey(customerCode);
+        if (key != null) {
+          deletes.add(key);
+        }
+      }
+
+      await indexedDatabase.upsertIndexedRows(_itemTable, upserts);
+      await indexedDatabase.deleteIndexedRows(_itemTable, deletes);
+      return;
+    }
+
     final rows = await _database.readTable(_itemTable);
     final rowMap = _rowsByKey(rows);
     final now = DateTime.now().toUtc();
@@ -335,6 +390,28 @@ class MobileCustomerCatalogLocalRepository {
     required List<String> deletedCustomerCodes,
     required MobileCustomerCatalogMetadata metadata,
   }) async {
+    final indexedDatabase = _indexedDatabase;
+    if (indexedDatabase != null) {
+      final incomingRows = <LocalIndexedRow>[];
+      final deletedKeys = deletedCustomerCodes
+          .map(_itemKey)
+          .whereType<String>()
+          .toSet();
+      final now = DateTime.now().toUtc();
+
+      for (final item in items) {
+        final key = _itemKey(item.customerCode);
+        if (key == null || item.isDeleted || deletedKeys.contains(key)) {
+          continue;
+        }
+        incomingRows.add(_indexedRow(item.copyWith(cachedAt: now)));
+      }
+
+      await indexedDatabase.replaceIndexedRows(_itemTable, rows: incomingRows);
+      await saveMetadata(metadata.copyWith(itemCount: incomingRows.length));
+      return;
+    }
+
     final incomingRows = <String, JsonMap>{};
     final now = DateTime.now().toUtc();
 
@@ -390,6 +467,46 @@ class MobileCustomerCatalogLocalRepository {
     );
   }
 
+  LocalIndexedRow _indexedRow(MobileCustomerCatalogItem item) {
+    final rowKey = _itemKey(item.customerCode);
+    return LocalIndexedRow(
+      rowKey: rowKey ?? '',
+      lookupKey: _normalize(item.customerCode),
+      searchKey: _customerSearchKey(item),
+      document: item.toJson(),
+    );
+  }
+
+  List<MobileCustomerCatalogItem> _filterCustomerRows(
+    List<JsonMap> rows, {
+    required String normalizedQuery,
+    required int limit,
+  }) {
+    final seenKeys = <String>{};
+    final items = <MobileCustomerCatalogItem>[];
+
+    for (final row in rows) {
+      final item = MobileCustomerCatalogItem.fromJson(row);
+      if (item.isDeleted ||
+          !_customerSearchKey(item).contains(normalizedQuery)) {
+        continue;
+      }
+      final key = _itemKey(item.customerCode);
+      if (key == null || !seenKeys.add(key)) {
+        continue;
+      }
+      items.add(item);
+    }
+
+    items.sort(
+      (left, right) => _searchScore(
+        left,
+        normalizedQuery,
+      ).compareTo(_searchScore(right, normalizedQuery)),
+    );
+    return items.take(limit).toList(growable: false);
+  }
+
   int _searchScore(MobileCustomerCatalogItem item, String normalizedQuery) {
     if (_normalize(item.customerCode) == normalizedQuery) {
       return 0;
@@ -405,6 +522,18 @@ class MobileCustomerCatalogLocalRepository {
     }
     return 4;
   }
+}
+
+int _candidateLimit(int requestedLimit) {
+  final baseLimit = requestedLimit <= 0 ? 20 : requestedLimit;
+  final expanded = baseLimit * 20;
+  if (expanded < 200) {
+    return 200;
+  }
+  if (expanded > 1000) {
+    return 1000;
+  }
+  return expanded;
 }
 
 class MobileCustomerCatalogSyncResult {

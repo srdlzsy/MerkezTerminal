@@ -215,22 +215,38 @@ class _StockReceiptCreateSheetState extends State<StockReceiptCreateSheet>
 
       selected = await showModalBottomSheet<SearchProductLookupItem>(
         context: context,
+        isScrollControlled: true,
+        useSafeArea: true,
         showDragHandle: true,
         builder: (context) {
-          return ListView.separated(
-            shrinkWrap: true,
-            itemCount: products.length,
-            separatorBuilder: (_, _) => const Divider(height: 1),
-            itemBuilder: (context, index) {
-              final item = products[index];
-              return ListTile(
-                title: Text(item.displayLabel),
-                subtitle: Text(
-                  '${item.unitName} | ${AppFormatters.currency(item.price)}',
-                ),
-                onTap: () => Navigator.of(context).pop(item),
-              );
-            },
+          return FractionallySizedBox(
+            heightFactor: 0.82,
+            child: ListView.separated(
+              itemCount: products.length,
+              separatorBuilder: (_, _) => const Divider(height: 1),
+              itemBuilder: (context, index) {
+                final item = products[index];
+                return ListTile(
+                  dense: true,
+                  visualDensity: VisualDensity.compact,
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 2,
+                  ),
+                  title: Text(
+                    item.displayLabel,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  subtitle: Text(
+                    '${item.unitName} | ${AppFormatters.currency(item.price)}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  onTap: () => Navigator.of(context).pop(item),
+                );
+              },
+            ),
           );
         },
       );
@@ -239,10 +255,9 @@ class _StockReceiptCreateSheetState extends State<StockReceiptCreateSheet>
     if (selected == null) {
       if (mounted) {
         setState(() {
-          line.setLookupStatus(
-            '${products.length} sonuc geldi, secim yapilmadi.',
-          );
+          line.clearLookupStatus();
         });
+        _refocusLine(line.lookupFocusNode);
       }
       return;
     }
@@ -434,209 +449,250 @@ class _StockReceiptCreateSheetState extends State<StockReceiptCreateSheet>
       child: Form(
         key: _formKey,
         autovalidateMode: createFormAutovalidateMode,
-        child: ListView(
-          shrinkWrap: true,
-          children: <Widget>[
-            TerminalSheetHeader(
-              title: widget.kind.createTitle,
-              subtitle:
-                  'Creator ve acceptor alanlari evrak notu gibi calisir. Satirlar yalnizca secilen kullanici deposu icin cikis hareketine doner.',
-              padding: EdgeInsets.zero,
-            ),
-            const SizedBox(height: 16),
-            Wrap(
-              spacing: 10,
-              runSpacing: 10,
+        child: CustomScrollView(
+          slivers: <Widget>[
+            SliverList.list(
               children: <Widget>[
-                SizedBox(
-                  width: 220,
-                  child: TextFormField(
-                    controller: _creatorController,
-                    decoration: const InputDecoration(labelText: 'Creator'),
-                  ),
+                TerminalSheetHeader(
+                  title: widget.kind.createTitle,
+                  subtitle:
+                      'Creator ve acceptor alanlari evrak notu gibi calisir. Satirlar yalnizca secilen kullanici deposu icin cikis hareketine doner.',
+                  padding: EdgeInsets.zero,
                 ),
-                SizedBox(
-                  width: 220,
-                  child: TextFormField(
-                    controller: _acceptorController,
-                    decoration: const InputDecoration(labelText: 'Acceptor'),
-                  ),
+                const SizedBox(height: 16),
+                Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
+                  children: <Widget>[
+                    SizedBox(
+                      width: 220,
+                      child: TextFormField(
+                        controller: _creatorController,
+                        decoration: const InputDecoration(labelText: 'Creator'),
+                      ),
+                    ),
+                    SizedBox(
+                      width: 220,
+                      child: TextFormField(
+                        controller: _acceptorController,
+                        decoration: const InputDecoration(
+                          labelText: 'Acceptor',
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: _descriptionController,
+                  minLines: 2,
+                  maxLines: 3,
+                  decoration: const InputDecoration(labelText: 'Aciklama'),
+                ),
+                const SizedBox(height: 12),
+                TerminalSectionToolbar(
+                  title: 'Satirlar',
+                  actions: const <Widget>[],
+                ),
+                const SizedBox(height: 10),
+                _buildEntryLineCard(),
+                const SizedBox(height: 8),
               ],
             ),
-            const SizedBox(height: 12),
-            TextFormField(
-              controller: _descriptionController,
-              minLines: 2,
-              maxLines: 3,
-              decoration: const InputDecoration(labelText: 'Aciklama'),
-            ),
-            const SizedBox(height: 12),
-            TerminalSectionToolbar(
-              title: 'Satirlar',
-              actions: const <Widget>[],
-            ),
-            const SizedBox(height: 10),
-            ..._lines.asMap().entries.map((entry) {
-              final index = entry.key;
-              final line = entry.value;
-              final isFreshEntry = index == 0 && _isBlankLine(line);
-              final displayLineNo = _lines
-                  .take(index + 1)
-                  .where((item) => !_isBlankLine(item))
-                  .length;
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                      color: Theme.of(
-                        context,
-                      ).colorScheme.outlineVariant.withAlpha(90),
+            _buildLazyLineSliver(),
+            SliverToBoxAdapter(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: <Widget>[
+                  if (_lookupError != null) ...<Widget>[
+                    TerminalMessageBlock.error(message: _lookupError!),
+                    const SizedBox(height: 12),
+                  ],
+                  TerminalFormActionRow(
+                    cancel: OutlinedButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      child: const Text('Vazgec'),
+                    ),
+                    submit: FilledButton.icon(
+                      onPressed: _submit,
+                      icon: const Icon(Icons.save_alt_rounded),
+                      label: const Text('Kaydet'),
                     ),
                   ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: <Widget>[
-                      Row(
-                        children: <Widget>[
-                          Expanded(
-                            child: Text(
-                              isFreshEntry
-                                  ? 'Giris satiri'
-                                  : 'Satir $displayLineNo',
-                              style: Theme.of(context).textTheme.titleSmall
-                                  ?.copyWith(fontWeight: FontWeight.w800),
-                            ),
-                          ),
-                          if (!isFreshEntry && _lines.length > 1)
-                            IconButton(
-                              onPressed: () {
-                                setState(() {
-                                  line.dispose();
-                                  _lines.removeAt(index);
-                                });
-                                _draftSession.scheduleSave();
-                              },
-                              icon: const Icon(Icons.delete_outline_rounded),
-                            ),
-                        ],
-                      ),
-                      if (isFreshEntry)
-                        TerminalResponsiveLookupRow(
-                          field: ProductLookupField(
-                            controller: line.lookupController,
-                            focusNode: line.lookupFocusNode,
-                            enabled: !line.isLookupStatusLoading,
-                            onSubmit: () => _searchProduct(line),
-                          ),
-                          action: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: <Widget>[
-                              FilledButton.icon(
-                                onPressed: line.isLookupStatusLoading
-                                    ? null
-                                    : () => _searchProduct(line),
-                                icon: const Icon(Icons.search_rounded),
-                                label: const Text('Urun'),
-                              ),
-                              const SizedBox(width: 8),
-                              IconButton.filledTonal(
-                                onPressed: line.isLookupStatusLoading
-                                    ? null
-                                    : () => _scanProductWithCamera(line),
-                                tooltip: 'Kamera ile oku',
-                                icon: const Icon(
-                                  Icons.photo_camera_back_rounded,
-                                ),
-                              ),
-                            ],
-                          ),
-                        )
-                      else if (line.selectedProduct != null)
-                        TerminalPdaInfoGrid(
-                          minTileWidth: 92,
-                          items: <TerminalPdaInfo>[
-                            TerminalPdaInfo(
-                              label: 'Kod',
-                              value: line.selectedProduct!.stockCode,
-                            ),
-                            TerminalPdaInfo(
-                              label: 'Birim',
-                              value: line.selectedProduct!.unitName,
-                            ),
-                            if (line.selectedProduct!.barcode.isNotEmpty)
-                              TerminalPdaInfo(
-                                label: 'Barkod',
-                                value: line.selectedProduct!.barcode,
-                              ),
-                          ],
-                        ),
-                      if (isFreshEntry &&
-                          line.lookupStatusMessage != null) ...<Widget>[
-                        const SizedBox(height: 8),
-                        if (line.isLookupStatusLoading)
-                          TerminalMessageBlock.loading(
-                            message: line.lookupStatusMessage!,
-                          )
-                        else if (line.isLookupStatusError)
-                          TerminalMessageBlock.error(
-                            message: line.lookupStatusMessage!,
-                          )
-                        else
-                          TerminalMessageBlock.info(
-                            message: line.lookupStatusMessage!,
-                          ),
-                      ],
-                      if (!isFreshEntry) ...<Widget>[
-                        const SizedBox(height: 10),
-                        TerminalQuantityStepper(
-                          controller: line.quantityController,
-                          label: 'Miktar',
-                          onMinimumReached: !isFreshEntry && _lines.length > 1
-                              ? () {
-                                  setState(() {
-                                    line.dispose();
-                                    _lines.removeAt(index);
-                                  });
-                                  _draftSession.scheduleSave();
-                                }
-                              : null,
-                          validator: (_) {
-                            if (line.quantity <= 0) {
-                              return 'Miktar > 0';
-                            }
-                            return null;
-                          },
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-              );
-            }),
-            if (_lookupError != null) ...<Widget>[
-              TerminalMessageBlock.error(message: _lookupError!),
-              const SizedBox(height: 12),
-            ],
-            TerminalFormActionRow(
-              cancel: OutlinedButton(
-                onPressed: () => Navigator.of(context).pop(),
-                child: const Text('Vazgec'),
-              ),
-              submit: FilledButton.icon(
-                onPressed: _submit,
-                icon: const Icon(Icons.save_alt_rounded),
-                label: const Text('Kaydet'),
+                ],
               ),
             ),
           ],
         ),
       ),
     );
+  }
+
+  Widget _buildEntryLineCard() {
+    final entryIndex = _lines.indexWhere(_isBlankLine);
+    return _buildLineCard(entryIndex == -1 ? 0 : entryIndex);
+  }
+
+  Widget _buildLazyLineSliver() {
+    final indexes = _filledLineIndexes();
+    if (indexes.isEmpty) {
+      return const SliverToBoxAdapter(child: SizedBox.shrink());
+    }
+
+    return SliverList(
+      delegate: SliverChildBuilderDelegate(
+        (context, visibleIndex) => _buildLineCard(indexes[visibleIndex]),
+        childCount: indexes.length,
+      ),
+    );
+  }
+
+  List<int> _filledLineIndexes() {
+    return <int>[
+      for (var index = 0; index < _lines.length; index++)
+        if (!_isBlankLine(_lines[index])) index,
+    ];
+  }
+
+  Widget _buildLineCard(int index) {
+    final line = _lines[index];
+    final isFreshEntry = index == 0 && _isBlankLine(line);
+    final displayLineNo = _lines
+        .take(index + 1)
+        .where((item) => !_isBlankLine(item))
+        .length;
+    final product = line.selectedProduct;
+
+    if (!isFreshEntry && product != null) {
+      return TerminalCompactProductLineCard(
+        lineNo: displayLineNo,
+        stockCode: product.stockCode,
+        stockName: product.stockName,
+        quantityController: line.quantityController,
+        unitLabel: product.unitName,
+        barcode: product.barcode,
+        canDelete: _lines.length > 1,
+        onDelete: () => _removeLineAt(index),
+        onMinimumReached: _lines.length > 1 ? () => _removeLineAt(index) : null,
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surface,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: Theme.of(context).colorScheme.outlineVariant.withAlpha(90),
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Row(
+              children: <Widget>[
+                Expanded(
+                  child: Text(
+                    isFreshEntry ? 'Giris satiri' : 'Satir $displayLineNo',
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+                if (!isFreshEntry && _lines.length > 1)
+                  IconButton(
+                    onPressed: () => _removeLineAt(index),
+                    icon: const Icon(Icons.delete_outline_rounded),
+                  ),
+              ],
+            ),
+            if (isFreshEntry)
+              TerminalResponsiveLookupRow(
+                field: ProductLookupField(
+                  controller: line.lookupController,
+                  focusNode: line.lookupFocusNode,
+                  enabled: !line.isLookupStatusLoading,
+                  onSubmit: () => _searchProduct(line),
+                ),
+                action: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    FilledButton.icon(
+                      onPressed: line.isLookupStatusLoading
+                          ? null
+                          : () => _searchProduct(line),
+                      icon: const Icon(Icons.search_rounded),
+                      label: const Text('Urun'),
+                    ),
+                    const SizedBox(width: 8),
+                    IconButton.filledTonal(
+                      onPressed: line.isLookupStatusLoading
+                          ? null
+                          : () => _scanProductWithCamera(line),
+                      tooltip: 'Kamera ile oku',
+                      icon: const Icon(Icons.photo_camera_back_rounded),
+                    ),
+                  ],
+                ),
+              )
+            else if (line.selectedProduct != null)
+              TerminalPdaInfoGrid(
+                minTileWidth: 92,
+                items: <TerminalPdaInfo>[
+                  TerminalPdaInfo(
+                    label: 'Kod',
+                    value: line.selectedProduct!.stockCode,
+                  ),
+                  TerminalPdaInfo(
+                    label: 'Birim',
+                    value: line.selectedProduct!.unitName,
+                  ),
+                  if (line.selectedProduct!.barcode.isNotEmpty)
+                    TerminalPdaInfo(
+                      label: 'Barkod',
+                      value: line.selectedProduct!.barcode,
+                    ),
+                ],
+              ),
+            if (isFreshEntry && line.lookupStatusMessage != null) ...<Widget>[
+              const SizedBox(height: 8),
+              if (line.isLookupStatusLoading)
+                TerminalMessageBlock.loading(message: line.lookupStatusMessage!)
+              else if (line.isLookupStatusError)
+                TerminalMessageBlock.error(message: line.lookupStatusMessage!)
+              else
+                TerminalMessageBlock.info(message: line.lookupStatusMessage!),
+            ],
+            if (!isFreshEntry) ...<Widget>[
+              const SizedBox(height: 10),
+              TerminalQuantityStepper(
+                controller: line.quantityController,
+                label: 'Miktar',
+                onMinimumReached: _lines.length > 1
+                    ? () => _removeLineAt(index)
+                    : null,
+                validator: (_) {
+                  if (line.quantity <= 0) {
+                    return 'Miktar > 0';
+                  }
+                  return null;
+                },
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _removeLineAt(int index) {
+    setState(() {
+      _lines[index].dispose();
+      _lines.removeAt(index);
+    });
+    _draftSession.scheduleSave();
   }
 
   void _showFeedback(String message) {
@@ -650,6 +706,14 @@ class _StockReceiptCreateSheetState extends State<StockReceiptCreateSheet>
         margin: const EdgeInsets.all(16),
       ),
     );
+  }
+
+  void _refocusLine(FocusNode focusNode) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        focusNode.requestFocus();
+      }
+    });
   }
 }
 
@@ -740,6 +804,12 @@ class _StockReceiptLineDraft {
     lookupStatusMessage = message;
     isLookupStatusLoading = isLoading;
     isLookupStatusError = isError;
+  }
+
+  void clearLookupStatus() {
+    lookupStatusMessage = null;
+    isLookupStatusLoading = false;
+    isLookupStatusError = false;
   }
 
   void dispose() {

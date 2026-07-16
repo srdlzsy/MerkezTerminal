@@ -257,6 +257,8 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
 
     final selected = await showModalBottomSheet<CustomerLookupItem>(
       context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
       showDragHandle: true,
       builder: (context) {
         if (customers.isEmpty) {
@@ -266,20 +268,34 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
           );
         }
 
-        return ListView.separated(
-          shrinkWrap: true,
-          itemCount: customers.length,
-          separatorBuilder: (_, _) => const Divider(height: 1),
-          itemBuilder: (context, index) {
-            final item = customers[index];
-            return ListTile(
-              title: Text(item.customerDisplayName),
-              subtitle: Text(
-                '${item.customerCode} | ${item.representativeName.isEmpty ? '-' : item.representativeName}',
-              ),
-              onTap: () => Navigator.of(context).pop(item),
-            );
-          },
+        return FractionallySizedBox(
+          heightFactor: 0.82,
+          child: ListView.separated(
+            itemCount: customers.length,
+            separatorBuilder: (_, _) => const Divider(height: 1),
+            itemBuilder: (context, index) {
+              final item = customers[index];
+              return ListTile(
+                dense: true,
+                visualDensity: VisualDensity.compact,
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 2,
+                ),
+                title: Text(
+                  item.customerDisplayName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                subtitle: Text(
+                  '${item.customerCode} | ${item.representativeName.isEmpty ? '-' : item.representativeName}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                onTap: () => Navigator.of(context).pop(item),
+              );
+            },
+          ),
         );
       },
     );
@@ -367,22 +383,38 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
 
       selected = await showModalBottomSheet<SearchProductLookupItem>(
         context: context,
+        isScrollControlled: true,
+        useSafeArea: true,
         showDragHandle: true,
         builder: (context) {
-          return ListView.separated(
-            shrinkWrap: true,
-            itemCount: products.length,
-            separatorBuilder: (_, _) => const Divider(height: 1),
-            itemBuilder: (context, index) {
-              final item = products[index];
-              return ListTile(
-                title: Text(item.displayLabel),
-                subtitle: Text(
-                  '${item.unitName} | ${AppFormatters.currency(item.price)}${item.barcode.isNotEmpty ? ' | ${item.barcode}' : ''}',
-                ),
-                onTap: () => Navigator.of(context).pop(item),
-              );
-            },
+          return FractionallySizedBox(
+            heightFactor: 0.82,
+            child: ListView.separated(
+              itemCount: products.length,
+              separatorBuilder: (_, _) => const Divider(height: 1),
+              itemBuilder: (context, index) {
+                final item = products[index];
+                return ListTile(
+                  dense: true,
+                  visualDensity: VisualDensity.compact,
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 2,
+                  ),
+                  title: Text(
+                    item.displayLabel,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  subtitle: Text(
+                    '${item.unitName} | ${AppFormatters.currency(item.price)}${item.barcode.isNotEmpty ? ' | ${item.barcode}' : ''}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  onTap: () => Navigator.of(context).pop(item),
+                );
+              },
+            ),
           );
         },
       );
@@ -391,10 +423,9 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
     if (selected == null) {
       if (mounted) {
         setState(() {
-          line.setLookupStatus(
-            '${products.length} sonuc geldi, secim yapilmadi.',
-          );
+          line.clearLookupStatus();
         });
+        _refocusLine(line.lookupFocusNode);
       }
       return;
     }
@@ -653,6 +684,35 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
                   .take(index + 1)
                   .where((item) => !_isBlankLine(item))
                   .length;
+              final product = line.selectedProduct;
+              if (!isFreshEntry && product != null) {
+                return TerminalCompactProductLineCard(
+                  lineNo: displayLineNo,
+                  stockCode: product.stockCode,
+                  stockName: product.stockName,
+                  quantityController: line.quantityController,
+                  unitLabel: product.unitName,
+                  priceLabel: AppFormatters.currency(product.price),
+                  barcode: product.barcode,
+                  canDelete: _lines.length > 1,
+                  onDelete: () {
+                    setState(() {
+                      line.dispose();
+                      _lines.removeAt(index);
+                    });
+                    _scheduleDraftSave();
+                  },
+                  onMinimumReached: _lines.length > 1
+                      ? () {
+                          setState(() {
+                            line.dispose();
+                            _lines.removeAt(index);
+                          });
+                          _scheduleDraftSave();
+                        }
+                      : null,
+                );
+              }
               return Padding(
                 padding: const EdgeInsets.only(bottom: 12),
                 child: Container(
@@ -822,6 +882,14 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
       ),
     );
   }
+
+  void _refocusLine(FocusNode focusNode) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        focusNode.requestFocus();
+      }
+    });
+  }
 }
 
 class _MovementLineDraft {
@@ -930,6 +998,12 @@ class _MovementLineDraft {
     lookupStatusMessage = message;
     isLookupStatusLoading = isLoading;
     isLookupStatusError = isError;
+  }
+
+  void clearLookupStatus() {
+    lookupStatusMessage = null;
+    isLookupStatusLoading = false;
+    isLookupStatusError = false;
   }
 
   Map<String, dynamic> toDraftJson() {

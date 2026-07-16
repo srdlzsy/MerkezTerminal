@@ -258,6 +258,11 @@ class MobileWarehouseCatalogLocalRepository {
   static const String _itemTable = 'mobile_warehouse_catalog.items.v1';
   static const String _metadataKey = 'mobile_warehouse_catalog.metadata.v1';
 
+  IndexedLocalDatabase? get _indexedDatabase {
+    final database = _database;
+    return database is IndexedLocalDatabase ? database : null;
+  }
+
   Future<MobileWarehouseCatalogMetadata?> fetchMetadata() async {
     final document = await _database.readDocument(_metadataKey);
     if (document == null) {
@@ -271,28 +276,44 @@ class MobileWarehouseCatalogLocalRepository {
     int limit = 50,
   }) async {
     final normalizedQuery = _normalize(query);
-    final rows = await _database.readTable(_itemTable);
-    final items =
-        rows
-            .map(MobileWarehouseCatalogItem.fromJson)
-            .where((item) => !item.isDeleted)
-            .where(
-              (item) =>
-                  normalizedQuery.isEmpty ||
-                  _warehouseSearchKey(item).contains(normalizedQuery),
-            )
-            .toList(growable: false)
-          ..sort(
-            (left, right) => _searchScore(
-              left,
-              normalizedQuery,
-            ).compareTo(_searchScore(right, normalizedQuery)),
-          );
+    final indexedDatabase = _indexedDatabase;
+    if (indexedDatabase != null) {
+      final indexedCount = await indexedDatabase.countIndexedRows(_itemTable);
+      if (indexedCount > 0) {
+        final exactRow = await indexedDatabase.findIndexedTableRow(
+          _itemTable,
+          lookupKey: normalizedQuery,
+        );
+        final rows = await indexedDatabase.searchIndexedTable(
+          _itemTable,
+          normalizedQuery: normalizedQuery,
+          limit: _candidateLimit(limit),
+        );
+        return _filterWarehouseRows(
+          <JsonMap>[?exactRow, ...rows],
+          normalizedQuery: normalizedQuery,
+          limit: limit,
+        );
+      }
+    }
 
-    return items.take(limit).toList(growable: false);
+    final rows = await _database.readTable(_itemTable);
+    return _filterWarehouseRows(
+      rows,
+      normalizedQuery: normalizedQuery,
+      limit: limit,
+    );
   }
 
   Future<int> countItems() async {
+    final indexedDatabase = _indexedDatabase;
+    if (indexedDatabase != null) {
+      final indexedCount = await indexedDatabase.countIndexedRows(_itemTable);
+      if (indexedCount > 0) {
+        return indexedCount;
+      }
+    }
+
     final rows = await _database.readTable(_itemTable);
     return rows.where((row) => !_readBool(row['isDeleted'])).length;
   }
@@ -301,6 +322,36 @@ class MobileWarehouseCatalogLocalRepository {
     required List<MobileWarehouseCatalogItem> items,
     required List<int> deletedWarehouseNos,
   }) async {
+    final indexedDatabase = _indexedDatabase;
+    if (indexedDatabase != null) {
+      final upserts = <LocalIndexedRow>[];
+      final deletes = <String>[];
+      final now = DateTime.now().toUtc();
+
+      for (final item in items) {
+        final key = _itemKey(item.warehouseNo);
+        if (key == null) {
+          continue;
+        }
+        if (item.isDeleted) {
+          deletes.add(key);
+          continue;
+        }
+        upserts.add(_indexedRow(item.copyWith(cachedAt: now)));
+      }
+
+      for (final warehouseNo in deletedWarehouseNos) {
+        final key = _itemKey(warehouseNo);
+        if (key != null) {
+          deletes.add(key);
+        }
+      }
+
+      await indexedDatabase.upsertIndexedRows(_itemTable, upserts);
+      await indexedDatabase.deleteIndexedRows(_itemTable, deletes);
+      return;
+    }
+
     final rows = await _database.readTable(_itemTable);
     final rowMap = _rowsByKey(rows);
     final now = DateTime.now().toUtc();
@@ -335,6 +386,28 @@ class MobileWarehouseCatalogLocalRepository {
     required List<int> deletedWarehouseNos,
     required MobileWarehouseCatalogMetadata metadata,
   }) async {
+    final indexedDatabase = _indexedDatabase;
+    if (indexedDatabase != null) {
+      final incomingRows = <LocalIndexedRow>[];
+      final deletedKeys = deletedWarehouseNos
+          .map(_itemKey)
+          .whereType<String>()
+          .toSet();
+      final now = DateTime.now().toUtc();
+
+      for (final item in items) {
+        final key = _itemKey(item.warehouseNo);
+        if (key == null || item.isDeleted || deletedKeys.contains(key)) {
+          continue;
+        }
+        incomingRows.add(_indexedRow(item.copyWith(cachedAt: now)));
+      }
+
+      await indexedDatabase.replaceIndexedRows(_itemTable, rows: incomingRows);
+      await saveMetadata(metadata.copyWith(itemCount: incomingRows.length));
+      return;
+    }
+
     final incomingRows = <String, JsonMap>{};
     final now = DateTime.now().toUtc();
 
@@ -390,6 +463,49 @@ class MobileWarehouseCatalogLocalRepository {
     );
   }
 
+  LocalIndexedRow _indexedRow(MobileWarehouseCatalogItem item) {
+    final rowKey = _itemKey(item.warehouseNo);
+    return LocalIndexedRow(
+      rowKey: rowKey ?? '',
+      lookupKey: item.warehouseNo.toString(),
+      searchKey: _warehouseSearchKey(item),
+      document: item.toJson(),
+    );
+  }
+
+  List<MobileWarehouseCatalogItem> _filterWarehouseRows(
+    List<JsonMap> rows, {
+    required String normalizedQuery,
+    required int limit,
+  }) {
+    final seenKeys = <String>{};
+    final items = <MobileWarehouseCatalogItem>[];
+
+    for (final row in rows) {
+      final item = MobileWarehouseCatalogItem.fromJson(row);
+      if (item.isDeleted) {
+        continue;
+      }
+      if (normalizedQuery.isNotEmpty &&
+          !_warehouseSearchKey(item).contains(normalizedQuery)) {
+        continue;
+      }
+      final key = _itemKey(item.warehouseNo);
+      if (key == null || !seenKeys.add(key)) {
+        continue;
+      }
+      items.add(item);
+    }
+
+    items.sort(
+      (left, right) => _searchScore(
+        left,
+        normalizedQuery,
+      ).compareTo(_searchScore(right, normalizedQuery)),
+    );
+    return items.take(limit).toList(growable: false);
+  }
+
   int _searchScore(MobileWarehouseCatalogItem item, String normalizedQuery) {
     if (normalizedQuery.isEmpty) {
       return 4;
@@ -405,6 +521,18 @@ class MobileWarehouseCatalogLocalRepository {
     }
     return 3;
   }
+}
+
+int _candidateLimit(int requestedLimit) {
+  final baseLimit = requestedLimit <= 0 ? 50 : requestedLimit;
+  final expanded = baseLimit * 20;
+  if (expanded < 200) {
+    return 200;
+  }
+  if (expanded > 1000) {
+    return 1000;
+  }
+  return expanded;
 }
 
 class MobileWarehouseCatalogSyncResult {

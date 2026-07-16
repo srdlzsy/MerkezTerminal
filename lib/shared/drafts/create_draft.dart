@@ -1,3 +1,5 @@
+import 'package:furpa_merkez_terminal/shared/utils/client_request_id.dart';
+
 class CreateDraft {
   const CreateDraft({
     required this.id,
@@ -81,7 +83,7 @@ class CreateDraft {
   }) {
     final now = DateTime.now();
     return CreateDraft(
-      id: '${now.microsecondsSinceEpoch}-$moduleKey',
+      id: '${generateClientRequestId()}-$moduleKey',
       moduleKey: moduleKey,
       userId: userId,
       warehouseNo: warehouseNo,

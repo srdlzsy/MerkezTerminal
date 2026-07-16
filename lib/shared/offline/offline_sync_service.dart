@@ -299,7 +299,7 @@ class OfflineSyncService {
           draft: draft,
         );
         if (result.status == OfflineDraftSyncResultStatus.deferred) {
-          return;
+          break;
         }
       }
 
@@ -312,7 +312,7 @@ class OfflineSyncService {
           draft: draft,
         );
         if (result.status == OfflineDraftSyncResultStatus.deferred) {
-          return;
+          break;
         }
       }
     } finally {

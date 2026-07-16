@@ -218,6 +218,9 @@ class _WarehouseReturnCreateSheetState extends State<WarehouseReturnCreateSheet>
     );
 
     if (product == null || !mounted) {
+      if (mounted) {
+        _refocusLine(line.lookupFocusNode);
+      }
       return;
     }
     final pickedProduct = product;
@@ -276,6 +279,14 @@ class _WarehouseReturnCreateSheetState extends State<WarehouseReturnCreateSheet>
       final firstLine = _lines.first;
       if (_isBlankLine(firstLine)) {
         firstLine.lookupFocusNode.requestFocus();
+      }
+    });
+  }
+
+  void _refocusLine(FocusNode focusNode) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        focusNode.requestFocus();
       }
     });
   }
@@ -592,6 +603,20 @@ class _WarehouseReturnCreateSheetState extends State<WarehouseReturnCreateSheet>
         .take(index + 1)
         .where((item) => !_isBlankLine(item))
         .length;
+
+    if (!isFreshEntry && product != null) {
+      return TerminalCompactProductLineCard(
+        lineNo: displayLineNo,
+        stockCode: product.stockCode,
+        stockName: product.stockName,
+        quantityController: line.quantityController,
+        unitLabel: product.unitName,
+        barcode: product.barcode,
+        canDelete: _lines.length > 1,
+        onDelete: () => _removeLine(line),
+        onMinimumReached: _lines.length > 1 ? () => _removeLine(line) : null,
+      );
+    }
 
     return TerminalPdaLineCard(
       title: isFreshEntry ? 'Giris satiri' : 'Satir $displayLineNo',
@@ -941,12 +966,17 @@ class _WarehouseLookupSheetState extends State<_WarehouseLookupSheet> {
       isEmpty: _items.isEmpty,
       emptyMessage: 'Sonuc bulunamadi.',
       child: ListView.separated(
-        shrinkWrap: true,
         itemCount: _items.length,
-        separatorBuilder: (_, _) => const SizedBox(height: 8),
+        separatorBuilder: (_, _) => const SizedBox(height: 4),
         itemBuilder: (context, index) {
           final item = _items[index];
           return ListTile(
+            dense: true,
+            visualDensity: VisualDensity.compact,
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 10,
+              vertical: 2,
+            ),
             tileColor: Theme.of(
               context,
             ).colorScheme.surfaceContainerHighest.withAlpha(40),
@@ -1055,12 +1085,17 @@ class _ProductLookupSheetState extends State<_ProductLookupSheet> {
       isEmpty: _items.isEmpty,
       emptyMessage: 'Sonuc bulunamadi.',
       child: ListView.separated(
-        shrinkWrap: true,
         itemCount: _items.length,
-        separatorBuilder: (_, _) => const SizedBox(height: 8),
+        separatorBuilder: (_, _) => const SizedBox(height: 4),
         itemBuilder: (context, index) {
           final item = _items[index];
           return ListTile(
+            dense: true,
+            visualDensity: VisualDensity.compact,
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 10,
+              vertical: 2,
+            ),
             tileColor: Theme.of(
               context,
             ).colorScheme.surfaceContainerHighest.withAlpha(40),
@@ -1069,10 +1104,14 @@ class _ProductLookupSheetState extends State<_ProductLookupSheet> {
             ),
             title: Text(
               item.displayLabel,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: const TextStyle(fontWeight: FontWeight.w600),
             ),
             subtitle: Text(
               'Birim ${item.unitName} | Fiyat ${AppFormatters.currency(item.price)}',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
             trailing: item.isOrderBlocked
                 ? const Icon(Icons.warning_amber_rounded)

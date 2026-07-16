@@ -166,6 +166,9 @@ class _InventoryCountCreateSheetState extends State<InventoryCountCreateSheet>
     );
 
     if (product == null || !mounted) {
+      if (mounted) {
+        _refocusLine(line.barcodeFocusNode);
+      }
       return;
     }
     final pickedProduct = product;
@@ -291,6 +294,14 @@ class _InventoryCountCreateSheetState extends State<InventoryCountCreateSheet>
       final firstLine = _lines.first;
       if (_isBlankLine(firstLine)) {
         firstLine.barcodeFocusNode.requestFocus();
+      }
+    });
+  }
+
+  void _refocusLine(FocusNode focusNode) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        focusNode.requestFocus();
       }
     });
   }
@@ -531,6 +542,21 @@ class _InventoryCountCreateSheetState extends State<InventoryCountCreateSheet>
         .take(index + 1)
         .where((item) => !_isBlankLine(item))
         .length;
+
+    if (!isFreshEntry && product != null) {
+      return TerminalCompactProductLineCard(
+        lineNo: displayLineNo,
+        stockCode: product.stockCode,
+        stockName: product.stockName,
+        quantityController: line.quantityController,
+        unitLabel: product.unitName,
+        barcode: product.barcode,
+        warningLabel: product.isGoodsAcceptanceBlocked ? 'Bayrak var' : null,
+        canDelete: _lines.length > 1,
+        onDelete: () => _removeLine(line),
+        onMinimumReached: _lines.length > 1 ? () => _removeLine(line) : null,
+      );
+    }
 
     return TerminalPdaLineCard(
       title: isFreshEntry ? 'Giris satiri' : 'Satir $displayLineNo',
@@ -820,12 +846,17 @@ class _InventoryProductLookupSheetState
       isEmpty: _items.isEmpty,
       emptyMessage: 'Sonuc bulunamadi.',
       child: ListView.separated(
-        shrinkWrap: true,
         itemCount: _items.length,
-        separatorBuilder: (_, _) => const SizedBox(height: 8),
+        separatorBuilder: (_, _) => const SizedBox(height: 4),
         itemBuilder: (context, index) {
           final item = _items[index];
           return ListTile(
+            dense: true,
+            visualDensity: VisualDensity.compact,
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 10,
+              vertical: 2,
+            ),
             tileColor: Theme.of(
               context,
             ).colorScheme.surfaceContainerHighest.withAlpha(40),
@@ -834,6 +865,8 @@ class _InventoryProductLookupSheetState
             ),
             title: Text(
               item.displayLabel,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: const TextStyle(fontWeight: FontWeight.w600),
             ),
             subtitle: Text(
@@ -841,6 +874,8 @@ class _InventoryProductLookupSheetState
                 'Barkod ${item.barcode.isEmpty ? '-' : item.barcode}',
                 'Birim ${item.unitName}',
               ].join(' | '),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
             onTap: () => Navigator.of(context).pop(item),
           );

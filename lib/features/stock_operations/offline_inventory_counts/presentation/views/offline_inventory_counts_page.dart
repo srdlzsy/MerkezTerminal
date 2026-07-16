@@ -503,26 +503,45 @@ class _OfflineInventoryCountCreateSheetState
     } else {
       selected = await showModalBottomSheet<InventoryCountProductLookupItem>(
         context: context,
+        isScrollControlled: true,
+        useSafeArea: true,
         showDragHandle: true,
         builder: (context) {
-          return ListView.separated(
-            shrinkWrap: true,
-            itemCount: products.length,
-            separatorBuilder: (_, _) => const Divider(height: 1),
-            itemBuilder: (context, index) {
-              final item = products[index];
-              return ListTile(
-                title: Text(item.displayLabel),
-                subtitle: Text(item.barcode.isEmpty ? '-' : item.barcode),
-                onTap: () => Navigator.of(context).pop(item),
-              );
-            },
+          return FractionallySizedBox(
+            heightFactor: 0.82,
+            child: ListView.separated(
+              itemCount: products.length,
+              separatorBuilder: (_, _) => const Divider(height: 1),
+              itemBuilder: (context, index) {
+                final item = products[index];
+                return ListTile(
+                  dense: true,
+                  visualDensity: VisualDensity.compact,
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 2,
+                  ),
+                  title: Text(
+                    item.displayLabel,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  subtitle: Text(
+                    item.barcode.isEmpty ? '-' : item.barcode,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  onTap: () => Navigator.of(context).pop(item),
+                );
+              },
+            ),
           );
         },
       );
     }
 
     if (selected == null) {
+      _refocusLine(line.lookupFocusNode);
       return;
     }
     final pickedProduct = selected;
@@ -674,6 +693,14 @@ class _OfflineInventoryCountCreateSheetState
     });
   }
 
+  void _refocusLine(FocusNode focusNode) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        focusNode.requestFocus();
+      }
+    });
+  }
+
   bool _isBlankLine(_OfflineLineDraft line) {
     return line.lookupController.text.trim().isEmpty &&
         line.stockCodeController.text.trim().isEmpty &&
@@ -790,6 +817,33 @@ class _OfflineInventoryCountCreateSheetState
                     .take(index + 1)
                     .where((item) => !_isBlankLine(item))
                     .length;
+                if (!isFreshEntry) {
+                  return TerminalCompactProductLineCard(
+                    lineNo: displayLineNo,
+                    stockCode: line.stockCodeController.text.trim(),
+                    stockName: line.stockNameController.text.trim().isEmpty
+                        ? 'Urun secilmedi'
+                        : line.stockNameController.text.trim(),
+                    quantityController: line.quantityController,
+                    unitLabel: 'Birim ${line.unitPointer}',
+                    barcode: line.barcodeController.text.trim(),
+                    canDelete: _lines.length > 1,
+                    onDelete: () {
+                      setState(() {
+                        line.dispose();
+                        _lines.removeAt(index);
+                      });
+                    },
+                    onMinimumReached: _lines.length > 1
+                        ? () {
+                            setState(() {
+                              line.dispose();
+                              _lines.removeAt(index);
+                            });
+                          }
+                        : null,
+                  );
+                }
                 return TerminalPdaLineCard(
                   title: isFreshEntry ? 'Giris satiri' : 'Satir $displayLineNo',
                   subtitle: line.stockNameController.text.trim().isEmpty

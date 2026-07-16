@@ -603,6 +603,8 @@ class _OfflineCompanyAcceptanceCreateSheetState
 
     final selected = await showModalBottomSheet<CustomerLookupItem>(
       context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
       showDragHandle: true,
       builder: (context) {
         if (customers.isEmpty) {
@@ -612,18 +614,34 @@ class _OfflineCompanyAcceptanceCreateSheetState
           );
         }
 
-        return ListView.separated(
-          shrinkWrap: true,
-          itemCount: customers.length,
-          separatorBuilder: (_, _) => const Divider(height: 1),
-          itemBuilder: (context, index) {
-            final item = customers[index];
-            return ListTile(
-              title: Text(item.customerDisplayName),
-              subtitle: Text(item.customerCode),
-              onTap: () => Navigator.of(context).pop(item),
-            );
-          },
+        return FractionallySizedBox(
+          heightFactor: 0.82,
+          child: ListView.separated(
+            itemCount: customers.length,
+            separatorBuilder: (_, _) => const Divider(height: 1),
+            itemBuilder: (context, index) {
+              final item = customers[index];
+              return ListTile(
+                dense: true,
+                visualDensity: VisualDensity.compact,
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 2,
+                ),
+                title: Text(
+                  item.customerDisplayName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                subtitle: Text(
+                  item.customerCode,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                onTap: () => Navigator.of(context).pop(item),
+              );
+            },
+          ),
         );
       },
     );
@@ -674,28 +692,45 @@ class _OfflineCompanyAcceptanceCreateSheetState
     } else {
       selected = await showModalBottomSheet<SearchProductLookupItem>(
         context: context,
+        isScrollControlled: true,
+        useSafeArea: true,
         showDragHandle: true,
         builder: (context) {
-          return ListView.separated(
-            shrinkWrap: true,
-            itemCount: products.length,
-            separatorBuilder: (_, _) => const Divider(height: 1),
-            itemBuilder: (context, index) {
-              final item = products[index];
-              return ListTile(
-                title: Text(item.displayLabel),
-                subtitle: Text(
-                  '${item.unitName} | ${AppFormatters.currency(item.price)}',
-                ),
-                onTap: () => Navigator.of(context).pop(item),
-              );
-            },
+          return FractionallySizedBox(
+            heightFactor: 0.82,
+            child: ListView.separated(
+              itemCount: products.length,
+              separatorBuilder: (_, _) => const Divider(height: 1),
+              itemBuilder: (context, index) {
+                final item = products[index];
+                return ListTile(
+                  dense: true,
+                  visualDensity: VisualDensity.compact,
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 2,
+                  ),
+                  title: Text(
+                    item.displayLabel,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  subtitle: Text(
+                    '${item.unitName} | ${AppFormatters.currency(item.price)}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  onTap: () => Navigator.of(context).pop(item),
+                );
+              },
+            ),
           );
         },
       );
     }
 
     if (selected == null) {
+      _refocusLine(line.lookupFocusNode);
       return;
     }
     final pickedProduct = selected;
@@ -866,6 +901,14 @@ class _OfflineCompanyAcceptanceCreateSheetState
     });
   }
 
+  void _refocusLine(FocusNode focusNode) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        focusNode.requestFocus();
+      }
+    });
+  }
+
   bool _isBlankLine(_OfflineCompanyAcceptanceLineDraft line) {
     return line.selectedProduct == null &&
         line.lookupController.text.trim().isEmpty &&
@@ -926,6 +969,8 @@ class _OfflineCompanyAcceptanceCreateSheetState
 
     final selectedOrder = await showModalBottomSheet<CompanyOrderListItem>(
       context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
       showDragHandle: true,
       builder: (context) {
         if (orders.isEmpty) {
@@ -935,20 +980,34 @@ class _OfflineCompanyAcceptanceCreateSheetState
           );
         }
 
-        return ListView.separated(
-          shrinkWrap: true,
-          itemCount: orders.length,
-          separatorBuilder: (_, _) => const Divider(height: 1),
-          itemBuilder: (context, index) {
-            final item = orders[index];
-            return ListTile(
-              title: Text(item.documentNoLabel),
-              subtitle: Text(
-                '${item.customerDisplayName} | Kalan ${AppFormatters.quantity(item.totalRemainingQuantity)}',
-              ),
-              onTap: () => Navigator.of(context).pop(item),
-            );
-          },
+        return FractionallySizedBox(
+          heightFactor: 0.82,
+          child: ListView.separated(
+            itemCount: orders.length,
+            separatorBuilder: (_, _) => const Divider(height: 1),
+            itemBuilder: (context, index) {
+              final item = orders[index];
+              return ListTile(
+                dense: true,
+                visualDensity: VisualDensity.compact,
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 2,
+                ),
+                title: Text(
+                  item.documentNoLabel,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                subtitle: Text(
+                  '${item.customerDisplayName} | Kalan ${AppFormatters.quantity(item.totalRemainingQuantity)}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                onTap: () => Navigator.of(context).pop(item),
+              );
+            },
+          ),
         );
       },
     );
@@ -1151,94 +1210,8 @@ class _OfflineCompanyAcceptanceCreateSheetState
                   return null;
                 },
               ),
-              const SizedBox(height: 12),
-              Wrap(
-                spacing: 12,
-                runSpacing: 12,
-                children: <Widget>[
-                  TerminalFilterButton(
-                    label: 'Hareket Tarihi',
-                    value: AppFormatters.date(_movementDate),
-                    onPressed: () => _pickDate(movementDate: true),
-                  ),
-                  TerminalFilterButton(
-                    label: 'Belge Tarihi',
-                    value: AppFormatters.date(_documentDate),
-                    onPressed: () => _pickDate(movementDate: false),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: _documentNoController,
-                decoration: const InputDecoration(
-                  labelText: 'Belge No / Seri',
-                  hintText: 'Bos birakilabilir veya ULK gibi seri girilebilir',
-                ),
-              ),
-              const SizedBox(height: 12),
-              Wrap(
-                spacing: 10,
-                runSpacing: 10,
-                children: <Widget>[
-                  SizedBox(
-                    width: 220,
-                    child: TextFormField(
-                      controller: _delivererController,
-                      decoration: const InputDecoration(
-                        labelText: 'Teslim Eden',
-                      ),
-                    ),
-                  ),
-                  SizedBox(
-                    width: 220,
-                    child: TextFormField(
-                      controller: _receiverController,
-                      decoration: const InputDecoration(
-                        labelText: 'Teslim Alan',
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: _descriptionController,
-                minLines: 2,
-                maxLines: 3,
-                decoration: const InputDecoration(labelText: 'Aciklama'),
-              ),
-              const SizedBox(height: 12),
-              CheckboxListTile(
-                value: _allowOrderOverReceiving,
-                title: const Text(
-                  'Siparis kalanindan fazla kabul etmeye izin ver',
-                ),
-                subtitle: const Text(
-                  'Backend fazla miktari siparissiz hareket olarak ayirabilir.',
-                ),
-                contentPadding: EdgeInsets.zero,
-                onChanged: (value) {
-                  setState(() {
-                    _allowOrderOverReceiving = value ?? false;
-                  });
-                },
-              ),
-              CheckboxListTile(
-                value: _autoCreateReturnForPartialAcceptance,
-                title: const Text(
-                  'Eksik kabul farki icin firma iadesi olustur',
-                ),
-                subtitle: const Text(
-                  'E-irsaliye otomatik gonderilmez; iade evragindan manuel gonderilir.',
-                ),
-                contentPadding: EdgeInsets.zero,
-                onChanged: (value) {
-                  setState(() {
-                    _autoCreateReturnForPartialAcceptance = value ?? true;
-                  });
-                },
-              ),
+              const SizedBox(height: 8),
+              _buildDocumentDetailsSection(),
               const SizedBox(height: 8),
               _buildLinesToolbar(),
               const SizedBox(height: 10),
@@ -1287,32 +1260,15 @@ class _OfflineCompanyAcceptanceCreateSheetState
                       if (isFreshEntry)
                         _buildProductLookupRow(line)
                       else ...<Widget>[
-                        TerminalPdaInfoGrid(
-                          minTileWidth: 92,
-                          items: <TerminalPdaInfo>[
-                            TerminalPdaInfo(
-                              label: 'Urun',
-                              value: line.stockNameController.text.trim(),
-                            ),
-                            TerminalPdaInfo(
-                              label: 'Kod',
-                              value: line.stockCodeController.text.trim(),
-                            ),
-                            TerminalPdaInfo(
-                              label: 'Birim',
-                              value: line.selectedProduct?.unitName ?? '-',
-                            ),
-                            if (line.barcodeController.text.trim().isNotEmpty)
-                              TerminalPdaInfo(
-                                label: 'Barkod',
-                                value: line.barcodeController.text.trim(),
-                              ),
-                            if (line.unitPrice > 0)
-                              TerminalPdaInfo(
-                                label: 'Fiyat',
-                                value: AppFormatters.currency(line.unitPrice),
-                              ),
-                          ],
+                        TerminalCompactProductLineSummary(
+                          lineNo: displayLineNo,
+                          stockCode: line.stockCodeController.text.trim(),
+                          stockName: line.stockNameController.text.trim(),
+                          unitLabel: line.selectedProduct?.unitName,
+                          barcode: line.barcodeController.text.trim(),
+                          priceLabel: line.unitPrice > 0
+                              ? AppFormatters.currency(line.unitPrice)
+                              : null,
                         ),
                         const SizedBox(height: 10),
                         _buildQuantityFields(line),
@@ -1337,6 +1293,98 @@ class _OfflineCompanyAcceptanceCreateSheetState
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildDocumentDetailsSection() {
+    return ExpansionTile(
+      tilePadding: EdgeInsets.zero,
+      childrenPadding: const EdgeInsets.only(top: 8),
+      title: const Text('Belge detaylari'),
+      subtitle: Text(
+        '${AppFormatters.date(_movementDate)} | ${AppFormatters.date(_documentDate)}',
+      ),
+      children: <Widget>[
+        Wrap(
+          spacing: 12,
+          runSpacing: 12,
+          children: <Widget>[
+            TerminalFilterButton(
+              label: 'Hareket Tarihi',
+              value: AppFormatters.date(_movementDate),
+              onPressed: () => _pickDate(movementDate: true),
+            ),
+            TerminalFilterButton(
+              label: 'Belge Tarihi',
+              value: AppFormatters.date(_documentDate),
+              onPressed: () => _pickDate(movementDate: false),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        TextFormField(
+          controller: _documentNoController,
+          decoration: const InputDecoration(
+            labelText: 'Belge No / Seri',
+            hintText: 'Bos birakilabilir veya ULK gibi seri girilebilir',
+          ),
+        ),
+        const SizedBox(height: 12),
+        Wrap(
+          spacing: 10,
+          runSpacing: 10,
+          children: <Widget>[
+            SizedBox(
+              width: 220,
+              child: TextFormField(
+                controller: _delivererController,
+                decoration: const InputDecoration(labelText: 'Teslim Eden'),
+              ),
+            ),
+            SizedBox(
+              width: 220,
+              child: TextFormField(
+                controller: _receiverController,
+                decoration: const InputDecoration(labelText: 'Teslim Alan'),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        TextFormField(
+          controller: _descriptionController,
+          minLines: 2,
+          maxLines: 3,
+          decoration: const InputDecoration(labelText: 'Aciklama'),
+        ),
+        const SizedBox(height: 12),
+        CheckboxListTile(
+          value: _allowOrderOverReceiving,
+          title: const Text('Siparis kalanindan fazla kabul etmeye izin ver'),
+          subtitle: const Text(
+            'Backend fazla miktari siparissiz hareket olarak ayirabilir.',
+          ),
+          contentPadding: EdgeInsets.zero,
+          onChanged: (value) {
+            setState(() {
+              _allowOrderOverReceiving = value ?? false;
+            });
+          },
+        ),
+        CheckboxListTile(
+          value: _autoCreateReturnForPartialAcceptance,
+          title: const Text('Eksik kabul farki icin firma iadesi olustur'),
+          subtitle: const Text(
+            'E-irsaliye otomatik gonderilmez; iade evragindan manuel gonderilir.',
+          ),
+          contentPadding: EdgeInsets.zero,
+          onChanged: (value) {
+            setState(() {
+              _autoCreateReturnForPartialAcceptance = value ?? true;
+            });
+          },
+        ),
+      ],
     );
   }
 

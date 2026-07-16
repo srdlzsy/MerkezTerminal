@@ -5,7 +5,7 @@ import 'package:path/path.dart' as path;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sqflite/sqflite.dart';
 
-class LocalSqliteDatabase implements LocalDatabase {
+class LocalSqliteDatabase implements IndexedLocalDatabase {
   LocalSqliteDatabase({
     Future<String> Function()? databasesPathProvider,
     Future<Database> Function(String databasePath)? openDatabaseProvider,
@@ -71,6 +71,165 @@ class LocalSqliteDatabase implements LocalDatabase {
   }
 
   @override
+  Future<List<Map<String, dynamic>>> searchIndexedTable(
+    String key, {
+    String? partitionKey,
+    String? normalizedQuery,
+    int limit = 50,
+  }) async {
+    final database = await _database;
+    final whereParts = <String>['table_key = ?', 'row_key IS NOT NULL'];
+    final whereArgs = <Object?>[key];
+    final normalizedPartitionKey = partitionKey?.trim() ?? '';
+    final query = normalizedQuery?.trim() ?? '';
+
+    if (normalizedPartitionKey.isNotEmpty) {
+      whereParts.add('partition_key = ?');
+      whereArgs.add(normalizedPartitionKey);
+    }
+
+    if (query.isNotEmpty) {
+      whereParts.add("search_key LIKE ? ESCAPE '\\'");
+      whereArgs.add('%${_escapeLike(query)}%');
+    }
+
+    final rows = await database.query(
+      _rowsTable,
+      columns: const <String>['row_json'],
+      where: whereParts.join(' AND '),
+      whereArgs: whereArgs,
+      orderBy: 'row_id ASC',
+      limit: limit <= 0 ? 50 : limit,
+    );
+
+    return rows
+        .map((row) => _decodeDocument(row['row_json']?.toString()))
+        .whereType<Map<String, dynamic>>()
+        .toList(growable: false);
+  }
+
+  @override
+  Future<Map<String, dynamic>?> findIndexedTableRow(
+    String key, {
+    String? partitionKey,
+    required String lookupKey,
+  }) async {
+    final normalizedLookupKey = lookupKey.trim();
+    if (normalizedLookupKey.isEmpty) {
+      return null;
+    }
+
+    final database = await _database;
+    final whereParts = <String>[
+      'table_key = ?',
+      'lookup_key = ?',
+      'row_key IS NOT NULL',
+    ];
+    final whereArgs = <Object?>[key, normalizedLookupKey];
+    final normalizedPartitionKey = partitionKey?.trim() ?? '';
+
+    if (normalizedPartitionKey.isNotEmpty) {
+      whereParts.add('partition_key = ?');
+      whereArgs.add(normalizedPartitionKey);
+    }
+
+    final rows = await database.query(
+      _rowsTable,
+      columns: const <String>['row_json'],
+      where: whereParts.join(' AND '),
+      whereArgs: whereArgs,
+      limit: 1,
+    );
+
+    if (rows.isEmpty) {
+      return null;
+    }
+
+    return _decodeDocument(rows.first['row_json']?.toString());
+  }
+
+  @override
+  Future<int> countIndexedRows(String key, {String? partitionKey}) async {
+    final database = await _database;
+    final whereParts = <String>['table_key = ?', 'row_key IS NOT NULL'];
+    final whereArgs = <Object?>[key];
+    final normalizedPartitionKey = partitionKey?.trim() ?? '';
+
+    if (normalizedPartitionKey.isNotEmpty) {
+      whereParts.add('partition_key = ?');
+      whereArgs.add(normalizedPartitionKey);
+    }
+
+    final result = await database.rawQuery(
+      'SELECT COUNT(*) AS row_count FROM $_rowsTable '
+      'WHERE ${whereParts.join(' AND ')}',
+      whereArgs,
+    );
+
+    return (result.first['row_count'] as int?) ?? 0;
+  }
+
+  @override
+  Future<void> upsertIndexedRows(String key, List<LocalIndexedRow> rows) async {
+    if (rows.isEmpty) {
+      return;
+    }
+
+    final database = await _database;
+    await database.transaction((transaction) async {
+      await _upsertIndexedRows(transaction, key, rows);
+    });
+  }
+
+  @override
+  Future<void> replaceIndexedRows(
+    String key, {
+    required List<LocalIndexedRow> rows,
+    String? partitionKey,
+  }) async {
+    final database = await _database;
+    await database.transaction((transaction) async {
+      final normalizedPartitionKey = partitionKey?.trim() ?? '';
+      if (normalizedPartitionKey.isEmpty) {
+        await transaction.delete(
+          _rowsTable,
+          where: 'table_key = ? AND row_key IS NOT NULL',
+          whereArgs: <Object?>[key],
+        );
+      } else {
+        await transaction.delete(
+          _rowsTable,
+          where: 'table_key = ? AND partition_key = ? AND row_key IS NOT NULL',
+          whereArgs: <Object?>[key, normalizedPartitionKey],
+        );
+      }
+      await _upsertIndexedRows(transaction, key, rows);
+    });
+  }
+
+  @override
+  Future<void> deleteIndexedRows(String key, List<String> rowKeys) async {
+    final normalizedRowKeys = rowKeys
+        .map((item) => item.trim())
+        .where((item) => item.isNotEmpty)
+        .toSet();
+    if (normalizedRowKeys.isEmpty) {
+      return;
+    }
+
+    final database = await _database;
+    await database.transaction((transaction) async {
+      for (final rowKey in normalizedRowKeys) {
+        await transaction.delete(
+          _rowsTable,
+          where: 'table_key = ? AND row_key = ?',
+          whereArgs: <Object?>[key, rowKey],
+        );
+      }
+    });
+  }
+
+  @override
   Future<Map<String, dynamic>?> readDocument(String key) async {
     final database = await _database;
     final rows = await database.query(
@@ -128,13 +287,33 @@ class LocalSqliteDatabase implements LocalDatabase {
 CREATE TABLE IF NOT EXISTS $_rowsTable (
   table_key TEXT NOT NULL,
   row_id INTEGER NOT NULL,
+  row_key TEXT,
+  partition_key TEXT,
+  lookup_key TEXT,
+  search_key TEXT,
   row_json TEXT NOT NULL,
   PRIMARY KEY (table_key, row_id)
 )
 ''');
+    await _ensureColumn(database, _rowsTable, 'row_key', 'TEXT');
+    await _ensureColumn(database, _rowsTable, 'partition_key', 'TEXT');
+    await _ensureColumn(database, _rowsTable, 'lookup_key', 'TEXT');
+    await _ensureColumn(database, _rowsTable, 'search_key', 'TEXT');
     await database.execute(
       'CREATE INDEX IF NOT EXISTS idx_${_rowsTable}_table_key '
       'ON $_rowsTable (table_key)',
+    );
+    await database.execute(
+      'CREATE UNIQUE INDEX IF NOT EXISTS idx_${_rowsTable}_row_key '
+      'ON $_rowsTable (table_key, row_key) WHERE row_key IS NOT NULL',
+    );
+    await database.execute(
+      'CREATE INDEX IF NOT EXISTS idx_${_rowsTable}_partition_search '
+      'ON $_rowsTable (table_key, partition_key, search_key)',
+    );
+    await database.execute(
+      'CREATE INDEX IF NOT EXISTS idx_${_rowsTable}_lookup '
+      'ON $_rowsTable (table_key, partition_key, lookup_key)',
     );
     await database.execute('''
 CREATE TABLE IF NOT EXISTS $_documentsTable (
@@ -142,6 +321,23 @@ CREATE TABLE IF NOT EXISTS $_documentsTable (
   document_json TEXT NOT NULL
 )
 ''');
+  }
+
+  static Future<void> _ensureColumn(
+    Database database,
+    String tableName,
+    String columnName,
+    String columnType,
+  ) async {
+    try {
+      await database.execute(
+        'ALTER TABLE $tableName ADD COLUMN $columnName $columnType',
+      );
+    } on DatabaseException catch (error) {
+      if (!error.toString().toLowerCase().contains('duplicate column')) {
+        rethrow;
+      }
+    }
   }
 
   Future<void> _migrateLegacySharedPreferences(Database database) async {
@@ -223,6 +419,31 @@ CREATE TABLE IF NOT EXISTS $_documentsTable (
     await batch.commit(noResult: true);
   }
 
+  Future<void> _upsertIndexedRows(
+    DatabaseExecutor executor,
+    String key,
+    List<LocalIndexedRow> rows,
+  ) async {
+    final batch = executor.batch();
+    for (final row in rows) {
+      final rowKey = row.rowKey.trim();
+      if (rowKey.isEmpty) {
+        continue;
+      }
+
+      batch.insert(_rowsTable, <String, Object?>{
+        'table_key': key,
+        'row_id': _stableRowId(rowKey),
+        'row_key': rowKey,
+        'partition_key': _nullableTrimmed(row.partitionKey),
+        'lookup_key': _nullableTrimmed(row.lookupKey),
+        'search_key': _nullableTrimmed(row.searchKey),
+        'row_json': jsonEncode(row.document),
+      }, conflictAlgorithm: ConflictAlgorithm.replace);
+    }
+    await batch.commit(noResult: true);
+  }
+
   static Map<String, dynamic>? _decodeDocument(String? raw) {
     if (raw == null || raw.trim().isEmpty) {
       return null;
@@ -271,5 +492,26 @@ CREATE TABLE IF NOT EXISTS $_documentsTable (
     } on FormatException {
       return const <Map<String, dynamic>>[];
     }
+  }
+
+  static int _stableRowId(String value) {
+    const int mask = 0x7fffffffffffffff;
+    var hash = 0;
+    for (final codeUnit in value.codeUnits) {
+      hash = ((hash * 31) + codeUnit) & mask;
+    }
+    return hash;
+  }
+
+  static String? _nullableTrimmed(String? value) {
+    final trimmed = value?.trim() ?? '';
+    return trimmed.isEmpty ? null : trimmed;
+  }
+
+  static String _escapeLike(String value) {
+    return value
+        .replaceAll(r'\', r'\\')
+        .replaceAll('%', r'\%')
+        .replaceAll('_', r'\_');
   }
 }

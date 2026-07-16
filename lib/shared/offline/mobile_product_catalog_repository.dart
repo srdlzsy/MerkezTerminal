@@ -341,6 +341,11 @@ class MobileProductCatalogLocalRepository {
   static const String _itemTable = 'mobile_product_catalog.items.v1';
   static const String _metadataKeyPrefix = 'mobile_product_catalog.metadata.v1';
 
+  IndexedLocalDatabase? get _indexedDatabase {
+    final database = _database;
+    return database is IndexedLocalDatabase ? database : null;
+  }
+
   Future<MobileProductCatalogMetadata?> fetchMetadata({
     required String warehouseNo,
   }) async {
@@ -366,24 +371,41 @@ class MobileProductCatalogLocalRepository {
     }
 
     final normalizedWarehouseNo = _readInt(warehouseNo);
-    final rows = await _database.readTable(_itemTable);
-    final items =
-        rows
-            .where(
-              (row) => _readInt(row['warehouseNo']) == normalizedWarehouseNo,
-            )
-            .map(MobileProductCatalogItem.fromJson)
-            .where((item) => !item.isDeleted)
-            .where((item) => _productSearchKey(item).contains(normalizedQuery))
-            .toList(growable: false)
-          ..sort(
-            (left, right) => _searchScore(
-              left,
-              normalizedQuery,
-            ).compareTo(_searchScore(right, normalizedQuery)),
-          );
+    final indexedDatabase = _indexedDatabase;
+    if (indexedDatabase != null) {
+      final partitionKey = normalizedWarehouseNo.toString();
+      final indexedCount = await indexedDatabase.countIndexedRows(
+        _itemTable,
+        partitionKey: partitionKey,
+      );
+      if (indexedCount > 0) {
+        final exactRow = await indexedDatabase.findIndexedTableRow(
+          _itemTable,
+          partitionKey: partitionKey,
+          lookupKey: normalizedQuery,
+        );
+        final rows = await indexedDatabase.searchIndexedTable(
+          _itemTable,
+          partitionKey: partitionKey,
+          normalizedQuery: normalizedQuery,
+          limit: _candidateLimit(limit),
+        );
+        return _filterProductRows(
+          <JsonMap>[?exactRow, ...rows],
+          normalizedWarehouseNo: normalizedWarehouseNo,
+          normalizedQuery: normalizedQuery,
+          limit: limit,
+        );
+      }
+    }
 
-    return items.take(limit).toList(growable: false);
+    final rows = await _database.readTable(_itemTable);
+    return _filterProductRows(
+      rows,
+      normalizedWarehouseNo: normalizedWarehouseNo,
+      normalizedQuery: normalizedQuery,
+      limit: limit,
+    );
   }
 
   Future<MobileProductCatalogItem?> findByBarcode({
@@ -396,6 +418,28 @@ class MobileProductCatalogLocalRepository {
     }
 
     final normalizedWarehouseNo = _readInt(warehouseNo);
+    final indexedDatabase = _indexedDatabase;
+    if (indexedDatabase != null) {
+      final partitionKey = normalizedWarehouseNo.toString();
+      final indexedCount = await indexedDatabase.countIndexedRows(
+        _itemTable,
+        partitionKey: partitionKey,
+      );
+      if (indexedCount > 0) {
+        final row = await indexedDatabase.findIndexedTableRow(
+          _itemTable,
+          partitionKey: partitionKey,
+          lookupKey: normalizedBarcode,
+        );
+        if (row == null) {
+          return null;
+        }
+
+        final item = MobileProductCatalogItem.fromJson(row);
+        return item.isDeleted ? null : item;
+      }
+    }
+
     final rows = await _database.readTable(_itemTable);
     for (final row in rows) {
       if (_readInt(row['warehouseNo']) != normalizedWarehouseNo) {
@@ -416,6 +460,17 @@ class MobileProductCatalogLocalRepository {
 
   Future<int> countWarehouseItems({required String warehouseNo}) async {
     final normalizedWarehouseNo = _readInt(warehouseNo);
+    final indexedDatabase = _indexedDatabase;
+    if (indexedDatabase != null) {
+      final indexedCount = await indexedDatabase.countIndexedRows(
+        _itemTable,
+        partitionKey: normalizedWarehouseNo.toString(),
+      );
+      if (indexedCount > 0) {
+        return indexedCount;
+      }
+    }
+
     final rows = await _database.readTable(_itemTable);
     return rows
         .where(
@@ -431,6 +486,44 @@ class MobileProductCatalogLocalRepository {
     required List<MobileProductCatalogItem> items,
     required List<String> deletedBarcodes,
   }) async {
+    final indexedDatabase = _indexedDatabase;
+    if (indexedDatabase != null) {
+      final upserts = <LocalIndexedRow>[];
+      final deletes = <String>[];
+      final now = DateTime.now().toUtc();
+
+      for (final item in items) {
+        final normalizedItem = item.copyWith(
+          warehouseNo: item.warehouseNo == 0 ? warehouseNo : item.warehouseNo,
+          cachedAt: now,
+        );
+        final key = _itemKey(normalizedItem);
+        if (key == null) {
+          continue;
+        }
+        if (normalizedItem.isDeleted) {
+          deletes.add(key);
+          continue;
+        }
+        upserts.add(_indexedRow(normalizedItem));
+      }
+
+      for (final barcode in deletedBarcodes) {
+        final key = _itemKeyFromValues(
+          warehouseNo: warehouseNo,
+          barcode: barcode,
+          stockCode: '',
+        );
+        if (key != null) {
+          deletes.add(key);
+        }
+      }
+
+      await indexedDatabase.upsertIndexedRows(_itemTable, upserts);
+      await indexedDatabase.deleteIndexedRows(_itemTable, deletes);
+      return;
+    }
+
     final rows = await _database.readTable(_itemTable);
     final rowMap = _rowsByKey(rows);
     final now = DateTime.now().toUtc();
@@ -475,6 +568,46 @@ class MobileProductCatalogLocalRepository {
     required List<String> deletedBarcodes,
     required MobileProductCatalogMetadata metadata,
   }) async {
+    final indexedDatabase = _indexedDatabase;
+    if (indexedDatabase != null) {
+      final incomingRows = <LocalIndexedRow>[];
+      final incomingKeys = <String>{};
+      final now = DateTime.now().toUtc();
+
+      for (final item in items) {
+        final normalizedItem = item.copyWith(
+          warehouseNo: item.warehouseNo == 0 ? warehouseNo : item.warehouseNo,
+          cachedAt: now,
+        );
+        final key = _itemKey(normalizedItem);
+        if (key == null || normalizedItem.isDeleted) {
+          continue;
+        }
+        incomingKeys.add(key);
+        incomingRows.add(_indexedRow(normalizedItem));
+      }
+
+      for (final barcode in deletedBarcodes) {
+        final key = _itemKeyFromValues(
+          warehouseNo: warehouseNo,
+          barcode: barcode,
+          stockCode: '',
+        );
+        if (key != null) {
+          incomingKeys.remove(key);
+          incomingRows.removeWhere((row) => row.rowKey == key);
+        }
+      }
+
+      await indexedDatabase.replaceIndexedRows(
+        _itemTable,
+        rows: incomingRows,
+        partitionKey: warehouseNo.toString(),
+      );
+      await saveMetadata(metadata.copyWith(itemCount: incomingKeys.length));
+      return;
+    }
+
     final rows = await _database.readTable(_itemTable);
     final otherRows = rows
         .where((row) => _readInt(row['warehouseNo']) != warehouseNo)
@@ -569,6 +702,55 @@ class MobileProductCatalogLocalRepository {
     return _normalize('${item.barcode} ${item.stockCode} ${item.stockName}');
   }
 
+  LocalIndexedRow _indexedRow(MobileProductCatalogItem item) {
+    final rowKey = _itemKey(item);
+    return LocalIndexedRow(
+      rowKey: rowKey ?? '',
+      partitionKey: item.warehouseNo.toString(),
+      lookupKey: _normalize(item.barcode).isNotEmpty
+          ? _normalize(item.barcode)
+          : _normalize(item.stockCode),
+      searchKey: _productSearchKey(item),
+      document: item.toJson(),
+    );
+  }
+
+  List<MobileProductCatalogItem> _filterProductRows(
+    List<JsonMap> rows, {
+    required int normalizedWarehouseNo,
+    required String normalizedQuery,
+    required int limit,
+  }) {
+    final seenKeys = <String>{};
+    final items = <MobileProductCatalogItem>[];
+
+    for (final row in rows) {
+      if (_readInt(row['warehouseNo']) != normalizedWarehouseNo) {
+        continue;
+      }
+
+      final item = MobileProductCatalogItem.fromJson(row);
+      if (item.isDeleted ||
+          !_productSearchKey(item).contains(normalizedQuery)) {
+        continue;
+      }
+
+      final key = _itemKey(item);
+      if (key == null || !seenKeys.add(key)) {
+        continue;
+      }
+      items.add(item);
+    }
+
+    items.sort(
+      (left, right) => _searchScore(
+        left,
+        normalizedQuery,
+      ).compareTo(_searchScore(right, normalizedQuery)),
+    );
+    return items.take(limit).toList(growable: false);
+  }
+
   int _searchScore(MobileProductCatalogItem item, String normalizedQuery) {
     if (_normalize(item.barcode) == normalizedQuery) {
       return 0;
@@ -584,6 +766,18 @@ class MobileProductCatalogLocalRepository {
     }
     return 4;
   }
+}
+
+int _candidateLimit(int requestedLimit) {
+  final baseLimit = requestedLimit <= 0 ? 20 : requestedLimit;
+  final expanded = baseLimit * 20;
+  if (expanded < 200) {
+    return 200;
+  }
+  if (expanded > 1000) {
+    return 1000;
+  }
+  return expanded;
 }
 
 class MobileProductCatalogSyncResult {
