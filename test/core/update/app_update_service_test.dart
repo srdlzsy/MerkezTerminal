@@ -80,10 +80,10 @@ void main() {
       );
 
       expect(opened, isTrue);
-      expect(sentArguments, <String, Object?>{
-        'url': 'http://updates.test/app-release.apk',
-        'fileName': 'furpa-terminal-1.1.21.apk',
-      });
+      final arguments = sentArguments as Map<Object?, Object?>;
+      expect(arguments['url'], 'http://updates.test/app-release.apk');
+      expect(arguments['fileName'], 'furpa-terminal-1.1.21.apk');
+      expect(arguments['requestId'], isA<String>());
     },
   );
 }

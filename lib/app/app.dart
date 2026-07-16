@@ -124,41 +124,64 @@ class _FurpaMerkezAppState extends State<FurpaMerkezApp> {
     }
 
     var progressDialogVisible = true;
+    var downloadProgress = const AppUpdateDownloadProgress(
+      bytesRead: 0,
+      totalBytes: 0,
+    );
+    StateSetter? updateProgressDialog;
     final progressDialog =
         showDialog<void>(
           context: dialogContext,
           barrierDismissible: false,
           builder: (context) {
-            return PopScope(
-              canPop: false,
-              child: AlertDialog(
-                title: const Text('Guncelleme indiriliyor'),
-                content: Row(
-                  children: <Widget>[
-                    const SizedBox(
-                      width: 28,
-                      height: 28,
-                      child: CircularProgressIndicator(strokeWidth: 3),
+            return StatefulBuilder(
+              builder: (context, setDialogState) {
+                updateProgressDialog = setDialogState;
+
+                return PopScope(
+                  canPop: false,
+                  child: AlertDialog(
+                    title: const Text('Guncelleme indiriliyor'),
+                    content: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: <Widget>[
+                        Text('${updateInfo.version} surumu indiriliyor...'),
+                        const SizedBox(height: 16),
+                        LinearProgressIndicator(
+                          value: downloadProgress.fraction,
+                        ),
+                        const SizedBox(height: 10),
+                        Text(
+                          _formatUpdateProgress(downloadProgress),
+                          textAlign: TextAlign.center,
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      ],
                     ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Text(
-                        '${updateInfo.version} surumu indiriliyor...',
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+                  ),
+                );
+              },
             );
           },
         ).whenComplete(() {
           progressDialogVisible = false;
+          updateProgressDialog = null;
         });
     unawaited(progressDialog);
 
     try {
       final installerOpened = await widget.dependencies.updateService
-          .downloadAndInstall(updateInfo);
+          .downloadAndInstall(
+            updateInfo,
+            onProgress: (progress) {
+              downloadProgress = progress;
+              final updateDialog = updateProgressDialog;
+              if (progressDialogVisible && updateDialog != null) {
+                updateDialog(() {});
+              }
+            },
+          );
       if (!mounted) {
         return;
       }
@@ -186,6 +209,32 @@ class _FurpaMerkezAppState extends State<FurpaMerkezApp> {
       _closeProgressDialog(isVisible: progressDialogVisible);
       _showMessage('Guncelleme indirilemedi: $error');
     }
+  }
+
+  String _formatUpdateProgress(AppUpdateDownloadProgress progress) {
+    final downloaded = _formatBytes(progress.bytesRead);
+    if (!progress.hasTotal) {
+      return '$downloaded indirildi';
+    }
+
+    final percent = (progress.fraction! * 100).clamp(0, 100).toStringAsFixed(0);
+    return '$percent% - $downloaded / ${_formatBytes(progress.totalBytes)}';
+  }
+
+  String _formatBytes(int bytes) {
+    if (bytes <= 0) {
+      return '0 MB';
+    }
+
+    const bytesInKb = 1024;
+    const bytesInMb = bytesInKb * 1024;
+    if (bytes >= bytesInMb) {
+      final value = bytes / bytesInMb;
+      return '${value.toStringAsFixed(value >= 10 ? 1 : 2)} MB';
+    }
+
+    final value = bytes / bytesInKb;
+    return '${value.toStringAsFixed(value >= 10 ? 0 : 1)} KB';
   }
 
   void _closeProgressDialog({required bool isVisible}) {

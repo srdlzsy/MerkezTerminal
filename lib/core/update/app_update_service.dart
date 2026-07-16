@@ -18,6 +18,29 @@ class AppUpdateInfo {
   final Uri apkUri;
 }
 
+typedef AppUpdateProgressCallback =
+    void Function(AppUpdateDownloadProgress progress);
+
+class AppUpdateDownloadProgress {
+  const AppUpdateDownloadProgress({
+    required this.bytesRead,
+    required this.totalBytes,
+  });
+
+  final int bytesRead;
+  final int totalBytes;
+
+  bool get hasTotal => totalBytes > 0;
+
+  double? get fraction {
+    if (!hasTotal) {
+      return null;
+    }
+
+    return (bytesRead / totalBytes).clamp(0, 1).toDouble();
+  }
+}
+
 class AppUpdateService {
   AppUpdateService({
     required http.Client httpClient,
@@ -25,13 +48,17 @@ class AppUpdateService {
     MethodChannel? channel,
   }) : _httpClient = httpClient,
        _manifestUri = manifestUri ?? Uri.parse(AppConfig.updateManifestUrl),
-       _channel = channel ?? const MethodChannel(_channelName);
+       _channel = channel ?? const MethodChannel(_channelName) {
+    _channel.setMethodCallHandler(_handleMethodCall);
+  }
 
   static const String _channelName = 'furpa_merkez_terminal/update';
 
   final http.Client _httpClient;
   final Uri _manifestUri;
   final MethodChannel _channel;
+  final Map<String, AppUpdateProgressCallback> _progressCallbacks =
+      <String, AppUpdateProgressCallback>{};
 
   Future<AppUpdateInfo?> checkForUpdate() async {
     if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) {
@@ -83,14 +110,55 @@ class AppUpdateService {
     );
   }
 
-  Future<bool> downloadAndInstall(AppUpdateInfo updateInfo) async {
+  Future<bool> downloadAndInstall(
+    AppUpdateInfo updateInfo, {
+    AppUpdateProgressCallback? onProgress,
+  }) async {
+    final requestId =
+        'apk-${DateTime.now().microsecondsSinceEpoch}-${updateInfo.version.hashCode}';
+    if (onProgress != null) {
+      _progressCallbacks[requestId] = onProgress;
+    }
+
     final openedInstaller = await _channel
         .invokeMethod<bool>('downloadAndInstallApk', <String, Object?>{
           'url': updateInfo.apkUri.toString(),
           'fileName': 'furpa-terminal-${updateInfo.version}.apk',
+          'requestId': requestId,
+        })
+        .whenComplete(() {
+          _progressCallbacks.remove(requestId);
         });
 
     return openedInstaller ?? false;
+  }
+
+  Future<void> _handleMethodCall(MethodCall call) async {
+    if (call.method != 'downloadProgress') {
+      return;
+    }
+
+    final arguments = call.arguments;
+    if (arguments is! Map) {
+      return;
+    }
+
+    final requestId = arguments['requestId']?.toString();
+    if (requestId == null || requestId.isEmpty) {
+      return;
+    }
+
+    final callback = _progressCallbacks[requestId];
+    if (callback == null) {
+      return;
+    }
+
+    callback(
+      AppUpdateDownloadProgress(
+        bytesRead: _readInt(arguments['bytesRead']),
+        totalBytes: _readInt(arguments['totalBytes']),
+      ),
+    );
   }
 
   Future<String?> _currentVersion() async {
@@ -130,6 +198,18 @@ class AppUpdateService {
         .map((part) => int.tryParse(part.replaceAll(RegExp(r'[^0-9]'), '')))
         .map((part) => part ?? 0)
         .toList(growable: false);
+  }
+
+  static int _readInt(Object? value) {
+    if (value is int) {
+      return value;
+    }
+
+    if (value is num) {
+      return value.toInt();
+    }
+
+    return int.tryParse(value?.toString() ?? '') ?? 0;
   }
 }
 

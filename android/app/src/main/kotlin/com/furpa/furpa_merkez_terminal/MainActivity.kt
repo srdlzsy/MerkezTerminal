@@ -19,19 +19,22 @@ import kotlin.concurrent.thread
 
 class MainActivity : FlutterActivity() {
     private var pendingApkFile: File? = null
+    private lateinit var updateChannel: MethodChannel
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
 
-        MethodChannel(
+        updateChannel = MethodChannel(
             flutterEngine.dartExecutor.binaryMessenger,
             UPDATE_CHANNEL,
-        ).setMethodCallHandler { call, result ->
+        )
+        updateChannel.setMethodCallHandler { call, result ->
             when (call.method) {
                 "getAppVersion" -> result.success(appVersionName())
                 "downloadAndInstallApk" -> {
                     val url = call.argument<String>("url")
                     val fileName = call.argument<String>("fileName")
+                    val requestId = call.argument<String>("requestId")
                     if (url.isNullOrBlank()) {
                         result.error(
                             "INVALID_URL",
@@ -44,6 +47,7 @@ class MainActivity : FlutterActivity() {
                     downloadAndInstallApk(
                         url,
                         sanitizedFileName(fileName ?: DEFAULT_APK_FILE_NAME),
+                        requestId,
                         result,
                     )
                 }
@@ -80,6 +84,7 @@ class MainActivity : FlutterActivity() {
     private fun downloadAndInstallApk(
         url: String,
         fileName: String,
+        requestId: String?,
         result: MethodChannel.Result,
     ) {
         thread(name = "furpa-apk-download") {
@@ -97,6 +102,7 @@ class MainActivity : FlutterActivity() {
                 if (statusCode !in 200..299) {
                     throw IOException("APK indirilemedi. HTTP $statusCode")
                 }
+                val totalBytes = connection.contentLengthLong
 
                 val updateDir = File(cacheDir, UPDATE_CACHE_DIR)
                 if (!updateDir.exists() && !updateDir.mkdirs()) {
@@ -107,6 +113,9 @@ class MainActivity : FlutterActivity() {
                 if (apkFile.exists() && !apkFile.delete()) {
                     throw IOException("Eski guncelleme dosyasi silinemedi.")
                 }
+                var bytesDownloaded = 0L
+                var lastProgressAt = 0L
+                emitDownloadProgress(requestId, bytesDownloaded, totalBytes)
                 connection.inputStream.use { input ->
                     FileOutputStream(apkFile).use { output ->
                         val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
@@ -116,9 +125,24 @@ class MainActivity : FlutterActivity() {
                                 break
                             }
                             output.write(buffer, 0, bytesRead)
+                            bytesDownloaded += bytesRead.toLong()
+
+                            val now = System.currentTimeMillis()
+                            if (
+                                now - lastProgressAt >= PROGRESS_EMIT_INTERVAL_MS ||
+                                totalBytes > 0 && bytesDownloaded >= totalBytes
+                            ) {
+                                emitDownloadProgress(
+                                    requestId,
+                                    bytesDownloaded,
+                                    totalBytes,
+                                )
+                                lastProgressAt = now
+                            }
                         }
                     }
                 }
+                emitDownloadProgress(requestId, bytesDownloaded, totalBytes)
 
                 runOnUiThread {
                     try {
@@ -142,6 +166,27 @@ class MainActivity : FlutterActivity() {
             } finally {
                 connection?.disconnect()
             }
+        }
+    }
+
+    private fun emitDownloadProgress(
+        requestId: String?,
+        bytesRead: Long,
+        totalBytes: Long,
+    ) {
+        if (requestId.isNullOrBlank()) {
+            return
+        }
+
+        runOnUiThread {
+            updateChannel.invokeMethod(
+                "downloadProgress",
+                mapOf(
+                    "requestId" to requestId,
+                    "bytesRead" to bytesRead,
+                    "totalBytes" to totalBytes,
+                ),
+            )
         }
     }
 
@@ -202,5 +247,6 @@ class MainActivity : FlutterActivity() {
         const val APK_MIME_TYPE = "application/vnd.android.package-archive"
         const val CONNECT_TIMEOUT_MS = 15_000
         const val READ_TIMEOUT_MS = 60_000
+        const val PROGRESS_EMIT_INTERVAL_MS = 250L
     }
 }
