@@ -1023,89 +1023,126 @@ class _VirmanCreateSheetState extends State<_VirmanCreateSheet>
       child: Form(
         key: _formKey,
         autovalidateMode: createFormAutovalidateMode,
-        child: ListView(
-          shrinkWrap: true,
-          children: <Widget>[
-            const TerminalSheetHeader(
-              title: 'Yeni Virman',
-              subtitle:
-                  'Satirlar movementType=2 ile gonderilir; backend cikis ve giris hareketlerini birlikte olusturur.',
-              padding: EdgeInsets.zero,
-            ),
-            const SizedBox(height: 16),
-            Wrap(
-              spacing: 12,
-              runSpacing: 12,
+        child: CustomScrollView(
+          slivers: <Widget>[
+            SliverList.list(
               children: <Widget>[
-                TerminalFilterButton(
-                  label: 'Hareket Tarihi',
-                  value: AppFormatters.date(_movementDate),
-                  onPressed: () => _pickDate(isMovementDate: true),
+                const TerminalSheetHeader(
+                  title: 'Yeni Virman',
+                  subtitle:
+                      'Satirlar movementType=2 ile gonderilir; backend cikis ve giris hareketlerini birlikte olusturur.',
+                  padding: EdgeInsets.zero,
                 ),
-                TerminalFilterButton(
-                  label: 'Belge Tarihi',
-                  value: AppFormatters.date(_documentDate),
-                  onPressed: () => _pickDate(isMovementDate: false),
+                const SizedBox(height: 16),
+                Wrap(
+                  spacing: 12,
+                  runSpacing: 12,
+                  children: <Widget>[
+                    TerminalFilterButton(
+                      label: 'Hareket Tarihi',
+                      value: AppFormatters.date(_movementDate),
+                      onPressed: () => _pickDate(isMovementDate: true),
+                    ),
+                    TerminalFilterButton(
+                      label: 'Belge Tarihi',
+                      value: AppFormatters.date(_documentDate),
+                      onPressed: () => _pickDate(isMovementDate: false),
+                    ),
+                  ],
                 ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: _descriptionController,
+                  maxLines: 2,
+                  decoration: const InputDecoration(labelText: 'Aciklama'),
+                ),
+                const SizedBox(height: 16),
+                TerminalSectionToolbar(
+                  title: 'Satirlar',
+                  actions: const <Widget>[],
+                ),
+                const SizedBox(height: 12),
+                _buildEntryLineCard(),
               ],
             ),
-            const SizedBox(height: 12),
-            TextFormField(
-              controller: _descriptionController,
-              maxLines: 2,
-              decoration: const InputDecoration(labelText: 'Aciklama'),
-            ),
-            const SizedBox(height: 16),
-            TerminalSectionToolbar(
-              title: 'Satirlar',
-              actions: const <Widget>[],
-            ),
-            const SizedBox(height: 12),
-            Column(
-              children: _lines
-                  .asMap()
-                  .entries
-                  .map((entry) {
-                    final index = entry.key;
-                    final line = entry.value;
-                    final isFreshEntry = index == 0 && _isBlankLine(line);
-                    final displayLineNo = _lines
-                        .take(index + 1)
-                        .where((item) => !_isBlankLine(item))
-                        .length;
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 12),
-                      child: _VirmanDraftLineCard(
-                        lineNumber: displayLineNo,
-                        isFreshEntry: isFreshEntry,
-                        line: line,
-                        canRemove: !isFreshEntry && _lines.length > 1,
-                        onPickProduct: () => _searchProduct(line),
-                        onScanWithCamera: () => _scanProductWithCamera(line),
-                        onRemove: () => _removeLine(line),
-                      ),
-                    );
-                  })
-                  .toList(growable: false),
-            ),
-            if (_errorMessage != null) ...<Widget>[
-              const SizedBox(height: 8),
-              TerminalMessageBlock.error(message: _errorMessage!),
-            ],
-            const SizedBox(height: 12),
-            TerminalFormActionRow(
-              cancel: OutlinedButton(
-                onPressed: () => Navigator.of(context).pop(),
-                child: const Text('Vazgec'),
-              ),
-              submit: FilledButton.icon(
-                onPressed: _submit,
-                icon: const Icon(Icons.save_alt_rounded),
-                label: const Text('Virmani Kaydet'),
+            _buildLazyLineSliver(),
+            SliverToBoxAdapter(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: <Widget>[
+                  if (_errorMessage != null) ...<Widget>[
+                    const SizedBox(height: 8),
+                    TerminalMessageBlock.error(message: _errorMessage!),
+                  ],
+                  const SizedBox(height: 12),
+                  TerminalFormActionRow(
+                    cancel: OutlinedButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      child: const Text('Vazgec'),
+                    ),
+                    submit: FilledButton.icon(
+                      onPressed: _submit,
+                      icon: const Icon(Icons.save_alt_rounded),
+                      label: const Text('Virmani Kaydet'),
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildEntryLineCard() {
+    final entryIndex = _lines.indexWhere(_isBlankLine);
+    if (entryIndex == -1) {
+      return const SizedBox.shrink();
+    }
+
+    return _buildLineCard(entryIndex);
+  }
+
+  Widget _buildLazyLineSliver() {
+    final indexes = _filledLineIndexes();
+    if (indexes.isEmpty) {
+      return const SliverToBoxAdapter(child: SizedBox.shrink());
+    }
+
+    return SliverList(
+      delegate: SliverChildBuilderDelegate((context, visibleIndex) {
+        final index = indexes[visibleIndex];
+        return _buildLineCard(index);
+      }, childCount: indexes.length),
+    );
+  }
+
+  List<int> _filledLineIndexes() {
+    return <int>[
+      for (var index = 0; index < _lines.length; index++)
+        if (!_isBlankLine(_lines[index])) index,
+    ];
+  }
+
+  Widget _buildLineCard(int index) {
+    final line = _lines[index];
+    final isFreshEntry = index == 0 && _isBlankLine(line);
+    final displayLineNo = _lines
+        .take(index + 1)
+        .where((item) => !_isBlankLine(item))
+        .length;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: _VirmanDraftLineCard(
+        lineNumber: displayLineNo,
+        isFreshEntry: isFreshEntry,
+        line: line,
+        canRemove: !isFreshEntry && _lines.length > 1,
+        onPickProduct: () => _searchProduct(line),
+        onScanWithCamera: () => _scanProductWithCamera(line),
+        onRemove: () => _removeLine(line),
       ),
     );
   }

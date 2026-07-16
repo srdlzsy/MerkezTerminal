@@ -451,71 +451,86 @@ class _InventoryCountCreateSheetState extends State<InventoryCountCreateSheet>
                     ),
                   ),
                   Expanded(
-                    child: ListView(
+                    child: CustomScrollView(
                       controller: _scrollController,
-                      padding: const EdgeInsets.all(16),
-                      children: <Widget>[
-                        TextFormField(
-                          controller: _nameController,
-                          decoration: const InputDecoration(
-                            labelText: 'Sayim Adi*',
-                            hintText: 'Nisan 2026 Genel Sayim',
-                          ),
-                          validator: (value) {
-                            if ((value ?? '').trim().isEmpty) {
-                              return 'Zorunlu';
-                            }
-
-                            return null;
-                          },
-                        ),
-                        const SizedBox(height: 16),
-                        OutlinedButton.icon(
-                          onPressed: _pickDate,
-                          icon: const Icon(Icons.calendar_month_rounded),
-                          label: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                      slivers: <Widget>[
+                        SliverPadding(
+                          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                          sliver: SliverList.list(
                             children: <Widget>[
-                              const Text('Belge Tarihi'),
-                              Text(
-                                AppFormatters.date(_documentDate),
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w700,
+                              TextFormField(
+                                controller: _nameController,
+                                decoration: const InputDecoration(
+                                  labelText: 'Sayim Adi*',
+                                  hintText: 'Nisan 2026 Genel Sayim',
+                                ),
+                                validator: (value) {
+                                  if ((value ?? '').trim().isEmpty) {
+                                    return 'Zorunlu';
+                                  }
+
+                                  return null;
+                                },
+                              ),
+                              const SizedBox(height: 12),
+                              OutlinedButton.icon(
+                                onPressed: _pickDate,
+                                icon: const Icon(Icons.calendar_month_rounded),
+                                label: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: <Widget>[
+                                    const Text('Belge Tarihi'),
+                                    Text(
+                                      AppFormatters.date(_documentDate),
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
+                              const SizedBox(height: 12),
+                              TerminalSectionToolbar(
+                                title: 'Satirlar',
+                                actions: const <Widget>[],
+                              ),
+                              const SizedBox(height: 8),
+                              _buildEntryLineCard(theme),
                             ],
                           ),
                         ),
-                        const SizedBox(height: 16),
-                        TerminalSectionToolbar(
-                          title: 'Satirlar',
-                          actions: const <Widget>[],
-                        ),
-                        const SizedBox(height: 10),
-                        ..._lines.asMap().entries.map(
-                          (entry) => _buildLineCard(
-                            theme: theme,
-                            index: entry.key,
-                            line: entry.value,
-                          ),
-                        ),
-                        if (_validationMessage != null) ...<Widget>[
-                          const SizedBox(height: 16),
-                          _ValidationBlock(message: _validationMessage!),
-                        ],
-                        const SizedBox(height: 16),
-                        TerminalFormActionRow(
-                          submitFlex: 2,
-                          cancel: OutlinedButton(
-                            onPressed: () => Navigator.of(context).pop(),
-                            child: const Text('Vazgec'),
-                          ),
-                          submit: FilledButton.icon(
-                            onPressed: _submit,
-                            icon: const Icon(Icons.save_rounded),
-                            label: const Text('Sayimi Kaydet'),
-                            style: FilledButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(vertical: 14),
+                        _buildLazyLineSliver(theme),
+                        SliverPadding(
+                          padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                          sliver: SliverToBoxAdapter(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: <Widget>[
+                                if (_validationMessage != null) ...<Widget>[
+                                  _ValidationBlock(
+                                    message: _validationMessage!,
+                                  ),
+                                  const SizedBox(height: 10),
+                                ],
+                                TerminalFormActionRow(
+                                  submitFlex: 2,
+                                  cancel: OutlinedButton(
+                                    onPressed: () =>
+                                        Navigator.of(context).pop(),
+                                    child: const Text('Vazgec'),
+                                  ),
+                                  submit: FilledButton.icon(
+                                    onPressed: _submit,
+                                    icon: const Icon(Icons.save_rounded),
+                                    label: const Text('Sayimi Kaydet'),
+                                    style: FilledButton.styleFrom(
+                                      padding: const EdgeInsets.symmetric(
+                                        vertical: 14,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         ),
@@ -649,6 +664,40 @@ class _InventoryCountCreateSheetState extends State<InventoryCountCreateSheet>
     return first.year == second.year &&
         first.month == second.month &&
         first.day == second.day;
+  }
+
+  Widget _buildEntryLineCard(ThemeData theme) {
+    final entryIndex = _lines.indexWhere(_isBlankLine);
+    final index = entryIndex == -1 ? 0 : entryIndex;
+    return _buildLineCard(theme: theme, index: index, line: _lines[index]);
+  }
+
+  Widget _buildLazyLineSliver(ThemeData theme) {
+    final indexes = _filledLineIndexes();
+    if (indexes.isEmpty) {
+      return const SliverToBoxAdapter(child: SizedBox.shrink());
+    }
+
+    return SliverPadding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      sliver: SliverList(
+        delegate: SliverChildBuilderDelegate((context, visibleIndex) {
+          final index = indexes[visibleIndex];
+          return _buildLineCard(
+            theme: theme,
+            index: index,
+            line: _lines[index],
+          );
+        }, childCount: indexes.length),
+      ),
+    );
+  }
+
+  List<int> _filledLineIndexes() {
+    return <int>[
+      for (var index = 0; index < _lines.length; index++)
+        if (!_isBlankLine(_lines[index])) index,
+    ];
   }
 
   void _showFeedback(String message) {

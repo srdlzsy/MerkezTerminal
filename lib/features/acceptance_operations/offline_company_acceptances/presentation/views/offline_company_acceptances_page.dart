@@ -1187,113 +1187,158 @@ class _OfflineCompanyAcceptanceCreateSheetState
         child: Form(
           key: _formKey,
           autovalidateMode: createFormAutovalidateMode,
-          child: ListView(
-            shrinkWrap: true,
-            children: <Widget>[
-              const TerminalSheetHeader(
-                title: 'Yeni Offline Firma Mal Kabul',
-                subtitle:
-                    'Taslak ilk kayitta clientRequestId ile saklanir. Online arama ve siparis baglama yardimcidir; gerekirse cari kodu ve stok kodu manuel de girilebilir.',
-                padding: EdgeInsets.zero,
+          child: CustomScrollView(
+            slivers: <Widget>[
+              SliverList.list(
+                children: <Widget>[
+                  const TerminalSheetHeader(
+                    title: 'Yeni Offline Firma Mal Kabul',
+                    subtitle:
+                        'Taslak ilk kayitta clientRequestId ile saklanir. Online arama ve siparis baglama yardimcidir; gerekirse cari kodu ve stok kodu manuel de girilebilir.',
+                    padding: EdgeInsets.zero,
+                  ),
+                  const SizedBox(height: 16),
+                  _buildCustomerLookupRow(),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: _customerCodeController,
+                    decoration: const InputDecoration(labelText: 'Cari Kodu*'),
+                    onChanged: (_) => setState(() {}),
+                    validator: (value) {
+                      if ((value ?? '').trim().isEmpty) {
+                        return 'Cari kodu zorunlu.';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 8),
+                  _buildDocumentDetailsSection(),
+                  const SizedBox(height: 8),
+                  _buildLinesToolbar(),
+                  const SizedBox(height: 10),
+                  _buildEntryLineCard(),
+                ],
               ),
-              const SizedBox(height: 16),
-              _buildCustomerLookupRow(),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: _customerCodeController,
-                decoration: const InputDecoration(labelText: 'Cari Kodu*'),
-                onChanged: (_) => setState(() {}),
-                validator: (value) {
-                  if ((value ?? '').trim().isEmpty) {
-                    return 'Cari kodu zorunlu.';
-                  }
-                  return null;
-                },
+              _buildLazyLineSliver(),
+              SliverToBoxAdapter(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: <Widget>[
+                    if (_validationMessage != null) ...<Widget>[
+                      TerminalMessageBlock.error(message: _validationMessage!),
+                      const SizedBox(height: 12),
+                    ],
+                    _buildFormActions(),
+                  ],
+                ),
               ),
-              const SizedBox(height: 8),
-              _buildDocumentDetailsSection(),
-              const SizedBox(height: 8),
-              _buildLinesToolbar(),
-              const SizedBox(height: 10),
-              ..._lines.asMap().entries.map((entry) {
-                final index = entry.key;
-                final line = entry.value;
-                final isFreshEntry = index == 0 && _isBlankLine(line);
-                final displayLineNo = _lines
-                    .take(index + 1)
-                    .where((item) => !_isBlankLine(item))
-                    .length;
-
-                return TerminalPdaLineCard(
-                  title: isFreshEntry ? 'Giris satiri' : 'Satir $displayLineNo',
-                  subtitle: line.stockNameController.text.trim().isEmpty
-                      ? (isFreshEntry ? 'Okutmaya hazir' : 'Urun secilmedi')
-                      : line.stockNameController.text.trim(),
-                  isEntryLine: isFreshEntry,
-                  leading: Icon(
-                    isFreshEntry
-                        ? Icons.qr_code_scanner_rounded
-                        : Icons.inventory_2_rounded,
-                    color: Theme.of(context).colorScheme.primary,
-                  ),
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: <Widget>[
-                      if ((line.orderGuid ?? '').trim().isNotEmpty)
-                        const TerminalBadge(label: 'Siparisli'),
-                      if (!isFreshEntry && _lines.length > 1)
-                        IconButton(
-                          onPressed: () {
-                            setState(() {
-                              line.dispose();
-                              _lines.removeAt(index);
-                            });
-                          },
-                          icon: const Icon(Icons.delete_outline_rounded),
-                          tooltip: 'Satiri sil',
-                        ),
-                    ],
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: <Widget>[
-                      if (isFreshEntry)
-                        _buildProductLookupRow(line)
-                      else ...<Widget>[
-                        TerminalCompactProductLineSummary(
-                          lineNo: displayLineNo,
-                          stockCode: line.stockCodeController.text.trim(),
-                          stockName: line.stockNameController.text.trim(),
-                          unitLabel: line.selectedProduct?.unitName,
-                          barcode: line.barcodeController.text.trim(),
-                          priceLabel: line.unitPrice > 0
-                              ? AppFormatters.currency(line.unitPrice)
-                              : null,
-                        ),
-                        const SizedBox(height: 10),
-                        _buildQuantityFields(line),
-                      ],
-                      if (line.returnQuantity > 0) ...<Widget>[
-                        const SizedBox(height: 8),
-                        TerminalMessageBlock.info(
-                          message:
-                              'Iade farki ${AppFormatters.quantity(line.returnQuantity)}. ${_autoCreateReturnForPartialAcceptance ? 'Firma iadesi olusur, e-irsaliye manuel gonderilir.' : 'Otomatik iade kapali; fark manuel iade bekler.'}',
-                        ),
-                      ],
-                    ],
-                  ),
-                );
-              }),
-              if (_validationMessage != null) ...<Widget>[
-                TerminalMessageBlock.error(message: _validationMessage!),
-                const SizedBox(height: 12),
-              ],
-              _buildFormActions(),
             ],
           ),
         ),
       ),
     );
+  }
+
+  Widget _buildEntryLineCard() {
+    final entryIndex = _lines.indexWhere(_isBlankLine);
+    if (entryIndex == -1) {
+      return const SizedBox.shrink();
+    }
+
+    return _buildLineCard(entryIndex);
+  }
+
+  Widget _buildLazyLineSliver() {
+    final indexes = _filledLineIndexes();
+    if (indexes.isEmpty) {
+      return const SliverToBoxAdapter(child: SizedBox.shrink());
+    }
+
+    return SliverList(
+      delegate: SliverChildBuilderDelegate((context, visibleIndex) {
+        final index = indexes[visibleIndex];
+        return _buildLineCard(index);
+      }, childCount: indexes.length),
+    );
+  }
+
+  List<int> _filledLineIndexes() {
+    return <int>[
+      for (var index = 0; index < _lines.length; index++)
+        if (!_isBlankLine(_lines[index])) index,
+    ];
+  }
+
+  Widget _buildLineCard(int index) {
+    final line = _lines[index];
+    final isFreshEntry = index == 0 && _isBlankLine(line);
+    final displayLineNo = _lines
+        .take(index + 1)
+        .where((item) => !_isBlankLine(item))
+        .length;
+
+    return TerminalPdaLineCard(
+      title: isFreshEntry ? 'Giris satiri' : 'Satir $displayLineNo',
+      subtitle: line.stockNameController.text.trim().isEmpty
+          ? (isFreshEntry ? 'Okutmaya hazir' : 'Urun secilmedi')
+          : line.stockNameController.text.trim(),
+      isEntryLine: isFreshEntry,
+      leading: Icon(
+        isFreshEntry
+            ? Icons.qr_code_scanner_rounded
+            : Icons.inventory_2_rounded,
+        color: Theme.of(context).colorScheme.primary,
+      ),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          if ((line.orderGuid ?? '').trim().isNotEmpty)
+            const TerminalBadge(label: 'Siparisli'),
+          if (!isFreshEntry && _lines.length > 1)
+            IconButton(
+              onPressed: () => _removeLineAt(index),
+              icon: const Icon(Icons.delete_outline_rounded),
+              tooltip: 'Satiri sil',
+            ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          if (isFreshEntry)
+            _buildProductLookupRow(line)
+          else ...<Widget>[
+            TerminalCompactProductLineSummary(
+              lineNo: displayLineNo,
+              stockCode: line.stockCodeController.text.trim(),
+              stockName: line.stockNameController.text.trim(),
+              unitLabel: line.selectedProduct?.unitName,
+              barcode: line.barcodeController.text.trim(),
+              priceLabel: line.unitPrice > 0
+                  ? AppFormatters.currency(line.unitPrice)
+                  : null,
+            ),
+            const SizedBox(height: 10),
+            _buildQuantityFields(line),
+          ],
+          if (line.returnQuantity > 0) ...<Widget>[
+            const SizedBox(height: 8),
+            TerminalMessageBlock.info(
+              message:
+                  'Iade farki ${AppFormatters.quantity(line.returnQuantity)}. ${_autoCreateReturnForPartialAcceptance ? 'Firma iadesi olusur, e-irsaliye manuel gonderilir.' : 'Otomatik iade kapali; fark manuel iade bekler.'}',
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  void _removeLineAt(int index) {
+    setState(() {
+      _lines[index].dispose();
+      _lines.removeAt(index);
+      _ensureFreshEntryLine();
+    });
   }
 
   Widget _buildDocumentDetailsSection() {

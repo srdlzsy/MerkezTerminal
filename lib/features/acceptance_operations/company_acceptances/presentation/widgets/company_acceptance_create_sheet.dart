@@ -1075,156 +1075,191 @@ class _CompanyAcceptanceCreateSheetState
       child: Form(
         key: _formKey,
         autovalidateMode: createFormAutovalidateMode,
-        child: ListView(
-          shrinkWrap: true,
-          children: <Widget>[
-            const TerminalSheetHeader(
-              title: 'Yeni Firma Mal Kabul',
-              subtitle:
-                  'Ayni fis icinde siparisli ve siparissiz satirlar bir arada gidebilir. Siparisli satirlarda siparis baglantisi otomatik tasinir.',
-              padding: EdgeInsets.zero,
-            ),
-            const SizedBox(height: 16),
-            _buildEDespatchLookupRow(),
-            if (_lastEDespatchPrefill != null) ...<Widget>[
-              const SizedBox(height: 10),
-              TerminalMessageBlock.info(
-                message: _eDespatchSummaryMessage(_lastEDespatchPrefill!),
-              ),
-            ],
-            const SizedBox(height: 12),
-            _buildCustomerLookupRow(),
-            const SizedBox(height: 12),
-            TextFormField(
-              controller: _customerCodeController,
-              decoration: const InputDecoration(
-                labelText: 'Cari Kodu*',
-                hintText: 'Internet yoksa elle girin',
-              ),
-              onChanged: (_) {
-                setState(() {});
-                _draftSession.scheduleSave();
-              },
-              validator: (value) {
-                if ((value ?? '').trim().isEmpty) {
-                  return 'Cari kodu zorunlu';
-                }
-
-                return null;
-              },
-            ),
-            const SizedBox(height: 8),
-            _buildDocumentDetailsSection(),
-            const SizedBox(height: 8),
-            _buildLinesToolbar(),
-            const SizedBox(height: 10),
-            ..._lines.asMap().entries.map((entry) {
-              final index = entry.key;
-              final line = entry.value;
-              final isFreshEntry = index == 0 && _isBlankLine(line);
-              final displayLineNo = _lines
-                  .take(index + 1)
-                  .where((item) => !_isBlankLine(item))
-                  .length;
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                      color: Theme.of(
-                        context,
-                      ).colorScheme.outlineVariant.withAlpha(90),
-                    ),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: <Widget>[
-                      Row(
-                        children: <Widget>[
-                          Expanded(
-                            child: Text(
-                              isFreshEntry
-                                  ? 'Giris satiri'
-                                  : 'Satir $displayLineNo',
-                              style: Theme.of(context).textTheme.titleSmall
-                                  ?.copyWith(fontWeight: FontWeight.w800),
-                            ),
-                          ),
-                          if (line.orderGuid != null &&
-                              line.orderGuid!.isNotEmpty)
-                            const TerminalBadge(label: 'Siparisli'),
-                          if (!isFreshEntry && _lines.length > 1)
-                            IconButton(
-                              onPressed: () {
-                                setState(() {
-                                  line.dispose();
-                                  _lines.removeAt(index);
-                                });
-                                _draftSession.scheduleSave();
-                              },
-                              icon: const Icon(Icons.delete_outline_rounded),
-                            ),
-                        ],
-                      ),
-                      if (isFreshEntry)
-                        _buildProductLookupRow(line)
-                      else
-                        TerminalCompactProductLineSummary(
-                          lineNo: displayLineNo,
-                          stockCode: line.stockCodeController.text.trim(),
-                          stockName:
-                              line.selectedProduct?.stockName ??
-                              line.lookupController.text.trim(),
-                          unitLabel: line.selectedProduct?.unitName,
-                          barcode: line.selectedProduct?.barcode,
-                          priceLabel: line.unitPrice > 0
-                              ? AppFormatters.currency(line.unitPrice)
-                              : null,
-                        ),
-                      if (isFreshEntry &&
-                          line.lookupStatusMessage != null) ...<Widget>[
-                        const SizedBox(height: 8),
-                        if (line.isLookupStatusLoading)
-                          TerminalMessageBlock.loading(
-                            message: line.lookupStatusMessage!,
-                          )
-                        else if (line.isLookupStatusError)
-                          TerminalMessageBlock.error(
-                            message: line.lookupStatusMessage!,
-                          )
-                        else
-                          TerminalMessageBlock.info(
-                            message: line.lookupStatusMessage!,
-                          ),
-                      ],
-                      if (!isFreshEntry) ...<Widget>[
-                        const SizedBox(height: 12),
-                        _buildQuantityFields(line),
-                      ],
-                      if (line.returnQuantity > 0) ...<Widget>[
-                        const SizedBox(height: 8),
-                        TerminalMessageBlock.info(
-                          message:
-                              'Iade farki ${AppFormatters.quantity(line.returnQuantity)}. ${_autoCreateReturnForPartialAcceptance ? 'Firma iadesi olusur, e-irsaliye manuel gonderilir.' : 'Otomatik iade kapali; fark manuel iade bekler.'}',
-                        ),
-                      ],
-                    ],
-                  ),
+        child: CustomScrollView(
+          slivers: <Widget>[
+            SliverList.list(
+              children: <Widget>[
+                const TerminalSheetHeader(
+                  title: 'Yeni Firma Mal Kabul',
+                  subtitle:
+                      'Ayni fis icinde siparisli ve siparissiz satirlar bir arada gidebilir. Siparisli satirlarda siparis baglantisi otomatik tasinir.',
+                  padding: EdgeInsets.zero,
                 ),
-              );
-            }),
-            if (_lookupError != null) ...<Widget>[
-              TerminalMessageBlock.error(message: _lookupError!),
-              const SizedBox(height: 12),
-            ],
-            _buildFormActions(),
+                const SizedBox(height: 16),
+                _buildEDespatchLookupRow(),
+                if (_lastEDespatchPrefill != null) ...<Widget>[
+                  const SizedBox(height: 10),
+                  TerminalMessageBlock.info(
+                    message: _eDespatchSummaryMessage(_lastEDespatchPrefill!),
+                  ),
+                ],
+                const SizedBox(height: 12),
+                _buildCustomerLookupRow(),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: _customerCodeController,
+                  decoration: const InputDecoration(
+                    labelText: 'Cari Kodu*',
+                    hintText: 'Internet yoksa elle girin',
+                  ),
+                  onChanged: (_) {
+                    setState(() {});
+                    _draftSession.scheduleSave();
+                  },
+                  validator: (value) {
+                    if ((value ?? '').trim().isEmpty) {
+                      return 'Cari kodu zorunlu';
+                    }
+
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 8),
+                _buildDocumentDetailsSection(),
+                const SizedBox(height: 8),
+                _buildLinesToolbar(),
+                const SizedBox(height: 10),
+                _buildEntryLineCard(),
+              ],
+            ),
+            _buildLazyLineSliver(),
+            SliverToBoxAdapter(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: <Widget>[
+                  if (_lookupError != null) ...<Widget>[
+                    TerminalMessageBlock.error(message: _lookupError!),
+                    const SizedBox(height: 12),
+                  ],
+                  _buildFormActions(),
+                ],
+              ),
+            ),
           ],
         ),
       ),
     );
+  }
+
+  Widget _buildEntryLineCard() {
+    final entryIndex = _lines.indexWhere(_isBlankLine);
+    if (entryIndex == -1) {
+      return const SizedBox.shrink();
+    }
+
+    return _buildLineCard(entryIndex);
+  }
+
+  Widget _buildLazyLineSliver() {
+    final indexes = _filledLineIndexes();
+    if (indexes.isEmpty) {
+      return const SliverToBoxAdapter(child: SizedBox.shrink());
+    }
+
+    return SliverList(
+      delegate: SliverChildBuilderDelegate((context, visibleIndex) {
+        final index = indexes[visibleIndex];
+        return _buildLineCard(index);
+      }, childCount: indexes.length),
+    );
+  }
+
+  List<int> _filledLineIndexes() {
+    return <int>[
+      for (var index = 0; index < _lines.length; index++)
+        if (!_isBlankLine(_lines[index])) index,
+    ];
+  }
+
+  Widget _buildLineCard(int index) {
+    final line = _lines[index];
+    final isFreshEntry = index == 0 && _isBlankLine(line);
+    final displayLineNo = _lines
+        .take(index + 1)
+        .where((item) => !_isBlankLine(item))
+        .length;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: Theme.of(context).colorScheme.outlineVariant.withAlpha(90),
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Row(
+              children: <Widget>[
+                Expanded(
+                  child: Text(
+                    isFreshEntry ? 'Giris satiri' : 'Satir $displayLineNo',
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+                if ((line.orderGuid ?? '').isNotEmpty)
+                  const TerminalBadge(label: 'Siparisli'),
+                if (!isFreshEntry && _lines.length > 1)
+                  IconButton(
+                    onPressed: () => _removeLineAt(index),
+                    icon: const Icon(Icons.delete_outline_rounded),
+                  ),
+              ],
+            ),
+            if (isFreshEntry)
+              _buildProductLookupRow(line)
+            else
+              TerminalCompactProductLineSummary(
+                lineNo: displayLineNo,
+                stockCode: line.stockCodeController.text.trim(),
+                stockName:
+                    line.selectedProduct?.stockName ??
+                    line.lookupController.text.trim(),
+                unitLabel: line.selectedProduct?.unitName,
+                barcode: line.selectedProduct?.barcode,
+                priceLabel: line.unitPrice > 0
+                    ? AppFormatters.currency(line.unitPrice)
+                    : null,
+              ),
+            if (isFreshEntry && line.lookupStatusMessage != null) ...<Widget>[
+              const SizedBox(height: 8),
+              if (line.isLookupStatusLoading)
+                TerminalMessageBlock.loading(message: line.lookupStatusMessage!)
+              else if (line.isLookupStatusError)
+                TerminalMessageBlock.error(message: line.lookupStatusMessage!)
+              else
+                TerminalMessageBlock.info(message: line.lookupStatusMessage!),
+            ],
+            if (!isFreshEntry) ...<Widget>[
+              const SizedBox(height: 12),
+              _buildQuantityFields(line),
+            ],
+            if (line.returnQuantity > 0) ...<Widget>[
+              const SizedBox(height: 8),
+              TerminalMessageBlock.info(
+                message:
+                    'Iade farki ${AppFormatters.quantity(line.returnQuantity)}. ${_autoCreateReturnForPartialAcceptance ? 'Firma iadesi olusur, e-irsaliye manuel gonderilir.' : 'Otomatik iade kapali; fark manuel iade bekler.'}',
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _removeLineAt(int index) {
+    setState(() {
+      _lines[index].dispose();
+      _lines.removeAt(index);
+      _ensureFreshEntryLine();
+    });
+    _draftSession.scheduleSave();
   }
 
   Widget _buildDocumentDetailsSection() {

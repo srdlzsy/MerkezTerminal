@@ -777,178 +777,64 @@ class _OfflineInventoryCountCreateSheetState
         child: Form(
           key: _formKey,
           autovalidateMode: createFormAutovalidateMode,
-          child: ListView(
-            shrinkWrap: true,
-            children: <Widget>[
-              const TerminalSheetHeader(
-                title: 'Yeni Offline Sayim',
-                subtitle:
-                    'Bu ekran internet olmadan da calisir. Taslaklar GUID tabanli clientRequestId ile senkronize edilir; online urun arama ve kamera ile barkod okutma istege baglidir.',
-                padding: EdgeInsets.zero,
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: _nameController,
-                decoration: const InputDecoration(labelText: 'Sayim Adi'),
-                validator: (value) {
-                  if ((value ?? '').trim().isEmpty) {
-                    return 'Sayim adi zorunludur.';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 12),
-              TerminalFilterButton(
-                label: 'Belge Tarihi',
-                value: AppFormatters.date(_documentDate),
-                onPressed: _pickDate,
-              ),
-              const SizedBox(height: 12),
-              TerminalSectionToolbar(
-                title: 'Satirlar',
-                actions: const <Widget>[],
-              ),
-              const SizedBox(height: 10),
-              ..._lines.asMap().entries.map((entry) {
-                final index = entry.key;
-                final line = entry.value;
-                final isFreshEntry = index == 0 && _isBlankLine(line);
-                final displayLineNo = _lines
-                    .take(index + 1)
-                    .where((item) => !_isBlankLine(item))
-                    .length;
-                if (!isFreshEntry) {
-                  return TerminalCompactProductLineCard(
-                    lineNo: displayLineNo,
-                    stockCode: line.stockCodeController.text.trim(),
-                    stockName: line.stockNameController.text.trim().isEmpty
-                        ? 'Urun secilmedi'
-                        : line.stockNameController.text.trim(),
-                    quantityController: line.quantityController,
-                    unitLabel: 'Birim ${line.unitPointer}',
-                    barcode: line.barcodeController.text.trim(),
-                    canDelete: _lines.length > 1,
-                    onDelete: () {
-                      setState(() {
-                        line.dispose();
-                        _lines.removeAt(index);
-                      });
+          child: CustomScrollView(
+            slivers: <Widget>[
+              SliverList.list(
+                children: <Widget>[
+                  const TerminalSheetHeader(
+                    title: 'Yeni Offline Sayim',
+                    subtitle:
+                        'Bu ekran internet olmadan da calisir. Taslaklar GUID tabanli clientRequestId ile senkronize edilir; online urun arama ve kamera ile barkod okutma istege baglidir.',
+                    padding: EdgeInsets.zero,
+                  ),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: _nameController,
+                    decoration: const InputDecoration(labelText: 'Sayim Adi'),
+                    validator: (value) {
+                      if ((value ?? '').trim().isEmpty) {
+                        return 'Sayim adi zorunludur.';
+                      }
+                      return null;
                     },
-                    onMinimumReached: _lines.length > 1
-                        ? () {
-                            setState(() {
-                              line.dispose();
-                              _lines.removeAt(index);
-                            });
-                          }
-                        : null,
-                  );
-                }
-                return TerminalPdaLineCard(
-                  title: isFreshEntry ? 'Giris satiri' : 'Satir $displayLineNo',
-                  subtitle: line.stockNameController.text.trim().isEmpty
-                      ? (isFreshEntry ? 'Okutmaya hazir' : 'Urun secilmedi')
-                      : line.stockNameController.text.trim(),
-                  isEntryLine: isFreshEntry,
-                  leading: Icon(
-                    isFreshEntry
-                        ? Icons.qr_code_scanner_rounded
-                        : Icons.inventory_2_rounded,
-                    color: Theme.of(context).colorScheme.primary,
                   ),
-                  trailing: !isFreshEntry && _lines.length > 1
-                      ? IconButton(
-                          onPressed: () {
-                            setState(() {
-                              line.dispose();
-                              _lines.removeAt(index);
-                            });
-                          },
-                          icon: const Icon(Icons.delete_outline_rounded),
-                          tooltip: 'Satiri sil',
-                        )
-                      : null,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: <Widget>[
-                      if (isFreshEntry)
-                        TerminalResponsiveLookupRow(
-                          field: TerminalSubmitOnTab(
-                            onSubmit: () => _searchProduct(line),
-                            child: TextField(
-                              controller: line.lookupController,
-                              focusNode: line.lookupFocusNode,
-                              textInputAction: TextInputAction.search,
-                              onSubmitted: (_) => _searchProduct(line),
-                              decoration: const InputDecoration(
-                                labelText: 'Online urun ara',
-                              ),
-                            ),
-                          ),
-                          action: FilledButton.icon(
-                            onPressed: () => _searchProduct(line),
-                            icon: const Icon(Icons.search_rounded),
-                            label: const Text('Bul'),
-                          ),
-                          trailingAction: IconButton.filledTonal(
-                            onPressed: () => _scanProductWithCamera(line),
-                            tooltip: 'Kamera ile oku',
-                            icon: const Icon(Icons.photo_camera_back_rounded),
-                          ),
-                        )
-                      else ...<Widget>[
-                        TerminalPdaInfoGrid(
-                          minTileWidth: 92,
-                          items: <TerminalPdaInfo>[
-                            TerminalPdaInfo(
-                              label: 'Kod',
-                              value: line.stockCodeController.text.trim(),
-                            ),
-                            if (line.barcodeController.text.trim().isNotEmpty)
-                              TerminalPdaInfo(
-                                label: 'Barkod',
-                                value: line.barcodeController.text.trim(),
-                              ),
-                          ],
-                        ),
-                        const SizedBox(height: 10),
-                        TerminalQuantityStepper(
-                          controller: line.quantityController,
-                          label: 'Miktar',
-                          onMinimumReached: !isFreshEntry && _lines.length > 1
-                              ? () {
-                                  setState(() {
-                                    line.dispose();
-                                    _lines.removeAt(index);
-                                  });
-                                }
-                              : null,
-                          validator: (_) {
-                            if (line.quantity <= 0) {
-                              return 'Miktar > 0';
-                            }
-                            return null;
-                          },
-                        ),
-                      ],
+                  const SizedBox(height: 12),
+                  TerminalFilterButton(
+                    label: 'Belge Tarihi',
+                    value: AppFormatters.date(_documentDate),
+                    onPressed: _pickDate,
+                  ),
+                  const SizedBox(height: 12),
+                  TerminalSectionToolbar(
+                    title: 'Satirlar',
+                    actions: const <Widget>[],
+                  ),
+                  const SizedBox(height: 10),
+                  _buildEntryLineCard(),
+                ],
+              ),
+              _buildLazyLineSliver(),
+              SliverToBoxAdapter(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: <Widget>[
+                    if (_errorMessage != null) ...<Widget>[
+                      const SizedBox(height: 12),
+                      TerminalMessageBlock.error(message: _errorMessage!),
                     ],
-                  ),
-                );
-              }),
-              if (_errorMessage != null) ...<Widget>[
-                const SizedBox(height: 12),
-                TerminalMessageBlock.error(message: _errorMessage!),
-              ],
-              const SizedBox(height: 12),
-              TerminalFormActionRow(
-                cancel: OutlinedButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  child: const Text('Vazgec'),
-                ),
-                submit: FilledButton.icon(
-                  onPressed: _submit,
-                  icon: const Icon(Icons.save_alt_rounded),
-                  label: const Text('Taslagi Kaydet'),
+                    const SizedBox(height: 12),
+                    TerminalFormActionRow(
+                      cancel: OutlinedButton(
+                        onPressed: () => Navigator.of(context).pop(),
+                        child: const Text('Vazgec'),
+                      ),
+                      submit: FilledButton.icon(
+                        onPressed: _submit,
+                        icon: const Icon(Icons.save_alt_rounded),
+                        label: const Text('Taslagi Kaydet'),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
@@ -956,6 +842,108 @@ class _OfflineInventoryCountCreateSheetState
         ),
       ),
     );
+  }
+
+  Widget _buildEntryLineCard() {
+    final entryIndex = _lines.indexWhere(_isBlankLine);
+    if (entryIndex == -1) {
+      return const SizedBox.shrink();
+    }
+
+    return _buildLineCard(entryIndex);
+  }
+
+  Widget _buildLazyLineSliver() {
+    final indexes = _filledLineIndexes();
+    if (indexes.isEmpty) {
+      return const SliverToBoxAdapter(child: SizedBox.shrink());
+    }
+
+    return SliverList(
+      delegate: SliverChildBuilderDelegate((context, visibleIndex) {
+        final index = indexes[visibleIndex];
+        return _buildLineCard(index);
+      }, childCount: indexes.length),
+    );
+  }
+
+  List<int> _filledLineIndexes() {
+    return <int>[
+      for (var index = 0; index < _lines.length; index++)
+        if (!_isBlankLine(_lines[index])) index,
+    ];
+  }
+
+  Widget _buildLineCard(int index) {
+    final line = _lines[index];
+    final isFreshEntry = index == 0 && _isBlankLine(line);
+    final displayLineNo = _lines
+        .take(index + 1)
+        .where((item) => !_isBlankLine(item))
+        .length;
+
+    if (!isFreshEntry) {
+      return TerminalCompactProductLineCard(
+        lineNo: displayLineNo,
+        stockCode: line.stockCodeController.text.trim(),
+        stockName: line.stockNameController.text.trim().isEmpty
+            ? 'Urun secilmedi'
+            : line.stockNameController.text.trim(),
+        quantityController: line.quantityController,
+        unitLabel: 'Birim ${line.unitPointer}',
+        barcode: line.barcodeController.text.trim(),
+        canDelete: _lines.length > 1,
+        onDelete: _lines.length > 1 ? () => _removeLineAt(index) : null,
+        onMinimumReached: _lines.length > 1 ? () => _removeLineAt(index) : null,
+      );
+    }
+
+    return TerminalPdaLineCard(
+      title: 'Giris satiri',
+      subtitle: line.stockNameController.text.trim().isEmpty
+          ? 'Okutmaya hazir'
+          : line.stockNameController.text.trim(),
+      isEntryLine: true,
+      leading: Icon(
+        Icons.qr_code_scanner_rounded,
+        color: Theme.of(context).colorScheme.primary,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          TerminalResponsiveLookupRow(
+            field: TerminalSubmitOnTab(
+              onSubmit: () => _searchProduct(line),
+              child: TextField(
+                controller: line.lookupController,
+                focusNode: line.lookupFocusNode,
+                textInputAction: TextInputAction.search,
+                onSubmitted: (_) => _searchProduct(line),
+                decoration: const InputDecoration(labelText: 'Online urun ara'),
+              ),
+            ),
+            action: FilledButton.icon(
+              onPressed: () => _searchProduct(line),
+              icon: const Icon(Icons.search_rounded),
+              label: const Text('Bul'),
+            ),
+            trailingAction: IconButton.filledTonal(
+              onPressed: () => _scanProductWithCamera(line),
+              tooltip: 'Kamera ile oku',
+              icon: const Icon(Icons.photo_camera_back_rounded),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _removeLineAt(int index) {
+    setState(() {
+      _lines[index].dispose();
+      _lines.removeAt(index);
+      _ensureFreshEntryLine();
+    });
   }
 }
 

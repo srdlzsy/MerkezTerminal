@@ -638,236 +638,251 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
       child: Form(
         key: _formKey,
         autovalidateMode: createFormAutovalidateMode,
-        child: ListView(
-          shrinkWrap: true,
-          children: <Widget>[
-            TerminalSheetHeader(
-              title: widget.title,
-              subtitle: widget.helperText,
-              padding: EdgeInsets.zero,
-            ),
-            const SizedBox(height: 16),
-            TerminalResponsiveLookupRow(
-              breakpoint: 360,
-              field: TextFormField(
-                controller: _customerController,
-                decoration: const InputDecoration(
-                  labelText: 'Cari',
-                  hintText: 'Cari adi veya kodu',
+        child: CustomScrollView(
+          slivers: <Widget>[
+            SliverList.list(
+              children: <Widget>[
+                TerminalSheetHeader(
+                  title: widget.title,
+                  subtitle: widget.helperText,
+                  padding: EdgeInsets.zero,
                 ),
-                validator: (_) {
-                  if (_selectedCustomer == null) {
-                    return 'Cari secimi zorunludur.';
-                  }
+                const SizedBox(height: 16),
+                TerminalResponsiveLookupRow(
+                  breakpoint: 360,
+                  field: TextFormField(
+                    controller: _customerController,
+                    decoration: const InputDecoration(
+                      labelText: 'Cari',
+                      hintText: 'Cari adi veya kodu',
+                    ),
+                    validator: (_) {
+                      if (_selectedCustomer == null) {
+                        return 'Cari secimi zorunludur.';
+                      }
 
-                  return null;
-                },
-              ),
-              action: FilledButton.icon(
-                onPressed: _searchCustomer,
-                icon: const Icon(Icons.search_rounded),
-                label: const Text('Bul'),
-              ),
+                      return null;
+                    },
+                  ),
+                  action: FilledButton.icon(
+                    onPressed: _searchCustomer,
+                    icon: const Icon(Icons.search_rounded),
+                    label: const Text('Bul'),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TerminalSectionToolbar(
+                  title: 'Satirlar',
+                  actions: const <Widget>[],
+                ),
+                const SizedBox(height: 8),
+                _buildEntryLineCard(),
+              ],
             ),
-            const SizedBox(height: 12),
-
-            TerminalSectionToolbar(
-              title: 'Satirlar',
-              actions: const <Widget>[],
-            ),
-            const SizedBox(height: 10),
-            ..._lines.asMap().entries.map((entry) {
-              final index = entry.key;
-              final line = entry.value;
-              final isFreshEntry = index == 0 && _isBlankLine(line);
-              final displayLineNo = _lines
-                  .take(index + 1)
-                  .where((item) => !_isBlankLine(item))
-                  .length;
-              final product = line.selectedProduct;
-              if (!isFreshEntry && product != null) {
-                return TerminalCompactProductLineCard(
-                  lineNo: displayLineNo,
-                  stockCode: product.stockCode,
-                  stockName: product.stockName,
-                  quantityController: line.quantityController,
-                  unitLabel: product.unitName,
-                  priceLabel: AppFormatters.currency(product.price),
-                  barcode: product.barcode,
-                  canDelete: _lines.length > 1,
-                  onDelete: () {
-                    setState(() {
-                      line.dispose();
-                      _lines.removeAt(index);
-                    });
-                    _scheduleDraftSave();
-                  },
-                  onMinimumReached: _lines.length > 1
-                      ? () {
-                          setState(() {
-                            line.dispose();
-                            _lines.removeAt(index);
-                          });
-                          _scheduleDraftSave();
-                        }
-                      : null,
-                );
-              }
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                      color: Theme.of(
-                        context,
-                      ).colorScheme.outlineVariant.withAlpha(90),
+            _buildLazyLineSliver(),
+            SliverToBoxAdapter(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: <Widget>[
+                  if (_lookupError != null) ...<Widget>[
+                    TerminalMessageBlock.error(message: _lookupError!),
+                    const SizedBox(height: 12),
+                  ],
+                  TerminalFormActionRow(
+                    cancel: OutlinedButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      child: const Text('Vazgec'),
+                    ),
+                    submit: FilledButton.icon(
+                      onPressed: _submit,
+                      icon: const Icon(Icons.save_alt_rounded),
+                      label: Text(widget.submitLabel),
                     ),
                   ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: <Widget>[
-                      Row(
-                        children: <Widget>[
-                          Expanded(
-                            child: Text(
-                              isFreshEntry
-                                  ? 'Giris satiri'
-                                  : 'Satir $displayLineNo',
-                              style: Theme.of(context).textTheme.titleSmall
-                                  ?.copyWith(fontWeight: FontWeight.w800),
-                            ),
-                          ),
-                          if (!isFreshEntry && _lines.length > 1)
-                            IconButton(
-                              onPressed: () {
-                                setState(() {
-                                  line.dispose();
-                                  _lines.removeAt(index);
-                                });
-                                _scheduleDraftSave();
-                              },
-                              icon: const Icon(Icons.delete_outline_rounded),
-                            ),
-                        ],
-                      ),
-                      if (isFreshEntry)
-                        TerminalResponsiveLookupRow(
-                          field: ProductLookupField(
-                            controller: line.lookupController,
-                            focusNode: line.lookupFocusNode,
-                            enabled: !line.isLookupStatusLoading,
-                            onSubmit: () => _searchProduct(line),
-                          ),
-                          action: FilledButton.icon(
-                            onPressed: line.isLookupStatusLoading
-                                ? null
-                                : () => _searchProduct(line),
-                            icon: const Icon(Icons.search_rounded),
-                            label: const Text('Urun'),
-                          ),
-                          trailingAction: IconButton.filledTonal(
-                            onPressed: line.isLookupStatusLoading
-                                ? null
-                                : () => _scanProductWithCamera(line),
-                            tooltip: 'Kamera ile oku',
-                            icon: const Icon(Icons.photo_camera_back_rounded),
-                          ),
-                        )
-                      else if (line.selectedProduct != null)
-                        TerminalPdaInfoGrid(
-                          minTileWidth: 92,
-                          items: <TerminalPdaInfo>[
-                            TerminalPdaInfo(
-                              label: 'Urun',
-                              value: line.selectedProduct!.stockName,
-                            ),
-                            TerminalPdaInfo(
-                              label: 'Kod',
-                              value: line.selectedProduct!.stockCode,
-                            ),
-                            TerminalPdaInfo(
-                              label: 'Birim',
-                              value: line.selectedProduct!.unitName,
-                            ),
-                            TerminalPdaInfo(
-                              label: 'Fiyat',
-                              value: AppFormatters.currency(
-                                line.selectedProduct!.price,
-                              ),
-                            ),
-                            if (line.selectedProduct!.barcode.isNotEmpty)
-                              TerminalPdaInfo(
-                                label: 'Barkod',
-                                value: line.selectedProduct!.barcode,
-                              ),
-                          ],
-                        ),
-                      if (isFreshEntry &&
-                          line.lookupStatusMessage != null) ...<Widget>[
-                        const SizedBox(height: 8),
-                        if (line.isLookupStatusLoading)
-                          TerminalMessageBlock.loading(
-                            message: line.lookupStatusMessage!,
-                          )
-                        else if (line.isLookupStatusError)
-                          TerminalMessageBlock.error(
-                            message: line.lookupStatusMessage!,
-                          )
-                        else
-                          TerminalMessageBlock.info(
-                            message: line.lookupStatusMessage!,
-                          ),
-                      ],
-                      if (!isFreshEntry) ...<Widget>[
-                        const SizedBox(height: 10),
-                        TerminalQuantityStepper(
-                          controller: line.quantityController,
-                          label: 'Miktar',
-                          onMinimumReached: !isFreshEntry && _lines.length > 1
-                              ? () {
-                                  setState(() {
-                                    line.dispose();
-                                    _lines.removeAt(index);
-                                  });
-                                  _scheduleDraftSave();
-                                }
-                              : null,
-                          validator: (_) {
-                            if (line.quantity <= 0) {
-                              return 'Miktar > 0 olmali.';
-                            }
-
-                            return null;
-                          },
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-              );
-            }),
-            if (_lookupError != null) ...<Widget>[
-              TerminalMessageBlock.error(message: _lookupError!),
-              const SizedBox(height: 12),
-            ],
-            TerminalFormActionRow(
-              cancel: OutlinedButton(
-                onPressed: () => Navigator.of(context).pop(),
-                child: const Text('Vazgec'),
-              ),
-              submit: FilledButton.icon(
-                onPressed: _submit,
-                icon: const Icon(Icons.save_alt_rounded),
-                label: Text(widget.submitLabel),
+                ],
               ),
             ),
           ],
         ),
       ),
     );
+  }
+
+  Widget _buildEntryLineCard() {
+    if (_lines.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    final entryIndex = _lines.indexWhere(_isBlankLine);
+    final index = entryIndex == -1 ? 0 : entryIndex;
+    return _buildLineCard(index);
+  }
+
+  Widget _buildLazyLineSliver() {
+    final indexes = _filledLineIndexes();
+    if (indexes.isEmpty) {
+      return const SliverToBoxAdapter(child: SizedBox.shrink());
+    }
+
+    return SliverList(
+      delegate: SliverChildBuilderDelegate((context, visibleIndex) {
+        final index = indexes[visibleIndex];
+        return _buildLineCard(index);
+      }, childCount: indexes.length),
+    );
+  }
+
+  List<int> _filledLineIndexes() {
+    return <int>[
+      for (var index = 0; index < _lines.length; index++)
+        if (!_isBlankLine(_lines[index])) index,
+    ];
+  }
+
+  Widget _buildLineCard(int index) {
+    final line = _lines[index];
+    final isFreshEntry = index == 0 && _isBlankLine(line);
+    final displayLineNo = _lines
+        .take(index + 1)
+        .where((item) => !_isBlankLine(item))
+        .length;
+    final product = line.selectedProduct;
+
+    if (!isFreshEntry && product != null) {
+      return TerminalCompactProductLineCard(
+        lineNo: displayLineNo,
+        stockCode: product.stockCode,
+        stockName: product.stockName,
+        quantityController: line.quantityController,
+        unitLabel: product.unitName,
+        priceLabel: AppFormatters.currency(product.price),
+        barcode: product.barcode,
+        canDelete: _lines.length > 1,
+        onDelete: _lines.length > 1 ? () => _removeLineAt(index) : null,
+        onMinimumReached: _lines.length > 1 ? () => _removeLineAt(index) : null,
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: Theme.of(context).colorScheme.outlineVariant.withAlpha(90),
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Row(
+              children: <Widget>[
+                Expanded(
+                  child: Text(
+                    isFreshEntry ? 'Giris satiri' : 'Satir $displayLineNo',
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+                if (!isFreshEntry && _lines.length > 1)
+                  IconButton(
+                    onPressed: () => _removeLineAt(index),
+                    icon: const Icon(Icons.delete_outline_rounded),
+                  ),
+              ],
+            ),
+            if (isFreshEntry)
+              TerminalResponsiveLookupRow(
+                field: ProductLookupField(
+                  controller: line.lookupController,
+                  focusNode: line.lookupFocusNode,
+                  enabled: !line.isLookupStatusLoading,
+                  onSubmit: () => _searchProduct(line),
+                ),
+                action: FilledButton.icon(
+                  onPressed: line.isLookupStatusLoading
+                      ? null
+                      : () => _searchProduct(line),
+                  icon: const Icon(Icons.search_rounded),
+                  label: const Text('Urun'),
+                ),
+                trailingAction: IconButton.filledTonal(
+                  onPressed: line.isLookupStatusLoading
+                      ? null
+                      : () => _scanProductWithCamera(line),
+                  tooltip: 'Kamera ile oku',
+                  icon: const Icon(Icons.photo_camera_back_rounded),
+                ),
+              )
+            else if (line.selectedProduct != null)
+              TerminalPdaInfoGrid(
+                minTileWidth: 92,
+                items: <TerminalPdaInfo>[
+                  TerminalPdaInfo(
+                    label: 'Urun',
+                    value: line.selectedProduct!.stockName,
+                  ),
+                  TerminalPdaInfo(
+                    label: 'Kod',
+                    value: line.selectedProduct!.stockCode,
+                  ),
+                  TerminalPdaInfo(
+                    label: 'Birim',
+                    value: line.selectedProduct!.unitName,
+                  ),
+                  TerminalPdaInfo(
+                    label: 'Fiyat',
+                    value: AppFormatters.currency(line.selectedProduct!.price),
+                  ),
+                  if (line.selectedProduct!.barcode.isNotEmpty)
+                    TerminalPdaInfo(
+                      label: 'Barkod',
+                      value: line.selectedProduct!.barcode,
+                    ),
+                ],
+              ),
+            if (isFreshEntry && line.lookupStatusMessage != null) ...<Widget>[
+              const SizedBox(height: 8),
+              if (line.isLookupStatusLoading)
+                TerminalMessageBlock.loading(message: line.lookupStatusMessage!)
+              else if (line.isLookupStatusError)
+                TerminalMessageBlock.error(message: line.lookupStatusMessage!)
+              else
+                TerminalMessageBlock.info(message: line.lookupStatusMessage!),
+            ],
+            if (!isFreshEntry) ...<Widget>[
+              const SizedBox(height: 10),
+              TerminalQuantityStepper(
+                controller: line.quantityController,
+                label: 'Miktar',
+                onMinimumReached: _lines.length > 1
+                    ? () => _removeLineAt(index)
+                    : null,
+                validator: (_) {
+                  if (line.quantity <= 0) {
+                    return 'Miktar > 0 olmali.';
+                  }
+
+                  return null;
+                },
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _removeLineAt(int index) {
+    setState(() {
+      _lines[index].dispose();
+      _lines.removeAt(index);
+      _ensureFreshEntryLine();
+    });
+    _scheduleDraftSave();
   }
 
   void _showFeedback(String message) {

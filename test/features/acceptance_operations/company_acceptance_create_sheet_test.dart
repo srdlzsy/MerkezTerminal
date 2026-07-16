@@ -144,7 +144,10 @@ void main() {
     );
     expect(customerField.controller?.text, 'Test Cari');
     expect(customerCodeField.controller?.text, 'CR001');
-    await tester.drag(find.byType(ListView).first, const Offset(0, -900));
+    await tester.drag(
+      find.byType(CustomScrollView).first,
+      const Offset(0, -900),
+    );
     await tester.pumpAndSettle();
     expect(find.text('Test Urun'), findsOneWidget);
     expect(find.text('015792'), findsOneWidget);
@@ -158,7 +161,10 @@ Future<void> _pickProduct(WidgetTester tester) async {
     'Barkod / stok kodu / urun adi',
   );
   if (lookupFinder.evaluate().isEmpty) {
-    await tester.drag(find.byType(ListView).first, const Offset(0, -900));
+    await tester.drag(
+      find.byType(CustomScrollView).first,
+      const Offset(0, -900),
+    );
     await tester.pumpAndSettle();
   }
 
