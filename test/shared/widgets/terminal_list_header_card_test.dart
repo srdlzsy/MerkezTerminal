@@ -67,18 +67,19 @@ void main() {
       tester.getTopLeft(find.text('Baslangic')).dy,
       tester.getTopLeft(find.text('Bitis')).dy,
     );
-    expect(_buttonTop(tester, 'Listele'), _buttonTop(tester, 'Temizle'));
-    expect(_buttonTop(tester, 'Listele'), _buttonTop(tester, 'Yeni Mal Kabul'));
+    expect(find.text('Varsayilan depo'), findsNothing);
+    expect(find.text('Kayit'), findsNothing);
+    expect(_actionTop(tester, 'Listele'), _actionTop(tester, 'Temizle'));
+    expect(_actionTop(tester, 'Listele'), _actionTop(tester, 'Yeni Mal Kabul'));
+    expect(tester.getSize(_actionFinder('Listele')).width, lessThan(56));
 
-    await tester.tap(find.text('Yeni Mal Kabul'));
+    await tester.tap(_actionFinder('Yeni Mal Kabul'));
     await tester.pump();
 
     expect(createTapCount, 1);
   });
 
-  testWidgets('balances four header actions without a single-button row', (
-    tester,
-  ) async {
+  testWidgets('keeps four header actions compact on one row', (tester) async {
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
@@ -118,14 +119,15 @@ void main() {
     );
 
     expect(tester.takeException(), isNull);
-    expect(_buttonTop(tester, 'Listele'), _buttonTop(tester, 'Temizle'));
+    expect(_actionTop(tester, 'Listele'), _actionTop(tester, 'Temizle'));
     expect(
-      _buttonTop(tester, 'Yeni Mal Kabul'),
-      _buttonTop(tester, 'Offline Taslaklar'),
+      _actionTop(tester, 'Yeni Mal Kabul'),
+      _actionTop(tester, 'Offline Taslaklar'),
     );
+    expect(_actionTop(tester, 'Listele'), _actionTop(tester, 'Yeni Mal Kabul'));
     expect(
-      _buttonTop(tester, 'Listele'),
-      isNot(_buttonTop(tester, 'Yeni Mal Kabul')),
+      tester.getSize(_actionFinder('Offline Taslaklar')).width,
+      lessThan(56),
     );
   });
 
@@ -154,7 +156,7 @@ void main() {
     );
 
     expect(tester.takeException(), isNull);
-    expect(tester.getSize(_buttonFinder('Yenile')).width, lessThan(180));
+    expect(tester.getSize(_actionFinder('Yenile')).width, lessThan(56));
   });
 
   testWidgets('stacks form actions on tiny terminal width', (tester) async {
@@ -221,6 +223,14 @@ void main() {
 
 double _buttonTop(WidgetTester tester, String label) {
   return tester.getTopLeft(_buttonFinder(label)).dy;
+}
+
+double _actionTop(WidgetTester tester, String label) {
+  return tester.getTopLeft(_actionFinder(label)).dy;
+}
+
+Finder _actionFinder(String label) {
+  return find.byTooltip(label);
 }
 
 Finder _buttonFinder(String label) {

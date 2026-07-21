@@ -8,6 +8,7 @@ class TerminalListHeaderCard extends StatelessWidget {
     required this.filters,
     this.subtitle,
     this.infoChips = const <Widget>[],
+    this.showInfoChips = false,
     this.actions = const <Widget>[],
     this.footer,
   });
@@ -15,6 +16,7 @@ class TerminalListHeaderCard extends StatelessWidget {
   final String title;
   final String? subtitle;
   final List<Widget> infoChips;
+  final bool showInfoChips;
   final List<Widget> filters;
   final List<Widget> actions;
   final Widget? footer;
@@ -29,12 +31,13 @@ class TerminalListHeaderCard extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final isCompact = constraints.maxWidth < 420;
-        final spacing = isCompact ? 8.0 : 10.0;
-        final buttonHeight = isCompact ? 44.0 : 48.0;
-        final buttonHorizontalPadding = isCompact ? 8.0 : 12.0;
+        final spacing = isCompact ? 6.0 : 8.0;
+        final buttonHeight = isCompact ? 40.0 : 44.0;
+        final buttonHorizontalPadding = isCompact ? 9.0 : 11.0;
+        final visibleInfoChips = showInfoChips ? infoChips : const <Widget>[];
 
         return Container(
-          padding: EdgeInsets.all(isCompact ? 10 : 12),
+          padding: EdgeInsets.all(isCompact ? 8 : 10),
           decoration: BoxDecoration(
             color: theme.colorScheme.surface,
             borderRadius: BorderRadius.circular(8),
@@ -56,11 +59,11 @@ class TerminalListHeaderCard extends StatelessWidget {
                   minimumSize: Size(0, buttonHeight),
                   padding: EdgeInsets.symmetric(
                     horizontal: buttonHorizontalPadding,
-                    vertical: isCompact ? 9 : 12,
+                    vertical: isCompact ? 7 : 9,
                   ),
                   iconSize: isCompact ? 18 : 20,
-                  tapTargetSize: MaterialTapTargetSize.padded,
-                  visualDensity: VisualDensity.standard,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  visualDensity: VisualDensity.compact,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),
                   ),
@@ -72,11 +75,11 @@ class TerminalListHeaderCard extends StatelessWidget {
                   minimumSize: Size(0, buttonHeight),
                   padding: EdgeInsets.symmetric(
                     horizontal: buttonHorizontalPadding,
-                    vertical: isCompact ? 9 : 12,
+                    vertical: isCompact ? 7 : 9,
                   ),
                   iconSize: isCompact ? 18 : 20,
-                  tapTargetSize: MaterialTapTargetSize.padded,
-                  visualDensity: VisualDensity.standard,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  visualDensity: VisualDensity.compact,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),
                   ),
@@ -111,18 +114,18 @@ class TerminalListHeaderCard extends StatelessWidget {
                     ),
                   ),
                 ],
-                if (infoChips.isNotEmpty ||
+                if (visibleInfoChips.isNotEmpty ||
                     filters.isNotEmpty ||
                     actions.isNotEmpty ||
                     footer != null)
                   SizedBox(height: spacing),
-                if (infoChips.isNotEmpty)
+                if (visibleInfoChips.isNotEmpty)
                   Wrap(
                     spacing: spacing,
                     runSpacing: spacing,
-                    children: infoChips,
+                    children: visibleInfoChips,
                   ),
-                if (infoChips.isNotEmpty && filters.isNotEmpty)
+                if (visibleInfoChips.isNotEmpty && filters.isNotEmpty)
                   SizedBox(height: spacing),
                 if (filters.isNotEmpty)
                   Wrap(
@@ -131,7 +134,7 @@ class TerminalListHeaderCard extends StatelessWidget {
                     crossAxisAlignment: WrapCrossAlignment.center,
                     children: filters,
                   ),
-                if ((infoChips.isNotEmpty || filters.isNotEmpty) &&
+                if ((visibleInfoChips.isNotEmpty || filters.isNotEmpty) &&
                     actions.isNotEmpty)
                   SizedBox(height: spacing),
                 if (actions.isNotEmpty)
@@ -159,92 +162,190 @@ class _TerminalActionGrid extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        if (!constraints.hasBoundedWidth) {
-          return Wrap(
-            spacing: spacing,
-            runSpacing: spacing,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            children: children,
-          );
-        }
+        final actionChildren = constraints.maxWidth < 420
+            ? children.map(_compactAction).toList(growable: false)
+            : children;
 
-        if (constraints.maxWidth < 320 && children.length > 1) {
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: <Widget>[
-              for (var index = 0; index < children.length; index += 1)
-                Padding(
-                  padding: EdgeInsets.only(top: index == 0 ? 0 : spacing),
-                  child: SizedBox(
-                    width: double.infinity,
-                    child: children[index],
-                  ),
-                ),
-            ],
-          );
-        }
-
-        final rowSizes = _balancedRowSizes(children.length);
-        var childOffset = 0;
-        final rows = <Widget>[];
-
-        for (var rowIndex = 0; rowIndex < rowSizes.length; rowIndex += 1) {
-          final rowSize = rowSizes[rowIndex];
-          final widthSlots = rowSize == 1 ? 3 : rowSize;
-          final itemWidth =
-              (constraints.maxWidth - (spacing * (widthSlots - 1))) /
-              widthSlots;
-          final rowChildren = <Widget>[];
-
-          for (var index = 0; index < rowSize; index += 1) {
-            if (index > 0) {
-              rowChildren.add(SizedBox(width: spacing));
-            }
-
-            rowChildren.add(
-              SizedBox(width: itemWidth, child: children[childOffset + index]),
-            );
-          }
-
-          rows.add(
-            Padding(
-              padding: EdgeInsets.only(top: rowIndex == 0 ? 0 : spacing),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: rowChildren,
-              ),
-            ),
-          );
-          childOffset += rowSize;
-        }
-
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: rows,
+        return Wrap(
+          spacing: spacing,
+          runSpacing: spacing,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: actionChildren,
         );
       },
     );
   }
 
-  List<int> _balancedRowSizes(int count) {
-    final rows = <int>[];
-    var remaining = count;
-
-    while (remaining > 0) {
-      if (remaining == 4) {
-        rows
-          ..add(2)
-          ..add(2);
-        break;
-      }
-
-      final rowSize = remaining >= 3 ? 3 : remaining;
-      rows.add(rowSize);
-      remaining -= rowSize;
+  Widget _compactAction(Widget action) {
+    final data = _TerminalHeaderActionData.from(action);
+    if (data == null) {
+      return action;
     }
 
-    return rows;
+    final tooltip = data.label ?? 'Islem';
+    final icon = data.icon ?? _fallbackActionIcon(tooltip);
+
+    return switch (data.style) {
+      _TerminalHeaderActionStyle.primary => IconButton.filled(
+        onPressed: data.onPressed,
+        tooltip: tooltip,
+        icon: icon,
+      ),
+      _TerminalHeaderActionStyle.tonal => IconButton.filledTonal(
+        onPressed: data.onPressed,
+        tooltip: tooltip,
+        icon: icon,
+      ),
+      _TerminalHeaderActionStyle.outlined => IconButton.outlined(
+        onPressed: data.onPressed,
+        tooltip: tooltip,
+        icon: icon,
+      ),
+    };
+  }
+
+  Widget _fallbackActionIcon(String label) {
+    final normalized = label.toLowerCase();
+    final icon = switch (normalized) {
+      final value when value.contains('temizle') => Icons.restart_alt_rounded,
+      final value when value.contains('yenile') => Icons.refresh_rounded,
+      final value when value.contains('offline') => Icons.cloud_off_rounded,
+      final value when value.contains('yeni') => Icons.add_rounded,
+      final value when value.contains('liste') => Icons.search_rounded,
+      _ => Icons.more_horiz_rounded,
+    };
+
+    return Icon(icon);
+  }
+}
+
+enum _TerminalHeaderActionStyle { primary, tonal, outlined }
+
+class _TerminalHeaderActionData {
+  const _TerminalHeaderActionData({
+    required this.onPressed,
+    required this.style,
+    this.icon,
+    this.label,
+  });
+
+  final VoidCallback? onPressed;
+  final _TerminalHeaderActionStyle style;
+  final Widget? icon;
+  final String? label;
+
+  static _TerminalHeaderActionData? from(Widget action) {
+    final button = action is ButtonStyleButton ? action : null;
+    if (button == null) {
+      return null;
+    }
+
+    final label = _extractLabel(button.child);
+
+    return _TerminalHeaderActionData(
+      onPressed: button.onPressed,
+      style: _styleForButton(button, label),
+      icon: _extractIcon(button.child),
+      label: label,
+    );
+  }
+
+  static _TerminalHeaderActionStyle _styleForButton(
+    ButtonStyleButton button,
+    String? label,
+  ) {
+    if (button is OutlinedButton) {
+      return _TerminalHeaderActionStyle.outlined;
+    }
+
+    final normalized = label?.toLowerCase() ?? '';
+    if (normalized.contains('yeni') || normalized.contains('offline')) {
+      return _TerminalHeaderActionStyle.tonal;
+    }
+
+    return _TerminalHeaderActionStyle.primary;
+  }
+
+  static Widget? _extractIcon(Widget? widget) {
+    if (widget == null) {
+      return null;
+    }
+
+    if (widget is Icon) {
+      return widget;
+    }
+
+    final icon = _readDynamicWidgetProperty(widget, 'icon');
+    if (icon != null) {
+      return icon;
+    }
+
+    if (widget is Row) {
+      for (final child in widget.children) {
+        final icon = _extractIcon(child);
+        if (icon != null) {
+          return icon;
+        }
+      }
+    }
+
+    if (widget is Flexible) {
+      return _extractIcon(widget.child);
+    }
+
+    if (widget is Padding) {
+      return _extractIcon(widget.child);
+    }
+
+    return null;
+  }
+
+  static String? _extractLabel(Widget? widget) {
+    if (widget == null) {
+      return null;
+    }
+
+    if (widget is Text) {
+      return widget.data;
+    }
+
+    final label = _readDynamicWidgetProperty(widget, 'label');
+    if (label != null) {
+      return _extractLabel(label);
+    }
+
+    if (widget is Row) {
+      for (final child in widget.children) {
+        final label = _extractLabel(child);
+        if (label != null && label.isNotEmpty) {
+          return label;
+        }
+      }
+    }
+
+    if (widget is Flexible) {
+      return _extractLabel(widget.child);
+    }
+
+    if (widget is Padding) {
+      return _extractLabel(widget.child);
+    }
+
+    return null;
+  }
+
+  static Widget? _readDynamicWidgetProperty(Widget widget, String property) {
+    try {
+      final dynamic dynamicWidget = widget;
+      final value = switch (property) {
+        'icon' => dynamicWidget.icon,
+        'label' => dynamicWidget.label,
+        _ => null,
+      };
+      return value is Widget ? value : null;
+    } on NoSuchMethodError {
+      return null;
+    }
   }
 }
 
@@ -777,8 +878,8 @@ class TerminalPdaLineCard extends StatelessWidget {
                   IconButtonTheme(
                     data: IconButtonThemeData(
                       style: IconButton.styleFrom(
-                        minimumSize: const Size(34, 34),
-                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        minimumSize: const Size(44, 44),
+                        tapTargetSize: MaterialTapTargetSize.padded,
                         padding: EdgeInsets.zero,
                       ),
                     ),
@@ -874,12 +975,12 @@ class TerminalCompactProductLineCard extends StatelessWidget {
                 icon: const Icon(Icons.delete_outline_rounded, size: 20),
                 tooltip: 'Satiri sil',
                 constraints: const BoxConstraints.tightFor(
-                  width: 34,
-                  height: 34,
+                  width: 44,
+                  height: 44,
                 ),
                 padding: EdgeInsets.zero,
                 style: IconButton.styleFrom(
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  tapTargetSize: MaterialTapTargetSize.padded,
                 ),
               ),
             ],
@@ -1249,10 +1350,10 @@ class _TerminalCompactQuantityButton extends StatelessWidget {
       onPressed: onPressed,
       icon: Icon(icon, size: 18),
       tooltip: tooltip,
-      constraints: const BoxConstraints.tightFor(width: 30, height: 34),
+      constraints: const BoxConstraints.tightFor(width: 44, height: 44),
       padding: EdgeInsets.zero,
       style: IconButton.styleFrom(
-        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        tapTargetSize: MaterialTapTargetSize.padded,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(7)),
       ),
     );
@@ -1294,10 +1395,10 @@ class TerminalQuantityStepper extends StatelessWidget {
           onPressed: enabled ? () => _changeBy(context, -step) : null,
           icon: const Icon(Icons.remove_rounded, size: 20),
           tooltip: 'Azalt',
-          constraints: const BoxConstraints.tightFor(width: 38, height: 38),
+          constraints: const BoxConstraints.tightFor(width: 44, height: 44),
           padding: EdgeInsets.zero,
           style: IconButton.styleFrom(
-            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            tapTargetSize: MaterialTapTargetSize.padded,
           ),
         ),
         const SizedBox(width: 6),
@@ -1329,10 +1430,10 @@ class TerminalQuantityStepper extends StatelessWidget {
           onPressed: enabled ? () => _changeBy(context, step) : null,
           icon: const Icon(Icons.add_rounded, size: 20),
           tooltip: 'Artir',
-          constraints: const BoxConstraints.tightFor(width: 38, height: 38),
+          constraints: const BoxConstraints.tightFor(width: 44, height: 44),
           padding: EdgeInsets.zero,
           style: IconButton.styleFrom(
-            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            tapTargetSize: MaterialTapTargetSize.padded,
           ),
         ),
       ],
@@ -1570,7 +1671,7 @@ class TerminalSheetHeader extends StatelessWidget {
             icon: const Icon(Icons.close_rounded, size: 26),
             tooltip: 'Kapat',
             padding: EdgeInsets.zero,
-            constraints: const BoxConstraints.tightFor(width: 38, height: 38),
+            constraints: const BoxConstraints.tightFor(width: 44, height: 44),
           ),
         ],
       ),
@@ -1683,17 +1784,17 @@ class TerminalFilterButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      width: 142,
+      width: 128,
       child: OutlinedButton.icon(
         onPressed: onPressed,
         style: OutlinedButton.styleFrom(
-          minimumSize: const Size(142, 48),
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-          tapTargetSize: MaterialTapTargetSize.padded,
-          visualDensity: VisualDensity.standard,
+          minimumSize: const Size(128, 42),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          visualDensity: VisualDensity.compact,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         ),
-        icon: const Icon(Icons.calendar_month_rounded, size: 19),
+        icon: const Icon(Icons.calendar_month_rounded, size: 18),
         label: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
@@ -1709,7 +1810,7 @@ class TerminalFilterButton extends StatelessWidget {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(
-                fontSize: 15,
+                fontSize: 14,
                 height: 1.12,
                 fontWeight: FontWeight.w800,
               ),

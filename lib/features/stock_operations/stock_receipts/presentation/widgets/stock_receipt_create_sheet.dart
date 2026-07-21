@@ -145,10 +145,7 @@ class _StockReceiptCreateSheetState extends State<StockReceiptCreateSheet>
     };
   }
 
-  Future<void> _searchProduct(
-    _StockReceiptLineDraft line, {
-    bool autoSelectSingle = false,
-  }) async {
+  Future<void> _searchProduct(_StockReceiptLineDraft line) async {
     final query = line.lookupController.text.trim();
 
     if (query.length < 2) {
@@ -204,7 +201,7 @@ class _StockReceiptCreateSheetState extends State<StockReceiptCreateSheet>
     }
 
     SearchProductLookupItem? selected;
-    if (autoSelectSingle && products.length == 1) {
+    if (products.length == 1) {
       selected = products.single;
     } else {
       setState(() {
@@ -308,7 +305,7 @@ class _StockReceiptCreateSheetState extends State<StockReceiptCreateSheet>
     setState(() {
       line.setLookupStatus('Barkod okundu: $barcode. Urun araniyor.');
     });
-    await _searchProduct(line, autoSelectSingle: true);
+    await _searchProduct(line);
   }
 
   bool _applyProductToLine(

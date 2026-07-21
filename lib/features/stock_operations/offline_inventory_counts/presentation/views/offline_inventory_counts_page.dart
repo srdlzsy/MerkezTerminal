@@ -468,10 +468,7 @@ class _OfflineInventoryCountCreateSheetState
     });
   }
 
-  Future<void> _searchProduct(
-    _OfflineLineDraft line, {
-    bool autoSelectSingle = false,
-  }) async {
+  Future<void> _searchProduct(_OfflineLineDraft line) async {
     final query = line.lookupController.text.trim();
 
     if (query.length < 2) {
@@ -498,7 +495,7 @@ class _OfflineInventoryCountCreateSheetState
     }
 
     InventoryCountProductLookupItem? selected;
-    if (autoSelectSingle && products.length == 1) {
+    if (products.length == 1) {
       selected = products.single;
     } else {
       selected = await showModalBottomSheet<InventoryCountProductLookupItem>(
@@ -606,7 +603,7 @@ class _OfflineInventoryCountCreateSheetState
       _errorMessage = null;
     });
 
-    await _searchProduct(line, autoSelectSingle: true);
+    await _searchProduct(line);
   }
 
   bool _applyProductToLine(

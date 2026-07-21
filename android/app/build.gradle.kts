@@ -10,6 +10,8 @@ plugins {
 val keystoreProperties = Properties()
 val keystorePropertiesFile = rootProject.file("key.properties")
 val hasReleaseKeystore = keystorePropertiesFile.exists()
+val allowDebugReleaseSigning =
+    providers.gradleProperty("allowDebugReleaseSigning").orNull == "true"
 
 if (hasReleaseKeystore) {
     keystorePropertiesFile.inputStream().use(keystoreProperties::load)
@@ -17,7 +19,7 @@ if (hasReleaseKeystore) {
 
 android {
     namespace = "com.furpa.furpa_merkez_terminal"
-    compileSdk = flutter.compileSdkVersion
+    compileSdk = 36
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
@@ -31,8 +33,8 @@ android {
 
     defaultConfig {
         applicationId = "com.furpa.furpa_merkez_terminal"
-        minSdk = flutter.minSdkVersion
-        targetSdk = flutter.targetSdkVersion
+        minSdk = 24
+        targetSdk = 36
         versionCode = flutter.versionCode
         versionName = flutter.versionName
     }
@@ -52,8 +54,14 @@ android {
         release {
             signingConfig = if (hasReleaseKeystore) {
                 signingConfigs.getByName("release")
-            } else {
+            } else if (allowDebugReleaseSigning) {
                 signingConfigs.getByName("debug")
+            } else {
+                throw GradleException(
+                    "Release imzasi icin android/key.properties gerekli. " +
+                        "Sadece gecici test APK'si gerekiyorsa " +
+                        "-PallowDebugReleaseSigning=true ile build alin."
+                )
             }
         }
     }

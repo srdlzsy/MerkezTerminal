@@ -190,10 +190,7 @@ class _GivenCompanyOrderCreateSheetState
     _focusFreshEntryLine();
   }
 
-  Future<void> _searchProduct(
-    _CompanyOrderLineDraft line, {
-    bool autoSelectSingle = false,
-  }) async {
+  Future<void> _searchProduct(_CompanyOrderLineDraft line) async {
     final customer = _selectedCustomer;
     if (customer == null) {
       setState(() {
@@ -212,7 +209,7 @@ class _GivenCompanyOrderCreateSheetState
 
     CompanyOrderProductLookupItem? product;
     final query = line.barcodeController.text.trim();
-    if (autoSelectSingle && query.isNotEmpty) {
+    if (query.length >= 2) {
       try {
         final products = await widget.repository.searchProducts(
           accessToken: widget.accessToken,
@@ -313,7 +310,7 @@ class _GivenCompanyOrderCreateSheetState
     setState(() {
       line.setLookupStatus('Barkod okundu: $barcode. Urun araniyor.');
     });
-    await _searchProduct(line, autoSelectSingle: true);
+    await _searchProduct(line);
   }
 
   bool _applyProductToLine(

@@ -31,9 +31,72 @@ void main() {
     expect(find.text('Yeni Zayiat Fisi'), findsOneWidget);
     expect(find.text('Creator'), findsOneWidget);
   });
+
+  testWidgets('adds single product search result without opening picker', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 1000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: StockReceiptCreateSheet(
+            repository: _FakeStockReceiptsRepository(
+              products: const <SearchProductLookupItem>[
+                SearchProductLookupItem(
+                  warehouseNo: 50,
+                  barcode: '8690000000012',
+                  stockCode: '015792',
+                  stockName: 'Test Urun',
+                  price: 125,
+                  priceTypeCode: 0,
+                  unitName: 'AD',
+                  unitMultiplier: 1,
+                  secondaryUnitName: '',
+                  secondaryUnitMultiplier: 0,
+                  salesBlockCode: null,
+                  orderBlockCode: null,
+                  goodsAcceptanceBlockCode: null,
+                  isSalesBlocked: false,
+                  isOrderBlocked: false,
+                  isGoodsAcceptanceBlocked: false,
+                  productManagerCode: '',
+                ),
+              ],
+            ),
+            kind: StockReceiptKind.outage,
+            accessToken: 'token',
+            defaultWarehouseNo: '50',
+          ),
+        ),
+      ),
+    );
+
+    final productField = find
+        .widgetWithText(TextFormField, 'Barkod / stok kodu / urun adi')
+        .first;
+    await tester.enterText(productField, '8690000000012');
+    await tester.tap(find.widgetWithText(FilledButton, 'Urun').first);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Urun Ara'), findsNothing);
+    expect(find.text('Giris satiri'), findsOneWidget);
+    expect(find.text('Satir 1'), findsOneWidget);
+    expect(find.text('Test Urun'), findsOneWidget);
+    expect(find.text('8690000000012'), findsWidgets);
+  });
 }
 
 class _FakeStockReceiptsRepository implements StockReceiptsRepository {
+  const _FakeStockReceiptsRepository({
+    this.products = const <SearchProductLookupItem>[],
+  });
+
+  final List<SearchProductLookupItem> products;
+
   @override
   Future<StockReceiptCreateResult> createReceipt({
     required String accessToken,
@@ -69,6 +132,6 @@ class _FakeStockReceiptsRepository implements StockReceiptsRepository {
     required String warehouseNo,
     required String query,
   }) async {
-    return const <SearchProductLookupItem>[];
+    return products;
   }
 }

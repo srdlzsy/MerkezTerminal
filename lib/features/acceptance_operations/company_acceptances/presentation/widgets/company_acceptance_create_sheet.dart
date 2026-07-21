@@ -479,10 +479,7 @@ class _CompanyAcceptanceCreateSheetState
     _draftSession.scheduleSave();
   }
 
-  Future<void> _searchProduct(
-    _AcceptanceLineDraft line, {
-    bool autoSelectSingle = false,
-  }) async {
+  Future<void> _searchProduct(_AcceptanceLineDraft line) async {
     final query = line.lookupController.text.trim();
 
     if (query.length < 2) {
@@ -537,7 +534,7 @@ class _CompanyAcceptanceCreateSheetState
     }
 
     SearchProductLookupItem? selected;
-    if (autoSelectSingle && products.length == 1) {
+    if (products.length == 1) {
       selected = products.single;
     } else {
       setState(() {
@@ -640,7 +637,7 @@ class _CompanyAcceptanceCreateSheetState
     });
     _draftSession.scheduleSave();
 
-    await _searchProduct(line, autoSelectSingle: true);
+    await _searchProduct(line);
   }
 
   bool _applyProductToLine(

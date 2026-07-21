@@ -312,10 +312,7 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
     _scheduleDraftSave();
   }
 
-  Future<void> _searchProduct(
-    _MovementLineDraft line, {
-    bool autoSelectSingle = false,
-  }) async {
+  Future<void> _searchProduct(_MovementLineDraft line) async {
     final query = line.lookupController.text.trim();
 
     if (query.length < 2) {
@@ -372,7 +369,7 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
     }
 
     SearchProductLookupItem? selected;
-    if (autoSelectSingle && products.length == 1) {
+    if (products.length == 1) {
       selected = products.single;
     } else {
       setState(() {
@@ -473,7 +470,7 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
       _lookupError = null;
     });
 
-    await _searchProduct(line, autoSelectSingle: true);
+    await _searchProduct(line);
   }
 
   bool _applyProductToLine(

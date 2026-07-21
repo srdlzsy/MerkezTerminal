@@ -131,13 +131,10 @@ class _InventoryCountCreateSheetState extends State<InventoryCountCreateSheet>
     _draftSession.scheduleSave();
   }
 
-  Future<void> _searchProduct(
-    _InventoryLineDraft line, {
-    bool autoSelectSingle = false,
-  }) async {
+  Future<void> _searchProduct(_InventoryLineDraft line) async {
     InventoryCountProductLookupItem? product;
     final query = line.barcodeController.text.trim();
-    if (autoSelectSingle && query.isNotEmpty) {
+    if (query.length >= 2) {
       try {
         final products = await _searchProductsWithFallback(query);
         if (products.length == 1) {
@@ -225,7 +222,7 @@ class _InventoryCountCreateSheetState extends State<InventoryCountCreateSheet>
     }
 
     line.barcodeController.text = barcode;
-    await _searchProduct(line, autoSelectSingle: true);
+    await _searchProduct(line);
   }
 
   bool _applyProductToLine(

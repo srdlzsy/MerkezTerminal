@@ -146,8 +146,8 @@ Future<void> _pickWarehouseOrderProduct(WidgetTester tester) async {
   await tester.enterText(productField, '8690000000012');
   await tester.tap(find.widgetWithText(FilledButton, 'Urun').first);
   await tester.pumpAndSettle();
-  await tester.tap(find.text('015792 - Test Urun'));
-  await tester.pumpAndSettle();
+
+  expect(find.text('Urun Ara'), findsNothing);
 }
 
 class _FakeWarehouseOrdersRepository implements WarehouseOrdersRepository {

@@ -174,10 +174,7 @@ class _WarehouseReturnCreateSheetState extends State<WarehouseReturnCreateSheet>
     _draftSession.scheduleSave();
   }
 
-  Future<void> _searchProduct(
-    _ReturnLineDraft line, {
-    bool autoSelectSingle = false,
-  }) async {
+  Future<void> _searchProduct(_ReturnLineDraft line) async {
     if (!_hasTargetWarehouse) {
       _showFeedback('Once hedef depoyu secin.');
       return;
@@ -185,7 +182,7 @@ class _WarehouseReturnCreateSheetState extends State<WarehouseReturnCreateSheet>
 
     ProductLookupItem? product;
     final query = line.lookupController.text.trim();
-    if (autoSelectSingle && query.isNotEmpty) {
+    if (query.length >= 2) {
       try {
         final products = await widget.repository.searchProducts(
           accessToken: widget.accessToken,
@@ -261,7 +258,7 @@ class _WarehouseReturnCreateSheetState extends State<WarehouseReturnCreateSheet>
     }
 
     line.lookupController.text = barcode;
-    await _searchProduct(line, autoSelectSingle: true);
+    await _searchProduct(line);
   }
 
   void _ensureFreshEntryLine() {

@@ -712,10 +712,7 @@ class _VirmanCreateSheetState extends State<_VirmanCreateSheet>
     _draftSession.scheduleSave();
   }
 
-  Future<void> _searchProduct(
-    _VirmanDraftLine line, {
-    bool autoSelectSingle = false,
-  }) async {
+  Future<void> _searchProduct(_VirmanDraftLine line) async {
     final query = line.lookupController.text.trim();
     if (query.length < 2) {
       setState(() {
@@ -743,7 +740,7 @@ class _VirmanCreateSheetState extends State<_VirmanCreateSheet>
         .toList(growable: false);
 
     SearchProductLookupItem? selected;
-    if (autoSelectSingle && products.length == 1) {
+    if (products.length == 1) {
       selected = products.single;
     } else {
       selected = await showModalBottomSheet<SearchProductLookupItem>(
@@ -826,7 +823,7 @@ class _VirmanCreateSheetState extends State<_VirmanCreateSheet>
     }
 
     line.lookupController.text = barcode;
-    await _searchProduct(line, autoSelectSingle: true);
+    await _searchProduct(line);
   }
 
   bool _applyProductToLine(

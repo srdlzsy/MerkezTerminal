@@ -156,10 +156,7 @@ class _GivenWarehouseOrderCreateSheetState
     _draftSession.scheduleSave();
   }
 
-  Future<void> _searchProduct(
-    _CreateLineDraft line, {
-    bool autoSelectSingle = false,
-  }) async {
+  Future<void> _searchProduct(_CreateLineDraft line) async {
     if (!_hasWarehouseSelection) {
       _showFeedback('Once karsi depo secin, sonra kalem okutun.');
       return;
@@ -167,7 +164,7 @@ class _GivenWarehouseOrderCreateSheetState
 
     ProductLookupItem? product;
     final query = line.barcodeController.text.trim();
-    if (autoSelectSingle && query.isNotEmpty) {
+    if (query.length >= 2) {
       try {
         final products = await widget.repository.searchProducts(
           accessToken: widget.accessToken,
@@ -241,7 +238,7 @@ class _GivenWarehouseOrderCreateSheetState
     }
 
     line.barcodeController.text = barcode;
-    await _searchProduct(line, autoSelectSingle: true);
+    await _searchProduct(line);
   }
 
   void _ensureFreshEntryLine() {

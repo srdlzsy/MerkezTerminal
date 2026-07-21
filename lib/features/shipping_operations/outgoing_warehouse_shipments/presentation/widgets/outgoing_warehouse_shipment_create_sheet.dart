@@ -302,10 +302,7 @@ class _OutgoingWarehouseShipmentCreateSheetState
     _draftSession.scheduleSave();
   }
 
-  Future<void> _pickProduct(
-    _ManualShipmentLineDraft line, {
-    bool autoSelectSingle = false,
-  }) async {
+  Future<void> _pickProduct(_ManualShipmentLineDraft line) async {
     if (!_hasTargetWarehouseSelection) {
       setState(() {
         line.setLookupStatus(
@@ -323,7 +320,7 @@ class _OutgoingWarehouseShipmentCreateSheetState
 
     ProductLookupItem? product;
     final query = line.barcodeController.text.trim();
-    if (autoSelectSingle && query.isNotEmpty) {
+    if (query.length >= 2) {
       try {
         final products = await widget.repository.searchProducts(
           accessToken: widget.accessToken,
@@ -387,10 +384,7 @@ class _OutgoingWarehouseShipmentCreateSheetState
     }
   }
 
-  Future<void> _pickLinkedProduct(
-    _LinkedShipmentLineDraft line, {
-    bool autoSelectSingle = false,
-  }) async {
+  Future<void> _pickLinkedProduct(_LinkedShipmentLineDraft line) async {
     if (!_hasTargetWarehouseSelection) {
       setState(() {
         line.setLookupStatus(
@@ -408,7 +402,7 @@ class _OutgoingWarehouseShipmentCreateSheetState
 
     ProductLookupItem? product;
     final query = line.barcodeController.text.trim();
-    if (autoSelectSingle && query.isNotEmpty) {
+    if (query.length >= 2) {
       try {
         final products = await widget.repository.searchProducts(
           accessToken: widget.accessToken,
@@ -509,7 +503,7 @@ class _OutgoingWarehouseShipmentCreateSheetState
     setState(() {
       line.setLookupStatus('Barkod okundu: $barcode. Urun araniyor.');
     });
-    await _pickProduct(line, autoSelectSingle: true);
+    await _pickProduct(line);
   }
 
   Future<void> _scanLinkedProductWithCamera(
@@ -551,7 +545,7 @@ class _OutgoingWarehouseShipmentCreateSheetState
     setState(() {
       line.setLookupStatus('Barkod okundu: $barcode. Urun araniyor.');
     });
-    await _pickLinkedProduct(line, autoSelectSingle: true);
+    await _pickLinkedProduct(line);
   }
 
   bool _applyProductToManualLine(

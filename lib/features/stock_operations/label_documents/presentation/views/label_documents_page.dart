@@ -609,10 +609,7 @@ class _LabelDocumentCreateSheetState extends State<_LabelDocumentCreateSheet> {
     };
   }
 
-  Future<void> _searchProduct(
-    _LabelDocumentLineDraft line, {
-    bool autoSelectSingle = false,
-  }) async {
+  Future<void> _searchProduct(_LabelDocumentLineDraft line) async {
     final query = line.lookupController.text.trim();
 
     if (query.length < 2) {
@@ -658,7 +655,7 @@ class _LabelDocumentCreateSheetState extends State<_LabelDocumentCreateSheet> {
     }
 
     SearchProductLookupItem? selected;
-    if (autoSelectSingle && products.length == 1) {
+    if (products.length == 1) {
       selected = products.single;
     } else {
       selected = await showModalBottomSheet<SearchProductLookupItem>(
@@ -769,7 +766,7 @@ class _LabelDocumentCreateSheetState extends State<_LabelDocumentCreateSheet> {
     setState(() {
       line.setLookupStatus('Barkod okundu: $barcode. Urun araniyor.');
     });
-    await _searchProduct(line, autoSelectSingle: true);
+    await _searchProduct(line);
   }
 
   bool _applyProductToLine(
