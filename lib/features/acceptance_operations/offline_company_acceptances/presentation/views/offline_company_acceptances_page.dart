@@ -656,6 +656,7 @@ class _OfflineCompanyAcceptanceCreateSheetState
       _customerCodeController.text = selected.customerCode;
       _validationMessage = null;
     });
+    _focusFreshEntryLine();
   }
 
   Future<void> _searchProduct(_OfflineCompanyAcceptanceLineDraft line) async {
@@ -666,6 +667,7 @@ class _OfflineCompanyAcceptanceCreateSheetState
         _validationMessage =
             'Urun aramak icin en az 2 karakter veya barkod girilmeli.';
       });
+      _refocusLine(line.lookupFocusNode);
       return;
     }
 
@@ -680,6 +682,7 @@ class _OfflineCompanyAcceptanceCreateSheetState
         _validationMessage = 'Bu aramaya uygun urun bulunamadi.';
       });
       _showFeedback('Bu aramaya uygun urun bulunamadi.');
+      _refocusLine(line.lookupFocusNode);
       return;
     }
 
@@ -776,6 +779,7 @@ class _OfflineCompanyAcceptanceCreateSheetState
         _validationMessage =
             'Bu cihazda kamera ile barkod okutma desteklenmiyor.';
       });
+      _refocusLine(line.lookupFocusNode);
       return;
     }
 
@@ -785,7 +789,12 @@ class _OfflineCompanyAcceptanceCreateSheetState
       subtitle: 'Barkodu okutun; bulunan urun satira aktarilacak.',
     );
 
-    if (barcode == null || !mounted) {
+    if (barcode == null) {
+      _refocusLine(line.lookupFocusNode);
+      return;
+    }
+
+    if (!mounted) {
       return;
     }
 

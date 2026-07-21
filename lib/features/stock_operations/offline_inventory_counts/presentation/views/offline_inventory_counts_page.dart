@@ -476,6 +476,7 @@ class _OfflineInventoryCountCreateSheetState
       setState(() {
         _errorMessage = 'Online urun aramak icin en az 2 karakter girilmeli.';
       });
+      _refocusLine(line.lookupFocusNode);
       return;
     }
 
@@ -491,6 +492,7 @@ class _OfflineInventoryCountCreateSheetState
         _errorMessage = 'Bu aramaya uygun urun bulunamadi.';
       });
       _showFeedback('Bu aramaya uygun urun bulunamadi.');
+      _refocusLine(line.lookupFocusNode);
       return;
     }
 
@@ -585,6 +587,7 @@ class _OfflineInventoryCountCreateSheetState
       setState(() {
         _errorMessage = 'Bu cihazda kamera ile barkod okutma desteklenmiyor.';
       });
+      _refocusLine(line.lookupFocusNode);
       return;
     }
 
@@ -594,7 +597,12 @@ class _OfflineInventoryCountCreateSheetState
       subtitle: 'Barkodu okutun; bulunan deger urun aramasina aktarilacak.',
     );
 
-    if (barcode == null || !mounted) {
+    if (barcode == null) {
+      _refocusLine(line.lookupFocusNode);
+      return;
+    }
+
+    if (!mounted) {
       return;
     }
 

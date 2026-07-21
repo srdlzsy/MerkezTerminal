@@ -621,6 +621,7 @@ class _LabelDocumentCreateSheetState extends State<_LabelDocumentCreateSheet> {
         _errorMessage =
             'Urun aramak icin en az 2 karakter veya barkod girilmeli.';
       });
+      _refocusLine(line.lookupFocusNode);
       return;
     }
 
@@ -647,6 +648,7 @@ class _LabelDocumentCreateSheetState extends State<_LabelDocumentCreateSheet> {
           isError: true,
         );
       });
+      _refocusLine(line.lookupFocusNode);
       return;
     }
 
@@ -710,6 +712,7 @@ class _LabelDocumentCreateSheetState extends State<_LabelDocumentCreateSheet> {
           setState(() {
             line.setLookupStatus('Urun bulunamadi: $query', isError: true);
           });
+          _refocusLine(line.lookupFocusNode);
         } else {
           setState(() {
             line.clearLookupStatus();
@@ -749,6 +752,7 @@ class _LabelDocumentCreateSheetState extends State<_LabelDocumentCreateSheet> {
         );
       });
       _showFeedback('Bu cihazda kamera ile barkod okutma desteklenmiyor.');
+      _refocusLine(line.lookupFocusNode);
       return;
     }
 
@@ -758,7 +762,12 @@ class _LabelDocumentCreateSheetState extends State<_LabelDocumentCreateSheet> {
       subtitle: 'Barkodu okutun; bulunan urun belgeye eklenecek.',
     );
 
-    if (barcode == null || !mounted) {
+    if (barcode == null) {
+      _refocusLine(line.lookupFocusNode);
+      return;
+    }
+
+    if (!mounted) {
       return;
     }
 

@@ -237,6 +237,8 @@ class _OutgoingWarehouseShipmentCreateSheetState
 
     if (_mode == _ShipmentCreateMode.orderLinked) {
       await _pickWarehouseOrder();
+    } else {
+      _focusFreshManualEntryLine();
     }
   }
 
@@ -300,6 +302,7 @@ class _OutgoingWarehouseShipmentCreateSheetState
       _validationMessage = null;
     });
     _draftSession.scheduleSave();
+    _focusFreshLinkedEntryLine();
   }
 
   Future<void> _pickProduct(_ManualShipmentLineDraft line) async {
@@ -311,6 +314,7 @@ class _OutgoingWarehouseShipmentCreateSheetState
         );
       });
       _showFeedback('Once hedef depo secin, sonra kalem okutun.');
+      _refocusLine(line.barcodeFocusNode);
       return;
     }
 
@@ -393,6 +397,7 @@ class _OutgoingWarehouseShipmentCreateSheetState
         );
       });
       _showFeedback('Once hedef depo secin, sonra kalem okutun.');
+      _refocusLine(line.barcodeFocusNode);
       return;
     }
 
@@ -475,6 +480,7 @@ class _OutgoingWarehouseShipmentCreateSheetState
         );
       });
       _showFeedback('Once hedef depo secin, sonra kamera ile okutun.');
+      _refocusLine(line.barcodeFocusNode);
       return;
     }
 
@@ -486,6 +492,7 @@ class _OutgoingWarehouseShipmentCreateSheetState
         );
       });
       _showFeedback('Bu cihazda kamera ile barkod okutma desteklenmiyor.');
+      _refocusLine(line.barcodeFocusNode);
       return;
     }
 
@@ -495,7 +502,12 @@ class _OutgoingWarehouseShipmentCreateSheetState
       subtitle: 'Barkodu okutun; bulunan urun satira eklenecek.',
     );
 
-    if (barcode == null || !mounted) {
+    if (barcode == null) {
+      _refocusLine(line.barcodeFocusNode);
+      return;
+    }
+
+    if (!mounted) {
       return;
     }
 
@@ -517,6 +529,7 @@ class _OutgoingWarehouseShipmentCreateSheetState
         );
       });
       _showFeedback('Once hedef depo secin, sonra kamera ile okutun.');
+      _refocusLine(line.barcodeFocusNode);
       return;
     }
 
@@ -528,6 +541,7 @@ class _OutgoingWarehouseShipmentCreateSheetState
         );
       });
       _showFeedback('Bu cihazda kamera ile barkod okutma desteklenmiyor.');
+      _refocusLine(line.barcodeFocusNode);
       return;
     }
 
@@ -537,7 +551,12 @@ class _OutgoingWarehouseShipmentCreateSheetState
       subtitle: 'Barkodu okutun; bulunan urun satira eklenecek.',
     );
 
-    if (barcode == null || !mounted) {
+    if (barcode == null) {
+      _refocusLine(line.barcodeFocusNode);
+      return;
+    }
+
+    if (!mounted) {
       return;
     }
 
@@ -1955,8 +1974,9 @@ class _WarehouseOrderPickerSheetState
                     ),
                     const SizedBox(height: 12),
                     _ResponsiveSearchRow(
-                      textField: TextField(
+                      textField: TerminalLookupSearchField(
                         controller: _queryController,
+                        onSearch: _load,
                         decoration: const InputDecoration(
                           labelText: 'Siparis ara',
                           hintText: 'Ornek: D110.1915',
@@ -2355,13 +2375,13 @@ class _LookupScaffold extends StatelessWidget {
                     title: title,
                     subtitle: subtitle,
                     child: _ResponsiveSearchRow(
-                      textField: TextField(
+                      textField: TerminalLookupSearchField(
                         controller: queryController,
+                        onSearch: onSearch,
                         decoration: InputDecoration(
                           labelText: 'Arama',
                           hintText: hintText,
                         ),
-                        onSubmitted: (_) => onSearch(),
                       ),
                       button: FilledButton.icon(
                         onPressed: isLoading ? null : onSearch,

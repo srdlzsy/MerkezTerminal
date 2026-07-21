@@ -172,11 +172,13 @@ class _WarehouseReturnCreateSheetState extends State<WarehouseReturnCreateSheet>
       _validationMessage = null;
     });
     _draftSession.scheduleSave();
+    _focusFreshEntryLine();
   }
 
   Future<void> _searchProduct(_ReturnLineDraft line) async {
     if (!_hasTargetWarehouse) {
       _showFeedback('Once hedef depoyu secin.');
+      _refocusLine(line.lookupFocusNode);
       return;
     }
 
@@ -239,11 +241,13 @@ class _WarehouseReturnCreateSheetState extends State<WarehouseReturnCreateSheet>
   Future<void> _scanProduct(_ReturnLineDraft line) async {
     if (!_hasTargetWarehouse) {
       _showFeedback('Once hedef depoyu secin.');
+      _refocusLine(line.lookupFocusNode);
       return;
     }
 
     if (!supportsCameraBarcodeScanning) {
       _showFeedback('Bu cihazda kamera ile barkod okutma desteklenmiyor.');
+      _refocusLine(line.lookupFocusNode);
       return;
     }
 
@@ -253,7 +257,12 @@ class _WarehouseReturnCreateSheetState extends State<WarehouseReturnCreateSheet>
       subtitle: 'Barkodu okutun; urun ham arama ile secilecek.',
     );
 
-    if (barcode == null || !mounted) {
+    if (barcode == null) {
+      _refocusLine(line.lookupFocusNode);
+      return;
+    }
+
+    if (!mounted) {
       return;
     }
 
@@ -1220,9 +1229,9 @@ class _LookupScaffold extends StatelessWidget {
                       Row(
                         children: <Widget>[
                           Expanded(
-                            child: TextField(
+                            child: TerminalLookupSearchField(
                               controller: queryController,
-                              onSubmitted: (_) => onSearch(),
+                              onSearch: onSearch,
                               decoration: const InputDecoration(
                                 hintText: 'Ara...',
                               ),

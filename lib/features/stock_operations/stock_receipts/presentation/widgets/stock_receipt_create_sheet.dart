@@ -156,6 +156,7 @@ class _StockReceiptCreateSheetState extends State<StockReceiptCreateSheet>
         );
         _lookupError = null;
       });
+      _refocusLine(line.lookupFocusNode);
       return;
     }
 
@@ -183,6 +184,7 @@ class _StockReceiptCreateSheetState extends State<StockReceiptCreateSheet>
         );
         _lookupError = null;
       });
+      _refocusLine(line.lookupFocusNode);
       return;
     }
 
@@ -197,6 +199,7 @@ class _StockReceiptCreateSheetState extends State<StockReceiptCreateSheet>
           isError: true,
         );
       });
+      _refocusLine(line.lookupFocusNode);
       return;
     }
 
@@ -288,6 +291,7 @@ class _StockReceiptCreateSheetState extends State<StockReceiptCreateSheet>
         );
       });
       _showFeedback('Bu cihazda kamera ile barkod okutma desteklenmiyor.');
+      _refocusLine(line.lookupFocusNode);
       return;
     }
 
@@ -297,7 +301,12 @@ class _StockReceiptCreateSheetState extends State<StockReceiptCreateSheet>
       subtitle: 'Barkodu okutun; bulunan urun satira eklenecek.',
     );
 
-    if (barcode == null || !mounted) {
+    if (barcode == null) {
+      _refocusLine(line.lookupFocusNode);
+      return;
+    }
+
+    if (!mounted) {
       return;
     }
 

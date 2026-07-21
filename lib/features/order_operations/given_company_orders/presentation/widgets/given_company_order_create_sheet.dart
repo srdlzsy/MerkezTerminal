@@ -200,6 +200,7 @@ class _GivenCompanyOrderCreateSheetState
         );
       });
       _showFeedback('Once bir musteri secin.');
+      _refocusLine(line.barcodeFocusNode);
       return;
     }
 
@@ -282,6 +283,7 @@ class _GivenCompanyOrderCreateSheetState
         );
       });
       _showFeedback('Kamera ile okuma icin once musteri secin.');
+      _refocusLine(line.barcodeFocusNode);
       return;
     }
 
@@ -293,6 +295,7 @@ class _GivenCompanyOrderCreateSheetState
         );
       });
       _showFeedback('Bu cihazda kamera ile barkod okutma desteklenmiyor.');
+      _refocusLine(line.barcodeFocusNode);
       return;
     }
 
@@ -302,7 +305,12 @@ class _GivenCompanyOrderCreateSheetState
       subtitle: 'Barkodu okutun; secili cari icin urun otomatik bulunacak.',
     );
 
-    if (barcode == null || !mounted) {
+    if (barcode == null) {
+      _refocusLine(line.barcodeFocusNode);
+      return;
+    }
+
+    if (!mounted) {
       return;
     }
 
@@ -1420,9 +1428,9 @@ class _LookupScaffold extends StatelessWidget {
                       Row(
                         children: <Widget>[
                           Expanded(
-                            child: TextField(
+                            child: TerminalLookupSearchField(
                               controller: queryController,
-                              onSubmitted: (_) => onSearch(),
+                              onSearch: onSearch,
                               decoration: const InputDecoration(
                                 hintText: 'Ara...',
                               ),

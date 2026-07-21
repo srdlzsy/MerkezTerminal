@@ -216,6 +216,7 @@ class _CompanyAcceptanceCreateSheetState
       }
     });
     _draftSession.scheduleSave();
+    _focusFreshEntryLine();
   }
 
   Future<void> _scanEDespatchQr() async {
@@ -490,6 +491,7 @@ class _CompanyAcceptanceCreateSheetState
         );
         _lookupError = null;
       });
+      _refocusLine(line.lookupFocusNode);
       return;
     }
 
@@ -516,6 +518,7 @@ class _CompanyAcceptanceCreateSheetState
         );
         _lookupError = null;
       });
+      _refocusLine(line.lookupFocusNode);
       return;
     }
 
@@ -530,6 +533,7 @@ class _CompanyAcceptanceCreateSheetState
           isError: true,
         );
       });
+      _refocusLine(line.lookupFocusNode);
       return;
     }
 
@@ -617,6 +621,7 @@ class _CompanyAcceptanceCreateSheetState
       setState(() {
         _lookupError = 'Bu cihazda kamera ile barkod okutma desteklenmiyor.';
       });
+      _refocusLine(line.lookupFocusNode);
       return;
     }
 
@@ -626,7 +631,12 @@ class _CompanyAcceptanceCreateSheetState
       subtitle: 'Barkodu okutun; bulunan urun secim listesine aktarilacak.',
     );
 
-    if (barcode == null || !mounted) {
+    if (barcode == null) {
+      _refocusLine(line.lookupFocusNode);
+      return;
+    }
+
+    if (!mounted) {
       return;
     }
 
@@ -1260,17 +1270,12 @@ class _CompanyAcceptanceCreateSheetState
   }
 
   Widget _buildDocumentDetailsSection() {
-    return ExpansionTile(
-      tilePadding: EdgeInsets.zero,
-      childrenPadding: const EdgeInsets.only(top: 8),
-      title: const Text('Belge detaylari'),
-      subtitle: Text(
-        '${AppFormatters.date(_movementDate)} | ${AppFormatters.date(_documentDate)}',
-      ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
         Wrap(
-          spacing: 12,
-          runSpacing: 12,
+          spacing: 8,
+          runSpacing: 8,
           children: <Widget>[
             TerminalFilterButton(
               label: 'Hareket Tarihi',
@@ -1284,50 +1289,85 @@ class _CompanyAcceptanceCreateSheetState
             ),
           ],
         ),
-        const SizedBox(height: 12),
-        TextFormField(
-          controller: _documentNoController,
-          decoration: const InputDecoration(
-            labelText: 'Belge No / Seri',
-            hintText: 'Bos birakilabilir veya ULK gibi seri girilebilir',
-          ),
+        const SizedBox(height: 8),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final maxWidth = constraints.maxWidth;
+            final twoColumn = maxWidth >= 330;
+            final halfWidth = twoColumn ? (maxWidth - 8) / 2 : maxWidth;
+
+            return Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: <Widget>[
+                SizedBox(
+                  width: maxWidth,
+                  child: TextFormField(
+                    controller: _documentNoController,
+                    decoration: const InputDecoration(
+                      labelText: 'Belge No / Seri',
+                      hintText: 'Bos birakilabilir',
+                      isDense: true,
+                      contentPadding: EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 10,
+                      ),
+                    ),
+                  ),
+                ),
+                SizedBox(
+                  width: halfWidth,
+                  child: TextFormField(
+                    controller: _delivererController,
+                    decoration: const InputDecoration(
+                      labelText: 'Teslim Eden',
+                      isDense: true,
+                      contentPadding: EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 10,
+                      ),
+                    ),
+                  ),
+                ),
+                SizedBox(
+                  width: halfWidth,
+                  child: TextFormField(
+                    controller: _receiverController,
+                    decoration: const InputDecoration(
+                      labelText: 'Teslim Alan',
+                      isDense: true,
+                      contentPadding: EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 10,
+                      ),
+                    ),
+                  ),
+                ),
+                SizedBox(
+                  width: maxWidth,
+                  child: TextFormField(
+                    controller: _descriptionController,
+                    minLines: 1,
+                    maxLines: 2,
+                    decoration: const InputDecoration(
+                      labelText: 'Aciklama',
+                      isDense: true,
+                      contentPadding: EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 10,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            );
+          },
         ),
-        const SizedBox(height: 12),
-        Wrap(
-          spacing: 10,
-          runSpacing: 10,
-          children: <Widget>[
-            SizedBox(
-              width: 220,
-              child: TextFormField(
-                controller: _delivererController,
-                decoration: const InputDecoration(labelText: 'Teslim Eden'),
-              ),
-            ),
-            SizedBox(
-              width: 220,
-              child: TextFormField(
-                controller: _receiverController,
-                decoration: const InputDecoration(labelText: 'Teslim Alan'),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
-        TextFormField(
-          controller: _descriptionController,
-          minLines: 2,
-          maxLines: 3,
-          decoration: const InputDecoration(labelText: 'Aciklama'),
-        ),
-        const SizedBox(height: 12),
-        CheckboxListTile(
+        const SizedBox(height: 6),
+        _CompactCheckboxTile(
           value: _allowOrderOverReceiving,
-          title: const Text('Siparis kalanindan fazla kabul etmeye izin ver'),
-          subtitle: const Text(
-            'Backend fazla miktari siparissiz hareket olarak ayirabilir.',
-          ),
-          contentPadding: EdgeInsets.zero,
+          title: 'Siparis kalanindan fazla kabul etmeye izin ver',
+          subtitle: 'Backend fazla miktari siparissiz hareket olarak ayirabilir.',
           onChanged: (value) {
             setState(() {
               _allowOrderOverReceiving = value ?? false;
@@ -1335,13 +1375,11 @@ class _CompanyAcceptanceCreateSheetState
             _draftSession.scheduleSave();
           },
         ),
-        CheckboxListTile(
+        _CompactCheckboxTile(
           value: _autoCreateReturnForPartialAcceptance,
-          title: const Text('Eksik kabul farki icin firma iadesi olustur'),
-          subtitle: const Text(
-            'E-irsaliye otomatik gonderilmez; iade evragindan manuel gonderilir.',
-          ),
-          contentPadding: EdgeInsets.zero,
+          title: 'Eksik kabul farki icin firma iadesi olustur',
+          subtitle:
+              'E-irsaliye otomatik gonderilmez; iade evragindan manuel gonderilir.',
           onChanged: (value) {
             setState(() {
               _autoCreateReturnForPartialAcceptance = value ?? true;
@@ -1802,6 +1840,79 @@ String _formatDraftQuantity(double value) {
   final fixed = value.toStringAsFixed(6);
   final normalized = fixed.replaceFirst(RegExp(r'\.?0+$'), '');
   return normalized.replaceAll('.', ',');
+}
+
+class _CompactCheckboxTile extends StatelessWidget {
+  const _CompactCheckboxTile({
+    required this.value,
+    required this.title,
+    required this.onChanged,
+    this.subtitle,
+  });
+
+  final bool value;
+  final String title;
+  final String? subtitle;
+  final ValueChanged<bool?> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return InkWell(
+      borderRadius: BorderRadius.circular(8),
+      onTap: () => onChanged(!value),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 2),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            SizedBox(
+              width: 40,
+              height: 40,
+              child: Checkbox(
+                value: value,
+                onChanged: onChanged,
+                visualDensity: VisualDensity.compact,
+              ),
+            ),
+            const SizedBox(width: 2),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                        height: 1.15,
+                      ),
+                    ),
+                    if (subtitle != null) ...<Widget>[
+                      const SizedBox(height: 1),
+                      Text(
+                        subtitle!,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurface.withAlpha(150),
+                          height: 1.12,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class _AcceptanceLineDraft {

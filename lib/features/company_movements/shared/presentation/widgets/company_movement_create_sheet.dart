@@ -310,6 +310,7 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
       _lookupError = null;
     });
     _scheduleDraftSave();
+    _focusFreshEntryLine();
   }
 
   Future<void> _searchProduct(_MovementLineDraft line) async {
@@ -323,6 +324,7 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
         );
         _lookupError = null;
       });
+      _refocusLine(line.lookupFocusNode);
       return;
     }
 
@@ -351,6 +353,7 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
         );
         _lookupError = null;
       });
+      _refocusLine(line.lookupFocusNode);
       return;
     }
 
@@ -365,6 +368,7 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
           isError: true,
         );
       });
+      _refocusLine(line.lookupFocusNode);
       return;
     }
 
@@ -451,6 +455,7 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
       setState(() {
         _lookupError = 'Bu cihazda kamera ile barkod okutma desteklenmiyor.';
       });
+      _refocusLine(line.lookupFocusNode);
       return;
     }
 
@@ -460,7 +465,12 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
       subtitle: 'Barkodu okutun; bulunan urun secim listesine aktarilacak.',
     );
 
-    if (barcode == null || !mounted) {
+    if (barcode == null) {
+      _refocusLine(line.lookupFocusNode);
+      return;
+    }
+
+    if (!mounted) {
       return;
     }
 

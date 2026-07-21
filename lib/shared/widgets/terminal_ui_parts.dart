@@ -407,6 +407,142 @@ class TerminalResponsiveLookupRow extends StatelessWidget {
   }
 }
 
+class TerminalLookupSearchField extends StatefulWidget {
+  const TerminalLookupSearchField({
+    super.key,
+    required this.controller,
+    required this.onSearch,
+    this.decoration,
+    this.labelText,
+    this.hintText = 'Ara...',
+    this.enabled = true,
+    this.autofocus = true,
+    this.selectTextOnFocus = true,
+    this.suppressSoftKeyboard = true,
+    this.keyboardType,
+    this.onChanged,
+  });
+
+  final TextEditingController controller;
+  final VoidCallback onSearch;
+  final InputDecoration? decoration;
+  final String? labelText;
+  final String? hintText;
+  final bool enabled;
+  final bool autofocus;
+  final bool selectTextOnFocus;
+  final bool suppressSoftKeyboard;
+  final TextInputType? keyboardType;
+  final ValueChanged<String>? onChanged;
+
+  @override
+  State<TerminalLookupSearchField> createState() =>
+      _TerminalLookupSearchFieldState();
+}
+
+class _TerminalLookupSearchFieldState extends State<TerminalLookupSearchField> {
+  final FocusNode _focusNode = FocusNode();
+  bool _softKeyboardEnabledByTap = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _focusNode.addListener(_handleFocusChanged);
+  }
+
+  @override
+  void dispose() {
+    _focusNode.removeListener(_handleFocusChanged);
+    _focusNode.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return TextField(
+      controller: widget.controller,
+      focusNode: _focusNode,
+      enabled: widget.enabled,
+      autofocus: widget.autofocus,
+      keyboardType: _effectiveKeyboardType,
+      textInputAction: TextInputAction.search,
+      autocorrect: false,
+      enableSuggestions: false,
+      onChanged: widget.onChanged,
+      onSubmitted: (_) => widget.onSearch(),
+      onTap: _handleTap,
+      decoration:
+          widget.decoration ??
+          InputDecoration(
+            labelText: widget.labelText,
+            hintText: widget.hintText,
+          ),
+    );
+  }
+
+  TextInputType get _effectiveKeyboardType {
+    final keyboardType = widget.keyboardType;
+    if (keyboardType != null) {
+      return keyboardType;
+    }
+
+    return TextInputType.text;
+  }
+
+  void _handleFocusChanged() {
+    if (!_focusNode.hasFocus) {
+      if (_softKeyboardEnabledByTap && mounted) {
+        setState(() => _softKeyboardEnabledByTap = false);
+      }
+      return;
+    }
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+
+      _selectAll();
+      if (widget.suppressSoftKeyboard && !_softKeyboardEnabledByTap) {
+        SystemChannels.textInput.invokeMethod<void>('TextInput.hide');
+      }
+    });
+  }
+
+  void _handleTap() {
+    if (widget.suppressSoftKeyboard && !_softKeyboardEnabledByTap) {
+      setState(() => _softKeyboardEnabledByTap = true);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) {
+          return;
+        }
+
+        _focusNode.requestFocus();
+        SystemChannels.textInput.invokeMethod<void>('TextInput.show');
+        _selectAll();
+      });
+    }
+
+    _selectAll();
+  }
+
+  void _selectAll() {
+    if (!mounted || !widget.selectTextOnFocus) {
+      return;
+    }
+
+    final text = widget.controller.text;
+    if (text.isEmpty) {
+      return;
+    }
+
+    widget.controller.selection = TextSelection(
+      baseOffset: 0,
+      extentOffset: text.length,
+    );
+  }
+}
+
 class TerminalSubmitOnTab extends StatefulWidget {
   const TerminalSubmitOnTab({
     super.key,

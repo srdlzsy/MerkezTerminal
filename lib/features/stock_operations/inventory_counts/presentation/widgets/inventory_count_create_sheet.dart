@@ -208,6 +208,7 @@ class _InventoryCountCreateSheetState extends State<InventoryCountCreateSheet>
   Future<void> _scanProductWithCamera(_InventoryLineDraft line) async {
     if (!supportsCameraBarcodeScanning) {
       _showFeedback('Bu cihazda kamera ile barkod okutma desteklenmiyor.');
+      _refocusLine(line.barcodeFocusNode);
       return;
     }
 
@@ -217,7 +218,12 @@ class _InventoryCountCreateSheetState extends State<InventoryCountCreateSheet>
       subtitle: 'Barkodu okutun; bulunan urun satira eklenecek.',
     );
 
-    if (barcode == null || !mounted) {
+    if (barcode == null) {
+      _refocusLine(line.barcodeFocusNode);
+      return;
+    }
+
+    if (!mounted) {
       return;
     }
 
@@ -984,9 +990,9 @@ class _LookupScaffold extends StatelessWidget {
                       Row(
                         children: <Widget>[
                           Expanded(
-                            child: TextField(
+                            child: TerminalLookupSearchField(
                               controller: queryController,
-                              onSubmitted: (_) => onSearch(),
+                              onSearch: onSearch,
                               decoration: const InputDecoration(
                                 hintText: 'Ara...',
                               ),

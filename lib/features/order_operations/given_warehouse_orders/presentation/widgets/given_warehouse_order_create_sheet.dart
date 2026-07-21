@@ -154,11 +154,13 @@ class _GivenWarehouseOrderCreateSheetState
       _outWarehouseNoController.text = warehouse.warehouseNo.toString();
     });
     _draftSession.scheduleSave();
+    _focusFreshEntryLine();
   }
 
   Future<void> _searchProduct(_CreateLineDraft line) async {
     if (!_hasWarehouseSelection) {
       _showFeedback('Once karsi depo secin, sonra kalem okutun.');
+      _refocusLine(line.barcodeFocusNode);
       return;
     }
 
@@ -219,11 +221,13 @@ class _GivenWarehouseOrderCreateSheetState
   Future<void> _scanProductWithCamera(_CreateLineDraft line) async {
     if (!_hasWarehouseSelection) {
       _showFeedback('Once karsi depo secin, sonra kamera ile okutun.');
+      _refocusLine(line.barcodeFocusNode);
       return;
     }
 
     if (!supportsCameraBarcodeScanning) {
       _showFeedback('Bu cihazda kamera ile barkod okutma desteklenmiyor.');
+      _refocusLine(line.barcodeFocusNode);
       return;
     }
 
@@ -233,7 +237,12 @@ class _GivenWarehouseOrderCreateSheetState
       subtitle: 'Barkodu okutun; bulunan urun satira eklenecek.',
     );
 
-    if (barcode == null || !mounted) {
+    if (barcode == null) {
+      _refocusLine(line.barcodeFocusNode);
+      return;
+    }
+
+    if (!mounted) {
       return;
     }
 
@@ -987,9 +996,9 @@ class _WarehouseLookupSheetState extends State<_WarehouseLookupSheet> {
                       Row(
                         children: [
                           Expanded(
-                            child: TextField(
+                            child: TerminalLookupSearchField(
                               controller: _queryController,
-                              onSubmitted: (_) => _load(),
+                              onSearch: _load,
                               decoration: const InputDecoration(
                                 hintText: 'Ara...',
                                 border: OutlineInputBorder(),
@@ -1138,9 +1147,9 @@ class _ProductLookupSheetState extends State<_ProductLookupSheet> {
                       Row(
                         children: [
                           Expanded(
-                            child: TextField(
+                            child: TerminalLookupSearchField(
                               controller: _queryController,
-                              onSubmitted: (_) => _load(),
+                              onSearch: _load,
                               decoration: const InputDecoration(
                                 hintText: 'Stok adi, kodu veya barkod',
                                 border: OutlineInputBorder(),

@@ -718,6 +718,7 @@ class _VirmanCreateSheetState extends State<_VirmanCreateSheet>
       setState(() {
         _errorMessage = 'Urun aramak icin en az 2 karakter veya barkod girin.';
       });
+      _refocusLine(line.lookupFocusNode);
       return;
     }
 
@@ -732,6 +733,7 @@ class _VirmanCreateSheetState extends State<_VirmanCreateSheet>
       setState(() {
         _errorMessage = 'Bu aramaya uygun urun katalogda bulunamadi.';
       });
+      _refocusLine(line.lookupFocusNode);
       return;
     }
 
@@ -809,6 +811,7 @@ class _VirmanCreateSheetState extends State<_VirmanCreateSheet>
       setState(() {
         _errorMessage = 'Bu cihazda kamera ile barkod okutma desteklenmiyor.';
       });
+      _refocusLine(line.lookupFocusNode);
       return;
     }
 
@@ -818,7 +821,12 @@ class _VirmanCreateSheetState extends State<_VirmanCreateSheet>
       subtitle: 'Barkodu okutun; bulunan urun satira aktarilacak.',
     );
 
-    if (barcode == null || !mounted) {
+    if (barcode == null) {
+      _refocusLine(line.lookupFocusNode);
+      return;
+    }
+
+    if (!mounted) {
       return;
     }
 
