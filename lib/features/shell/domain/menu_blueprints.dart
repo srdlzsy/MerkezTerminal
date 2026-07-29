@@ -34,6 +34,50 @@ abstract final class MenuBlueprintRegistry {
   }
 
   static final Map<String, MenuBlueprint> _overrides = <String, MenuBlueprint>{
+    'siparis-islemleri.onerilen-firma-siparisleri': const MenuBlueprint(
+      title: 'Onerilen Firma Siparisleri',
+      subtitle:
+          'Tedarikciye gore onerilen firma siparislerini hesaplar ve siparise cevirir.',
+      endpoints: <EndpointSpec>[
+        EndpointSpec(
+          label: 'Liste',
+          method: 'GET',
+          path: '/api/siparis-islemleri/onerilen-firma-siparisleri',
+        ),
+        EndpointSpec(
+          label: 'Siparise Cevir',
+          method: 'POST',
+          path:
+              '/api/siparis-islemleri/onerilen-firma-siparisleri/convert-to-order',
+        ),
+      ],
+      uiNotes: <String>[
+        'Kullanici once firma/tedarikci secer ve onerileri listeler.',
+        'Satirlar secildikten sonra miktar degistirilip verilen firma siparisine cevrilir.',
+      ],
+    ),
+    'siparis-islemleri.onerilen-depo-siparisleri': const MenuBlueprint(
+      title: 'Onerilen Depo Siparisleri',
+      subtitle:
+          'Kaynak depodaki stok durumuna gore onerilen depo siparislerini yonetir.',
+      endpoints: <EndpointSpec>[
+        EndpointSpec(
+          label: 'Liste',
+          method: 'GET',
+          path: '/api/siparis-islemleri/onerilen-depo-siparisleri',
+        ),
+        EndpointSpec(
+          label: 'Siparise Cevir',
+          method: 'POST',
+          path:
+              '/api/siparis-islemleri/onerilen-depo-siparisleri/convert-to-order',
+        ),
+      ],
+      uiNotes: <String>[
+        'Kullanici once kaynak depo secer ve onerileri listeler.',
+        'Satirlar secildikten sonra miktar degistirilip verilen depo siparisine cevrilir.',
+      ],
+    ),
     'siparis-islemleri.verilen-firma-siparisleri': const MenuBlueprint(
       title: 'Verilen Firma Siparisleri',
       subtitle:

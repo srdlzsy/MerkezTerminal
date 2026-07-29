@@ -18,6 +18,10 @@ import 'package:furpa_merkez_terminal/features/order_operations/given_warehouse_
 import 'package:furpa_merkez_terminal/features/order_operations/received_company_orders/data/received_company_orders_repository.dart';
 import 'package:furpa_merkez_terminal/features/order_operations/received_warehouse_orders/data/received_warehouse_orders_repository.dart';
 import 'package:furpa_merkez_terminal/features/order_operations/received_warehouse_orders/presentation/views/received_warehouse_orders_page.dart';
+import 'package:furpa_merkez_terminal/features/order_operations/suggested_company_orders/data/suggested_company_orders_repository.dart';
+import 'package:furpa_merkez_terminal/features/order_operations/suggested_company_orders/presentation/views/suggested_company_orders_page.dart';
+import 'package:furpa_merkez_terminal/features/order_operations/suggested_warehouse_orders/data/suggested_warehouse_orders_repository.dart';
+import 'package:furpa_merkez_terminal/features/order_operations/suggested_warehouse_orders/presentation/views/suggested_warehouse_orders_page.dart';
 import 'package:furpa_merkez_terminal/features/return_operations/warehouse_returns/data/models/warehouse_return_models.dart';
 import 'package:furpa_merkez_terminal/features/return_operations/warehouse_returns/data/warehouse_returns_repository.dart';
 import 'package:furpa_merkez_terminal/features/return_operations/warehouse_returns/presentation/views/warehouse_returns_page.dart';
@@ -115,6 +119,8 @@ class ShellModuleRegistry {
   ShellModuleRegistry({
     required this.givenCompanyOrdersRepository,
     required this.givenWarehouseOrdersRepository,
+    required this.suggestedCompanyOrdersRepository,
+    required this.suggestedWarehouseOrdersRepository,
     required this.receivedCompanyOrdersRepository,
     required this.receivedWarehouseOrdersRepository,
     required this.warehouseAcceptancesRepository,
@@ -144,6 +150,8 @@ class ShellModuleRegistry {
 
   final GivenCompanyOrdersRepository givenCompanyOrdersRepository;
   final GivenWarehouseOrdersRepository givenWarehouseOrdersRepository;
+  final SuggestedCompanyOrdersRepository suggestedCompanyOrdersRepository;
+  final SuggestedWarehouseOrdersRepository suggestedWarehouseOrdersRepository;
   final ReceivedCompanyOrdersRepository receivedCompanyOrdersRepository;
   final ReceivedWarehouseOrdersRepository receivedWarehouseOrdersRepository;
   final WarehouseAcceptancesRepository warehouseAcceptancesRepository;
@@ -233,6 +241,18 @@ class ShellModuleRegistry {
         ),
       ),
       ShellModuleRoute(
+        exactRouteKey: 'siparis-islemleri.onerilen-firma-siparisleri',
+        builder: (context) => SuggestedCompanyOrdersPage(
+          key: context.pageKey,
+          repository: suggestedCompanyOrdersRepository,
+          accessToken: context.accessToken,
+          canCreate: context.canCreate,
+          defaultWarehouseNo: context.user.warehouseNo,
+          userWarehouseName: context.user.warehouseName,
+          mobileCustomerCatalogRepository: mobileCustomerCatalogLocalRepository,
+        ),
+      ),
+      ShellModuleRoute(
         exactRouteKey: 'siparis-islemleri.verilen-depo-siparisleri',
         builder: (context) => GivenWarehouseOrdersPage(
           key: context.pageKey,
@@ -245,6 +265,19 @@ class ShellModuleRegistry {
           mobileWarehouseCatalogRepository:
               mobileWarehouseCatalogLocalRepository,
           userWarehouseName: context.user.warehouseName,
+        ),
+      ),
+      ShellModuleRoute(
+        exactRouteKey: 'siparis-islemleri.onerilen-depo-siparisleri',
+        builder: (context) => SuggestedWarehouseOrdersPage(
+          key: context.pageKey,
+          repository: suggestedWarehouseOrdersRepository,
+          accessToken: context.accessToken,
+          canCreate: context.canCreate,
+          defaultWarehouseNo: context.user.warehouseNo,
+          userWarehouseName: context.user.warehouseName,
+          mobileWarehouseCatalogRepository:
+              mobileWarehouseCatalogLocalRepository,
         ),
       ),
       ShellModuleRoute(

@@ -9,8 +9,187 @@ Bu dokuman, mevcut backend durumuna gore frontend/UI tasarimi ve entegrasyonu ic
 - Tarihler `ISO 8601` formatindadir.
 - Yetki sistemi `module > menu > action` mantigindadir.
 - UI menu agaci ve buton gorunurlugu `me` cevabindan uretilmelidir.
-- Tarih aralikli liste endpointlerinde `StartDate` ve `EndDate` zorunludur; `WarehouseNo` verilmezse JWT icindeki depo kullanilir.
+- Depo yetkisi backend tarafinda merkezi ve permission bazli uygulanir. Kullanici sadece JWT icindeki kendi deposunda islem yapar; baska depo veya tum depo kapsami icin ilgili menuye ait `{module}.{menu}.all-warehouses` yetkisi gerekir.
+- `Admin`/`Administrator` rolu migration ve seed ile tum permission'lari aldigi icin tum depolari gorebilir; fakat uygulama kararini role bakarak degil `all-warehouses` permission claim'ine bakarak verir. Boylece admin olmayan role de modul modul tum depo yetkisi verilebilir.
+- UI depo secici/filtresi gosterecegi zaman role bakmamalidir. Secili ekrandaki permission setinde ilgili `*.all-warehouses` kodu varsa depo secici acilir; yoksa depo alani gizlenir veya kilitlenir.
+- Liste/rapor endpointlerinde `*.all-warehouses` yetkisi olan kullanici `WarehouseNo`/`warehouseNo` alanini bos veya `null` gonderirse endpoint destekliyorsa tum depolar doner; belirli depo icin depo no gonderilir. Tek depo gerektiren create/update/detail islemlerinde `null` tum depo anlamina gelmez; backend token deposunu varsayar veya ilgili islem icin secili depo bekler.
+- Tum depolari listeleyen kullanici detay ekranina gecis icin UI, secilen satirdaki depo bilgisini kullanmalidir. Detay endpointine `warehouseNo=null` gonderilmemelidir; satirda gelen `warehouseNo`, `sourceWarehouseNo`, `targetWarehouseNo`, `branchNo` veya ilgili islem deposu query/body alanina yazilmalidir.
+- Ilgili `*.all-warehouses` yetkisi olmayan kullanici farkli `WarehouseNo`, `BranchNo` veya islem deposu gonderirse API `403 Forbidden` doner.
+- Tarih aralikli liste endpointlerinde `StartDate` ve `EndDate` zorunludur; depo yetkisi yoksa `WarehouseNo` verilmez ve backend JWT icindeki depoyu kullanir.
 - Development CORS originleri su an `http://localhost:5176`, `http://localhost:5173` ve `http://localhost:4200` icin aciktir.
+
+Route parametre notu:
+
+- Controller route template'lerinde belge anahtarlari genel olarak `{documentSerie}/{documentOrderNo}` seklindedir.
+- Dokumanin eski akis semalarinda gecen `{seri}/{sira}` ifadesi ayni path degerlerinin kisa yazimidir; UI yeni kodda controller'daki canonical adlari `documentSerie` ve `documentOrderNo` olarak kullanmalidir.
+- `{id:guid}`, `{documentOrderNo:int}` gibi ASP.NET route constraint'leri dokuman orneklerinde genelde `{id}`, `{documentOrderNo}` olarak sade yazilir; path formatini degistirmez.
+
+Controller'da acik olan pratik alias/canonical route'lar:
+
+- `GET /api/arama-islemleri/barkodlar/{barcode}/cozumle`
+- `GET /api/arama-islemleri/urunler/{stockCode}/cari-onerileri`
+- `GET /api/arama-islemleri/urunler/{stockCode}/son-kunye`
+- `GET /api/siparis-islemleri/alinan-depo-siparisleri/{documentSerie}/{documentOrderNo}`
+- `GET /api/siparis-islemleri/alinan-depo-siparisleri/key/{documentKey}`
+- `GET /api/siparis-islemleri/alinan-firma-siparisleri/{documentSerie}/{documentOrderNo}`
+- `GET /api/siparis-islemleri/alinan-firma-siparisleri/key/{documentKey}`
+- `GET /api/siparis-islemleri/verilen-depo-siparisleri/{documentSerie}/{documentOrderNo}`
+- `GET /api/siparis-islemleri/verilen-depo-siparisleri/key/{documentKey}`
+- `GET /api/siparis-islemleri/verilen-firma-siparisleri/{documentSerie}/{documentOrderNo}`
+- `GET /api/siparis-islemleri/verilen-firma-siparisleri/key/{documentKey}`
+- `GET /api/sevk-islemleri/depolar-arasi-sevkler/{documentSerie}/{documentOrderNo}`, `POST /api/sevk-islemleri/depolar-arasi-sevkler/{documentSerie}/{documentOrderNo}/e-irsaliye` ve `GET /api/sevk-islemleri/depolar-arasi-sevkler/{documentSerie}/{documentOrderNo}/e-irsaliye/pdf`, `giden` alias'i ile ayni outgoing akisi calistirir.
+- `GET /api/sevk-islemleri/depolar-arasi-sevkler/giden/{documentSerie}/{documentOrderNo}`, `POST /api/sevk-islemleri/depolar-arasi-sevkler/giden/{documentSerie}/{documentOrderNo}/e-irsaliye` ve `GET /api/sevk-islemleri/depolar-arasi-sevkler/giden/{documentSerie}/{documentOrderNo}/e-irsaliye/pdf`
+- `GET /api/sevk-islemleri/depolar-arasi-sevkler/gelen/{documentSerie}/{documentOrderNo}`
+- `GET /api/sevk-islemleri/firma-sevkleri/{documentSerie}/{documentOrderNo}`, `POST /api/sevk-islemleri/firma-sevkleri/{documentSerie}/{documentOrderNo}/e-irsaliye` ve `GET /api/sevk-islemleri/firma-sevkleri/{documentSerie}/{documentOrderNo}/e-irsaliye/pdf`, `giden` alias'i ile ayni outgoing akisi calistirir.
+- `GET /api/sevk-islemleri/firma-sevkleri/giden/{documentSerie}/{documentOrderNo}`, `POST /api/sevk-islemleri/firma-sevkleri/giden/{documentSerie}/{documentOrderNo}/e-irsaliye` ve `GET /api/sevk-islemleri/firma-sevkleri/giden/{documentSerie}/{documentOrderNo}/e-irsaliye/pdf`
+- `GET /api/sevk-islemleri/firma-sevkleri/gelen/{documentSerie}/{documentOrderNo}`
+- `GET /api/iade-islemleri/depo-iadeleri/{documentSerie}/{documentOrderNo}`, `POST /api/iade-islemleri/depo-iadeleri/{documentSerie}/{documentOrderNo}/e-irsaliye` ve `GET /api/iade-islemleri/depo-iadeleri/{documentSerie}/{documentOrderNo}/e-irsaliye/pdf`, `giden` alias'i ile ayni outgoing akisi calistirir.
+- `GET /api/iade-islemleri/depo-iadeleri/giden/{documentSerie}/{documentOrderNo}`, `POST /api/iade-islemleri/depo-iadeleri/giden/{documentSerie}/{documentOrderNo}/e-irsaliye` ve `GET /api/iade-islemleri/depo-iadeleri/giden/{documentSerie}/{documentOrderNo}/e-irsaliye/pdf`
+- `GET /api/iade-islemleri/depo-iadeleri/gelen/{documentSerie}/{documentOrderNo}`
+- `GET /api/iade-islemleri/firma-iadeleri/{documentSerie}/{documentOrderNo}`, `POST /api/iade-islemleri/firma-iadeleri/{documentSerie}/{documentOrderNo}/e-irsaliye` ve `GET /api/iade-islemleri/firma-iadeleri/{documentSerie}/{documentOrderNo}/e-irsaliye/pdf`
+- `GET /api/mal-kabul-islemleri/depo-mal-kabulleri/{documentSerie}/{documentOrderNo}` ve `POST /api/mal-kabul-islemleri/depo-mal-kabulleri/{documentSerie}/{documentOrderNo}/kabul`
+- `GET /api/mal-kabul-islemleri/mal-kabuller/depo-sevkleri/{documentSerie}/{documentOrderNo}` ve `POST /api/mal-kabul-islemleri/mal-kabuller/depo-sevkleri/{documentSerie}/{documentOrderNo}/kabul`, depo mal kabul detay/kabul endpointinin eski menu uyum alias'idir.
+- `GET /api/mal-kabul-islemleri/firma-mal-kabulleri/{documentSerie}/{documentOrderNo}`
+- `GET /api/stok-islemleri/zayiat-fisleri/{documentSerie}/{documentOrderNo}`
+- `GET /api/stok-islemleri/masraf-fisleri/{documentSerie}/{documentOrderNo}`
+- `GET /api/stok-islemleri/virmanlar/{documentSerie}/{documentOrderNo}`
+- `GET /api/kasa-islemleri/kasa-sayimlari/{documentSerie}/{documentOrderNo}`, `GET /api/kasa-islemleri/kasa-sayimlari/{documentSerie}/{documentOrderNo}/detaylar`, `GET /api/kasa-islemleri/kasa-sayimlari/{documentSerie}/{documentOrderNo}/banknot-hareketleri`, `GET /api/kasa-islemleri/kasa-sayimlari/{documentSerie}/{documentOrderNo}/hediye-ceki-hareketleri`
+- `PUT /api/kasa-islemleri/kasa-sayimlari/{documentSerie}/{documentOrderNo}/detaylar`, `PUT /api/kasa-islemleri/kasa-sayimlari/{documentSerie}/{documentOrderNo}/banknot-hareketleri` ve `DELETE /api/kasa-islemleri/kasa-sayimlari/{documentSerie}/{documentOrderNo}`
+
+### Tum Depo Yetki Modeli
+
+- Depo kapsamli menu/action setlerinde `all-warehouses` aksiyonu bulunur. Kod formati `{module}.{menu}.all-warehouses` seklindedir.
+- UI depo secici gostermek icin role degil, aktif kullanicinin `permissions` listesindeki ilgili `all-warehouses` koduna bakmalidir.
+- Ornek: stok raporlari icin tum sube yetkisi `rapor-islemleri.stok-raporlari.all-warehouses`; belge akis icin `operasyon-islemleri.belge-akis-takibi.all-warehouses`; kasa sayimi goruntuleme icin `kasa-islemleri.kasa-sayimlari.all-warehouses`; icmal girisi icin `kasa-islemleri.icmal-kaydi-girisi.all-warehouses`; POS muhasebe aktarimi icin `entegrasyon-islemleri.pos-muhasebe-aktarimi.all-warehouses`.
+- Admin rolu migration/seed ile bu yetkilerin tamamini alir. Admin olmayan role modul bazli tum depo verilecekse sadece ilgili menu icin `list/detail/create/update/delete` aksiyonlariyla birlikte `all-warehouses` atanir.
+- Backend policy'deki aksiyon kodundan tum depo kodunu turetir: `rapor-islemleri.stok-raporlari.list` isteginde depo secimi icin `rapor-islemleri.stok-raporlari.all-warehouses` aranir.
+- Bu yetkileri Auth DB'ye ekleyen migration: `20260727150749_AddAllWarehouseScopePermissions`.
+
+## Home / Depo Oncelikleri
+
+Bu endpoint home acilisinda eski hizli erisim menusu yerine "bugun neye bakmaliyim?" paneli icin eklendi. Amac, giris yapan depo kullanicisinin kendi deposundaki acil operasyon konularini tek kartta gormesidir.
+
+Kaynaklar:
+
+- `document_flows`: bugunku sevk, bugunku depo kabul, bekleyen depo kabul ve basarisiz e-irsaliye sayilari
+- `stock_anomalies`: acik veya kabul edilmis stok anomalileri
+- `feedback_items`: giris yapan kullanicinin kapanmamis sikayet/onerileri
+
+Kapsam:
+
+- Sadece login olmak yeterlidir.
+- `home.depo-oncelikleri.all-warehouses` yetkisi olmayan kullanici `warehouseNo` gondermez; backend JWT icindeki depoyu uygular.
+- Bu yetki yokken baska depo icin `warehouseNo` gonderilirse `403 Forbidden` doner.
+- `home.depo-oncelikleri.all-warehouses` yetkisi olan kullanici `warehouseNo` gondererek depo secebilir.
+- Bu yetkiye sahip kullanici `warehouseNo` gondermezse tum depolar ozetlenir ve `warehouseNo: null` doner.
+- Endpoint sadece mevcut izleme tablolarindan okur; pahali tarama/senkronizasyon tetiklemez.
+
+Endpoint ozeti:
+
+| Endpoint | Request kaynagi | Request modeli | Response | Yetki |
+|---|---|---|---|---|
+| `GET /api/home/depo-oncelikleri` | query | `HomeWarehousePrioritiesHttpRequest` | `HomeWarehousePrioritiesDto` | login |
+
+Query:
+
+```text
+date         opsiyonel; yyyy-MM-dd, bos ise bugun
+warehouseNo  opsiyonel; sadece `home.depo-oncelikleri.all-warehouses` yetkisi olan kullanicida tum depo/depoya gore filtreleme anlamlidir
+```
+
+Ornek:
+
+`GET /api/home/depo-oncelikleri?date=2026-07-24&warehouseNo=110`
+
+Response:
+
+```json
+{
+  "date": "2026-07-24",
+  "generatedAtUtc": "2026-07-24T09:10:00Z",
+  "warehouseNo": 110,
+  "warehouseName": "KESTEL 1",
+  "overallStatus": "critical",
+  "headline": "Bugun 3 oncelikli konu var",
+  "metrics": [
+    {
+      "code": "failedEDespatch",
+      "label": "E-Irsaliye Hatasi",
+      "value": 2,
+      "severity": "critical",
+      "route": "/operasyon-islemleri/belge-akis-takibi?status=Failed&warehouseNo=110"
+    },
+    {
+      "code": "pendingReceiving",
+      "label": "Bekleyen Kabul",
+      "value": 7,
+      "severity": "warning",
+      "route": "/operasyon-islemleri/belge-akis-takibi?warehouseNo=110"
+    },
+    {
+      "code": "openStockAnomaly",
+      "label": "Acik Stok Anomalisi",
+      "value": 4,
+      "severity": "warning",
+      "route": "/stok-islemleri/stok-anomali-merkezi?status=Open&warehouseNo=110"
+    },
+    {
+      "code": "myOpenFeedback",
+      "label": "Acik Talebim",
+      "value": 1,
+      "severity": "info",
+      "route": "/home/sikayet-oneri/benim"
+    }
+  ],
+  "priorities": [
+    {
+      "code": "failedEDespatch",
+      "severity": "critical",
+      "title": "E-irsaliye gonderimi basarisiz",
+      "description": "2 belge tekrar kontrol bekliyor.",
+      "count": 2,
+      "route": "/operasyon-islemleri/belge-akis-takibi?status=Failed&warehouseNo=110"
+    },
+    {
+      "code": "pendingReceiving",
+      "severity": "warning",
+      "title": "Depo kabul bekliyor",
+      "description": "7 depo hareketi henuz kabul edilmemis.",
+      "count": 7,
+      "route": "/operasyon-islemleri/belge-akis-takibi?warehouseNo=110"
+    }
+  ],
+  "quickActions": [
+    {
+      "code": "documentFlow",
+      "label": "Belge Akisina Git",
+      "route": "/operasyon-islemleri/belge-akis-takibi?warehouseNo=110",
+      "permissionCode": "operasyon-islemleri.belge-akis-takibi.list"
+    },
+    {
+      "code": "feedback",
+      "label": "Sikayet/Oneri Gonder",
+      "route": "/home/sikayet-oneri",
+      "permissionCode": null
+    }
+  ]
+}
+```
+
+Alan notlari:
+
+- `overallStatus` ve `metrics[].severity`: `critical`, `warning`, `info`, `healthy`
+- `metrics`: sayisal ozet kartlari icindir; sifir degerler de doner.
+- `priorities`: sadece aksiyon gerektiren konulari doner; kritik maddeler once gelir.
+- `quickActions`: home butonlari icindir. `permissionCode` doluysa UI bu butonu `me.permissions` icinde ilgili kod varsa gostermelidir; `null` ise login olan herkes gorebilir.
+
+UI onerisi:
+
+- Home ilk ekranda ustte `headline` ve depo adini goster.
+- Altinda 4-6 kompakt metrik karti kullan; eski sabit hizli erisim menusu yerine bu kartlardan gelen `route` ile yonlendir.
+- `priorities` listesini "once bunu yap" sirasi gibi kullan; `critical` maddeleri daha belirgin renkle ayir.
+- `priorities` bos ise pozitif bos durum goster: `headline` zaten "Bugun acil oncelik yok" doner.
+- `home.depo-oncelikleri.all-warehouses` yetkisi olan kullanicida depo filtresi eklenebilir; diger kullanicida depo secici gosterilmemelidir.
 
 ## Home / Ortak Sikayet Oneri
 
@@ -26,11 +205,11 @@ Veri Auth DB tarafinda tutulur:
 Temel kural:
 
 - Home endpointleri icin sadece login olmak yeterlidir.
-- Kullanici kendi sikayet/onerisini olusturur, kendi gecmisini ve ozetini gorur.
-- Yonetim endpointleri icin `Administrator` rolu veya ilgili permission gerekir.
-- `Administrator` rolu tum kayitlari gorur ve tum yonetim aksiyonlarini kullanir.
-- `ortak-islemler.sikayet-oneri.list-all` yetkisi olan kullanici tum depolari gorur.
-- `list-all` yoksa yonetim listesi kullanicinin JWT deposu ile sinirlanir.
+- Kullanici kendi sikayet/onerisini olusturur, kendi gecmisini, detayini ve durumunu gorur.
+- Admin olmayan kullanici baska kullanicilarin veya ayni depodaki diger personelin kayitlarini goremez.
+- Admin olmayan kullanici okundu isaretleme, cevap/admin notu yazma veya durum degistirme yapamaz.
+- `Admin` veya `Administrator` rolu tum depolardaki kayitlari gorur, isterse `warehouseNo` ile depo filtreler.
+- `Admin` veya `Administrator` rolu okundu isaretler, cevap/admin notu yazar ve durum degistirir.
 
 Yetki kodlari:
 
@@ -38,6 +217,8 @@ Yetki kodlari:
 - `ortak-islemler.sikayet-oneri.detail`
 - `ortak-islemler.sikayet-oneri.update`
 - `ortak-islemler.sikayet-oneri.list-all`
+
+Not: Bu permission kodlari menu/buton gorunurlugu icin kullanilabilir; API tarafinda admin olmayan kullanicinin veri kapsami her zaman kendi olusturdugu kayitlarla sinirlidir. Durum guncelleme ve admin notu islemleri role gore sadece `Admin`/`Administrator` icindir.
 
 Deger kataloglari:
 
@@ -73,22 +254,29 @@ UI icin onerilen kullanim:
 - "Sikayet / Oneri Gonder" butonu modal acar.
 - Modalda `type`, `title`, `message`, `priority` alanlari bulunur.
 - Kullanici bilgisi, depo no ve depo adi body'den alinmaz; JWT claim'lerinden backend tarafinda doldurulur.
+- Ayni create formu home disinda kullanicinin kendi sayfasinda da acilabilir; UI `POST /api/home/sikayet-oneri`, `POST /api/ortak-islemler/sikayet-oneri` veya `POST /api/yonetim/sikayet-oneri` route'larindan birini kullanabilir.
 - "Gecmisim" veya detay paneli icin `GET /api/home/sikayet-oneri/benim` kullanilir.
-- Yonetim ekrani menu olarak `OrtakIslemler > SikayetOneri` altinda acilabilir.
+- Yonetim ekrani menu olarak `OrtakIslemler > SikayetOneri` altinda acilabilir; admin olmayan kullanicida bu ekran sadece kendi kayitlarini salt okunur liste/detay olarak gostermelidir.
 - Yonetim gridinde tip, durum, oncelik, depo, olusturan kullanici, tarih ve admin notu kolonlari yeterlidir.
-- Durum degisiminde `PATCH /durum`, sadece okunduya alma icin `PATCH /okundu` kullanilmalidir.
+- Durum degisiminde `PATCH /durum`, sadece okunduya alma icin `PATCH /okundu` kullanilmalidir; bu aksiyonlar UI'da sadece `Admin`/`Administrator` icin acilmalidir.
 
 Endpoint ozeti:
 
 | Endpoint | Request kaynagi | Request modeli | Response | Yetki |
 |---|---|---|---|---|
 | `POST /api/home/sikayet-oneri` | body | `CreateFeedbackItemHttpRequest` | `FeedbackItemDto` | login |
+| `POST /api/ortak-islemler/sikayet-oneri` | body | `CreateFeedbackItemHttpRequest` | `FeedbackItemDto` | login |
+| `POST /api/yonetim/sikayet-oneri` | body | `CreateFeedbackItemHttpRequest` | `FeedbackItemDto` | login |
 | `GET /api/home/sikayet-oneri/benim` | - | - | `FeedbackItemDto[]` | login |
+| `GET /api/ortak-islemler/sikayet-oneri/benim` | - | - | `FeedbackItemDto[]` | login |
+| `GET /api/yonetim/sikayet-oneri/benim` | - | - | `FeedbackItemDto[]` | login |
 | `GET /api/home/sikayet-oneri/ozet` | - | - | `FeedbackSummaryDto` | login |
-| `GET /api/yonetim/sikayet-oneri` | query | `FeedbackManagementListHttpRequest` | `FeedbackItemDto[]` | `list` veya `list-all` veya `Administrator` |
-| `GET /api/yonetim/sikayet-oneri/{id}` | path | `id: guid` | `FeedbackItemDto` | `detail` veya `Administrator` |
-| `PATCH /api/yonetim/sikayet-oneri/{id}/okundu` | path | `id: guid` | `FeedbackItemDto` | `update` veya `Administrator` |
-| `PATCH /api/yonetim/sikayet-oneri/{id}/durum` | body | `ChangeFeedbackStatusHttpRequest` | `FeedbackItemDto` | `update` veya `Administrator` |
+| `GET /api/ortak-islemler/sikayet-oneri/ozet` | - | - | `FeedbackSummaryDto` | login |
+| `GET /api/yonetim/sikayet-oneri/ozet` | - | - | `FeedbackSummaryDto` | login |
+| `GET /api/yonetim/sikayet-oneri` | query | `FeedbackManagementListHttpRequest` | `FeedbackItemDto[]` | login; admin tumu, digerleri kendi kayitlari |
+| `GET /api/yonetim/sikayet-oneri/{id}` | path | `id: guid` | `FeedbackItemDto` | login; admin tumu, digerleri kendi kaydi |
+| `PATCH /api/yonetim/sikayet-oneri/{id}/okundu` | path | `id: guid` | `FeedbackItemDto` | `Admin` veya `Administrator` |
+| `PATCH /api/yonetim/sikayet-oneri/{id}/durum` | body | `ChangeFeedbackStatusHttpRequest` | `FeedbackItemDto` | `Admin` veya `Administrator` |
 
 Yonetim endpointleri icin alias route:
 
@@ -98,6 +286,8 @@ Yonetim endpointleri icin alias route:
 /api/ortak-islemler/sikayet-oneri/{id}/okundu
 /api/ortak-islemler/sikayet-oneri/{id}/durum
 ```
+
+Home/kullanici endpointleri icin `home`, `ortak-islemler` ve `yonetim` route kokleri controller'da aciktir. UI sade kullanim icin home kutusunda `/api/home/sikayet-oneri/*`, ortak menu ekraninda `/api/ortak-islemler/sikayet-oneri/*` yolunu tercih edebilir.
 
 ### Sikayet Oneri Olustur
 
@@ -227,7 +417,7 @@ Query:
 ```text
 status       opsiyonel; New/Read/InProgress/Resolved/Closed/Rejected
 type         opsiyonel; Complaint/Suggestion
-warehouseNo  opsiyonel; sadece canViewAll kullanicilarda tum depo filtreleme anlamlidir
+warehouseNo  opsiyonel; sadece Admin/Administrator icin tum depo filtreleme anlamlidir
 startDate    opsiyonel; createdAtUtc baslangic tarihi
 endDate      opsiyonel; createdAtUtc bitis tarihi, gun sonu dahil kabul edilir
 take         opsiyonel; default 100, max 500
@@ -235,9 +425,9 @@ take         opsiyonel; default 100, max 500
 
 Kapsam:
 
-- `Administrator` veya `list-all`: tum kayitlar uzerinden filtreleme yapar.
-- Sadece `list`: backend otomatik olarak kullanicinin JWT deposuna filtreler.
-- `warehouseNo` verilse bile `list-all` yoksa kullanicinin kendi depo kapsami disina cikilamaz.
+- `Admin` veya `Administrator`: tum kayitlar uzerinden filtreleme yapar.
+- Admin olmayan kullanici: backend otomatik olarak sadece `createdByUserId = current user` kayitlarini dondurur.
+- Admin olmayan kullanici `warehouseNo` gonderse bile baska kullanici veya depo kaydina erisemez; depo filtresi admin ekraninda anlamlidir.
 
 ### Yonetim Detay
 
@@ -1099,6 +1289,16 @@ Onemli alan ayrimi:
 
 Kasiyer listelerinde sifre donmez. Yeni kasiyer olusturma ve sifre sifirlama response'lari uretilen sifreyi tek seferlik `generatedPassword` alaninda dondurur.
 
+UI icin tip/lookup kullanimi:
+
+- Sube ayarlari ekrani acilirken `GET /api/ayar-islemleri/sube-ayarlari/secenekler` cagrilip `scalesTypes` ve `cashTypes` dropdown'lari doldurulabilir.
+- Kasa/POS terminal ekrani acilirken `GET /api/ayar-islemleri/kasa-pos-terminalleri/secenekler` cagrilip `cashTypes` dropdown'i doldurulabilir.
+- Cihaz tipi dropdown'i icin mevcut `GET /api/ayar-islemleri/cihazlar/tipler` endpoint'i kullanilir.
+- Numeric alanlar geriye uyumluluk icin korunur; response'larda yanina `scalesTypeName`, `cashTypeName`, `stateName` ve aciklama alanlari eklenir.
+- `ScalesType` desteklenen kesin katalogdur: `0 = CAS 16`, `1 = CAS 500`.
+- `CashType` is kurali adi eski veri sozlugunde netlesmedigi icin simdilik merkezi ve notr adlarla (`Kasa Tipi 0`, `Kasa Tipi 1`) doner. Dogru is adlari teyit edilince sadece servis katalogu guncellenmelidir.
+- Lookup endpointleri sabit kataloglari ve veritabaninda mevcut tanimsiz degerleri birlikte dondurur; tanimsiz degerlerde `isKnown=false` gelir.
+
 Yetki kodlari:
 
 ```text
@@ -1133,11 +1333,13 @@ Endpoint ozeti:
 | `GET /api/ayar-islemleri/cihazlar/subeler/{branchNo}/durum` | path | `branchNo: int` | `DeviceStatusDto[]` | `cihazlar.list` |
 | `POST /api/ayar-islemleri/cihazlar` | body | `CreateDeviceHttpRequest` | `DeviceDto` | `cihazlar.create` |
 | `DELETE /api/ayar-islemleri/cihazlar/{id}` | path | `id: int` | - | `cihazlar.update` |
+| `GET /api/ayar-islemleri/sube-ayarlari/secenekler` | - | - | `BranchSettingsLookupsDto` | `sube-ayarlari.list` |
 | `GET /api/ayar-islemleri/sube-ayarlari` | - | - | `BranchDetailDto[]` | `sube-ayarlari.list` |
 | `GET /api/ayar-islemleri/sube-ayarlari/{branchNo}` | path | `branchNo: int` | `BranchDetailDto` | `sube-ayarlari.detail` |
 | `GET /api/ayar-islemleri/sube-ayarlari/{branchNo}/kasalar` | path | `branchNo: int` | `CashRegistryDto[]` | `sube-ayarlari.detail` |
 | `POST /api/ayar-islemleri/sube-ayarlari` | body | `CreateBranchSettingsHttpRequest` | `BranchDetailDto` | `sube-ayarlari.create` |
 | `PUT /api/ayar-islemleri/sube-ayarlari/{branchNo}` | body + path | `UpdateBranchSettingsHttpRequest` | `BranchDetailDto` | `sube-ayarlari.update` |
+| `GET /api/ayar-islemleri/kasa-pos-terminalleri/secenekler` | - | - | `CashRegisterSettingsLookupsDto` | `kasa-pos-terminalleri.list` |
 | `GET /api/ayar-islemleri/kasa-pos-terminalleri/kasalar/{cashNo}/terminaller` | path | `cashNo: int` | `CashRegisterTerminalDto[]` | `kasa-pos-terminalleri.list` |
 | `GET /api/ayar-islemleri/kasa-pos-terminalleri/mevcut-sube/mesaj-durumlari` | JWT | - | `CashRegisterMessageStatusDto[]` | `kasa-pos-terminalleri.list` |
 | `GET /api/ayar-islemleri/kasa-pos-terminalleri/subeler/{branchNo}/mesaj-durumlari` | path | `branchNo: int` | `CashRegisterMessageStatusDto[]` | `kasa-pos-terminalleri.list` |
@@ -1234,6 +1436,49 @@ Response:
 
 ### Sube Ayarlari
 
+`GET /api/ayar-islemleri/sube-ayarlari/secenekler`
+
+Sube ayarlari formundaki terazi tipi ve kasa tipi secimlerinin dropdown kaynagidir.
+
+Response:
+
+```json
+{
+  "scalesTypes": [
+    {
+      "value": 0,
+      "code": "cas-16",
+      "name": "CAS 16",
+      "description": "Terazi.plu formatinda CAS 16 terazi dosyasi uretir.",
+      "isKnown": true
+    },
+    {
+      "value": 1,
+      "code": "cas-500",
+      "name": "CAS 500",
+      "description": "ART_STM.txt formatinda CAS 500 terazi dosyasi uretir.",
+      "isKnown": true
+    }
+  ],
+  "cashTypes": [
+    {
+      "value": 0,
+      "code": "cash-type-0",
+      "name": "Kasa Tipi 0",
+      "description": "Mevcut veri sozlugunde is kurali adi netlestirilmemis kasa tipi.",
+      "isKnown": false
+    },
+    {
+      "value": 1,
+      "code": "cash-type-1",
+      "name": "Kasa Tipi 1",
+      "description": "Mevcut veri sozlugunde is kurali adi netlestirilmemis kasa tipi.",
+      "isKnown": false
+    }
+  ]
+}
+```
+
 `GET /api/ayar-islemleri/sube-ayarlari`
 
 Sube ayarlari listesidir. `branchNo asc` siralanir.
@@ -1247,6 +1492,8 @@ Response:
     "branchIpAddress": "192.168.1.5",
     "branchScalesFolderPath": "TERAZI",
     "scalesType": 1,
+    "scalesTypeName": "CAS 500",
+    "scalesTypeDescription": "ART_STM.txt formatinda CAS 500 terazi dosyasi uretir.",
     "poskonFolderPath": "POSKON",
     "posGenelFolderPath": "POSGENEL"
   }
@@ -1265,7 +1512,9 @@ Response:
     "detailId": 1,
     "branchNo": 110,
     "cashNo": 1,
-    "cashType": 1
+    "cashType": 1,
+    "cashTypeName": "Kasa Tipi 1",
+    "cashTypeDescription": "Mevcut veri sozlugunde is kurali adi netlestirilmemis kasa tipi."
   }
 ]
 ```
@@ -1294,6 +1543,7 @@ Body:
 Notlar:
 
 - Duplicate `branchNo` `409 Conflict` doner.
+- `scalesType` sadece `0` veya `1` olabilir; diger degerler `400 Bad Request` doner.
 - `cashRegisters` bos olabilir.
 - Kasa satirlarinda duplicate `cashNo` varsa `409 Conflict` doner.
 
@@ -1312,6 +1562,33 @@ Body `CreateBranchSettingsHttpRequest` ile ayni sube alanlarini alir; `cashRegis
 ```
 
 ### Kasa / POS Terminalleri
+
+`GET /api/ayar-islemleri/kasa-pos-terminalleri/secenekler`
+
+Kasa/POS terminal ekleme formundaki kasa tipi seciminin dropdown kaynagidir.
+
+Response:
+
+```json
+{
+  "cashTypes": [
+    {
+      "value": 0,
+      "code": "cash-type-0",
+      "name": "Kasa Tipi 0",
+      "description": "Mevcut veri sozlugunde is kurali adi netlestirilmemis kasa tipi.",
+      "isKnown": false
+    },
+    {
+      "value": 1,
+      "code": "cash-type-1",
+      "name": "Kasa Tipi 1",
+      "description": "Mevcut veri sozlugunde is kurali adi netlestirilmemis kasa tipi.",
+      "isKnown": false
+    }
+  ]
+}
+```
 
 `POST /api/ayar-islemleri/kasa-pos-terminalleri`
 
@@ -1342,6 +1619,8 @@ Response `201 Created`:
   "branchNo": 110,
   "cashNo": 1,
   "cashType": 1,
+  "cashTypeName": "Kasa Tipi 1",
+  "cashTypeDescription": "Mevcut veri sozlugunde is kurali adi netlestirilmemis kasa tipi.",
   "terminals": [
     {
       "id": 15,
@@ -1389,7 +1668,10 @@ Response:
     "branchNo": 110,
     "cashNo": 1,
     "cashType": 1,
+    "cashTypeName": "Kasa Tipi 1",
+    "cashTypeDescription": "Mevcut veri sozlugunde is kurali adi netlestirilmemis kasa tipi.",
     "state": 0,
+    "stateName": "1071 bulundu",
     "filePath": "\\\\192.168.1.5\\POSKON\\MESAJ.001",
     "error": null
   }
@@ -1401,6 +1683,7 @@ Durum hesabi:
 - Dosyanin ilk satiri `1071` icerirse `state = 0`
 - Diger durumlarda `state = 1`
 - Dosya yoksa veya yetki/path hatasi varsa satir `state = null`, `error = hata mesaji` ile doner
+- `stateName` UI icin metinsel karsiliktir; hata durumunda `null` gelir.
 
 ### Kasiyerler
 
@@ -1484,10 +1767,88 @@ Tarih query alani:
 
 - `date` onerilir.
 - Geriye uyum icin `dateToGet` de kabul edilir.
+- Ikisi de verilmezse backend bugunu kullanir.
+
+Ortak query:
+
+```text
+date                 opsiyonel; rapor tarihi, verilmezse bugun
+dateToGet            opsiyonel; date icin geriye uyum alias'i
+warehouseNo          opsiyonel; `green-grocer.reports.all-warehouses` yoksa backend JWT deposunu uygular, yetki varsa bos birakilirsa tum subeler
+typeCode             opsiyonel; 10, 11, 12, yesillik veya all/tum
+search               opsiyonel; urun kodu, urun adi, sube adi veya evrak serisinde arar
+includeLazyBranches  opsiyonel; default true, siparis girmeyen subeleri de dondurur
+take                 opsiyonel; default 1000, max 5000
+```
+
+Tip secenekleri:
+
+`GET /api/green-grocer/reports/type-options`
+
+Alias:
+
+`GET /api/green-grocer/reports/tip-secenekleri`
+
+Response:
+
+```json
+[
+  {
+    "typeCode": "10",
+    "typeName": "Manav Tip 10",
+    "isGreens": false
+  },
+  {
+    "typeCode": "12",
+    "typeName": "Yesillik",
+    "isGreens": true
+  }
+]
+```
+
+### Dashboard / Ozet
+
+`GET /api/green-grocer/reports/dashboard?date=2026-06-04`
+
+Alias:
+
+`GET /api/green-grocer/reports/ozet?date=2026-06-04`
+
+Amac:
+
+- Tek cagrida ust KPI, tip ozetleri, sube ozetleri, en yuksek miktarli urunler ve siparis girmeyen subeleri dondurur.
+- Ekran acilisinda ilk cagrilacak endpoint olarak onerilir.
+
+Response:
+
+```json
+{
+  "reportDate": "2026-06-04T00:00:00",
+  "warehouseNo": null,
+  "branchCount": 18,
+  "lazyBranchCount": 2,
+  "documentCount": 18,
+  "productCount": 42,
+  "totalQuantity": 1250.75,
+  "typeSummaries": [
+    {
+      "typeCode": "12",
+      "typeName": "Yesillik",
+      "branchCount": 12,
+      "documentCount": 12,
+      "productCount": 8,
+      "totalQuantity": 210.5
+    }
+  ],
+  "branches": [],
+  "topProducts": [],
+  "lazyBranches": []
+}
+```
 
 ### Genel Manav Raporu
 
-`GET /api/green-grocer/reports/summary?date=2026-06-04`
+`GET /api/green-grocer/reports/summary?date=2026-06-04&typeCode=12&search=MARUL`
 
 Alias:
 
@@ -1502,6 +1863,7 @@ Response item:
 ```json
 {
   "typeCode": "10",
+  "typeName": "Manav Tip 10",
   "productCode": "016201",
   "productName": "ELMA",
   "quantity": 42.5
@@ -1510,7 +1872,11 @@ Response item:
 
 ### Sube/Evrak Bazli Manav Raporu
 
-`GET /api/green-grocer/reports/by-branch?date=2026-06-04`
+`GET /api/green-grocer/reports/by-branch?date=2026-06-04&warehouseNo=110`
+
+Alias:
+
+`GET /api/green-grocer/reports/sube?date=2026-06-04&warehouseNo=110`
 
 Response:
 
@@ -1524,9 +1890,12 @@ Response:
       "documentSerie": "F110",
       "documentOrderNo": 1234,
       "typeCode": "10",
+      "typeName": "Manav Tip 10",
       "productCode": "016201",
       "productName": "ELMA",
-      "quantity": 12
+      "quantity": 12,
+      "latestCreateDate": "2026-06-04T09:15:10",
+      "canDelete": true
     }
   ],
   "lazyBranches": [
@@ -1543,17 +1912,27 @@ Response:
 
 `GET /api/green-grocer/reports/by-product?date=2026-06-04`
 
+Alias:
+
+`GET /api/green-grocer/reports/urun?date=2026-06-04`
+
 Amac:
 
 - Urunleri toplam miktar ve sube/evrak kirilimiyle dondurur.
+- `branches` kiriliminda `latestCreateDate` ve `canDelete` alanlari bulunur; UI sil butonunu `canDelete=true` ve kullanicida `green-grocer.reports.update` yetkisi varsa gostermelidir.
 
 ### Yesillik Raporu
 
 `GET /api/green-grocer/reports/greens?date=2026-06-04`
 
+Alias:
+
+`GET /api/green-grocer/reports/yesillik?date=2026-06-04`
+
 Amac:
 
 - Yalnizca `STOKLAR.sto_model_kodu = '12'` olan satirlari sube ve evrak bilgisiyle listeler.
+- `typeCode` query verilse bile bu endpoint yesillik tipine sabitlenir.
 
 ### Manav Siparisi Sil
 
@@ -1568,6 +1947,8 @@ Kural:
 - Sadece son 24 saat icinde olusturulan evraklar silinebilir.
 - Eski WebUI'deki `TimeSpan.Hours` davranisi yerine `TotalHours` kullanilir.
 - Kayit yoksa `404`, 24 saat penceresi gecmisse `409 Conflict` doner.
+- Normal kullanicida `warehouseNo` gonderilmezse backend JWT deposunu uygular; baska depo gonderirse `403` doner.
+- `green-grocer.reports.all-warehouses` yetkisiyle `warehouseNo` bos birakilirsa evrak no ile eslesen tum sube satirlari silinebilir; UI'da yine secili sube ile silme onerilir.
 
 Response:
 
@@ -2073,9 +2454,9 @@ Onemli not:
 - Bu endpoint su an canli `MikroConnection` yerine write icin ayrilan `testMikroConnection` uzerinden `MikroDB_V16_SOPHIGET` veritabanina yazar.
 - Kod yapisi ileride canliya gecmeye hazirdir; canliya geciste `MikroWriteConnection` connection string'i eklenerek yazma hedefi degistirilebilir.
 - Yazma islemi EF Core uzerinden ayri `MikroWriteDbContext` ile yapilir; okuma tarafindaki `MikroDbContext` ile karismaz.
-- `documentSerie` backend tarafinda `F{loginKullaniciDepoNo}` olarak uretilir.
+- `documentSerie` backend tarafinda `F{islemDepoNo}` olarak uretilir.
 - `documentOrderNo` ayni seri icin test DB'deki mevcut maksimum sira okunarak uretilir; ilk evrak `0`, sonraki evraklar `1, 2...` seklinde gider.
-- `inWarehouseNo` JWT icindeki kullanici deposundan gelir; body icinde gonderilmez.
+- `siparis-islemleri.verilen-depo-siparisleri.all-warehouses` yoksa `inWarehouseNo` sorulmaz; backend JWT icindeki kullanici deposunu kullanir. Bu yetki varsa baska depo adina siparis olusturulacaksa body'de opsiyonel `inWarehouseNo` gonderilebilir.
 - `outWarehouseNo` siparis verilen/karsi depo numarasidir.
 
 Request:
@@ -2117,6 +2498,105 @@ Response:
   "writeConnectionName": "testMikroConnection"
 }
 ```
+
+### Onerilen Depo Siparisleri Liste
+
+`GET /api/siparis-islemleri/onerilen-depo-siparisleri?SourceWarehouseNo=50`
+
+Yetki:
+
+- `siparis-islemleri.onerilen-depo-siparisleri.list`
+
+Query:
+
+```text
+SourceWarehouseNo          zorunlu, urunu gonderecek kaynak depo
+TargetWarehouseNo          opsiyonel, verilmezse JWT icindeki depo kullanilir
+LookbackDays               opsiyonel, default 43
+FallbackRecommendedDay     opsiyonel, default 7
+```
+
+Not:
+
+- Bu endpoint read-only calisir, Mikro'ya veri yazmaz.
+- Kaynak depo `DEPOLAR.dep_barkod_yazici_yolu` alanindaki model kodlariyla urun ailesini belirler.
+- Acik gelen depo siparisleri, `SuggestedWarehouseOrders:OpenIncomingOrderDeduction`
+  ayari acik ve kaynak depo `TrustedSourceWarehouseNos` icindeyse ihtiyactan dusulur.
+- Kaynak depoda elde olmayan miktar onerilmez.
+- Oneri minimum stok esigine gore tetiklenir; `needQuantity` minimum stok acigidir.
+- `packageFactor` 1'den buyukse `suggestedOrderQuantity` koli katina yukari yuvarlanir.
+- `maxDay` doluysa onerilen miktar maksimum stok seviyesini asmadan sinirlanir; koli kati korunur.
+- Kaynak stok siniri devreye girerse son miktar yine koli kati korunarak asagi kirpilir.
+- Kaynak depo model kodlari bos ise backend `400 ProblemDetails` dondurebilir.
+
+Liste satiri modeli:
+
+```json
+{
+  "stockCode": "010001",
+  "stockName": "Stok Adi",
+  "modelCode": "01",
+  "barcode": "8690000000001",
+  "targetOnHand": 2,
+  "sourceOnHand": 120,
+  "salesQuantity": 86,
+  "openIncomingOrderQuantity": 3,
+  "packageFactor": 5,
+  "minDay": 7,
+  "recommendedDay": 7,
+  "maxDay": 0,
+  "recommendedStockQuantity": 14,
+  "needQuantity": 9,
+  "suggestedOrderQuantity": 10
+}
+```
+
+UI akisi:
+
+- Tek sayfada kullanici once kaynak depo secer.
+- UI listeyi getirir ve stok kodu, stok adi, barkod, hedef stok, kaynak stok, son satis, acik siparis, ihtiyac, koli katsayisi ve onerilen siparis miktarini gosterir.
+- Kullanici satirlari secer, `quantity` alanini varsayilan olarak `suggestedOrderQuantity` ile doldurur.
+- Kullanici miktari degistirebilir; `recommendedQuantity` alanina orijinal `suggestedOrderQuantity` yazilmasi onerilir.
+
+### Onerilen Depo Siparislerini Siparise Cevir
+
+`POST /api/siparis-islemleri/onerilen-depo-siparisleri/convert-to-order`
+
+Yetki:
+
+- `siparis-islemleri.onerilen-depo-siparisleri.create`
+
+Not:
+
+- Bu endpoint mevcut `Verilen Depo Siparisi Olustur` altyapisini kullanir.
+- `siparis-islemleri.onerilen-depo-siparisleri.all-warehouses` yoksa `targetWarehouseNo` sorulmaz; backend JWT icindeki kullanici deposunu kullanir. Bu yetki varsa baska depo adina siparis olusturulacaksa body'de opsiyonel `targetWarehouseNo` gonderilebilir.
+- `sourceWarehouseNo`, olusacak depo siparisindeki `outWarehouseNo` olarak kullanilir.
+
+Request:
+
+```json
+{
+  "sourceWarehouseNo": 50,
+  "orderDate": "2026-07-01",
+  "deliveryDate": "2026-07-01",
+  "description": "Onerilen siparisten olustu",
+  "lines": [
+    {
+      "stockCode": "010001",
+      "quantity": 12,
+      "recommendedQuantity": 12,
+      "unitPrice": 0,
+      "unitPointer": 1,
+      "description": "",
+      "packageCode": "",
+      "projectCode": "",
+      "responsibilityCenter": ""
+    }
+  ]
+}
+```
+
+Response modeli `CreateIssuedWarehouseOrderResponse` ile aynidir.
 
 ### Alinan Depo Siparisleri Liste
 
@@ -2217,9 +2697,9 @@ Onemli not:
 - Bu endpoint EF Core uzerinden ayri `MikroWriteDbContext` ile yazma yapar.
 - Su an write hedefi canli `MikroConnection` degil; `MikroWriteConnection` yoksa `testMikroConnection` kullanilir.
 - `SIPARISLER` tablosuna `sip_tip = 1`, `sip_cins = 0` olarak verilen firma siparisi yazar.
-- `documentSerie` backend tarafinda `F{loginKullaniciDepoNo}` olarak uretilir.
+- `documentSerie` backend tarafinda `F{islemDepoNo}` olarak uretilir.
 - `documentOrderNo` ayni seri/tip/cins icin write DB'deki maksimum sira okunarak uretilir; ilk evrak `0`, sonraki evraklar `1, 2...` seklinde gider.
-- `warehouseNo` JWT icindeki kullanici deposundan gelir; body icinde gonderilmez.
+- `*.all-warehouses` yoksa `warehouseNo` sorulmaz; backend JWT icindeki kullanici deposunu kullanir. Ilgili siparis menusunde `all-warehouses` yetkisi olan kullanici baska depo adina siparis olusturacaksa body'de opsiyonel `warehouseNo` gonderebilir.
 - Cari bilgisi write DB'de `CARI_HESAPLAR` icinden okunur; `cari_odemeplan_no` -> `sip_opno`, `cari_pasaport_no == "1"` -> `sip_cagrilabilir_fl`.
 
 Request:
@@ -2267,6 +2747,113 @@ Response:
   "writeConnectionName": "testMikroConnection"
 }
 ```
+
+### Onerilen Firma Siparisleri Liste
+
+`GET /api/siparis-islemleri/onerilen-firma-siparisleri?SupplierCode=32000999`
+
+Yetki:
+
+- `siparis-islemleri.onerilen-firma-siparisleri.list`
+
+Query:
+
+```text
+SupplierCode               zorunlu, secili firma/tedarikci kodu
+WarehouseNo                opsiyonel, verilmezse JWT icindeki depo kullanilir
+LookbackDays               opsiyonel, default 43
+FallbackRecommendedDay     opsiyonel, default 7
+```
+
+Not:
+
+- Bu endpoint read-only calisir, Mikro'ya veri yazmaz.
+- Firma siparisleri firma bazli oldugu icin `SupplierCode` zorunludur; firma secilmeden liste getirilmez.
+- Depo bazli tedarikci, stok karti tedarikcisi ve satinalma sartlari eslesmeleri secili firmaya gore dikkate alinir.
+- Acik verilen firma siparisleri, `SuggestedCompanyOrders:OpenIssuedOrderDeduction`
+  ayari acik ve tedarikci `TrustedSupplierCodes` icindeyse ihtiyactan dusulur.
+- Oneri minimum stok esigine gore tetiklenir; `needQuantity` minimum stok acigidir.
+- Satinalma sartinda asgari miktar varsa onerilen miktar once asgari miktara tamamlanabilir.
+- `packageFactor` 1'den buyukse `suggestedOrderQuantity` koli katina yukari yuvarlanir.
+- `maxDay` doluysa onerilen miktar maksimum stok seviyesini asmadan sinirlanir; koli kati korunur.
+
+Liste satiri modeli:
+
+```json
+{
+  "supplierCode": "32000999",
+  "supplierName": "TEDARIKCI A.S.",
+  "stockCode": "010001",
+  "stockName": "Stok Adi",
+  "modelCode": "01",
+  "barcode": "8690000000001",
+  "targetOnHand": 4,
+  "salesQuantity": 86,
+  "openCompanyOrderQuantity": 2,
+  "packageFactor": 5,
+  "minDay": 7,
+  "recommendedDay": 7,
+  "maxDay": 0,
+  "recommendedStockQuantity": 14,
+  "needQuantity": 8,
+  "suggestedOrderQuantity": 25,
+  "purchasePrice": 15.75,
+  "minimumPurchaseQuantity": 24,
+  "deliveryDay": 2
+}
+```
+
+UI akisi:
+
+- Tek sayfada kullanici firma/tedarikci secer.
+- UI listeyi getirir ve firma, stok kodu, stok adi, barkod, mevcut stok, son satis, acik firma siparisi, ihtiyac, koli katsayisi, asgari alim, alis fiyati ve onerilen siparis miktarini gosterir.
+- Kullanici satirlari secer, `quantity` alanini varsayilan olarak `suggestedOrderQuantity` ile doldurur.
+- Kullanici miktari degistirebilir; `recommendedQuantity` alanina orijinal `suggestedOrderQuantity` yazilmasi onerilir.
+
+### Onerilen Firma Siparislerini Siparise Cevir
+
+`POST /api/siparis-islemleri/onerilen-firma-siparisleri/convert-to-order`
+
+Yetki:
+
+- `siparis-islemleri.onerilen-firma-siparisleri.create`
+
+Not:
+
+- Bu endpoint mevcut `Verilen Firma Siparisi Olustur` altyapisini kullanir.
+- `*.all-warehouses` yoksa `warehouseNo` sorulmaz; backend JWT icindeki kullanici deposunu kullanir. Ilgili siparis menusunde `all-warehouses` yetkisi olan kullanici baska depo adina siparis olusturacaksa body'de opsiyonel `warehouseNo` gonderebilir.
+- `supplierCode`, olusacak firma siparisindeki `customerCode` olarak kullanilir.
+
+Request:
+
+```json
+{
+  "supplierCode": "32000999",
+  "orderDate": "2026-07-01",
+  "deliveryDate": "2026-07-02",
+  "description1": "Onerilen siparisten olustu",
+  "description2": "",
+  "deliverer": "",
+  "receiver": "",
+  "lines": [
+    {
+      "stockCode": "010001",
+      "quantity": 24,
+      "recommendedQuantity": 24,
+      "unitPrice": 15.75,
+      "unitPointer": 1,
+      "description1": "",
+      "description2": "",
+      "packageCode": "",
+      "projectCode": "",
+      "customerResponsibilityCenter": "",
+      "productResponsibilityCenter": ""
+    }
+  ]
+}
+```
+
+Response modeli `CreateIssuedCompanyOrderResponse` ile aynidir.
 
 ### Alinan Firma Siparisleri Liste
 
@@ -2538,16 +3125,18 @@ Yetki:
 
 Onemli not:
 
-- Bu endpoint EF Core uzerinden ayri `MikroWriteDbContext` ile yazma yapar.
-- Su an write hedefi canli `MikroConnection` degil; `MikroWriteConnection` yoksa `testMikroConnection` kullanilir.
-- `STOK_HAREKETLERI` tablosuna `sth_evraktip = 17`, `sth_tip = 2`, `sth_cins = 6` olarak depolar arasi sevk yazar.
-- `sourceWarehouseNo` JWT icindeki kullanici deposundan gelir; body icinde gonderilmez.
+- Yazma yolu `MikroWriteRouting:InterWarehouseShipment` ile secilir; mevcut config'te varsayilan deger `Database`tir.
+- `Database` modunda EF Core uzerinden ayri `MikroWriteDbContext` ile yazma yapar. Write hedefi canli `MikroConnection` degil; `MikroWriteConnection` yoksa `testMikroConnection` kullanilir.
+- `MikroApi` modunda `POST /Api/apiMethods/DahiliStokHareketKaydetV2` kullanilir ve olusan hareketler response/geri okuma ile mevcut response modeline cevrilir.
+- `MikroApi` modunda otomatik depo siparisi gerekiyorsa once `POST /Api/apiMethods/DepolarArasiSiparisKaydetV2` ile siparis olusturulur, olusan `ssip_Guid` degerleri geri okunur ve sevk satirlarina `sth_subesip_uid` olarak eklenir. Bu yolun API-only kalmasi icin `MikroWriteRouting:IssuedWarehouseOrder` de `MikroApi` olmalidir; aksi halde backend hata dondurur.
+- `STOK_HAREKETLERI` icin `sth_evraktip = 17`, `sth_tip = 2`, `sth_cins = 6` kullanilir.
+- `sevk-islemleri.giden-depolar-arasi-sevkler.all-warehouses` yoksa `sourceWarehouseNo` sorulmaz; backend JWT icindeki kullanici deposunu kullanir. Bu yetki varsa baska kaynak depodan sevk olusturulacaksa body'de opsiyonel `sourceWarehouseNo` gonderilebilir.
 - `targetWarehouseNo` UI'da secilen hedef depodur ve `sth_nakliyedeposu` alanina yazilir.
 - `transitWarehouseNo` verilmezse `60` kullanilir ve `sth_giris_depo_no` alanina yazilir.
-- `documentSerie` backend tarafinda `F{loginKullaniciDepoNo}` olarak uretilir.
+- `documentSerie` backend tarafinda `F{islemDepoNo}` olarak uretilir.
 - `documentOrderNo` ayni seri ve `sth_evraktip = 17` icin write DB'deki maksimum sira okunarak uretilir.
-- Satirda `warehouseOrderLineGuid` verilirse `STOK_HAREKETLERI_EK.sth_subesip_uid` ile depo siparis satirina baglanir.
-- `warehouseOrderLineGuid` verilmezse satir siparissiz sevk olarak olusur.
+- Satirda `warehouseOrderLineGuid` verilirse depo siparis satirina baglanir. `MikroWriteRouting:InterWarehouseShipment=Database` modunda backend `STOK_HAREKETLERI_EK.sth_subesip_uid` linkini DB'de kurar; `MikroApi` modunda ayni GUID `DahiliStokHareketKaydetV2` satirina `sth_subesip_uid` olarak gonderilir ve link/teslim etkisi Mikro tarafina birakilir.
+- `warehouseOrderLineGuid` verilmezse satir normalde siparissiz sevk olarak olusur; otomatik depo siparisi kurali devredeyse backend once Mikro API ile depo siparisi olusturup satiri bu yeni siparis GUID'ine baglar.
 - Siparise bagli satirda stok kodu, kaynak depo, hedef depo ve kalan miktar kontrol edilir.
 - Plaka, sofor adi ve TCKN bu create request'inde gonderilmez. Bu alanlar e-irsaliye gonderim request'inde zorunludur.
 
@@ -2823,9 +3412,9 @@ Onemli not:
 
 - Bu endpoint EF Core uzerinden ayri `MikroWriteDbContext` ile yazma yapar.
 - `STOK_HAREKETLERI` tablosuna `sth_evraktip = 1`, `sth_tip = 1`, `sth_normal_iade = 0` olarak firma giden sevki yazar.
-- `warehouseNo` JWT icindeki kullanici deposundan gelir; body icinde gonderilmez.
+- `*.all-warehouses` yoksa `warehouseNo` sorulmaz; backend JWT icindeki kullanici deposunu kullanir. Ilgili sevk menusunde `all-warehouses` yetkisi olan kullanici baska depo adina sevk olusturacaksa body'de opsiyonel `warehouseNo` gonderebilir.
 - `customerCode` zorunludur ve write DB'de `CARI_HESAPLAR` icinde kontrol edilir.
-- `documentSerie` backend tarafinda `F{loginKullaniciDepoNo}` olarak uretilir.
+- `documentSerie` backend tarafinda `F{islemDepoNo}` olarak uretilir.
 - `documentOrderNo` ayni seri, evrak tipi ve iade tipi icin write DB'deki mevcut maksimum sira okunarak uretilir; ilk evrak `0`, sonraki evraklar `1, 2...` seklinde gider.
 - Plaka, sofor adi ve TCKN bu create request'inde gonderilmez. Bu alanlar e-irsaliye gonderim request'inde zorunludur.
 - Satir bazinda `unitPrice` verilirse `totalAmount` `quantity * unitPrice` toplamindan olusur; verilmezse `0` olur.
@@ -3143,7 +3732,7 @@ Onemli not:
 
 - Bu endpoint yeni ana stok hareketi olusturmaz; gonderen deponun olusturdugu mevcut `sth_evraktip = 17`, `sth_normal_iade = 0 veya 1` satirlarini gunceller.
 - `isReturn = false` normal gelen depo sevkini, `isReturn = true` gelen depo iadesini ifade eder.
-- `warehouseNo` body icinden alinmaz; JWT icindeki kullanici deposu kullanilir.
+- `*.all-warehouses` yoksa `warehouseNo` sorulmaz; backend JWT icindeki kullanici deposunu kullanir. `mal-kabul-islemleri.depo-mal-kabulleri.all-warehouses` yetkisi olan kullanici baska depo icin kabul yapacaksa body'de opsiyonel `warehouseNo` gonderebilir.
 - Bekleyen kabul icin hareketlerde `sth_nakliyedeposu = kullaniciDeposu` ve `sth_nakliyedurumu != 1` olmalidir.
 - `sth_miktar` degistirilmez; resmi sevk/e-irsaliye miktari olarak korunur.
 - UI'dan gelen sayilan miktar `sth_FormulMiktar` alanina yazilir.
@@ -3306,6 +3895,7 @@ Yetki:
 Onemli not:
 
 - Bu liste yeni create kaynagi degil, mevcut yapilmis mal kabul fislerinin gecmis listesidir.
+- Firma mal kabul liste tarih filtresi `documentDate` alanina, Mikro tarafinda `STOK_HAREKETLERI.sth_belge_tarih` kolonuna uygulanir; `movementCreateDate` filtre alani degildir.
 - Response modeli `CompanyMovementListItemDto` ile aynidir.
 - UI ana ekranda gecmisi gosterip `Yeni Mal Kabul` aksiyonuyla create ekranina gecebilir.
 
@@ -3431,7 +4021,7 @@ Response:
 
 ### Firma Mal Kabul Olustur
 
-Secili cariden gelen urunler icin `STOK_HAREKETLERI` tablosuna yeni firma mal kabul hareketi yazar.
+Secili cariden gelen urunler icin yeni firma mal kabul hareketi olusturur; yazma sekli `MikroWriteRouting:CompanyReceiving` ayarina gore Database veya MikroApi olur.
 
 `POST /api/mal-kabul-islemleri/firma-mal-kabulleri`
 
@@ -3446,20 +4036,20 @@ Yetki:
 Onemli not:
 
 - Tek endpoint hem siparisli hem siparissiz mal kabul icin kullanilir.
-- `warehouseNo` body icinden alinmaz; JWT icindeki kullanici deposu kullanilir.
+- `*.all-warehouses` yoksa `warehouseNo` sorulmaz; backend JWT icindeki kullanici deposunu kullanir. `mal-kabul-islemleri.firma-mal-kabulleri.all-warehouses` yetkisi olan kullanici baska depo adina firma mal kabul olusturacaksa body'de opsiyonel `warehouseNo` gonderebilir.
 - Mobil offline pilotta request'e `clientRequestId` eklenmelidir.
 - Backend `sth_evraktip = 13`, `sth_tip = 0`, `sth_normal_iade = 0` olarak yeni giris hareketi olusturur.
 - Mal kabul giris hareketinde `sth_miktar` irsaliye/gelen miktari olan `dispatchQuantity` ile yazilir.
 - Fiili/net kabul miktari `acceptedQuantity` alanidir. UI farkli kabul durumunda `dispatchQuantity` ve `acceptedQuantity` alanlarini ayri gondermelidir.
 - Eski uyumluluk icin `quantity` hala desteklenir; UI sadece `quantity` gonderirse backend bunu hem `dispatchQuantity` hem `acceptedQuantity` gibi yorumlar.
 - `acceptedQuantity`, `dispatchQuantity` degerinden buyuk olamaz. `dispatchQuantity` sifirdan buyuk olmali, `acceptedQuantity` sifir olabilir.
-- `autoCreateReturnForPartialAcceptance = true` varsayilandir. `acceptedQuantity < dispatchQuantity` ise backend ayni transaction icinde fark kadar firma iade evragi olusturur.
-- Otomatik firma iade hareketi `sth_evraktip = 1`, `sth_tip = 1`, `sth_normal_iade = 1` olarak yazilir; seri `F{warehouseNo}` seklinde uretilir ve sira Mikro'daki sonraki uygun sira olur.
+- `autoCreateReturnForPartialAcceptance = true` varsayilandir. `acceptedQuantity < dispatchQuantity` ise backend fark kadar firma iade evragi olusturur. `Database` modunda ana mal kabul ve otomatik iade ayni DB transaction icindedir; `MikroApi` modunda ana mal kabul ve otomatik iade Mikro API create cagrilariyla sirali olusturulur.
+- Otomatik firma iade hareketi `sth_evraktip = 1`, `sth_tip = 1`, `sth_normal_iade = 1` olarak olusturulur; seri `F{warehouseNo}` seklinde uretilir ve sira Mikro'daki sonraki uygun sira olur.
 - Mikro net stok etkisi: `dispatchQuantity` kadar firma mal kabul girisi, fark kadar firma iade cikisi. Ornek: 10 geldi, 8 kabul edildi ise +10 mal kabul ve -2 firma iade yazilir; net stok 8 olur.
 - Otomatik firma iade icin e-irsaliye gonderimi yapilmaz. Response'ta iade evrak link/status bilgisi doner; kullanici sonradan `POST /api/iade-islemleri/firma-iadeleri/{seri}/{sira}/e-irsaliye` ile gondermelidir.
 - `autoCreateReturnForPartialAcceptance = false` gonderilirse fark icin iade evragi olusmaz; satir `returnStatus = IadeBekliyor` olarak doner ve UI bunu manuel cozum bekleyen fark gibi gostermelidir.
-- Satirda `orderGuid` doluysa `sth_sip_uid = orderGuid` yazilir ve `SIPARISLER.sip_teslim_miktar` mal kabul hareket miktari, yani `dispatchQuantity`, kadar artirilir.
-- Satirda `orderGuid` bos veya `null` ise `sth_sip_uid = Guid.Empty` yazilir ve siparis tablosuna dokunulmaz.
+- Satirda `orderGuid` doluysa `sth_sip_uid = orderGuid` kullanilir. `Database` modunda `SIPARISLER.sip_teslim_miktar` mal kabul hareket miktari, yani `dispatchQuantity`, kadar artirilir; `MikroApi` modunda teslim etkisi Mikro API'ye birakilir ve backend siparis tablosuna ek DB update yapmaz.
+- Satirda `orderGuid` bos veya `null` ise siparis GUID'i bos gider ve siparis tablosuna dokunulmaz.
 - Siparis kalanindan fazla kabul varsayilan olarak engellenir. `allowOrderOverReceiving = true` gonderilirse kalan kadar siparisli, fazla kisim siparissiz hareket olarak bolunur.
 - `documentNo` opsiyoneldir. E-belge/e-irsaliye no varsa tam `seri + 9 haneli sayisal sira` formatinda gonderilebilir.
 - Ornek tam `documentNo` degerleri: `ST12026000002395`, `C682026000003472`, `FRM2026600059281`, `OY32026000000162`
@@ -3469,7 +4059,7 @@ Onemli not:
 - `documentNo` bos veya sadece sayisal bir degerse backend seri icin cari unvanina duser.
 - Response'taki `documentNo`, uretilen nihai `documentSerie + 9 haneli documentOrderNo` degeridir.
 - Ayni depo icinde ayni `documentSerie + documentOrderNo` kombinasyonu tekrar kullanilamaz.
-- Mobil retry icin backend `clientRequestId` izini `STOK_HAREKETLERI.sth_eticaret_kanal_kodu` alanina yazar ve ayni istek tekrar geldiginde bu iz uzerinden sonucu toparlayabilir.
+- Mobil retry icin backend `clientRequestId` izini `sth_eticaret_kanal_kodu` alanina tasir; `MikroApi` modunda bu payload ile Mikro'ya gider, tekrar istekte sonuc bu iz uzerinden toparlanabilir.
 - Ayni `clientRequestId` ile ayni payload tekrar gonderilirse backend ayni business response'u dondurmeye calisir.
 - Ayni `clientRequestId` ile farkli payload gonderilirse `409 Conflict` doner.
 - Ayni `clientRequestId` halen isleniyorsa `409 Conflict` doner.
@@ -3672,6 +4262,10 @@ Bu modul Mikro tarafinda var olan kayitlari kontrollu sekilde duzeltmek icin ekl
 - `STOKLAR` stok kartlari
 - `STOK_DEPO_DETAYLARI` depo bazli stok karti ayarlari
 - `STOK_SATIS_FIYAT_LISTELERI` depo bazli stok satis fiyatlari
+- `DEPOLAR` depo kartlari
+- `CARI_HESAPLAR` cari kartlari
+- `SIPARISLER` firma siparis evraklari
+- `DEPOLAR_ARASI_SIPARISLER` depo siparis evraklari
 
 Menu:
 
@@ -3684,6 +4278,7 @@ Yetki kodlari:
 - `duzeltme-islemleri.mikro-evrak-duzenleme.list`
 - `duzeltme-islemleri.mikro-evrak-duzenleme.detail`
 - `duzeltme-islemleri.mikro-evrak-duzenleme.update`
+- `duzeltme-islemleri.mikro-evrak-duzenleme.delete`
 
 Genel kurallar:
 
@@ -3691,14 +4286,26 @@ Genel kurallar:
 - Stok ve cari hareket belgelerinde `documentSerie` ve `documentOrderNo` zorunludur.
 - `documentType`, `movementType`, `movementKind`, `normalReturn` filtreleri opsiyoneldir. Seri-sira birden fazla evrak tipi/cins/iade kombinasyonuna denk gelirse backend `409 Conflict` doner; UI kullaniciya "evrak tipi/cins/iade filtresi ile daraltin" mesaji gostermelidir.
 - Satir guncellemeleri `movementGuid` ile yapilir. UI detay response'undaki `lines[].movementGuid` degerini satir modelinde saklamalidir.
+- Firma siparislerinde `documentSerie` ve `documentOrderNo` zorunludur; `orderType` (`SIPARISLER.sip_tip`), `orderKind` (`sip_cins`), `warehouseNo` ve `customerCode` opsiyonel daraltma filtreleridir.
+- Depo siparislerinde `documentSerie` ve `documentOrderNo` zorunludur; `warehouseNo`, `inWarehouseNo` ve `outWarehouseNo` opsiyonel daraltma filtreleridir.
+- Siparis satir guncellemeleri `orderGuid` ile yapilir. UI detay response'undaki `lines[].orderGuid` degerini satir modelinde gizli anahtar olarak saklamalidir.
 - Request body'de `null` gelen alanlar degismez. Bos string gonderilirse ilgili metin alani bosaltma istegi olarak islenir.
 - Kayitlarda Mikro audit alanlari guncellenir: `lastup_user`, `lastup_date`, `degisti`.
-- Bu modul delete veya yeni evrak olusturma yapmaz; sadece whitelist icindeki alanlari gunceller.
+- Bu modul yeni evrak olusturma yapmaz; sadece whitelist icindeki alanlari gunceller.
+- Delete yalnizca silinmesi guvenli kayitlarda vardir: depo ozel stok ayari, depo bazli satis fiyati, stok hareket evraki, cari hareket evraki, firma siparis evraki ve depo siparis evraki.
+- Stok karti, depo karti ve cari karti icin delete yoktur; UI bu ana kartlarda sil butonu gostermemelidir.
+- Stok/cari hareket ve siparis evraki silmede iki mod vardir:
+  - Varsayilan `soft-delete`: Mikro `iptal/hidden` bayraklariyla iptal eder.
+  - `hardDelete=true`: eslesen evrak satirlarini fiziksel olarak siler. Stok hareketinde bagli `STOK_HAREKETLERI_EK` satirlari da silinir.
+- UI hard delete icin ayri onay gostermelidir. Onerilen varsayilan davranis soft-delete'tir.
 - Stok satis fiyati endpoint'i istisna olarak eksik `STOK_SATIS_FIYAT_LISTELERI` kaydini olusturabilir.
 - Satis fiyati kaydi `stockCode + priceListNo + warehouseNo + unitPointer + paymentPlanNo` birlesimiyle bulunur. Kayit varsa guncellenir, yoksa olusturulur.
 - Satis fiyati upsert islemi `STOK_FIYAT_DEGISIKLIKLERI` tablosunda sentetik fiyat degisiklik evraki olusturmaz.
 - `PUT /stok-kartlari/{stockCode}` global stok kartini degistirir ve tum depolari etkileyebilir.
 - Sadece belirli bir depoyu kapatmak/acmak icin `/stok-kartlari/{stockCode}/depolar/{warehouseNo}` endpoint'i kullanilmalidir.
+- Depo karti ve cari karti endpointleri yeni kart olusturmaz; sadece mevcut Mikro kartini gunceller.
+- Cari kartinda `parentCustomerCode`, `defaultInputWarehouseNo`, `defaultOutputWarehouseNo` gonderilirse backend ilgili cari/depo kaydinin varligini kontrol eder.
+- Depo kartinda GPS alanlari icin `latitude` -90..90, `longitude` -180..180 araliginda olmalidir.
 
 Endpoint ozeti:
 
@@ -3709,12 +4316,28 @@ Endpoint ozeti:
 | `PUT /api/duzeltme-islemleri/mikro-evrak-duzenleme/stok-kartlari/{stockCode}` | path + body | `StockCardPatchHttpRequest` | `StockCardUpdateResponse` | `update` |
 | `GET /api/duzeltme-islemleri/mikro-evrak-duzenleme/stok-kartlari/{stockCode}/depolar` | path + query | `warehouseNo?: int` | `StockCardWarehouseSettingsDto[]` | `detail` |
 | `PUT /api/duzeltme-islemleri/mikro-evrak-duzenleme/stok-kartlari/{stockCode}/depolar/{warehouseNo}` | path + body | `StockCardWarehousePatchHttpRequest` | `StockCardWarehouseUpdateResponse` | `update` |
+| `DELETE /api/duzeltme-islemleri/mikro-evrak-duzenleme/stok-kartlari/{stockCode}/depolar/{warehouseNo}` | path | `stockCode`, `warehouseNo` | `MikroDocumentDeleteResponse` | `delete` |
 | `GET /api/duzeltme-islemleri/mikro-evrak-duzenleme/stok-kartlari/{stockCode}/satis-fiyatlari` | path + query | `warehouseNo?: int` | `StockSalesPriceDto[]` | `detail` |
 | `PUT /api/duzeltme-islemleri/mikro-evrak-duzenleme/stok-kartlari/{stockCode}/satis-fiyatlari/{warehouseNo}` | path + body | `StockSalesPriceUpsertHttpRequest` | `StockSalesPriceUpsertResponse` | `update` |
+| `DELETE /api/duzeltme-islemleri/mikro-evrak-duzenleme/stok-kartlari/{stockCode}/satis-fiyatlari/{warehouseNo}` | path + query | `StockSalesPriceDeleteHttpRequest` | `MikroDocumentDeleteResponse` | `delete` |
+| `GET /api/duzeltme-islemleri/mikro-evrak-duzenleme/depolar` | query | `WarehouseCardSearchHttpRequest` | `WarehouseCardListItemDto[]` | `list` |
+| `GET /api/duzeltme-islemleri/mikro-evrak-duzenleme/depolar/{warehouseNo}` | path | `warehouseNo` | `WarehouseCardDetailDto` | `detail` |
+| `PUT /api/duzeltme-islemleri/mikro-evrak-duzenleme/depolar/{warehouseNo}` | path + body | `WarehouseCardPatchHttpRequest` | `WarehouseCardUpdateResponse` | `update` |
+| `GET /api/duzeltme-islemleri/mikro-evrak-duzenleme/cariler` | query | `CustomerCardSearchHttpRequest` | `CustomerCardListItemDto[]` | `list` |
+| `GET /api/duzeltme-islemleri/mikro-evrak-duzenleme/cariler/{customerCode}` | path | `customerCode` | `CustomerCardDetailDto` | `detail` |
+| `PUT /api/duzeltme-islemleri/mikro-evrak-duzenleme/cariler/{customerCode}` | path + body | `CustomerCardPatchHttpRequest` | `CustomerCardUpdateResponse` | `update` |
 | `GET /api/duzeltme-islemleri/mikro-evrak-duzenleme/stok-hareketleri` | query | `StockMovementDocumentLookupHttpRequest` | `StockMovementDocumentDto` | `detail` |
 | `PUT /api/duzeltme-islemleri/mikro-evrak-duzenleme/stok-hareketleri` | body | `UpdateStockMovementDocumentHttpRequest` | `StockMovementDocumentUpdateResponse` | `update` |
+| `DELETE /api/duzeltme-islemleri/mikro-evrak-duzenleme/stok-hareketleri` | query | `StockMovementDocumentLookupHttpRequest` | `MikroDocumentDeleteResponse` | `delete` |
 | `GET /api/duzeltme-islemleri/mikro-evrak-duzenleme/cari-hareketleri` | query | `CustomerMovementDocumentLookupHttpRequest` | `CustomerMovementDocumentDto` | `detail` |
 | `PUT /api/duzeltme-islemleri/mikro-evrak-duzenleme/cari-hareketleri` | body | `UpdateCustomerMovementDocumentHttpRequest` | `CustomerMovementDocumentUpdateResponse` | `update` |
+| `DELETE /api/duzeltme-islemleri/mikro-evrak-duzenleme/cari-hareketleri` | query | `CustomerMovementDocumentLookupHttpRequest` | `MikroDocumentDeleteResponse` | `delete` |
+| `GET /api/duzeltme-islemleri/mikro-evrak-duzenleme/firma-siparisleri` | query | `CompanyOrderDocumentLookupHttpRequest` | `CompanyOrderDocumentDto` | `detail` |
+| `PUT /api/duzeltme-islemleri/mikro-evrak-duzenleme/firma-siparisleri` | body | `UpdateCompanyOrderDocumentHttpRequest` | `CompanyOrderDocumentUpdateResponse` | `update` |
+| `DELETE /api/duzeltme-islemleri/mikro-evrak-duzenleme/firma-siparisleri` | query | `CompanyOrderDocumentLookupHttpRequest` | `MikroDocumentDeleteResponse` | `delete` |
+| `GET /api/duzeltme-islemleri/mikro-evrak-duzenleme/depo-siparisleri` | query | `WarehouseOrderDocumentLookupHttpRequest` | `WarehouseOrderDocumentDto` | `detail` |
+| `PUT /api/duzeltme-islemleri/mikro-evrak-duzenleme/depo-siparisleri` | body | `UpdateWarehouseOrderDocumentHttpRequest` | `WarehouseOrderDocumentUpdateResponse` | `update` |
+| `DELETE /api/duzeltme-islemleri/mikro-evrak-duzenleme/depo-siparisleri` | query | `WarehouseOrderDocumentLookupHttpRequest` | `MikroDocumentDeleteResponse` | `delete` |
 
 ### Stok Karti Arama
 
@@ -3943,6 +4566,291 @@ Response:
 }
 ```
 
+### Stok Kartinin Depo Ozel Ayarini Sil
+
+Depo ozel `STOK_DEPO_DETAYLARI` satirini kaldirir. Stok karti silinmez; urun ilgili depoda global stok karti ayarlarina geri doner.
+
+`DELETE /api/duzeltme-islemleri/mikro-evrak-duzenleme/stok-kartlari/015550/depolar/150`
+
+Response:
+
+```json
+{
+  "target": "stok-kartlari/015550/depolar/150",
+  "deletedRowCount": 1,
+  "deletedAt": "2026-07-02T12:46:00",
+  "deleteUser": 110,
+  "deletionMode": "physical-delete-override"
+}
+```
+
+Depo ozel kayit zaten yoksa `deletedRowCount=0` doner. Stok veya depo bulunamazsa `404 Not Found` doner.
+
+### Depo Karti Arama
+
+`GET /api/duzeltme-islemleri/mikro-evrak-duzenleme/depolar?searchText=kestel&take=20`
+
+Query:
+
+- `searchText`: opsiyonel; depo no, depo adi, grup kodu, il veya ilce icinde arar
+- `includePassive`: varsayilan `false`; `true` olursa pasif/gizli depolar da gelir
+- `take`: varsayilan `50`, maksimum `200`
+
+Response item:
+
+```json
+{
+  "warehouseNo": 110,
+  "name": "KESTEL 1",
+  "groupCode": "MAGAZA",
+  "warehouseType": 0,
+  "city": "BURSA",
+  "district": "KESTEL",
+  "isPassive": false,
+  "isHidden": false,
+  "lastUpdatedAt": "2026-06-26T10:20:00"
+}
+```
+
+### Depo Karti Detay
+
+`GET /api/duzeltme-islemleri/mikro-evrak-duzenleme/depolar/110`
+
+Response modeli `WarehouseCardDetailDto`:
+
+```json
+{
+  "warehouseGuid": "9f3db1de-50ef-48a0-a617-7cf5634c4f3a",
+  "warehouseNo": 110,
+  "name": "KESTEL 1",
+  "groupCode": "MAGAZA",
+  "warehouseType": 0,
+  "shipmentAutoPriceType": 0,
+  "movementType": 0,
+  "accountingCode": "",
+  "responsibilityCenter": "SRM-110",
+  "projectCode": "",
+  "shipmentAppliedPriceNo": 1,
+  "lockDate": null,
+  "street": "ORNEK CADDE",
+  "neighborhood": "",
+  "avenue": "",
+  "quarter": "",
+  "apartmentNo": "",
+  "apartmentUnitNo": "",
+  "postalCode": "",
+  "district": "KESTEL",
+  "city": "BURSA",
+  "country": "TURKIYE",
+  "addressCode": "",
+  "latitude": 40.195,
+  "longitude": 29.211,
+  "authorizedEmail": "depo110@furpa.com.tr",
+  "phoneCountryCode": "90",
+  "phoneAreaCode": "224",
+  "phoneNo1": "0000000",
+  "phoneNo2": "",
+  "faxNo": "",
+  "excludedFromInventory": false,
+  "detailTrackingType": 0,
+  "regionCode": "BURSA",
+  "outgoingEDespatchEnabled": true,
+  "incomingEDespatchEnabled": true,
+  "isPassive": false,
+  "isHidden": false,
+  "isLocked": false,
+  "createdAt": "2026-01-01T09:00:00",
+  "lastUpdatedAt": "2026-06-26T10:20:00"
+}
+```
+
+### Depo Karti Guncelle
+
+`PUT /api/duzeltme-islemleri/mikro-evrak-duzenleme/depolar/110`
+
+Body'de sadece degistirilecek alanlar gonderilmelidir:
+
+```json
+{
+  "name": "KESTEL 1",
+  "groupCode": "MAGAZA",
+  "responsibilityCenter": "SRM-110",
+  "projectCode": "",
+  "city": "BURSA",
+  "district": "KESTEL",
+  "phoneCountryCode": "90",
+  "phoneAreaCode": "224",
+  "phoneNo1": "0000000",
+  "authorizedEmail": "depo110@furpa.com.tr",
+  "outgoingEDespatchEnabled": true,
+  "incomingEDespatchEnabled": true
+}
+```
+
+Guncellenebilir alanlar:
+
+- Temel: `name`, `groupCode`, `warehouseType`, `movementType`, `shipmentAutoPriceType`, `shipmentAppliedPriceNo`
+- Muhasebe/organizasyon: `accountingCode`, `responsibilityCenter`, `projectCode`, `regionCode`
+- Adres: `street`, `neighborhood`, `avenue`, `quarter`, `apartmentNo`, `apartmentUnitNo`, `postalCode`, `district`, `city`, `country`, `addressCode`
+- Konum/iletisim: `latitude`, `longitude`, `authorizedEmail`, `phoneCountryCode`, `phoneAreaCode`, `phoneNo1`, `phoneNo2`, `faxNo`
+- Durum: `excludedFromInventory`, `detailTrackingType`, `outgoingEDespatchEnabled`, `incomingEDespatchEnabled`, `isPassive`, `isHidden`, `isLocked`, `lockDate`
+
+Response:
+
+```json
+{
+  "summary": {
+    "target": "depolar/110",
+    "updatedRowCount": 1,
+    "updatedAt": "2026-06-26T10:30:00",
+    "updateUser": 110
+  },
+  "warehouseCard": {
+    "warehouseNo": 110,
+    "name": "KESTEL 1",
+    "city": "BURSA",
+    "district": "KESTEL"
+  }
+}
+```
+
+### Cari Karti Arama
+
+`GET /api/duzeltme-islemleri/mikro-evrak-duzenleme/cariler?searchText=120.01&take=20`
+
+Query:
+
+- `searchText`: opsiyonel; cari kod, unvan1, unvan2 veya vergi kimlik no icinde arar
+- `includePassive`: varsayilan `false`; `true` olursa iptal/gizli cariler de gelir
+- `take`: varsayilan `50`, maksimum `200`
+
+Response item:
+
+```json
+{
+  "customerCode": "120.01.03106",
+  "title1": "ORNEK CARI",
+  "title2": "",
+  "taxOffice": "NILUFER",
+  "taxNo": "1234567890",
+  "groupCode": "TEDARIKCI",
+  "regionCode": "BURSA",
+  "representativeCode": "",
+  "isClosed": false,
+  "isLocked": false,
+  "lastUpdatedAt": "2026-06-26T10:20:00"
+}
+```
+
+### Cari Karti Detay
+
+`GET /api/duzeltme-islemleri/mikro-evrak-duzenleme/cariler/120.01.03106`
+
+Response modeli `CustomerCardDetailDto`:
+
+```json
+{
+  "customerGuid": "8dc423d4-4015-4afb-aee5-909e457e2f81",
+  "customerCode": "120.01.03106",
+  "title1": "ORNEK CARI",
+  "title2": "",
+  "movementType": 0,
+  "connectionType": 0,
+  "purchaseStockType": 0,
+  "salesStockType": 0,
+  "accountingCode": "",
+  "accountingCode1": "",
+  "accountingCode2": "",
+  "currencyType": 0,
+  "currencyType1": 0,
+  "currencyType2": 0,
+  "taxOffice": "NILUFER",
+  "taxOfficeNo": "",
+  "registryNo": "",
+  "taxNo": "1234567890",
+  "salesPriceListNo": 1,
+  "paymentType": 0,
+  "paymentDay": 0,
+  "paymentPlanNo": 0,
+  "optionDay": 0,
+  "invoiceAddressNo": 1,
+  "shippingAddressNo": 1,
+  "parentCustomerCode": "",
+  "sectorCode": "",
+  "regionCode": "BURSA",
+  "groupCode": "TEDARIKCI",
+  "representativeCode": "",
+  "isClosed": false,
+  "isLocked": false,
+  "eInvoiceEnabled": true,
+  "defaultEInvoiceType": 0,
+  "eDespatchEnabled": true,
+  "defaultEDespatchType": 0,
+  "website": "",
+  "email": "cari@example.com",
+  "mobilePhone": "05320000000",
+  "defaultInputWarehouseNo": 110,
+  "defaultOutputWarehouseNo": 110,
+  "kepAddress": "",
+  "reconciliationEmail": "",
+  "mersisNo": "",
+  "taxOfficeCode": "",
+  "retailCustomer": false,
+  "createdAt": "2026-01-01T09:00:00",
+  "lastUpdatedAt": "2026-06-26T10:20:00"
+}
+```
+
+### Cari Karti Guncelle
+
+`PUT /api/duzeltme-islemleri/mikro-evrak-duzenleme/cariler/120.01.03106`
+
+Body'de sadece degistirilecek alanlar gonderilmelidir:
+
+```json
+{
+  "title1": "ORNEK CARI",
+  "taxOffice": "NILUFER",
+  "taxNo": "1234567890",
+  "groupCode": "TEDARIKCI",
+  "regionCode": "BURSA",
+  "email": "cari@example.com",
+  "mobilePhone": "05320000000",
+  "defaultInputWarehouseNo": 110,
+  "defaultOutputWarehouseNo": 110,
+  "eInvoiceEnabled": true,
+  "eDespatchEnabled": true
+}
+```
+
+Guncellenebilir alanlar:
+
+- Temel: `title1`, `title2`, `movementType`, `connectionType`, `purchaseStockType`, `salesStockType`
+- Muhasebe/doviz: `accountingCode`, `accountingCode1`, `accountingCode2`, `currencyType`, `currencyType1`, `currencyType2`
+- Vergi: `taxOffice`, `taxOfficeNo`, `registryNo`, `taxNo`, `taxOfficeCode`
+- Odeme/adres: `salesPriceListNo`, `paymentType`, `paymentDay`, `paymentPlanNo`, `optionDay`, `invoiceAddressNo`, `shippingAddressNo`
+- Organizasyon: `parentCustomerCode`, `sectorCode`, `regionCode`, `groupCode`, `representativeCode`
+- E-belge/iletisim: `eInvoiceEnabled`, `defaultEInvoiceType`, `eDespatchEnabled`, `defaultEDespatchType`, `website`, `email`, `mobilePhone`, `kepAddress`, `reconciliationEmail`
+- Diger: `defaultInputWarehouseNo`, `defaultOutputWarehouseNo`, `mersisNo`, `retailCustomer`, `isClosed`, `isLocked`
+
+Response:
+
+```json
+{
+  "summary": {
+    "target": "cariler/120.01.03106",
+    "updatedRowCount": 1,
+    "updatedAt": "2026-06-26T10:30:00",
+    "updateUser": 110
+  },
+  "customerCard": {
+    "customerCode": "120.01.03106",
+    "title1": "ORNEK CARI",
+    "taxNo": "1234567890"
+  }
+}
+```
+
 ### Stok Satis Fiyatlarini Getir
 
 Stok kartinin tum aktif depo fiyatlari:
@@ -4047,6 +4955,30 @@ Yeni kayit response'u:
 
 Mevcut kayit guncellenirse `created=false` olur ve `previousPrice` eski fiyati tasir.
 
+### Stok Satis Fiyatini Sil
+
+Aktif depo bazli satis fiyatini iptal eder. Fiziksel delete yapilmaz; `sfiyat_iptal`, `sfiyat_hidden`, `sfiyat_kilitli` alanlari set edilir.
+
+`DELETE /api/duzeltme-islemleri/mikro-evrak-duzenleme/stok-kartlari/015550/satis-fiyatlari/150?priceListNo=1&paymentPlanNo=0&unitPointer=1`
+
+Query:
+
+- `priceListNo`: varsayilan `1`
+- `paymentPlanNo`: varsayilan `0`
+- `unitPointer`: varsayilan `1`
+
+Response:
+
+```json
+{
+  "target": "stok-kartlari/015550/satis-fiyatlari/150",
+  "deletedRowCount": 1,
+  "deletedAt": "2026-07-02T12:46:00",
+  "deleteUser": 110,
+  "deletionMode": "soft-delete"
+}
+```
+
 ### Stok Hareket Evraki Getir
 
 `GET /api/duzeltme-islemleri/mikro-evrak-duzenleme/stok-hareketleri?documentSerie=F110&documentOrderNo=12&documentType=0&movementKind=4&normalReturn=0&warehouseNo=110`
@@ -4074,6 +5006,7 @@ Response modeli `StockMovementDocumentDto`:
     "normalReturn": 0,
     "movementDate": "2026-04-21T00:00:00",
     "documentDate": "2026-04-21T00:00:00",
+    "goodsAcceptanceDate": "2026-04-21T00:00:00",
     "documentNo": "",
     "customerCode": "",
     "customerTitle": "",
@@ -4098,6 +5031,7 @@ Response modeli `StockMovementDocumentDto`:
     {
       "movementGuid": "d7f6a8ec-9c2b-4e1e-bb1c-6da6cb4a5f67",
       "rowNo": 0,
+      "goodsAcceptanceDate": "2026-04-21T00:00:00",
       "stockCode": "015792",
       "stockName": "URUN ADI",
       "unitPointer": 1,
@@ -4136,6 +5070,7 @@ Body:
   "header": {
     "movementDate": "2026-04-21",
     "documentDate": "2026-04-21",
+    "goodsAcceptanceDate": "2026-04-21",
     "documentNo": "DUZ-001",
     "description": "Duzeltilen aciklama",
     "shippingWarehouseNo": 60,
@@ -4146,6 +5081,7 @@ Body:
     {
       "movementGuid": "d7f6a8ec-9c2b-4e1e-bb1c-6da6cb4a5f67",
       "rowNo": 0,
+      "goodsAcceptanceDate": "2026-04-21",
       "stockCode": "015792",
       "unitPointer": 1,
       "quantity": 3,
@@ -4161,19 +5097,53 @@ Body:
 
 Guncellenebilir header alanlari:
 
-- `movementDate`, `documentDate`, `documentNo`, `customerCode`
+- `movementDate`, `documentDate`, `goodsAcceptanceDate`, `documentNo`, `customerCode`
 - `inputWarehouseNo`, `outputWarehouseNo`, `shippingWarehouseNo`
 - `description`, `movementGroupCode1`, `movementGroupCode2`, `movementGroupCode3`
 - `customerResponsibilityCenter`, `stockResponsibilityCenter`, `projectCode`
 
 Guncellenebilir satir alanlari:
 
-- `rowNo`, `stockCode`, `unitPointer`, `quantity`, `secondaryQuantity`, `amount`
+- `rowNo`, `goodsAcceptanceDate`, `stockCode`, `unitPointer`, `quantity`, `secondaryQuantity`, `amount`
 - `discount1..discount6`, `expense1..expense4`, `taxPointer`, `taxAmount`
 - `netWeight`, `grossWeight`, `description`, `partyCode`, `lotNo`, `projectCode`
 - `customerResponsibilityCenter`, `stockResponsibilityCenter`, `inputWarehouseNo`, `outputWarehouseNo`
 
 Response `StockMovementDocumentUpdateResponse` doner; `document` alaninda kaydin guncel hali bulunur.
+
+### Stok Hareket Evraki Sil
+
+Evrakin tum satirlarini siler veya iptal eder. Varsayilan davranis soft-delete'tir.
+
+`DELETE /api/duzeltme-islemleri/mikro-evrak-duzenleme/stok-hareketleri?documentSerie=F110&documentOrderNo=12&documentType=0&movementKind=4&normalReturn=0&warehouseNo=110`
+
+Hard delete:
+
+`DELETE /api/duzeltme-islemleri/mikro-evrak-duzenleme/stok-hareketleri?documentSerie=F110&documentOrderNo=12&documentType=0&movementKind=4&normalReturn=0&warehouseNo=110&hardDelete=true`
+
+Kurallar:
+
+- Query alani `GET /stok-hareketleri` ile aynidir.
+- `hardDelete`: opsiyonel bool. Varsayilan `false`.
+- `hardDelete=false`: `sth_iptal`, `sth_hidden`, `sth_degisti`, `sth_lastup_user`, `sth_lastup_date` alanlari guncellenir.
+- `hardDelete=true`: `STOK_HAREKETLERI` satirlari fiziksel silinir; bagli `STOK_HAREKETLERI_EK` satirlari da silinir.
+- Filtre birden fazla evraka denk gelirse `409 Conflict` doner.
+- Eslesen aktif satir yoksa `404 Not Found` doner.
+- Basarili islem Belge Akis Takibi'ne `DocumentDeleted` olayi olarak yazilir. Mesaj soft modda "iptal edildi", hard modda "fiziksel olarak silindi" seklindedir.
+
+Response:
+
+```json
+{
+  "target": "stok-hareketleri/F110/12",
+  "deletedRowCount": 3,
+  "deletedAt": "2026-07-02T12:46:00",
+  "deleteUser": 110,
+  "deletionMode": "soft-delete"
+}
+```
+
+Hard delete response'unda `deletionMode` alani `hard-delete` gelir.
 
 ### Cari Hareket Evraki Getir
 
@@ -4287,14 +5257,223 @@ Guncellenebilir satir alanlari:
 - `discount1..discount6`, `expense1..expense4`, `tax1..tax5`
 - `description`, `sellerCode`, `projectCode`, `responsibilityCenter`
 
+### Cari Hareket Evraki Sil
+
+Evrakin tum satirlarini siler veya iptal eder. Varsayilan davranis soft-delete'tir.
+
+`DELETE /api/duzeltme-islemleri/mikro-evrak-duzenleme/cari-hareketleri?documentSerie=PS110&documentOrderNo=422&documentType=63&movementKind=6&normalReturn=0&customerCode=120.01.03106`
+
+Hard delete:
+
+`DELETE /api/duzeltme-islemleri/mikro-evrak-duzenleme/cari-hareketleri?documentSerie=PS110&documentOrderNo=422&documentType=63&movementKind=6&normalReturn=0&customerCode=120.01.03106&hardDelete=true`
+
+Kurallar:
+
+- Query alani `GET /cari-hareketleri` ile aynidir.
+- `hardDelete`: opsiyonel bool. Varsayilan `false`.
+- `hardDelete=false`: `cha_iptal`, `cha_hidden`, `cha_degisti`, `cha_lastup_user`, `cha_lastup_date` alanlari guncellenir.
+- `hardDelete=true`: `CARI_HESAP_HAREKETLERI` satirlari fiziksel silinir.
+- Filtre birden fazla evraka denk gelirse `409 Conflict` doner.
+- Eslesen aktif satir yoksa `404 Not Found` doner.
+- Basarili islem Belge Akis Takibi'ne `DocumentDeleted` olayi olarak yazilir. Mesaj soft modda "iptal edildi", hard modda "fiziksel olarak silindi" seklindedir.
+
+Response:
+
+```json
+{
+  "target": "cari-hareketleri/PS110/422",
+  "deletedRowCount": 1,
+  "deletedAt": "2026-07-02T12:46:00",
+  "deleteUser": 110,
+  "deletionMode": "soft-delete"
+}
+```
+
+Hard delete response'unda `deletionMode` alani `hard-delete` gelir.
+
+### Firma Siparis Evraki Getir
+
+`GET /api/duzeltme-islemleri/mikro-evrak-duzenleme/firma-siparisleri?documentSerie=F110&documentOrderNo=2841&orderType=1&warehouseNo=110&customerCode=120.01.03106`
+
+Query:
+
+- `documentSerie`: zorunlu, Mikro `SIPARISLER.sip_evrakno_seri`
+- `documentOrderNo`: zorunlu, Mikro `SIPARISLER.sip_evrakno_sira`
+- `orderType`: opsiyonel, Mikro `sip_tip`; mevcut siparis listelerinde `1=verilen`, `0=alinan` olarak kullanilir
+- `orderKind`: opsiyonel, Mikro `sip_cins`
+- `warehouseNo`: opsiyonel, Mikro `sip_depono`
+- `customerCode`: opsiyonel, Mikro `sip_musteri_kod`
+
+Response modeli `CompanyOrderDocumentDto` doner. Header; seri/sira, siparis tipi/cinsi, tarih, teslim tarihi, belge no, depo, cari, aciklama, doviz, kapanma ve toplam alanlarini icerir. Satirlar `orderGuid`, stok, birim, miktar, teslim miktari, kalan miktar, fiyat, tutar, iskonto/masraf, vergi, aciklama, paket, parti/lot, proje ve sorumluluk merkezi alanlarini icerir.
+
+### Firma Siparis Evraki Guncelle
+
+`PUT /api/duzeltme-islemleri/mikro-evrak-duzenleme/firma-siparisleri`
+
+Body:
+
+```json
+{
+  "lookup": {
+    "documentSerie": "F110",
+    "documentOrderNo": 2841,
+    "orderType": 1,
+    "warehouseNo": 110,
+    "customerCode": "120.01.03106"
+  },
+  "header": {
+    "orderDate": "2026-04-21",
+    "deliveryDate": "2026-04-24",
+    "documentDate": "2026-04-21",
+    "documentNo": "DUZ-001",
+    "description1": "Duzeltilen aciklama",
+    "warehouseNo": 110,
+    "customerCode": "120.01.03106"
+  },
+  "lines": [
+    {
+      "orderGuid": "9f3db1de-50ef-48a0-a617-7cf5634c4f3a",
+      "rowNo": 0,
+      "stockCode": "015792",
+      "unitPointer": 1,
+      "quantity": 12,
+      "deliveredQuantity": 2,
+      "unitPrice": 10.5,
+      "amount": 126,
+      "description1": "Satir aciklamasi"
+    }
+  ]
+}
+```
+
+Guncellenebilir header alanlari:
+
+- `orderDate`, `deliveryDate`, `documentDate`, `documentNo`
+- `customerCode`, `warehouseNo`, `sellerCode`
+- `description1`, `description2`, `deliveryType`, `addressNo`
+- `currencyType`, `currencyRate`, `alternativeCurrencyRate`
+- `canBeCalled`, `isClosed`, `closeReasonCode`
+- `projectCode`, `customerResponsibilityCenter`, `stockResponsibilityCenter`
+
+Guncellenebilir satir alanlari:
+
+- `rowNo`, `deliveryDate`, `stockCode`, `unitPointer`
+- `quantity`, `deliveredQuantity`, `unitPrice`, `amount`
+- `discount1..discount6`, `expense1..expense4`, `taxPointer`, `taxAmount`
+- `description1`, `description2`, `packageCode`, `partyCode`, `lotNo`
+- `projectCode`, `customerResponsibilityCenter`, `stockResponsibilityCenter`
+- `canBeCalled`, `isClosed`, `closeReasonCode`
+
+Response `CompanyOrderDocumentUpdateResponse` doner; `document` alaninda kaydin guncel hali bulunur.
+
+### Firma Siparis Evraki Sil
+
+`DELETE /api/duzeltme-islemleri/mikro-evrak-duzenleme/firma-siparisleri?documentSerie=F110&documentOrderNo=2841&orderType=1&warehouseNo=110`
+
+Hard delete:
+
+`DELETE /api/duzeltme-islemleri/mikro-evrak-duzenleme/firma-siparisleri?documentSerie=F110&documentOrderNo=2841&orderType=1&warehouseNo=110&hardDelete=true`
+
+Kurallar:
+
+- Query alani `GET /firma-siparisleri` ile aynidir.
+- `hardDelete=false`: `sip_iptal`, `sip_hidden`, `sip_degisti`, `sip_lastup_user`, `sip_lastup_date` alanlari guncellenir.
+- `hardDelete=true`: eslesen `SIPARISLER` satirlari fiziksel silinir.
+- Seri/sira birden fazla `sip_tip` veya `sip_cins` kombinasyonuna denk gelirse `409 Conflict` doner; UI `orderType` veya `orderKind` filtresi istemelidir.
+
+### Depo Siparis Evraki Getir
+
+`GET /api/duzeltme-islemleri/mikro-evrak-duzenleme/depo-siparisleri?documentSerie=D110&documentOrderNo=1915&warehouseNo=110`
+
+Query:
+
+- `documentSerie`: zorunlu, Mikro `DEPOLAR_ARASI_SIPARISLER.ssip_evrakno_seri`
+- `documentOrderNo`: zorunlu, Mikro `ssip_evrakno_sira`
+- `warehouseNo`: opsiyonel; `ssip_girdepo` veya `ssip_cikdepo` eslesmesi arar
+- `inWarehouseNo`: opsiyonel, Mikro `ssip_girdepo`
+- `outWarehouseNo`: opsiyonel, Mikro `ssip_cikdepo`
+
+Response modeli `WarehouseOrderDocumentDto` doner. Header; seri/sira, siparis tarihi, teslim tarihi, belge no, giris/cikis depo, aciklama, kapanma ve toplam alanlarini icerir. Satirlar `orderGuid`, stok, birim, miktar, teslim miktari, kalan miktar, fiyat, tutar, giris/cikis depo, aciklama, paket, proje ve sorumluluk merkezi alanlarini icerir.
+
+### Depo Siparis Evraki Guncelle
+
+`PUT /api/duzeltme-islemleri/mikro-evrak-duzenleme/depo-siparisleri`
+
+Body:
+
+```json
+{
+  "lookup": {
+    "documentSerie": "D110",
+    "documentOrderNo": 1915,
+    "warehouseNo": 110
+  },
+  "header": {
+    "orderDate": "2026-04-21",
+    "deliveryDate": "2026-04-24",
+    "documentDate": "2026-04-21",
+    "documentNo": "DUZ-DEP-001",
+    "inWarehouseNo": 110,
+    "outWarehouseNo": 50,
+    "description": "Duzeltilen depo siparisi"
+  },
+  "lines": [
+    {
+      "orderGuid": "d7f6a8ec-9c2b-4e1e-bb1c-6da6cb4a5f67",
+      "rowNo": 0,
+      "stockCode": "015792",
+      "unitPointer": 1,
+      "quantity": 24,
+      "deliveredQuantity": 4,
+      "unitPrice": 8.5,
+      "amount": 204,
+      "description": "Satir aciklamasi"
+    }
+  ]
+}
+```
+
+Guncellenebilir header alanlari:
+
+- `orderDate`, `deliveryDate`, `documentDate`, `documentNo`
+- `inWarehouseNo`, `outWarehouseNo`, `description`
+- `isClosed`, `closeReasonCode`
+- `projectCode`, `responsibilityCenter`
+
+Guncellenebilir satir alanlari:
+
+- `rowNo`, `deliveryDate`, `stockCode`, `unitPointer`
+- `quantity`, `deliveredQuantity`, `unitPrice`, `amount`
+- `description`, `inWarehouseNo`, `outWarehouseNo`
+- `isClosed`, `closeReasonCode`, `packageCode`, `projectCode`, `responsibilityCenter`
+
+Response `WarehouseOrderDocumentUpdateResponse` doner; `document` alaninda kaydin guncel hali bulunur.
+
+### Depo Siparis Evraki Sil
+
+`DELETE /api/duzeltme-islemleri/mikro-evrak-duzenleme/depo-siparisleri?documentSerie=D110&documentOrderNo=1915&warehouseNo=110`
+
+Hard delete:
+
+`DELETE /api/duzeltme-islemleri/mikro-evrak-duzenleme/depo-siparisleri?documentSerie=D110&documentOrderNo=1915&warehouseNo=110&hardDelete=true`
+
+Kurallar:
+
+- Query alani `GET /depo-siparisleri` ile aynidir.
+- `hardDelete=false`: `ssip_iptal`, `ssip_hidden`, `ssip_degisti`, `ssip_lastup_user`, `ssip_lastup_date` alanlari guncellenir.
+- `hardDelete=true`: eslesen `DEPOLAR_ARASI_SIPARISLER` satirlari fiziksel silinir.
+- UI varsayilan olarak soft-delete kullanmali, hard delete icin ayri onay istemelidir.
+
 UI is akisi onerisi:
 
-1. Kullanici evrak tipini secer: Stok Hareketi, Cari Hareketi veya Stok Karti.
-2. Stok/cari hareketinde seri-sira girilir; evrak tipi/cins/iade alanlari varsa query'e eklenir.
-3. Detay response'u geldikten sonra UI `movementGuid` alanlarini satir gridinde gizli anahtar olarak saklar.
-4. Kullanici sadece degisen alanlari gonderir; degismeyen alanlar `null` veya body disinda birakilir.
-5. `409 Conflict` gelirse filtreleri daraltma mesaji gosterilir.
-6. Basarili `PUT` response'u guncel belge/kart halini dondurdugu icin UI gridini bu response ile yeniler.
+1. Kullanici duzeltme tipini secer: Stok Karti, Depo Karti, Cari Karti, Stok Hareketi, Cari Hareketi, Firma Siparisi veya Depo Siparisi.
+2. Kart duzeltmelerinde once arama endpoint'iyle kayit secilir, sonra detay endpoint'iyle form doldurulur.
+3. Stok/cari hareketinde seri-sira girilir; evrak tipi/cins/iade alanlari varsa query'e eklenir. Siparislerde seri-sira girilir; firma siparisinde `orderType/orderKind`, depo siparisinde depo filtreleriyle daraltma yapilir.
+4. Hareket detay response'u geldikten sonra UI `movementGuid`, siparis detay response'u geldikten sonra `orderGuid` alanlarini satir gridinde gizli anahtar olarak saklar.
+5. Kullanici sadece degisen alanlari gonderir; degismeyen alanlar `null` veya body disinda birakilir.
+6. `409 Conflict` gelirse filtreleri daraltma mesaji gosterilir.
+7. Basarili `PUT` response'u guncel belge/kart halini dondurdugu icin UI gridini bu response ile yeniler.
+8. Silme aksiyonunda varsayilan soft-delete kullanilmalidir. Hard delete icin ayri bir onay modalinda evrak seri/sira ve depo bilgisi tekrar gosterilip `hardDelete=true` gonderilmelidir.
 
 ## Stok Islemleri
 
@@ -4345,11 +5524,11 @@ Yetki:
 
 Onemli not:
 
-- `warehouseNo` body icinden alinmaz; JWT icindeki kullanici deposu kullanilir
+- `*.all-warehouses` yoksa `warehouseNo` sorulmaz; backend JWT icindeki kullanici deposunu kullanir. Ilgili stok menusunde `all-warehouses` yetkisi olan kullanici baska depo adina fis olusturacaksa body'de opsiyonel `warehouseNo` gonderebilir
 - backend `STOK_HAREKETLERI` tablosuna `sth_evraktip = 0`, `sth_tip = 1`, `sth_normal_iade = 0`, `sth_cins = 4` olarak kayit yazar
 - `sth_cari_kodu` bos yazilir; bu fislerde cari baglantisi yoktur
 - `creator` ve `acceptor` alanlari sirasiyla `sth_HareketGrupKodu1` ve `sth_HareketGrupKodu2` kolonlarina yazilir
-- `documentSerie` backend tarafinda `F{loginKullaniciDepoNo}` olarak uretilir
+- `documentSerie` backend tarafinda `F{islemDepoNo}` olarak uretilir
 - `documentOrderNo` ayni seri ve zayiat fis turu icin write DB'deki mevcut maksimum sira okunarak uretilir
 - `totalAmount` su an satir tutarlari `0` yazildigi icin `0` doner
 
@@ -4443,12 +5622,12 @@ Yetki:
 
 Onemli not:
 
-- `warehouseNo` body icinden alinmaz; JWT icindeki kullanici deposu kullanilir
+- `*.all-warehouses` yoksa `warehouseNo` sorulmaz; backend JWT icindeki kullanici deposunu kullanir. Ilgili stok menusunde `all-warehouses` yetkisi olan kullanici baska depo adina fis olusturacaksa body'de opsiyonel `warehouseNo` gonderebilir
 - backend `STOK_HAREKETLERI` tablosuna `sth_evraktip = 0`, `sth_tip = 1`, `sth_normal_iade = 0`, `sth_cins = 5` olarak kayit yazar
 - `sth_isemri_gider_kodu` alanina sabit olarak `0032` yazilir
 - `sth_cari_kodu` bos yazilir; bu fislerde cari baglantisi yoktur
 - `creator` ve `acceptor` alanlari sirasiyla `sth_HareketGrupKodu1` ve `sth_HareketGrupKodu2` kolonlarina yazilir
-- `documentSerie` backend tarafinda `F{loginKullaniciDepoNo}` olarak uretilir
+- `documentSerie` backend tarafinda `F{islemDepoNo}` olarak uretilir
 - `documentOrderNo` ayni seri ve masraf fis turu icin write DB'deki mevcut maksimum sira okunarak uretilir
 - `totalAmount` su an satir tutarlari `0` yazildigi icin `0` doner
 
@@ -4589,7 +5768,7 @@ Yetki:
 
 Onemli not:
 
-- `warehouseNo` body icinden alinmaz; JWT icindeki kullanici deposu kullanilir
+- `*.all-warehouses` yoksa `warehouseNo` sorulmaz; backend JWT icindeki kullanici deposunu kullanir. `stok-islemleri.sayim-sonuclari.all-warehouses` yetkisi olan kullanici baska depo adina sayim sonucu olusturacaksa body'de opsiyonel `warehouseNo` gonderebilir
 - Mobil offline pilotta request'e `clientRequestId` eklenmelidir.
 - backend `SAYIM_SONUCLARI` tablosuna yeni satirlar yazar
 - `documentNo` ayni depo icin `sym_evrakno` maksimum degerinin bir fazlasi olarak uretilir
@@ -4717,6 +5896,195 @@ Sayim sonucu offline UI akisi:
 - `409 Conflict` ve mesaj "already being processed" anlamina geliyorsa UI gecici bekleme/guncelleme durumu gostermeli ve status endpoint'ini poll etmelidir.
 - `status = Completed` alindiginda local taslak artik server'da fis oldugu icin kapatilabilir; response icindeki `documentNo` ve `documentDate` ile detay ekranina gidilebilir.
 
+### Stok Anomali Merkezi
+
+Stok anomali merkezi, Mikro verisini tarayip supheli durumlari Auth veritabanindaki `stock_anomalies` tablosunda takip kaydi olarak saklar. Mikro'ya yazma yapmaz. `stok-islemleri.stok-anomali-merkezi.all-warehouses` yetkisi olan kullanici tum depolari gorur; diger kullanici sadece ana deposu kendi JWT deposu olan anomalileri gorur ve tarar. `relatedWarehouseNo` bilgi amaclidir; tek basina depo yetki kapsamini genisletmez.
+
+Yakaladigi anomali tipleri:
+
+- `NegativeStock`: depo + stok bazinda bakiye eksiye dusmus
+- `DuplicateDocument`: ayni belge/stok/miktar/depo kombinasyonu tekrar etmis
+- `ReceivingDifference`: depolar arasi sevkte sevk miktari ile kabul miktari farkli
+- `HighQuantity`: hareket miktari son 30 gun ortalamasinin ve minimum limitin uzerinde
+- `DormantStock`: depoda stok var ama uzun suredir hareket yok
+- `PendingInterWarehouseTransfer`: depolar arasi sevk bekleme limitini asmis ama kabul edilmemis
+
+Endpointler:
+
+| Endpoint | Aciklama | Yetki |
+| --- | --- | --- |
+| `GET /api/stok-islemleri/stok-anomali-merkezi` | Anomali listesini getirir | `stok-islemleri.stok-anomali-merkezi.list` |
+| `GET /api/stok-islemleri/stok-anomali-merkezi/satin-almacilar` | Anomalilerdeki satin almacilari ve anomali sayilarini getirir | `stok-islemleri.stok-anomali-merkezi.list` |
+| `GET /api/stok-islemleri/stok-anomali-merkezi/{id}` | Anomali detayini ve olay gecmisini getirir | `stok-islemleri.stok-anomali-merkezi.detail` |
+| `POST /api/stok-islemleri/stok-anomali-merkezi/tara` | Mikro verisini tarar ve anomali kayitlarini acar/gunceller | `stok-islemleri.stok-anomali-merkezi.scan` |
+| `POST /api/stok-islemleri/stok-anomali-merkezi/{id}/durum` | Anomali durumunu gunceller | `stok-islemleri.stok-anomali-merkezi.update` |
+
+Liste query:
+
+```text
+warehouseNo?: int
+type?: NegativeStock | DuplicateDocument | ReceivingDifference | HighQuantity | DormantStock | PendingInterWarehouseTransfer
+status?: Open | Acknowledged | Resolved | Ignored
+severity?: Low | Medium | High | Critical
+productManagerCode?: string; satin almacinin Mikro personel/sorumlu kodu
+hasProductManager?: bool; true=atanmis, false=atanmamis urunler
+startDate?: yyyy-MM-dd
+endDate?: yyyy-MM-dd
+search?: string
+take?: 1..500, varsayilan 100
+```
+
+Liste response:
+
+```json
+{
+  "totalCount": 2,
+  "summary": {
+    "openCount": 2,
+    "acknowledgedCount": 0,
+    "resolvedCount": 0,
+    "ignoredCount": 0,
+    "criticalCount": 1,
+    "highCount": 1
+  },
+  "items": [
+    {
+      "id": "0aa4b4e1-c8bd-4b5b-9e39-5a9b51a2fba1",
+      "type": "NegativeStock",
+      "severity": "Critical",
+      "status": "Open",
+      "warehouseNo": 110,
+      "relatedWarehouseNo": null,
+      "warehouseName": "KESTEL 1",
+      "relatedWarehouseName": null,
+      "productCode": "015792",
+      "productName": "URUN ADI",
+      "productManagerCode": "SA001",
+      "productManagerName": "AYSE YILMAZ",
+      "documentSerie": null,
+      "documentOrderNo": null,
+      "documentNo": null,
+      "quantity": -12,
+      "expectedQuantity": 0,
+      "actualQuantity": -12,
+      "averageQuantity": null,
+      "occurredAtUtc": null,
+      "message": "Depo stok bakiyesi eksiye dusmus. Mevcut stok: -12.",
+      "firstDetectedAtUtc": "2026-07-02T08:30:00Z",
+      "lastDetectedAtUtc": "2026-07-02T08:30:00Z"
+    }
+  ]
+}
+```
+
+Satin almacilar lookup:
+
+`GET /api/stok-islemleri/stok-anomali-merkezi/satin-almacilar?warehouseNo=110&status=Open`
+
+- `warehouseNo` depo yetki kapsamina tabidir; depo kullanicisi sadece ana deposu kendi deposu olan anomalileri gorur.
+- `status` opsiyoneldir ve varsayilan `Open` degeridir.
+- sadece secilen kapsamdaki anomalilerde bulunan satin almacilar doner.
+- sorumlusu olmayan anomaliler `code=""`, `name="ATANMAMIS"`, `isAssigned=false` satirinda gruplanir.
+
+```json
+[
+  {
+    "code": "SA001",
+    "name": "AYSE YILMAZ",
+    "anomalyCount": 14,
+    "isAssigned": true
+  },
+  {
+    "code": "",
+    "name": "ATANMAMIS",
+    "anomalyCount": 3,
+    "isAssigned": false
+  }
+]
+```
+
+Tarama:
+
+`POST /api/stok-islemleri/stok-anomali-merkezi/tara`
+
+Request:
+
+```json
+{
+  "warehouseNo": 110,
+  "startDate": "2026-07-01",
+  "endDate": "2026-07-02",
+  "dormantDays": 90,
+  "pendingTransferHours": 24,
+  "highQuantityLookbackDays": 30,
+  "highQuantityMultiplier": 3,
+  "highQuantityMinimum": 100,
+  "takePerRule": 250
+}
+```
+
+Not:
+
+- `stok-islemleri.stok-anomali-merkezi.all-warehouses` yetkisi olan kullanici `warehouseNo` bos gonderirse tum depolar taranir.
+- Depo kullanicisi `warehouseNo` gonderse bile backend JWT icindeki kendi deposunu kullanir; tarama sonucu baska ana depo adina anomali acmaz.
+- `startDate/endDate` duplicate belge, mal kabul farki ve yuksek miktar kontrollerinde kullanilir.
+- Eksi stok ve hareketsiz stok kontrolleri mevcut bakiye uzerinden calisir.
+- `takePerRule`, her kuralin tek taramada en fazla kac sonuc yazacagini belirler.
+- Tarama sorgulari buyuk Mikro tablolarinda calistigi icin UI ayni anda birden fazla `tara` istegi baslatmamali; buton tarama bitene kadar disabled/loading durumda kalmalidir.
+- Tum depo taramasi yetkiyle mumkun olsa da yogun sistemlerde UI varsayilan olarak secili depo veya kisa tarih araligi ile taramayi tesvik etmelidir.
+- Backend her kurali ayri calistirir ve sonuc kayitlarini kural bazinda sinirlar; `takePerRule` buyutuldukce Mikro sorgu suresi artabilir.
+- kurallar tamamlandiktan sonra urunler Mikro'dan toplu zenginlestirilir; once `STOK_DEPO_DETAYLARI.sdp_UrunSorumlusuKodu`, bos ise `STOKLAR.sto_urun_sorkod` kullanilir ve ad/soyad `CARI_PERSONEL_TANIMLARI` tablosundan alinir.
+- migration sonrasi eski anomalilerin satin almacisi ilk yeni taramada doldurulur.
+
+Response:
+
+```json
+{
+  "startedAtUtc": "2026-07-02T08:30:00Z",
+  "finishedAtUtc": "2026-07-02T08:30:04Z",
+  "detectedCount": 6,
+  "rules": [
+    { "type": "NegativeStock", "detectedCount": 1, "error": null },
+    { "type": "DuplicateDocument", "detectedCount": 0, "error": null },
+    { "type": "ReceivingDifference", "detectedCount": 2, "error": null },
+    { "type": "HighQuantity", "detectedCount": 1, "error": null },
+    { "type": "DormantStock", "detectedCount": 2, "error": null },
+    { "type": "PendingInterWarehouseTransfer", "detectedCount": 0, "error": null }
+  ]
+}
+```
+
+Herhangi bir kural SQL timeout veya benzeri bir sebeple tamamlanamazsa endpoint komple `500` donmez; ilgili kural `rules[].error` alaninda hata mesajiyla doner, diger kurallarin yakaladigi anomaliler yine kaydedilir. UI `rules[].error` dolu olan kurallari kismi basarisiz olarak gostermeli, `detectedCount` ve hatasiz kurallardan gelen kayitlari gecersiz saymamalidir.
+
+Durum guncelleme:
+
+`POST /api/stok-islemleri/stok-anomali-merkezi/{id}/durum`
+
+```json
+{
+  "status": "Acknowledged",
+  "note": "Depo sayim sonrasi kontrol edecek."
+}
+```
+
+Durumlar:
+
+- `Open`: yeni veya tekrar yakalandi
+- `Acknowledged`: kullanici gordu, inceleniyor
+- `Resolved`: cozuldu
+- `Ignored`: bilincli olarak yok sayildi
+
+UI oneri:
+
+1. Panel acilisinda once `GET /stok-anomali-merkezi?status=Open&take=100` cagir.
+2. `stok-islemleri.stok-anomali-merkezi.all-warehouses` varsa depo filtresi goster; yoksa depo filtresini kilitle/gizle.
+3. `satin-almacilar` lookup sonucunu filtre dropdown'unda kullan; `ATANMAMIS` seciminde listeyi `hasProductManager=false` ile cagir.
+4. "Tara" aksiyonu `stok-islemleri.stok-anomali-merkezi.all-warehouses` varsa tum depolar veya secili depo icin, yoksa sadece kullanici deposu icin calissin.
+5. Tarama sirasinda ikinci tarama istegini engelle, bitince `rules` sonucunu ozetle ve listeyi yenile.
+6. `rules[].error` doluysa sadece ilgili kurali uyari olarak goster; diger kurallarin kaydettigi anomaliler listede kalir.
+7. Satir tiklaninca detay endpoint'i ile `evidence` ve `events` gosterilsin.
+8. Kullanici satiri inceledikten sonra durumunu `Acknowledged`, `Resolved` veya `Ignored` yapabilsin.
+
 ### Etiket Belgeleri Son Liste
 
 Secili depo icin son etiket belgelerini getirir.
@@ -4808,9 +6176,9 @@ Response:
 
 ### Etiketler
 
-Belirli bir tarih icin kullanicinin deposuna ait tag/view kayitlarini getirir.
+Belirli bir tarih icin depo bazli tag/view kayitlarini getirir. `kasa-islemleri.etiket-belgeleri.all-warehouses` yoksa depo sorulmaz; yetki varsa query'de opsiyonel `warehouseNo` gonderilebilir.
 
-`GET /api/kasa-islemleri/etiket-belgeleri/etiketler?dateToGet=2026-04-24`
+`GET /api/kasa-islemleri/etiket-belgeleri/etiketler?dateToGet=2026-04-24&warehouseNo=110`
 
 Yetki:
 
@@ -4944,13 +6312,13 @@ Response:
 
 ### Fiyati Degisen Etiket Urunleri
 
-Belirli bir zaman bilgisinden sonra fiyati degisen ve etikete uygun urunleri getirir.
+Belirli bir zaman bilgisinden sonra fiyati degisen ve etikete uygun urunleri getirir. `kasa-islemleri.etiket-belgeleri.all-warehouses` yoksa depo sorulmaz; yetki varsa query'de opsiyonel `warehouseNo` gonderilebilir.
 
-`GET /api/kasa-islemleri/etiket-belgeleri/fiyati-degisen-urunler?dateTimeFilter=24.04.2026%2008:00:00`
+`GET /api/kasa-islemleri/etiket-belgeleri/fiyati-degisen-urunler?dateTimeFilter=24.04.2026%2008:00:00&warehouseNo=110`
 
 Uyumluluk icin eski route alias'i da desteklenir:
 
-`GET /api/kasa-islemleri/etiket-belgeleri/get-by-date-for-label?dateTimeFilter=24.04.2026%2008:00:00`
+`GET /api/kasa-islemleri/etiket-belgeleri/get-by-date-for-label?dateTimeFilter=24.04.2026%2008:00:00&warehouseNo=110`
 
 Yetki:
 
@@ -4996,7 +6364,7 @@ Yetki:
 
 Onemli not:
 
-- `warehouseNo` body icinde gonderilmez; JWT icindeki kullanici deposu kullanilir
+- `kasa-islemleri.etiket-belgeleri.all-warehouses` yoksa `warehouseNo` sorulmaz; backend JWT icindeki kullanici deposunu kullanir. Bu yetki varsa baska depo icin etiket belgesi olusturulacaksa body'de opsiyonel `warehouseNo` gonderilebilir
 - en az bir satir zorunludur
 - her satir yalnizca `productCode` alanini ister
 - backend Furpa veritabaninda `LabelDocuments` ve `LabelDocumentDetails` tablolarina transaction ile yazar
@@ -5079,12 +6447,12 @@ Yetki:
 
 Onemli not:
 
-- `warehouseNo` body icinden alinmaz; JWT icindeki kullanici deposu kullanilir
+- `stok-islemleri.virmanlar.all-warehouses` yoksa `warehouseNo` sorulmaz; backend JWT icindeki kullanici deposunu kullanir. Bu yetki varsa baska depo adina virman olusturulacaksa body'de opsiyonel `warehouseNo` gonderilebilir
 - backend `STOK_HAREKETLERI` tablosuna `sth_evraktip = 6`, `sth_normal_iade = 0`, `sth_cins = 3` olacak sekilde kayit yazar
 - `movementType` alaninin karsiligi satir bazinda `sth_tip` kolonuna yazilir; `2` gonderilirse backend Mikro uyumu icin satiri `1` cikis ve `0` giris olarak iki stok hareketine acar
-- eski yapiya uygun olarak `sth_giris_depo_no` ve `sth_cikis_depo_no` ayni kullanici deposuna yazilir
+- eski yapiya uygun olarak `sth_giris_depo_no` ve `sth_cikis_depo_no` ayni islem deposuna yazilir
 - eski yapiya uygun olarak `sth_fiyat_liste_no = -1` ve `sth_teslim_tarihi = 1900-01-01` degerleri kullanilir
-- `documentSerie` backend tarafinda `F{loginKullaniciDepoNo}` olarak uretilir
+- `documentSerie` backend tarafinda `F{islemDepoNo}` olarak uretilir
 - `documentOrderNo` ayni seri ve virman turu icin write DB'deki mevcut maksimum sira okunarak uretilir
 - `totalAmount` su an satir tutarlari `0` yazildigi icin `0` doner
 
@@ -5291,14 +6659,15 @@ Yetki:
 
 Onemli not:
 
-- Bu endpoint EF Core uzerinden ayri `MikroWriteDbContext` ile yazma yapar.
-- `STOK_HAREKETLERI` tablosuna `sth_evraktip = 17`, `sth_tip = 2`, `sth_cins = 6`, `sth_normal_iade = 1` olarak depo iadesi yazar.
-- `sourceWarehouseNo` JWT icindeki kullanici deposundan gelir; body icinde gonderilmez.
+- Yazma yolu `MikroWriteRouting:WarehouseReturn` ile belirlenir: `Database` modunda EF Core/write DB, `MikroApi` modunda `POST /Api/apiMethods/DahiliStokHareketKaydetV2` kullanilir.
+- Depo iadesi hareketi `sth_evraktip = 17`, `sth_tip = 2`, `sth_cins = 6`, `sth_normal_iade = 1` olarak olusturulur.
+- `iade-islemleri.giden-depo-iadeleri.all-warehouses` yoksa `sourceWarehouseNo` sorulmaz; backend JWT icindeki kullanici deposunu kullanir. Bu yetki varsa baska kaynak depodan iade olusturulacaksa body'de opsiyonel `sourceWarehouseNo` gonderilebilir.
 - `targetWarehouseNo` iadenin donecegi/hedef depodur ve `sth_nakliyedeposu` alanina yazilir.
 - `transitWarehouseNo` verilmezse `60` kullanilir ve `sth_giris_depo_no` alanina yazilir.
-- `documentSerie` backend tarafinda `F{loginKullaniciDepoNo}` olarak uretilir.
+- `documentSerie` backend tarafinda `F{islemDepoNo}` olarak uretilir.
 - `documentOrderNo` ayni seri, evrak tipi ve iade tipi icin write DB'deki mevcut maksimum sira okunarak uretilir.
-- Depolar arasi sevkten farki: `warehouseOrderLineGuid` yoktur, siparis baglama yapilmaz.
+- Depolar arasi sevkten farki: UI request'inde `warehouseOrderLineGuid` yoktur. Otomatik depo siparisi ayari aciksa backend once depo siparisini olusturur ve satir GUID'ini iade hareketine `sth_subesip_uid` olarak baglar; ayar kapaliysa siparis baglantisi kurulmaz.
+- `MikroApi` modunda otomatik depo siparisi gerekiyorsa `MikroWriteRouting:IssuedWarehouseOrder` de `MikroApi` olmalidir; aksi halde backend DB tamamlayici insert yapmadan hata dondurur.
 - Plaka, sofor adi ve TCKN bu create request'inde gonderilmez. Bu alanlar e-irsaliye gonderim request'inde zorunludur.
 
 Request:
@@ -5436,9 +6805,9 @@ Onemli not:
 
 - Bu endpoint EF Core uzerinden ayri `MikroWriteDbContext` ile yazma yapar.
 - `STOK_HAREKETLERI` tablosuna `sth_evraktip = 1`, `sth_tip = 1`, `sth_normal_iade = 1` olarak firma iadesi yazar.
-- `warehouseNo` JWT icindeki kullanici deposundan gelir; body icinde gonderilmez.
+- `iade-islemleri.firma-iadeleri.all-warehouses` yoksa `warehouseNo` sorulmaz; backend JWT icindeki kullanici deposunu kullanir. Bu yetki varsa baska depo adina iade olusturulacaksa body'de opsiyonel `warehouseNo` gonderilebilir.
 - `customerCode` zorunludur ve write DB'de `CARI_HESAPLAR` icinde kontrol edilir.
-- `documentSerie` backend tarafinda `F{loginKullaniciDepoNo}` olarak uretilir.
+- `documentSerie` backend tarafinda `F{islemDepoNo}` olarak uretilir.
 - `documentOrderNo` ayni seri, evrak tipi ve iade tipi icin write DB'deki mevcut maksimum sira okunarak uretilir; ilk evrak `0`, sonraki evraklar `1, 2...` seklinde gider.
 - Plaka, sofor adi ve TCKN bu create request'inde gonderilmez. Bu alanlar e-irsaliye gonderim request'inde zorunludur.
 - Request/response modeli firma giden sevk create ile aynidir; tek fark kaydin `returnType = 1` olarak yazilmasidir.
@@ -5747,7 +7116,795 @@ Response:
 }
 ```
 
+### Yeni Kasa Analizleri
+
+Yeni kasa sisteminden gelen gercek satis verilerini denetim, mutabakat ve operasyonel analiz amaciyla listeler. Bu modul yalnizca `ShopigoCiroConnection` kaynagini kullanir; eski kasa `TurnoverTotals`/`TurnoverDetails` verileriyle karismaz. `Kasa Cirolari` rapor ekranindan farki, ciroyu gostermenin yaninda duplicate, fis-odeme farki, satir toplami farki, bilinmeyen odeme tipi ve bos kasa/kasiyer gibi veri kalitesi sorunlarini da gorunur hale getirmesidir.
+
+Temel route:
+
+- `api/kasa-islemleri/yeni-kasa-analizleri`
+
+Yetki:
+
+- `kasa-islemleri.yeni-kasa-analizleri.list`
+
+Ortak query:
+
+```text
+startDate       zorunlu, ISO tarih
+endDate         zorunlu, ISO tarih
+warehouseNo     opsiyonel; verilirse tek sube
+cashRegisterNo  opsiyonel; SHOPIGO `kasano` degeri
+cashierCode     opsiyonel; SHOPIGO `initiated_by` degeri
+take            opsiyonel; default 500, max 2000
+onlyProblematic opsiyonel; fis-mutabakat icin sadece problemli fisleri dondurur
+```
+
+Endpoint ozeti:
+
+| Endpoint | Request kaynagi | Request modeli | Response | Yetki |
+|---|---|---|---|---|
+| `GET /api/kasa-islemleri/yeni-kasa-analizleri/ciro-ozeti` | query | `YeniKasaAnalizHttpRequest` | `YeniKasaCiroOzetItemDto[]` | `list` |
+| `GET /api/kasa-islemleri/yeni-kasa-analizleri/kasa-ozeti` | query | `YeniKasaAnalizHttpRequest` | `YeniKasaKasaOzetItemDto[]` | `list` |
+| `GET /api/kasa-islemleri/yeni-kasa-analizleri/fis-mutabakat` | query | `YeniKasaAnalizHttpRequest` | `YeniKasaFisMutabakatItemDto[]` | `list` |
+| `GET /api/kasa-islemleri/yeni-kasa-analizleri/anomaliler` | query | `YeniKasaAnalizHttpRequest` | `YeniKasaAnomalyItemDto[]` | `list` |
+| `GET /api/kasa-islemleri/yeni-kasa-analizleri/odeme-tipleri` | query | `YeniKasaAnalizHttpRequest` | `YeniKasaPaymentMethodItemDto[]` | `list` |
+| `GET /api/kasa-islemleri/yeni-kasa-analizleri/saglik-ozeti` | query | `YeniKasaAnalizHttpRequest` | `YeniKasaSaglikOzetItemDto[]` | `list` |
+| `GET /api/kasa-islemleri/yeni-kasa-analizleri/fis-detay` | query | `YeniKasaFisDetayHttpRequest` | `YeniKasaFisDetayDto` | `list` |
+
+#### Yeni Kasa Ciro Ozeti
+
+Sube, kasa ve kasiyer bazinda yeni kasa ciro ozetini verir.
+
+`GET /api/kasa-islemleri/yeni-kasa-analizleri/ciro-ozeti?startDate=2026-07-08&endDate=2026-07-08&warehouseNo=110`
+
+Not:
+
+- Yalniz tamamlanmis (`status = 4`) ve silinmemis `received_sales` satirlari dikkate alinir.
+- Tarih filtresi `received_at` uzerinden uygulanir.
+- Fis tekillestirme once `uuid`, yoksa `receipt_number`, o da yoksa satir `id` uzerinden yapilir.
+- `saleTotal` satis header toplamidir.
+- `productLineCount` ve `productQuantity` silinmemis/iade edilmemis `sale_items` satirlarindan gelir.
+- `paymentTotal` silinmemis/iade edilmemis `payments` satirlarindan gelir.
+- `difference = saleTotal - paymentTotal` olarak hesaplanir.
+
+Response:
+
+```json
+[
+  {
+    "businessDate": "2026-07-08T00:00:00",
+    "warehouseNo": 110,
+    "warehouseName": "KESTEL 1",
+    "cashRegisterNo": "1",
+    "cashierCode": "1001",
+    "cashierName": "MEHMET YILMAZ",
+    "saleRowCount": 245,
+    "receiptCount": 242,
+    "productLineCount": 1834,
+    "productQuantity": 2210.5,
+    "saleTotal": 185430.25,
+    "paymentLineCount": 248,
+    "paymentTotal": 185430.25,
+    "difference": 0,
+    "firstSaleAt": "2026-07-08T08:12:03",
+    "lastSaleAt": "2026-07-08T22:45:10"
+  }
+]
+```
+
+#### Yeni Kasa Kasa Ozeti
+
+Sube ve kasa bazinda gunluk toplam satis, odeme ve odeme kategori kirilimini verir.
+
+`GET /api/kasa-islemleri/yeni-kasa-analizleri/kasa-ozeti?startDate=2026-07-08&endDate=2026-07-08&warehouseNo=110`
+
+Odeme kategorileri:
+
+- `cashTotal`: nakit odemeler
+- `creditCardTotal`: kredi/banka karti odemeleri
+- `giftCardTotal`: yemek karti/gift card benzeri odemeler
+- `otherPaymentTotal`: odemesiz, kapali hesap veya baska kategoriye dusen odemeler
+- `unknownPaymentTotal`: `payment_methods` ile eslesmeyen odemeler
+
+Response:
+
+```json
+[
+  {
+    "businessDate": "2026-07-08T00:00:00",
+    "warehouseNo": 110,
+    "warehouseName": "KESTEL 1",
+    "cashRegisterNo": "1",
+    "saleRowCount": 245,
+    "receiptCount": 242,
+    "saleTotal": 185430.25,
+    "paymentTotal": 185430.25,
+    "cashTotal": 62100,
+    "creditCardTotal": 103250.25,
+    "giftCardTotal": 20080,
+    "otherPaymentTotal": 0,
+    "unknownPaymentTotal": 0,
+    "difference": 0,
+    "cashierCount": 4,
+    "lastSaleAt": "2026-07-08T22:45:10"
+  }
+]
+```
+
+#### Yeni Kasa Fis Mutabakat
+
+Her fis icin satis header toplami, urun satir toplami ve odeme toplamini karsilastirir.
+
+`GET /api/kasa-islemleri/yeni-kasa-analizleri/fis-mutabakat?startDate=2026-07-08&endDate=2026-07-08&warehouseNo=110&onlyProblematic=true&take=200`
+
+Uretilen issue kodlari:
+
+- `MissingUuid`: fis uuid alani bos
+- `MissingWarehouseMapping`: sube kodu sayisal depo numarasina donusturulemedi
+- `EmptyCashRegisterNo`: kasa no bos
+- `MissingCashier`: kasiyer kodu bos
+- `DuplicateSaleRow`: ayni satis anahtari birden fazla satirda geldi
+- `MissingSaleItems`: satis toplami var fakat urun satiri yok
+- `MissingPayment`: satis toplami var fakat odeme satiri yok
+- `MissingPaymentAmount`: fis toplami odeme toplamindan buyuk
+- `OverPaymentAmount`: odeme toplami fis toplamindan buyuk
+- `SaleLineTotalMismatch`: fis toplami ile urun satirlari toplami uyusmuyor
+
+Response:
+
+```json
+[
+  {
+    "businessDate": "2026-07-08T00:00:00",
+    "warehouseNo": 110,
+    "warehouseName": "KESTEL 1",
+    "cashRegisterNo": "1",
+    "cashierCode": "1001",
+    "cashierName": "MEHMET YILMAZ",
+    "uuid": "3f0f6f4a-74d4-4f8f-84f1-2e8d2f2d1d11",
+    "receiptNumber": "000123",
+    "saleRowCount": 1,
+    "productLineCount": 7,
+    "paymentLineCount": 2,
+    "saleTotal": 1250.75,
+    "productLineTotal": 1250.75,
+    "paymentTotal": 1240.75,
+    "salePaymentDifference": 10,
+    "saleLineDifference": 0,
+    "status": "Problem",
+    "issues": [
+      "MissingPaymentAmount"
+    ],
+    "receivedAt": "2026-07-08T15:22:10"
+  }
+]
+```
+
+#### Yeni Kasa Anomaliler
+
+Fis mutabakatinda bulunan sorunlari ve toplu duplicate/odeme tipi anomalilerini tek liste olarak doner.
+
+`GET /api/kasa-islemleri/yeni-kasa-analizleri/anomaliler?startDate=2026-07-08&endDate=2026-07-08&warehouseNo=110&take=200`
+
+Anomali tipleri:
+
+- `DuplicateUuid`
+- `DuplicateReceiptNumber`
+- `UnknownPaymentMethod`
+- Fis mutabakat issue kodlari (`MissingPayment`, `SaleLineTotalMismatch`, vb.)
+
+Severity:
+
+- `High`: tutarsal mutabakat veya kritik satis/odeme sorunu
+- `Medium`: duplicate veya eksik teknik satir sorunu
+- `Low`: bos teknik alanlar ve dusuk riskli veri kalitesi sorunlari
+
+Response:
+
+```json
+[
+  {
+    "type": "MissingPaymentAmount",
+    "severity": "High",
+    "businessDate": "2026-07-08T00:00:00",
+    "warehouseNo": 110,
+    "warehouseName": "KESTEL 1",
+    "cashRegisterNo": "1",
+    "cashierCode": "1001",
+    "uuid": "3f0f6f4a-74d4-4f8f-84f1-2e8d2f2d1d11",
+    "receiptNumber": "000123",
+    "saleTotal": 1250.75,
+    "paymentTotal": 1240.75,
+    "difference": 10,
+    "description": "Fis toplami odeme toplamindan buyuk."
+  }
+]
+```
+
+#### Yeni Kasa Odeme Tipleri
+
+Secilen tarih araligindaki yeni kasa odeme tiplerini, `payment_methods` eslesmesini ve kategori bilgisini listeler.
+
+`GET /api/kasa-islemleri/yeni-kasa-analizleri/odeme-tipleri?startDate=2026-07-08&endDate=2026-07-08&warehouseNo=110`
+
+Not:
+
+- `paymentMethodCode`, `payments.payment_method` alanidir.
+- `isKnown = false` ise kod `payment_methods.id` veya `payment_methods.pavo_mediator` ile eslesmemistir.
+- `category`: `Cash`, `CreditCard`, `GiftCard`, `Other`, `Unknown`
+
+Response:
+
+```json
+[
+  {
+    "paymentMethodCode": "1",
+    "paymentMethodName": "Nakit",
+    "category": "Cash",
+    "paymentMethodId": 1,
+    "pavoMediator": 1,
+    "pavoType": 1,
+    "paymentLineCount": 820,
+    "amount": 62100,
+    "isKnown": true
+  }
+]
+```
+
+#### Yeni Kasa Saglik Ozeti
+
+Secilen tarih araliginda sube/kasa bazinda fiÅŸ sagligini tek bakista gosterir. Dashboard ust kartlari veya risk listesi icin kullanilir.
+
+`GET /api/kasa-islemleri/yeni-kasa-analizleri/saglik-ozeti?startDate=2026-07-08&endDate=2026-07-08&warehouseNo=110`
+
+Risk:
+
+- `Healthy`: problemli fis yok
+- `Warning`: teknik/veri kalitesi problemi var, kritik tutar problemi yok
+- `Critical`: eksik/fazla odeme veya toplam farki var
+
+Response:
+
+```json
+[
+  {
+    "businessDate": "2026-07-08T00:00:00",
+    "warehouseNo": 110,
+    "warehouseName": "KESTEL 1",
+    "cashRegisterNo": "1",
+    "receiptCount": 242,
+    "problemReceiptCount": 3,
+    "criticalProblemCount": 1,
+    "saleTotal": 185430.25,
+    "paymentTotal": 185420.25,
+    "differenceTotal": 10,
+    "lastSaleAt": "2026-07-08T22:45:10",
+    "riskLevel": "Critical",
+    "topIssues": [
+      "MissingPaymentAmount",
+      "DuplicateSaleRow"
+    ]
+  }
+]
+```
+
+#### Yeni Kasa Fis Detay
+
+Fis mutabakat veya anomali listesinden secilen fisin detayini acar. UI icin tek response icinde fis ust bilgisi, mutabakat sonucu, ham satis satirlari, urun satirlari ve odeme satirlari doner.
+
+UUID ile kullanim:
+
+`GET /api/kasa-islemleri/yeni-kasa-analizleri/fis-detay?uuid=3f0f6f4a-74d4-4f8f-84f1-2e8d2f2d1d11`
+
+UUID bos olan kayitlar icin fallback kullanim:
+
+`GET /api/kasa-islemleri/yeni-kasa-analizleri/fis-detay?businessDate=2026-07-08&warehouseNo=110&cashRegisterNo=1&receiptNumber=000123`
+
+Not:
+
+- `payments[].isIncludedInTotals = false` ise satir ham odeme kaydinda vardir fakat duplicate temizleme nedeniyle mutabakat toplaminda dikkate alinmamistir.
+- `reconciliationItems` ayni UUID altinda birden fazla kasa/kasiyer grubu olusursa hepsini gosterir.
+- `productLines` Shopigo `sale_items` alanlariyla sinirlidir; mevcut tabloda urun adi/barkod kolonlari yoktur.
+
+Response:
+
+```json
+{
+  "uuid": "3f0f6f4a-74d4-4f8f-84f1-2e8d2f2d1d11",
+  "receiptNumber": "000123",
+  "businessDate": "2026-07-08T00:00:00",
+  "warehouseNo": 110,
+  "warehouseName": "KESTEL 1",
+  "cashRegisterNo": "1",
+  "cashierCode": "1001",
+  "cashierName": "MEHMET YILMAZ",
+  "saleTotal": 1250.75,
+  "productLineTotal": 1250.75,
+  "paymentTotal": 1240.75,
+  "salePaymentDifference": 10,
+  "saleLineDifference": 0,
+  "status": "Problem",
+  "issues": [
+    "MissingPaymentAmount"
+  ],
+  "reconciliationItems": [],
+  "saleRows": [
+    {
+      "id": 991122,
+      "uuid": "3f0f6f4a-74d4-4f8f-84f1-2e8d2f2d1d11",
+      "receiptNumber": "000123",
+      "receivedAt": "2026-07-08T15:22:10",
+      "warehouseNo": 110,
+      "warehouseCode": "110",
+      "cashRegisterNo": "1",
+      "cashierCode": "1001",
+      "saleTotal": 1250.75,
+      "remainingAmount": 0,
+      "marketId": "110",
+      "status": "4"
+    }
+  ],
+  "productLines": [
+    {
+      "id": 456,
+      "saleUuid": "3f0f6f4a-74d4-4f8f-84f1-2e8d2f2d1d11",
+      "quantity": 2,
+      "totalPrice": 250
+    }
+  ],
+  "payments": [
+    {
+      "id": 789,
+      "saleUuid": "3f0f6f4a-74d4-4f8f-84f1-2e8d2f2d1d11",
+      "paymentMethodCode": "1",
+      "paymentMethodName": "Nakit",
+      "category": "Cash",
+      "paymentMethodId": 1,
+      "pavoMediator": 1,
+      "pavoType": 1,
+      "amount": 1240.75,
+      "isIncludedInTotals": true
+    }
+  ]
+}
+```
+
 ## Rapor Islemleri
+
+### Tedarikci Performans Karnesi
+
+Bu ekran satin alma tarafinda tedarikciyi tek kartta degerlendirmek icin eklendi. Kaynaklar ayri ekran olarak sunulmaz; UI tek `Tedarikci Performans Karnesi` ekraninda siparis, mal kabul, iade, zayiat/masraf etkisi ve fatura ozetlerini birlikte gosterir. API ayrica ekranin ust bandi icin kisa karar ozeti (`headline`), genel durum (`overallStatus`), onemli bulgular (`insights`) ve her tedarikci satiri icin okunabilir sinyaller (`signals`) doner.
+
+Temel route:
+
+- `api/rapor-islemleri/tedarikci-performans-karnesi`
+
+Yetki kodlari:
+
+- `rapor-islemleri.tedarikci-performans-karnesi.list`
+- `rapor-islemleri.tedarikci-performans-karnesi.detail`
+- `rapor-islemleri.tedarikci-performans-karnesi.all-warehouses`
+
+Veri kaynaklari:
+
+- `SIPARISLER`: verilen firma siparisleri, siparis miktari, teslim miktari, planlanan teslim tarihi
+- `STOK_HAREKETLERI`: firma mal kabul, firma iade, zayiat/masraf hareketleri
+- `CARI_HESAPLAR`: tedarikci kodu, unvan, VKN/TCKN
+- Mal kabul fark mantigi: firma mal kabul satirlarinda `sth_miktar` ile `sth_FormulMiktar` farki varsa eksik/fazla kabul olarak okunur
+- Fatura ozeti: bizim kestigimiz fatura adaylari Mikro `CARI_HESAP_HAREKETLERI`, tedarikcinin bize kestigi gelen faturalar `uyumsoft_inbox_invoices` cache uzerinden ozetlenir
+- Gelen fatura toplami ile bizim kestigimiz fatura toplami dogrudan mutabakat farki olarak yorumlanmaz; bu alanlar yalnizca ayri fatura ozeti olarak verilir
+- Satir bazli fiyat/fatura kontrolu ikinci fazdir; ilk fazda fatura metrikleri `summary-only` durumundadir
+- Depo filtresi backend tarafinda JWT depo kapsami ile zorlanir; `rapor-islemleri.tedarikci-performans-karnesi.all-warehouses` olmayan kullanici kendi deposu disinda veri alamaz.
+- `rapor-islemleri.tedarikci-performans-karnesi.all-warehouses` yetkisi olan kullanici `warehouseNo` bos birakirsa tum depolari, belirli depo gonderirse o depoyu raporlar.
+
+Endpoint ozeti:
+
+| Endpoint | Request kaynagi | Request modeli | Response | Yetki |
+|---|---|---|---|---|
+| `GET /api/rapor-islemleri/tedarikci-performans-karnesi` | query | `SupplierPerformanceHttpRequest` | `SupplierPerformanceReportDto` | `list` |
+| `GET /api/rapor-islemleri/tedarikci-performans-karnesi/{customerCode}` | path + query | `SupplierPerformanceDetailHttpRequest` | `SupplierPerformanceDetailDto` | `detail` |
+
+Liste query:
+
+```text
+startDate     zorunlu, ISO tarih
+endDate       zorunlu, ISO tarih
+warehouseNo   opsiyonel; `all-warehouses` yoksa UI sormaz ve backend JWT deposunu uygular; `rapor-islemleri.tedarikci-performans-karnesi.all-warehouses` varsa bos birakilirsa tum depolar
+customerCode  opsiyonel; tek tedarikciye daraltir
+take          opsiyonel; default 100, max 500
+```
+
+`summary` filtreye giren tum tedarikci setini ozetler. `take` sadece `items` listesini sinirlar; toplam tedarikci sayisi ile ekrana donen satir sayisini ayirmak icin `supplierCount` ve `returnedSupplierCount` birlikte doner.
+
+Detay query:
+
+```text
+startDate   zorunlu
+endDate     zorunlu
+warehouseNo opsiyonel; `all-warehouses` yoksa UI sormaz ve backend JWT deposunu uygular; `rapor-islemleri.tedarikci-performans-karnesi.all-warehouses` varsa secili depo icin gonderilebilir
+eventTake   opsiyonel; default 100, max 500
+```
+
+Skor mantigi:
+
+- Baslangic puani 100'dur.
+- Gec teslim ve acik gec siparisler teslimat cezasini olusturur.
+- Eksik/fazla mal kabul farki kalite cezasini olusturur.
+- Firma iade miktari iade cezasini olusturur.
+- Zayiat/masraf etkisi stok kartindaki varsayilan tedarikci uzerinden tedarikciye baglanir.
+- Fatura ozeti skoru cezalandirmaz; gelen faturalar ve bizim kestigimiz faturalar ayri toplamlar olarak gosterilir.
+- `riskLevel`: `Healthy`, `Warning`, `Critical`
+- `grade`: `A`, `B`, `C`, `D`, `E`
+
+Liste ornegi:
+
+`GET /api/rapor-islemleri/tedarikci-performans-karnesi?startDate=2026-07-01&endDate=2026-07-03&warehouseNo=110&take=100`
+
+Response:
+
+```json
+{
+  "warehouseNo": 110,
+  "startDate": "2026-07-01T00:00:00",
+  "endDate": "2026-07-03T00:00:00",
+  "generatedAtUtc": "2026-07-03T09:45:00Z",
+  "summary": {
+    "supplierCount": 2,
+    "averageScore": 82.5,
+    "criticalSupplierCount": 0,
+    "warningSupplierCount": 1,
+    "totalOrderedQuantity": 250,
+    "totalReceivedQuantity": 230,
+    "totalReturnedQuantity": 8,
+    "totalMissingQuantity": 2,
+    "totalExcessQuantity": 0,
+    "totalOutageImpactQuantity": 4,
+    "totalIssuedInvoiceAmount": 12500,
+    "totalIncomingInvoiceAmount": 12620,
+    "invoiceMetricsState": "summary-only",
+    "returnedSupplierCount": 1,
+    "overallStatus": "Warning",
+    "headline": "2 tedarikci icinde 1 uyari seviyesinde tedarikci var; ortalama skor 82.5."
+  },
+  "insights": [
+    {
+      "code": "warning-suppliers",
+      "severity": "Warning",
+      "title": "Uyari seviyesinde tedarikci var",
+      "description": "1 tedarikci uyari seviyesinde. Ilk kontrol: ORNEK TEDARIKCI A.S. (91.71 puan).",
+      "customerCode": "120.01.03106"
+    },
+    {
+      "code": "best-supplier",
+      "severity": "Info",
+      "title": "En guclu tedarikci",
+      "description": "ORNEK TEDARIKCI A.S. 91.71 puan ile bu donemin en guclu karti.",
+      "customerCode": "120.01.03106"
+    }
+  ],
+  "items": [
+    {
+      "customerCode": "120.01.03106",
+      "customerTitle": "ORNEK TEDARIKCI A.S.",
+      "taxNoOrTckn": "1234567890",
+      "score": 91.71,
+      "grade": "A",
+      "riskLevel": "Warning",
+      "orders": {
+        "documentCount": 4,
+        "lineCount": 18,
+        "orderedQuantity": 120,
+        "deliveredQuantity": 112,
+        "remainingQuantity": 8,
+        "deliveryRate": 0.93,
+        "lateDeliveredLineCount": 1,
+        "openLateLineCount": 1,
+        "averageLateDays": 2
+      },
+      "receiving": {
+        "documentCount": 3,
+        "lineCount": 15,
+        "receivedQuantity": 112,
+        "receivedAmount": 8400,
+        "differenceLineCount": 1,
+        "missingQuantity": 2,
+        "excessQuantity": 0,
+        "differenceRate": 0.02
+      },
+      "returns": {
+        "documentCount": 1,
+        "lineCount": 1,
+        "returnedQuantity": 2,
+        "returnedAmount": 150,
+        "returnRate": 0.02
+      },
+      "outageImpact": {
+        "documentCount": 1,
+        "lineCount": 1,
+        "quantity": 4,
+        "amount": 0,
+        "quantityRate": 0.04,
+        "attribution": "stok-karti-varsayilan-tedarikci"
+      },
+      "invoices": {
+        "issuedInvoiceCount": 1,
+        "issuedInvoiceAmount": 150,
+        "incomingInvoiceCount": 2,
+        "incomingInvoiceAmount": 8550,
+        "state": "summary-only",
+        "note": "Giden fatura ve gelen fatura tutarlari ayri ozetlenir; bu iki toplam dogrudan mutabakat farki olarak yorumlanmaz. Satir bazli fiyat/fatura kontrolu ikinci fazdir."
+      },
+      "scoreBreakdown": {
+        "deliveryPenalty": 6.5,
+        "differencePenalty": 0.54,
+        "returnPenalty": 0.54,
+        "outagePenalty": 0.71,
+        "invoicePenalty": 0,
+        "totalPenalty": 8.29
+      },
+      "signals": [
+        {
+          "code": "open-late-orders",
+          "severity": "Warning",
+          "title": "Acik gec siparis",
+          "description": "1 satir planlanan teslim tarihini gecmis ve kapanmamis."
+        },
+        {
+          "code": "receiving-difference",
+          "severity": "Warning",
+          "title": "Mal kabul farki",
+          "description": "2 eksik, 0 fazla kabul gorundu."
+        }
+      ]
+    }
+  ]
+}
+```
+
+Detay ornegi:
+
+`GET /api/rapor-islemleri/tedarikci-performans-karnesi/120.01.03106?startDate=2026-07-01&endDate=2026-07-03&warehouseNo=110&eventTake=100`
+
+Response `card` alaninda liste satirindaki ayni karti, `events` alaninda bu karta kaynak olan olaylari doner.
+
+Olay tipleri:
+
+```text
+Order
+OpenLateOrder
+ReceivingDifference
+CompanyReturn
+OutageImpact
+ExpenseImpact
+IssuedInvoice
+IncomingInvoice
+```
+
+UI akisi:
+
+1. Ekran acilisinda liste endpoint'i cagrilir.
+2. Ustte `summary.headline`, `overallStatus`, ortalama skor, kritik/uyari sayisi, toplam siparis, kabul, iade, mal kabul farki ve fatura ozeti gosterilir.
+3. `insights` alani ustte kisa bulgu listesi olarak kullanilir; kritik/uyari bulgulari once, bilgi bulgulari sonra gosterilir.
+4. Gridde tedarikci, skor, risk, siparis/kabul oranlari, gec teslim, iade, mal kabul farki, zayiat etkisi ve fatura ozeti kolonlari yer alir.
+5. Her satirda `signals` rozetleri/kisa uyari listesi olarak gosterilir; kullanici detaya girmeden skorun neden dustugunu gorebilir.
+6. Satir secilince ayni ekranda detay paneli acilir ve detay endpoint'i cagrilir.
+7. Detay panelinde `events` zaman cizelgesi olarak gosterilir; kaynak alanlari teknik kanit olarak saklanir.
+8. Fatura alaninda `state = summary-only` ise UI gelen fatura ve bizim kestigimiz fatura toplamlarini ayri gostermeli; bu iki toplami "fark/uyumsuzluk" olarak vurgulamamalidir.
+
+Yeni response alanlari:
+
+```text
+summary.overallStatus       NoData, Healthy, Warning, Critical
+summary.headline            Ust bant icin kisa yorum
+summary.returnedSupplierCount  take sonrasi donen kart sayisi
+insights[].code             Bulgu tipi: critical-suppliers, warning-suppliers, late-orders, receiving-differences, company-returns, outage-impact, best-supplier, no-data
+insights[].severity         Info, Healthy, Warning, Critical
+insights[].customerCode     Bulgu belirli bir tedarikciye baglaniyorsa cari kodu
+items[].signals[].code      Satir ici sinyal tipi
+items[].signals[].severity  Info, Healthy, Warning, Critical
+```
+
+### Stok Raporlari
+
+WinForms `Depo Stok Listeleme` envanterinden bu projeye read-only ve Mikro kaynaklariyla guvenle entegre edilebilen stok, hareket, satis, iade, karlilik ve sayim raporlari bu modul altinda toplandi. Bu modul yeni evrak olusturmaz, Mikro verisini degistirmez; UI tarafinda rapor/grid/ozet ekranlari icin kullanilir.
+
+Temel route:
+
+- `api/rapor-islemleri/stok-raporlari`
+
+Yetki kodu:
+
+- `rapor-islemleri.stok-raporlari.list`
+- `rapor-islemleri.stok-raporlari.all-warehouses`
+
+Veri kaynaklari:
+
+- Mikro tablolar: `STOKLAR`, `STOK_DEPO_DETAYLARI`, `DEPOLAR`, `BARKOD_TANIMLARI`, `CARI_HESAPLAR`, `CARI_PERSONEL_TANIMLARI`, `STOK_HAREKETLERI`, `SAYIM_SONUCLARI`, `SATINALMA_SARTLARI`
+- Mikro fonksiyonlari: `dbo.fn_DepodakiMiktar`, `dbo.fn_StokSatisFiyati`
+- `SATINALMA_SARTLARI` yalniz tedarikci stok filtresinde yardimci eslestirme olarak okunur.
+- Karlilik raporu maliyet icin `STOK_HAREKETLERI.sth_maliyet_ana` alanini kullanir; SAS fiyat/maliyet modu bu fazda yoktur.
+
+Endpoint ozeti:
+
+| Endpoint | Request kaynagi | Request modeli | Response | Yetki |
+|---|---|---|---|---|
+| `GET /api/rapor-islemleri/stok-raporlari/son-stok` | query | `StockOnHandReportHttpRequest` | `StockOnHandReportDto` | `list` |
+| `GET /api/rapor-islemleri/stok-raporlari/tedarikci-son-stok` | query | `SupplierStockOnHandHttpRequest` | `StockOnHandReportDto` | `list` |
+| `GET /api/rapor-islemleri/stok-raporlari/kategori-son-stok` | query | `CategoryStockOnHandHttpRequest` | `StockOnHandReportDto` | `list` |
+| `GET /api/rapor-islemleri/stok-raporlari/kategori-secenekleri` | query | `StockCategoryOptionHttpRequest` | `StockCategoryOptionDto[]` | `list` |
+| `GET /api/rapor-islemleri/stok-raporlari/uretici-son-stok` | query | `ProducerStockOnHandHttpRequest` | `StockOnHandReportDto` | `list` |
+| `GET /api/rapor-islemleri/stok-raporlari/envanter-degeri` | query | `StockOnHandReportHttpRequest` | `StockOnHandReportDto` | `list` |
+| `GET /api/rapor-islemleri/stok-raporlari/urun-depo-durum` | query | `ProductWarehouseStockHttpRequest` | `ProductWarehouseStockDto[]` | `list` |
+| `GET /api/rapor-islemleri/stok-raporlari/urun/{stockCodeOrBarcode}/depo-durum` | path + query | `ProductWarehouseStockByPathHttpRequest` | `ProductWarehouseStockDto[]` | `list` |
+| `GET /api/rapor-islemleri/stok-raporlari/stok-kartlari` | query | `StockCardDetailHttpRequest` | `StockCardDetailDto[]` | `list` |
+| `GET /api/rapor-islemleri/stok-raporlari/urun-ara` | query | `StockCardDetailHttpRequest` | `StockCardDetailDto[]` | `list` |
+| `GET /api/rapor-islemleri/stok-raporlari/depoda-var-subede-yok` | query | `WarehouseMissingStockHttpRequest` | `WarehouseMissingStockDto[]` | `list` |
+| `GET /api/rapor-islemleri/stok-raporlari/depo-sifir-stok` | query | `WarehouseZeroStockHttpRequest` | `WarehouseZeroStockDto[]` | `list` |
+| `GET /api/rapor-islemleri/stok-raporlari/hareketler` | query | `StockMovementReportHttpRequest` | `StockMovementReportItemDto[]` | `list` |
+| `GET /api/rapor-islemleri/stok-raporlari/giris-cikis-karsilastirma` | query | `FilteredDateRangeReportHttpRequest` | `MovementInOutComparisonDto[]` | `list` |
+| `GET /api/rapor-islemleri/stok-raporlari/satislar/sube-detay` | query | `FilteredDateRangeReportHttpRequest` | `BranchSalesReportItemDto[]` | `list` |
+| `GET /api/rapor-islemleri/stok-raporlari/satislar/yil-karsilastirma` | query | `FilteredDateRangeReportHttpRequest` | `YearSalesComparisonItemDto[]` | `list` |
+| `GET /api/rapor-islemleri/stok-raporlari/iadeler/subeler` | query | `ReturnBranchReportHttpRequest` | `ReturnBranchReportItemDto[]` | `list` |
+| `GET /api/rapor-islemleri/stok-raporlari/satislar/satmayan-urunler` | query | `NotSoldProductReportHttpRequest` | `NotSoldProductReportItemDto[]` | `list` |
+| `GET /api/rapor-islemleri/stok-raporlari/karlilik` | query | `ProfitabilityReportHttpRequest` | `ProfitabilityReportItemDto[]` | `list` |
+| `GET /api/rapor-islemleri/stok-raporlari/sayim-karsilastirma` | query | `CountingComparisonReportHttpRequest` | `CountingComparisonReportItemDto[]` | `list` |
+
+Ortak query kurallari:
+
+```text
+warehouseNo   opsiyonel; `rapor-islemleri.stok-raporlari.all-warehouses` yoksa UI sormaz ve backend JWT deposunu uygular
+reportDate    opsiyonel; stok anlik raporlarinda verilmezse bugun
+startDate     tarih araligi raporlarinda zorunlu
+endDate       tarih araligi raporlarinda zorunlu; backend gunu dahil kabul eder
+take          opsiyonel; max 1000
+```
+
+Depo kapsami:
+
+- `son-stok`, `tedarikci-son-stok`, `kategori-son-stok`, `uretici-son-stok`, `envanter-degeri`, `depoda-var-subede-yok`, `depo-sifir-stok` ve `sayim-karsilastirma` tek depo raporudur.
+- `urun-depo-durum`, `stok-kartlari`, `hareketler`, `giris-cikis-karsilastirma`, satis, iade, satmayan urun ve karlilik raporlarinda `rapor-islemleri.stok-raporlari.all-warehouses` yetkisi olan kullanici `warehouseNo` bos birakirsa tum depolar okunabilir.
+- `rapor-islemleri.stok-raporlari.all-warehouses` olmayan kullanicida backend token deposunu uygular; UI depo secimi gostermemelidir.
+- Ornek: Asistan rolune sadece stok raporlari icin tum sube erisimi verilecekse role `rapor-islemleri.stok-raporlari.list` ve `rapor-islemleri.stok-raporlari.all-warehouses` yetkileri atanir; `Admin` rolu verilmesi gerekmez.
+
+Filtre alanlari:
+
+```text
+filterType  stock, category, producer, supplier, product-manager, model
+scope       karlilik icin producer, supplier, product-manager, category, stock
+filterValue filterType/scope ile eslesen kod veya arama degeri
+```
+
+Notlar:
+
+- `filterType` icin Turkce aliaslar da kabul edilir: `stok`, `kategori`, `uretici`, `tedarikci`, `satin-almaci`, `satinalmaci`, `model`.
+- Turkce karakterli aliaslar da kabul edilir: `urun`, `Ã¼rÃ¼n`, `Ã¼retici`, `tedarikÃ§i`, `satÄ±n-almacÄ±`.
+- `filterType` ve `filterValue` birlikte kullanÄ±lmalÄ±dÄ±r; sadece biri gÃ¶nderilirse backend 400 dÃ¶ner.
+- `scope` bos verilirse karlilik raporu `producer` kirilimi ile doner.
+- Sayisal toplamlar backend tarafinda 2 ondaliga yuvarlanir.
+- Barkod alanlari master/birim-1 barkod onceligiyle secilir.
+- `OnlyWithStock=true` varsayilan davranistir; sifir stoklarin da gelmesi istenirse `false` gonderilir.
+- Kategori secimi icin UI `kategori-secenekleri` endpoint'ini kullanabilir; response `categoryCode`, `categoryName`, `productCount` alanlarini doner.
+- `satislar/satmayan-urunler` tum depo yetkisiyle tum depolar icin calistirilirse `warehouseName = "Tum depolar"` ve `currentStock` aktif depolarin toplam sistem miktari olarak doner.
+- `karlilik` response'unda `groupName`, `supplier` ve `product-manager` icin ad/unvan; `stock` icin stok adi; `producer` ve `category` icin kod fallback'i olarak doner.
+
+UI akisi:
+
+1. Menu `Rapor Islemleri / Stok Raporlari` olarak acilir.
+2. Ekranda tab veya sol filtreyle `Son Stok`, `Urun Depo Durum`, `Stok Kartlari`, `Hareketler`, `Satis`, `Iade`, `Karlilik`, `Sayim` gorunumleri ayrilabilir.
+3. Kategori filtrelerinde dropdown `kategori-secenekleri` ile dolar; secilen `categoryCode`, `kategori-son-stok` veya genel `son-stok` filtresine yazilir.
+4. `son-stok` response icindeki `totalQuantity`, `totalSalesValue`, `returnedCount` ust ozet kartlarinda; `items` gridde gosterilir.
+5. `envanter-degeri` ayni response modelini kullanan deger odakli kisayoldur; UI ayni endpoint ailesini kullanip toplam satis degerini one cikarabilir.
+6. `urun-depo-durum` tek urunun subeler/depolar bazinda miktar ve satis degerini gosterir; arama icin `stockCodeOrBarcode` zorunludur. Barkod okutma veya urun kartindan gecis icin `urun/{stockCodeOrBarcode}/depo-durum` path kisayolu da kullanilabilir.
+7. `urun-ara`, `stok-kartlari` ile ayni response'u donen kolay okunur arama alias'idir.
+8. `depoda-var-subede-yok` kaynak depoda mevcut, hedef subede olmayan urunleri listeler; kaynak depo UI tarafinda zorunlu secilmelidir.
+9. `depo-sifir-stok` secili depoda sistem miktari sifir olan urunleri listeler.
+10. `giris-cikis-karsilastirma`, `satislar/sube-detay`, `satislar/yil-karsilastirma`, `iadeler/subeler`, `satislar/satmayan-urunler` tarih araligi ile calisir.
+11. `karlilik` raporunda UI `scope` icin segmented control veya select kullanmali; sonuc `groupCode/groupName` bazli ozetlenir.
+12. `sayim-karsilastirma` sayim gunu, opsiyonel belge no ve paket kodu ile sistem miktari/sayim miktari farkini gosterir.
+
+Ornekler:
+
+`GET /api/rapor-islemleri/stok-raporlari/son-stok?warehouseNo=110&reportDate=2026-07-21&search=ELMA&take=100`
+
+`GET /api/rapor-islemleri/stok-raporlari/kategori-secenekleri?search=MEYVE&take=50`
+
+`GET /api/rapor-islemleri/stok-raporlari/urun/8690000000000/depo-durum?onlyWithStock=true`
+
+`GET /api/rapor-islemleri/stok-raporlari/karlilik?startDate=2026-07-01&endDate=2026-07-21&scope=producer&take=250`
+
+`GET /api/rapor-islemleri/stok-raporlari/sayim-karsilastirma?warehouseNo=110&countDate=2026-07-21&take=500`
+
+### Promosyon Raporlari
+
+Promosyon/bulten tarafinda rapor ihtiyaci bu modul altinda toplandi. Modul bulten tanimlarini listeler, gerceklesen POS promosyon kullanimlarini okur ve satis/marj etkisini gosterir.
+
+Bu modul salt-okunurdur. Bulten/promosyon tanim CRUD islemleri rapor degildir; ayri admin/yonetim modulu olarak ele alinmalidir.
+
+Temel route:
+
+- `api/rapor-islemleri/promosyon-raporlari`
+
+Yetki kodu:
+
+- `rapor-islemleri.promosyon-raporlari.list`
+- `rapor-islemleri.promosyon-raporlari.all-warehouses`
+
+Veri kaynaklari:
+
+- Mayday `PROMOSYON_TANIMLARI`: bulten/promosyon tanim listesi
+- Mayday `PROMOSYON_SUBELER`: promosyonun hangi subelerde gecerli oldugu
+- Furpa `PosFaturaPromosyons`: POS fislerinde gerceklesen promosyon kullanimi
+- Furpa `PosFaturaSatirs`: promosyon satirinin miktar, net satis, KDV ve urun bilgisi
+- Mikro `STOKLAR`: standart maliyet ile tahmini marj hesabi
+- Mikro `DEPOLAR`: sube adlari
+
+Endpoint ozeti:
+
+| Endpoint | Request kaynagi | Request modeli | Response | Yetki |
+|---|---|---|---|---|
+| `GET /api/rapor-islemleri/promosyon-raporlari/bultenler` | query | `PromotionBulletinListHttpRequest` | `PromotionBulletinListItemDto[]` | `list` |
+| `GET /api/rapor-islemleri/promosyon-raporlari/bulten-secenekleri` | query | `PromotionBulletinOptionHttpRequest` | `PromotionBulletinOptionDto[]` | `list` |
+| `GET /api/rapor-islemleri/promosyon-raporlari/bultenler/secenekler` | query | `PromotionBulletinOptionHttpRequest` | `PromotionBulletinOptionDto[]` | `list` |
+| `GET /api/rapor-islemleri/promosyon-raporlari/performans` | query | `PromotionPerformanceHttpRequest` | `PromotionPerformanceReportDto` | `list` |
+| `GET /api/rapor-islemleri/promosyon-raporlari/satis-marj-etkisi` | query | `PromotionPerformanceHttpRequest` | `PromotionPerformanceReportDto` | `list` |
+| `GET /api/rapor-islemleri/promosyon-raporlari/performans/sube` | query | `PromotionPerformanceHttpRequest` | `PromotionBranchPerformanceItemDto[]` | `list` |
+
+Bulten listesi query:
+
+```text
+warehouseNo  opsiyonel; `rapor-islemleri.promosyon-raporlari.all-warehouses` yoksa UI sormaz ve backend JWT deposunu uygular
+activeOn     opsiyonel; verilmezse bugun
+onlyActive   opsiyonel; default true, activeOn tarihinde aktif olan bultenleri getirir
+search       opsiyonel; kod, ad veya aciklama arar
+take         opsiyonel; default 100, max 1000
+```
+
+Performans query:
+
+```text
+startDate      opsiyonel; verilmezse endDate - 30 gun
+endDate        opsiyonel; verilmezse bugun, backend gunu dahil kabul eder
+warehouseNo    opsiyonel; `rapor-islemleri.promosyon-raporlari.all-warehouses` varsa bos birakilirsa tum subeler
+promotionCode  opsiyonel; tek bulten/promosyon kodu
+search         opsiyonel; kod, ad veya aciklama arar
+take           opsiyonel; default 250, max 1000
+```
+
+Response notlari:
+
+- `PromotionPerformanceReportDto` ust ozet ve promosyon bazli `items` listesini birlikte doner.
+- `performans/sube` ayni hesaplari promosyon + sube kiriliminda verir.
+- `netSalesAmount` POS satir net tutaridir.
+- `grossSalesAmount` net tutar + KDV toplamidir.
+- `discountAmount` POS promosyon satirindaki indirim/etki tutaridir.
+- `estimatedCostAmount` urun miktari x Mikro `STOKLAR.sto_standartmaliyet` olarak hesaplanir.
+- `marginAmount` net satis - tahmini maliyet; `marginPercent` bu tutarin net satis icindeki oranidir.
+- Maliyet kartta yoksa tahmini maliyet 0 okunur; UI bu durumda marji "tahmini" olarak degerlendirmelidir.
+
+UI akisi:
+
+1. Menu `Rapor Islemleri / Promosyon Raporlari` olarak acilir.
+2. Ilk sekmede `bultenler` endpoint'i ile aktif/pasif bulten listesi gosterilir.
+3. Performans filtrelerindeki bulten/promosyon dropdown'u `bulten-secenekleri` veya canonical alias olan `bultenler/secenekler` endpoint'i ile doldurulur.
+4. Bulten satiri veya dropdown secimi yapilirse `promotionCode` ile `performans` endpoint'i cagrilir.
+5. Ustte kullanim adedi, fis sayisi, net/brut satis, indirim tutari ve marj kartlari gosterilir.
+6. Detay gridinde promosyon bazli satirlar; sube sekmesinde `performans/sube` sonucu gosterilir.
+7. Bulten tanimi olusturma/duzenleme/silme bu ekranda yapilmaz; ayri admin modulu gerekir.
+
+Ornekler:
+
+`GET /api/rapor-islemleri/promosyon-raporlari/bultenler?warehouseNo=110&onlyActive=true&take=100`
+
+`GET /api/rapor-islemleri/promosyon-raporlari/bulten-secenekleri?search=12&take=50`
+
+`GET /api/rapor-islemleri/promosyon-raporlari/bultenler/secenekler?search=12&take=50`
+
+`GET /api/rapor-islemleri/promosyon-raporlari/performans?startDate=2026-07-01&endDate=2026-07-21&warehouseNo=110&take=250`
+
+`GET /api/rapor-islemleri/promosyon-raporlari/performans?promotionCode=1234`
+
+`GET /api/rapor-islemleri/promosyon-raporlari/performans/sube?startDate=2026-07-01&endDate=2026-07-21&promotionCode=1234`
 
 ### Satis Analizleri
 
@@ -5760,6 +7917,7 @@ Temel route:
 Yetki kodu:
 
 - `rapor-islemleri.satis-analizleri.list`
+- `rapor-islemleri.satis-analizleri.all-warehouses`
 
 Request query alanlari:
 
@@ -5771,8 +7929,8 @@ warehouseNo  opsiyonel
 
 Not:
 
-- `warehouseNo` verilirse tek sube filtrelenir.
-- `warehouseNo` verilmezse tum subeler icin rapor doner.
+- `rapor-islemleri.satis-analizleri.all-warehouses` yoksa UI `warehouseNo` sormaz; backend JWT icindeki kullanici deposunu uygular.
+- `rapor-islemleri.satis-analizleri.all-warehouses` varsa `warehouseNo` verilirse tek sube filtrelenir, verilmezse tum subeler icin rapor doner.
 - Tarih filtresi gun bazinda calisir; backend `endDate` degerini dahil kabul edip sorguda ertesi gunun basina kadar okur.
 - Tum tutar alanlari backend tarafinda 2 ondaliga yuvarlanir.
 - Indirim karti raporu kullanim adedini Mikro `TurnoverDiscountCardDetails` kaynagindan, kullanim tutarini Furpa `PosFaturas` kaynagindan eslestirir.
@@ -6278,6 +8436,12 @@ Not:
 - backend belge bazli tek satir doner
 - `total` alani `paymentTypeId < 100` veya `paymentTypeId = 500` olan hareketlerin toplamini verir
 
+UI/menu ayrimi:
+
+- `KasaSayimlari` artik okuma/goruntuleme gorevidir; sadece `list` ve `detail` yetkileri vardir.
+- Yeni icmal girisi icin UI ayri gorev/menu gostermelidir: `IcmalKaydiGirisi`.
+- Icmal giris ekraninin route'lari geriye uyumluluk icin halen `/api/kasa-islemleri/kasa-sayimlari` altindadir; yetki kodlari ayridir.
+
 Response:
 
 ```json
@@ -6374,23 +8538,15 @@ Not:
 - response modeli `CashSummaryDetailItemDto` doner
 - belge bulunmazsa `404 Not Found` doner
 - odeme satirlari ve store expense satirlari ayni listede gelir
+- `PaymentTypeID = 500` nakit toplam satiri bu endpointte donmez; backend bu satiri banknot hareketlerinden garanti eder
 
 Response:
 
 ```json
 [
   {
-    "typeName": "Nakit",
-    "paymentTypeId": 1,
-    "accountCode": "",
-    "slipNumber": 0,
-    "amount": 11340.5,
-    "terminalId": "",
-    "description": ""
-  },
-  {
     "typeName": "Akbank POS",
-    "paymentTypeId": 5,
+    "paymentTypeId": 1,
     "accountCode": "POS-AKBANK",
     "slipNumber": 45612,
     "amount": 2500,
@@ -6449,9 +8605,36 @@ Yetki:
 
 Not:
 
-- `warehouseNo = 1` gonderilirse tum depolar listelenir
+- `kasa-islemleri.banknot-takipleri.all-warehouses` yoksa UI `warehouseNo` gondermez; backend JWT icindeki kullanici deposunu uygular
+- `kasa-islemleri.banknot-takipleri.all-warehouses` varsa `warehouseNo` bos/null gonderilirse tum depolar listelenir; belirli depo icin ilgili depo no gonderilir
+- `warehouseNo = 1` artik tum depolar anlami tasimaz; gercekten 1 no'lu depo filtresi olarak yorumlanir
 - response modeli `BanknoteTrackDto` doner ve `banknoteTrackId` alanini GUID olarak icerir
 - bu route'da `differenceAmount`, eski kodla uyumlu olarak `deliveryTotalAmount - totalAmount` hesaplanir
+
+Sayim toplami:
+
+`GET /api/kasa-islemleri/banknot-takipleri/sayim-toplami?dateToGet=2026-04-24&warehouseNo=110`
+
+Yetki:
+
+- `kasa-islemleri.banknot-takipleri.list`
+
+Not:
+
+- Banknot teslim formunda `totalAmount` alanini backendden doldurmak icindir
+- toplam, eski `GetTotalAmountForBanknoteTrack` davranisina uygun olarak `BanknoteMovements.CreateDate` gunu ve depo filtresiyle `Total` toplamidir
+- `kasa-islemleri.banknot-takipleri.all-warehouses` yoksa `warehouseNo` gonderilmez; backend JWT deposunu kullanir
+- all-warehouses yetkisi varsa baska depo icin `warehouseNo` gonderilebilir
+
+Response:
+
+```json
+{
+  "dateToGet": "2026-04-24T00:00:00",
+  "warehouseNo": 110,
+  "totalAmount": 12000
+}
+```
 
 Response:
 
@@ -6490,7 +8673,7 @@ Yetki:
 
 Onemli not:
 
-- `warehouseNo` body'de gonderilirse mevcut JWT deposu ile ayni olmak zorundadir
+- `kasa-islemleri.banknot-takipleri.all-warehouses` yoksa `warehouseNo` sorulmaz; backend JWT icindeki kullanici deposunu kullanir. Bu yetki varsa baska depo adina banknot takip kaydi acilacaksa body'de opsiyonel `warehouseNo` gonderilebilir
 - ayni depo ve ayni gun icin kayit varsa yeni insert yapmaz, `200 OK` ve `created = false` doner
 - yeni kayit acilirse `201 Created` ve `created = true` doner
 
@@ -6523,7 +8706,7 @@ Bu endpointler kasa sayim formundaki secim kutulari ve yardimci alanlar icindir.
 
 Yetki:
 
-- tumu icin `kasa-islemleri.kasa-sayimlari.list`
+- tumu icin `kasa-islemleri.icmal-kaydi-girisi.list`
 
 Route'lar:
 
@@ -6585,19 +8768,21 @@ Kisa response ornekleri:
 
 Paylasim klasorundeki Z rapor dosyasindan `NET CIRO` degerini okumaya calisir.
 
-`GET /api/kasa-islemleri/kasa-sayimlari/z-rapor-toplam?documentSerie=KS110&warehouseNo=110&zReportNo=125&cashNo=1`
+`GET /api/kasa-islemleri/kasa-sayimlari/z-rapor-toplam?warehouseNo=110&zReportNo=125&cashNo=1`
 
 Yetki:
 
-- `kasa-islemleri.kasa-sayimlari.detail`
+- `kasa-islemleri.icmal-kaydi-girisi.list`
 
 Not:
 
 - response `double` doner
+- `documentSerie` opsiyoneldir; gonderilirse `KS110`, `F110.1` ve `F110` formatlari desteklenir
+- `documentSerie` bos veya parse edilemezse backend dogrudan `warehouseNo` ile sube path bilgisini cozer
 - dosya bulunamazsa, config bos ise veya `NET CIRO` parse edilemezse `-1` doner
-- backend `KasaSayimlari:ZReportBasePath` konfigurasyonunu kullanir
+- backend sube IP ve POS klasor bilgisini `BranchDetails` kaydindan okur
 
-### Kasa Sayimi Olustur
+### Icmal Kaydi Girisi / Olustur
 
 Secili kullanici deposu icin yeni kasa sayimi yazar.
 
@@ -6605,15 +8790,17 @@ Secili kullanici deposu icin yeni kasa sayimi yazar.
 
 Yetki:
 
-- `kasa-islemleri.kasa-sayimlari.create`
+- `kasa-islemleri.icmal-kaydi-girisi.create`
 
 Onemli not:
 
-- `warehouseNo` body'de opsiyoneldir; gonderilirse JWT deposu ile ayni olmalidir
-- en az bir `paymentTypes` veya `storeExpenses` satiri zorunludur
+- `kasa-islemleri.icmal-kaydi-girisi.all-warehouses` yoksa `warehouseNo` sorulmaz; backend JWT icindeki kullanici deposunu kullanir. Bu yetki varsa baska depo adina kasa sayimi/complete icmal kaydi olusturulacaksa body'de opsiyonel `warehouseNo` gonderilebilir
+- en az bir `paymentTypes`, `storeExpenses` veya `banknoteMovements` satiri zorunludur
 - backend `Summaries`, `BanknoteMovements`, `GiftCheckMovements` ve `CARI_HESAP_HAREKETLERI` tarafina yazar
-- `documentSerie` backend tarafinda `KS{loginKullaniciDepoNo}` olarak uretilir
+- `documentSerie` backend tarafinda `KS{islemDepoNo}` olarak uretilir
 - `documentOrderNo` ayni seri icin mevcut maksimum degerin bir fazlasi olarak uretilir
+- nakit toplam `paymentTypes` icinde manuel gonderilmez; backend banknot hareketlerinden `PaymentTypeID = 500`, `description = "Nakit Toplam"` satirini garanti eder
+- UI yanlislikla `paymentTypes` icinde `Nakit` veya `paymentTypeNo = 500` gonderirse backend bunu ayri odeme satiri olarak yazmaz, 500 satirini banknot toplamindan uretir
 
 Request:
 
@@ -6623,8 +8810,8 @@ Request:
   "zReportNo": 125,
   "cashierNo": 1001,
   "managerNo": 1002,
-  "zTotalValue": 15340.5,
-  "total": 15340.5,
+  "zTotalValue": 6500,
+  "total": 6500,
   "summaryDate": "2026-04-24",
   "giftCheckMovements": [],
   "banknoteMovements": [
@@ -6637,12 +8824,12 @@ Request:
   ],
   "paymentTypes": [
     {
-      "paymentName": "Nakit",
+      "paymentName": "Akbank POS",
       "paymentTypeNo": 1,
-      "accountCode": "",
-      "terminalId": "",
-      "slipNumber": 0,
-      "amountValue": 11340.5
+      "accountCode": "POS-AKBANK",
+      "terminalId": "TERM-01",
+      "slipNumber": 12,
+      "amountValue": 2500
     }
   ],
   "storeExpenses": []
@@ -6657,13 +8844,13 @@ Response:
   "documentOrderNo": 12,
   "summaryDate": "2026-04-24T00:00:00",
   "warehouseNo": 110,
-  "lineCount": 1,
-  "total": 15340.5,
+  "lineCount": 2,
+  "total": 6500,
   "writeConnectionName": "MikroConnection"
 }
 ```
 
-### Kasa Sayimi Guncelleme ve Silme
+### Icmal Kaydi Girisi / Guncelleme ve Silme
 
 Belge uzerindeki satirlari ve fiziksel para detaylarini guncellemek icin ayri endpointler kullanilir.
 
@@ -6675,12 +8862,15 @@ Route'lar:
 
 Yetki:
 
-- uc endpoint icin de `kasa-islemleri.kasa-sayimlari.update`
+- detay ve banknot update icin `kasa-islemleri.icmal-kaydi-girisi.update`
+- silme icin `kasa-islemleri.icmal-kaydi-girisi.delete`
 
 Not:
 
 - detay update request'inde `details` listesi zorunludur
+- detay update request'inde nakit/500 satiri gonderilmez; backend mevcut banknot toplamindan 500 satirini korur
 - banknot update request'inde `banknoteMovements` bos gonderilirse mevcut banknot satirlari temizlenebilir
+- banknot update sonrasi backend `PaymentTypeID = 500` nakit toplam satirini ve ilgili cari hareket toplamlarini yeni belge toplamiyla gunceller
 - `DELETE` cagrisinda `warehouseNo` body'den alinmaz; JWT deposu kullanilir
 
 Detay update request:
@@ -6689,12 +8879,12 @@ Detay update request:
 {
   "details": [
     {
-      "typeName": "Nakit",
+      "typeName": "Akbank POS",
       "paymentTypeId": 1,
-      "accountCode": "",
-      "slipNumber": 0,
-      "amount": 12000,
-      "terminalId": "",
+      "accountCode": "POS-AKBANK",
+      "slipNumber": 12,
+      "amount": 2500,
+      "terminalId": "TERM-01",
       "description": ""
     }
   ]
@@ -6707,8 +8897,8 @@ Detay update response:
 {
   "documentSerie": "KS110",
   "documentOrderNo": 12,
-  "updatedLineCount": 1,
-  "totalAmount": 12000
+  "updatedLineCount": 2,
+  "totalAmount": 6500
 }
 ```
 
@@ -6801,29 +8991,16 @@ Bu endpoint iskelet olarak acildi. Is kurali ve Mikro veritabani entegrasyonu so
 - `PUT /api/iade-islemleri/depo-iadeleri/{id}`
 - `PUT /api/iade-islemleri/firma-iadeleri/{id}`
 
-### Entegrasyon Islemleri
+### Stok Islemleri
 
-- `GET /api/entegrasyon-islemleri/pos-muhasebe-aktarimi`
-- `GET /api/entegrasyon-islemleri/pos-muhasebe-aktarimi/z-raporlari`
-- `GET /api/entegrasyon-islemleri/pos-muhasebe-aktarimi/z-raporlari/{totalId}`
-- `POST /api/entegrasyon-islemleri/pos-muhasebe-aktarimi/z-raporlari/ice-aktar`
-- `POST /api/entegrasyon-islemleri/pos-muhasebe-aktarimi/z-raporlari/erpye-gonder`
-- `DELETE /api/entegrasyon-islemleri/pos-muhasebe-aktarimi/z-raporlari`
-- `GET /api/entegrasyon-islemleri/pos-muhasebe-aktarimi/pos-faturalar`
-- `GET /api/entegrasyon-islemleri/pos-muhasebe-aktarimi/pos-faturalar/{invoiceId}`
-- `POST /api/entegrasyon-islemleri/pos-muhasebe-aktarimi/pos-faturalar/ice-aktar`
-- `POST /api/entegrasyon-islemleri/pos-muhasebe-aktarimi/pos-faturalar/erpye-gonder`
-- `PUT /api/entegrasyon-islemleri/pos-muhasebe-aktarimi/pos-faturalar/{invoiceId}`
-- `DELETE /api/entegrasyon-islemleri/pos-muhasebe-aktarimi/pos-faturalar`
-- `GET /api/entegrasyon-islemleri/pos-muhasebe-aktarimi/gider-pusulalari`
-- `GET /api/entegrasyon-islemleri/pos-muhasebe-aktarimi/gider-pusulalari/{expenseId}`
-- `POST /api/entegrasyon-islemleri/pos-muhasebe-aktarimi/gider-pusulalari/ice-aktar`
-- `POST /api/entegrasyon-islemleri/pos-muhasebe-aktarimi/gider-pusulalari/erpye-gonder`
-- `PUT /api/entegrasyon-islemleri/pos-muhasebe-aktarimi/gider-pusulalari/{expenseId}`
-- `DELETE /api/entegrasyon-islemleri/pos-muhasebe-aktarimi/gider-pusulalari`
-- `GET /api/entegrasyon-islemleri/pos-muhasebe-aktarimi/kasa-eslemeleri`
-- `POST /api/entegrasyon-islemleri/pos-muhasebe-aktarimi/kasa-eslemeleri`
-- `PUT /api/entegrasyon-islemleri/pos-muhasebe-aktarimi/kasa-eslemeleri/{mappingId}`
+- `PUT /api/stok-islemleri/zayiat-fisleri/{id}`
+- `PUT /api/stok-islemleri/masraf-fisleri/{id}`
+- `PUT /api/stok-islemleri/sayim-sonuclari/{id}`
+- `PUT /api/stok-islemleri/virmanlar/{id}`
+
+### Kasa Islemleri
+
+- `PUT /api/kasa-islemleri/etiket-belgeleri/{id}`
 
 ## UI Isleyis Semasi
 
@@ -6844,13 +9021,14 @@ Home / Sikayet Oneri Kutusu
   -> body'ye kullanici/depo bilgisi koyma; backend JWT claim'lerinden doldurur
 
 Ortak Islemler / Sikayet Oneri Yonetimi
-  -> menu permission'i: ortak-islemler.sikayet-oneri.list veya list-all
-  -> Administrator rolu tum kayitlari ve aksiyonlari gorur
-  -> list-all yoksa liste/detay/guncelleme kullanicinin JWT deposuyla sinirlanir
+  -> menu permission'i: ortak-islemler.sikayet-oneri.list veya list-all kullanilabilir
+  -> tum depo/kapsam gerekiyorsa ilgili menunun `*.all-warehouses` yetkisi kontrol edilir
+  -> admin olmayan kullanici sadece kendi actigi kayitlari liste/detay olarak gorur
+  -> admin olmayan kullanici okundu, durum veya admin notu guncelleyemez
   -> liste icin GET /api/yonetim/sikayet-oneri veya /api/ortak-islemler/sikayet-oneri
   -> satir detay icin GET /api/yonetim/sikayet-oneri/{id}
-  -> okundu isareti icin PATCH /api/yonetim/sikayet-oneri/{id}/okundu
-  -> durum/not guncelleme icin PATCH /api/yonetim/sikayet-oneri/{id}/durum
+  -> admin okundu isareti icin PATCH /api/yonetim/sikayet-oneri/{id}/okundu
+  -> admin durum/not guncelleme icin PATCH /api/yonetim/sikayet-oneri/{id}/durum
 
 Arama Islemleri / Fiyat Gor
   -> barkod, stok kodu veya stok adi ile GET /api/arama-islemleri/fiyat-gor
@@ -6879,6 +9057,20 @@ Siparis Islemleri / Verilen Firma Siparisleri
   -> GET /api/siparis-islemleri/verilen-firma-siparisleri
   -> kullanici satira tiklar
   -> GET /api/siparis-islemleri/verilen-firma-siparisleri/{seri}/{sira}
+
+Siparis Islemleri / Onerilen Depo Siparisleri
+  -> kullanici kaynak depo secer
+  -> GET /api/siparis-islemleri/onerilen-depo-siparisleri?SourceWarehouseNo=...
+  -> liste satirlarini SuggestedWarehouseOrderListItemDto ile goster
+  -> kullanici satirlari secer ve miktarlari duzenler
+  -> POST /api/siparis-islemleri/onerilen-depo-siparisleri/convert-to-order
+
+Siparis Islemleri / Onerilen Firma Siparisleri
+  -> kullanici firma/tedarikci secer
+  -> GET /api/siparis-islemleri/onerilen-firma-siparisleri?SupplierCode=...
+  -> liste satirlarini SuggestedCompanyOrderListItemDto ile goster
+  -> kullanici satirlari secer ve miktarlari duzenler
+  -> POST /api/siparis-islemleri/onerilen-firma-siparisleri/convert-to-order
 
 Siparis Islemleri / Alinan Firma Siparisleri
   -> liste filtreleri: tarih araligi, opsiyonel depo
@@ -7043,14 +9235,17 @@ Iade Islemleri / Depo Iadeleri
 Kasa Islemleri / Kasa Sayimlari
   -> ekran acilisinda o gunun belge listesi icin GET /api/kasa-islemleri/kasa-sayimlari?dateToGet=...
   -> ust rapor kartlari icin GET /api/kasa-islemleri/kasa-sayimlari/rapor?dateToGet=...
-  -> lookup alanlari icin kasiyer, kasa, odeme tipi ve banknot tipi endpointlerini paralel cagir
+  -> bu gorev sadece goruntuleme/listeleme icindir; icmal girisi butonu burada permission olarak cizilmemelidir
   -> kullanici satira tiklar
   -> GET /api/kasa-islemleri/kasa-sayimlari/{seri}/{sira}
   -> gerekiyorsa banknot ve hediye ceki detaylarini ayri sekmelerde
   -> GET /api/kasa-islemleri/kasa-sayimlari/{seri}/{sira}/banknot-hareketleri
   -> GET /api/kasa-islemleri/kasa-sayimlari/{seri}/{sira}/hediye-ceki-hareketleri
-  -> Z rapor karsilastirmasi icin GET /api/kasa-islemleri/kasa-sayimlari/z-rapor-toplam?... 
-  -> kullanici 'Yeni Kasa Sayimi' derse create ekranina gecer
+
+Kasa Islemleri / Icmal Kaydi Girisi
+  -> UI bu gorevi Kasa Sayimlari'ndan ayri menu/task olarak gostermelidir
+  -> lookup alanlari icin kasiyer, kasa, odeme tipi ve banknot tipi endpointlerini paralel cagir
+  -> Z rapor karsilastirmasi icin GET /api/kasa-islemleri/kasa-sayimlari/z-rapor-toplam?...
   -> kaydetmek icin POST /api/kasa-islemleri/kasa-sayimlari
   -> detay duzenleme icin PUT /api/kasa-islemleri/kasa-sayimlari/{seri}/{sira}/detaylar
   -> banknot duzenleme icin PUT /api/kasa-islemleri/kasa-sayimlari/{seri}/{sira}/banknot-hareketleri
@@ -7092,7 +9287,7 @@ Kasa Islemleri / Kasa Hareket Aktarimi
 
 ## Fatura Islemleri
 
-Bu bolum 2026-06-19 tarihinde kaynak kod uzerinden yeniden dogrulanmistir.
+Bu bolum 2026-07-06 tarihinde kaynak kod uzerinden yeniden dogrulanmistir.
 
 Kodla dogrulanan ana dosyalar:
 
@@ -7111,9 +9306,10 @@ Bu bolumde daha once karisiklik yaratan nokta, is kurali ile mevcut HTTP endpoin
 - `fatura-gonderimi`
   - Mikro tarafinda bekleyen e-fatura / e-arsiv kayitlarini listeler
   - secilen faturadan UBL invoice uretir
-  - onizleme icin HTML render eder
+  - gonderilmemis faturalarin onizlemesi icin lokal HTML render eder
+  - gonderilmis faturalarin resmi PDF'ini Uyumsoft outbox servisinden alir
   - secilen belgeleri Uyumsoft `SendInvoice` ile gonderir
-  - basarili cevapta donen belge numarasini tekrar Mikro `cha_belge_no` alanina yazar ve kaydi kilitler
+  - basarili cevapta donen belge numarasini Mikro `cha_belge_no`, ETTN degerini `cha_uuid` alanina yazar ve kaydi kilitler
 - `fatura-goruntuleme`
   - eski `Furpa.FaturaGoruntulemeWinUI` parity'sini korur; listeyi artik Auth/PostgreSQL icindeki `uyumsoft_inbox_invoices` cache tablosundan okur
   - varsayilan belge acmada Uyumsoft `GetInboxInvoicePdf` ile PDF datasini alir
@@ -7122,8 +9318,8 @@ Bu bolumde daha once karisiklik yaratan nokta, is kurali ile mevcut HTTP endpoin
 
 UI tarafinda karistirilmamasi gereken net kural:
 
-- `fatura-gonderimi`, giden faturalarin ekranidir. Satir `isSent = false` veya `isSent = true` olsa da UI sadece lokal HTML onizleme acar.
-- `fatura-gonderimi` listesinde Uyumsoft resmi PDF acma aksiyonu yoktur; Mikro kaynakta Uyumsoft teknik `invoiceId` kalici saklanmadigi icin gonderilmis giden faturalar Uyumsoft PDF endpointinden cozumlenmez.
+- `fatura-gonderimi`, giden faturalarin ekranidir. `isSent = false` satirlar lokal HTML onizleme, `isSent = true` satirlar Uyumsoft resmi PDF kullanir.
+- Gonderilmis satirin PDF lookup anahtari once Mikro `cha_uuid` (ETTN), bu alan bossa geriye uyumluluk icin `cha_Guid` degeridir.
 - `fatura-goruntuleme`, gelen/inbox faturalari ve cache listesidir. Giden fatura PDF aksiyonunun ana yolu degildir.
 
 `fatura-gonderimi` tarafinda eldeki herhangi bir XML'i manuel preview etme endpoint'i ayrica acik tutulmustur.
@@ -7134,14 +9330,17 @@ Mevcut API'yi kullanarak ilerleyecekseniz akisi su sekilde okuyun:
 
 1. Giden faturalari listelemek icin `GET /api/fatura-islemleri/fatura-gonderimi`
 2. Liste varsayilan olarak `isSent=0` ile gonderilmemisleri getirir. `isSent=1` gonderilmis giden faturalar icindir.
-3. Kullanici herhangi bir giden fatura satirinda lokal onizleme acmak istediginde:
+3. Kullanici gonderilmemis (`isSent = false`) giden fatura satirinda lokal onizleme acmak istediginde:
    - default davranis yeterliyse `GET /api/fatura-islemleri/fatura-gonderimi/{documentSerie}/{documentOrderNo}?scenario=...`
    - XSLT secimini elle kontrol etmek istiyorsaniz `POST /api/fatura-islemleri/fatura-gonderimi/{documentSerie}/{documentOrderNo}/render`
    - UI response icindeki yalnizca `document.htmlContent` alanini tek bir iframe/webview icinde render eder
    - UI ayrica QR/karekod uretmez; karekodun tek kaynagi secilen XSLT'nin urettigi HTML'dir
-4. Giden fatura satirinda resmi PDF butonu gosterilmez; Uyumsoft outbox/PDF endpoint'i cagrilmaz.
+4. Kullanici gonderilmis (`isSent = true`) giden fatura satirini actiginda `GET /api/fatura-islemleri/fatura-gonderimi/{documentSerie}/{documentOrderNo}/pdf?scenario=...` cagrilir ve `application/pdf` response blob olarak gosterilir.
 5. Secilen gonderilmemis faturalarin gonderime hazir olup olmadigini canli gonderim yapmadan kontrol etmek icin `POST /api/fatura-islemleri/fatura-gonderimi/validate`
 6. Kontrol sonucu uygunsa secilen gonderilmemis faturalari canli Uyumsoft'a gondermek icin `POST /api/fatura-islemleri/fatura-gonderimi/send`
+   - `send` endpoint'i hiz icin `/validate` kontrolunu tekrar calistirmaz; UI "Kontrol Et" butonunu ayri aksiyon olarak sunmalidir
+   - backend ayni belge icin eszamanli ikinci `send` istegini Uyumsoft'a gitmeden durdurur; UI bu durumda satir bazli hata mesajini gosterip ilk istegin sonucunu beklemelidir
+   - daha once Uyumsoft'a gonderilmis fakat yeniden kuyruÄŸa alinmasi gereken faturalar icin ayri olarak `POST /api/fatura-islemleri/fatura-gonderimi/retry` kullanilir
 7. Gelen/inbox faturalari icin secilen tarih araligini Uyumsoft'tan cache tabloya almak gerekirse `POST /api/fatura-islemleri/fatura-goruntuleme/senkronize`
 8. Gelen/inbox cache listesini okumak icin `GET /api/fatura-islemleri/fatura-goruntuleme`
 9. Gelen/inbox resmi PDF icin `GET /api/fatura-islemleri/fatura-goruntuleme/{documentId}` veya `/pdf` alias'i kullanilir.
@@ -7180,10 +9379,15 @@ Not:
 
 - yeni davranisla birlikte `GET /api/fatura-islemleri/fatura-goruntuleme` artik yalnizca DB/cache okur
 - yeni eklendi: Uyumsoft tarih araligi senkronizasyonu ayri endpoint olan `POST /api/fatura-islemleri/fatura-goruntuleme/senkronize` ile yapilir
+- arama metni veya net metin arama parametresi doluysa liste tarih filtresi uygulanmaz; fatura/irsaliye/ETTN no bilinen kayit tum cache icinde aranir
 
 Kisa ornek:
 
-`GET /api/fatura-islemleri/fatura-goruntuleme?StartDate=2026-05-01&EndDate=2026-05-05&isProcessed=-1&isPrinted=-1&SearchField=InvoiceId&SearchText=INV-2026&page=1&PageSize=50`
+`GET /api/fatura-islemleri/fatura-goruntuleme?StartDate=2026-05-01&EndDate=2026-05-05&isProcessed=-1&isPrinted=-1&invoiceId=KEF2026&page=1&PageSize=50`
+
+Irsaliye no ile fatura bulma:
+
+`GET /api/fatura-islemleri/fatura-goruntuleme?StartDate=2026-07-01&EndDate=2026-07-31&despatchId=KEI2026000004237`
 
 Geriye uyumlu ornek:
 
@@ -7202,11 +9406,22 @@ isProcessed     opsiyonel; UI icin onerilen alias, -1=tumu, 1=true, 0=false
 ProcessedState  opsiyonel; legacy alias, -1=tumu, 1=true, 0=false
 isPrinted       opsiyonel; UI icin onerilen alias, -1=tumu, 1=true, 0=false
 PrintedState    opsiyonel; legacy alias, -1=tumu, 1=true, 0=false
-SearchField     opsiyonel; InvoiceDate, InvoiceId, CustomerTitle, CustomerTcknVkn, InvoiceTotal, DespatchId
-SearchText      opsiyonel; SearchField verildiyse legacy arama semantigiyle uygulanir
+invoiceId       opsiyonel; fatura no/resmi belge no contains arama. Alias: invoiceNo
+despatchId      opsiyonel; irsaliye no contains arama. Alias: despatchNo
+customerTitle   opsiyonel; musteri/tedarikci unvani contains arama
+customerTcknVkn opsiyonel; VKN/TCKN contains arama. Alias: tcknVkn
+documentId      opsiyonel; Uyumsoft teknik UUID/ETTN contains arama. Alias: ettn
+orderDocumentId opsiyonel; siparis/order referansi contains arama
+status          opsiyonel; status, statusCode veya envelopeStatusCode icinde contains arama
+invoiceType     opsiyonel; fatura tipi contains arama
+minInvoiceTotal opsiyonel; toplam tutar alt siniri
+maxInvoiceTotal opsiyonel; toplam tutar ust siniri
+hasDespatchId   opsiyonel; true=irsaliyeli faturalar, false=irsaliye no bos olanlar
+SearchField     opsiyonel; InvoiceDate, InvoiceId, DocumentId, CustomerTitle, CustomerTcknVkn, InvoiceTotal, DespatchId, Any, Status, InvoiceType, EnvelopeIdentifier, OrderDocumentId, Message
+SearchText      opsiyonel; SearchField verilmezse genel arama olarak uygulanir
 page            opsiyonel; UI icin onerilen alias, default 1
 PageNumber      opsiyonel; default 1
-PageSize        opsiyonel; default 50, max 500
+PageSize        opsiyonel; geriye uyumluluk icin kabul edilir, liste sonucu artik PageSize ile kesilmez
 ```
 
 UI notu:
@@ -7214,6 +9429,11 @@ UI notu:
 - yeni UI gelistirmelerinde `isProcessed`, `isPrinted` ve `page` kullanilmasi tavsiye edilir
 - eski istemciler icin `ProcessedState`, `PrintedState` ve `PageNumber` hala desteklenir
 - ayni request'te hem yeni hem eski alias gonderilirse yeni aliaslar (`isProcessed`, `isPrinted`, `page`) oncelikli kabul edilir
+- arama alani bossa listeleme `StartDate` / `EndDate` araligina gore yapilir; `SearchText`, `invoiceId/invoiceNo`, `despatchId/despatchNo`, `customerTitle`, `customerTcknVkn/tcknVkn`, `documentId/ettn`, `orderDocumentId`, `status` veya `invoiceType` doluysa tarih filtresi devre disi kalir
+- filtreleme iki asamali dusunulmelidir:
+  - backend filtreleri tarih araligindaki genis veri setini daraltir ve DB/cache uzerinden calisir
+  - frontend/grid filtreleri backend'den donen aday set uzerinde anlik lokal filtreleme yapar
+- kullanici elindeki irsaliye, fatura no, VKN/TCKN veya unvanla fatura bulacaksa once backend'e ilgili net query parametresi gonderilmelidir; UI ekrani bunun uzerine lokal filtre uygulayabilir
 
 Response `InvoiceViewingListResponse`:
 
@@ -7221,7 +9441,7 @@ Response `InvoiceViewingListResponse`:
 {
   "totalCount": 245,
   "pageNumber": 1,
-  "pageSize": 50,
+  "pageSize": 245,
   "items": [
     {
       "documentId": "9d6e0f84-3d3c-4c58-a1b0-4c0f8f4fd999",
@@ -7237,7 +9457,19 @@ Response `InvoiceViewingListResponse`:
       "isPrinted": false,
       "isStandard": false,
       "statusCode": "1000",
-      "status": "Onaylandi"
+      "status": "Onaylandi",
+      "envelopeIdentifier": "urn:mail:...",
+      "envelopeStatusCode": "1000",
+      "message": "",
+      "taxTotal": 250.15,
+      "taxExclusiveAmount": 1000.60,
+      "documentCurrencyCode": "TRY",
+      "exchangeRate": 1,
+      "orderDocumentId": "IRS202600001",
+      "isArchived": false,
+      "invoiceTipType": "Temel",
+      "invoiceTipTypeCode": 0,
+      "isSeen": true
     }
   ]
 }
@@ -7247,34 +9479,69 @@ Liste davranisi:
 
 - temel kaynak Auth/PostgreSQL icindeki `uyumsoft_inbox_invoices` tablosudur
 - `GET /api/fatura-islemleri/fatura-goruntuleme` otomatik Uyumsoft cagrisi yapmaz; sadece lokal cache/DB sonucunu doner
-- yeni eklendi: `POST /api/fatura-islemleri/fatura-goruntuleme/senkronize` endpoint'i secilen tarih araligini Uyumsoft `GetInboxInvoiceList` operasyonu ile cache tabloya upsert eder
+- yeni eklendi: `POST /api/fatura-islemleri/fatura-goruntuleme/senkronize` endpoint'i secilen tarih araligini Uyumsoft `GetInboxInvoices` operasyonu ile cache tabloya upsert eder
 - legacy `GetInvoicesAsync(isProcessed, isPrinted)` akisindaki gibi tarih + islenme + yazdirilma filtresi uygulanir
-- tarih filtresi `invoiceDate` veya fallback olarak `createDate` alanina uygulanir
+- arama kriteri doluysa tarih kosulu uygulanmaz; `isProcessed` ve `isPrinted` filtreleri yine uygulanmaya devam eder
+- `invoiceDate` Uyumsoft full UBL icindeki `Invoice.IssueDate` (Fatura Tarihi) alanindan, `createDate` ise `InvoiceInfo.CreateDateUtc` alanindan doldurulur
+- Uyumsoft kaynak sorgusu teknik olarak `ExecutionStartDate` / `ExecutionEndDate` ile calisir; bu nedenle senkronizasyon Uyumsoft'u secilen bitis tarihinden sonra da konfigurasyon kadar ileri tarar, cache'e alinacak asil is kaydi ise sonradan `invoiceDate` / Fatura Tarihi ile daraltilir
+- senkron request'indeki tarih araligi Uyumsoft'tan cekilen kayitlara `invoiceDate` uzerinden tekrar uygulanir; bu nedenle DB'ye yalnizca Fatura Tarihi secilen aralikta olan belgeler yazilir
+- liste tarih filtresi `invoiceDate` veya bu alan yoksa fallback olarak `createDate` alanina uygulanir
 - tarih araligi gun seviyesindedir; bitis tarihi SQL tarafinda `+1 gun exclusive` mantigi ile uygulanir
 - `documentId` bu listedeki Uyumsoft teknik UUID/operasyon anahtaridir; UI row key, PDF, detay, render ve printed isteklerinde bunu aynen kullanir
 - `invoiceId` kullaniciya gosterilecek resmi fatura numarasidir; route parametresi olarak kullanilmaz
 - `ProcessedState` ve `PrintedState` legacy WinForms'taki gibi tri-state filtre davranisi saglar
 - `customerTitle` response'a buyuk harfe cevrilmis gelir
 - DB tarafindaki kolon `isStandart` olsa da API response'unda alan `isStandard` olarak gelir
-- `statusCode` ham DB degeridir; `status` ise UI'de direkt gosterebileceginiz aciklama metnidir
-- `status` mapping'i:
+- `statusCode`, `status`, `envelopeStatusCode` ve durum `message` alani `includeStatuses=true` senkronizasyonunda Uyumsoft `GetInboxInvoiceStatusWithLogs` cevabindan cache'e yazilir
+- `statusCode` ham Uyumsoft durum kodudur; `status` ise Uyumsoft durum enum'undan Turkce UI metnine cevrilir ve ekranda direkt gosterilebilir
+- `despatchId` yalnizca Uyumsoft `GetInboxInvoices` full UBL cevabindaki `Invoice.DespatchDocumentReference[].ID` alanindan okunur; senkron sirasinda kayit basina ek `GetInboxInvoice` cagrisi yapilmaz
+- `orderDocumentId` ayri siparis/order referansi alanidir; irsaliye numarasi gibi kullanilmamalidir
+- `orderDocumentId`, `envelopeIdentifier`, `message`, vergi toplam/tutar, doviz, arsiv ve goruldu bilgileri Uyumsoft inbox cache tablosunda ayrica saklanir
+- temel `status` mapping'leri:
+  - `NotPrepared` -> `Hazirlanmadi`
+  - `NotSend` -> `Gonderilmedi`
+  - `Draft` -> `Taslak`
+  - `Canceled` -> `Iptal Edildi`
+  - `Queued` -> `Kuyrukta`
+  - `Processing` -> `Isleniyor`
+  - `SentToGib` -> `GIB'e Gonderildi`
+  - `Approved` / `1000` -> `Onaylandi`
+  - `WaitingForAprovement` / `1100` -> `Onay Bekliyor`
+  - `Declined` / `1200` -> `Reddedildi`
+  - `Return` / `1300` -> `Iade Edildi`
+  - `EArchivedCanceled` / `1400` -> `E-Arsiv Iptal`
+  - `Error` / `2000` -> `Hata`
+- eski/eksik cache kayitlarinda `status` bos ise kod tabanli fallback mapping'i kullanilir:
   - `1000` -> `Onaylandi`
   - `1100` -> `Onay Bekliyor`
   - `1200` -> `Reddedildi`
   - `1300` -> `Iade Edildi`
   - `1400` -> `E-Arsiv Iptal`
   - diger -> `Bilinmiyor`
-- SQL tarafinda yalniz tarih + processed + printed filtreleri uygulanir
-- arama semantigi legacy ile uyumludur ve SQL'den gelen sonuc seti uzerinde, paging'den once bellek tarafinda uygulanir:
+- SQL tarafinda processed + printed + net query filtreleri uygulanir; tarih filtresi yalnizca net metin arama kriteri yoksa eklenir:
+  - `invoiceId` / `invoiceNo`
+  - `despatchId` / `despatchNo`
+  - `customerTitle`
+  - `customerTcknVkn` / `tcknVkn`
+  - `documentId` / `ettn`
+  - `orderDocumentId`
+  - `status`
+  - `invoiceType`
+  - `minInvoiceTotal`, `maxInvoiceTotal`
+  - `hasDespatchId`
+- `SearchField`/`SearchText` ikinci backend arama katmanidir; kayitlar materialize edilmeden once DB/SQL tarafinda uygulanir:
   - `InvoiceDate` -> exact date
   - `InvoiceId` -> contains, case-insensitive
+  - `DocumentId` -> contains, case-insensitive
   - `CustomerTitle` -> contains, case-insensitive
   - `CustomerTcknVkn` -> contains
   - `InvoiceTotal` -> exact decimal
   - `DespatchId` -> contains, case-insensitive
-- paging de legacy davranisa yakin olacak sekilde aramadan sonra uygulanir; su an SQL `OFFSET/FETCH` yerine API katmani `Skip/Take` kullanir
-- bu nedenle mevcut implementasyon "tam server-side paging" degil, "SQL filtre + memory search + memory page" davranisindadir
-- bu, WinUI'daki `invoiceList` / `filteredList` + `PagedList` mantiginin API karsiligidir
+  - `Status` -> `status`, `statusCode`, `envelopeStatusCode` icinde contains
+  - `InvoiceType`, `EnvelopeIdentifier`, `OrderDocumentId`, `Message` -> contains
+  - `Any` veya bos `SearchField` -> temel metin alanlari + tarih/toplam yakalarsa exact karsilastirma
+- paging limiti kaldirilmistir; endpoint tarih/processed/printed/search sonucunun tamamini doner, response'ta `pageNumber=1` ve `pageSize=totalCount` gelir
+- bu, WinUI'daki `invoiceList` / `filteredList` mantiginin API karsiligidir
 - eski WinUI'daki Excel export davranisi bu endpoint grubuna server-side olarak tasinmamistir; export ihtiyaci varsa UI kendi yukledigi veriyi kullanmali veya ayrica export endpoint'i tasarlanmalidir
 
 ### Fatura Goruntuleme Manuel Senkronizasyon
@@ -7282,7 +9549,8 @@ Liste davranisi:
 Yeni eklendi:
 
 - bu endpoint listeyi donmez; yalnizca secilen tarih araligini Uyumsoft'tan cache tabloya senkronize eder
-- UI tarafinda tipik akis `POST /senkronize` sonra `GET /fatura-goruntuleme` seklinde olmalidir
+- UI tarafinda tipik akis `POST /senkronize`, `GET /senkronize/progress` ile izleme, tamamlaninca `GET /fatura-goruntuleme` seklinde olmalidir
+- `POST /senkronize` uzun HTTP istegi olarak beklemez; isi arka plana alir ve hemen `202 Accepted` doner
 
 `POST /api/fatura-islemleri/fatura-goruntuleme/senkronize`
 
@@ -7295,20 +9563,128 @@ Request body:
 ```json
 {
   "startDate": "2026-05-01",
-  "endDate": "2026-05-05"
+  "endDate": "2026-05-05",
+  "includeStatuses": false
 }
 ```
 
-Response:
+Not: `includeStatuses` gonderilmezse varsayilan `false` kabul edilir.
 
-- `204 NoContent`
+Response `202 Accepted`:
+
+```json
+{
+  "isRunning": true,
+  "status": "queued",
+  "startDate": "2026-05-01T00:00:00",
+  "endDate": "2026-05-05T00:00:00",
+  "includeStatuses": false,
+  "queryStartDate": null,
+  "queryEndDate": null,
+  "pageIndex": 0,
+  "pageNumber": 0,
+  "pageSize": 20,
+  "totalCount": 0,
+  "totalPage": 0,
+  "fetchedCount": 0,
+  "matchedCount": 0,
+  "insertedCount": 0,
+  "updatedCount": 0,
+  "lastPageItemCount": 0,
+  "lastPageMatchedCount": 0,
+  "lastPageInsertedCount": 0,
+  "lastPageUpdatedCount": 0,
+  "progressPercent": 0,
+  "startedAtUtc": "2026-07-17T12:30:00Z",
+  "lastUpdatedAtUtc": "2026-07-17T12:30:00Z",
+  "finishedAtUtc": null,
+  "elapsedMs": 0,
+  "message": "Senkronizasyon siraya alindi."
+}
+```
+
+Progress endpoint:
+
+`GET /api/fatura-islemleri/fatura-goruntuleme/senkronize/progress`
+
+Yetki:
+
+- `fatura-islemleri.fatura-goruntuleme.list`
+
+Response `200 OK`:
+
+```json
+{
+  "isRunning": true,
+  "status": "running",
+  "startDate": "2026-07-16T00:00:00",
+  "endDate": "2026-07-16T00:00:00",
+  "includeStatuses": false,
+  "queryStartDate": "2026-07-16T00:00:00",
+  "queryEndDate": "2026-07-17T00:00:00",
+  "pageIndex": 18,
+  "pageNumber": 19,
+  "pageSize": 20,
+  "totalCount": 445,
+  "totalPage": 23,
+  "fetchedCount": 380,
+  "matchedCount": 130,
+  "insertedCount": 3,
+  "updatedCount": 127,
+  "lastPageItemCount": 20,
+  "lastPageMatchedCount": 6,
+  "lastPageInsertedCount": 0,
+  "lastPageUpdatedCount": 6,
+  "progressPercent": 82.61,
+  "startedAtUtc": "2026-07-17T08:30:00Z",
+  "lastUpdatedAtUtc": "2026-07-17T08:31:15Z",
+  "finishedAtUtc": null,
+  "elapsedMs": 75000,
+  "message": "Sayfa 19/23 islendi."
+}
+```
+
+UI akis onerisi:
+
+- `POST /senkronize` `202 Accepted` donunce ekranda loading/progress paneli acilir
+- UI her 1-2 saniyede bir `GET /senkronize/progress` cagirir
+- `status=queued` veya `status=running` iken `progressPercent`, `pageNumber/totalPage`, `fetchedCount`, `matchedCount`, `insertedCount`, `updatedCount` gosterilebilir
+- `status=completed` veya `status=failed` oldugunda polling durdurulur
+- final `sourceTotalCount/fetchedCount/matchedCount/insertedCount/updatedCount` bilgisi artik progress response'undaki `completed` durumunda okunur
+- progress bilgisi API process hafizasinda tutulur; API yeniden baslarsa `idle` durumuna doner
+
+UI hata yonetimi notu:
+
+- Uyumsoft'a giden senkronizasyon, PDF, detail/render, gonderim/retry ve e-irsaliye PDF isteklerinde dis servis hatalari standart `ProblemDetails` olarak doner
+- `502 Bad Gateway`: API Uyumsoft servisine baglanti kuramadi veya upstream HTTP istegi basarisiz oldu; UI bunu genel backend hatasi gibi degil "Uyumsoft servisine ulasilamiyor" olarak gostermelidir
+- `504 Gateway Timeout`: Uyumsoft istegi zaman asimina ugradi; UI kullaniciya tekrar deneme, daha kucuk tarih araligi secme veya daha sonra deneme mesaji vermelidir
+- `500 Internal Server Error`: beklenmeyen backend hatasi olarak ele alinmalidir; Uyumsoft baglanti/zaman asimi icin birincil durum artik 502/504'tur
+- UI hata mesajini `ProblemDetails.detail` alanindan okumali, destek/log takibi icin `ProblemDetails.extensions.correlationId` degerini saklamali veya ekranda kopyalanabilir gostermelidir
+- `GET /senkronize/progress` response'unda `status=failed` ise UI `message` alanini kullaniciya gostermeli ve polling'i durdurmalidir
 
 Davranis:
 
-- secilen tarih araligini Uyumsoft `GetInboxInvoiceList` ile okur
+- secilen tarih araligi UI ve DB icin Fatura Tarihi araligidir; Uyumsoft sorgusu ise `ExecutionStartDate = startDate`, `ExecutionEndDate = min(endDate + FaturaGoruntuleme:SynchronizationExecutionLookAheadDays gun sonu, API sunucusunun su anki zamani)` olarak calisir
+- varsayilan ileri bakis degeri `15` gundur; maksimum `60` gunle sinirlandirilir
+- bunun sebebi Uyumsoft'ta Fatura Tarihi 16.07.2026 olan kaydin, `CreateDateUtc` veya SOAP execution sayfasi 17.07.2026 icinde donebilmesidir
+- Uyumsoft sayfalari `PageIndex = 0, 1, 2...` ve `PageSize = 20` ile `TotalPages` tamamlanana kadar okunur
+- her Uyumsoft sayfasi alindiginda kayitlar once `invoiceDate` / Fatura Tarihi araligina gore suzulur, sonra ilgili sayfa hemen cache tabloya upsert edilir
+- `includeStatuses=false` ise hizli mod kullanilir; sayfa basina ek `GetInboxInvoiceStatusWithLogs` cagrisi yapilmaz
+- `includeStatuses=false` hizli modunda mevcut cache kaydindaki `statusCode`, `status`, `envelopeStatusCode`, `envelopeIdentifier` ve `message` alanlari bos veriyle ezilmez
+- `includeStatuses=true` ise her 20 kayitlik sayfa icin fatura durumlari tek toplu `GetInboxInvoiceStatusWithLogs` istegiyle okunur; fatura basina ayri durum cagrisi yapilmaz
+- `includeStatuses=true` iken `statusCode`, `status`, `envelopeStatusCode` ve durum mesaji bu toplu durum cevabiyla cache'e yazilir; daha once bos kaydedilmis durumlar sonraki senkronizasyonda guncellenir
+- tum sayfalar eksiksiz alindiginda progress `status=completed` olur; Uyumsoft timeout olursa progress `status=failed` olur ama onceki sayfalarda Fatura Tarihi araligina uyan kayitlar cache'e yazilmis olabilir
+- `includeStatuses=true` iken Uyumsoft bir faturaya ait durum bilgisini dondurmezse senkronizasyon eksik veriyi basarili saymaz ve progress `status=failed` olur
 - gelen sonuc `uyumsoft_inbox_invoices` cache tablosuna upsert edilir
+- `sourceTotalCount` Uyumsoft'un genisletilmis execution penceresinde bildirdigi toplam kayit, `fetchedCount` tum sayfalardan gercekten okunan kayit sayisi, `matchedCount` ise secilen Fatura Tarihi araligina uyup cache'e aday olan tekil kayit sayisidir
+- Uyumsoft cagrisi basarisiz olursa progress `status=failed` olur; sessiz basarili sayilmaz
+- Uyumsoft zaman asiminda progress `status=failed` olur; UI kullaniciya daha kucuk tarih araligi denemesini onermelidir
+- Uyumsoft e-fatura WCF timeout degeri `EInvoice:TimeoutSeconds` konfigurasyonuyla yonetilir; varsayilan appsettings degeri `180` saniyedir
+- backend her Uyumsoft sayfasi icin page index, page size, item count, total count, total page ve sure bilgisini loglar; ayrica Fatura Tarihi araligina uyan `MatchedItems` / `MatchedTotal` ve sayfa upsert sayilari loglanir
+- timeout durumunda ayni tarih araligiyla tekrar `POST /senkronize` calistirilirse onceki denemede cache'e yazilmis sayfalar korunur, eksik kalan sayfalardan gelen kayitlar guncellenerek devam eder
 - tekrar eden veya degisiklik icermeyen sayfalar icin koruma vardir; sonsuz donguye girmez
 - sync tamamlandiktan sonra UI ayni tarih araligiyla `GET /api/fatura-islemleri/fatura-goruntuleme` cagirip DB sonucunu alabilir
+- hizli liste yenileme icin UI `includeStatuses=false` kullanmali; kesin durum/log yenilemesi gereken aksiyonlarda `includeStatuses=true` tercih edilmelidir
 
 ### Fatura Goruntuleme PDF
 
@@ -7324,18 +9700,9 @@ Yetki:
 
 Response:
 
-- `UyumsoftOperationResponseDto`
-- Backend Uyumsoft e-fatura `GetInboxInvoicePdf` operasyonunu `invoiceId = documentId` parametresiyle cagirir.
-- PDF payload Uyumsoft response yapisina gore `scalarValue`, `nodes` veya `responsePayloadJson` icinde gelir; UI mevcut entegrasyon endpointindeki `GetInboxInvoicePdf` cevabi gibi yorumlamalidir.
-
-Direkt PDF binary almak isteyen UI ekranlarinda liste satirindaki `documentId` teknik UUID olarak kullanilir:
-
-`GET /api/entegrasyon-islemleri/uyumsoft/e-fatura/inbox/invoices/{documentId}/pdf-file`
-
-Response:
-
 - `Content-Type: application/pdf`
-- `Content-Disposition: inline`
+- Backend Uyumsoft e-fatura `GetInboxInvoicePdf` operasyonunu `invoiceId = documentId` parametresiyle cagirir.
+- Uyumsoft cevabindaki PDF byte dizisi normalize edilir; gecerli `%PDF` imzasi yoksa hata doner.
 - JSON beklenmemelidir; UI yeni sekme, iframe veya blob URL ile dogrudan PDF gosterebilir.
 
 UI uygulama kurali:
@@ -7355,8 +9722,8 @@ Frontend ornegi:
 
 ```ts
 const pdfPath =
-  `/api/entegrasyon-islemleri/uyumsoft/e-fatura/inbox/invoices/` +
-  `${encodeURIComponent(row.documentId)}/pdf-file`;
+  `/api/fatura-islemleri/fatura-goruntuleme/` +
+  `${encodeURIComponent(row.documentId)}/pdf`;
 ```
 
 Bu endpoint ne yapmaz:
@@ -7588,7 +9955,10 @@ Response `InvoiceSendingListResponse`:
       "returnInvoiceNo": "",
       "returnInvoiceDate": null,
       "warehouseName": "MERKEZ DEPO",
-      "description": "Aciklama"
+      "description": "Aciklama",
+      "sourceLineCount": 1,
+      "sourceLineSummary": "",
+      "taxRateSummary": "%20.00"
     },
     {
       "documentSerie": "FRP",
@@ -7613,7 +9983,10 @@ Response `InvoiceSendingListResponse`:
       "returnInvoiceNo": "",
       "returnInvoiceDate": null,
       "warehouseName": "MERKEZ DEPO",
-      "description": ""
+      "description": "",
+      "sourceLineCount": 2,
+      "sourceLineSummary": "0056 - CIRO PRIMI GELIRI % 20 | 0055 - CIRO PRIMI GELIRI % 10",
+      "taxRateSummary": "%20.00 | %10.00"
     }
   ]
 }
@@ -7627,18 +10000,34 @@ Davranis:
 - `InvoiceSendingScenario` JSON response/body degeri sayisaldir: `0 = EFatura`, `1 = EArsiv`; query string tarafinda `EFatura` / `EArsiv` adlari da kullanilabilir
 - `isSent/SentState = 0` ise `cha_belge_no` bos olan kayitlar, `1` ise dolu olan kayitlar, `-1` ise tumu doner
 - `invoiceId` legacy WinForms mantigina uygun sekilde `seri + yil + 9 haneli sira` olarak uretilir
-- `invoiceId`, UBL icindeki `cbc:ID` degeridir; UI bunu PDF URL'si uretmek icin kullanmaz
+- `invoiceId`, UBL icindeki `cbc:ID` degeridir; PDF endpoint path'i icin bunun yerine `documentSerie` ve `documentOrderNo` kullanilir
 - `sentDocumentNo` Mikro `cha_belge_no` alanidir; gonderim sonrasi kullaniciya gosterilen resmi belge numarasidir
-- `isSent = false` ise fatura henuz Uyumsoft'a gonderilmemistir; UI lokal onizleme acar
-- `isSent = true` ise fatura Uyumsoft'a gonderilmis giden faturadir; UI yine lokal onizleme acar
-- giden fatura listesinde resmi Uyumsoft PDF alani/URL'si donmez; mevcut Mikro kaynaginda Uyumsoft teknik `invoiceId` kalici tutulmadigi icin fatura numarasindan PDF cozumleme yapilmaz
-- UI giden fatura ekraninda PDF butonu gostermez ve `invoiceId` / `sentDocumentNo` degerlerinden Uyumsoft PDF URL'si uretmez
+
+Performans notlari:
+
+- Liste endpoint'i hiz icin hafif modda calisir. Stok satiri istisna aramasi, iade referansi lookup'i, hizmet/demirbas satir ozeti ve KDV oran ozeti liste sirasinda hesaplanmaz.
+- Bu agir alanlar detay/render/validate/send gibi belge odakli akislar sirasinda tam modda hesaplanir.
+- UI liste ekraninda `sourceLineSummary`, `taxRateSummary`, `returnInvoiceNo` ve `returnInvoiceDate` alanlarini kesin kaynak gibi kullanmamalidir; kesin kontrol icin detay, iade adaylari veya validate akisi kullanilmalidir.
+- UI mumkunse bu endpoint'i kisa tarih araligi ile cagirmalidir; gunluk listeleme en hizli kullanimdir.
+- UI `isSent` ve `SentState` parametrelerinden sadece birini gondermelidir. Tercih edilen parametre `isSent`tir; ikisi birlikte gelirse backend `isSent` degerini esas alir.
+- `isSent=-1` tum kayitlari getirdigi icin en pahali moddur; ekran varsayilani `isSent=0` veya ihtiyaca gore `isSent=1` olmalidir.
+- Sorgu mevcut Mikro indeksinden yararlanmak icin once `CARI_HESAP_HAREKETLERI.cha_tarihi` ile daraltir, sonra dogruluk icin `cha_belge_tarih` filtresini de uygular.
+- Bu optimizasyon `cha_tarihi` ve `cha_belge_tarih` ayni gun oldugu fatura akisinda guvenlidir; canli kontrolde 2026-07-07 gonderilmis e-fatura setinde farkli tarihli satir bulunmamistir.
+- DBA ile kontrol edilmesi gereken mevcut indeks: `NDX_CARI_HESAP_HAREKETLERI_02 (cha_tarihi)`. Bu indeks kullanilmiyorsa istatistikler ve execution plan incelenmelidir.
+- `STOK_HAREKETLERI.sth_fat_uid` icin modelde indeks gorunuyor; sevkiyat/istisna apply'lari bu indeksten yararlanmalidir. Canli planda bu indeks kullanilmiyorsa istatistikler guncellenmelidir.
+- liste belge bazinda doner; ayni `cha_evrakno_seri` + `cha_evrakno_sira` altindaki birden fazla hizmet/cari hareket satiri tek fatura satirinda toplanir
+- `sourceLineCount`, belge altinda birlesen Mikro kaynak cari hareket satiri sayisidir; hizmet faturalarinda tek fatura icindeki hizmet kalemlerini anlamak icin kullanilir
+- `sourceLineSummary`, hizmet/demirbas kaynakli satirlarda `kod - ad` ozetidir; ornek: `0056 - CIRO PRIMI GELIRI % 20 | 0055 - CIRO PRIMI GELIRI % 10`
+- `taxRateSummary`, kaynak satirlarin Mikro vergi pointer'larindan cozulen KDV oran ozetidir; farkli KDV'li hizmet satirlari ayni faturada gorunebilir
+- `isSent = false` ise UI lokal HTML onizleme endpoint'ini acar
+- `isSent = true` ise UI Uyumsoft outbox PDF endpoint'ini acar
+- PDF URL'si response alanindan uretilmez; secili satirin `documentSerie`, `documentOrderNo` ve `scenario` degerleriyle backend endpoint'i cagrilir
 - `invoiceProfileId` alani:
   - e-fatura icin `TICARIFATURA` veya `TEMELFATURA`
   - e-arsiv icin `EARSIVFATURA`
 - `invoiceTypeCode` alani:
   - `IADE`, `ISTISNA`, `OZELMATRAH`, `SATIS`
-- `serviceDocumentId`, sadece `send` response'unda anlik donen Uyumsoft teknik id'dir; Mikro liste kaynagi bunu kalici saklamadigi icin liste ekraninda bu alana bagimli UI yazilmamalidir
+- `serviceDocumentId`, `send` response'unda donen Uyumsoft ETTN degeridir ve backend bunu Mikro `cha_uuid` alanina yazar; liste DTO'su `cha_uuid` degerini ayrica acmadigi icin UI PDF lookup anahtarini kendisi kurmaz, belge bazli PDF endpoint'ini kullanir
 - iade faturalarinda Mikro `EBELGE_EVRAK_HAREKETLERI` kaydi `ebh_related_uid = CARI_HESAP_HAREKETLERI.cha_Guid` ile baglanir
 - `ebh_iade_fat_no1` ve `ebh_iade_fat_tarihi1` degerleri response'ta `returnInvoiceNo` / `returnInvoiceDate` olarak doner
 - iade referansi doluysa UBL'ye `cac:BillingReference/cac:InvoiceDocumentReference` eklenir; XSLT'deki `Iadeye Konu Olan Faturalar` tablosu bu alandan dolar
@@ -7651,11 +10040,11 @@ function canPreviewSendingInvoice(summary: InvoiceSendingListItemDto | null | un
 }
 ```
 
-Onizleme butonu `isSent` degerine bakmaz; giden faturanin HTML'i Mikro verisinden lokal uretilir. Bu ekranda PDF butonu yoktur.
+UI onizleme aksiyonu `isSent` degerine gore ikiye ayrilir: gonderilmemis satir lokal HTML, gonderilmis satir Uyumsoft PDF acar.
 
-#### Onizleme icin tek kaynak kurali
+#### Gonderilmemis fatura HTML onizlemesi
 
-Gonderilmemis ve gonderilmis giden faturalar ayni lokal onizleme endpoint'ini kullanir:
+Yalniz `isSent = false` satirlar lokal onizleme endpoint'ini kullanir:
 
 ```http
 GET /api/fatura-islemleri/fatura-gonderimi/FRP26/21791?scenario=EFatura
@@ -7680,6 +10069,43 @@ const detail = await api.get<InvoiceSendingDetailDto>(
 );
 
 previewFrame.srcdoc = detail.document.htmlContent;
+```
+
+#### Gonderilmis fatura Uyumsoft PDF
+
+`isSent = true` satirlar icin:
+
+```http
+GET /api/fatura-islemleri/fatura-gonderimi/FRP26/21791/pdf?scenario=EFatura
+Authorization: Bearer {accessToken}
+Accept: application/pdf
+```
+
+Davranis:
+
+- backend faturayi Mikro'dan `documentSerie + documentOrderNo` ile bulur
+- lookup icin once `cha_uuid`, bossa `cha_Guid` kullanilir
+- Uyumsoft `GetOutboxInvoicePdf` cagrilir
+- response JSON degil, `application/pdf` binary veridir
+- Uyumsoft'ta belge/PDF bulunamazsa UI lokal HTML'e sessizce gecmek yerine kullaniciya PDF'in alinamadigini bildirmelidir
+
+```ts
+if (invoice.isSent) {
+  const response = await api.get(
+    `/api/fatura-islemleri/fatura-gonderimi/${encodeURIComponent(invoice.documentSerie)}/${invoice.documentOrderNo}/pdf`,
+    { params: { scenario: invoice.scenario }, responseType: "blob" }
+  );
+
+  const pdfUrl = URL.createObjectURL(response.data);
+  window.open(pdfUrl, "_blank", "noopener,noreferrer");
+} else {
+  const detail = await api.get<InvoiceSendingDetailDto>(
+    `/api/fatura-islemleri/fatura-gonderimi/${encodeURIComponent(invoice.documentSerie)}/${invoice.documentOrderNo}`,
+    { params: { scenario: invoice.scenario } }
+  );
+
+  previewFrame.srcdoc = detail.document.htmlContent;
+}
 ```
 
 Karekod icin kesin UI kurali:
@@ -7999,12 +10425,14 @@ Request `send` endpoint'i ile aynidir.
 
 Davranis:
 
+- `scenario` zorunludur: `0 = EFatura`, `1 = EArsiv`; UI secili satirin `scenario` alanini aynen gondermelidir
 - secilen belgeler tekillestirilir
 - Mikro verisinden UBL XML uretilir
 - iade referansi gerekiyorsa fallback sadece simule edilir, Mikro'ya yazilmaz
 - UBL-TR is kurali ve XSD dogrulamalari calistirilir
 - Uyumsoft'a fatura gonderilmez
 - Mikro `cha_belge_no`, `cha_kilitli` veya baska alanlar guncellenmez
+- bu endpoint UI'daki "Kontrol Et" butonunun karsiligidir; `send` hiz icin bu dogrulamalari tekrar calistirmaz
 
 Response `ValidateInvoiceDocumentsResponse`:
 
@@ -8063,6 +10491,8 @@ Request:
 }
 ```
 
+Not: `scenario` zorunludur. UI e-Arsiv satiri icin `1`, e-Fatura satiri icin `0` gondermelidir; alan bos birakilirsa backend artik varsayilan EFatura kabul etmez.
+
 Response `SendInvoiceDocumentsResponse`:
 
 ```json
@@ -8100,12 +10530,14 @@ Response `SendInvoiceDocumentsResponse`:
 
 Davranis:
 
-- secimler duplicate ise backend tekilleştirir
+- secimler duplicate ise backend tekilleÅŸtirir
 - gonderim Uyumsoft WCF client ile fatura bazli tek tek yapilir; boylece basarili/hatali kayitlar response icinde ayri ayri gorulur
 - her belge icin UBL invoice uretilir ve Uyumsoft `SendInvoice` operasyonu cagrilir
+- hiz icin UBL-TR is kurali ve XSD dogrulamalari burada tekrar calistirilmaz; bu kontroller icin kullanici once `/validate` endpoint'ini cagirir
+- ayni belge icin SQL application lock alinir; ayni belge baska bir istek tarafindan gonderiliyorsa ikinci istek Uyumsoft'a cagrilmaz ve ilgili satir hata mesaji ile doner
 - basarili donuste `serviceDocumentNumber` Mikro `cha_belge_no` alanina yazilir
-- `serviceDocumentId` Uyumsoft'un teknik id'sidir ve send response'unda bilgilendirme icin doner; mevcut Mikro tabloya yazilmadigi icin sonraki liste response'unda garanti edilmez
-- sonraki liste ekraninda UI yine lokal onizleme kullanir; `serviceDocumentId` kalici saklanmadigi icin gonderilmis giden fatura PDF'i Uyumsoft'tan acilmaz
+- `serviceDocumentId` Uyumsoft'un teknik id'sidir; basarili gonderimde Mikro `cha_uuid` alanina yazilir, servis id bos donerse faturanin lokal UUID degeri fallback olarak saklanir
+- sonraki liste ekraninda gonderilmis fatura PDF ve tekrar gonderim aksiyonlari backend tarafinda bu UUID uzerinden cozulur; UI teknik UUID gondermek zorunda degildir
 - ayni anda `cha_kilitli = true`, `cha_degisti = true`, `cha_lastup_user = 39` ve `cha_lastup_date = now` set edilir
 - zaten gonderilmis kayitlar response'ta `isSucceeded = false` ile doner; genel request tamamen patlatilmaz
 
@@ -8124,6 +10556,60 @@ UBL / gonderim kurallari:
 - stok satirlarinda iskonto alanlari `AllowanceCharge` olarak satir bazinda XML'e yazilir
 - `AllowanceCharge/MultiplierFactorNumeric` ondalik katsayi olarak yazilir; ornegin `%3 = 0.03`, `%5 = 0.05`. XSLT ekranda bu degeri `100` ile carparak yuzdeyi gosterir.
 - e-arsiv gonderiminde `EArchiveInvoiceInfo DeliveryType="Electronic"` kullanilir
+
+### Fatura Gonderimi Retry
+
+`POST /api/fatura-islemleri/fatura-gonderimi/retry`
+
+Yetki:
+
+- `fatura-islemleri.fatura-gonderimi.create`
+
+Request, `/send` ile ayni belge secim yapisini kullanir ve tek istekte en fazla 20 belge kabul eder:
+
+```json
+{
+  "scenario": 0,
+  "documents": [
+    {
+      "documentSerie": "FAT",
+      "documentOrderNo": 12345
+    }
+  ]
+}
+```
+
+Response `RetryInvoiceDocumentsResponse`:
+
+```json
+{
+  "scenario": 0,
+  "requestedCount": 1,
+  "succeededCount": 1,
+  "failedCount": 0,
+  "items": [
+    {
+      "documentSerie": "FAT",
+      "documentOrderNo": 12345,
+      "invoiceId": "FAT2026000012345",
+      "serviceInvoiceId": "8f5f...",
+      "isSucceeded": true,
+      "message": "Uyumsoft tekrar gonderim istegini kabul etti."
+    }
+  ]
+}
+```
+
+Davranis:
+
+- bu endpoint ilk gonderim yapmaz ve `/send` akisinin yerine kullanilmaz
+- yalnizca Mikro'da `isSent = true` olan ve `cha_uuid`/Uyumsoft invoiceId bilgisi bulunan belgeler retry edilebilir
+- UI `Tekrar Gonder` aksiyonunu yalnizca `isSent = true` satirlarda gostermelidir
+- UI seri/sira gonderir; `serviceInvoiceId` backend tarafinda Mikro kaydindan cozulur
+- gecerli secimlerin UUID'leri tek toplu Uyumsoft `RetrySendInvoices` operasyonuna verilir
+- Uyumsoft operasyonu batch seviyesinde tek response dondurdugu icin servisin kabul/red sonucu batch icindeki tum gecerli satirlara uygulanir
+- bulunamayan, gonderilmemis veya UUID'si bos belgeler Uyumsoft'a gonderilmez ve item bazinda `isSucceeded = false` doner
+- retry sirasinda UBL yeniden uretilmez, `SendInvoice` cagrilmaz ve Mikro fatura alanlari tekrar guncellenmez
 
 ### Fatura Gonderimi XML Preview
 
@@ -8156,14 +10642,14 @@ Bu endpoint ne zaman kullanilmali:
 
 Fatura modulu notlari:
 
-- is kurali tarafinda sade ozet sunudur: `fatura-gonderimi` giden faturayi lokal onizleme ve bekleyen kaydi Uyumsoft'a yollama akisidir, `fatura-goruntuleme` ise Uyumsoft gelen/inbox faturasini acma/yazdirma akisidir
-- bu repoda `fatura-gonderimi` icin artik dogrudan pending list, detay/render ve send endpointleri vardir
+- is kurali tarafinda sade ozet sunudur: `fatura-gonderimi` gonderilmemis giden faturayi lokal HTML ile, gonderilmis giden faturayi Uyumsoft outbox PDF ile acar; bekleyen kaydi Uyumsoft'a yollar. `fatura-goruntuleme` ise Uyumsoft gelen/inbox faturasini acma/yazdirma akisidir
+- bu repoda `fatura-gonderimi` icin pending list, detay/render, gonderilmis belge PDF ve send endpointleri vardir
 - `fatura-goruntuleme` tarafi artik `uyumsoft_inbox_invoices` cache tablosundan liste alir; varsayilan acista Uyumsoft `GetInboxInvoicePdf` ile PDF datasini, HTML detayda `GetInboxInvoice` ile render datasini alir
 - yeni eklendi: `POST /api/fatura-islemleri/fatura-goruntuleme/senkronize` ile secilen tarih araligi manuel olarak Uyumsoft'tan cache'e alinabilir
 - `fatura-goruntuleme` icinde legacy'deki "goruntule" ve "yazdirildi say" ayrimi artik ayri endpointlerle temsil edilir
 - `GET /{documentId}/detail` ile `POST render` ayni response tipini doner; fark, `POST render` ile XSLT davranisinin override edilebilmesidir
 - `fatura-gonderimi` detail/send akisinda invoice XML Mikro verisinden backend tarafinda yeniden uretilir; UI ham XML kurmak zorunda degildir
-- `fatura-gonderimi` send akisinda basarili sonuclarda Mikro `cha_belge_no` geri yazilir ve kayit kilitlenir
+- `fatura-gonderimi` send akisinda basarili sonuclarda Mikro `cha_belge_no` ve `cha_uuid` geri yazilir, kayit kilitlenir
 - render sirasinda once embedded XSLT denenir; yoksa WebApi icindeki `Assets/Xslt/efatura.xslt` veya `Assets/Xslt/earsiv.xslt` fallback olarak kullanilir
 - ortak renderer artik ek karekod uretmez; fatura-gonderimi ve fatura-goruntuleme HTML'inde karekodun tek kaynagi secilen XSLT'dir
 - `fatura-goruntuleme` PDF/detail lookup anahtari `documentId`'dir; `invoiceId` ise kullaniciya gosterilen numaradir
@@ -8233,6 +10719,7 @@ Legacy farklarini okurken su noktalari esas alinmalidir:
 
 - Hangfire ve SignalR beklentisi yoktur; bu modul application icindeki hosted queue + polling modeliyle calisir
 - `warehouseNo` artik `ClaimTypes.Name` degil, `warehouse_no` claim'inden okunur
+- `operasyon-islemleri.operations.all-warehouses` yoksa dosya olusturma aksiyonlari icin depo sorulmaz; backend JWT icindeki kullanici deposunu kullanir. Bu yetki varsa baska depo icin job baslatilacaksa query'de opsiyonel `warehouseNo` gonderilebilir.
 - `promofile` de yeni kuyruk/polling modeliyle calisir; eski yardimci dosya zinciri job icinde uretilir
 
 Temel route:
@@ -8241,23 +10728,24 @@ Temel route:
 
 Mevcut endpointler:
 
-- `GET /api/operations/scalesfile`
+- `GET /api/operations/scalesfile?warehouseNo=110`
   - terazi dosyasi isi kuyruga alinir
   - response `202 Accepted`
   - body `OperationJobDto`
-- `GET /api/operations/productbarcodeplunofile`
+- `GET /api/operations/productbarcodeplunofile?warehouseNo=110`
   - urun/barcode/PLU dosya isi kuyruga alinir
   - eski uyumluluk icin `GET /api/operations/productbarcodeplonofile` da ayni isi yapar
   - response `202 Accepted`
-- `GET /api/operations/cashierfile`
+- `GET /api/operations/cashierfile?warehouseNo=110`
   - kasiyer ve yetki dosyalari isi kuyruga alinir
   - response `202 Accepted`
-- `GET /api/operations/promofile`
+- `GET /api/operations/promofile?warehouseNo=110`
   - promosyon ve yardimci POS dosyalari isi kuyruga alinir
   - response `202 Accepted`
   - Mayday/UYUM connection stringleri eksikse job `Failed` durumuna duser ve `errorMessage` ile sebep doner
 - `GET /api/operations/jobs/{jobId}`
   - kuyruga atilan isin durumunu dondurur
+  - admin olmayan kullanici baska deponun job detayini okuyamaz
   - response `OperationJobDetailDto`
 - `GET /api/operations/getauthorizationfile`
   - authorization kayitlarini getirir
@@ -8341,11 +10829,842 @@ Authorization file ekran akis onerisi:
 - kaydet aksiyonunda secili/tum satirlar `POST /api/operations/saveauthorizationfile` ile toplu gonderilir
 - basarili durumda `201 Created` beklenmelidir
 
+### Belge Akis ve Hata Takibi
+
+Bu ekran sevk, iade, mal kabul, siparis ve e-irsaliye adimlarini Auth DB tarafinda izlemek icin eklendi. Mikro semasina yazmaz; kayitlar `document_flows` ve `document_flow_events` tablolarinda tutulur.
+
+### Mikro API Yazma Audit Kayitlari
+
+Mikro API uzerinden yapilan teknik yazma cagrilari, Belge Akis Takibi'nden ayri olarak Auth DB icindeki `mikro_api_write_audits` tablosunda izlenir. Belge Akis Takibi is surecini, bu tablo ise Mikro HTTP isteginin teknik sonucunu kaydeder.
+
+Config:
+
+```json
+"MikroApiWriteAudit": {
+  "Enabled": true,
+  "MaxResponseLength": 8000
+}
+```
+
+- Ortam degiskeni ile acma/kapatma: `MikroApiWriteAudit__Enabled=true|false`
+- Response siniri: `MikroApiWriteAudit__MaxResponseLength=8000`
+- `Enabled=false` oldugunda audit servisi Auth DB'ye okuma veya yazma yapmaz.
+- Audit kaydi basarisiz olursa asil Mikro API yazma islemi durdurulmaz; backend warning log uretir.
+- Mikro login cagrisi audit kapsaminda degildir.
+- Yalnizca `MikroApiClient` uzerinden yapilan POST yazma cagrilari kaydedilir.
+- `MikroWriteRouting` ilgili islem icin `Database` ise Mikro API cagrisi yapilmayacagindan audit kaydi da olusmaz.
+- Mevcut config'te yazma rotalari `Database` oldugu icin audit ancak ilgili rota `MikroApi` olarak degistirildiginde kayit uretir.
+
+Kaydedilen temel alanlar:
+
+| Alan | Aciklama |
+|---|---|
+| `request_id` | Her Mikro API cagrisi icin uretilen benzersiz istek kimligi |
+| `correlation_id` | Gelen UI/API isteginin `X-Correlation-Id` degeri |
+| `endpoint` | Cagrilan Mikro API path'i |
+| `payload_hash` | Auth/sifre alani icermeyen is payload'inin SHA-256 ozeti; payload'in kendisi saklanmaz |
+| `status` | `Pending`, `Succeeded`, `Failed`, `Unknown` veya `Recovered` |
+| `http_status_code` | HTTP cevap kodu |
+| `mikro_status_code` | Mikro response icindeki uygulama durum kodu |
+| `response` | Config ile sinirlanan ham Mikro cevabi |
+| `error` | Teknik veya Mikro hata mesaji |
+| `attempt_count` | Retry dahil toplam deneme sayisi |
+| `elapsed_milliseconds` | Mikro cagrisi toplam suresi |
+| `recovered_document_no` | Mikro DB recovery sonrasinda bulunan belge no veya seri/sira referansi |
+| `recovered_guid` | Recovery sonucunda bulunabiliyorsa ana hareket GUID'i |
+| `document_flow_id` | Belge Akis kaydina opsiyonel baglanti; mevcut akislarda bos kalabilir |
+
+Status anlami:
+
+```text
+Pending    Audit acildi, Mikro cevabi henuz tamamlanmadi
+Succeeded  Mikro API basarili cevap verdi
+Failed     HTTP veya Mikro uygulama cevabi hata dondu
+Unknown    Timeout/baglanti hatasi nedeniyle sonuc kesinlestirilemedi
+Recovered  Mikro API cevabindan sonra belge Mikro DB'de bulundu
+```
+
+Recovery destegi su Mikro API yazma akislari icin baglidir:
+
+- sayim sonucu
+- verilen depo siparisi
+- verilen firma siparisi
+- stok giris/zayiat/masraf fisi
+- virman
+- depolar arasi sevk
+- depo iadesi
+- firma sevk/iade hareketi
+- firma mal kabul
+- depo mal kabul kabul islemi
+
+Bu kayitlar su anda backend operasyon/audit altyapisidir; UI icin ayrica bir liste veya detay endpoint'i yayinlanmamistir. Bu nedenle UI dogrudan tabloya baglanmamali ve Belge Akis ekraninin mevcut response modelinde audit alanlari beklememelidir.
+
+Migration:
+
+```text
+20260708080714_AddMikroApiWriteAudit
+```
+
+Production'da `StartupTasks__ApplyAuthMigrations=false` ise migration deploy sirasinda Auth DB'ye ayrica uygulanmalidir.
+
+### Depo Operasyon Paneli
+
+Bu endpoint merkez yoneticisinin aktif depolari tek istekte izlemesi icindir. Depo numarasi ve adi Mikro `DEPOLAR` tablosundan okunur; operasyon sayilari yalnizca Furpa Merkez API'nin Auth DB'ye yazdigi belge akis kayitlarindan hesaplanir. Mikro veya baska bir uygulama uzerinden dogrudan yapilan islemler sayilara dahil edilmez.
+
+```http
+GET /api/operasyon-islemleri/depo-operasyon-paneli?date=2026-07-02
+```
+
+- Yalniz `operasyon-islemleri.depo-operasyon-paneli.list` ve `operasyon-islemleri.depo-operasyon-paneli.all-warehouses` yetkilerine sahip kullanicilar erisebilir.
+- Modul kodu `operasyon-islemleri`, menu kodu `depo-operasyon-paneli`, menu adi `DepoOperasyonPaneli` degeridir.
+- UI bu kaydi `Operasyon Islemleri > Depo Operasyon Paneli` menusu olarak gosterebilir.
+- `date` opsiyoneldir ve `yyyy-MM-dd` formatindadir. Gonderilmezse API sunucusunun bugunku tarihi kullanilir.
+- `todayShipmentCount`: secilen gunde API uzerinden olusturulan firma ve depolar arasi sevklerdir; kaynak depoya yazilir.
+- `todayReceivingCount`: secilen gunde API uzerinden tamamlanan depo mal kabulleridir; hedef depoya yazilir.
+- `pendingReceivingCount`: depolar arasi sevk veya depo iadesi olusturulmus, henuz depo mal kabulu tamamlanmamis kayitlardir; hedef depoya yazilir.
+- `failedEDespatchCount`: son belge akis adimi basarisiz e-irsaliye gonderimi olan kayitlardir; kaynak depoya yazilir.
+- `incompleteOperationCount`: bekleyen mal kabulleri ve basarisiz e-irsaliye gonderimlerini ifade eder. Genel ozette ayni belge bir kez sayilir.
+- `averageReceivingMinutes`: secilen gunde tamamlanan mal kabullerinin sevk olusturma ile kabul arasindaki ortalama suresidir.
+- `busiestWarehouse.value`: secilen gunun sevk ve mal kabul toplami.
+- `slowestWarehouse.value`: dakika cinsinden ortalama mal kabul suresi.
+- `healthStatus`: e-irsaliye hatasi varsa `Critical`, bekleyen kabul varsa `Warning`, ikisi de yoksa `Healthy` doner.
+- `trackingEnabled = false` ise yeni belge akisi yazimi kapalidir; panel mevcut eski kayitlardan hesaplanmaya devam eder.
+
+Response ornegi:
+
+```json
+{
+  "date": "2026-07-02",
+  "generatedAtUtc": "2026-07-02T11:20:00Z",
+  "trackingEnabled": true,
+  "summary": {
+    "warehouseCount": 60,
+    "todayShipmentCount": 420,
+    "todayReceivingCount": 385,
+    "pendingReceivingCount": 35,
+    "incompleteOperationCount": 38,
+    "failedEDespatchCount": 4
+  },
+  "busiestWarehouse": {
+    "warehouseNo": 12,
+    "warehouseName": "Kadikoy",
+    "value": 41
+  },
+  "slowestWarehouse": {
+    "warehouseNo": 20,
+    "warehouseName": "Pendik",
+    "value": 97.5
+  },
+  "warehouses": [
+    {
+      "warehouseNo": 12,
+      "warehouseName": "Kadikoy",
+      "todayShipmentCount": 24,
+      "todayReceivingCount": 17,
+      "pendingReceivingCount": 3,
+      "incompleteOperationCount": 3,
+      "failedEDespatchCount": 0,
+      "averageReceivingMinutes": 42.75,
+      "healthStatus": "Warning"
+    }
+  ]
+}
+```
+
+UI ekraninda ustte `summary` sayaclari, altta `warehouses` tablosu gosterilebilir. Depo satirina tiklandiginda ayni depo numarasiyla belge akis liste endpointine gidilerek ilgili belgeler acilabilir.
+
+### Urun Dagilimlari
+
+Bu ekran `docs/rapor-modulu-envanter.md` icindeki `FrmDagilim` workflow'unun API karsiligidir. Rapor degildir; satis verisine gore dagilim onerisi uretir, `Furpa.dbo.STOK_DAGILIM` kaydi acar, bolge bilgilendirme durumunu yonetir ve kesinlestirmede Mikro `DEPOLAR_ARASI_SIPARISLER` satirlari olusturur.
+
+Menu:
+
+- Modul: `OperasyonIslemleri`
+- Menu: `UrunDagilimlari`
+- Route kok: `api/operasyon-islemleri/urun-dagilimlari`
+
+Yetki kodlari:
+
+- `operasyon-islemleri.urun-dagilimlari.list`
+- `operasyon-islemleri.urun-dagilimlari.detail`
+- `operasyon-islemleri.urun-dagilimlari.create`
+- `operasyon-islemleri.urun-dagilimlari.update`
+- `operasyon-islemleri.urun-dagilimlari.delete`
+
+Endpoint ozeti:
+
+| Endpoint | Request kaynagi | Request modeli | Response | Yetki |
+|---|---|---|---|---|
+| `GET /api/operasyon-islemleri/urun-dagilimlari/dagitim-merkezleri` | - | - | `ProductDistributionCenterDto[]` | `list` |
+| `POST /api/operasyon-islemleri/urun-dagilimlari/oneri` | body | `ProductDistributionProposalHttpRequest` | `ProductDistributionProposalDto` | `create` |
+| `POST /api/operasyon-islemleri/urun-dagilimlari/dengele` | body | `ProductDistributionBalanceHttpRequest` | `ProductDistributionBalanceDto` | `create` |
+| `GET /api/operasyon-islemleri/urun-dagilimlari` | query | `ProductDistributionListHttpRequest` | `ProductDistributionListItemDto[]` | `list` |
+| `GET /api/operasyon-islemleri/urun-dagilimlari/{documentNo}` | path | - | `ProductDistributionDetailDto` | `detail` |
+| `POST /api/operasyon-islemleri/urun-dagilimlari` | body | `ProductDistributionSaveHttpRequest` | `ProductDistributionDetailDto` | `create` |
+| `PUT /api/operasyon-islemleri/urun-dagilimlari/{documentNo}` | body | `ProductDistributionSaveHttpRequest` | `ProductDistributionDetailDto` | `update` |
+| `POST /api/operasyon-islemleri/urun-dagilimlari/{documentNo}/bilgilendir` | body | `ProductDistributionNotifyHttpRequest` | `ProductDistributionNotificationDto` | `update` |
+| `POST /api/operasyon-islemleri/urun-dagilimlari/{documentNo}/kesinlestir` | body | `ProductDistributionFinalizeHttpRequest` | `ProductDistributionFinalizeDto` | `update` |
+| `DELETE /api/operasyon-islemleri/urun-dagilimlari/{documentNo}` | path | - | `ProductDistributionDeleteDto` | `delete` |
+
+Route notu:
+
+- `/docs/api/urun-dagilimlari` UI dokuman/yardim sayfasi olabilir; veri ceken backend route degildir.
+- Backend veri route ailesi yalniz `api/operasyon-islemleri/urun-dagilimlari` kokundedir.
+
+Request modelleri:
+
+`ProductDistributionListHttpRequest` query:
+
+```text
+status                         int?       0, 1, 2
+documentNo                     string?    max 50
+stockCode                      string?    max 25
+distributionCenterWarehouseNo  int?
+createdFrom                    DateTime?
+createdTo                      DateTime?
+take                           int?       1..500
+```
+
+`ProductDistributionProposalHttpRequest` body:
+
+```text
+stockCode                      string     zorunlu, max 25
+distributionCenterWarehouseNo  int        zorunlu
+totalCaseQuantity              int?       1+; eski hedef toplam koli alani
+targetCaseQuantity             int?       1+; onerilen hedef toplam koli alani
+allocatedCaseQuantity          int?       1+; uyumluluk aliasi, targetCaseQuantity bos ise hedef olarak kabul edilir
+salesDayCount                  int?       1..365, bos ise 42
+referenceDate                  DateTime?  bos ise bugun
+includeBranchesWithoutSales    bool
+```
+
+
+`ProductDistributionBalanceHttpRequest` body:
+
+```text
+stockCode                      string     zorunlu, max 25
+targetCaseQuantity             int        0+; hedef toplam koli
+salesDayCount                  int?       1..365, bos ise 42
+referenceDate                  DateTime?  bos ise bugun
+lines                          ProductDistributionBalanceLineHttpRequest[] zorunlu, min 1
+```
+
+`ProductDistributionBalanceLineHttpRequest` body:
+
+```text
+warehouseNo                    int        zorunlu
+warehouseName                  string?    max 100
+regionCode                     string?    max 25
+lastSalesQuantity              double
+currentStockQuantity           double
+companyAverageDailySales       double
+branchAverageDailySales        double
+caseQuantity                   int        0+; mevcut satir koli
+isLocked                       bool       true ise satir dengelemede degismez
+```
+`ProductDistributionSaveHttpRequest` body:
+
+```text
+stockCode                      string     zorunlu, max 25
+distributionCenterWarehouseNo  int        zorunlu
+totalCaseQuantity              int        0+; eski hedef toplam koli alani
+targetCaseQuantity             int?       0+; onerilen hedef toplam koli alani
+allocatedCaseQuantity          int?       0+; uyumluluk aliasi, targetCaseQuantity bos ise hedef olarak kabul edilir
+distributedBy                  string?    max 100
+lines                          ProductDistributionSaveLineHttpRequest[] zorunlu, min 1
+```
+
+`ProductDistributionSaveLineHttpRequest` body:
+
+```text
+warehouseNo                    int        zorunlu
+caseQuantity                   int        0+; satir hedef/dagilim koli miktari
+unitQuantity                   int?
+lastSalesQuantity              double?
+companyAverageDailySales       double?
+branchAverageDailySales        double?
+```
+
+`ProductDistributionNotifyHttpRequest` body:
+
+```text
+notifyBy                       string?    max 100
+markStockOrderingStopped       bool       default true
+```
+
+Bilgilendirme mail davranisi:
+
+- SMTP ayarlari `ProductDistributionMail` config bolumunden okunur.
+- Varsayilan `Enabled=false`; bu durumda endpoint eski hazirlama akisini korur, mail gondermez ve durum `Bilgilendirildi` olur.
+- `Enabled=true` ise API `Bolge_Yoneticileri.bolge_muduru_eposta` adreslerine bolge bazli HTML mail gonderir.
+- Mail konusu bolge bazlidir: `{regionCode}. Bolge, Urun Dagilimi Hk.`
+- Mail basarili gitmeden yeni kayit `Bilgilendirildi` durumuna alinmaz. Eksik/gecersiz e-posta veya SMTP hatasi varsa `mailResults` icinde doner.
+- Parola dokumanda veya kaynak kodda tutulmaz; canli ortamda `ProductDistributionMail__Password` gibi secret/env ayariyla verilmelidir.
+
+`ProductDistributionFinalizeHttpRequest` body:
+
+```text
+finalizeBy                     string?    max 100
+orderDate                      DateTime?
+deliveryDate                   DateTime?
+allowFinalizeWithoutNotification bool      geriye uyum alani; artik kesinlestirme icin zorunlu degil
+```
+
+Response DTO katalogu:
+
+`ProductDistributionCenterDto`
+
+```text
+warehouseNo                    int
+warehouseName                  string
+regionCode                     string?
+```
+
+`ProductDistributionProposalDto`
+
+```text
+stock                          ProductDistributionStockDto
+distributionCenter             ProductDistributionWarehouseDto
+summary                        ProductDistributionSummaryDto
+lines                          ProductDistributionLineDto[]
+warnings                       string[]
+```
+
+`ProductDistributionBalanceDto`
+
+```text
+stock                          ProductDistributionStockDto
+summary                        ProductDistributionSummaryDto
+lines                          ProductDistributionBalanceLineDto[]
+warnings                       string[]
+```
+
+`ProductDistributionBalanceLineDto`
+
+```text
+warehouseNo                    int
+warehouseName                  string
+regionCode                     string?
+regionName                     string?    UI etiketi; orn. Bolge 1
+lastSalesQuantity              double     miktar; quantityUnitName birimiyle okunur
+currentStockQuantity           double     miktar; quantityUnitName birimiyle okunur
+companyAverageDailySales       double     gunluk ortalama miktar; quantityUnitName/gun
+branchAverageDailySales        double     gunluk ortalama miktar; quantityUnitName/gun
+salesSharePercent              double     0..100; toplam satis icindeki pay
+caseSharePercent               double     0..100; toplam koli icindeki pay
+originalCaseQuantity           int        dengeleme oncesi koli
+caseQuantity                   int        dengeleme sonrasi koli
+caseDelta                      int        degisim, arti/eksi olabilir
+unitQuantity                   int        caseQuantity * stock.packageFactor
+quantityUnitName               string     miktar/adet alanlarinin birimi
+caseUnitName                   string     koli alanlarinin birimi
+isLocked                       bool
+reason                         string     locked, balanced-up, balanced-down, unchanged
+```
+
+`ProductDistributionListItemDto`
+
+```text
+documentNo                     string
+status                         ProductDistributionStatusDto
+createdAt                      DateTime
+finalizedAt                    DateTime?
+stock                          ProductDistributionStockDto
+distributionCenter             ProductDistributionWarehouseDto
+distributedBy                  string?
+lineCount                      int
+totalCaseQuantity              int
+totalUnitQuantity              int
+```
+
+`ProductDistributionDetailDto`
+
+```text
+header                         ProductDistributionHeaderDto
+summary                        ProductDistributionSummaryDto
+lines                          ProductDistributionLineDto[]
+availableActions               ProductDistributionActionDto[]
+```
+
+`ProductDistributionHeaderDto`
+
+```text
+documentNo                     string
+status                         ProductDistributionStatusDto
+createdAt                      DateTime
+finalizedAt                    DateTime?
+stock                          ProductDistributionStockDto
+distributionCenter             ProductDistributionWarehouseDto
+distributedBy                  string?
+```
+
+`ProductDistributionStockDto`
+
+```text
+stockCode                      string
+stockName                      string
+barcode                        string?
+packageFactor                  int
+unitName                       string?
+```
+
+`ProductDistributionWarehouseDto`
+
+```text
+warehouseNo                    int
+warehouseName                  string
+regionCode                     string?
+```
+
+`ProductDistributionLineDto`
+
+```text
+warehouseNo                    int
+warehouseName                  string
+regionCode                     string?
+regionName                     string?    UI etiketi; orn. Bolge 1
+lastSalesQuantity              double     miktar; quantityUnitName birimiyle okunur
+currentStockQuantity           double     miktar; quantityUnitName birimiyle okunur
+companyAverageDailySales       double     gunluk ortalama miktar; quantityUnitName/gun
+branchAverageDailySales        double     gunluk ortalama miktar; quantityUnitName/gun
+salesSharePercent              double     0..100; toplam satis icindeki pay
+caseSharePercent               double     0..100; toplam koli icindeki pay
+caseQuantity                   int        koli; caseUnitName birimiyle okunur
+unitQuantity                   int        caseQuantity * stock.packageFactor; quantityUnitName birimiyle okunur
+quantityUnitName               string     miktar/adet alanlarinin birimi
+caseUnitName                   string     koli alanlarinin birimi
+reason                         string
+```
+
+`ProductDistributionSummaryDto`
+
+```text
+salesDayCount                  int
+referenceDate                  DateTime
+lineCount                      int
+totalCaseQuantity              int
+allocatedCaseQuantity          int
+caseDifference                 int
+totalUnitQuantity              int
+isBalanced                     bool
+message                        string
+```
+
+`ProductDistributionStatusDto`
+
+```text
+code                           int
+name                           string
+severity                       string
+```
+
+`ProductDistributionActionDto`
+
+```text
+code                           string     update, delete, notify, finalize
+label                          string
+enabled                        bool
+reason                         string?
+```
+
+`ProductDistributionNotificationDto`
+
+```text
+documentNo                     string
+status                         ProductDistributionStatusDto
+statusChanged                  bool
+stockOrderingStopped           bool
+recipients                     ProductDistributionNotificationRecipientDto[]
+subject                        string
+message                        string
+mailSendingEnabled             bool       SMTP gonderimi acik mi
+sentEmailCount                 int
+failedEmailCount               int
+mailResults                    ProductDistributionNotificationMailResultDto[]
+```
+
+`ProductDistributionNotificationMailResultDto`
+
+```text
+regionCode                     string?
+managerName                    string?
+email                          string?
+sent                           bool
+message                        string
+```
+
+`ProductDistributionNotificationRecipientDto`
+
+```text
+regionCode                     string?
+managerName                    string?
+email                          string?
+lineCount                      int
+totalCaseQuantity              int
+totalUnitQuantity              int
+```
+
+`ProductDistributionFinalizeDto`
+
+```text
+documentNo                     string
+status                         ProductDistributionStatusDto
+finalizedAt                    DateTime
+createdDocumentCount           int
+existingDocumentCount          int
+totalUnitQuantity              int
+orders                         ProductDistributionWarehouseOrderDto[]
+```
+
+`ProductDistributionWarehouseOrderDto`
+
+```text
+documentSerie                  string
+documentOrderNo                int
+inWarehouseNo                  int
+inWarehouseName                string
+outWarehouseNo                 int
+outWarehouseName               string
+lineCount                      int
+totalUnitQuantity              int
+alreadyExisted                 bool
+```
+
+`ProductDistributionDeleteDto`
+
+```text
+documentNo                     string
+deleted                        bool
+message                        string
+```
+Onerilen UI akisi:
+
+1. Ekran acilisinda `GET .../dagitim-merkezleri` ile cikis depolari yuklenir.
+2. Kullanici stok, dagitim merkezi ve toplam koli girer.
+3. `POST .../oneri` cagrilir; API son 42 gun satisini varsayilan alir ve toplam koliyi satis payina gore tam dagitir.
+4. Kullanici hedef veya satir koli degistirirse `POST .../dengele` ile kilitli satirlari koruyan yeni dagilim alinabilir.
+5. UI `summary.isBalanced = true` beklemeli; kullanici satir degistirirse toplam koli farki sifirlanmadan kaydet butonu aktif olmamalidir.
+6. `POST .../urun-dagilimlari` ile `STOK_DAGILIM` kaydi olusur ve `status.code = 0` doner.
+7. Bilgilendirme opsiyoneldir. `POST .../{documentNo}/bilgilendir` SMTP aciksa bolge yoneticilerine mail gonderir; basarili olursa statusu `1` yapar, stok kartinda `sto_siparis_dursun = 1` isaretler ve `mailResults` ozetini doner.
+8. SMTP kapaliysa eski davranis korunur; API mail gondermeden bilgilendirme bilgisini hazirlar ve statusu `1` yapar. UI `mailSendingEnabled`, `sentEmailCount`, `failedEmailCount` ve `mailResults` alanlarini kullaniciya gosterebilir.
+9. `POST .../{documentNo}/kesinlestir` status `0` veya `1` iken calisir, statusu `2` yapar ve her pozitif adetli sube icin Mikro depo siparisi uretir. Ayni evrak tekrar cagrilirsa aciklama/evrak kontroluyle mevcut siparisleri tekrar uretmez.
+
+`POST .../oneri` request:
+
+```json
+{
+  "stockCode": "153.01.0001",
+  "distributionCenterWarehouseNo": 50,
+  "totalCaseQuantity": 120,
+  "salesDayCount": 42,
+  "referenceDate": "2026-07-24",
+  "includeBranchesWithoutSales": false
+}
+```
+
+Oneri response alanlari:
+
+- `stock.packageFactor`: koli ici katsayi; adet = koli * katsayi.
+- `summary.totalCaseQuantity`: kullanicinin girdigi toplam koli.
+- `summary.allocatedCaseQuantity`: satirlara dagitilan koli.
+- `summary.caseDifference`: kaydetmeden once `0` olmalidir.
+- `lines[].regionCode` / `lines[].regionName`: subenin bolge kodu ve UI etiketi.
+- `lines[].lastSalesQuantity`: secili donemde subenin satis miktari; birimi `quantityUnitName` alanindadir.
+- `lines[].currentStockQuantity`: referans tarihte subedeki mevcut stok; birimi `quantityUnitName` alanindadir.
+- `lines[].companyAverageDailySales` ve `lines[].branchAverageDailySales`: gunluk ortalama miktar; yuzde degildir.
+- `lines[].salesSharePercent`: subenin toplam satis icindeki yuzdesi, `0..100`.
+- `lines[].caseSharePercent`: subeye ayrilan kolinin toplam koli icindeki yuzdesi, `0..100`.
+- `lines[].caseQuantity`: UI gridinde duzenlenebilir satir hedef/dagilim koli miktari; birimi `caseUnitName` alanindadir.
+- `lines[].unitQuantity`: Mikro siparisine gidecek miktar; `caseQuantity * stock.packageFactor`, birimi `quantityUnitName` alanindadir.
+- `lines[].reason`: `sales-share`, `equal-share`, `rounded-to-zero`, `no-period-sales` gibi UI ipucu.
+
+`POST .../urun-dagilimlari/dengele` request:
+
+```json
+{
+  "stockCode": "153.01.0001",
+  "targetCaseQuantity": 2000,
+  "lines": [
+    {
+      "warehouseNo": 110,
+      "warehouseName": "Sube 110",
+      "regionCode": "1",
+      "lastSalesQuantity": 84,
+      "currentStockQuantity": 12,
+      "companyAverageDailySales": 1.45,
+      "branchAverageDailySales": 2,
+      "caseQuantity": 2100,
+      "isLocked": false
+    }
+  ]
+}
+```
+
+`POST/PUT .../urun-dagilimlari` request:
+
+```json
+{
+  "stockCode": "153.01.0001",
+  "distributionCenterWarehouseNo": 50,
+  "targetCaseQuantity": 2100,
+  "allocatedCaseQuantity": 2100,
+  "distributedBy": "MERKEZ",
+  "lines": [
+    {
+      "warehouseNo": 110,
+      "caseQuantity": 2100,
+      "unitQuantity": 25200,
+      "lastSalesQuantity": 84,
+      "companyAverageDailySales": 1.45,
+      "branchAverageDailySales": 2
+    }
+  ]
+}
+```
+
+Kayit kurallari:
+
+- `POST .../dengele`, `targetCaseQuantity` ile mevcut satir toplam farkini kapatir; `isLocked=true` satirlara dokunmaz.
+- `targetCaseQuantity` doluysa `lines[].caseQuantity` toplami bu degerle ayni olmalidir; bos ise `allocatedCaseQuantity`, o da bos ise `totalCaseQuantity` esas alinir.
+- `unitQuantity` bos gonderilirse API `caseQuantity * stock.packageFactor` hesaplar.
+- Ayni sube/depo iki satirda gonderilemez.
+- Dagitim merkezi satir deposu olarak gonderilemez.
+- Sadece `status.code = 0` olan kayitlar guncellenebilir veya silinebilir.
+
+Durumlar:
+
+| Kod | Ad | UI davranisi |
+|---|---|---|
+| `0` | `Kaydedildi` | Guncelle, sil, bilgilendir ve kesinlestir acik |
+| `1` | `Bilgilendirildi` | Kesinlestir acik; guncelle/sil kapali |
+| `2` | `Dagilim Yapildi` | Tum yazma aksiyonlari kapali |
+
+`POST .../{documentNo}/bilgilendir` request:
+
+```json
+{
+  "notifyBy": "MERKEZ",
+  "markStockOrderingStopped": true
+}
+```
+
+Response `recipients` alaninda bolge kodu, bolge muduru e-postasi, satir sayisi, toplam koli ve toplam adet doner. E-posta kaydi yoksa response basarili gelebilir ama `message` alaninda alici bulunamadigi belirtilir; UI bu durumda uyari gostermelidir.
+
+`POST .../{documentNo}/kesinlestir` request:
+
+```json
+{
+  "finalizeBy": "MERKEZ",
+  "orderDate": "2026-07-24",
+  "deliveryDate": "2026-07-24",
+  "allowFinalizeWithoutNotification": false
+}
+```
+
+Kesinlestirme sonucu:
+
+- `orders[].documentSerie`: API `D{subeDepoNo}` serisi uretir.
+- `orders[].documentOrderNo`: Mikro `DEPOLAR_ARASI_SIPARISLER` sira numarasi.
+- `orders[].alreadyExisted`: ayni dagilim evraki icin daha once uretilmis siparis yeniden kullanildiysa `true`.
+- `createdDocumentCount` ve `existingDocumentCount` UI toast/ozet icin kullanilabilir.
+
+Teknik notlar:
+
+- `STOK_DAGILIM.Evrak_No` uretimi transaction icinde `UPDLOCK/HOLDLOCK` ile yapilir; eski `max()+1` yarisi azaltildi.
+- Eski `STOK_DAGILIM` kayitlarinda sayisal alanlar `nvarchar` ve virgullu ondalik (`1,6`) gelebilir; liste, detay ve bilgilendirme okumalari bu alanlari `TRY_CONVERT` + virgulu noktaya cevirme ile toleransli okur.
+- `GET .../{documentNo}` detayinda Mikro stok karti artik yoksa response yine doner; `stockName` stok kodu fallback'iyle doldurulur.
+- Kesinlestirme Mikro tarafinda `ssip_aciklama = "Dagilim {documentNo}"` ile izlenir ve tekrar cagrida cift siparis uretilmez.
+- Bu endpointlerde depo scope claim'i uygulanmaz; merkezi operasyon kullanimi icin gorunurluk/yazma kontrolu permission setiyle yonetilir.
+
+Temel route:
+
+- `api/operasyon-islemleri/belge-akis-takibi`
+
+Yetki ve depo ayrimi:
+
+- Login olmus her depo kullanicisi kendi deposuyla iliskili akislari gorur.
+- Depo kullanicisinda query ile gelen `warehouseNo` dikkate alinmaz; backend JWT icindeki depo numarasini kullanir.
+- `operasyon-islemleri.belge-akis-takibi.all-warehouses` yetkisi olan kullanici tum depolari gorebilir ve `warehouseNo` filtresini kullanabilir.
+- Detay endpointinde depo kullanicisi sadece kaynak veya hedef deposu kendi deposu olan akisi acabilir; aksi durumda `404` doner.
+- Permission katalogunda `operasyon-islemleri.belge-akis-takibi.list`, `operasyon-islemleri.belge-akis-takibi.detail` ve `operasyon-islemleri.belge-akis-takibi.all-warehouses` kodlari vardir. API erisiminde veri ayrimi permission ve depo uzerinden yapilir.
+
+Takibi acma/kapatma:
+
+```json
+"DocumentFlowTracking": {
+  "Enabled": true
+}
+```
+
+- `Enabled = true` ise yeni olaylar kaydedilir.
+- `Enabled = false` ise yeni olay yazimi durur; mevcut eski kayitlar liste/detaydan okunmaya devam eder.
+- Liste response icindeki `trackingEnabled` alani UI'nin "takip kapali" uyarisini gostermesi icin eklenmistir.
+- Takip yazimi islem akisini bozmaz; takip kaydi sirasinda hata olursa asil sevk/iade/siparis islemi devam eder, hata loglanir.
+
+Takip edilen isler:
+
+- Verilen firma siparisi olusturma
+- Verilen depo siparisi olusturma
+- Onerilen firma siparisini siparise cevirme
+- Onerilen depo siparisini siparise cevirme
+- Firma sevki olusturma
+- Depolar arasi sevk olusturma
+- Firma iadesi olusturma
+- Depo iadesi olusturma
+- Firma mal kabul olusturma
+- Depo mal kabul/kabul etme
+- E-irsaliye gonderimi basarili/basarisiz sonucu
+- Mikro evrak duzenleme islemleri:
+  - Stok karti guncelleme
+  - Stok depo ayari guncelleme/silme
+  - Depo karti guncelleme
+  - Cari karti guncelleme
+  - Satis fiyati ekleme/guncelleme/silme
+  - Stok hareket evraki guncelleme/silme
+  - Cari hareket evraki guncelleme/silme
+
+Mikro evrak duzenleme kaynakli akislar:
+
+- Kart ve fiyat islemleri `StockCard`, `WarehouseCard`, `CustomerCard`, `StockSalesPrice` belge tipleriyle gorunur.
+- Stok hareket evraki bilinen bir operasyon evrakiyse mevcut akis tipine baglanir:
+  - firma sevki: `CompanyShipment`
+  - firma iadesi: `CompanyReturn`
+  - firma mal kabul: `CompanyReceiving`
+  - depolar arasi sevk: `InterWarehouseShipment`
+  - depo iadesi: `WarehouseReturn`
+- Taninamayan stok/cari hareketleri `StockMovementDocument` veya `CustomerMovementDocument` olarak gorunur.
+- Soft delete ve hard delete ikisi de timeline'da `DocumentDeleted` adimi olarak gorunur; olay mesaji silme modunu aciklar.
+- Stok/cari hareket guncelleme timeline'da `DocumentUpdated` adimi olarak gorunur.
+
+#### Belge Akis Liste
+
+```http
+GET /api/operasyon-islemleri/belge-akis-takibi?warehouseNo=1&startDate=2026-07-01&endDate=2026-07-01&documentType=CompanyShipment&status=Failed&search=FRM2026000000101&take=100
+```
+
+Query alanlari:
+
+- `warehouseNo`: opsiyonel. Sadece `operasyon-islemleri.belge-akis-takibi.all-warehouses` yetkisi varsa etkilidir.
+- `startDate`: opsiyonel. `updatedAtUtc` uzerinden filtreler.
+- `endDate`: opsiyonel. Gun sonu dahil olacak sekilde filtreler.
+- `documentType`: opsiyonel enum.
+- `status`: opsiyonel enum.
+- `search`: opsiyonel. `documentSerie`, `documentNo`, `externalDocumentNo`, `externalUuid` icinde arar.
+- `take`: 1-500 arasi, varsayilan `100`.
+
+Response:
+
+```json
+{
+  "trackingEnabled": true,
+  "totalCount": 1,
+  "items": [
+    {
+      "id": "11111111-1111-1111-1111-111111111111",
+      "documentType": "CompanyShipment",
+      "sourceWarehouseNo": 1,
+      "targetWarehouseNo": null,
+      "documentSerie": "FRM2026",
+      "documentOrderNo": 101,
+      "documentNo": "FRM2026000000101",
+      "externalDocumentNo": "FRM2026000000101",
+      "externalUuid": "22222222-2222-2222-2222-222222222222",
+      "status": "Succeeded",
+      "currentStep": "EDespatchSubmission",
+      "lastError": null,
+      "createdAtUtc": "2026-07-01T08:10:00Z",
+      "updatedAtUtc": "2026-07-01T08:12:00Z"
+    }
+  ]
+}
+```
+
+#### Belge Akis Detay
+
+```http
+GET /api/operasyon-islemleri/belge-akis-takibi/{id}
+```
+
+Response liste alanlarina ek olarak `events` timeline doner:
+
+```json
+{
+  "id": "11111111-1111-1111-1111-111111111111",
+  "flowKey": "CompanyShipment:1:FRM2026:101",
+  "documentType": "CompanyShipment",
+  "sourceWarehouseNo": 1,
+  "targetWarehouseNo": null,
+  "documentSerie": "FRM2026",
+  "documentOrderNo": 101,
+  "documentNo": "FRM2026000000101",
+  "externalDocumentNo": "FRM2026000000101",
+  "externalUuid": "22222222-2222-2222-2222-222222222222",
+  "status": "Succeeded",
+  "currentStep": "EDespatchSubmission",
+  "lastError": null,
+  "lastChangedByUserId": null,
+  "createdAtUtc": "2026-07-01T08:10:00Z",
+  "updatedAtUtc": "2026-07-01T08:12:00Z",
+  "events": [
+    {
+      "id": "33333333-3333-3333-3333-333333333333",
+      "step": "DocumentCreated",
+      "status": "Succeeded",
+      "message": "Firma sevki olusturuldu.",
+      "error": null,
+      "changedByUserId": "44444444-4444-4444-4444-444444444444",
+      "occurredAtUtc": "2026-07-01T08:10:00Z"
+    },
+    {
+      "id": "55555555-5555-5555-5555-555555555555",
+      "step": "EDespatchSubmission",
+      "status": "Succeeded",
+      "message": "E-irsaliye Uyumsoft'a gonderildi.",
+      "error": null,
+      "changedByUserId": null,
+      "occurredAtUtc": "2026-07-01T08:12:00Z"
+    }
+  ]
+}
+```
+
+Enum degerleri:
+
+```text
+documentType:
+  CompanyShipment
+  InterWarehouseShipment
+  CompanyReturn
+  WarehouseReturn
+  CompanyReceiving
+  IssuedCompanyOrder
+  IssuedWarehouseOrder
+
+status:
+  Succeeded
+  Failed
+
+step/currentStep:
+  DocumentCreated
+  OrderCreated
+  EDespatchSubmission
+  WarehouseReceivingAccepted
+```
+
+UI onerisi:
+
+- Liste gridinde belge tipi, kaynak depo, hedef depo, belge no, e-belge no, son adim, durum, son hata ve guncelleme tarihi kolonlari yeterlidir.
+- Durum badge'i `Succeeded` icin yesil, `Failed` icin kirmizi kullanilabilir.
+- Detayda timeline sirali gosterilmeli; hata varsa `error` alanindan kopyalanabilir teknik detay acilmalidir.
+- `operasyon-islemleri.belge-akis-takibi.all-warehouses` varsa depo filtresi gosterilmeli; yoksa depo filtresi gizlenmeli veya pasif olmalidir.
+- `trackingEnabled = false` ise ekranda "Yeni akis kaydi kapali, eski kayitlar goruntuleniyor" uyarisi gosterilmelidir.
+
 Operasyon modulu notlari:
 
 - bu modul Hangfire yerine uygulama ici hosted queue kullanir
 - UI canli progress stream beklememelidir; polling yeterlidir
 - `scalesfile` icin `BranchDetails` kaydi ve `ScalesType` bilgisi zorunludur
+- `scalesfile`, `productbarcodeplunofile`, `productbarcodeplonofile`, `cashierfile` ve `promofile` endpointlerinde `warehouseNo` query parametresi opsiyoneldir; yalniz `operasyon-islemleri.operations.all-warehouses` yetkisi icin depo secimi anlamlidir
 - `productbarcodeplunofile` ve `cashierfile` lokal export uretebilir; branch network path varsa ek olarak paylasima da kopyalanir
 - `promofile` `PROMO.DAT`, `NOPROMO.DAT`, `NOCEK.DAT`, `NOYEMEK.DAT`, `GRUP.DAT`, `OZELKOD.DAT`, `EFATVNO.DAT` ve kasa bazli `MESAJ.xxx` dosyalarini uretir
 - export klasoru config'deki `OperationsExport:BasePath` ile verilebilir; bos ise uygulama altindaki `App_Data/OperationsExports` kullanilir
@@ -8481,6 +11800,7 @@ Mevcut endpointler:
   - response `AxataSynchronizationManualDispatchDto`
   - su an `issued-warehouse-order-sync` ve `company-receiving-sync` icin tanimlidir
   - `issued-warehouse-order-sync` worker parity icin `C01` hareket kodu ile `addOutboundOrder*` operasyonunu kullanir
+  - `issued-warehouse-order-sync` basarili donerse `ssip_special1=1` bayragi `MikroWriteRouting:IssuedWarehouseOrder=Database` iken DB update ile, `MikroApi` iken `POST /Api/apiMethods/DepolarArasiSiparisDuzeltV2` ile satir `ssip_Guid` degerleri uzerinden yazilir; MikroApi modunda DB fallback yoktur ve yazim read-only geri okuma ile dogrulanir
   - `company-receiving-sync` worker parity icin `G01` hareket kodu ile `addInboundOrder*` operasyonunu kullanir
 - `POST /api/integrations/axata-sync/manual/tasks/{taskCode}/documents/dispatch-batch`
   - secilen birden fazla evraki canli WCF dispatch ile toplu gonderir
@@ -8861,7 +12181,7 @@ Import davranisi:
 - Query: `CompanyCode=01`, `WarehouseCode=01`, `MovementType=C01`, `Status=0`
 - Mikro eslesme: `S06TESL` degeri `DocumentSerie.DocumentOrderNo` olarak okunur
 - Satir eslesme: once `S07KALN + S07SKOD` -> `ssip_satirno + ssip_stok_kod`, sonra 1-bazli satir no farki, son olarak tekil stok + kalan miktar kontrolu
-- Mikro yazim: depolar arasi sevk fisi, `STOK_HAREKETLERI_EK.sth_subesip_uid` linki ve `ssip_teslim_miktar` guncellemesi
+- Mikro yazim: depolar arasi sevk fisi ve bagli satirlarda `sth_subesip_uid` ile Mikro tarafinda siparis linki/teslim etkisi
 - AXATA ack: Mikro yazim basarili olursa `AxataServicePoolEXT.svc/updIntegrationTableAsync` ile `ENT006.S06STAT=1`, `IDField=S06SIRA`
 - `acknowledge=false` verilirse Mikro yazilir ama AXATA status guncellenmez; bu sadece kontrollu test/kurtarma icin kullanilmalidir
 
@@ -8894,7 +12214,7 @@ Rescue davranisi:
 - AXATA fetch: `AxataServicePool.svc/getOutBoundDeliveryListAsync`
 - Query: `CompanyCode=01`, `WarehouseCode=01`, `MovementType=C01`, `OrderNumber=F50.15035`, `Status=1`
 - Mikro eslesme: `S06TESL` -> `DocumentSerie.DocumentOrderNo`; satir eslesmesi guvenli eslesme kuralini kullanir (`S07KALN + S07SKOD`, 1-bazli satir no farki, tekil stok + kalan miktar)
-- Mikro yazim: AXATA teslimat miktari Mikro kalan miktarini asmiyorsa depolar arasi sevk fisi, `STOK_HAREKETLERI_EK.sth_subesip_uid` linki ve `ssip_teslim_miktar` guncellemesi
+- Mikro yazim: AXATA teslimat miktari Mikro kalan miktarini asmiyorsa depolar arasi sevk fisi ve bagli satirlarda `sth_subesip_uid` ile Mikro tarafinda siparis linki/teslim etkisi
 - `sentWarehouseOrdersWithShipmentDifferences` listesindeki kismi sevk/satir farki belgeleri icin otomatik import onerilmez; once AXATA satirlariyla fark incelemesi yapilmalidir
 - `acknowledge=false` tavsiye edilir; belge AXATA'da zaten `Status=1` ise tekrar ack gerekmeyebilir
 
@@ -9126,6 +12446,17 @@ Yetki kodlari:
 - `entegrasyon-islemleri.pos-muhasebe-aktarimi.detail`
 - `entegrasyon-islemleri.pos-muhasebe-aktarimi.create`
 - `entegrasyon-islemleri.pos-muhasebe-aktarimi.update`
+- `entegrasyon-islemleri.pos-muhasebe-aktarimi.all-warehouses`
+
+Depo kapsami icin bu surum notu:
+
+- Permission katalogunda `all-warehouses` yetkisi vardir; UI depo seciciyi genel proje kuralina uygun olarak bu permission'a gore acmalidir.
+- Bu controller su an `WarehouseNo` alanini merkezi `ResolveWarehouseNoForPolicy`/`ResolveWarehouseScopeForPolicy` ile cozumlemez; request'teki `WarehouseNo` dogrudan servise gider.
+- Bu nedenle POS ekraninda `all-warehouses` yoksa UI depo secici gostermemeli ve POS fatura/gider pusulasi liste/import isteklerinde kullanicinin kendi `warehouseNo` degerini gondermelidir. `WarehouseNo` bos giderse bu POS servisinde branch filtresi uygulanmaz.
+- `all-warehouses` varsa UI belirli depo icin `WarehouseNo` gonderebilir; tum subeler icin bos birakabilir.
+- POS fatura ve gider pusulasi liste/import isteklerinde depo filtresi `BranchNo`/kaynak `Sube` uzerinden calisir.
+- Z raporu liste/overview tarafinda `ZReportTotals` kaydinda branch kolonu olmadigi icin `WarehouseNo` bu surumde Z raporu kayitlarini daraltmaz; sube adi `CashRegisterBranches` eslesmesi uzerinden yalniz goruntuleme bilgisi olarak gelir.
+- Detay, ERP'ye gonderme ve silme istekleri ID koleksiyonlari ile calisir; bu isteklerdeki `WarehouseNo` alani bu surumde ID kapsam kontrolu icin kullanilmaz.
 
 Mevcut backend durumu:
 
@@ -9150,7 +12481,8 @@ Bu tab mevcut staging Z raporlarini listeleme, detay izleme, staging silme ve ER
 
 Mevcut akis:
 
-- kullanici tarih ve depo baglamina gore staging Z raporlarini listeler
+- kullanici tarih ve bekleyen/tum kayit baglamina gore staging Z raporlarini listeler
+- `WarehouseNo` bu surumde Z raporu listesini daraltmaz; Z raporu sube bilgisi kasa-sube eslemesinden `branchName` olarak gorunur
 - belge baslik, KDV satiri ve odeme satiri bazinda detay inceler
 - secilen raporlar ERP muhasebe fisine donusturulur
 - ERP gonderimi icin `CashRegisterNo` degerinin `CashRegisterBranches` tablosunda sube ile eslenmis olmasi gerekir
@@ -9168,6 +12500,7 @@ Endpoint'ler:
 UI beklentisi:
 
 - liste ekraninda durum, tarih, Z no, kasa no, sube ve toplam kolonlari hazir dusunulmelidir
+- liste response'unda sube no yoktur; UI sube adini `branchName` alanindan gosterir
 - detay ekraninda header + KDV satirlari + odeme satirlari alt panelli dusunulmelidir
 - `ice aktar` butonu ayrik bir dialog ile acilmalidir; parser aktif olana kadar UI bu aksiyonu uyariyla sunabilir
 - `ERP'ye gonder` aksiyonu coklu secim ile calisacakmis gibi tasarlanmalidir
@@ -9250,6 +12583,7 @@ UI beklentisi:
 - bu tab master-data ekranidir; tarih filtresi gerektirmez
 - grid inline edit veya drawer edit mantigi uygundur
 - minimum alanlar `cashRegisterNo` ve `branchNo` olarak dusunulmelidir
+- request modelinde `branchName` ve `description` alanlari bulunsa da create/update tarafinda bu surumde kullanilmaz; response'taki `branchName`, `branchNo` ile Mikro depo adindan uretilir
 
 #### UI Durum Yonetimi
 
@@ -9394,6 +12728,10 @@ Alan notlari:
 - `ImportPosDocumentsHttpRequest.DateToGet`, POS ekranlari icin `BusinessDate` alias'idir; iki alan da gelirse backend `BusinessDate` degerini kullanir
 - `erpye-gonder` ve toplu `DELETE` body'lerinde belge tipine gore `TotalIds`, `InvoiceIds` veya `ExpenseIds` tercih edilmelidir
 - `DocumentIds`, eski UI contract'lari icin geriye uyumlu yedek alandir
+- `PosAccountingTransferHttpRequest.WarehouseNo` ve `PosAccountingDeleteHttpRequest.WarehouseNo` alanlari contract'ta vardir; bu surumde belge ID kapsam kontrolunde kullanilmaz
+- POS fatura update islemi `DocumentNo`, `CustomerTaxNo` ve `PaymentType` alanlarini isler; `BranchNo` ve `Description` bu endpointte kullanilmaz
+- gider pusulasi update islemi `BranchNo`, `DocumentNo` ve `PaymentType` alanlarini isler; `CustomerTaxNo` ve `Description` bu endpointte kullanilmaz
+- kasa esleme create/update islemi `CashRegisterNo` ve `BranchNo` alanlarini isler; `BranchName` ve `Description` body alanlari bu surumde kullanilmaz
 
 Toplu gonderme / silme body ornekleri:
 
@@ -10390,6 +13728,38 @@ public sealed record ModuleActionScaffoldResponse(
     bool IsImplemented,
     string Message);
 
+public sealed record HomeWarehousePrioritiesDto(
+    DateOnly Date,
+    DateTime GeneratedAtUtc,
+    int? WarehouseNo,
+    string WarehouseName,
+    string OverallStatus,
+    string Headline,
+    IReadOnlyCollection<HomePriorityMetricDto> Metrics,
+    IReadOnlyCollection<HomePriorityItemDto> Priorities,
+    IReadOnlyCollection<HomeQuickActionDto> QuickActions);
+
+public sealed record HomePriorityMetricDto(
+    string Code,
+    string Label,
+    int Value,
+    string Severity,
+    string? Route);
+
+public sealed record HomePriorityItemDto(
+    string Code,
+    string Severity,
+    string Title,
+    string Description,
+    int Count,
+    string Route);
+
+public sealed record HomeQuickActionDto(
+    string Code,
+    string Label,
+    string Route,
+    string? PermissionCode);
+
 public sealed record FeedbackItemDto(
     Guid Id,
     string Type,
@@ -10813,6 +14183,44 @@ public sealed record CompanyOrderLineItemDto(
 public sealed record CompanyOrderDetailDto(
     CompanyOrderHeaderDto Header,
     IReadOnlyCollection<CompanyOrderLineItemDto> Items);
+
+public sealed record SuggestedWarehouseOrderListItemDto(
+    string StockCode,
+    string StockName,
+    string ModelCode,
+    string Barcode,
+    double TargetOnHand,
+    double SourceOnHand,
+    double SalesQuantity,
+    double OpenIncomingOrderQuantity,
+    double PackageFactor,
+    double MinDay,
+    double RecommendedDay,
+    double MaxDay,
+    double RecommendedStockQuantity,
+    double NeedQuantity,
+    double SuggestedOrderQuantity);
+
+public sealed record SuggestedCompanyOrderListItemDto(
+    string SupplierCode,
+    string SupplierName,
+    string StockCode,
+    string StockName,
+    string ModelCode,
+    string Barcode,
+    double TargetOnHand,
+    double SalesQuantity,
+    double OpenCompanyOrderQuantity,
+    double PackageFactor,
+    double MinDay,
+    double RecommendedDay,
+    double MaxDay,
+    double RecommendedStockQuantity,
+    double NeedQuantity,
+    double SuggestedOrderQuantity,
+    double PurchasePrice,
+    double MinimumPurchaseQuantity,
+    int? DeliveryDay);
 
 public sealed record CreateIssuedWarehouseOrderResponse(
     string DocumentSerie,
@@ -11515,6 +14923,20 @@ public sealed record MissingTurnoverBranchItemDto(
 ### Ayar Modelleri
 
 ```csharp
+public sealed record SettingsTypeOptionDto(
+    byte Value,
+    string Code,
+    string Name,
+    string Description,
+    bool IsKnown);
+
+public sealed record BranchSettingsLookupsDto(
+    IReadOnlyCollection<SettingsTypeOptionDto> ScalesTypes,
+    IReadOnlyCollection<SettingsTypeOptionDto> CashTypes);
+
+public sealed record CashRegisterSettingsLookupsDto(
+    IReadOnlyCollection<SettingsTypeOptionDto> CashTypes);
+
 public sealed record DeviceTypeDto(
     int Id,
     string DeviceName);
@@ -11542,6 +14964,8 @@ public sealed record BranchDetailDto(
     string BranchIpAddress,
     string BranchScalesFolderPath,
     byte ScalesType,
+    string ScalesTypeName,
+    string ScalesTypeDescription,
     string PoskonFolderPath,
     string PosGenelFolderPath);
 
@@ -11549,12 +14973,16 @@ public sealed record CashRegistryDto(
     int DetailId,
     int BranchNo,
     int CashNo,
-    byte CashType);
+    byte CashType,
+    string CashTypeName,
+    string CashTypeDescription);
 
 public sealed record CashRegisterResponse(
     int BranchNo,
     int CashNo,
     byte CashType,
+    string CashTypeName,
+    string CashTypeDescription,
     IReadOnlyCollection<CashRegisterTerminalDto> Terminals);
 
 public sealed record CashRegisterTerminalDto(
@@ -11569,7 +14997,10 @@ public sealed record CashRegisterMessageStatusDto(
     int BranchNo,
     int CashNo,
     byte CashType,
+    string CashTypeName,
+    string CashTypeDescription,
     int? State,
+    string? StateName,
     string FilePath,
     string? Error);
 
@@ -11662,6 +15093,11 @@ public sealed record BanknoteTrackDto(
     string Deliverer,
     string Receiver,
     DateTime CreateDate);
+
+public sealed record BanknoteTrackDailySummaryTotalDto(
+    DateTime DateToGet,
+    int WarehouseNo,
+    double TotalAmount);
 
 public sealed record BanknoteTypeItemDto(
     double Value,
@@ -11801,6 +15237,157 @@ public sealed record CashTurnoverBranchOverviewItemDto(
     double FuturesSalesTotal,
     int FuturesSalesCount,
     double AverageBasketAmount);
+
+public sealed record YeniKasaCiroOzetItemDto(
+    DateTime BusinessDate,
+    int WarehouseNo,
+    string WarehouseName,
+    string CashRegisterNo,
+    string CashierCode,
+    string CashierName,
+    int SaleRowCount,
+    int ReceiptCount,
+    int ProductLineCount,
+    double ProductQuantity,
+    double SaleTotal,
+    int PaymentLineCount,
+    double PaymentTotal,
+    double Difference,
+    DateTime? FirstSaleAt,
+    DateTime? LastSaleAt);
+
+public sealed record YeniKasaKasaOzetItemDto(
+    DateTime BusinessDate,
+    int WarehouseNo,
+    string WarehouseName,
+    string CashRegisterNo,
+    int SaleRowCount,
+    int ReceiptCount,
+    double SaleTotal,
+    double PaymentTotal,
+    double CashTotal,
+    double CreditCardTotal,
+    double GiftCardTotal,
+    double OtherPaymentTotal,
+    double UnknownPaymentTotal,
+    double Difference,
+    int CashierCount,
+    DateTime? LastSaleAt);
+
+public sealed record YeniKasaFisMutabakatItemDto(
+    DateTime BusinessDate,
+    int WarehouseNo,
+    string WarehouseName,
+    string CashRegisterNo,
+    string CashierCode,
+    string CashierName,
+    string Uuid,
+    string ReceiptNumber,
+    int SaleRowCount,
+    int ProductLineCount,
+    int PaymentLineCount,
+    double SaleTotal,
+    double ProductLineTotal,
+    double PaymentTotal,
+    double SalePaymentDifference,
+    double SaleLineDifference,
+    string Status,
+    IReadOnlyCollection<string> Issues,
+    DateTime? ReceivedAt);
+
+public sealed record YeniKasaAnomalyItemDto(
+    string Type,
+    string Severity,
+    DateTime? BusinessDate,
+    int WarehouseNo,
+    string WarehouseName,
+    string CashRegisterNo,
+    string CashierCode,
+    string Uuid,
+    string ReceiptNumber,
+    double SaleTotal,
+    double PaymentTotal,
+    double Difference,
+    string Description);
+
+public sealed record YeniKasaPaymentMethodItemDto(
+    string PaymentMethodCode,
+    string PaymentMethodName,
+    string Category,
+    int? PaymentMethodId,
+    int? PavoMediator,
+    int? PavoType,
+    int PaymentLineCount,
+    double Amount,
+    bool IsKnown);
+
+public sealed record YeniKasaSaglikOzetItemDto(
+    DateTime BusinessDate,
+    int WarehouseNo,
+    string WarehouseName,
+    string CashRegisterNo,
+    int ReceiptCount,
+    int ProblemReceiptCount,
+    int CriticalProblemCount,
+    double SaleTotal,
+    double PaymentTotal,
+    double DifferenceTotal,
+    DateTime? LastSaleAt,
+    string RiskLevel,
+    IReadOnlyCollection<string> TopIssues);
+
+public sealed record YeniKasaFisDetayDto(
+    string Uuid,
+    string ReceiptNumber,
+    DateTime? BusinessDate,
+    int WarehouseNo,
+    string WarehouseName,
+    string CashRegisterNo,
+    string CashierCode,
+    string CashierName,
+    double SaleTotal,
+    double ProductLineTotal,
+    double PaymentTotal,
+    double SalePaymentDifference,
+    double SaleLineDifference,
+    string Status,
+    IReadOnlyCollection<string> Issues,
+    IReadOnlyCollection<YeniKasaFisMutabakatItemDto> ReconciliationItems,
+    IReadOnlyCollection<YeniKasaFisSatisSatiriDto> SaleRows,
+    IReadOnlyCollection<YeniKasaFisUrunSatiriDto> ProductLines,
+    IReadOnlyCollection<YeniKasaFisOdemeSatiriDto> Payments);
+
+public sealed record YeniKasaFisSatisSatiriDto(
+    int Id,
+    string Uuid,
+    string ReceiptNumber,
+    DateTime ReceivedAt,
+    int WarehouseNo,
+    string WarehouseCode,
+    string CashRegisterNo,
+    string CashierCode,
+    double SaleTotal,
+    double RemainingAmount,
+    string MarketId,
+    string Status);
+
+public sealed record YeniKasaFisUrunSatiriDto(
+    int Id,
+    string SaleUuid,
+    decimal Quantity,
+    double TotalPrice);
+
+public sealed record YeniKasaFisOdemeSatiriDto(
+    int Id,
+    string SaleUuid,
+    string PaymentMethodCode,
+    string PaymentMethodName,
+    string Category,
+    int? PaymentMethodId,
+    int? PavoMediator,
+    int? PavoType,
+    double Amount,
+    bool IsIncludedInTotals);
 
 public sealed record KasaCiroBranchDto(
     int BranchNo,
@@ -11963,7 +15550,19 @@ public sealed record InvoiceViewingListItemDto(
     bool IsPrinted,
     bool IsStandard,
     string StatusCode,
-    string Status);
+    string Status,
+    string EnvelopeIdentifier,
+    string EnvelopeStatusCode,
+    string Message,
+    decimal TaxTotal,
+    decimal TaxExclusiveAmount,
+    string DocumentCurrencyCode,
+    decimal ExchangeRate,
+    string OrderDocumentId,
+    bool IsArchived,
+    string InvoiceTipType,
+    int InvoiceTipTypeCode,
+    bool? IsSeen);
 
 public sealed record InvoiceViewingDetailDto(
     InvoiceViewingListItemDto Summary,
@@ -12016,6 +15615,55 @@ public sealed record AuthorizationFileDto
     public bool R { get; init; }
     public bool X { get; init; }
 }
+
+public sealed record DocumentFlowListResponse(
+    bool TrackingEnabled,
+    int TotalCount,
+    IReadOnlyCollection<DocumentFlowListItemDto> Items);
+
+public sealed record DocumentFlowListItemDto(
+    Guid Id,
+    string DocumentType,
+    int SourceWarehouseNo,
+    int? TargetWarehouseNo,
+    string DocumentSerie,
+    int DocumentOrderNo,
+    string? DocumentNo,
+    string? ExternalDocumentNo,
+    string? ExternalUuid,
+    string Status,
+    string CurrentStep,
+    string? LastError,
+    DateTime CreatedAtUtc,
+    DateTime UpdatedAtUtc);
+
+public sealed record DocumentFlowDetailDto(
+    Guid Id,
+    string FlowKey,
+    string DocumentType,
+    int SourceWarehouseNo,
+    int? TargetWarehouseNo,
+    string DocumentSerie,
+    int DocumentOrderNo,
+    string? DocumentNo,
+    string? ExternalDocumentNo,
+    string? ExternalUuid,
+    string Status,
+    string CurrentStep,
+    string? LastError,
+    Guid? LastChangedByUserId,
+    DateTime CreatedAtUtc,
+    DateTime UpdatedAtUtc,
+    IReadOnlyCollection<DocumentFlowEventDto> Events);
+
+public sealed record DocumentFlowEventDto(
+    Guid Id,
+    string Step,
+    string Status,
+    string Message,
+    string? Error,
+    Guid? ChangedByUserId,
+    DateTime OccurredAtUtc);
 ```
 
 ### Entegrasyon Modelleri
@@ -12518,20 +16166,26 @@ Bu bolumde yalnizca endpointlerin dogrudan baglandigi HTTP request modelleri yer
 
 ### Ortak Request Modelleri
 
+- `HomeWarehousePrioritiesHttpRequest`: `Date`, `WarehouseNo`
 - `WarehouseOrderDateRangeHttpRequest`: `WarehouseNo`, `StartDate`, `EndDate`
 - `SendEDespatchHttpRequest`: `Plaque`, `DriverNameSurname`, `DriverTckn`
 - `ModuleActionRequest`: `Fields`
 - `CreateFeedbackItemHttpRequest`: `Type`, `Title`, `Message`, `Priority`
 - `FeedbackManagementListHttpRequest`: `Status`, `Type`, `WarehouseNo`, `StartDate`, `EndDate`, `Take`
 - `ChangeFeedbackStatusHttpRequest`: `Status`, `AdminNote`
-- `CreateCompanyMovementHttpRequest`: `CustomerCode`, `MovementDate`, `DocumentDate`, `DocumentNo`, `Description`, `Lines`
+- `CreateCompanyMovementHttpRequest`: `WarehouseNo`, `CustomerCode`, `MovementDate`, `DocumentDate`, `DocumentNo`, `Description`, `Lines`
 - `CreateCompanyMovementLineHttpRequest`: `StockCode`, `Quantity`, `UnitPrice`, `UnitPointer`, `Description`, `PartyCode`, `LotNo`, `ProjectCode`, `CustomerResponsibilityCenter`, `ProductResponsibilityCenter`
-- `CreateStockReceiptHttpRequest`: `Creator`, `Acceptor`, `MovementDate`, `DocumentDate`, `DocumentNo`, `Description`, `Lines`
+- `CreateStockReceiptHttpRequest`: `WarehouseNo`, `Creator`, `Acceptor`, `MovementDate`, `DocumentDate`, `DocumentNo`, `Description`, `Lines`
 - `CreateStockReceiptLineHttpRequest`: `StockCode`, `Quantity`, `UnitPointer`, `Description`, `PartyCode`, `LotNo`, `ProjectCode`
-- `CreateInventoryCountHttpRequest`: `Name`, `DocumentDate`, `Lines`
+- `CreateInventoryCountHttpRequest`: `WarehouseNo`, `ClientRequestId`, `Name`, `DocumentDate`, `Lines`
 - `CreateInventoryCountLineHttpRequest`: `StockCode`, `Quantity`, `Barcode`, `UnitPointer`
-- `CreateVirmanHttpRequest`: `MovementDate`, `DocumentDate`, `DocumentNo`, `Description`, `Lines`
+- `CreateVirmanHttpRequest`: `WarehouseNo`, `MovementDate`, `DocumentDate`, `DocumentNo`, `Description`, `Lines`
 - `CreateVirmanLineHttpRequest`: `StockCode`, `MovementType`, `Quantity`, `UnitPointer`, `Description`, `PartyCode`, `LotNo`, `ProjectCode`
+
+### GreenGrocer Request Modelleri
+
+- `GreenGrocerReportHttpRequest`: `Date`, `DateToGet`, `WarehouseNo`, `TypeCode`, `Search`, `IncludeLazyBranches`, `Take`
+- `DeleteGreenGrocerOrderHttpRequest`: `DocumentSerie`, `DocumentOrderNo`, `WarehouseNo`
 
 ### Arama Request Modelleri
 
@@ -12547,29 +16201,60 @@ Bu bolumde yalnizca endpointlerin dogrudan baglandigi HTTP request modelleri yer
 ### Siparis Request Modelleri
 
 - `IssuedCompanyOrderListHttpRequest`: `WarehouseNo`, `StartDate`, `EndDate`, `CustomerCode`, `OnlyOpen`
-- `CreateIssuedCompanyOrderHttpRequest`: `CustomerCode`, `OrderDate`, `DeliveryDate`, `Description1`, `Description2`, `Deliverer`, `Receiver`, `Lines`
+- `CreateIssuedCompanyOrderHttpRequest`: `WarehouseNo`, `CustomerCode`, `OrderDate`, `DeliveryDate`, `Description1`, `Description2`, `Deliverer`, `Receiver`, `Lines`
 - `CreateIssuedCompanyOrderLineHttpRequest`: `StockCode`, `Quantity`, `RecommendedQuantity`, `UnitPrice`, `UnitPointer`, `Description1`, `Description2`, `PackageCode`, `ProjectCode`, `CustomerResponsibilityCenter`, `ProductResponsibilityCenter`
-- `CreateIssuedWarehouseOrderHttpRequest`: `OutWarehouseNo`, `OrderDate`, `DeliveryDate`, `Description`, `Lines`
+- `CreateIssuedWarehouseOrderHttpRequest`: `InWarehouseNo`, `OutWarehouseNo`, `OrderDate`, `DeliveryDate`, `Description`, `Lines`
 - `CreateIssuedWarehouseOrderLineHttpRequest`: `StockCode`, `Quantity`, `RecommendedQuantity`, `UnitPrice`, `UnitPointer`, `Description`, `PackageCode`, `ProjectCode`, `ResponsibilityCenter`
+- `SuggestedWarehouseOrderListHttpRequest`: `TargetWarehouseNo`, `SourceWarehouseNo`, `LookbackDays`, `FallbackRecommendedDay`
+- `ConvertSuggestedWarehouseOrderHttpRequest`: `TargetWarehouseNo`, `SourceWarehouseNo`, `OrderDate`, `DeliveryDate`, `Description`, `Lines`
+- `ConvertSuggestedWarehouseOrderLineHttpRequest`: `StockCode`, `Quantity`, `RecommendedQuantity`, `UnitPrice`, `UnitPointer`, `Description`, `PackageCode`, `ProjectCode`, `ResponsibilityCenter`
+- `SuggestedCompanyOrderListHttpRequest`: `WarehouseNo`, `SupplierCode`, `LookbackDays`, `FallbackRecommendedDay`
+- `ConvertSuggestedCompanyOrderHttpRequest`: `WarehouseNo`, `SupplierCode`, `OrderDate`, `DeliveryDate`, `Description1`, `Description2`, `Deliverer`, `Receiver`, `Lines`
+- `ConvertSuggestedCompanyOrderLineHttpRequest`: `StockCode`, `Quantity`, `RecommendedQuantity`, `UnitPrice`, `UnitPointer`, `Description1`, `Description2`, `PackageCode`, `ProjectCode`, `CustomerResponsibilityCenter`, `ProductResponsibilityCenter`
 
 ### Sevk, Iade ve Mal Kabul Request Modelleri
 
-- `CreateInterWarehouseShipmentHttpRequest`: `TargetWarehouseNo`, `TransitWarehouseNo`, `MovementDate`, `DocumentDate`, `DocumentNo`, `Description`, `Lines`
+- `CreateInterWarehouseShipmentHttpRequest`: `SourceWarehouseNo`, `TargetWarehouseNo`, `TransitWarehouseNo`, `MovementDate`, `DocumentDate`, `DocumentNo`, `Description`, `Lines`
 - `CreateInterWarehouseShipmentLineHttpRequest`: `StockCode`, `Quantity`, `WarehouseOrderLineGuid`, `UnitPrice`, `UnitPointer`, `Description`, `PartyCode`, `LotNo`, `ProjectCode`, `CustomerResponsibilityCenter`, `ProductResponsibilityCenter`
-- `CreateWarehouseReturnHttpRequest`: `TargetWarehouseNo`, `TransitWarehouseNo`, `MovementDate`, `DocumentDate`, `DocumentNo`, `Description`, `Lines`
+- `CreateWarehouseReturnHttpRequest`: `SourceWarehouseNo`, `TargetWarehouseNo`, `TransitWarehouseNo`, `MovementDate`, `DocumentDate`, `DocumentNo`, `Description`, `Lines`
 - `CreateWarehouseReturnLineHttpRequest`: `StockCode`, `Quantity`, `UnitPrice`, `UnitPointer`, `Description`, `PartyCode`, `LotNo`, `ProjectCode`, `CustomerResponsibilityCenter`, `ProductResponsibilityCenter`
-- `AcceptWarehouseReceivingHttpRequest`: `AllowDiscrepancy`, `Lines`
+- `AcceptWarehouseReceivingHttpRequest`: `WarehouseNo`, `AllowDiscrepancy`, `Lines`
 - `AcceptWarehouseReceivingLineHttpRequest`: `MovementGuid`, `ReceivedQuantity`
-- `CreateCompanyReceivingHttpRequest`: `ClientRequestId`, `CustomerCode`, `MovementDate`, `DocumentDate`, `DocumentNo`, `Deliverer`, `Receiver`, `Description`, `AllowOrderOverReceiving`, `AutoCreateReturnForPartialAcceptance`, `Lines`
+- `CreateCompanyReceivingHttpRequest`: `WarehouseNo`, `ClientRequestId`, `CustomerCode`, `MovementDate`, `DocumentDate`, `DocumentNo`, `Deliverer`, `Receiver`, `Description`, `AllowOrderOverReceiving`, `AutoCreateReturnForPartialAcceptance`, `Lines`
 - `CreateCompanyReceivingLineHttpRequest`: `StockCode`, `Quantity`, `DispatchQuantity`, `AcceptedQuantity`, `UnitPrice`, `UnitPointer`, `LastConsumingDate`, `OrderGuid`, `Description`, `PartyCode`, `LotNo`, `ProjectCode`, `CustomerResponsibilityCenter`, `ProductResponsibilityCenter`
 
 ### Stok ve Etiket Request Modelleri
 
-- `LabelTagListHttpRequest`: `DateToGet`
+- `LabelTagListHttpRequest`: `WarehouseNo`, `DateToGet`
 - `ManavKunyeDetailedLabelTagListHttpRequest`: `WarehouseNo`, `DateToGet` opsiyonel
-- `LabelPriceChangedProductListHttpRequest`: `DateTimeFilter`
-- `CreateLabelDocumentHttpRequest`: `Lines`
+- `LabelPriceChangedProductListHttpRequest`: `WarehouseNo`, `DateTimeFilter`
+- `CreateLabelDocumentHttpRequest`: `WarehouseNo`, `Lines`
 - `CreateLabelDocumentLineHttpRequest`: `ProductCode`
+
+### Rapor Request Modelleri
+
+- `StockOnHandReportHttpRequest`: `WarehouseNo`, `ReportDate`, `Search`, `SupplierCode`, `CategoryCode`, `ProducerCode`, `ProductManagerCode`, `ModelCode`, `OnlyWithStock`, `Take`
+- `SupplierStockOnHandHttpRequest`: `WarehouseNo`, `ReportDate`, `SupplierCode` zorunlu, `Search`, `OnlyWithStock`, `Take`
+- `CategoryStockOnHandHttpRequest`: `WarehouseNo`, `ReportDate`, `CategoryCode` zorunlu, `Search`, `OnlyWithStock`, `Take`
+- `StockCategoryOptionHttpRequest`: `Search`, `OnlyActive`, `Take`
+- `ProducerStockOnHandHttpRequest`: `WarehouseNo`, `ReportDate`, `ProducerCode` zorunlu, `Search`, `OnlyWithStock`, `Take`
+- `ProductWarehouseStockHttpRequest`: `WarehouseNo`, `ReportDate`, `StockCodeOrBarcode` zorunlu, `OnlyWithStock`, `Take`
+- `ProductWarehouseStockByPathHttpRequest`: path `stockCodeOrBarcode`, query `WarehouseNo`, `ReportDate`, `OnlyWithStock`, `Take`
+- `StockCardDetailHttpRequest`: `WarehouseNo`, `Barcode`, `StockCode`, `StockName`, `SupplierCode`, `ProductManagerCode`, `Take`
+- `WarehouseMissingStockHttpRequest`: `SourceWarehouseNo` zorunlu, `TargetWarehouseNo`, `ReportDate`, `Search`, `ModelCode`, `Take`
+- `WarehouseZeroStockHttpRequest`: `WarehouseNo`, `ReportDate`, `ModelCode`, `Take`
+- `StockMovementReportHttpRequest`: `WarehouseNo`, `StartDate` zorunlu, `EndDate` zorunlu, `StockCode`, `Take`
+- `FilteredDateRangeReportHttpRequest`: `WarehouseNo`, `StartDate` zorunlu, `EndDate` zorunlu, `FilterType`, `FilterValue`, `Take`
+- `ReturnBranchReportHttpRequest`: `WarehouseNo`, `StartDate` zorunlu, `EndDate` zorunlu, `StockCode` zorunlu, `Take`
+- `NotSoldProductReportHttpRequest`: `WarehouseNo`, `StartDate` zorunlu, `EndDate` zorunlu, `ProductManagerCode`, `IncludeDls`, `Take`
+- `ProfitabilityReportHttpRequest`: `WarehouseNo`, `StartDate` zorunlu, `EndDate` zorunlu, `Scope`, `FilterValue`, `Take`
+- `CountingComparisonReportHttpRequest`: `WarehouseNo`, `CountDate` zorunlu, `DocumentNo`, `PackageCode`, `Take`
+- `GET /api/rapor-islemleri/stok-raporlari/*` endpointleri body almaz; filtreler query parametresi olarak gonderilir.
+- `Take` tum stok raporlari icin 1-1000 araligindadir; default endpoint bazinda 100, 250 veya 500 olabilir.
+- `PromotionBulletinListHttpRequest`: `WarehouseNo`, `ActiveOn`, `OnlyActive`, `Search`, `Take`
+- `PromotionBulletinOptionHttpRequest`: `WarehouseNo`, `ActiveOn`, `OnlyActive`, `Search`, `Take`
+- `PromotionPerformanceHttpRequest`: `WarehouseNo`, `StartDate` opsiyonel, `EndDate` opsiyonel, `PromotionCode`, `Search`, `Take`
+- `GET /api/rapor-islemleri/promosyon-raporlari/*` endpointleri body almaz; filtreler query parametresi olarak gonderilir.
 
 ### Mikro Evrak Duzenleme Request Modelleri
 
@@ -12577,18 +16262,26 @@ Bu bolumde yalnizca endpointlerin dogrudan baglandigi HTTP request modelleri yer
 - `StockCardPatchHttpRequest`: `Name`, `ShortName`, `ForeignName`, `SupplierCode`, `StockType`, `CurrencyType`, `TrackingType`, `Unit1Name`, `Unit2Name`, `Unit3Name`, `Unit4Name`, `RetailTaxPointer`, `WholesaleTaxPointer`, `CategoryCode`, `MainGroupCode`, `SubGroupCode`, `BrandCode`, `SectorCode`, `RayonCode`, `ManufacturerCode`, `ResponsibilityCode`, `ShelfCode`, `SalesStopped`, `OrderStopped`, `ReceivingStopped`, `IsPassive`, `DiscountDisabled`
 - `StockMovementDocumentLookupHttpRequest`: `DocumentSerie`, `DocumentOrderNo`, `DocumentType`, `MovementType`, `MovementKind`, `NormalReturn`, `WarehouseNo`
 - `UpdateStockMovementDocumentHttpRequest`: `Lookup`, `Header`, `Lines`
-- `StockMovementHeaderPatchHttpRequest`: `MovementDate`, `DocumentDate`, `DocumentNo`, `CustomerCode`, `InputWarehouseNo`, `OutputWarehouseNo`, `Description`, `MovementGroupCode1`, `MovementGroupCode2`, `MovementGroupCode3`, `CustomerResponsibilityCenter`, `StockResponsibilityCenter`, `ProjectCode`
-- `StockMovementLinePatchHttpRequest`: `MovementGuid`, `RowNo`, `StockCode`, `UnitPointer`, `Quantity`, `SecondaryQuantity`, `Amount`, `Discount1..Discount6`, `Expense1..Expense4`, `TaxPointer`, `TaxAmount`, `NetWeight`, `GrossWeight`, `Description`, `PartyCode`, `LotNo`, `ProjectCode`, `CustomerResponsibilityCenter`, `StockResponsibilityCenter`, `InputWarehouseNo`, `OutputWarehouseNo`
+- `StockMovementHeaderPatchHttpRequest`: `MovementDate`, `DocumentDate`, `GoodsAcceptanceDate`, `DocumentNo`, `CustomerCode`, `InputWarehouseNo`, `OutputWarehouseNo`, `Description`, `MovementGroupCode1`, `MovementGroupCode2`, `MovementGroupCode3`, `CustomerResponsibilityCenter`, `StockResponsibilityCenter`, `ProjectCode`
+- `StockMovementLinePatchHttpRequest`: `MovementGuid`, `RowNo`, `GoodsAcceptanceDate`, `StockCode`, `UnitPointer`, `Quantity`, `SecondaryQuantity`, `Amount`, `Discount1..Discount6`, `Expense1..Expense4`, `TaxPointer`, `TaxAmount`, `NetWeight`, `GrossWeight`, `Description`, `PartyCode`, `LotNo`, `ProjectCode`, `CustomerResponsibilityCenter`, `StockResponsibilityCenter`, `InputWarehouseNo`, `OutputWarehouseNo`
 - `CustomerMovementDocumentLookupHttpRequest`: `DocumentSerie`, `DocumentOrderNo`, `DocumentType`, `MovementType`, `MovementKind`, `NormalReturn`, `CustomerCode`
 - `UpdateCustomerMovementDocumentHttpRequest`: `Lookup`, `Header`, `Lines`
 - `CustomerMovementHeaderPatchHttpRequest`: `MovementDate`, `DocumentDate`, `DocumentNo`, `CustomerCode`, `TurnoverCustomerCode`, `Description`, `SellerCode`, `ProjectCode`, `ResponsibilityCenter`
 - `CustomerMovementLinePatchHttpRequest`: `MovementGuid`, `RowNo`, `CustomerCode`, `TurnoverCustomerCode`, `Quantity`, `Amount`, `SubAmount`, `DueDay`, `Discount1..Discount6`, `Expense1..Expense4`, `Tax1..Tax5`, `Description`, `SellerCode`, `ProjectCode`, `ResponsibilityCenter`
+- `CompanyOrderDocumentLookupHttpRequest`: `DocumentSerie`, `DocumentOrderNo`, `OrderType`, `OrderKind`, `WarehouseNo`, `CustomerCode`, `HardDelete`
+- `UpdateCompanyOrderDocumentHttpRequest`: `Lookup`, `Header`, `Lines`
+- `CompanyOrderHeaderPatchHttpRequest`: `OrderDate`, `DeliveryDate`, `DocumentDate`, `DocumentNo`, `CustomerCode`, `WarehouseNo`, `SellerCode`, `Description1`, `Description2`, `DeliveryType`, `AddressNo`, `CurrencyType`, `CurrencyRate`, `AlternativeCurrencyRate`, `CanBeCalled`, `IsClosed`, `CloseReasonCode`, `ProjectCode`, `CustomerResponsibilityCenter`, `StockResponsibilityCenter`
+- `CompanyOrderLinePatchHttpRequest`: `OrderGuid`, `RowNo`, `DeliveryDate`, `StockCode`, `UnitPointer`, `Quantity`, `DeliveredQuantity`, `UnitPrice`, `Amount`, `Discount1..Discount6`, `Expense1..Expense4`, `TaxPointer`, `TaxAmount`, `Description1`, `Description2`, `PackageCode`, `PartyCode`, `LotNo`, `ProjectCode`, `CustomerResponsibilityCenter`, `StockResponsibilityCenter`, `CanBeCalled`, `IsClosed`, `CloseReasonCode`
+- `WarehouseOrderDocumentLookupHttpRequest`: `DocumentSerie`, `DocumentOrderNo`, `WarehouseNo`, `InWarehouseNo`, `OutWarehouseNo`, `HardDelete`
+- `UpdateWarehouseOrderDocumentHttpRequest`: `Lookup`, `Header`, `Lines`
+- `WarehouseOrderHeaderPatchHttpRequest`: `OrderDate`, `DeliveryDate`, `DocumentDate`, `DocumentNo`, `InWarehouseNo`, `OutWarehouseNo`, `Description`, `IsClosed`, `CloseReasonCode`, `ProjectCode`, `ResponsibilityCenter`
+- `WarehouseOrderLinePatchHttpRequest`: `OrderGuid`, `RowNo`, `DeliveryDate`, `StockCode`, `UnitPointer`, `Quantity`, `DeliveredQuantity`, `UnitPrice`, `Amount`, `Description`, `InWarehouseNo`, `OutWarehouseNo`, `IsClosed`, `CloseReasonCode`, `PackageCode`, `ProjectCode`, `ResponsibilityCenter`
 
 ### Ayar Request Modelleri
 
 - `CreateDeviceHttpRequest`: `BranchNo`, `DeviceTypeId`, `IpAddress`, `Description`
-- `CreateBranchSettingsHttpRequest`: `BranchNo`, `BranchIpAddress`, `BranchScalesFolderPath`, `ScalesType`, `PoskonFolderPath`, `PosGenelFolderPath`, `CashRegisters`
-- `UpdateBranchSettingsHttpRequest`: `BranchIpAddress`, `BranchScalesFolderPath`, `ScalesType`, `PoskonFolderPath`, `PosGenelFolderPath`
+- `CreateBranchSettingsHttpRequest`: `BranchNo`, `BranchIpAddress`, `BranchScalesFolderPath`, `ScalesType` (`0=CAS 16`, `1=CAS 500`), `PoskonFolderPath`, `PosGenelFolderPath`, `CashRegisters`
+- `UpdateBranchSettingsHttpRequest`: `BranchIpAddress`, `BranchScalesFolderPath`, `ScalesType` (`0=CAS 16`, `1=CAS 500`), `PoskonFolderPath`, `PosGenelFolderPath`
 - `CreateCashRegistryHttpRequest`: `CashNo`, `CashType`
 - `CreateCashRegisterHttpRequest`: `BranchNo`, `CashNo`, `CashType`, `Terminals`
 - `CreateCashRegisterTerminalHttpRequest`: `TerminalNo`, `Bank`, `TerminalId`, `MerchantNo`
@@ -12600,12 +16293,14 @@ Bu bolumde yalnizca endpointlerin dogrudan baglandigi HTTP request modelleri yer
 - `CashSummaryDateHttpRequest`: `DateToGet`, `WarehouseNo`
 - `WarehouseOrderDateRangeHttpRequest`: `WarehouseNo`, `StartDate`, `EndDate`
 - `CashTurnoverDetailHttpRequest`: `WarehouseNo`, `BusinessDate`, `ShiftNo`, `CashierCode`
+- `YeniKasaAnalizHttpRequest`: `WarehouseNo`, `StartDate`, `EndDate`, `CashRegisterNo`, `CashierCode`, `Take`, `OnlyProblematic`
+- `YeniKasaFisDetayHttpRequest`: `Uuid` veya `BusinessDate`, `WarehouseNo`, `CashRegisterNo`, `ReceiptNumber`
 - `CashierPairHttpRequest`: `CashierCode`, `ManagerCode`
 - `CashRegistryHttpRequest`: `BranchNo`
 - `CashRegisterLookupHttpRequest`: `CashNo`, `CashRegisterNo`
 - `CashierSearchHttpRequest`: `FilterString`
 - `BankPaymentTypeHttpRequest`: `CashRegisterNo`
-- `ZReportValueHttpRequest`: `WarehouseNo`, `DocumentSerie`, `ZReportNo`, `CashNo`
+- `ZReportValueHttpRequest`: `WarehouseNo`, `DocumentSerie` (opsiyonel), `ZReportNo`, `CashNo`
 - `CreateBanknoteTrackHttpRequest`: `WarehouseNo`, `BanknoteTrackDate`, `TotalAmount`, `DeliveryTotalAmount`, `Deliverer`, `Receiver`
 - `CreateCashSummaryHttpRequest`: `WarehouseNo`, `CashNo`, `ZReportNo`, `CashierNo`, `ManagerNo`, `ZTotalValue`, `Total`, `SummaryDate`, `GiftCheckMovements`, `BanknoteMovements`, `PaymentTypes`, `StoreExpenses`
 - `CreateGiftCheckMovementHttpRequest`: `GiftCheckType`, `Quantity`, `Total`, `Value`
@@ -12630,16 +16325,19 @@ Bu bolumde yalnizca endpointlerin dogrudan baglandigi HTTP request modelleri yer
 - `InvoiceSendingRenderHttpRequest`: `Scenario`, `Profile`, `PreferEmbeddedXslt`, `FallbackToDefaultXslt` (JSON body'de `fallbackToGeneral` olarak gonderilir)
 - `InvoiceSendingBatchHttpRequest`: `Scenario`, `Documents[]`
 - `InvoiceSendingBatchDocumentHttpRequest`: `DocumentSerie`, `DocumentOrderNo`
-- `InvoiceViewingListHttpRequest`: `StartDate`, `EndDate`, `ProcessedState`, `IsProcessed`, `PrintedState`, `IsPrinted`, `SearchField`, `SearchText`, `PageNumber`, `Page`, `PageSize`
-- `InvoiceViewingSynchronizationHttpRequest`: `StartDate`, `EndDate`
+- `InvoiceViewingListHttpRequest`: `StartDate`, `EndDate`, `ProcessedState`, `IsProcessed`, `PrintedState`, `IsPrinted`, `SearchField`, `SearchText`, `InvoiceId`, `InvoiceNo`, `DespatchId`, `DespatchNo`, `CustomerTitle`, `CustomerTcknVkn`, `TcknVkn`, `DocumentId`, `Ettn`, `OrderDocumentId`, `Status`, `InvoiceType`, `MinInvoiceTotal`, `MaxInvoiceTotal`, `HasDespatchId`, `PageNumber`, `Page`, `PageSize`
+- `InvoiceViewingSynchronizationHttpRequest`: `StartDate`, `EndDate`, `IncludeStatuses`
+- `InvoiceViewingSynchronizationProgressResponse`: `IsRunning`, `Status`, `StartDate`, `EndDate`, `IncludeStatuses`, `QueryStartDate`, `QueryEndDate`, `PageIndex`, `PageNumber`, `PageSize`, `TotalCount`, `TotalPage`, `FetchedCount`, `MatchedCount`, `SkippedInvoiceDateOutOfRangeCount`, `SkippedDuplicateDocumentCount`, `InsertedCount`, `UpdatedCount`, `LastPageItemCount`, `LastPageMatchedCount`, `LastPageSkippedInvoiceDateOutOfRangeCount`, `LastPageSkippedDuplicateDocumentCount`, `LastPageInsertedCount`, `LastPageUpdatedCount`, `ProgressPercent`, `StartedAtUtc`, `LastUpdatedAtUtc`, `FinishedAtUtc`, `ElapsedMs`, `Message`, `AutomaticSynchronizationEnabled`, `SchedulerLastCheckedAtUtc`, `SchedulerLastCheckedLocal`, `SchedulerStatus`, `SchedulerMessage`, `SchedulerCurrentSlot`, `SchedulerNextSlot`, `SchedulerLastQueuedSlot`, `SchedulerLastQueuedAtUtc`, `SchedulerLastSkippedSlot`, `SchedulerLastSkippedAtUtc`, `SchedulerLastMissedSlot`, `SchedulerLastMissedAtUtc`
 - `InvoiceViewingRenderHttpRequest`: `Profile`, `PreferEmbeddedXslt`, `FallbackToDefaultXslt` (JSON body'de `fallbackToGeneral` olarak gonderilir)
 - `InvoiceViewingPrintedStateHttpRequest`: `IsPrinted`, `Source`
 - `InvoicePreviewHttpRequest`: `InvoiceId`, `XmlContent`, `Profile`, `PreferEmbeddedXslt`
 - `GET /api/fatura-islemleri/fatura-gonderimi` endpoint'i body almaz; query'de `StartDate`, `EndDate`, `Scenario` ve `isSent/SentState` kullanir
 - `GET /api/fatura-islemleri/fatura-gonderimi/{documentSerie}/{documentOrderNo}` endpoint'i body almaz; `scenario` query parametresi kullanir
+- `GET /api/fatura-islemleri/fatura-gonderimi/{documentSerie}/{documentOrderNo}/pdf` endpoint'i body almaz; gonderilmis giden faturayi Uyumsoft outbox'tan PDF olarak alir ve `scenario` query parametresini kullanir
 - `POST /api/fatura-islemleri/fatura-gonderimi/{documentSerie}/{documentOrderNo}/render` endpoint'i body'de `InvoiceSendingRenderHttpRequest` alir
 - `POST /api/fatura-islemleri/fatura-gonderimi/send` endpoint'i body'de `InvoiceSendingBatchHttpRequest` alir
 - `POST /api/fatura-islemleri/fatura-goruntuleme/senkronize` endpoint'i body'de `InvoiceViewingSynchronizationHttpRequest` alir
+- `GET /api/fatura-islemleri/fatura-goruntuleme/senkronize/progress` endpoint'i body almaz; son/aktif senkronizasyon durumunu doner
 - `GET /api/fatura-islemleri/fatura-goruntuleme/{documentId}` ve `/pdf` endpointleri body almaz; `documentId` path parametresiyle Uyumsoft `GetInboxInvoicePdf` cagirir
 - `GET /api/fatura-islemleri/fatura-goruntuleme/{documentId}/detail` endpoint'i body almaz; HTML detay icin `documentId` path parametresi kullanir
 - `POST /api/fatura-islemleri/fatura-goruntuleme/{documentId}/render` endpoint'i body'de `InvoiceViewingRenderHttpRequest` alir
@@ -12648,7 +16346,11 @@ Bu bolumde yalnizca endpointlerin dogrudan baglandigi HTTP request modelleri yer
 ### Operasyon Request Modelleri
 
 - `SaveAuthorizationFileHttpRequest`: `Id`, `UpdateDate`, `Name`, `Z`, `R`, `X`
+- `GET /api/operations/scalesfile`, `productbarcodeplunofile`, `productbarcodeplonofile`, `cashierfile` ve `promofile` endpointleri body almaz; opsiyonel `warehouseNo` query parametresi yalniz `operasyon-islemleri.operations.all-warehouses` yetkili depo secimi icindir.
 - `POST /api/operations/saveauthorizationfile` ve `POST /api/operations/authorization-files` body modeli tek obje degil, `IReadOnlyCollection<SaveAuthorizationFileHttpRequest>` dizisidir.
+- `DocumentFlowListHttpRequest`: `WarehouseNo`, `StartDate`, `EndDate`, `DocumentType`, `Status`, `Search`, `Take`
+- `GET /api/operasyon-islemleri/belge-akis-takibi` body almaz; filtreleri query parametresi olarak alir.
+- `GET /api/operasyon-islemleri/belge-akis-takibi/{id}` body almaz; `id` belge akis kaydinin `Guid` degeridir.
 
 ### Entegrasyon Request Modelleri
 

@@ -120,7 +120,7 @@ class WarehouseOrdersController extends ChangeNotifier with SafeChangeNotifier {
         accessToken: _accessToken,
         documentSerie: item.documentSerie,
         documentOrderNo: item.documentOrderNo,
-        warehouseNo: _effectiveWarehouseNo,
+        warehouseNo: _effectiveWarehouseNoFor(item),
       );
       if (!_detailEpoch.isCurrent(detailRequestId)) {
         return;
@@ -186,9 +186,13 @@ class WarehouseOrdersController extends ChangeNotifier with SafeChangeNotifier {
     }
   }
 
-  String get _effectiveWarehouseNo {
+  String _effectiveWarehouseNoFor(WarehouseOrderListItem item) {
     if (_warehouseNo.trim().isNotEmpty) {
       return _warehouseNo.trim();
+    }
+
+    if (item.warehouseNo > 0) {
+      return item.warehouseNo.toString();
     }
 
     return _defaultWarehouseNo;

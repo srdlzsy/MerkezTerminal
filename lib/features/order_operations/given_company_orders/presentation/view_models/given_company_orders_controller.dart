@@ -121,7 +121,7 @@ class GivenCompanyOrdersController extends ChangeNotifier
         accessToken: _accessToken,
         documentSerie: item.documentSerie,
         documentOrderNo: item.documentOrderNo,
-        warehouseNo: _effectiveWarehouseNo,
+        warehouseNo: _effectiveWarehouseNoFor(item),
       );
       if (!_detailEpoch.isCurrent(detailRequestId)) {
         return;
@@ -187,9 +187,13 @@ class GivenCompanyOrdersController extends ChangeNotifier
     }
   }
 
-  String get _effectiveWarehouseNo {
+  String _effectiveWarehouseNoFor(CompanyOrderListItem item) {
     if (_warehouseNo.trim().isNotEmpty) {
       return _warehouseNo.trim();
+    }
+
+    if (item.warehouseNo > 0) {
+      return item.warehouseNo.toString();
     }
 
     return _defaultWarehouseNo;

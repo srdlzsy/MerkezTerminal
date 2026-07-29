@@ -65,6 +65,10 @@ class AppUpdateService {
       return null;
     }
 
+    if (!_isAbsoluteHttpUri(_manifestUri)) {
+      return null;
+    }
+
     final currentVersion = await _currentVersion();
     if (currentVersion == null || currentVersion.trim().isEmpty) {
       return null;
@@ -95,7 +99,7 @@ class AppUpdateService {
     }
 
     final apkUri = Uri.tryParse(apk.trim());
-    if (apkUri == null || !apkUri.hasScheme || apkUri.host.isEmpty) {
+    if (apkUri == null || !_isAbsoluteHttpUri(apkUri)) {
       throw const AppUpdateException('APK adresi gecersiz.');
     }
 
@@ -123,7 +127,7 @@ class AppUpdateService {
     final openedInstaller = await _channel
         .invokeMethod<bool>('downloadAndInstallApk', <String, Object?>{
           'url': updateInfo.apkUri.toString(),
-          'fileName': 'furpa-terminal-${updateInfo.version}.apk',
+          'fileName': _updateFileName(updateInfo.version),
           'requestId': requestId,
         })
         .whenComplete(() {
@@ -198,6 +202,21 @@ class AppUpdateService {
         .map((part) => int.tryParse(part.replaceAll(RegExp(r'[^0-9]'), '')))
         .map((part) => part ?? 0)
         .toList(growable: false);
+  }
+
+  static bool _isAbsoluteHttpUri(Uri uri) {
+    return (uri.scheme == 'http' || uri.scheme == 'https') &&
+        uri.host.trim().isNotEmpty;
+  }
+
+  static String _updateFileName(String version) {
+    final safeVersion = version
+        .trim()
+        .replaceAll(RegExp(r'[^A-Za-z0-9._-]'), '_')
+        .replaceFirst(RegExp(r'^_+'), '')
+        .replaceFirst(RegExp(r'_+$'), '');
+    final suffix = safeVersion.isEmpty ? 'update' : safeVersion;
+    return 'furpa-terminal-$suffix.apk';
   }
 
   static int _readInt(Object? value) {

@@ -74,7 +74,7 @@ void main() {
       final opened = await service.downloadAndInstall(
         AppUpdateInfo(
           currentVersion: '1.1.20',
-          version: '1.1.21',
+          version: '1.1.21 beta/terminal',
           apkUri: Uri.parse('http://updates.test/app-release.apk'),
         ),
       );
@@ -82,8 +82,28 @@ void main() {
       expect(opened, isTrue);
       final arguments = sentArguments as Map<Object?, Object?>;
       expect(arguments['url'], 'http://updates.test/app-release.apk');
-      expect(arguments['fileName'], 'furpa-terminal-1.1.21.apk');
+      expect(arguments['fileName'], 'furpa-terminal-1.1.21_beta_terminal.apk');
       expect(arguments['requestId'], isA<String>());
     },
   );
+
+  test('checkForUpdate skips invalid manifest URL', () async {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, (call) async {
+          if (call.method == 'getAppVersion') {
+            return '1.1.20';
+          }
+          return null;
+        });
+
+    final service = AppUpdateService(
+      httpClient: MockClient((request) async {
+        fail('Invalid manifest URL should not be requested.');
+      }),
+      manifestUri: Uri.parse('/version.json'),
+      channel: channel,
+    );
+
+    expect(await service.checkForUpdate(), isNull);
+  });
 }

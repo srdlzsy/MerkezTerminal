@@ -13,6 +13,8 @@ import 'package:furpa_merkez_terminal/features/order_operations/given_company_or
 import 'package:furpa_merkez_terminal/features/order_operations/given_warehouse_orders/data/given_warehouse_orders_repository.dart';
 import 'package:furpa_merkez_terminal/features/order_operations/received_company_orders/data/received_company_orders_repository.dart';
 import 'package:furpa_merkez_terminal/features/order_operations/received_warehouse_orders/data/received_warehouse_orders_repository.dart';
+import 'package:furpa_merkez_terminal/features/order_operations/suggested_company_orders/data/suggested_company_orders_repository.dart';
+import 'package:furpa_merkez_terminal/features/order_operations/suggested_warehouse_orders/data/suggested_warehouse_orders_repository.dart';
 import 'package:furpa_merkez_terminal/features/return_operations/warehouse_returns/data/warehouse_returns_repository.dart';
 import 'package:furpa_merkez_terminal/features/shell/presentation/routing/shell_module_registry.dart';
 import 'package:furpa_merkez_terminal/features/shell/presentation/view_models/app_session_controller.dart';
@@ -82,6 +84,10 @@ class AppDependencies {
     final givenWarehouseOrdersRepository = ApiGivenWarehouseOrdersRepository(
       apiClient: apiClient,
     );
+    final suggestedCompanyOrdersRepository =
+        ApiSuggestedCompanyOrdersRepository(apiClient: apiClient);
+    final suggestedWarehouseOrdersRepository =
+        ApiSuggestedWarehouseOrdersRepository(apiClient: apiClient);
     final receivedCompanyOrdersRepository = ApiReceivedCompanyOrdersRepository(
       apiClient: apiClient,
     );
@@ -149,6 +155,8 @@ class AppDependencies {
     final moduleRegistry = ShellModuleRegistry(
       givenCompanyOrdersRepository: givenCompanyOrdersRepository,
       givenWarehouseOrdersRepository: givenWarehouseOrdersRepository,
+      suggestedCompanyOrdersRepository: suggestedCompanyOrdersRepository,
+      suggestedWarehouseOrdersRepository: suggestedWarehouseOrdersRepository,
       receivedCompanyOrdersRepository: receivedCompanyOrdersRepository,
       receivedWarehouseOrdersRepository: receivedWarehouseOrdersRepository,
       warehouseAcceptancesRepository: warehouseAcceptancesRepository,
@@ -186,6 +194,8 @@ class AppDependencies {
       moduleRegistry: moduleRegistry,
       givenCompanyOrdersRepository: givenCompanyOrdersRepository,
       givenWarehouseOrdersRepository: givenWarehouseOrdersRepository,
+      suggestedCompanyOrdersRepository: suggestedCompanyOrdersRepository,
+      suggestedWarehouseOrdersRepository: suggestedWarehouseOrdersRepository,
       receivedCompanyOrdersRepository: receivedCompanyOrdersRepository,
       receivedWarehouseOrdersRepository: receivedWarehouseOrdersRepository,
       warehouseAcceptancesRepository: warehouseAcceptancesRepository,
@@ -224,6 +234,8 @@ class AppDependencies {
     required this.moduleRegistry,
     required this.givenCompanyOrdersRepository,
     required this.givenWarehouseOrdersRepository,
+    required this.suggestedCompanyOrdersRepository,
+    required this.suggestedWarehouseOrdersRepository,
     required this.receivedCompanyOrdersRepository,
     required this.receivedWarehouseOrdersRepository,
     required this.warehouseAcceptancesRepository,
@@ -256,6 +268,8 @@ class AppDependencies {
   final ShellModuleRegistry moduleRegistry;
   final GivenCompanyOrdersRepository givenCompanyOrdersRepository;
   final GivenWarehouseOrdersRepository givenWarehouseOrdersRepository;
+  final SuggestedCompanyOrdersRepository suggestedCompanyOrdersRepository;
+  final SuggestedWarehouseOrdersRepository suggestedWarehouseOrdersRepository;
   final ReceivedCompanyOrdersRepository receivedCompanyOrdersRepository;
   final ReceivedWarehouseOrdersRepository receivedWarehouseOrdersRepository;
   final WarehouseAcceptancesRepository warehouseAcceptancesRepository;
