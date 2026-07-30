@@ -1047,60 +1047,8 @@ class _OutgoingWarehouseShipmentCreateSheetState
                       controller: _scrollController,
                       padding: const EdgeInsets.all(16),
                       children: <Widget>[
-                        Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: theme.colorScheme.surfaceContainerHighest
-                                .withAlpha(30),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                              color: theme.colorScheme.outlineVariant.withAlpha(
-                                50,
-                              ),
-                            ),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: <Widget>[
-                              const Text(
-                                'Sevk tipi',
-                                style: TextStyle(fontWeight: FontWeight.w700),
-                              ),
-                              const SizedBox(height: 8),
-                              Row(
-                                children: <Widget>[
-                                  Expanded(
-                                    child: _ShipmentModeButton(
-                                      label: 'Siparissiz',
-                                      icon: Icons.edit_note_rounded,
-                                      selected:
-                                          _mode == _ShipmentCreateMode.manual,
-                                      onTap: () => _switchMode(
-                                        _ShipmentCreateMode.manual,
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                    child: _ShipmentModeButton(
-                                      label: 'Siparisli',
-                                      icon: Icons.fact_check_outlined,
-                                      selected:
-                                          _mode ==
-                                          _ShipmentCreateMode.orderLinked,
-                                      onTap: () => _switchMode(
-                                        _ShipmentCreateMode.orderLinked,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        _buildHeaderFieldsSection(theme),
-                        const SizedBox(height: 12),
+                        _buildShipmentSetupSection(theme),
+                        const SizedBox(height: 10),
                         if (_mode == _ShipmentCreateMode.manual)
                           _buildManualLinesSection(theme)
                         else
@@ -1141,76 +1089,101 @@ class _OutgoingWarehouseShipmentCreateSheetState
     );
   }
 
-  Widget _buildHeaderFieldsSection(ThemeData theme) {
+  Widget _buildShipmentSetupSection(ThemeData theme) {
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
         color: theme.colorScheme.surface,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(
           color: theme.colorScheme.outlineVariant.withAlpha(70),
         ),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final targetWarehouseField = TextFormField(
-                controller: _targetWarehouseNoController,
-                readOnly: true,
-                onTap: _selectTargetWarehouse,
-                decoration: InputDecoration(
-                  labelText: 'Hedef depo no*',
-                  hintText: 'Depo secin',
-                  border: const OutlineInputBorder(),
-                  isDense: true,
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 10,
-                  ),
-                  suffixIcon: IconButton(
-                    onPressed: _selectTargetWarehouse,
-                    icon: const Icon(Icons.search_rounded),
-                    tooltip: 'Depo sec',
-                  ),
-                ),
-                validator: (value) {
-                  final parsed = _parseInt(value ?? '');
-                  if (parsed == null || parsed <= 0) {
-                    return 'Zorunlu';
-                  }
-                  return null;
-                },
-              );
-              final selectButton = FilledButton.tonal(
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final modeSelector = _buildShipmentModeSelector();
+          final targetWarehouseField = TextFormField(
+            controller: _targetWarehouseNoController,
+            readOnly: true,
+            onTap: _selectTargetWarehouse,
+            decoration: InputDecoration(
+              labelText: 'Hedef depo no*',
+              hintText: 'Depo secin',
+              border: const OutlineInputBorder(),
+              isDense: true,
+              prefixIcon: const Icon(Icons.warehouse_outlined, size: 19),
+              prefixIconConstraints: const BoxConstraints(
+                minWidth: 36,
+                minHeight: 40,
+              ),
+              suffixIcon: IconButton(
                 onPressed: _selectTargetWarehouse,
-                child: const Text('Sec'),
-              );
-
-              if (constraints.maxWidth < 360) {
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: <Widget>[
-                    targetWarehouseField,
-                    const SizedBox(height: 8),
-                    selectButton,
-                  ],
-                );
+                icon: const Icon(Icons.search_rounded),
+                tooltip: 'Depo sec',
+              ),
+              suffixIconConstraints: const BoxConstraints(
+                minWidth: 42,
+                minHeight: 40,
+              ),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 8,
+                vertical: 8,
+              ),
+            ),
+            validator: (value) {
+              final parsed = _parseInt(value ?? '');
+              if (parsed == null || parsed <= 0) {
+                return 'Zorunlu';
               }
-
-              return Row(
-                children: <Widget>[
-                  Expanded(child: targetWarehouseField),
-                  const SizedBox(width: 8),
-                  selectButton,
-                ],
-              );
+              return null;
             },
-          ),
-          const SizedBox(height: 10),
-        ],
+          );
+
+          if (constraints.maxWidth < 520) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: <Widget>[
+                modeSelector,
+                const SizedBox(height: 8),
+                targetWarehouseField,
+              ],
+            );
+          }
+
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              SizedBox(width: 214, child: modeSelector),
+              const SizedBox(width: 10),
+              Expanded(child: targetWarehouseField),
+            ],
+          );
+        },
       ),
+    );
+  }
+
+  Widget _buildShipmentModeSelector() {
+    return Row(
+      children: <Widget>[
+        Expanded(
+          child: _ShipmentModeButton(
+            label: 'Siparissiz',
+            icon: Icons.edit_note_rounded,
+            selected: _mode == _ShipmentCreateMode.manual,
+            onTap: () => _switchMode(_ShipmentCreateMode.manual),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: _ShipmentModeButton(
+            label: 'Siparisli',
+            icon: Icons.fact_check_outlined,
+            selected: _mode == _ShipmentCreateMode.orderLinked,
+            onTap: () => _switchMode(_ShipmentCreateMode.orderLinked),
+          ),
+        ),
+      ],
     );
   }
 
@@ -1374,6 +1347,20 @@ class _OutgoingWarehouseShipmentCreateSheetState
 
     return Column(
       children: <Widget>[
+        if (entryIndex != -1)
+          _LinkedShipmentLineCard(
+            lineNumber: 0,
+            isFreshEntry: true,
+            line: _linkedLines[entryIndex],
+            isReadyForScanning: _hasTargetWarehouseSelection,
+            canRemove: false,
+            onPickProduct: () => _pickLinkedProduct(_linkedLines[entryIndex]),
+            onScanWithCamera: () =>
+                _scanLinkedProductWithCamera(_linkedLines[entryIndex]),
+            onRemove: () => _removeLinkedLine(_linkedLines[entryIndex]),
+          ),
+        if (entryIndex != -1 && filledIndexes.isNotEmpty)
+          const SizedBox(height: 8),
         if (filledIndexes.isNotEmpty && filledIndexes.length <= 3)
           ...filledIndexes.asMap().entries.map((entry) {
             final visibleIndex = entry.key;
@@ -1421,20 +1408,6 @@ class _OutgoingWarehouseShipmentCreateSheetState
                 );
               },
             ),
-          ),
-        if (entryIndex != -1 && filledIndexes.isNotEmpty)
-          const SizedBox(height: 8),
-        if (entryIndex != -1)
-          _LinkedShipmentLineCard(
-            lineNumber: 0,
-            isFreshEntry: true,
-            line: _linkedLines[entryIndex],
-            isReadyForScanning: _hasTargetWarehouseSelection,
-            canRemove: false,
-            onPickProduct: () => _pickLinkedProduct(_linkedLines[entryIndex]),
-            onScanWithCamera: () =>
-                _scanLinkedProductWithCamera(_linkedLines[entryIndex]),
-            onRemove: () => _removeLinkedLine(_linkedLines[entryIndex]),
           ),
       ],
     );

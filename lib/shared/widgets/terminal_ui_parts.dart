@@ -1096,15 +1096,25 @@ class TerminalCompactProductLineCard extends StatelessWidget {
           final controls = Row(
             mainAxisSize: isTight ? MainAxisSize.max : MainAxisSize.min,
             children: <Widget>[
-              SizedBox(
-                width: isTight ? 132 : 118,
-                child: _TerminalCompactQuantityControl(
-                  controller: quantityController,
-                  step: quantityStep,
-                  maximum: maximumQuantity,
-                  onMinimumReached: onMinimumReached,
+              if (isTight)
+                Expanded(
+                  child: _TerminalCompactQuantityControl(
+                    controller: quantityController,
+                    step: quantityStep,
+                    maximum: maximumQuantity,
+                    onMinimumReached: onMinimumReached,
+                  ),
+                )
+              else
+                SizedBox(
+                  width: 150,
+                  child: _TerminalCompactQuantityControl(
+                    controller: quantityController,
+                    step: quantityStep,
+                    maximum: maximumQuantity,
+                    onMinimumReached: onMinimumReached,
+                  ),
                 ),
-              ),
               const SizedBox(width: 4),
               IconButton(
                 onPressed: canDelete ? onDelete : null,
@@ -1352,6 +1362,7 @@ class _TerminalCompactQuantityControl extends StatelessWidget {
         _TerminalCompactQuantityButton(
           icon: Icons.remove_rounded,
           tooltip: 'Azalt',
+          isPrimary: false,
           onPressed: () => _changeBy(context, -step),
         ),
         Expanded(
@@ -1394,6 +1405,7 @@ class _TerminalCompactQuantityControl extends StatelessWidget {
         _TerminalCompactQuantityButton(
           icon: Icons.add_rounded,
           tooltip: 'Artir',
+          isPrimary: true,
           onPressed: () => _changeBy(context, step),
         ),
       ],
@@ -1473,25 +1485,40 @@ class _TerminalCompactQuantityButton extends StatelessWidget {
   const _TerminalCompactQuantityButton({
     required this.icon,
     required this.tooltip,
+    required this.isPrimary,
     required this.onPressed,
   });
 
   final IconData icon;
   final String tooltip;
+  final bool isPrimary;
   final VoidCallback onPressed;
 
   @override
   Widget build(BuildContext context) {
+    final buttonStyle = IconButton.styleFrom(
+      tapTargetSize: MaterialTapTargetSize.padded,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(7)),
+    );
+
+    if (isPrimary) {
+      return IconButton.filled(
+        onPressed: onPressed,
+        icon: Icon(icon, size: 18),
+        tooltip: tooltip,
+        constraints: const BoxConstraints.tightFor(width: 44, height: 44),
+        padding: EdgeInsets.zero,
+        style: buttonStyle,
+      );
+    }
+
     return IconButton.filledTonal(
       onPressed: onPressed,
       icon: Icon(icon, size: 18),
       tooltip: tooltip,
       constraints: const BoxConstraints.tightFor(width: 44, height: 44),
       padding: EdgeInsets.zero,
-      style: IconButton.styleFrom(
-        tapTargetSize: MaterialTapTargetSize.padded,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(7)),
-      ),
+      style: buttonStyle,
     );
   }
 }
