@@ -1,5 +1,7 @@
 import 'package:furpa_merkez_terminal/core/network/api_client.dart';
 import 'package:furpa_merkez_terminal/features/stock_operations/inventory_counts/data/models/inventory_count_models.dart';
+import 'package:furpa_merkez_terminal/shared/data/barcode_resolution_models.dart';
+import 'package:furpa_merkez_terminal/shared/data/barcode_resolution_repository.dart';
 
 abstract class InventoryCountsRepository {
   Future<List<InventoryCountListItem>> fetchCounts({
@@ -29,6 +31,11 @@ abstract class InventoryCountsRepository {
     required String warehouseNo,
     required String query,
   });
+
+  Future<BarcodeResolutionResult> resolveBarcode({
+    required String accessToken,
+    required BarcodeResolutionRequest request,
+  });
 }
 
 class ApiInventoryCountsRepository implements InventoryCountsRepository {
@@ -36,6 +43,9 @@ class ApiInventoryCountsRepository implements InventoryCountsRepository {
     : _apiClient = apiClient;
 
   final ApiClient _apiClient;
+
+  BarcodeResolutionRepository get _barcodeResolutionRepository =>
+      ApiBarcodeResolutionRepository(apiClient: _apiClient);
 
   @override
   Future<List<InventoryCountListItem>> fetchCounts({
@@ -138,6 +148,17 @@ class ApiInventoryCountsRepository implements InventoryCountsRepository {
           ),
         )
         .toList(growable: false);
+  }
+
+  @override
+  Future<BarcodeResolutionResult> resolveBarcode({
+    required String accessToken,
+    required BarcodeResolutionRequest request,
+  }) {
+    return _barcodeResolutionRepository.resolveBarcode(
+      accessToken: accessToken,
+      request: request,
+    );
   }
 }
 

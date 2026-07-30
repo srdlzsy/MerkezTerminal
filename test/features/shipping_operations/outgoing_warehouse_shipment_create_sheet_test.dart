@@ -8,8 +8,10 @@ import 'package:furpa_merkez_terminal/features/return_operations/warehouse_retur
 import 'package:furpa_merkez_terminal/features/shipping_operations/outgoing_warehouse_shipments/data/models/outgoing_warehouse_shipment_models.dart';
 import 'package:furpa_merkez_terminal/features/shipping_operations/outgoing_warehouse_shipments/data/outgoing_warehouse_shipments_repository.dart';
 import 'package:furpa_merkez_terminal/features/shipping_operations/outgoing_warehouse_shipments/presentation/widgets/outgoing_warehouse_shipment_create_sheet.dart';
+import 'package:furpa_merkez_terminal/shared/data/barcode_resolution_models.dart';
 import 'package:furpa_merkez_terminal/shared/offline/mobile_warehouse_catalog_repository.dart';
 
+import '../../support/barcode_resolution_test_data.dart';
 import '../../support/memory_local_database.dart';
 
 void main() {
@@ -134,6 +136,58 @@ void main() {
     expect(find.text('4'), findsOneWidget);
   });
 
+  testWidgets('does not block shipment for target warehouse model warning', (
+    tester,
+  ) async {
+    const targetWarehouseMessage = 'Hedef depo icin model kodu yoktur.';
+    tester.view.physicalSize = const Size(390, 1000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: OutgoingWarehouseShipmentCreateSheet(
+            repository: _FakeOutgoingWarehouseShipmentsRepository(
+              barcodeResolutionBuilder: (request) {
+                return buildBarcodeResolutionResult(
+                  barcode: request.barcode,
+                  warehouseNo: int.tryParse(request.warehouseNo ?? '') ?? 110,
+                  operationType: request.operationType ?? '',
+                  screenCode: request.screenCode ?? '',
+                  isUsableInOperation: false,
+                  isAllowedForTargetWarehouse: false,
+                  targetWarehouseReason: targetWarehouseMessage,
+                  operationDecision: targetWarehouseMessage,
+                  warnings: const <String>[targetWarehouseMessage],
+                  errors: const <String>[targetWarehouseMessage],
+                );
+              },
+            ),
+            receivedWarehouseOrdersRepository:
+                _FakeReceivedWarehouseOrdersRepository(),
+            accessToken: 'token',
+            defaultWarehouseNo: '110',
+            mobileWarehouseCatalogRepository:
+                _emptyWarehouseCatalogRepository(),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.widgetWithText(TextField, 'Hedef depo no*'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('50 - MERKEZ DEPO'));
+    await tester.pumpAndSettle();
+
+    await _enterShipmentBarcode(tester);
+
+    expect(find.text('Test Urun'), findsOneWidget);
+    expect(find.text(targetWarehouseMessage), findsNothing);
+    expect(find.textContaining('Eklendi: Test Urun'), findsOneWidget);
+  });
+
   testWidgets('allows editing order linked shipment lines', (tester) async {
     tester.view.physicalSize = const Size(390, 1000);
     tester.view.devicePixelRatio = 1;
@@ -212,8 +266,35 @@ MobileWarehouseCatalogLocalRepository _emptyWarehouseCatalogRepository() {
 
 class _FakeOutgoingWarehouseShipmentsRepository
     implements OutgoingWarehouseShipmentsRepository {
+  _FakeOutgoingWarehouseShipmentsRepository({this.barcodeResolutionBuilder});
+
+  final BarcodeResolutionResult Function(BarcodeResolutionRequest request)?
+  barcodeResolutionBuilder;
+
   @override
   bool get supportsEDespatch => true;
+
+  @override
+  Future<BarcodeResolutionResult> resolveBarcode({
+    required String accessToken,
+    required BarcodeResolutionRequest request,
+  }) async {
+    final builder = barcodeResolutionBuilder;
+    if (builder != null) {
+      return builder(request);
+    }
+
+    return buildBarcodeResolutionResult(
+      barcode: request.barcode,
+      warehouseNo: int.tryParse(request.warehouseNo ?? '') ?? 110,
+      unitName: 'KL',
+      unitMultiplier: 2,
+      isCaseBarcode: true,
+      matchedUnitsPerCase: 2,
+      operationType: request.operationType ?? '',
+      screenCode: request.screenCode ?? '',
+    );
+  }
 
   @override
   Future<WarehouseShipmentCreateResult> createShipment({

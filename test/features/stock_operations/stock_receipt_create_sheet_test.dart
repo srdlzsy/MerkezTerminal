@@ -3,7 +3,10 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:furpa_merkez_terminal/features/stock_operations/stock_receipts/data/models/stock_receipt_models.dart';
 import 'package:furpa_merkez_terminal/features/stock_operations/stock_receipts/data/stock_receipts_repository.dart';
 import 'package:furpa_merkez_terminal/features/stock_operations/stock_receipts/presentation/widgets/stock_receipt_create_sheet.dart';
+import 'package:furpa_merkez_terminal/shared/data/barcode_resolution_models.dart';
 import 'package:furpa_merkez_terminal/shared/data/search_lookup_models.dart';
+
+import '../../support/barcode_resolution_test_data.dart';
 
 void main() {
   testWidgets('renders create sheet on 320px terminal width without overflow', (
@@ -96,6 +99,38 @@ class _FakeStockReceiptsRepository implements StockReceiptsRepository {
   });
 
   final List<SearchProductLookupItem> products;
+
+  @override
+  Future<BarcodeResolutionResult> resolveBarcode({
+    required String accessToken,
+    required BarcodeResolutionRequest request,
+  }) async {
+    for (final product in products) {
+      if (product.barcode == request.barcode ||
+          product.stockCode == request.barcode) {
+        return buildBarcodeResolutionResult(
+          barcode: product.barcode,
+          warehouseNo: product.warehouseNo,
+          stockCode: product.stockCode,
+          stockName: product.stockName,
+          unitName: product.unitName,
+          unitMultiplier: product.unitMultiplier,
+          salesPrice: product.price,
+          priceTypeCode: product.priceTypeCode,
+          operationType: request.operationType ?? '',
+          screenCode: request.screenCode ?? '',
+        );
+      }
+    }
+
+    return buildBarcodeResolutionResult(
+      barcode: request.barcode,
+      warehouseNo: int.tryParse(request.warehouseNo ?? '') ?? 50,
+      isFound: false,
+      isUsableInOperation: false,
+      errors: const <String>['Urun bulunamadi.'],
+    );
+  }
 
   @override
   Future<StockReceiptCreateResult> createReceipt({

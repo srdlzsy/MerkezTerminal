@@ -1,6 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:furpa_merkez_terminal/core/network/api_exception.dart';
 import 'package:furpa_merkez_terminal/features/stock_operations/stock_receipts/data/models/stock_receipt_models.dart';
 import 'package:furpa_merkez_terminal/features/stock_operations/stock_receipts/data/stock_receipts_repository.dart';
+import 'package:furpa_merkez_terminal/shared/data/barcode_resolution_models.dart';
 import 'package:furpa_merkez_terminal/shared/data/search_lookup_models.dart';
 import 'package:furpa_merkez_terminal/shared/drafts/create_draft.dart';
 import 'package:furpa_merkez_terminal/shared/drafts/create_draft_repository.dart';
@@ -9,6 +13,7 @@ import 'package:furpa_merkez_terminal/shared/formatters/app_formatters.dart';
 import 'package:furpa_merkez_terminal/shared/product_entry/product_entry_controller.dart';
 import 'package:furpa_merkez_terminal/shared/product_entry/product_entry_widgets.dart';
 import 'package:furpa_merkez_terminal/shared/utils/create_form_validation.dart';
+import 'package:furpa_merkez_terminal/shared/utils/terminal_feedback.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/barcode_camera_scan_page.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/terminal_ui_parts.dart';
 
@@ -160,6 +165,10 @@ class _StockReceiptCreateSheetState extends State<StockReceiptCreateSheet>
       return;
     }
 
+    if (await _tryResolveBarcode(line, query)) {
+      return;
+    }
+
     List<SearchProductLookupItem> products;
     try {
       setState(() {
@@ -278,8 +287,102 @@ class _StockReceiptCreateSheetState extends State<StockReceiptCreateSheet>
     _focusFreshEntryLine();
 
     if (mergedIntoExisting) {
+      unawaited(TerminalFeedback.success());
       _showFeedback('Ayni barkod mevcut satira eklendi; miktar artirildi.');
+    } else {
+      unawaited(TerminalFeedback.success());
     }
+  }
+
+  Future<bool> _tryResolveBarcode(
+    _StockReceiptLineDraft line,
+    String query,
+  ) async {
+    if (!looksLikeDirectBarcodeInput(query)) {
+      return false;
+    }
+
+    setState(() {
+      line.setLookupStatus('Barkod cozumleniyor: $query', isLoading: true);
+      _lookupError = null;
+    });
+
+    BarcodeResolutionResult resolution;
+    try {
+      resolution = await widget.repository.resolveBarcode(
+        accessToken: widget.accessToken,
+        request: BarcodeResolutionRequest(
+          barcode: query,
+          warehouseNo: widget.defaultWarehouseNo,
+          operationType: 'waste',
+          screenCode: widget.kind.pathSegment,
+        ),
+      );
+    } on ApiException catch (error) {
+      if (error.statusCode == 0 || error.statusCode == 404) {
+        if (mounted) {
+          setState(() {
+            line.clearLookupStatus();
+            _lookupError = null;
+          });
+        }
+        return false;
+      }
+
+      if (!mounted) {
+        return true;
+      }
+      final message = error.detail ?? error.title;
+      setState(() {
+        line.setLookupStatus(message, isError: true);
+        _lookupError = null;
+      });
+      _showFeedback(message);
+      unawaited(TerminalFeedback.error());
+      _refocusLine(line.lookupFocusNode);
+      return true;
+    }
+
+    if (!mounted) {
+      return true;
+    }
+
+    if (!resolution.isFound || !resolution.isUsableInOperation) {
+      final message = resolution.quickErrorMessage;
+      setState(() {
+        line.setLookupStatus(message, isError: true);
+        _lookupError = null;
+      });
+      _showFeedback(message);
+      unawaited(TerminalFeedback.error());
+      _refocusLine(line.lookupFocusNode);
+      return true;
+    }
+
+    final product = SearchProductLookupItem.fromBarcodeResolution(resolution);
+    final addedQuantity = resolution.suggestedQuantity;
+    var mergedIntoExisting = false;
+    setState(() {
+      line.quantityController.text = productEntryController.formatQuantity(
+        addedQuantity,
+      );
+      mergedIntoExisting = _applyProductToLine(line, product);
+      if (!mergedIntoExisting) {
+        line.setLookupStatus(_resolvedBarcodeMessage(resolution));
+      }
+      _ensureFreshEntryLine();
+      _lookupError = null;
+    });
+    _draftSession.scheduleSave();
+    _focusFreshEntryLine();
+    _notifyResolvedBarcodeResult(
+      product: product,
+      resolution: resolution,
+      addedQuantity: addedQuantity,
+      mergedIntoExisting: mergedIntoExisting,
+      totalQuantity: _lineQuantityFor(product),
+    );
+    return true;
   }
 
   Future<void> _scanProductWithCamera(_StockReceiptLineDraft line) async {
@@ -712,6 +815,61 @@ class _StockReceiptCreateSheetState extends State<StockReceiptCreateSheet>
         margin: const EdgeInsets.all(16),
       ),
     );
+  }
+
+  void _notifyResolvedBarcodeResult({
+    required SearchProductLookupItem product,
+    required BarcodeResolutionResult resolution,
+    required double addedQuantity,
+    required bool mergedIntoExisting,
+    required double totalQuantity,
+  }) {
+    final warning = resolution.quickWarningMessage;
+    if (warning.isNotEmpty) {
+      unawaited(TerminalFeedback.warning());
+      _showFeedback(warning);
+      return;
+    }
+
+    unawaited(TerminalFeedback.success());
+    final unitName = product.unitName.trim();
+    final quantityLabel =
+        '${AppFormatters.quantity(addedQuantity)}${unitName.isEmpty ? '' : ' $unitName'}';
+    if (mergedIntoExisting) {
+      _showFeedback(
+        'Urun zaten sepetteydi. +${AppFormatters.quantity(addedQuantity)} '
+        'eklendi. Toplam: ${AppFormatters.quantity(totalQuantity)} '
+        '${product.unitName}.',
+      );
+    } else {
+      _showFeedback('Eklendi: ${product.stockName}. Miktar: $quantityLabel.');
+    }
+  }
+
+  String _resolvedBarcodeMessage(BarcodeResolutionResult resolution) {
+    if (resolution.isVariableWeightBarcode) {
+      return 'Terazi ${AppFormatters.quantity(resolution.suggestedQuantity)} ${resolution.embeddedQuantityUnit}';
+    }
+    if (resolution.isCaseBarcode) {
+      return 'Koli ici ${AppFormatters.quantity(resolution.suggestedQuantity)}';
+    }
+    return 'Miktar ${AppFormatters.quantity(resolution.suggestedQuantity)}';
+  }
+
+  double _lineQuantityFor(SearchProductLookupItem product) {
+    for (final line in _lines) {
+      final selected = line.selectedProduct;
+      if (selected == null || selected.stockCode != product.stockCode) {
+        continue;
+      }
+
+      return productEntryController.readQuantity(
+        line.quantityController.text,
+        fallback: 0,
+      );
+    }
+
+    return 0;
   }
 
   void _refocusLine(FocusNode focusNode) {

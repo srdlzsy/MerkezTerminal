@@ -8,6 +8,7 @@ import 'package:furpa_merkez_terminal/features/stock_operations/inventory_counts
 import 'package:furpa_merkez_terminal/features/stock_operations/inventory_counts/data/models/inventory_count_models.dart';
 import 'package:furpa_merkez_terminal/features/stock_operations/offline_inventory_counts/data/models/offline_inventory_count_models.dart';
 import 'package:furpa_merkez_terminal/features/stock_operations/offline_inventory_counts/data/offline_inventory_counts_repository.dart';
+import 'package:furpa_merkez_terminal/shared/data/barcode_resolution_models.dart';
 import 'package:furpa_merkez_terminal/shared/offline/offline_record_status.dart';
 import 'package:furpa_merkez_terminal/shared/offline/offline_sync_service.dart';
 
@@ -521,6 +522,14 @@ class _FakeInventoryCountsRepository implements InventoryCountsRepository {
   ApiException? createError;
   InventoryCountOfflineSyncStatus? offlineSyncStatus;
   int fetchOfflineSyncStatusCallCount = 0;
+
+  @override
+  Future<BarcodeResolutionResult> resolveBarcode({
+    required String accessToken,
+    required BarcodeResolutionRequest request,
+  }) {
+    throw UnimplementedError();
+  }
 
   @override
   Future<InventoryCountCreateResult> createCount({

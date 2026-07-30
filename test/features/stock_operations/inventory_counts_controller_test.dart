@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:furpa_merkez_terminal/features/stock_operations/inventory_counts/data/inventory_counts_repository.dart';
 import 'package:furpa_merkez_terminal/features/stock_operations/inventory_counts/data/models/inventory_count_models.dart';
 import 'package:furpa_merkez_terminal/features/stock_operations/inventory_counts/presentation/view_models/inventory_counts_controller.dart';
+import 'package:furpa_merkez_terminal/shared/data/barcode_resolution_models.dart';
 
 void main() {
   test('loadCounts keeps detail closed until a record is selected', () async {
@@ -120,6 +121,14 @@ void main() {
 }
 
 class _FakeInventoryCountsRepository implements InventoryCountsRepository {
+  @override
+  Future<BarcodeResolutionResult> resolveBarcode({
+    required String accessToken,
+    required BarcodeResolutionRequest request,
+  }) {
+    throw UnimplementedError();
+  }
+
   final List<InventoryCountListItem> _items = <InventoryCountListItem>[
     InventoryCountListItem(
       documentDate: DateTime(2026, 4, 21),

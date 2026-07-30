@@ -1,4 +1,5 @@
 import 'package:furpa_merkez_terminal/core/network/api_client.dart';
+import 'package:furpa_merkez_terminal/shared/data/barcode_resolution_models.dart';
 
 class WarehouseOrderListFilter {
   const WarehouseOrderListFilter({
@@ -158,6 +159,21 @@ class ProductLookupItem {
       unitName: _readString(json['unitName']),
       unitMultiplier: _readPositiveDouble(json['unitMultiplier']),
       isOrderBlocked: _readBool(json['isOrderBlocked']),
+    );
+  }
+
+  factory ProductLookupItem.fromBarcodeResolution(
+    BarcodeResolutionResult resolution,
+  ) {
+    return ProductLookupItem(
+      warehouseNo: resolution.warehouseNo,
+      barcode: resolution.effectiveBarcode,
+      stockCode: resolution.stockCode,
+      stockName: resolution.stockName,
+      price: resolution.salesPrice,
+      unitName: resolution.matchedUnitName,
+      unitMultiplier: resolution.matchedUnitMultiplier,
+      isOrderBlocked: resolution.isOrderBlocked,
     );
   }
 }

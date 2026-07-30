@@ -2,6 +2,8 @@ import 'package:furpa_merkez_terminal/core/network/api_client.dart';
 import 'package:furpa_merkez_terminal/features/order_operations/shared/data/models/warehouse_order_models.dart';
 import 'package:furpa_merkez_terminal/features/return_operations/warehouse_returns/data/models/warehouse_return_models.dart';
 import 'package:furpa_merkez_terminal/features/shipping_operations/outgoing_warehouse_shipments/data/models/outgoing_warehouse_shipment_models.dart';
+import 'package:furpa_merkez_terminal/shared/data/barcode_resolution_models.dart';
+import 'package:furpa_merkez_terminal/shared/data/barcode_resolution_repository.dart';
 
 abstract class OutgoingWarehouseShipmentsRepository {
   bool get supportsEDespatch;
@@ -48,6 +50,11 @@ abstract class OutgoingWarehouseShipmentsRepository {
     required String warehouseNo,
     required String query,
   });
+
+  Future<BarcodeResolutionResult> resolveBarcode({
+    required String accessToken,
+    required BarcodeResolutionRequest request,
+  });
 }
 
 class ApiOutgoingWarehouseShipmentsRepository
@@ -56,6 +63,9 @@ class ApiOutgoingWarehouseShipmentsRepository
     : _apiClient = apiClient;
 
   final ApiClient _apiClient;
+
+  BarcodeResolutionRepository get _barcodeResolutionRepository =>
+      ApiBarcodeResolutionRepository(apiClient: _apiClient);
 
   @override
   bool get supportsEDespatch => true;
@@ -217,6 +227,17 @@ class ApiOutgoingWarehouseShipmentsRepository
           ),
         )
         .toList(growable: false);
+  }
+
+  @override
+  Future<BarcodeResolutionResult> resolveBarcode({
+    required String accessToken,
+    required BarcodeResolutionRequest request,
+  }) {
+    return _barcodeResolutionRepository.resolveBarcode(
+      accessToken: accessToken,
+      request: request,
+    );
   }
 
   String _resolveFileName(

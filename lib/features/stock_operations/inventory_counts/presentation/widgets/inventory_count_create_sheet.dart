@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:furpa_merkez_terminal/core/network/api_exception.dart';
 import 'package:furpa_merkez_terminal/features/stock_operations/inventory_counts/data/inventory_counts_repository.dart';
 import 'package:furpa_merkez_terminal/features/stock_operations/inventory_counts/data/models/inventory_count_models.dart';
+import 'package:furpa_merkez_terminal/shared/data/barcode_resolution_models.dart';
 import 'package:furpa_merkez_terminal/shared/drafts/create_draft.dart';
 import 'package:furpa_merkez_terminal/shared/drafts/create_draft_repository.dart';
 import 'package:furpa_merkez_terminal/shared/drafts/create_draft_session.dart';
@@ -11,6 +14,7 @@ import 'package:furpa_merkez_terminal/shared/product_entry/product_entry_control
 import 'package:furpa_merkez_terminal/shared/product_entry/product_entry_widgets.dart';
 import 'package:furpa_merkez_terminal/shared/utils/client_request_id.dart';
 import 'package:furpa_merkez_terminal/shared/utils/create_form_validation.dart';
+import 'package:furpa_merkez_terminal/shared/utils/terminal_feedback.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/barcode_camera_scan_page.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/terminal_ui_parts.dart';
 
@@ -132,8 +136,12 @@ class _InventoryCountCreateSheetState extends State<InventoryCountCreateSheet>
   }
 
   Future<void> _searchProduct(_InventoryLineDraft line) async {
-    InventoryCountProductLookupItem? product;
     final query = line.barcodeController.text.trim();
+    if (await _tryResolveBarcode(line, query)) {
+      return;
+    }
+
+    InventoryCountProductLookupItem? product;
     if (query.length >= 2) {
       try {
         final products = await _searchProductsWithFallback(query);
@@ -180,8 +188,84 @@ class _InventoryCountCreateSheetState extends State<InventoryCountCreateSheet>
     _focusFreshEntryLine();
 
     if (mergedIntoExisting) {
+      unawaited(TerminalFeedback.success());
       _showFeedback('Ayni barkod mevcut satira eklendi; miktar artirildi.');
+    } else {
+      unawaited(TerminalFeedback.success());
     }
+  }
+
+  Future<bool> _tryResolveBarcode(
+    _InventoryLineDraft line,
+    String query,
+  ) async {
+    if (!looksLikeDirectBarcodeInput(query)) {
+      return false;
+    }
+
+    BarcodeResolutionResult resolution;
+    try {
+      resolution = await widget.repository.resolveBarcode(
+        accessToken: widget.accessToken,
+        request: BarcodeResolutionRequest(
+          barcode: query,
+          warehouseNo: widget.defaultWarehouseNo,
+          operationType: 'count',
+          screenCode: 'sayim-sonuclari',
+        ),
+      );
+    } on ApiException catch (error) {
+      if (error.statusCode == 0) {
+        return false;
+      }
+      if (!mounted) {
+        return true;
+      }
+      final message = error.detail ?? error.title;
+      _showFeedback(message);
+      unawaited(TerminalFeedback.error());
+      _refocusLine(line.barcodeFocusNode);
+      return true;
+    }
+
+    if (!mounted) {
+      return true;
+    }
+
+    if (!resolution.isFound || !resolution.isUsableInOperation) {
+      final message = resolution.quickErrorMessage;
+      setState(() {
+        _validationMessage = message;
+      });
+      _showFeedback(message);
+      unawaited(TerminalFeedback.error());
+      _refocusLine(line.barcodeFocusNode);
+      return true;
+    }
+
+    final product = InventoryCountProductLookupItem.fromBarcodeResolution(
+      resolution,
+    );
+    final addedQuantity = resolution.suggestedQuantity;
+    var mergedIntoExisting = false;
+    setState(() {
+      line.quantityController.text = productEntryController.formatQuantity(
+        addedQuantity,
+      );
+      mergedIntoExisting = _applyProductToLine(line, product);
+      _ensureFreshEntryLine();
+      _validationMessage = null;
+    });
+    _draftSession.scheduleSave();
+    _focusFreshEntryLine();
+    _notifyResolvedBarcodeResult(
+      product: product,
+      resolution: resolution,
+      addedQuantity: addedQuantity,
+      mergedIntoExisting: mergedIntoExisting,
+      totalQuantity: _lineQuantityFor(product),
+    );
+    return true;
   }
 
   Future<List<InventoryCountProductLookupItem>> _searchProductsWithFallback(
@@ -714,6 +798,66 @@ class _InventoryCountCreateSheetState extends State<InventoryCountCreateSheet>
         margin: const EdgeInsets.all(16),
       ),
     );
+  }
+
+  void _notifyResolvedBarcodeResult({
+    required InventoryCountProductLookupItem product,
+    required BarcodeResolutionResult resolution,
+    required double addedQuantity,
+    required bool mergedIntoExisting,
+    required double totalQuantity,
+  }) {
+    final warning = resolution.quickWarningMessage;
+    if (warning.isNotEmpty) {
+      unawaited(TerminalFeedback.warning());
+      _showFeedback(warning);
+      return;
+    }
+
+    unawaited(TerminalFeedback.success());
+    final unitName = product.unitName.trim();
+    final quantityLabel =
+        '${AppFormatters.quantity(addedQuantity)}${unitName.isEmpty ? '' : ' $unitName'}';
+    final resolvedMessage = _resolvedBarcodeMessage(resolution);
+    if (mergedIntoExisting) {
+      _showFeedback(
+        'Urun zaten sepetteydi. +${AppFormatters.quantity(addedQuantity)} '
+        'eklendi. Toplam: ${AppFormatters.quantity(totalQuantity)} '
+        '${product.unitName}.',
+      );
+    } else {
+      final detailLabel =
+          resolution.isCaseBarcode || resolution.isVariableWeightBarcode
+          ? resolvedMessage
+          : 'Miktar: $quantityLabel';
+      _showFeedback('Eklendi: ${product.stockName}. $detailLabel.');
+    }
+  }
+
+  String _resolvedBarcodeMessage(BarcodeResolutionResult resolution) {
+    if (resolution.isVariableWeightBarcode) {
+      return 'Terazi ${AppFormatters.quantity(resolution.suggestedQuantity)} ${resolution.embeddedQuantityUnit}';
+    }
+    if (resolution.isCaseBarcode) {
+      return 'Koli ici ${AppFormatters.quantity(resolution.suggestedQuantity)}';
+    }
+    return 'Miktar ${AppFormatters.quantity(resolution.suggestedQuantity)}';
+  }
+
+  double _lineQuantityFor(InventoryCountProductLookupItem product) {
+    for (final line in _lines) {
+      final selected = line.selectedProduct;
+      if (selected == null || selected.stockCode != product.stockCode) {
+        continue;
+      }
+
+      return productEntryController.readQuantity(
+        line.quantityController.text,
+        fallback: 0,
+      );
+    }
+
+    return 0;
   }
 }
 

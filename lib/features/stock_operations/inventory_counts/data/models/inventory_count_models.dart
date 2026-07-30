@@ -1,4 +1,5 @@
 import 'package:furpa_merkez_terminal/core/network/api_client.dart';
+import 'package:furpa_merkez_terminal/shared/data/barcode_resolution_models.dart';
 
 class InventoryCountListFilter {
   const InventoryCountListFilter({
@@ -341,6 +342,21 @@ class InventoryCountProductLookupItem {
       unitMultiplier: _readPositiveDouble(json['unitMultiplier']),
       price: _readDouble(json['price']),
       isGoodsAcceptanceBlocked: _readBool(json['isGoodsAcceptanceBlocked']),
+    );
+  }
+
+  factory InventoryCountProductLookupItem.fromBarcodeResolution(
+    BarcodeResolutionResult resolution,
+  ) {
+    return InventoryCountProductLookupItem(
+      warehouseNo: resolution.warehouseNo,
+      barcode: resolution.effectiveBarcode,
+      stockCode: resolution.stockCode,
+      stockName: resolution.stockName,
+      unitName: resolution.matchedUnitName,
+      unitMultiplier: resolution.matchedUnitMultiplier,
+      price: resolution.salesPrice,
+      isGoodsAcceptanceBlocked: resolution.isGoodsAcceptanceBlocked,
     );
   }
 }

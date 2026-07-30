@@ -1,9 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:furpa_merkez_terminal/core/network/api_exception.dart';
 import 'package:furpa_merkez_terminal/features/order_operations/received_warehouse_orders/data/received_warehouse_orders_repository.dart';
 import 'package:furpa_merkez_terminal/features/order_operations/shared/data/models/warehouse_order_models.dart';
 import 'package:furpa_merkez_terminal/features/shipping_operations/outgoing_warehouse_shipments/data/models/outgoing_warehouse_shipment_models.dart';
 import 'package:furpa_merkez_terminal/features/shipping_operations/outgoing_warehouse_shipments/data/outgoing_warehouse_shipments_repository.dart';
+import 'package:furpa_merkez_terminal/shared/data/barcode_resolution_models.dart';
 import 'package:furpa_merkez_terminal/shared/drafts/create_draft.dart';
 import 'package:furpa_merkez_terminal/shared/drafts/create_draft_repository.dart';
 import 'package:furpa_merkez_terminal/shared/drafts/create_draft_session.dart';
@@ -12,6 +15,7 @@ import 'package:furpa_merkez_terminal/shared/offline/mobile_warehouse_catalog_re
 import 'package:furpa_merkez_terminal/shared/product_entry/product_entry_controller.dart';
 import 'package:furpa_merkez_terminal/shared/product_entry/product_entry_widgets.dart';
 import 'package:furpa_merkez_terminal/shared/utils/create_form_validation.dart';
+import 'package:furpa_merkez_terminal/shared/utils/terminal_feedback.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/barcode_camera_scan_page.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/section_card.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/terminal_ui_parts.dart';
@@ -322,8 +326,12 @@ class _OutgoingWarehouseShipmentCreateSheetState
       line.setLookupStatus('Urun arama penceresi aciliyor.');
     });
 
-    ProductLookupItem? product;
     final query = line.barcodeController.text.trim();
+    if (await _tryResolveManualBarcode(line, query)) {
+      return;
+    }
+
+    ProductLookupItem? product;
     if (query.length >= 2) {
       try {
         final products = await widget.repository.searchProducts(
@@ -384,7 +392,10 @@ class _OutgoingWarehouseShipmentCreateSheetState
     _focusFreshManualEntryLine();
 
     if (mergedIntoExisting) {
+      unawaited(TerminalFeedback.success());
       _showFeedback('Ayni barkod mevcut satira eklendi; miktar artirildi.');
+    } else {
+      unawaited(TerminalFeedback.success());
     }
   }
 
@@ -405,8 +416,12 @@ class _OutgoingWarehouseShipmentCreateSheetState
       line.setLookupStatus('Urun arama penceresi aciliyor.');
     });
 
-    ProductLookupItem? product;
     final query = line.barcodeController.text.trim();
+    if (await _tryResolveLinkedBarcode(line, query)) {
+      return;
+    }
+
+    ProductLookupItem? product;
     if (query.length >= 2) {
       try {
         final products = await widget.repository.searchProducts(
@@ -467,8 +482,343 @@ class _OutgoingWarehouseShipmentCreateSheetState
     _focusFreshLinkedEntryLine();
 
     if (mergedIntoExisting) {
+      unawaited(TerminalFeedback.success());
       _showFeedback('Ayni barkod mevcut satira eklendi; miktar artirildi.');
+    } else {
+      unawaited(TerminalFeedback.success());
     }
+  }
+
+  Future<bool> _tryResolveManualBarcode(
+    _ManualShipmentLineDraft line,
+    String query,
+  ) async {
+    if (!looksLikeDirectBarcodeInput(query)) {
+      return false;
+    }
+
+    setState(() {
+      line.setLookupStatus('Barkod cozumleniyor: $query', isLoading: true);
+    });
+
+    final attempt = await _resolveShipmentBarcode(query);
+    if (!mounted) {
+      return true;
+    }
+
+    if (attempt.shouldFallback) {
+      setState(line.clearLookupStatus);
+      return false;
+    }
+
+    final resolution = attempt.result;
+    if (resolution == null) {
+      _refocusLine(line.barcodeFocusNode);
+      return true;
+    }
+
+    return _applyResolvedManualBarcode(line, resolution);
+  }
+
+  Future<bool> _tryResolveLinkedBarcode(
+    _LinkedShipmentLineDraft line,
+    String query,
+  ) async {
+    if (!looksLikeDirectBarcodeInput(query)) {
+      return false;
+    }
+
+    setState(() {
+      line.setLookupStatus('Barkod cozumleniyor: $query', isLoading: true);
+    });
+
+    final attempt = await _resolveShipmentBarcode(query);
+    if (!mounted) {
+      return true;
+    }
+
+    if (attempt.shouldFallback) {
+      setState(line.clearLookupStatus);
+      return false;
+    }
+
+    final resolution = attempt.result;
+    if (resolution == null) {
+      _refocusLine(line.barcodeFocusNode);
+      return true;
+    }
+
+    return _applyResolvedLinkedBarcode(line, resolution);
+  }
+
+  Future<_BarcodeResolutionAttempt> _resolveShipmentBarcode(
+    String barcode,
+  ) async {
+    try {
+      return _BarcodeResolutionAttempt.resolved(
+        await widget.repository.resolveBarcode(
+          accessToken: widget.accessToken,
+          request: BarcodeResolutionRequest(
+            barcode: barcode,
+            warehouseNo: widget.defaultWarehouseNo,
+            operationType: 'shipment',
+            screenCode: 'giden-depolar-arasi-sevkler',
+            targetWarehouseNo: _targetWarehouseNoController.text,
+          ),
+        ),
+      );
+    } on ApiException catch (error) {
+      if (error.statusCode == 0 || error.statusCode == 404) {
+        return const _BarcodeResolutionAttempt.fallback();
+      }
+
+      final message = error.detail ?? error.title;
+      _showFeedback(message);
+      unawaited(TerminalFeedback.error());
+      return const _BarcodeResolutionAttempt.handledError();
+    }
+  }
+
+  bool _applyResolvedManualBarcode(
+    _ManualShipmentLineDraft line,
+    BarcodeResolutionResult resolution,
+  ) {
+    if (!_isResolutionUsable(resolution, line.setLookupStatus)) {
+      _refocusLine(line.barcodeFocusNode);
+      return true;
+    }
+
+    final product = ProductLookupItem.fromBarcodeResolution(resolution);
+    final addedQuantity = resolution.suggestedQuantity;
+    var mergedIntoExisting = false;
+    setState(() {
+      line.quantityController.text = productEntryController.formatQuantity(
+        addedQuantity,
+      );
+      mergedIntoExisting = _applyProductToManualLine(line, product);
+      if (!mergedIntoExisting) {
+        line.setLookupStatus(_resolvedBarcodeMessage(resolution));
+      }
+      _ensureFreshManualEntryLine();
+      _validationMessage = null;
+    });
+    _draftSession.scheduleSave();
+    _focusFreshManualEntryLine();
+    _notifyResolvedBarcodeResult(
+      product: product,
+      resolution: resolution,
+      addedQuantity: addedQuantity,
+      mergedIntoExisting: mergedIntoExisting,
+      totalQuantity: _manualLineQuantityFor(product),
+    );
+    return true;
+  }
+
+  bool _applyResolvedLinkedBarcode(
+    _LinkedShipmentLineDraft line,
+    BarcodeResolutionResult resolution,
+  ) {
+    if (!_isResolutionUsable(resolution, line.setLookupStatus)) {
+      _refocusLine(line.barcodeFocusNode);
+      return true;
+    }
+
+    final product = ProductLookupItem.fromBarcodeResolution(resolution);
+    final addedQuantity = resolution.suggestedQuantity;
+    var mergedIntoExisting = false;
+    setState(() {
+      line.quantityController.text = productEntryController.formatQuantity(
+        addedQuantity,
+      );
+      mergedIntoExisting = _applyProductToLinkedLine(line, product);
+      if (!mergedIntoExisting) {
+        line.setLookupStatus(_resolvedBarcodeMessage(resolution));
+      }
+      _ensureFreshLinkedEntryLine();
+      _validationMessage = null;
+    });
+    _draftSession.scheduleSave();
+    _focusFreshLinkedEntryLine();
+    _notifyResolvedBarcodeResult(
+      product: product,
+      resolution: resolution,
+      addedQuantity: addedQuantity,
+      mergedIntoExisting: mergedIntoExisting,
+      totalQuantity: _linkedLineQuantityFor(product),
+    );
+    return true;
+  }
+
+  bool _isResolutionUsable(
+    BarcodeResolutionResult resolution,
+    void Function(String message, {bool isLoading, bool isError})
+    setLookupStatus,
+  ) {
+    if (!resolution.isFound ||
+        (!resolution.isUsableInOperation &&
+            !_isNonBlockingShipmentContextIssue(resolution))) {
+      final message = resolution.quickErrorMessage;
+      setState(() {
+        setLookupStatus(message, isError: true);
+      });
+      _showFeedback(message);
+      unawaited(TerminalFeedback.error());
+      return false;
+    }
+
+    return true;
+  }
+
+  void _notifyResolvedBarcodeResult({
+    required ProductLookupItem product,
+    required BarcodeResolutionResult resolution,
+    required double addedQuantity,
+    required bool mergedIntoExisting,
+    required double totalQuantity,
+  }) {
+    final warning = _actionableShipmentWarning(resolution);
+    if (warning.isNotEmpty) {
+      unawaited(TerminalFeedback.warning());
+      _showFeedback(warning);
+      return;
+    }
+
+    unawaited(TerminalFeedback.success());
+    final unitName = product.unitName.trim();
+    final quantityLabel =
+        '${AppFormatters.quantity(addedQuantity)}${unitName.isEmpty ? '' : ' $unitName'}';
+    if (mergedIntoExisting) {
+      _showFeedback(
+        'Urun zaten sepetteydi. +${AppFormatters.quantity(addedQuantity)} '
+        'eklendi. Toplam: ${AppFormatters.quantity(totalQuantity)} '
+        '${product.unitName}.',
+      );
+    } else {
+      _showFeedback('Eklendi: ${product.stockName}. Miktar: $quantityLabel.');
+    }
+  }
+
+  String _resolvedBarcodeMessage(BarcodeResolutionResult resolution) {
+    final labels = <String>[
+      if (resolution.isVariableWeightBarcode)
+        'Terazi ${AppFormatters.quantity(resolution.suggestedQuantity)} ${resolution.embeddedQuantityUnit}'
+      else if (resolution.isCaseBarcode)
+        'Koli ici ${AppFormatters.quantity(resolution.suggestedQuantity)}'
+      else
+        'Miktar ${AppFormatters.quantity(resolution.suggestedQuantity)}',
+      if (resolution.barcodeKind.trim().isNotEmpty) resolution.barcodeKind,
+    ];
+
+    return labels.join(' | ');
+  }
+
+  String _actionableShipmentWarning(BarcodeResolutionResult resolution) {
+    for (final warning in resolution.warnings) {
+      if (!_isNonBlockingShipmentContextMessage(resolution, warning)) {
+        return warning;
+      }
+    }
+
+    return '';
+  }
+
+  bool _isNonBlockingShipmentContextIssue(BarcodeResolutionResult resolution) {
+    if (!_isShipmentResolution(resolution) ||
+        !resolution.isFound ||
+        resolution.isPassive ||
+        resolution.isBlocked ||
+        resolution.isSalesBlocked) {
+      return false;
+    }
+
+    final messages = <String>[
+      resolution.operationDecision,
+      resolution.targetWarehouseReason,
+      resolution.purchaseRequirementReason,
+      ...resolution.errors,
+      ...resolution.warnings,
+    ].where((message) => message.trim().isNotEmpty).toList(growable: false);
+
+    if (messages.isEmpty) {
+      return resolution.isAllowedForTargetWarehouse == false ||
+          resolution.hasPurchaseRequirement == false;
+    }
+
+    return messages.every(
+      (message) => _isNonBlockingShipmentContextMessage(resolution, message),
+    );
+  }
+
+  bool _isNonBlockingShipmentContextMessage(
+    BarcodeResolutionResult resolution,
+    String message,
+  ) {
+    if (!_isShipmentResolution(resolution)) {
+      return false;
+    }
+
+    final normalized = _normalizeDecisionMessage(message);
+    final isTargetWarehouseModelMessage =
+        normalized.contains('hedef') &&
+        normalized.contains('depo') &&
+        (normalized.contains('model') || normalized.contains('izinli'));
+    final isPurchaseRequirementMessage =
+        normalized.contains('satinalma') && normalized.contains('sart');
+
+    return isTargetWarehouseModelMessage || isPurchaseRequirementMessage;
+  }
+
+  bool _isShipmentResolution(BarcodeResolutionResult resolution) {
+    final operationType = resolution.operationType.trim().toLowerCase();
+    final screenCode = resolution.screenCode.trim().toLowerCase();
+
+    return operationType == 'shipment' ||
+        screenCode == 'giden-depolar-arasi-sevkler' ||
+        screenCode == 'giden-firma-sevkleri';
+  }
+
+  String _normalizeDecisionMessage(String value) {
+    return value
+        .trim()
+        .toLowerCase()
+        .replaceAll('\u0131', 'i')
+        .replaceAll('\u00e7', 'c')
+        .replaceAll('\u011f', 'g')
+        .replaceAll('\u00f6', 'o')
+        .replaceAll('\u015f', 's')
+        .replaceAll('\u00fc', 'u')
+        .replaceAll('\u0307', '');
+  }
+
+  double _manualLineQuantityFor(ProductLookupItem product) {
+    for (final line in _manualLines) {
+      final selected = line.selectedProduct;
+      if (selected == null || selected.stockCode != product.stockCode) {
+        continue;
+      }
+
+      return productEntryController.readQuantity(
+        line.quantityController.text,
+        fallback: 0,
+      );
+    }
+
+    return 0;
+  }
+
+  double _linkedLineQuantityFor(ProductLookupItem product) {
+    for (final line in _linkedLines) {
+      if (line.stockCode != product.stockCode) {
+        continue;
+      }
+
+      return productEntryController.readQuantity(
+        line.quantityController.text,
+        fallback: 0,
+      );
+    }
+
+    return 0;
   }
 
   Future<void> _scanProductWithCamera(_ManualShipmentLineDraft line) async {
@@ -2386,6 +2736,22 @@ class _LookupScaffold extends StatelessWidget {
       ),
     );
   }
+}
+
+class _BarcodeResolutionAttempt {
+  const _BarcodeResolutionAttempt.resolved(this.result)
+    : shouldFallback = false;
+
+  const _BarcodeResolutionAttempt.fallback()
+    : result = null,
+      shouldFallback = true;
+
+  const _BarcodeResolutionAttempt.handledError()
+    : result = null,
+      shouldFallback = false;
+
+  final BarcodeResolutionResult? result;
+  final bool shouldFallback;
 }
 
 class _ManualShipmentLineDraft {

@@ -6,8 +6,10 @@ import 'package:furpa_merkez_terminal/features/order_operations/shared/data/mode
 import 'package:furpa_merkez_terminal/features/return_operations/warehouse_returns/data/models/warehouse_return_models.dart';
 import 'package:furpa_merkez_terminal/features/return_operations/warehouse_returns/data/warehouse_returns_repository.dart';
 import 'package:furpa_merkez_terminal/features/return_operations/warehouse_returns/presentation/widgets/warehouse_return_create_sheet.dart';
+import 'package:furpa_merkez_terminal/shared/data/barcode_resolution_models.dart';
 import 'package:furpa_merkez_terminal/shared/offline/mobile_warehouse_catalog_repository.dart';
 
+import '../../support/barcode_resolution_test_data.dart';
 import '../../support/memory_local_database.dart';
 
 void main() {
@@ -80,6 +82,22 @@ Future<void> _pickProduct(WidgetTester tester) async {
 }
 
 class _FakeWarehouseReturnsRepository implements WarehouseReturnsRepository {
+  @override
+  Future<BarcodeResolutionResult> resolveBarcode({
+    required String accessToken,
+    required BarcodeResolutionRequest request,
+  }) async {
+    return buildBarcodeResolutionResult(
+      barcode: request.barcode,
+      warehouseNo: int.tryParse(request.warehouseNo ?? '') ?? 110,
+      unitMultiplier: 2,
+      isCaseBarcode: true,
+      matchedUnitsPerCase: 2,
+      operationType: request.operationType ?? '',
+      screenCode: request.screenCode ?? '',
+    );
+  }
+
   @override
   Future<WarehouseReturnCreateResult> createReturn({
     required String accessToken,

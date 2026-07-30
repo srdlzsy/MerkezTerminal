@@ -1,4 +1,5 @@
 import 'package:furpa_merkez_terminal/core/network/api_client.dart';
+import 'package:furpa_merkez_terminal/shared/data/barcode_resolution_models.dart';
 
 class SearchProductLookupItem {
   const SearchProductLookupItem({
@@ -62,6 +63,30 @@ class SearchProductLookupItem {
       isOrderBlocked: _readBool(json['isOrderBlocked']),
       isGoodsAcceptanceBlocked: _readBool(json['isGoodsAcceptanceBlocked']),
       productManagerCode: _readString(json['productManagerCode']),
+    );
+  }
+
+  factory SearchProductLookupItem.fromBarcodeResolution(
+    BarcodeResolutionResult resolution,
+  ) {
+    return SearchProductLookupItem(
+      warehouseNo: resolution.warehouseNo,
+      barcode: resolution.effectiveBarcode,
+      stockCode: resolution.stockCode,
+      stockName: resolution.stockName,
+      price: resolution.salesPrice,
+      priceTypeCode: resolution.priceTypeCode,
+      unitName: resolution.matchedUnitName,
+      unitMultiplier: resolution.matchedUnitMultiplier,
+      secondaryUnitName: '',
+      secondaryUnitMultiplier: 0,
+      salesBlockCode: null,
+      orderBlockCode: null,
+      goodsAcceptanceBlockCode: null,
+      isSalesBlocked: resolution.isSalesBlocked,
+      isOrderBlocked: resolution.isOrderBlocked,
+      isGoodsAcceptanceBlocked: resolution.isGoodsAcceptanceBlocked,
+      productManagerCode: '',
     );
   }
 }

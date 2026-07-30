@@ -3,6 +3,7 @@ import 'package:furpa_merkez_terminal/features/order_operations/shared/data/mode
 import 'package:furpa_merkez_terminal/features/return_operations/warehouse_returns/data/models/warehouse_return_models.dart';
 import 'package:furpa_merkez_terminal/features/shipping_operations/outgoing_warehouse_shipments/data/models/outgoing_warehouse_shipment_models.dart';
 import 'package:furpa_merkez_terminal/features/shipping_operations/outgoing_warehouse_shipments/data/outgoing_warehouse_shipments_repository.dart';
+import 'package:furpa_merkez_terminal/shared/data/barcode_resolution_models.dart';
 
 abstract class IncomingWarehouseShipmentsRepository
     implements OutgoingWarehouseShipmentsRepository {}
@@ -107,6 +108,16 @@ class ApiIncomingWarehouseShipmentsRepository
   }) async {
     throw UnsupportedError(
       'Gelen depolar arasi sevkler ekraninda urun arama desteklenmiyor.',
+    );
+  }
+
+  @override
+  Future<BarcodeResolutionResult> resolveBarcode({
+    required String accessToken,
+    required BarcodeResolutionRequest request,
+  }) async {
+    throw UnsupportedError(
+      'Gelen depolar arasi sevkler ekraninda barkod cozumleme desteklenmiyor.',
     );
   }
 }

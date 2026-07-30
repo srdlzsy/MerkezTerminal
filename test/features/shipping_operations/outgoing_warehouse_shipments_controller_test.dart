@@ -7,6 +7,7 @@ import 'package:furpa_merkez_terminal/features/return_operations/warehouse_retur
 import 'package:furpa_merkez_terminal/features/shipping_operations/outgoing_warehouse_shipments/data/models/outgoing_warehouse_shipment_models.dart';
 import 'package:furpa_merkez_terminal/features/shipping_operations/outgoing_warehouse_shipments/data/outgoing_warehouse_shipments_repository.dart';
 import 'package:furpa_merkez_terminal/features/shipping_operations/outgoing_warehouse_shipments/presentation/view_models/outgoing_warehouse_shipments_controller.dart';
+import 'package:furpa_merkez_terminal/shared/data/barcode_resolution_models.dart';
 
 void main() {
   test(
@@ -172,6 +173,14 @@ class _FakeOutgoingWarehouseShipmentsRepository
     implements OutgoingWarehouseShipmentsRepository {
   @override
   bool get supportsEDespatch => true;
+
+  @override
+  Future<BarcodeResolutionResult> resolveBarcode({
+    required String accessToken,
+    required BarcodeResolutionRequest request,
+  }) {
+    throw UnimplementedError();
+  }
 
   final List<WarehouseShipmentListItem> _items = <WarehouseShipmentListItem>[
     const WarehouseShipmentListItem(

@@ -1,5 +1,7 @@
 import 'package:furpa_merkez_terminal/core/network/api_client.dart';
 import 'package:furpa_merkez_terminal/features/stock_operations/stock_receipts/data/models/stock_receipt_models.dart';
+import 'package:furpa_merkez_terminal/shared/data/barcode_resolution_models.dart';
+import 'package:furpa_merkez_terminal/shared/data/barcode_resolution_repository.dart';
 import 'package:furpa_merkez_terminal/shared/data/search_lookup_models.dart';
 
 abstract class StockReceiptsRepository {
@@ -28,6 +30,11 @@ abstract class StockReceiptsRepository {
     required String warehouseNo,
     required String query,
   });
+
+  Future<BarcodeResolutionResult> resolveBarcode({
+    required String accessToken,
+    required BarcodeResolutionRequest request,
+  });
 }
 
 class ApiStockReceiptsRepository implements StockReceiptsRepository {
@@ -35,6 +42,9 @@ class ApiStockReceiptsRepository implements StockReceiptsRepository {
     : _apiClient = apiClient;
 
   final ApiClient _apiClient;
+
+  BarcodeResolutionRepository get _barcodeResolutionRepository =>
+      ApiBarcodeResolutionRepository(apiClient: _apiClient);
 
   @override
   Future<List<StockReceiptListItem>> fetchReceipts({
@@ -124,5 +134,16 @@ class ApiStockReceiptsRepository implements StockReceiptsRepository {
           ),
         )
         .toList(growable: false);
+  }
+
+  @override
+  Future<BarcodeResolutionResult> resolveBarcode({
+    required String accessToken,
+    required BarcodeResolutionRequest request,
+  }) {
+    return _barcodeResolutionRepository.resolveBarcode(
+      accessToken: accessToken,
+      request: request,
+    );
   }
 }

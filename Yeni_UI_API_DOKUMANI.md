@@ -193,23 +193,24 @@ UI onerisi:
 
 ## Home / Ortak Sikayet Oneri
 
-Bu modul home sayfasinda kucuk bir "Sikayet / Oneri" kutusu acmak ve yonetim tarafinda gelen kayitlari rol/yetkiye gore izlemek icin eklendi.
+Bu modul home sayfasinda kucuk bir "Sikayet / Oneri" kutusu acmak ve yonetim tarafinda gelen kayitlari permission'a gore izlemek icin eklendi.
 
 Veri Auth DB tarafinda tutulur:
 
 - MSSQL tablo: `feedback_items`
 - Migration: `20260609134038_AddFeedbackItems`
 - Kullanici iliskileri: `created_by_user_id`, `read_by_user_id`, `status_changed_by_user_id` alanlari `app_users.id` alanina baglidir
-- Admin role icin migration ile varsayilan yetkiler eklenir
+- Permission katalogunda `OrtakIslemler > SikayetOneri` menusu altinda liste/detay/guncelle/tumunu listele yetkileri vardir
 
 Temel kural:
 
 - Home endpointleri icin sadece login olmak yeterlidir.
 - Kullanici kendi sikayet/onerisini olusturur, kendi gecmisini, detayini ve durumunu gorur.
-- Admin olmayan kullanici baska kullanicilarin veya ayni depodaki diger personelin kayitlarini goremez.
-- Admin olmayan kullanici okundu isaretleme, cevap/admin notu yazma veya durum degistirme yapamaz.
-- `Admin` veya `Administrator` rolu tum depolardaki kayitlari gorur, isterse `warehouseNo` ile depo filtreler.
-- `Admin` veya `Administrator` rolu okundu isaretler, cevap/admin notu yazar ve durum degistirir.
+- Yonetim liste endpointi `ortak-islemler.sikayet-oneri.list` ister.
+- Yonetim detay endpointi `ortak-islemler.sikayet-oneri.detail` ister.
+- Okundu isaretleme, cevap/admin notu yazma ve durum degistirme `ortak-islemler.sikayet-oneri.update` ister.
+- `ortak-islemler.sikayet-oneri.list-all` olmayan kullanici yonetim endpointlerinde sadece kendi actigi kayitlari gorur ve kendi kapsami disindaki kayitlarda aksiyon alamaz.
+- `ortak-islemler.sikayet-oneri.list-all` olan kullanici tum kayitlari gorur, isterse `warehouseNo` ile depo filtreler.
 
 Yetki kodlari:
 
@@ -218,7 +219,7 @@ Yetki kodlari:
 - `ortak-islemler.sikayet-oneri.update`
 - `ortak-islemler.sikayet-oneri.list-all`
 
-Not: Bu permission kodlari menu/buton gorunurlugu icin kullanilabilir; API tarafinda admin olmayan kullanicinin veri kapsami her zaman kendi olusturdugu kayitlarla sinirlidir. Durum guncelleme ve admin notu islemleri role gore sadece `Admin`/`Administrator` icindir.
+Not: Bu modul artik role name ile karar vermez. UI `me.permissions` listesindeki kodlara gore menu, kolon ve aksiyon butonlarini acmalidir. Eski `Admin` / `Administrator` kontrolu kullanilmamalidir.
 
 Deger kataloglari:
 
@@ -256,9 +257,10 @@ UI icin onerilen kullanim:
 - Kullanici bilgisi, depo no ve depo adi body'den alinmaz; JWT claim'lerinden backend tarafinda doldurulur.
 - Ayni create formu home disinda kullanicinin kendi sayfasinda da acilabilir; UI `POST /api/home/sikayet-oneri`, `POST /api/ortak-islemler/sikayet-oneri` veya `POST /api/yonetim/sikayet-oneri` route'larindan birini kullanabilir.
 - "Gecmisim" veya detay paneli icin `GET /api/home/sikayet-oneri/benim` kullanilir.
-- Yonetim ekrani menu olarak `OrtakIslemler > SikayetOneri` altinda acilabilir; admin olmayan kullanicida bu ekran sadece kendi kayitlarini salt okunur liste/detay olarak gostermelidir.
+- Yonetim ekrani menu olarak `OrtakIslemler > SikayetOneri` altinda acilabilir; `list` yetkisi yoksa ekran hic acilmamalidir.
+- `list-all` yetkisi yoksa yonetim ekrani sadece kullanicinin kendi actigi kayitlari liste/detay olarak gosterir.
 - Yonetim gridinde tip, durum, oncelik, depo, olusturan kullanici, tarih ve admin notu kolonlari yeterlidir.
-- Durum degisiminde `PATCH /durum`, sadece okunduya alma icin `PATCH /okundu` kullanilmalidir; bu aksiyonlar UI'da sadece `Admin`/`Administrator` icin acilmalidir.
+- Durum degisiminde `PATCH /durum`, sadece okunduya alma icin `PATCH /okundu` kullanilmalidir; bu aksiyonlar UI'da sadece `ortak-islemler.sikayet-oneri.update` yetkisi varsa acilmalidir.
 
 Endpoint ozeti:
 
@@ -273,10 +275,10 @@ Endpoint ozeti:
 | `GET /api/home/sikayet-oneri/ozet` | - | - | `FeedbackSummaryDto` | login |
 | `GET /api/ortak-islemler/sikayet-oneri/ozet` | - | - | `FeedbackSummaryDto` | login |
 | `GET /api/yonetim/sikayet-oneri/ozet` | - | - | `FeedbackSummaryDto` | login |
-| `GET /api/yonetim/sikayet-oneri` | query | `FeedbackManagementListHttpRequest` | `FeedbackItemDto[]` | login; admin tumu, digerleri kendi kayitlari |
-| `GET /api/yonetim/sikayet-oneri/{id}` | path | `id: guid` | `FeedbackItemDto` | login; admin tumu, digerleri kendi kaydi |
-| `PATCH /api/yonetim/sikayet-oneri/{id}/okundu` | path | `id: guid` | `FeedbackItemDto` | `Admin` veya `Administrator` |
-| `PATCH /api/yonetim/sikayet-oneri/{id}/durum` | body | `ChangeFeedbackStatusHttpRequest` | `FeedbackItemDto` | `Admin` veya `Administrator` |
+| `GET /api/yonetim/sikayet-oneri` | query | `FeedbackManagementListHttpRequest` | `FeedbackItemDto[]` | `ortak-islemler.sikayet-oneri.list`; tum kapsam icin `list-all` |
+| `GET /api/yonetim/sikayet-oneri/{id}` | path | `id: guid` | `FeedbackItemDto` | `ortak-islemler.sikayet-oneri.detail`; tum kapsam icin `list-all` |
+| `PATCH /api/yonetim/sikayet-oneri/{id}/okundu` | path | `id: guid` | `FeedbackItemDto` | `ortak-islemler.sikayet-oneri.update`; tum kapsam icin `list-all` |
+| `PATCH /api/yonetim/sikayet-oneri/{id}/durum` | body | `ChangeFeedbackStatusHttpRequest` | `FeedbackItemDto` | `ortak-islemler.sikayet-oneri.update`; tum kapsam icin `list-all` |
 
 Yonetim endpointleri icin alias route:
 
@@ -417,7 +419,7 @@ Query:
 ```text
 status       opsiyonel; New/Read/InProgress/Resolved/Closed/Rejected
 type         opsiyonel; Complaint/Suggestion
-warehouseNo  opsiyonel; sadece Admin/Administrator icin tum depo filtreleme anlamlidir
+warehouseNo  opsiyonel; sadece list-all yetkisi olan kullanicida tum depo filtreleme anlamlidir
 startDate    opsiyonel; createdAtUtc baslangic tarihi
 endDate      opsiyonel; createdAtUtc bitis tarihi, gun sonu dahil kabul edilir
 take         opsiyonel; default 100, max 500
@@ -425,9 +427,9 @@ take         opsiyonel; default 100, max 500
 
 Kapsam:
 
-- `Admin` veya `Administrator`: tum kayitlar uzerinden filtreleme yapar.
-- Admin olmayan kullanici: backend otomatik olarak sadece `createdByUserId = current user` kayitlarini dondurur.
-- Admin olmayan kullanici `warehouseNo` gonderse bile baska kullanici veya depo kaydina erisemez; depo filtresi admin ekraninda anlamlidir.
+- `ortak-islemler.sikayet-oneri.list-all` olan kullanici tum kayitlar uzerinden filtreleme yapar.
+- `list-all` olmayan kullanici: backend otomatik olarak sadece `createdByUserId = current user` kayitlarini dondurur.
+- `list-all` olmayan kullanici `warehouseNo` gonderse bile baska kullanici veya depo kaydina erisemez; depo filtresi sadece tum kapsam yetkisi olan ekranda anlamlidir.
 
 ### Yonetim Detay
 
@@ -448,6 +450,11 @@ Alias:
 `PATCH /api/ortak-islemler/sikayet-oneri/{id}/okundu`
 
 Body yoktur. Kayit `New` durumundaysa status `Read` olur; daha once farkli duruma alinmissa sadece okundu bilgisi korunarak response doner.
+
+Yetki:
+
+- Endpoint `ortak-islemler.sikayet-oneri.update` ister.
+- Baska kullanicinin kaydi icin ayrica `ortak-islemler.sikayet-oneri.list-all` gerekir.
 
 ### Durum Degistir
 
@@ -479,6 +486,464 @@ Not:
 - Status tekrar final olmayan bir degere cekilirse `closedAtUtc` null olur.
 - `adminNote` bos gonderilirse not temizlenir.
 - Status degisimi kaydi daha once okunmadiysa `readAtUtc` ve `readByUserId` de doldurulur.
+- Endpoint `ortak-islemler.sikayet-oneri.update` ister.
+- Baska kullanicinin kaydi icin ayrica `ortak-islemler.sikayet-oneri.list-all` gerekir.
+
+## Home / Ortak Duyurular
+
+Bu modul yetkili kullanicinin tum depolara, belirli depolara veya belirli kullanicilara duyuru yayinlamasi icin eklendi. Home tarafinda kullanici kendisine dusen aktif duyurulari gorur ve okundu isaretler; yonetim tarafinda yetkili kullanici duyuru olusturur, gunceller, arsivler ve hedef kapsamlarini izler.
+
+Veri Auth DB tarafinda tutulur:
+
+- MSSQL tablolar: `announcements`, `announcement_targets`, `announcement_reads`
+- Migration: `20260729133811_AddAnnouncements`
+- Duyuruyu olusturan kullanici bilgileri `created_by_user_id`, `created_by_username`, `created_by_full_name` alanlarinda saklanir.
+- Okundu bilgisi kullanici bazli `announcement_reads` tablosunda tutulur.
+- Okuyan kullanici listesi `announcement_reads` ile `app_users` iliskisinden doner; ayrica `readSummary` ile okuyan/hedef/okumayan sayilari verilir.
+- Hedefler ayri satirlar olarak `announcement_targets` tablosunda tutulur; ayni duyuru birden fazla depoya veya kullaniciya hedeflenebilir.
+
+Temel kural:
+
+- Home endpointleri icin sadece login olmak yeterlidir.
+- Kullanici yalnizca kendi kullanici id'sine, kendi deposuna veya tum depolara hedeflenmis aktif duyurulari gorur.
+- Aktif duyuru `Published` durumda olmali, `startsAtUtc` gelmis olmali ve `expiresAtUtc` gecmemis olmalidir.
+- Yonetim liste endpointi `ortak-islemler.duyurular.list` ister.
+- Yonetim detay endpointi `ortak-islemler.duyurular.detail` ister.
+- Duyuru olusturma `ortak-islemler.duyurular.create` ister.
+- Duyuru guncelleme `ortak-islemler.duyurular.update` ister.
+- Duyuru arsivleme `ortak-islemler.duyurular.archive` ister.
+- Tum depolara duyuru, baska depoya duyuru veya baska depodaki kullaniciya duyuru icin `ortak-islemler.duyurular.all-warehouses` gerekir.
+- `all-warehouses` olmayan kullanici sadece kendi deposuna veya kendi deposundaki aktif kullanicilara hedefleme yapabilir.
+- `all-warehouses` olmayan kullanici yonetim ekraninda kendi olusturdugu veya kendi kapsaminda gorunen duyurulari gorur; guncelleme/arsivleme icin duyuruyu kendisinin olusturmus olmasi gerekir.
+- `all-warehouses` olan kullanici tum duyurulari gorur, gunceller ve arsivler.
+
+WarehouseAccessFilter notu:
+
+- Request modeli hedef alanlarini `TargetWarehouseNos` olarak kullanir; bu alan global `WarehouseAccessFilter` icindeki `WarehouseNo`, `BranchNo`, `InWarehouseNo` birebir alan kontrolune takilmaz.
+- Bu bilincli tercih edildi, cunku duyuruda birden fazla hedef depo olabilir.
+- Depo guvenligi servis icinde `ortak-islemler.duyurular.all-warehouses` ve kullanicinin kendi `WarehouseNo` bilgisiyle tekrar dogrulanir.
+- UI baska depoya hedefleme alanini sadece `all-warehouses` yetkisi varsa acmalidir.
+
+Yetki kodlari:
+
+- `ortak-islemler.duyurular.list`
+- `ortak-islemler.duyurular.detail`
+- `ortak-islemler.duyurular.create`
+- `ortak-islemler.duyurular.update`
+- `ortak-islemler.duyurular.archive`
+- `ortak-islemler.duyurular.all-warehouses`
+
+Deger kataloglari:
+
+```text
+priority:
+  Normal     Normal
+  Important  Onemli
+  Urgent     Acil
+
+status:
+  Published  Yayinda
+  Archived   Arsivde
+
+targetType:
+  AllWarehouses  Tum Depolar
+  Warehouse      Depo
+  User           Kullanici
+```
+
+Request tarafinda backend su alias'lari da kabul eder:
+
+- priority: `normal`, `important`, `onemli`, `urgent`, `acil`
+- status: `published`, `yayinda`, `archived`, `arsivde`
+- targetType: `AllWarehouses`, `Warehouse`, `User`, `tumdepolar`, `depo`, `kullanici`
+- `-`, `_`, bosluklar ve Turkce karakterli yazimlar normalize edilir; ornegin `all-warehouses`, `all warehouses`, `tum_depolar`, `tum depolar` ayni anlama gelir.
+
+UI icin onerilen kullanim:
+
+- Login sonrasi `accessToken` alindiktan ve `GET /api/auth/me` tamamlandiktan hemen sonra ana layout/header seviyesinde `GET /api/home/duyurular/ozet` cagrilmalidir.
+- Duyuru gorunurlugu menuye bagli olmamalidir; kullanici `OrtakIslemler > Duyurular` ekranina girmese bile header'daki mesaj/duyuru kutusunda kendisine gelen duyuruyu gorebilmelidir.
+- Header'da mesaj kutusu veya zil ikonu kullanilabilir; `unreadCount > 0` ise badge gosterilir.
+- Header kutusu acildiginda `GET /api/home/duyurular?includeRead=false&take=20` cagrilip okunmamis aktif duyurular listelenmelidir.
+- `Urgent` duyurular login sonrasi ilk acilista toast veya dikkat cekici header bildirimi olarak one cikarilabilir; yine de okundu islemi kullanici aksiyonuyla `PATCH /okundu` uzerinden yapilmalidir.
+- Home acilisinda once `GET /api/home/duyurular/ozet` cagrilir; okunmamis sayisi header badge veya home kartinda gosterilir.
+- Duyuru kutusu icin `GET /api/home/duyurular?includeRead=false&take=20` kullanilir.
+- Kullanici "Tumunu goster" dediginde `includeRead=true` ile okunmus duyurular da getirilebilir.
+- Duyuru satirinda oncelik rengi `priority` alanina gore belirlenmelidir: `Urgent` acil, `Important` belirgin, `Normal` standart.
+- Kullanici duyuruyu actiginda veya "okundu" aksiyonuna bastiginda `PATCH /api/home/duyurular/{id}/okundu` cagrilir.
+- Okundu isleminden sonra header badge icin tekrar `GET /api/home/duyurular/ozet` cagrilmalidir.
+- Uzun acik kalan oturumlarda UI periyodik olarak veya uygulama tekrar odaga geldiginde `GET /api/home/duyurular/ozet` ile badge bilgisini tazeleyebilir.
+- Yonetim ekrani `OrtakIslemler > Duyurular` altinda acilabilir; menu icin `ortak-islemler.duyurular.list` kullanilmalidir.
+- Create butonu `create`, duzenle butonu `update`, arsivle butonu `archive`, depo/kullanici kapsam genisletme kontrolleri `all-warehouses` yetkisine gore acilmalidir.
+- `all-warehouses` yoksa hedef tipi seciminde "Tum Depolar" pasif olmalidir; depo hedeflemede sadece kullanicinin kendi deposu secilebilir.
+- Kullanici hedefleme ekraninda id elle yazdirilmaz; arama kutusu `GET /api/ortak-islemler/duyurular/hedef-kullanicilar?search=...` ile beslenir.
+- Kullanici hedefleme aramasi yalnizca aktif kullanicilari dondurur; `all-warehouses` yoksa backend sonucu otomatik kendi depoyla sinirlar.
+- Yonetim listesinde `readSummary` kolonlariyla okuyan/hedef/okumayan sayilari gosterilebilir; detayda `readReceipts` veya `GET /okuyanlar` ile kisi listesi acilabilir.
+- Tarihler UI tarafinda kullanicinin lokal saatinde gosterilebilir ama API'ye UTC olarak gonderilmelidir.
+- `expiresAtUtc` bos ise duyuru manuel arsivlenene kadar surekli yayinda kalir.
+
+Endpoint ozeti:
+
+| Endpoint | Request kaynagi | Request modeli | Response | Yetki |
+|---|---|---|---|---|
+| `GET /api/home/duyurular` | query | `AnnouncementInboxHttpRequest` | `AnnouncementDto[]` | login |
+| `GET /api/home/duyurular/ozet` | - | - | `AnnouncementSummaryDto` | login |
+| `PATCH /api/home/duyurular/{id}/okundu` | path | `id: guid` | `AnnouncementDto` | login |
+| `GET /api/ortak-islemler/duyurular` | query | `AnnouncementManagementListHttpRequest` | `AnnouncementDto[]` | `ortak-islemler.duyurular.list` |
+| `GET /api/ortak-islemler/duyurular/hedef-kullanicilar` | query | `AnnouncementTargetUserSearchHttpRequest` | `AnnouncementTargetUserDto[]` | `ortak-islemler.duyurular.list` |
+| `GET /api/ortak-islemler/duyurular/{id}` | path | `id: guid` | `AnnouncementDto` | `ortak-islemler.duyurular.detail` |
+| `GET /api/ortak-islemler/duyurular/{id}/okuyanlar` | path | `id: guid` | `AnnouncementReadReceiptListDto` | `ortak-islemler.duyurular.detail` |
+| `POST /api/ortak-islemler/duyurular` | body | `SaveAnnouncementHttpRequest` | `AnnouncementDto` | `ortak-islemler.duyurular.create` |
+| `PUT /api/ortak-islemler/duyurular/{id}` | body | `SaveAnnouncementHttpRequest` | `AnnouncementDto` | `ortak-islemler.duyurular.update` |
+| `PATCH /api/ortak-islemler/duyurular/{id}/arsivle` | path | `id: guid` | `AnnouncementDto` | `ortak-islemler.duyurular.archive` |
+
+Yonetim endpointleri icin alias route:
+
+```text
+/api/yonetim/duyurular
+/api/yonetim/duyurular/hedef-kullanicilar
+/api/yonetim/duyurular/{id}
+/api/yonetim/duyurular/{id}/okuyanlar
+/api/yonetim/duyurular/{id}/arsivle
+```
+
+UI sade kullanim icin home kutusunda `/api/home/duyurular/*`, ortak menu ekraninda `/api/ortak-islemler/duyurular/*` yolunu tercih edebilir.
+
+### Duyuru Inbox
+
+`GET /api/home/duyurular`
+
+Ornek:
+
+`GET /api/home/duyurular?includeRead=false&take=20`
+
+Query:
+
+```text
+includeRead  opsiyonel; default false. false ise sadece okunmamis aktif duyurular doner.
+take         opsiyonel; default 100, max 500
+```
+
+Kapsam:
+
+- Sadece `Published` durumdaki duyurular doner.
+- `startsAtUtc` bos veya su andan kucuk/esit olmalidir.
+- `expiresAtUtc` bos veya su andan buyuk olmalidir.
+- Hedef `AllWarehouses`, kullanicinin kendi `WarehouseNo` degeri veya kendi `UserId` degeriyle eslesmelidir.
+- Response once `priority desc`, sonra `publishedAtUtc desc` siralidir.
+
+Response:
+
+```json
+[
+  {
+    "id": "a64af2ad-b0a2-4b62-8b21-91a63f2b0f30",
+    "title": "Aksam sayim duyurusu",
+    "message": "Bugun 18:00 sonrasi sayim hazirligi yapilacaktir.",
+    "priority": "Important",
+    "priorityName": "Onemli",
+    "status": "Published",
+    "statusName": "Yayinda",
+    "createdByUserId": "2ffb4f7d-b63d-4b12-8d74-e2a0aee2798a",
+    "createdByUsername": "merkez.admin",
+    "createdByFullName": "Merkez Admin",
+    "startsAtUtc": "2026-07-29T12:00:00Z",
+    "expiresAtUtc": "2026-08-01T21:00:00Z",
+    "publishedAtUtc": "2026-07-29T11:45:00Z",
+    "archivedAtUtc": null,
+    "archivedByUserId": null,
+    "createdAtUtc": "2026-07-29T11:45:00Z",
+    "updatedAtUtc": null,
+    "readAtUtc": null,
+    "targets": [
+      {
+        "id": "cce4c1b2-4b9c-4612-80ef-d2d3cb24b7db",
+        "type": "Warehouse",
+        "typeName": "Depo",
+        "warehouseNo": 110,
+        "warehouseName": "KESTEL 1",
+        "userId": null,
+        "username": null,
+        "userFullName": null
+      }
+    ],
+    "readSummary": null,
+    "readReceipts": []
+  }
+]
+```
+
+### Duyuru Home Ozet
+
+`GET /api/home/duyurular/ozet`
+
+Response:
+
+```json
+{
+  "activeCount": 3,
+  "unreadCount": 2,
+  "latestAnnouncementId": "a64af2ad-b0a2-4b62-8b21-91a63f2b0f30",
+  "latestPublishedAtUtc": "2026-07-29T11:45:00Z"
+}
+```
+
+Not:
+
+- `activeCount`: kullanicinin kapsamindaki aktif duyuru sayisidir.
+- `unreadCount`: aktif duyurular icinde kullanicinin henuz okundu isaretlemedigi duyuru sayisidir.
+- `latestAnnouncementId` ve `latestPublishedAtUtc` aktif duyuru yoksa null gelir.
+
+### Duyuru Okundu Isaretle
+
+`PATCH /api/home/duyurular/{id}/okundu`
+
+Body yoktur. Islem idempotent calisir; kullanici ayni duyuruyu daha once okuduysa mevcut `readAtUtc` korunarak response doner.
+
+Yetki ve kapsam:
+
+- Sadece login gerekir.
+- Kullanici sadece kendi kapsaminda gorunen aktif duyuruyu okundu isaretleyebilir.
+- Kapsaminda olmayan veya arsivlenmis/gecersiz tarih araligindaki duyuru icin 404 doner.
+
+### Duyuru Yonetim Liste
+
+`GET /api/ortak-islemler/duyurular`
+
+Alias:
+
+`GET /api/yonetim/duyurular`
+
+Ornek:
+
+`GET /api/ortak-islemler/duyurular?status=Published&targetType=Warehouse&targetWarehouseNo=110&startDate=2026-07-01&endDate=2026-07-29&includeArchived=false&take=100`
+
+Query:
+
+```text
+status             opsiyonel; Published/Archived veya yayinda/arsivde
+targetType         opsiyonel; AllWarehouses/Warehouse/User veya tumdepolar/depo/kullanici
+targetWarehouseNo  opsiyonel; hedef depo filtresi
+targetUserId       opsiyonel; hedef kullanici filtresi
+startDate          opsiyonel; createdAtUtc baslangic tarihi
+endDate            opsiyonel; createdAtUtc bitis tarihi, gun sonu dahil kabul edilir
+includeArchived    opsiyonel; default false. false ise arsivli duyurular listelenmez.
+take               opsiyonel; default 100, max 500
+```
+
+Kapsam:
+
+- `all-warehouses` olan kullanici tum duyurular uzerinden filtreleme yapar.
+- `all-warehouses` olmayan kullanici kendi olusturdugu veya kendisine/kendi deposuna/tum depolara hedeflenmis duyurulari gorur.
+- `all-warehouses` olmayan kullanici `targetWarehouseNo` filtresinde sadece kendi deposunu gonderebilir; baska depo gonderirse 400 doner.
+- Response icindeki `readSummary` doludur; liste performansi icin `readReceipts` bos dizi doner.
+
+### Duyuru Hedef Kullanici Arama
+
+`GET /api/ortak-islemler/duyurular/hedef-kullanicilar`
+
+Alias:
+
+`GET /api/yonetim/duyurular/hedef-kullanicilar`
+
+Ornek:
+
+`GET /api/ortak-islemler/duyurular/hedef-kullanicilar?search=serdal&warehouseNo=101&take=25`
+
+Query:
+
+```text
+search       opsiyonel; username, ad, soyad, e-posta, depo no veya depo adinda aranir; max 100
+warehouseNo  opsiyonel; sadece all-warehouses yetkisi olan kullanici baska depo gonderebilir
+take         opsiyonel; default 25, max 100
+```
+
+Response:
+
+```json
+[
+  {
+    "id": "58ac6266-8c7a-4ff5-a16e-2229ef31a111",
+    "username": "serdal.ozsoy",
+    "fullName": "Serdal Ozsoy",
+    "email": "serdal.ozsoy@example.local",
+    "warehouseNo": 101,
+    "warehouseName": "Depo 101",
+    "displayName": "Serdal Ozsoy (serdal.ozsoy) / 101 - Depo 101"
+  }
+]
+```
+
+Not:
+
+- Endpoint `ortak-islemler.duyurular.list` ister.
+- Sadece aktif kullanicilar doner.
+- `all-warehouses` olmayan kullanici icin sonuc her zaman kendi deposuyla sinirlidir.
+
+### Duyuru Yonetim Detay
+
+`GET /api/ortak-islemler/duyurular/{id}`
+
+Alias:
+
+`GET /api/yonetim/duyurular/{id}`
+
+Response `AnnouncementDto` doner. Detay response'unda `readSummary` ve `readReceipts` doludur.
+
+Yetki ve kapsam:
+
+- Endpoint `ortak-islemler.duyurular.detail` ister.
+- `all-warehouses` olan kullanici tum duyurulari gorur.
+- `all-warehouses` olmayan kullanici kendi olusturdugu veya kendi kapsaminda gorunen duyuruyu gorur.
+
+### Duyuru Okuyanlar
+
+`GET /api/ortak-islemler/duyurular/{id}/okuyanlar`
+
+Alias:
+
+`GET /api/yonetim/duyurular/{id}/okuyanlar`
+
+Response:
+
+```json
+{
+  "announcementId": "a64af2ad-b0a2-4b62-8b21-91a63f2b0f30",
+  "summary": {
+    "readCount": 2,
+    "targetUserCount": 3,
+    "unreadCount": 1,
+    "lastReadAtUtc": "2026-07-29T13:20:00Z"
+  },
+  "readers": [
+    {
+      "userId": "58ac6266-8c7a-4ff5-a16e-2229ef31a111",
+      "username": "serdal.ozsoy",
+      "userFullName": "Serdal Ozsoy",
+      "email": "serdal.ozsoy@example.local",
+      "warehouseNo": 101,
+      "warehouseName": "Depo 101",
+      "readAtUtc": "2026-07-29T13:20:00Z"
+    }
+  ]
+}
+```
+
+Not:
+
+- Endpoint `ortak-islemler.duyurular.detail` ister.
+- `readers` en son okuyan en ustte olacak sekilde siralanir.
+- `all-warehouses` olmayan kullanicida okuyanlar listesi kendi depo/kendi kullanici kapsamina sinirlanir.
+
+### Duyuru Olustur
+
+`POST /api/ortak-islemler/duyurular`
+
+Alias:
+
+`POST /api/yonetim/duyurular`
+
+Depoya duyuru ornegi:
+
+```json
+{
+  "title": "Aksam sayim duyurusu",
+  "message": "Bugun 18:00 sonrasi sayim hazirligi yapilacaktir.",
+  "priority": "Important",
+  "targetType": "Warehouse",
+  "targetWarehouseNos": [110, 120],
+  "targetUserIds": null,
+  "startsAtUtc": "2026-07-29T12:00:00Z",
+  "expiresAtUtc": "2026-08-01T21:00:00Z"
+}
+```
+
+Tum depolara duyuru ornegi:
+
+```json
+{
+  "title": "Sistem bakimi",
+  "message": "Bu gece 23:00-23:30 arasi kisa kesinti olabilir.",
+  "priority": "Urgent",
+  "targetType": "AllWarehouses",
+  "targetWarehouseNos": null,
+  "targetUserIds": null,
+  "startsAtUtc": "2026-07-29T20:00:00Z",
+  "expiresAtUtc": "2026-07-30T21:00:00Z"
+}
+```
+
+Kullaniciya duyuru ornegi:
+
+```json
+{
+  "title": "Fiyat kontrolu",
+  "message": "Etiket degisimi sonrasi reyon kontrolunu tamamlayiniz.",
+  "priority": "Normal",
+  "targetType": "User",
+  "targetWarehouseNos": null,
+  "targetUserIds": [
+    "58ac6266-8c7a-4ff5-a16e-2229ef31a111"
+  ],
+  "startsAtUtc": null,
+  "expiresAtUtc": null
+}
+```
+
+Validasyon:
+
+```text
+title               zorunlu, max 140
+message             zorunlu, max 4000
+priority            opsiyonel, max 30; bos ise Normal
+targetType          zorunlu, max 30
+targetWarehouseNos  targetType=Warehouse icin en az 1 pozitif depo no
+targetUserIds       targetType=User icin en az 1 aktif kullanici id
+startsAtUtc         opsiyonel, UTC kabul edilir
+expiresAtUtc        opsiyonel, UTC kabul edilir; varsa startsAtUtc degerinden buyuk olmalidir
+```
+
+Yetki ve hedefleme:
+
+- Endpoint `ortak-islemler.duyurular.create` ister.
+- `targetType=AllWarehouses` icin `ortak-islemler.duyurular.all-warehouses` gerekir.
+- `targetType=Warehouse` icin `all-warehouses` yoksa sadece kullanicinin kendi deposu gonderilebilir.
+- `targetType=User` icin hedef kullanicilar aktif olmalidir; `all-warehouses` yoksa hedef kullanicilar kullanicinin kendi deposunda olmalidir.
+- `targetWarehouseNos` ve `targetUserIds` icinde tekrar eden degerler backend tarafinda tekillestirilir.
+
+### Duyuru Guncelle
+
+`PUT /api/ortak-islemler/duyurular/{id}`
+
+Alias:
+
+`PUT /api/yonetim/duyurular/{id}`
+
+Body `SaveAnnouncementHttpRequest` ile aynidir.
+
+Not:
+
+- Endpoint `ortak-islemler.duyurular.update` ister.
+- `all-warehouses` olan kullanici tum duyurulari guncelleyebilir.
+- `all-warehouses` olmayan kullanici sadece kendi olusturdugu duyuruyu guncelleyebilir.
+- Arsivlenmis duyuru guncellenemez.
+- Guncellemede hedefler yeniden yazilir.
+- Duyurunun onceki okundu kayitlari temizlenir; cunku baslik, metin veya hedef degismis olabilir.
+
+### Duyuru Arsivle
+
+`PATCH /api/ortak-islemler/duyurular/{id}/arsivle`
+
+Alias:
+
+`PATCH /api/yonetim/duyurular/{id}/arsivle`
+
+Body yoktur. Arsivlenen duyuru `Archived` olur, `archivedAtUtc` ve `archivedByUserId` dolar. Islem tekrar cagrilirsa duyuru zaten arsivde oldugu icin mevcut arsiv bilgisi korunarak response doner.
+
+Yetki ve kapsam:
+
+- Endpoint `ortak-islemler.duyurular.archive` ister.
+- `all-warehouses` olan kullanici tum duyurulari arsivleyebilir.
+- `all-warehouses` olmayan kullanici sadece kendi olusturdugu duyuruyu arsivleyebilir.
 
 ## Mobil Offline Pilot Kurallari
 
@@ -1976,6 +2441,7 @@ Not:
 - Mikro tarafinda sadece SELECT/read-only mantigiyla calisir.
 - Urun arama `dbo.__StokveFiyatArama_Gokhan` stored procedure'u ile yapilir.
 - Mobil barkod okutma senaryolarinda genel `urunler` listesi yerine once `barkodlar/{barcode}/cozumle` endpoint'i tercih edilmelidir.
+- Barkod okutma, cozumleme, satira ekleme, fiyat/cari bulma ve barkod tanimlatma karar akisi icin kisa rehber: `docs/BARKOD_COZUMLEME_VE_ARAMA_REHBERI.md`.
 - Mobil offline fiyat okutma icin tekil `fiyat-gor` endpointleri yerine `GET /api/mobile-sync/urun-fiyat-katalogu` ile depo bazli katalog cihaza indirilmelidir.
 - Mobil offline cari ve depo secimleri icin online arama endpointleri yerine `GET /api/mobile-sync/cari-katalogu` ve `GET /api/mobile-sync/depo-katalogu` kataloglari cihaza indirilmelidir.
 - Mal kabul create ekranlarinda cari secimini hizlandirmak icin `urunler/{stockCode}/cari-onerileri` endpoint'i yardimci olarak kullanilabilir.
@@ -2000,7 +2466,7 @@ Query:
 
 ```text
 warehouseNo    opsiyonel; verilmezse JWT icindeki depo kullanilir
-barcode        opsiyonel; barkod ile exact arama
+barcode        opsiyonel; barkod ile exact arama; 27/29 ile baslayan 13 haneli terazi barkoduysa arama barkodu ilk 7 haneye normalize edilir
 stockCode      opsiyonel; stok kodu ile exact arama
 stockName      opsiyonel; stok adinda contains arama, en az 2 karakter
 companyCode    opsiyonel; secilen firma/cari kodu filtresi
@@ -2021,22 +2487,28 @@ Response:
 [
   {
     "warehouseNo": 110,
-    "barcode": "8690000000000",
+    "barcode": "2700174",
     "stockCode": "015550",
-    "stockName": "Stok Adi",
-    "price": 125.5,
+    "stockName": "MNV SEFTALI KG",
+    "price": 99.9,
     "priceTypeCode": 1,
-    "unitName": "AD",
+    "unitName": "KG",
     "unitMultiplier": 1,
-    "secondaryUnitName": "KOLI",
-    "secondaryUnitMultiplier": 12,
+    "secondaryUnitName": "",
+    "secondaryUnitMultiplier": 0,
     "salesBlockCode": 0,
     "orderBlockCode": 0,
     "goodsAcceptanceBlockCode": 0,
     "isSalesBlocked": false,
     "isOrderBlocked": false,
     "isGoodsAcceptanceBlocked": false,
-    "productManagerCode": "PER001"
+    "productManagerCode": "PER001",
+    "requestedBarcode": "2700174041103",
+    "lookupBarcode": "2700174",
+    "isVariableWeightBarcode": true,
+    "embeddedQuantity": 4.11,
+    "embeddedQuantityUnit": "KG",
+    "isBarcodeCheckDigitValid": true
   }
 ]
 ```
@@ -2046,6 +2518,7 @@ UI kullanim notu:
 - Mal kabulde `isGoodsAcceptanceBlocked = true` olan urunlerde uyari gosterilebilir.
 - Siparis girisinde `isOrderBlocked = true` olan urunlerde uyari veya engel uygulanabilir.
 - Satis/sevk formlarinda `isSalesBlocked = true` olan urunlerde uyari gosterilebilir.
+- Barkod okutulan satir ekleme ekranlarinda nihai karar icin once `barkodlar/{barcode}/cozumle` cagrilmalidir; `urunler` daha cok liste/arama deneyimi icindir.
 
 ### Fiyat Gor
 
@@ -2071,7 +2544,7 @@ Query:
 
 ```text
 warehouseNo    opsiyonel; verilmezse JWT icindeki depo kullanilir
-barcode        opsiyonel; barkod ile exact arama
+barcode        opsiyonel; barkod ile exact arama; 27/29 ile baslayan 13 haneli terazi barkoduysa arama barkodu ilk 7 haneye normalize edilir
 stockCode      opsiyonel; stok kodu ile exact arama
 stockName      opsiyonel; stok adinda contains arama, en az 2 karakter
 companyCode    opsiyonel; secilen firma/cari kodu filtresi
@@ -2088,6 +2561,7 @@ UI kullanim notu:
 
 - Sol menu altinda `AramaIslemleri > FiyatGor` gibi ayri bir hizli ekran olarak sunulabilir.
 - Barkod okutma ekraninda pratik yol `barkodlar/{barcode}/fiyat` alias'idir.
+- Terazi barkodunda response icindeki `requestedBarcode`, `lookupBarcode`, `embeddedQuantity` ve `embeddedQuantityUnit` alanlari UI'a okutulan barkod ile arama barkodunu ayirmak icin gelir.
 - El terminali offline kullanacaksa bu endpoint online anlik sorgu icin kalmali; offline veri hazirligi `Mobil Urun-Fiyat Katalog Sync` endpoint'iyle yapilmalidir.
 
 ### Urun Son Kunye
@@ -2148,64 +2622,100 @@ Not:
 
 ### Tek Barkod Cozumle
 
-Mobil uygulamada barkod okutunca tek cevapta urun bulundu mu, stok kodu, koli barkodu, koli ici adet ve secili ekranda kullanilabilirlik bilgisi almak icin:
+Mobil uygulamada barkod okutunca tek cevapta urun bulundu mu, okutulan barkodun tipi, koli ici adet, terazi/KG miktari, hedef depo uygunlugu, satinalma sarti ve secili islem icin kullanilabilirlik bilgisini almak icin:
 
-`GET /api/arama-islemleri/barkodlar/8690000000000/cozumle?warehouseNo=110&screenCode=firma-mal-kabulleri`
+`GET /api/arama-islemleri/barkodlar/2700174041103/cozumle?warehouseNo=110&operationType=receiving&targetWarehouseNo=120&supplierCode=120.01.03106`
 
 Query:
 
 ```text
 warehouseNo    opsiyonel; verilmezse JWT icindeki depo kullanilir
-screenCode     opsiyonel; ekran baglamini verir, kullanilabilirlik yorumu icin kullanilir
+operationType  opsiyonel; islem tipini verir, satira ekleme kararinda kullanilir
+targetWarehouseNo opsiyonel; hedef depo/model kod uygunlugu hesaplamak icin kullanilir; shipment icin bloklayici degildir
+supplierCode   opsiyonel; secili tedarikciye gore SATINALMA_SARTLARI kontrolu yapar; receiving/order icin karar motoruna dahil edilir
+companyCode    opsiyonel; supplierCode ile ayni anlamda geriye uyum alias'i
+isRefund       opsiyonel; false ise eski sistemdeki iade disi DLS/99 filtresi uygulanir
+screenCode     opsiyonel; eski UI uyumu icin korunur, operationType bos ise ekran baglami gibi kullanilir
 ```
 
-Desteklenen tipik `screenCode` degerleri:
+Desteklenen tipik `operationType` / `screenCode` degerleri:
 
-- `firma-mal-kabulleri`
-- `depo-mal-kabulleri`
-- `sayim-sonuclari`
-- `verilen-firma-siparisleri`
-- `verilen-depo-siparisleri`
-- `giden-firma-sevkleri`
-- `giden-depolar-arasi-sevkler`
-- `firma-iadeleri`
-- `giden-depo-iadeleri`
+- `receiving`, `firma-mal-kabulleri`, `depo-mal-kabulleri`
+- `order`, `verilen-firma-siparisleri`, `verilen-depo-siparisleri`
+- `shipment`, `giden-firma-sevkleri`, `giden-depolar-arasi-sevkler`
+- `return`, `firma-iadeleri`, `giden-depo-iadeleri`
+- `waste`, `zayiat-fisleri`, `masraf-fisleri`, `fire`
+- `count`, `sayim-sonuclari`
 
 Onemli not:
 
-- Endpoint once `BARKOD_TANIMLARI` tablosunda exact barkod arar.
+- Endpoint once 13 haneli terazi barkodunu normalize eder. `27` veya `29` ile baslayan EAN-13 barkodlarda ilk 7 hane urun barkodu kabul edilir; 8-12. haneler KG miktari olarak `embeddedQuantity` alanina yazilir.
+- Ornek: `2700174041103` okutulursa `lookupBarcode = 2700174`, `embeddedQuantity = 4.11`, `embeddedQuantityUnit = KG` doner.
+- Endpoint normalize edilen barkodu `BARKOD_TANIMLARI` tablosunda exact arar.
 - Barkod bulunamazsa barkodu stok kodu veya global urun numarasi gibi degerlerle eslestirmeyi dener.
-- `resolutionSource` alani eslestirmenin `barcode`, `stock-code`, `gtin` veya `not-found` kaynakli oldugunu anlatir.
-- `caseBarcode` ve `unitsPerCase` alanlari koli/master barkod tespit edilebilirse dolar.
-- `defaultSupplierCode` ve `defaultSupplierName` alanlari stok kartindaki varsayilan tedarikci bilgisini dondurur.
-- `isUsableInScreen` ve `usabilityReason` alanlari secilen ekran icin pratik karar vermeyi kolaylastirir.
+- `resolutionSource` alani eslestirmenin `variable-weight`, `barcode`, `stock-code`, `gtin` veya `not-found` kaynakli oldugunu anlatir.
+- `barcodeKind` alani okutulan barkodun `variable-weight`, `product`, `case`, `alternative`, `stock-code` veya `gtin` gibi pratik tipini verir.
+- `caseBarcode`, `unitsPerCase` ve `matchedUnitsPerCase` alanlari koli/master barkod tespitinde kullanilir.
+- `isSalesBlocked`, `isOrderBlocked`, `isGoodsAcceptanceBlocked` ve `isPassive` depo detay degerleri varsa depo ozelinden, yoksa stok kartindan hesaplanir.
+- `isAllowedForTargetWarehouse` hedef depo verilirse `DEPOLAR.dep_barkod_yazici_yolu` icindeki model kod listesine gore hesaplanir.
+- `operationType=shipment` icin hedef depo model kod sonucu bilgi olarak donebilir; fakat hedef depo model kodu sevkte `isUsableInOperation=false` yapmaz.
+- `hasPurchaseRequirement` tedarikci/companyCode verilirse veya operasyon `receiving`/`order` ise `SATINALMA_SARTLARI` kontrol sonucudur. Bu sonuc sadece mal kabul/siparis operasyonunda satira ekleme kararina dahil edilir.
+- `operationType=shipment` icin sirf `targetWarehouseNo` geldi diye satinalma sarti kontrolu calismaz ve satira ekleme bloklanmaz.
+- `salesPrice` ve `priceTypeCode` secili depodaki fiyat satirindan gelir.
+- `isUsableInOperation`, `operationDecision`, `warnings` ve `errors` UI'in tek karar noktasi olmalidir.
 
 Response:
 
 ```json
 {
   "isFound": true,
-  "barcode": "8690000000000",
+  "barcode": "2700174041103",
   "warehouseNo": 110,
-  "screenCode": "firma-mal-kabulleri",
-  "resolutionSource": "barcode",
+  "screenCode": null,
+  "resolutionSource": "variable-weight",
   "stockCode": "015550",
-  "stockName": "Stok Adi",
-  "matchedBarcode": "8690000000000",
-  "primaryBarcode": "8690000000000",
+  "stockName": "MNV SEFTALI KG",
+  "matchedBarcode": "2700174",
+  "primaryBarcode": "2700174",
   "caseBarcode": "18690000000007",
   "unitsPerCase": 12,
   "matchedUnitPointer": 1,
-  "matchedUnitName": "AD",
+  "matchedUnitName": "KG",
   "matchedUnitMultiplier": 1,
   "isBlocked": false,
   "isSalesBlocked": false,
   "isOrderBlocked": false,
   "isGoodsAcceptanceBlocked": false,
   "isUsableInScreen": true,
-  "usabilityReason": "Urun mal kabul ekraninda kullanilabilir.",
+  "usabilityReason": "Islem tipi verilmedigi icin genel blok bilgisi donduruldu.",
   "defaultSupplierCode": "120.01.03106",
-  "defaultSupplierName": "ORNEK TEDARIKCI"
+  "defaultSupplierName": "ORNEK TEDARIKCI",
+  "lookupBarcode": "2700174",
+  "isVariableWeightBarcode": true,
+  "embeddedQuantity": 4.11,
+  "embeddedQuantityUnit": "KG",
+  "isBarcodeCheckDigitValid": true,
+  "barcodeKind": "variable-weight",
+  "isPrimaryBarcode": false,
+  "isCaseBarcode": false,
+  "isAlternativeBarcode": false,
+  "matchedUnitsPerCase": null,
+  "operationType": "receiving",
+  "targetWarehouseNo": 120,
+  "isAllowedForTargetWarehouse": true,
+  "targetWarehouseReason": "Urun hedef deponun izinli model kodlari icinde.",
+  "productModelCode": "MNV",
+  "targetWarehouseModelCodes": ["MNV", "SKT"],
+  "supplierCode": "120.01.03106",
+  "hasPurchaseRequirement": true,
+  "purchaseRequirementReason": "Secili tedarikci icin satinalma sarti bulundu.",
+  "salesPrice": 99.9,
+  "priceTypeCode": 1,
+  "isPassive": false,
+  "isUsableInOperation": true,
+  "operationDecision": "Urun mal kabul isleminde kullanilabilir.",
+  "warnings": [],
+  "errors": []
 }
 ```
 
@@ -2213,11 +2723,15 @@ Bulunamayan barkod davranisi:
 
 - Endpoint `200 OK` ile doner, fakat `isFound = false` olur.
 - Bu durumda UI hata modal'i yerine kullaniciya "urun bulunamadi" veya "barkod tanimsiz" gibi hizli bir mesaj gosterebilir.
+- Bu endpoint Mikro `BARKOD_TANIMLARI` tablosuna yeni barkod yazmaz. Barkod tanimlatma/ekletme istenirse ayri permission, duplicate kontrolu ve audit iceren yeni bir yazma akisi tasarlanmalidir.
 
 UI kullanim notu:
 
 - Kamera ile tek barkod okutulan ekranlarda once bu endpoint cagrilmalidir.
-- `isFound = true` ve `isUsableInScreen = false` ise UI urunu satira eklemeden once blok nedenini gostermelidir.
+- UI barkodun urun/stok/ad/tipi tahminini frontend'de yapmamalidir; okutulan degeri aynen bu endpoint'e gondermelidir.
+- Satira ekleme karari icin ana alan `isUsableInOperation` olmalidir. `false` ise `operationDecision` ve `errors` kullaniciya gosterilmelidir.
+- Terazi barkodunda satir miktari icin `embeddedQuantity` kullanilabilir; bos ise varsayilan miktar UI tarafinda `1` kabul edilebilir.
+- Koli barkodu okutulduysa `isCaseBarcode = true` ve `matchedUnitsPerCase` dolu gelir; UI koli ici adet kadar miktar onerebilir.
 - `caseBarcode` doluysa koli barkodu tekrar okutma, koli bozma veya alternatif birim secimi gibi kisayollar acilabilir.
 
 ### Urunden Cari Onerileri
@@ -3670,6 +4184,10 @@ Response:
   "despatchNumber": "IRS2026000001234",
   "issueDate": "2026-05-06T00:00:00",
   "actualDespatchDate": "2026-05-06T00:00:00",
+  "actualDespatchTime": "08:00:00",
+  "plaque": "34 HTE 490_BRS",
+  "driverNameSurname": "ORHAN BAYRAM",
+  "driverTckn": "49216016986",
   "profileId": "TEMELIRSALIYE",
   "despatchAdviceTypeCode": "SEVK",
   "notes": [
@@ -3944,6 +4462,10 @@ Response:
   "despatchNumber": "IRS2026000001234",
   "issueDate": "2026-05-06T00:00:00",
   "actualDespatchDate": "2026-05-06T00:00:00",
+  "actualDespatchTime": "08:00:00",
+  "plaque": "34 HTE 490_BRS",
+  "driverNameSurname": "ORHAN BAYRAM",
+  "driverTckn": "49216016986",
   "profileId": "TEMELIRSALIYE",
   "despatchAdviceTypeCode": "SEVK",
   "notes": [
@@ -9021,14 +9543,36 @@ Home / Sikayet Oneri Kutusu
   -> body'ye kullanici/depo bilgisi koyma; backend JWT claim'lerinden doldurur
 
 Ortak Islemler / Sikayet Oneri Yonetimi
-  -> menu permission'i: ortak-islemler.sikayet-oneri.list veya list-all kullanilabilir
-  -> tum depo/kapsam gerekiyorsa ilgili menunun `*.all-warehouses` yetkisi kontrol edilir
-  -> admin olmayan kullanici sadece kendi actigi kayitlari liste/detay olarak gorur
-  -> admin olmayan kullanici okundu, durum veya admin notu guncelleyemez
+  -> menu permission'i: ortak-islemler.sikayet-oneri.list
+  -> tum kayit kapsami icin ortak-islemler.sikayet-oneri.list-all gerekir
+  -> list-all olmayan kullanici sadece kendi actigi kayitlari liste/detay olarak gorur
+  -> okundu, durum veya admin notu aksiyonlari icin ortak-islemler.sikayet-oneri.update gerekir
   -> liste icin GET /api/yonetim/sikayet-oneri veya /api/ortak-islemler/sikayet-oneri
   -> satir detay icin GET /api/yonetim/sikayet-oneri/{id}
-  -> admin okundu isareti icin PATCH /api/yonetim/sikayet-oneri/{id}/okundu
-  -> admin durum/not guncelleme icin PATCH /api/yonetim/sikayet-oneri/{id}/durum
+  -> okundu isareti icin PATCH /api/yonetim/sikayet-oneri/{id}/okundu
+  -> durum/not guncelleme icin PATCH /api/yonetim/sikayet-oneri/{id}/durum
+
+Home / Duyurular Kutusu
+  -> login sonrasi auth/me tamamlaninca header seviyesinde GET /api/home/duyurular/ozet
+  -> header mesaj kutusunda unreadCount badge goster
+  -> kutu acilinca okunmamis aktif duyurular icin GET /api/home/duyurular?includeRead=false&take=20
+  -> duyuru acilinca PATCH /api/home/duyurular/{id}/okundu
+  -> okundu sonrasi badge icin GET /api/home/duyurular/ozet tekrar cagir
+  -> baslik/metin/oncelik/tarih/hedef bilgilerini AnnouncementDto ile goster
+
+Ortak Islemler / Duyurular Yonetimi
+  -> menu permission'i: ortak-islemler.duyurular.list
+  -> create butonu icin ortak-islemler.duyurular.create
+  -> duzenle butonu icin ortak-islemler.duyurular.update
+  -> arsivle butonu icin ortak-islemler.duyurular.archive
+  -> tum depolar/baska depo/baska depo kullanicisi hedeflemek icin ortak-islemler.duyurular.all-warehouses
+  -> liste icin GET /api/ortak-islemler/duyurular veya /api/yonetim/duyurular
+  -> hedef kullanici secimi icin GET /api/ortak-islemler/duyurular/hedef-kullanicilar?search=...
+  -> satir detay icin GET /api/ortak-islemler/duyurular/{id}
+  -> okuyanlar paneli icin GET /api/ortak-islemler/duyurular/{id}/okuyanlar
+  -> yeni duyuru icin POST /api/ortak-islemler/duyurular
+  -> hedefleri tamamen yenileyerek guncellemek icin PUT /api/ortak-islemler/duyurular/{id}
+  -> arsivlemek icin PATCH /api/ortak-islemler/duyurular/{id}/arsivle
 
 Arama Islemleri / Fiyat Gor
   -> barkod, stok kodu veya stok adi ile GET /api/arama-islemleri/fiyat-gor
@@ -9245,7 +9789,7 @@ Kasa Islemleri / Kasa Sayimlari
 Kasa Islemleri / Icmal Kaydi Girisi
   -> UI bu gorevi Kasa Sayimlari'ndan ayri menu/task olarak gostermelidir
   -> lookup alanlari icin kasiyer, kasa, odeme tipi ve banknot tipi endpointlerini paralel cagir
-  -> Z rapor karsilastirmasi icin GET /api/kasa-islemleri/kasa-sayimlari/z-rapor-toplam?...
+  -> Z rapor karsilastirmasi icin GET /api/kasa-islemleri/kasa-sayimlari/z-rapor-toplam?... 
   -> kaydetmek icin POST /api/kasa-islemleri/kasa-sayimlari
   -> detay duzenleme icin PUT /api/kasa-islemleri/kasa-sayimlari/{seri}/{sira}/detaylar
   -> banknot duzenleme icin PUT /api/kasa-islemleri/kasa-sayimlari/{seri}/{sira}/banknot-hareketleri
@@ -13790,6 +14334,74 @@ public sealed record FeedbackSummaryDto(
     string? LatestStatus,
     DateTime? LatestCreatedAtUtc);
 
+public sealed record AnnouncementSummaryDto(
+    int ActiveCount,
+    int UnreadCount,
+    Guid? LatestAnnouncementId,
+    DateTime? LatestPublishedAtUtc);
+
+public sealed record AnnouncementDto(
+    Guid Id,
+    string Title,
+    string Message,
+    string Priority,
+    string PriorityName,
+    string Status,
+    string StatusName,
+    Guid CreatedByUserId,
+    string CreatedByUsername,
+    string CreatedByFullName,
+    DateTime? StartsAtUtc,
+    DateTime? ExpiresAtUtc,
+    DateTime PublishedAtUtc,
+    DateTime? ArchivedAtUtc,
+    Guid? ArchivedByUserId,
+    DateTime CreatedAtUtc,
+    DateTime? UpdatedAtUtc,
+    DateTime? ReadAtUtc,
+    IReadOnlyCollection<AnnouncementTargetDto> Targets,
+    AnnouncementReadSummaryDto? ReadSummary,
+    IReadOnlyCollection<AnnouncementReadReceiptDto> ReadReceipts);
+
+public sealed record AnnouncementTargetDto(
+    Guid Id,
+    string Type,
+    string TypeName,
+    int? WarehouseNo,
+    string? WarehouseName,
+    Guid? UserId,
+    string? Username,
+    string? UserFullName);
+
+public sealed record AnnouncementReadSummaryDto(
+    int ReadCount,
+    int? TargetUserCount,
+    int? UnreadCount,
+    DateTime? LastReadAtUtc);
+
+public sealed record AnnouncementReadReceiptListDto(
+    Guid AnnouncementId,
+    AnnouncementReadSummaryDto Summary,
+    IReadOnlyCollection<AnnouncementReadReceiptDto> Readers);
+
+public sealed record AnnouncementReadReceiptDto(
+    Guid UserId,
+    string Username,
+    string UserFullName,
+    string Email,
+    int? WarehouseNo,
+    string? WarehouseName,
+    DateTime ReadAtUtc);
+
+public sealed record AnnouncementTargetUserDto(
+    Guid Id,
+    string Username,
+    string FullName,
+    string Email,
+    int? WarehouseNo,
+    string? WarehouseName,
+    string DisplayName);
+
 public enum EDespatchDocumentType
 {
     OutgoingCompanyShipment = 1,
@@ -13982,7 +14594,13 @@ public sealed record ProductLookupItemDto(
     bool IsSalesBlocked,
     bool IsOrderBlocked,
     bool IsGoodsAcceptanceBlocked,
-    string ProductManagerCode);
+    string ProductManagerCode,
+    string? RequestedBarcode = null,
+    string? LookupBarcode = null,
+    bool IsVariableWeightBarcode = false,
+    double? EmbeddedQuantity = null,
+    string? EmbeddedQuantityUnit = null,
+    bool? IsBarcodeCheckDigitValid = null);
 
 public sealed record ProductCustomerSuggestionResponse(
     bool IsProductFound,
@@ -16173,6 +16791,10 @@ Bu bolumde yalnizca endpointlerin dogrudan baglandigi HTTP request modelleri yer
 - `CreateFeedbackItemHttpRequest`: `Type`, `Title`, `Message`, `Priority`
 - `FeedbackManagementListHttpRequest`: `Status`, `Type`, `WarehouseNo`, `StartDate`, `EndDate`, `Take`
 - `ChangeFeedbackStatusHttpRequest`: `Status`, `AdminNote`
+- `AnnouncementInboxHttpRequest`: `IncludeRead`, `Take`
+- `AnnouncementManagementListHttpRequest`: `Status`, `TargetType`, `TargetWarehouseNo`, `TargetUserId`, `StartDate`, `EndDate`, `IncludeArchived`, `Take`
+- `AnnouncementTargetUserSearchHttpRequest`: `Search`, `WarehouseNo`, `Take`
+- `SaveAnnouncementHttpRequest`: `Title`, `Message`, `Priority`, `TargetType`, `TargetWarehouseNos`, `TargetUserIds`, `StartsAtUtc`, `ExpiresAtUtc`
 - `CreateCompanyMovementHttpRequest`: `WarehouseNo`, `CustomerCode`, `MovementDate`, `DocumentDate`, `DocumentNo`, `Description`, `Lines`
 - `CreateCompanyMovementLineHttpRequest`: `StockCode`, `Quantity`, `UnitPrice`, `UnitPointer`, `Description`, `PartyCode`, `LotNo`, `ProjectCode`, `CustomerResponsibilityCenter`, `ProductResponsibilityCenter`
 - `CreateStockReceiptHttpRequest`: `WarehouseNo`, `Creator`, `Acceptor`, `MovementDate`, `DocumentDate`, `DocumentNo`, `Description`, `Lines`
@@ -16193,7 +16815,7 @@ Bu bolumde yalnizca endpointlerin dogrudan baglandigi HTTP request modelleri yer
 - `ProductBarcodePriceLookupHttpRequest`: `WarehouseNo`, `Take`
 - `CustomerSearchHttpRequest`: `SearchText`, `Take`
 - `WarehouseSearchHttpRequest`: `SearchText`, `WarehouseNo`, `Take`
-- `BarcodeResolutionHttpRequest`: `WarehouseNo`, `ScreenCode`
+- `BarcodeResolutionHttpRequest`: `WarehouseNo`, `OperationType`, `TargetWarehouseNo`, `SupplierCode`, `CompanyCode`, `IsRefund`, `ScreenCode`
 - `BarcodeCustomerLookupHttpRequest`: `Barcode`, `WarehouseNo`, `Take`
 - `BarcodeCustomerLookupByPathHttpRequest`: `WarehouseNo`, `Take`
 - `ProductCustomerSuggestionHttpRequest`: `Take`

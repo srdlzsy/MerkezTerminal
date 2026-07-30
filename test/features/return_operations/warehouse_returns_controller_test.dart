@@ -6,6 +6,7 @@ import 'package:furpa_merkez_terminal/features/return_operations/warehouse_retur
 import 'package:furpa_merkez_terminal/features/return_operations/warehouse_returns/data/warehouse_returns_repository.dart';
 import 'package:furpa_merkez_terminal/features/return_operations/warehouse_returns/presentation/view_models/warehouse_returns_controller.dart';
 import 'package:furpa_merkez_terminal/features/shipping_operations/outgoing_warehouse_shipments/data/models/outgoing_warehouse_shipment_models.dart';
+import 'package:furpa_merkez_terminal/shared/data/barcode_resolution_models.dart';
 
 void main() {
   test('loadReturns keeps detail closed until a record is selected', () async {
@@ -72,6 +73,14 @@ void main() {
 }
 
 class _FakeWarehouseReturnsRepository implements WarehouseReturnsRepository {
+  @override
+  Future<BarcodeResolutionResult> resolveBarcode({
+    required String accessToken,
+    required BarcodeResolutionRequest request,
+  }) {
+    throw UnimplementedError();
+  }
+
   final List<WarehouseReturnListItem> _items = <WarehouseReturnListItem>[
     const WarehouseShipmentListItem(
       documentDate: null,
