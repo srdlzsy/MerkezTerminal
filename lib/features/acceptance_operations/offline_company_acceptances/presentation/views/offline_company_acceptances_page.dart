@@ -1193,48 +1193,68 @@ class _OfflineCompanyAcceptanceCreateSheetState
         child: Form(
           key: _formKey,
           autovalidateMode: createFormAutovalidateMode,
-          child: CustomScrollView(
-            slivers: <Widget>[
-              SliverList.list(
-                children: <Widget>[
-                  const TerminalSheetHeader(
-                    title: 'Yeni Offline Firma Mal Kabul',
-                    subtitle:
-                        'Taslak ilk kayitta clientRequestId ile saklanir. Online arama ve siparis baglama yardimcidir; gerekirse cari kodu ve stok kodu manuel de girilebilir.',
-                    padding: EdgeInsets.zero,
-                  ),
-                  const SizedBox(height: 16),
-                  _buildCustomerLookupRow(),
-                  const SizedBox(height: 12),
-                  TextFormField(
-                    controller: _customerCodeController,
-                    decoration: const InputDecoration(labelText: 'Cari Kodu*'),
-                    onChanged: (_) => setState(() {}),
-                    validator: (value) {
-                      if ((value ?? '').trim().isEmpty) {
-                        return 'Cari kodu zorunlu.';
-                      }
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 8),
-                  _buildDocumentDetailsSection(),
-                  const SizedBox(height: 8),
-                  _buildLinesToolbar(),
-                  const SizedBox(height: 10),
-                  _buildEntryLineCard(),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: <Widget>[
+              TerminalSheetHeader(
+                title: 'Yeni Offline Firma Mal Kabul',
+                subtitle:
+                    'Taslak ilk kayitta clientRequestId ile saklanir. Online arama ve siparis baglama yardimcidir; gerekirse cari kodu ve stok kodu manuel de girilebilir.',
+                badges: <Widget>[
+                  TerminalLineCountBadge(count: _filledLineIndexes().length),
                 ],
+                padding: EdgeInsets.zero,
               ),
-              _buildLazyLineSliver(),
-              SliverToBoxAdapter(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: <Widget>[
-                    if (_validationMessage != null) ...<Widget>[
-                      TerminalMessageBlock.error(message: _validationMessage!),
+              const SizedBox(height: 16),
+              Flexible(
+                child: SingleChildScrollView(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: <Widget>[
+                      _buildCustomerLookupRow(),
                       const SizedBox(height: 12),
+                      TextFormField(
+                        controller: _customerCodeController,
+                        decoration: const InputDecoration(
+                          labelText: 'Cari Kodu*',
+                        ),
+                        onChanged: (_) => setState(() {}),
+                        validator: (value) {
+                          if ((value ?? '').trim().isEmpty) {
+                            return 'Cari kodu zorunlu.';
+                          }
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 8),
+                      _buildDocumentDetailsSection(),
                     ],
-                    _buildFormActions(),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              _buildLinesToolbar(),
+              const SizedBox(height: 10),
+              _buildEntryLineCard(),
+              const SizedBox(height: 8),
+              Expanded(
+                child: CustomScrollView(
+                  slivers: <Widget>[
+                    _buildLazyLineSliver(),
+                    SliverToBoxAdapter(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: <Widget>[
+                          if (_validationMessage != null) ...<Widget>[
+                            TerminalMessageBlock.error(
+                              message: _validationMessage!,
+                            ),
+                            const SizedBox(height: 12),
+                          ],
+                          _buildFormActions(),
+                        ],
+                      ),
+                    ),
                   ],
                 ),
               ),

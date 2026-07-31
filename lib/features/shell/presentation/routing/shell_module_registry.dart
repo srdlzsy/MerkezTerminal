@@ -8,6 +8,7 @@ import 'package:furpa_merkez_terminal/features/acceptance_operations/warehouse_a
 import 'package:furpa_merkez_terminal/features/auth/data/models/auth_models.dart';
 import 'package:furpa_merkez_terminal/features/company_movements/shared/data/company_movements_repository.dart';
 import 'package:furpa_merkez_terminal/features/company_movements/shared/presentation/views/company_movements_page.dart';
+import 'package:furpa_merkez_terminal/features/green_grocer/product_cases/data/green_grocer_product_cases_repository.dart';
 import 'package:furpa_merkez_terminal/features/legacy_tools/data/legacy_tools_repository.dart';
 import 'package:furpa_merkez_terminal/features/legacy_tools/presentation/views/legacy_tool_pages.dart';
 import 'package:furpa_merkez_terminal/features/modules/presentation/views/module_placeholder_page.dart';
@@ -119,6 +120,7 @@ class ShellModuleRegistry {
   ShellModuleRegistry({
     required this.givenCompanyOrdersRepository,
     required this.givenWarehouseOrdersRepository,
+    required this.greenGrocerProductCasesRepository,
     required this.suggestedCompanyOrdersRepository,
     required this.suggestedWarehouseOrdersRepository,
     required this.receivedCompanyOrdersRepository,
@@ -150,6 +152,7 @@ class ShellModuleRegistry {
 
   final GivenCompanyOrdersRepository givenCompanyOrdersRepository;
   final GivenWarehouseOrdersRepository givenWarehouseOrdersRepository;
+  final GreenGrocerProductCasesRepository greenGrocerProductCasesRepository;
   final SuggestedCompanyOrdersRepository suggestedCompanyOrdersRepository;
   final SuggestedWarehouseOrdersRepository suggestedWarehouseOrdersRepository;
   final ReceivedCompanyOrdersRepository receivedCompanyOrdersRepository;
@@ -262,6 +265,7 @@ class ShellModuleRegistry {
           currentUserId: context.user.id,
           draftRepository: createDraftRepository,
           defaultWarehouseNo: context.user.warehouseNo,
+          greenGrocerProductCasesRepository: greenGrocerProductCasesRepository,
           mobileWarehouseCatalogRepository:
               mobileWarehouseCatalogLocalRepository,
           userWarehouseName: context.user.warehouseName,

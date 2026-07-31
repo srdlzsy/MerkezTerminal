@@ -1773,12 +1773,14 @@ class TerminalSheetHeader extends StatelessWidget {
     super.key,
     required this.title,
     this.subtitle,
+    this.badges = const <Widget>[],
     this.padding = const EdgeInsets.fromLTRB(20, 16, 12, 12),
     this.elevated = false,
   });
 
   final String title;
   final String? subtitle;
+  final List<Widget> badges;
   final EdgeInsetsGeometry padding;
   final bool elevated;
 
@@ -1825,6 +1827,10 @@ class TerminalSheetHeader extends StatelessWidget {
                     style: theme.textTheme.bodyMedium?.copyWith(height: 1.35),
                   ),
                 ],
+                if (badges.isNotEmpty) ...<Widget>[
+                  const SizedBox(height: 8),
+                  Wrap(spacing: 6, runSpacing: 6, children: badges),
+                ],
               ],
             ),
           ),
@@ -1837,6 +1843,35 @@ class TerminalSheetHeader extends StatelessWidget {
             constraints: const BoxConstraints.tightFor(width: 44, height: 44),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class TerminalLineCountBadge extends StatelessWidget {
+  const TerminalLineCountBadge({super.key, required this.count});
+
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.primary.withAlpha(16),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: theme.colorScheme.primary.withAlpha(44)),
+      ),
+      child: Text(
+        '$count kalem',
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: theme.textTheme.labelSmall?.copyWith(
+          color: theme.colorScheme.primary,
+          fontWeight: FontWeight.w900,
+        ),
       ),
     );
   }

@@ -1028,67 +1028,83 @@ class _VirmanCreateSheetState extends State<_VirmanCreateSheet>
       child: Form(
         key: _formKey,
         autovalidateMode: createFormAutovalidateMode,
-        child: CustomScrollView(
-          slivers: <Widget>[
-            SliverList.list(
-              children: <Widget>[
-                const TerminalSheetHeader(
-                  title: 'Yeni Virman',
-                  subtitle:
-                      'Satirlar movementType=2 ile gonderilir; backend cikis ve giris hareketlerini birlikte olusturur.',
-                  padding: EdgeInsets.zero,
-                ),
-                const SizedBox(height: 16),
-                Wrap(
-                  spacing: 12,
-                  runSpacing: 12,
-                  children: <Widget>[
-                    TerminalFilterButton(
-                      label: 'Hareket Tarihi',
-                      value: AppFormatters.date(_movementDate),
-                      onPressed: () => _pickDate(isMovementDate: true),
-                    ),
-                    TerminalFilterButton(
-                      label: 'Belge Tarihi',
-                      value: AppFormatters.date(_documentDate),
-                      onPressed: () => _pickDate(isMovementDate: false),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: _descriptionController,
-                  maxLines: 2,
-                  decoration: const InputDecoration(labelText: 'Aciklama'),
-                ),
-                const SizedBox(height: 16),
-                TerminalSectionToolbar(
-                  title: 'Satirlar',
-                  actions: const <Widget>[],
-                ),
-                const SizedBox(height: 12),
-                _buildEntryLineCard(),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
+            TerminalSheetHeader(
+              title: 'Yeni Virman',
+              subtitle:
+                  'Satirlar movementType=2 ile gonderilir; backend cikis ve giris hareketlerini birlikte olusturur.',
+              badges: <Widget>[
+                TerminalLineCountBadge(count: _filledLineIndexes().length),
               ],
+              padding: EdgeInsets.zero,
             ),
-            _buildLazyLineSliver(),
-            SliverToBoxAdapter(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: <Widget>[
-                  if (_errorMessage != null) ...<Widget>[
-                    const SizedBox(height: 8),
-                    TerminalMessageBlock.error(message: _errorMessage!),
-                  ],
-                  const SizedBox(height: 12),
-                  TerminalFormActionRow(
-                    cancel: OutlinedButton(
-                      onPressed: () => Navigator.of(context).pop(),
-                      child: const Text('Vazgec'),
+            const SizedBox(height: 16),
+            Flexible(
+              child: SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: <Widget>[
+                    Wrap(
+                      spacing: 12,
+                      runSpacing: 12,
+                      children: <Widget>[
+                        TerminalFilterButton(
+                          label: 'Hareket Tarihi',
+                          value: AppFormatters.date(_movementDate),
+                          onPressed: () => _pickDate(isMovementDate: true),
+                        ),
+                        TerminalFilterButton(
+                          label: 'Belge Tarihi',
+                          value: AppFormatters.date(_documentDate),
+                          onPressed: () => _pickDate(isMovementDate: false),
+                        ),
+                      ],
                     ),
-                    submit: FilledButton.icon(
-                      onPressed: _submit,
-                      icon: const Icon(Icons.save_alt_rounded),
-                      label: const Text('Virmani Kaydet'),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: _descriptionController,
+                      maxLines: 2,
+                      decoration: const InputDecoration(labelText: 'Aciklama'),
+                    ),
+                    const SizedBox(height: 12),
+                  ],
+                ),
+              ),
+            ),
+            TerminalSectionToolbar(
+              title: 'Satirlar',
+              actions: const <Widget>[],
+            ),
+            const SizedBox(height: 12),
+            _buildEntryLineCard(),
+            const SizedBox(height: 8),
+            Expanded(
+              child: CustomScrollView(
+                slivers: <Widget>[
+                  _buildLazyLineSliver(),
+                  SliverToBoxAdapter(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: <Widget>[
+                        if (_errorMessage != null) ...<Widget>[
+                          const SizedBox(height: 8),
+                          TerminalMessageBlock.error(message: _errorMessage!),
+                        ],
+                        const SizedBox(height: 12),
+                        TerminalFormActionRow(
+                          cancel: OutlinedButton(
+                            onPressed: () => Navigator.of(context).pop(),
+                            child: const Text('Vazgec'),
+                          ),
+                          submit: FilledButton.icon(
+                            onPressed: _submit,
+                            icon: const Icon(Icons.save_alt_rounded),
+                            label: const Text('Virmani Kaydet'),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ],

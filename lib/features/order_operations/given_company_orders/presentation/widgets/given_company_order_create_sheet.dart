@@ -555,6 +555,8 @@ class _GivenCompanyOrderCreateSheetState
                                 'Depo: ${widget.defaultWarehouseNo}',
                                 style: theme.textTheme.bodySmall,
                               ),
+                              const SizedBox(height: 8),
+                              TerminalLineCountBadge(count: _activeLineCount()),
                             ],
                           ),
                         ),
@@ -567,25 +569,27 @@ class _GivenCompanyOrderCreateSheetState
                       ],
                     ),
                   ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: <Widget>[
+                        _buildCustomerSection(theme),
+                        const SizedBox(height: 12),
+                        TerminalSectionToolbar(
+                          title: 'Satirlar (${_activeLineCount()})',
+                          actions: const <Widget>[],
+                        ),
+                        const SizedBox(height: 8),
+                        _buildEntryLineCard(theme),
+                      ],
+                    ),
+                  ),
+
                   Expanded(
                     child: CustomScrollView(
                       controller: _scrollController,
                       slivers: <Widget>[
-                        SliverPadding(
-                          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                          sliver: SliverList.list(
-                            children: <Widget>[
-                              _buildCustomerSection(theme),
-                              const SizedBox(height: 12),
-                              TerminalSectionToolbar(
-                                title: 'Satirlar (${_activeLineCount()})',
-                                actions: const <Widget>[],
-                              ),
-                              const SizedBox(height: 8),
-                              _buildEntryLineCard(theme),
-                            ],
-                          ),
-                        ),
                         _buildLazyLineSliver(theme),
                         SliverPadding(
                           padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),

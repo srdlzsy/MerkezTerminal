@@ -8,6 +8,7 @@ import 'package:furpa_merkez_terminal/features/acceptance_operations/offline_com
 import 'package:furpa_merkez_terminal/features/acceptance_operations/warehouse_acceptances/data/warehouse_acceptances_repository.dart';
 import 'package:furpa_merkez_terminal/features/auth/data/auth_repository.dart';
 import 'package:furpa_merkez_terminal/features/company_movements/shared/data/company_movements_repository.dart';
+import 'package:furpa_merkez_terminal/features/green_grocer/product_cases/data/green_grocer_product_cases_repository.dart';
 import 'package:furpa_merkez_terminal/features/legacy_tools/data/legacy_tools_repository.dart';
 import 'package:furpa_merkez_terminal/features/order_operations/given_company_orders/data/given_company_orders_repository.dart';
 import 'package:furpa_merkez_terminal/features/order_operations/given_warehouse_orders/data/given_warehouse_orders_repository.dart';
@@ -84,6 +85,8 @@ class AppDependencies {
     final givenWarehouseOrdersRepository = ApiGivenWarehouseOrdersRepository(
       apiClient: apiClient,
     );
+    final greenGrocerProductCasesRepository =
+        ApiGreenGrocerProductCasesRepository(apiClient: apiClient);
     final suggestedCompanyOrdersRepository =
         ApiSuggestedCompanyOrdersRepository(apiClient: apiClient);
     final suggestedWarehouseOrdersRepository =
@@ -155,6 +158,7 @@ class AppDependencies {
     final moduleRegistry = ShellModuleRegistry(
       givenCompanyOrdersRepository: givenCompanyOrdersRepository,
       givenWarehouseOrdersRepository: givenWarehouseOrdersRepository,
+      greenGrocerProductCasesRepository: greenGrocerProductCasesRepository,
       suggestedCompanyOrdersRepository: suggestedCompanyOrdersRepository,
       suggestedWarehouseOrdersRepository: suggestedWarehouseOrdersRepository,
       receivedCompanyOrdersRepository: receivedCompanyOrdersRepository,
@@ -194,6 +198,7 @@ class AppDependencies {
       moduleRegistry: moduleRegistry,
       givenCompanyOrdersRepository: givenCompanyOrdersRepository,
       givenWarehouseOrdersRepository: givenWarehouseOrdersRepository,
+      greenGrocerProductCasesRepository: greenGrocerProductCasesRepository,
       suggestedCompanyOrdersRepository: suggestedCompanyOrdersRepository,
       suggestedWarehouseOrdersRepository: suggestedWarehouseOrdersRepository,
       receivedCompanyOrdersRepository: receivedCompanyOrdersRepository,
@@ -234,6 +239,7 @@ class AppDependencies {
     required this.moduleRegistry,
     required this.givenCompanyOrdersRepository,
     required this.givenWarehouseOrdersRepository,
+    required this.greenGrocerProductCasesRepository,
     required this.suggestedCompanyOrdersRepository,
     required this.suggestedWarehouseOrdersRepository,
     required this.receivedCompanyOrdersRepository,
@@ -268,6 +274,7 @@ class AppDependencies {
   final ShellModuleRegistry moduleRegistry;
   final GivenCompanyOrdersRepository givenCompanyOrdersRepository;
   final GivenWarehouseOrdersRepository givenWarehouseOrdersRepository;
+  final GreenGrocerProductCasesRepository greenGrocerProductCasesRepository;
   final SuggestedCompanyOrdersRepository suggestedCompanyOrdersRepository;
   final SuggestedWarehouseOrdersRepository suggestedWarehouseOrdersRepository;
   final ReceivedCompanyOrdersRepository receivedCompanyOrdersRepository;

@@ -525,6 +525,10 @@ class _InventoryCountCreateSheetState extends State<InventoryCountCreateSheet>
                                 'Depo: ${widget.defaultWarehouseNo}',
                                 style: theme.textTheme.bodySmall,
                               ),
+                              const SizedBox(height: 8),
+                              TerminalLineCountBadge(
+                                count: _filledLineIndexes().length,
+                              ),
                             ],
                           ),
                         ),
@@ -537,55 +541,57 @@ class _InventoryCountCreateSheetState extends State<InventoryCountCreateSheet>
                       ],
                     ),
                   ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: <Widget>[
+                        TextFormField(
+                          controller: _nameController,
+                          decoration: const InputDecoration(
+                            labelText: 'Sayim Adi*',
+                            hintText: 'Nisan 2026 Genel Sayim',
+                          ),
+                          validator: (value) {
+                            if ((value ?? '').trim().isEmpty) {
+                              return 'Zorunlu';
+                            }
+
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: 12),
+                        OutlinedButton.icon(
+                          onPressed: _pickDate,
+                          icon: const Icon(Icons.calendar_month_rounded),
+                          label: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: <Widget>[
+                              const Text('Belge Tarihi'),
+                              Text(
+                                AppFormatters.date(_documentDate),
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        TerminalSectionToolbar(
+                          title: 'Satirlar',
+                          actions: const <Widget>[],
+                        ),
+                        const SizedBox(height: 8),
+                        _buildEntryLineCard(theme),
+                      ],
+                    ),
+                  ),
+
                   Expanded(
                     child: CustomScrollView(
                       controller: _scrollController,
                       slivers: <Widget>[
-                        SliverPadding(
-                          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                          sliver: SliverList.list(
-                            children: <Widget>[
-                              TextFormField(
-                                controller: _nameController,
-                                decoration: const InputDecoration(
-                                  labelText: 'Sayim Adi*',
-                                  hintText: 'Nisan 2026 Genel Sayim',
-                                ),
-                                validator: (value) {
-                                  if ((value ?? '').trim().isEmpty) {
-                                    return 'Zorunlu';
-                                  }
-
-                                  return null;
-                                },
-                              ),
-                              const SizedBox(height: 12),
-                              OutlinedButton.icon(
-                                onPressed: _pickDate,
-                                icon: const Icon(Icons.calendar_month_rounded),
-                                label: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: <Widget>[
-                                    const Text('Belge Tarihi'),
-                                    Text(
-                                      AppFormatters.date(_documentDate),
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.w700,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              const SizedBox(height: 12),
-                              TerminalSectionToolbar(
-                                title: 'Satirlar',
-                                actions: const <Widget>[],
-                              ),
-                              const SizedBox(height: 8),
-                              _buildEntryLineCard(theme),
-                            ],
-                          ),
-                        ),
                         _buildLazyLineSliver(theme),
                         SliverPadding(
                           padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),

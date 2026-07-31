@@ -167,11 +167,12 @@ class ApiClient {
     String accept = 'application/json',
     String? contentType = 'application/json',
   }) {
+    final normalizedAccessToken = _normalizeAccessToken(accessToken);
     final contentTypeHeader = switch (contentType) {
       final value? => <String, String>{'Content-Type': value},
       null => null,
     };
-    final authorizationHeader = switch (accessToken) {
+    final authorizationHeader = switch (normalizedAccessToken) {
       final value? when value.isNotEmpty => <String, String>{
         'Authorization': 'Bearer $value',
       },
@@ -250,13 +251,13 @@ class ApiClient {
   }
 
   String? _resolveAccessToken(String? requestedAccessToken) {
-    final provided = _accessTokenProvider?.call()?.trim() ?? '';
-    if (provided.isNotEmpty) {
+    final provided = _normalizeAccessToken(_accessTokenProvider?.call());
+    if (provided != null && provided.isNotEmpty) {
       return provided;
     }
 
-    final requested = requestedAccessToken?.trim() ?? '';
-    if (requested.isEmpty) {
+    final requested = _normalizeAccessToken(requestedAccessToken);
+    if (requested == null || requested.isEmpty) {
       return null;
     }
 
@@ -270,12 +271,69 @@ class ApiClient {
     }
 
     final recovered = await handler();
-    final normalized = recovered?.trim() ?? '';
-    if (normalized.isEmpty) {
+    final normalized = _normalizeAccessToken(recovered);
+    if (normalized == null || normalized.isEmpty) {
       return null;
     }
 
     return normalized;
+  }
+
+  String? _normalizeAccessToken(String? value) {
+    var normalized = value?.trim() ?? '';
+    if (normalized.isEmpty) {
+      return null;
+    }
+
+    normalized = _stripBearerPrefix(normalized);
+
+    if (normalized.startsWith('{')) {
+      final embeddedAccessToken = _readEmbeddedAccessToken(normalized);
+      if (embeddedAccessToken == null) {
+        return null;
+      }
+
+      normalized = _stripBearerPrefix(embeddedAccessToken);
+    }
+
+    if (normalized.isEmpty || normalized.contains(RegExp(r'\s'))) {
+      return null;
+    }
+
+    return normalized;
+  }
+
+  String _stripBearerPrefix(String value) {
+    final normalized = value.trim();
+    const bearerPrefix = 'bearer ';
+
+    if (normalized.toLowerCase().startsWith(bearerPrefix)) {
+      return normalized.substring(bearerPrefix.length).trim();
+    }
+
+    return normalized;
+  }
+
+  String? _readEmbeddedAccessToken(String value) {
+    if (!value.startsWith('{')) {
+      return null;
+    }
+
+    try {
+      final decoded = jsonDecode(value);
+      if (decoded is! JsonMap) {
+        return null;
+      }
+
+      final accessToken = decoded['accessToken']?.toString().trim() ?? '';
+      if (accessToken.isEmpty) {
+        return null;
+      }
+
+      return accessToken;
+    } on FormatException {
+      return null;
+    }
   }
 
   JsonMap _decodeJsonMap(http.Response response) {

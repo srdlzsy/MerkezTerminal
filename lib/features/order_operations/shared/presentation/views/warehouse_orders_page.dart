@@ -574,18 +574,26 @@ class _OrderItemCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final greenGrocerCase = item.greenGrocerCase;
     final summary = <String>[
       'Kod ${item.stockCode}',
       'Birim ${item.unitName}',
       'Miktar ${AppFormatters.quantity(item.quantity)}',
       'Teslim ${AppFormatters.quantity(item.deliveredQuantity)}',
       'Kalan ${AppFormatters.quantity(item.remainingQuantity)}',
+      if (greenGrocerCase != null)
+        'Talep ${AppFormatters.quantity(greenGrocerCase.inputQuantity)} '
+            '${greenGrocerCase.displayInputMode} ~= '
+            '${AppFormatters.quantity(greenGrocerCase.estimatedQuantity)} '
+            '${greenGrocerCase.microUnit}',
       if (item.unitPrice > 0) 'Fiyat ${AppFormatters.currency(item.unitPrice)}',
       if (item.lineAmount > 0)
         'Tutar ${AppFormatters.currency(item.lineAmount)}',
     ].join(' | ');
     final detail = <String>[
       if (item.description.trim().isNotEmpty) 'Aciklama ${item.description}',
+      if ((greenGrocerCase?.status.trim().isNotEmpty ?? false))
+        'Manav ${greenGrocerCase!.status}',
       if (item.isClosed) 'Durum Kapali',
     ].join(' | ');
 

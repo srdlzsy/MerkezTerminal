@@ -86,6 +86,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Urun Ara'), findsNothing);
+    expect(find.text('1 kalem'), findsOneWidget);
     expect(find.text('Giris satiri'), findsOneWidget);
     expect(find.text('Satir 1'), findsOneWidget);
     expect(find.text('Test Urun'), findsOneWidget);

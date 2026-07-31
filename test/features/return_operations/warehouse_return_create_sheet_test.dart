@@ -46,6 +46,7 @@ void main() {
 
     final productInfo = find.text('Test Urun');
     expect(productInfo, findsOneWidget);
+    expect(find.text('1 kalem'), findsOneWidget);
     expect(find.text('015792'), findsOneWidget);
     expect(find.text('AD'), findsOneWidget);
     expect(find.text('8690000000012'), findsOneWidget);
@@ -60,6 +61,7 @@ void main() {
 
     await _pickProduct(tester);
 
+    expect(find.text('1 kalem'), findsOneWidget);
     expect(productInfo, findsOneWidget);
     expect(find.text('4'), findsOneWidget);
   });

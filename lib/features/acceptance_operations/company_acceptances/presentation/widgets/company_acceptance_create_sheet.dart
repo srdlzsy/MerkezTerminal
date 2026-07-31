@@ -1082,63 +1082,81 @@ class _CompanyAcceptanceCreateSheetState
       child: Form(
         key: _formKey,
         autovalidateMode: createFormAutovalidateMode,
-        child: CustomScrollView(
-          slivers: <Widget>[
-            SliverList.list(
-              children: <Widget>[
-                const TerminalSheetHeader(
-                  title: 'Yeni Firma Mal Kabul',
-                  subtitle:
-                      'Ayni fis icinde siparisli ve siparissiz satirlar bir arada gidebilir. Siparisli satirlarda siparis baglantisi otomatik tasinir.',
-                  padding: EdgeInsets.zero,
-                ),
-                const SizedBox(height: 16),
-                _buildEDespatchLookupRow(),
-                if (_lastEDespatchPrefill != null) ...<Widget>[
-                  const SizedBox(height: 10),
-                  TerminalMessageBlock.info(
-                    message: _eDespatchSummaryMessage(_lastEDespatchPrefill!),
-                  ),
-                ],
-                const SizedBox(height: 12),
-                _buildCustomerLookupRow(),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: _customerCodeController,
-                  decoration: const InputDecoration(
-                    labelText: 'Cari Kodu*',
-                    hintText: 'Internet yoksa elle girin',
-                  ),
-                  onChanged: (_) {
-                    setState(() {});
-                    _draftSession.scheduleSave();
-                  },
-                  validator: (value) {
-                    if ((value ?? '').trim().isEmpty) {
-                      return 'Cari kodu zorunlu';
-                    }
-
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 8),
-                _buildDocumentDetailsSection(),
-                const SizedBox(height: 8),
-                _buildLinesToolbar(),
-                const SizedBox(height: 10),
-                _buildEntryLineCard(),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
+            TerminalSheetHeader(
+              title: 'Yeni Firma Mal Kabul',
+              subtitle:
+                  'Ayni fis icinde siparisli ve siparissiz satirlar bir arada gidebilir. Siparisli satirlarda siparis baglantisi otomatik tasinir.',
+              badges: <Widget>[
+                TerminalLineCountBadge(count: _filledLineIndexes().length),
               ],
+              padding: EdgeInsets.zero,
             ),
-            _buildLazyLineSliver(),
-            SliverToBoxAdapter(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: <Widget>[
-                  if (_lookupError != null) ...<Widget>[
-                    TerminalMessageBlock.error(message: _lookupError!),
+            const SizedBox(height: 16),
+            Flexible(
+              child: SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: <Widget>[
+                    _buildEDespatchLookupRow(),
+                    if (_lastEDespatchPrefill != null) ...<Widget>[
+                      const SizedBox(height: 10),
+                      TerminalMessageBlock.info(
+                        message: _eDespatchSummaryMessage(
+                          _lastEDespatchPrefill!,
+                        ),
+                      ),
+                    ],
                     const SizedBox(height: 12),
+                    _buildCustomerLookupRow(),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: _customerCodeController,
+                      decoration: const InputDecoration(
+                        labelText: 'Cari Kodu*',
+                        hintText: 'Internet yoksa elle girin',
+                      ),
+                      onChanged: (_) {
+                        setState(() {});
+                        _draftSession.scheduleSave();
+                      },
+                      validator: (value) {
+                        if ((value ?? '').trim().isEmpty) {
+                          return 'Cari kodu zorunlu';
+                        }
+
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 8),
+                    _buildDocumentDetailsSection(),
                   ],
-                  _buildFormActions(),
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            _buildLinesToolbar(),
+            const SizedBox(height: 10),
+            _buildEntryLineCard(),
+            const SizedBox(height: 8),
+            Expanded(
+              child: CustomScrollView(
+                slivers: <Widget>[
+                  _buildLazyLineSliver(),
+                  SliverToBoxAdapter(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: <Widget>[
+                        if (_lookupError != null) ...<Widget>[
+                          TerminalMessageBlock.error(message: _lookupError!),
+                          const SizedBox(height: 12),
+                        ],
+                        _buildFormActions(),
+                      ],
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -1367,7 +1385,8 @@ class _CompanyAcceptanceCreateSheetState
         _CompactCheckboxTile(
           value: _allowOrderOverReceiving,
           title: 'Siparis kalanindan fazla kabul etmeye izin ver',
-          subtitle: 'Backend fazla miktari siparissiz hareket olarak ayirabilir.',
+          subtitle:
+              'Backend fazla miktari siparissiz hareket olarak ayirabilir.',
           onChanged: (value) {
             setState(() {
               _allowOrderOverReceiving = value ?? false;

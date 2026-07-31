@@ -59,6 +59,7 @@ class WarehouseOrderCreateLine {
     required this.packageCode,
     required this.projectCode,
     required this.responsibilityCenter,
+    this.greenGrocerCase,
   });
 
   final String stockCode;
@@ -70,6 +71,7 @@ class WarehouseOrderCreateLine {
   final String packageCode;
   final String projectCode;
   final String responsibilityCenter;
+  final WarehouseOrderLineGreenGrocerCase? greenGrocerCase;
 
   JsonMap toJson() {
     return <String, dynamic>{
@@ -82,7 +84,110 @@ class WarehouseOrderCreateLine {
       'packageCode': packageCode,
       'projectCode': projectCode,
       'responsibilityCenter': responsibilityCenter,
+      if (greenGrocerCase != null)
+        'greenGrocerCase': greenGrocerCase!.toCreateJson(),
     };
+  }
+}
+
+class WarehouseOrderLineGreenGrocerCase {
+  const WarehouseOrderLineGreenGrocerCase({
+    required this.inputQuantity,
+    required this.inputMode,
+    required this.conversionMode,
+    required this.estimatedQuantity,
+    required this.microUnit,
+    this.averageKgPerCase,
+    this.unitsPerCase,
+    required this.averageSource,
+    this.averageRecordCount,
+    this.averageCaseCount,
+    this.coefficientOfVariation,
+    required this.confidence,
+    this.actualShippedQuantity,
+    this.actualShippedCaseCount,
+    this.status = '',
+  });
+
+  final double inputQuantity;
+  final String inputMode;
+  final String conversionMode;
+  final double estimatedQuantity;
+  final String microUnit;
+  final double? averageKgPerCase;
+  final double? unitsPerCase;
+  final String averageSource;
+  final int? averageRecordCount;
+  final double? averageCaseCount;
+  final double? coefficientOfVariation;
+  final String confidence;
+  final double? actualShippedQuantity;
+  final double? actualShippedCaseCount;
+  final String status;
+
+  String get displayInputMode {
+    return switch (inputMode.trim().toLowerCase()) {
+      'case' => 'kasa',
+      'pack' => 'koli',
+      'piece' => 'adet',
+      'kgdirect' => 'kg',
+      'sarf' => 'sarf',
+      final value when value.isNotEmpty => value,
+      _ => 'kasa',
+    };
+  }
+
+  JsonMap toCreateJson() {
+    return <String, dynamic>{
+      'inputQuantity': inputQuantity,
+      'inputMode': inputMode,
+      'conversionMode': conversionMode,
+      'microUnit': microUnit,
+      'estimatedQuantity': estimatedQuantity,
+      if (averageKgPerCase != null) 'averageKgPerCase': averageKgPerCase,
+      if (unitsPerCase != null) 'unitsPerCase': unitsPerCase,
+      'averageSource': averageSource,
+      if (averageRecordCount != null) 'averageRecordCount': averageRecordCount,
+      if (averageCaseCount != null) 'averageCaseCount': averageCaseCount,
+      if (coefficientOfVariation != null)
+        'coefficientOfVariation': coefficientOfVariation,
+      'confidence': confidence,
+    };
+  }
+
+  JsonMap toJson() {
+    return <String, dynamic>{
+      ...toCreateJson(),
+      if (actualShippedQuantity != null)
+        'actualShippedQuantity': actualShippedQuantity,
+      if (actualShippedCaseCount != null)
+        'actualShippedCaseCount': actualShippedCaseCount,
+      if (status.trim().isNotEmpty) 'status': status,
+    };
+  }
+
+  factory WarehouseOrderLineGreenGrocerCase.fromJson(JsonMap json) {
+    return WarehouseOrderLineGreenGrocerCase(
+      inputQuantity: _readDouble(json['inputQuantity']),
+      inputMode: _readString(json['inputMode']),
+      conversionMode: _readString(json['conversionMode']),
+      estimatedQuantity: _readDouble(json['estimatedQuantity']),
+      microUnit: _readString(json['microUnit']),
+      averageKgPerCase: _readNullableDouble(json['averageKgPerCase']),
+      unitsPerCase: _readNullableDouble(json['unitsPerCase']),
+      averageSource: _readString(json['averageSource']),
+      averageRecordCount: _readNullableInt(json['averageRecordCount']),
+      averageCaseCount: _readNullableDouble(json['averageCaseCount']),
+      coefficientOfVariation: _readNullableDouble(
+        json['coefficientOfVariation'],
+      ),
+      confidence: _readString(json['confidence']),
+      actualShippedQuantity: _readNullableDouble(json['actualShippedQuantity']),
+      actualShippedCaseCount: _readNullableDouble(
+        json['actualShippedCaseCount'],
+      ),
+      status: _readString(json['status']),
+    );
   }
 }
 
@@ -135,6 +240,7 @@ class ProductLookupItem {
     required this.price,
     required this.unitName,
     this.unitMultiplier = 1,
+    this.modelCode = '',
     required this.isOrderBlocked,
   });
 
@@ -145,6 +251,7 @@ class ProductLookupItem {
   final double price;
   final String unitName;
   final double unitMultiplier;
+  final String modelCode;
   final bool isOrderBlocked;
 
   String get displayLabel => '$stockCode - $stockName';
@@ -158,6 +265,11 @@ class ProductLookupItem {
       price: _readDouble(json['price']),
       unitName: _readString(json['unitName']),
       unitMultiplier: _readPositiveDouble(json['unitMultiplier']),
+      modelCode: _readFirstString(json, const <String>[
+        'modelCode',
+        'productModelCode',
+        'stockModelCode',
+      ]),
       isOrderBlocked: _readBool(json['isOrderBlocked']),
     );
   }
@@ -173,6 +285,7 @@ class ProductLookupItem {
       price: resolution.salesPrice,
       unitName: resolution.matchedUnitName,
       unitMultiplier: resolution.matchedUnitMultiplier,
+      modelCode: resolution.productModelCode,
       isOrderBlocked: resolution.isOrderBlocked,
     );
   }
@@ -381,7 +494,9 @@ class WarehouseOrderDetailItem {
     required this.description,
     required this.packageCode,
     required this.projectCode,
+    this.modelCode = '',
     this.lineGuid = '',
+    this.greenGrocerCase,
   });
 
   final int lineNo;
@@ -398,7 +513,9 @@ class WarehouseOrderDetailItem {
   final String description;
   final String packageCode;
   final String projectCode;
+  final String modelCode;
   final String lineGuid;
+  final WarehouseOrderLineGreenGrocerCase? greenGrocerCase;
 
   factory WarehouseOrderDetailItem.fromJson(JsonMap json) {
     return WarehouseOrderDetailItem(
@@ -416,9 +533,24 @@ class WarehouseOrderDetailItem {
       description: _readString(json['description']),
       packageCode: _readString(json['packageCode']),
       projectCode: _readString(json['projectCode']),
+      modelCode: _readFirstString(json, const <String>[
+        'modelCode',
+        'productModelCode',
+        'stockModelCode',
+      ]),
       lineGuid: _readString(json['lineGuid']),
+      greenGrocerCase: _readGreenGrocerCase(json['greenGrocerCase']),
     );
   }
+}
+
+WarehouseOrderLineGreenGrocerCase? _readGreenGrocerCase(Object? value) {
+  final map = _readJsonMap(value);
+  if (map == null) {
+    return null;
+  }
+
+  return WarehouseOrderLineGreenGrocerCase.fromJson(map);
 }
 
 bool _readBool(Object? value) {
@@ -462,6 +594,23 @@ double _readPositiveDouble(Object? value, {double fallback = 1}) {
   return parsed > 0 ? parsed : fallback;
 }
 
+double? _readNullableDouble(Object? value) {
+  if (value == null) {
+    return null;
+  }
+
+  if (value is num) {
+    return value.toDouble();
+  }
+
+  final raw = value.toString().trim();
+  if (raw.isEmpty) {
+    return null;
+  }
+
+  return double.tryParse(raw);
+}
+
 int _readInt(Object? value) {
   if (value is num) {
     return value.toInt();
@@ -470,6 +619,42 @@ int _readInt(Object? value) {
   return int.tryParse(value?.toString() ?? '') ?? 0;
 }
 
+int? _readNullableInt(Object? value) {
+  if (value == null) {
+    return null;
+  }
+
+  if (value is num) {
+    return value.toInt();
+  }
+
+  final raw = value.toString().trim();
+  if (raw.isEmpty) {
+    return null;
+  }
+
+  return int.tryParse(raw);
+}
+
 String _readString(Object? value) {
   return value?.toString() ?? '';
+}
+
+String _readFirstString(JsonMap json, List<String> keys) {
+  for (final key in keys) {
+    final value = _readString(json[key]).trim();
+    if (value.isNotEmpty) {
+      return value;
+    }
+  }
+
+  return '';
+}
+
+JsonMap? _readJsonMap(Object? value) {
+  return switch (value) {
+    final JsonMap map => map,
+    final Map map => map.map((key, item) => MapEntry(key.toString(), item)),
+    _ => null,
+  };
 }

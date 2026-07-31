@@ -645,17 +645,21 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
       child: Form(
         key: _formKey,
         autovalidateMode: createFormAutovalidateMode,
-        child: CustomScrollView(
-          slivers: <Widget>[
-            SliverList.list(
-              children: <Widget>[
-                TerminalSheetHeader(
-                  title: widget.title,
-                  subtitle: widget.helperText,
-                  padding: EdgeInsets.zero,
-                ),
-                const SizedBox(height: 16),
-                TerminalResponsiveLookupRow(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
+            TerminalSheetHeader(
+              title: widget.title,
+              subtitle: widget.helperText,
+              badges: <Widget>[
+                TerminalLineCountBadge(count: _filledLineIndexes().length),
+              ],
+              padding: EdgeInsets.zero,
+            ),
+            const SizedBox(height: 16),
+            Flexible(
+              child: SingleChildScrollView(
+                child: TerminalResponsiveLookupRow(
                   breakpoint: 360,
                   field: TextFormField(
                     controller: _customerController,
@@ -677,33 +681,40 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
                     label: const Text('Bul'),
                   ),
                 ),
-                const SizedBox(height: 12),
-                TerminalSectionToolbar(
-                  title: 'Satirlar',
-                  actions: const <Widget>[],
-                ),
-                const SizedBox(height: 8),
-                _buildEntryLineCard(),
-              ],
+              ),
             ),
-            _buildLazyLineSliver(),
-            SliverToBoxAdapter(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: <Widget>[
-                  if (_lookupError != null) ...<Widget>[
-                    TerminalMessageBlock.error(message: _lookupError!),
-                    const SizedBox(height: 12),
-                  ],
-                  TerminalFormActionRow(
-                    cancel: OutlinedButton(
-                      onPressed: () => Navigator.of(context).pop(),
-                      child: const Text('Vazgec'),
-                    ),
-                    submit: FilledButton.icon(
-                      onPressed: _submit,
-                      icon: const Icon(Icons.save_alt_rounded),
-                      label: Text(widget.submitLabel),
+            const SizedBox(height: 12),
+            TerminalSectionToolbar(
+              title: 'Satirlar',
+              actions: const <Widget>[],
+            ),
+            const SizedBox(height: 8),
+            _buildEntryLineCard(),
+            const SizedBox(height: 8),
+            Expanded(
+              child: CustomScrollView(
+                slivers: <Widget>[
+                  _buildLazyLineSliver(),
+                  SliverToBoxAdapter(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: <Widget>[
+                        if (_lookupError != null) ...<Widget>[
+                          TerminalMessageBlock.error(message: _lookupError!),
+                          const SizedBox(height: 12),
+                        ],
+                        TerminalFormActionRow(
+                          cancel: OutlinedButton(
+                            onPressed: () => Navigator.of(context).pop(),
+                            child: const Text('Vazgec'),
+                          ),
+                          submit: FilledButton.icon(
+                            onPressed: _submit,
+                            icon: const Icon(Icons.save_alt_rounded),
+                            label: Text(widget.submitLabel),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ],

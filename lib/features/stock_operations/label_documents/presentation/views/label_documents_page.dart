@@ -884,52 +884,59 @@ class _LabelDocumentCreateSheetState extends State<_LabelDocumentCreateSheet> {
 
     return Padding(
       padding: EdgeInsets.fromLTRB(20, 8, 20, 20 + viewInsets.bottom),
-      child: CustomScrollView(
-        slivers: <Widget>[
-          SliverList.list(
-            children: <Widget>[
-              const TerminalSheetHeader(
-                title: 'Yeni Etiket Belgesi',
-                subtitle:
-                    'Belgeye eklenecek urunleri barkodla veya urun aramayla secin.',
-                padding: EdgeInsets.zero,
-              ),
-              const SizedBox(height: 16),
-              _buildEntryLineCard(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          TerminalSheetHeader(
+            title: 'Yeni Etiket Belgesi',
+            subtitle:
+                'Belgeye eklenecek urunleri barkodla veya urun aramayla secin.',
+            badges: <Widget>[
+              TerminalLineCountBadge(count: _filledLineIndexes().length),
             ],
+            padding: EdgeInsets.zero,
           ),
-          _buildLazyLineSliver(),
-          SliverToBoxAdapter(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: <Widget>[
-                const SizedBox(height: 16),
-                if (_lines.every(_isBlankLine))
-                  const TerminalEmptyState(
-                    message: 'Etiket belgesi icin secilen urun yok.',
+          const SizedBox(height: 16),
+          _buildEntryLineCard(),
+          const SizedBox(height: 8),
+          Expanded(
+            child: CustomScrollView(
+              slivers: <Widget>[
+                _buildLazyLineSliver(),
+                SliverToBoxAdapter(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: <Widget>[
+                      const SizedBox(height: 16),
+                      if (_lines.every(_isBlankLine))
+                        const TerminalEmptyState(
+                          message: 'Etiket belgesi icin secilen urun yok.',
+                        ),
+                      if (_errorMessage != null) ...<Widget>[
+                        const SizedBox(height: 12),
+                        TerminalMessageBlock.error(message: _errorMessage!),
+                      ],
+                      const SizedBox(height: 12),
+                      Row(
+                        children: <Widget>[
+                          Expanded(
+                            child: OutlinedButton(
+                              onPressed: () => Navigator.of(context).pop(),
+                              child: const Text('Vazgec'),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: FilledButton.icon(
+                              onPressed: _submit,
+                              icon: const Icon(Icons.save_alt_rounded),
+                              label: const Text('Belge Olustur'),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                   ),
-                if (_errorMessage != null) ...<Widget>[
-                  const SizedBox(height: 12),
-                  TerminalMessageBlock.error(message: _errorMessage!),
-                ],
-                const SizedBox(height: 12),
-                Row(
-                  children: <Widget>[
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: () => Navigator.of(context).pop(),
-                        child: const Text('Vazgec'),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: FilledButton.icon(
-                        onPressed: _submit,
-                        icon: const Icon(Icons.save_alt_rounded),
-                        label: const Text('Belge Olustur'),
-                      ),
-                    ),
-                  ],
                 ),
               ],
             ),

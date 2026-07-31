@@ -10,13 +10,22 @@ Bu dokuman, mevcut backend durumuna gore frontend/UI tasarimi ve entegrasyonu ic
 - Yetki sistemi `module > menu > action` mantigindadir.
 - UI menu agaci ve buton gorunurlugu `me` cevabindan uretilmelidir.
 - Depo yetkisi backend tarafinda merkezi ve permission bazli uygulanir. Kullanici sadece JWT icindeki kendi deposunda islem yapar; baska depo veya tum depo kapsami icin ilgili menuye ait `{module}.{menu}.all-warehouses` yetkisi gerekir.
-- `Admin`/`Administrator` rolu migration ve seed ile tum permission'lari aldigi icin tum depolari gorebilir; fakat uygulama kararini role bakarak degil `all-warehouses` permission claim'ine bakarak verir. Boylece admin olmayan role de modul modul tum depo yetkisi verilebilir.
+- `Admin`/`Administrator` rolu backend tarafinda tam yetkili kabul edilir. UI tarafinda yine role name'e gore ekran acilmamalidir; menu, buton ve depo secici kararlari `login.user.permissions` veya `GET /api/auth/me` cevabindaki `permissions` listesine gore verilmelidir.
 - UI depo secici/filtresi gosterecegi zaman role bakmamalidir. Secili ekrandaki permission setinde ilgili `*.all-warehouses` kodu varsa depo secici acilir; yoksa depo alani gizlenir veya kilitlenir.
 - Liste/rapor endpointlerinde `*.all-warehouses` yetkisi olan kullanici `WarehouseNo`/`warehouseNo` alanini bos veya `null` gonderirse endpoint destekliyorsa tum depolar doner; belirli depo icin depo no gonderilir. Tek depo gerektiren create/update/detail islemlerinde `null` tum depo anlamina gelmez; backend token deposunu varsayar veya ilgili islem icin secili depo bekler.
 - Tum depolari listeleyen kullanici detay ekranina gecis icin UI, secilen satirdaki depo bilgisini kullanmalidir. Detay endpointine `warehouseNo=null` gonderilmemelidir; satirda gelen `warehouseNo`, `sourceWarehouseNo`, `targetWarehouseNo`, `branchNo` veya ilgili islem deposu query/body alanina yazilmalidir.
 - Ilgili `*.all-warehouses` yetkisi olmayan kullanici farkli `WarehouseNo`, `BranchNo` veya islem deposu gonderirse API `403 Forbidden` doner.
 - Tarih aralikli liste endpointlerinde `StartDate` ve `EndDate` zorunludur; depo yetkisi yoksa `WarehouseNo` verilmez ve backend JWT icindeki depoyu kullanir.
 - Development CORS originleri su an `http://localhost:5176`, `http://localhost:5173` ve `http://localhost:4200` icin aciktir.
+
+Timeout ve tekrar deneme notu:
+
+- API tarafinda SQL command timeout degerleri `DatabaseCommandTimeouts` konfigurasyonundan okunur; varsayilan appsettings degeri `300` saniyedir.
+- `MikroReadSeconds` liste/detay/rapor okumalari, `MikroWriteSeconds` create/update/delete yazma islemleri icin kullanilir. `AuthSeconds`, `FurpaSeconds`, `AxataSeconds` ve `ShopigoCiroSeconds` ilgili DB context'leri icindir.
+- Raw SQL ile yazilmis liste/arama/rapor komutlari da genel olarak `300` saniye bekleyecek sekilde ayarlanmistir.
+- `MikroApi:TimeoutSeconds` varsayilan appsettings'te `300` saniyedir. Yazma rotasi `MikroApi` ise UI bu sureyi de dikkate almalidir.
+- Terminal, mobil ve web istemcileri liste ve create isteklerinde HTTP client timeout degerini en az `300` saniye yapmalidir. Subede internet zayifsa API islemi devam ederken istemci 30-60 saniyede vazgecerse kullanici timeout gorur ve kontrolsuz tekrar basabilir.
+- POST/create timeout gorurse UI hemen yeni istek kimligi veya farkli body uretmemeli; mumkunse ayni payload ile guvenli retry yapmali veya liste/detay yenileyerek evrakin olusup olusmadigini kontrol etmelidir.
 
 Route parametre notu:
 
@@ -1331,6 +1340,15 @@ UI akisi:
 4. `GET /api/auth/me` ile kullanici, roller, permission listesi ve module-menu-action agacini al
 5. sol menu ve butonlari bu cevapla ciz
 
+Token ve yetki notu:
+
+- UI request/response contract'i degismedi; login yine `accessToken`, `expiresAtUtc`, `user` doner.
+- `Authorization` header'inda sadece `accessToken` gonderilir. Tum login response'u, `user` objesi veya `permissions/modules` listesi header'a konmaz.
+- Backend JWT'yi header limitlerine takilmamak icin kompakt tutar. Token icinde tum permission listesi garanti edilmez.
+- UI, JWT decode ederek menu/buton yetkisi uretmemelidir. Full yetki listesi icin `login.user.permissions` veya `GET /api/auth/me` cevabindaki `permissions` kullanilir.
+- `400 Bad Request - Request Too Long` gorulurse ilk kontrol `Authorization` header'idir; `Bearer eyJ...` disinda JSON/obje veya asiri uzun header gonderiliyor olabilir.
+- Bu kompakt token davranisi deploy edildikten sonra mevcut eski tokenlar degismez; kullanici logout/login yapmali veya UI storage temizlenmelidir.
+
 ## Auth Endpointleri
 
 ### `POST /api/auth/login`
@@ -2223,10 +2241,23 @@ Kasiyere yeni 6 haneli numeric sifre uretir. Response `CashierPasswordMutationDt
 
 Bu modul eski `Furpa.GreenGrocerWebUI` icindeki manav/yesillik raporlarini yeni API'ye tasir.
 
+Manav siparis/sevk is kurali:
+
+- Canli Mikro gecmisinde `56 MANAV DEPO` kaynakli manav siparisleri `DEPOLAR_ARASI_SIPARISLER` uzerinde talep/kasa niyeti gibi kullanilir; `ssip_miktar` Mikro'da stok ana birimi nedeniyle KG/ADET gorunse de sevk limiti olarak yorumlanmaz.
+- Gercek sevk miktari depolar arasi sevkte `STOK_HAREKETLERI.sth_miktar` alanina yazilan KG/ADET degeridir. Bu miktar etiket/terazi barkodu okutularak olusur.
+- Manav sevklerinde siparis satiri teslim kapatma akisi kullanilmaz. Canli DB pratiginde `STOK_HAREKETLERI_EK.sth_subesip_uid` linki ve `ssip_teslim_miktar` guncellemesi yoktur.
+- `GreenGrocerProductCases:OrderLinkingEnabled=false` ise UI manav sevkinde `warehouseOrderLineGuid` gondermemelidir. Gonderilirse backend `sourceWarehouseNo = 56` ve `STOKLAR.sto_model_kodu in ('10','11','12')` olan satirlarda bu GUID'i yok sayar.
+- `GreenGrocerProductCases:OrderLinkingEnabled=true` ise UI manav sevkinde gercek siparis satiri GUID'ini `warehouseOrderLineGuid` olarak gonderebilir. Bu durumda sevk satiri siparis satirina baglanir ve kalan/teslim miktari kurallari calisir.
+- Manav raporlarinda siparis miktari "sube talebi/kasa niyeti", sevk miktari ise "gercek KG/ADET" olarak ayri okunmalidir.
+
 Yetki:
 
 - `green-grocer.reports.list`: raporlari goruntuleme
 - `green-grocer.reports.update`: manav siparisi silme
+- `green-grocer.product-case-profiles.list`: kasa profil listeleme ve cozumleme onizleme
+- `green-grocer.product-case-profiles.detail`: kasa profil detayi
+- `green-grocer.product-case-profiles.update`: kasa profil kaydetme
+- `green-grocer.product-case-profiles.delete`: kasa profil pasife alma
 
 Tarih query alani:
 
@@ -2245,6 +2276,286 @@ search               opsiyonel; urun kodu, urun adi, sube adi veya evrak serisin
 includeLazyBranches  opsiyonel; default true, siparis girmeyen subeleri de dondurur
 take                 opsiyonel; default 1000, max 5000
 ```
+
+### Manav Kasa Profil ve Cozumleme
+
+Bu bolum subelerin manav siparisinde kasa/koli girip Mikro tarafinda KG/ADET olarak anlamli miktar olusmasi icin tasarlanan yeni kural katmanidir.
+
+Kaynaklar:
+
+- Profil ve siparis snapshot kayitlari uygulama DB'sinde tutulur.
+- Stok karti bilgisi Mikro `STOKLAR` tablosundan okunur.
+- Kasa kg ortalamasi Furpa `Manav_Depo_Mal_Kabul_Etiket` tablosundaki gercek etiket/tartim gecmisinden hesaplanir.
+- Mikro ve Furpa tablolarina yeni kural tablosu acilmaz.
+
+Yeni tablolar:
+
+- `green_grocer_product_case_profiles`: stok bazli kasa/koli/manuel cevrim kuralidir.
+- `green_grocer_order_line_snapshots`: siparis aninda kullanilan kasa/koli girisi, ortalama/katsayi, Mikro'ya yazilan tahmini KG/ADET ve Mikro siparis satir GUID'i bilgisini sabitler.
+
+Feature flag:
+
+```json
+{
+  "GreenGrocerProductCases": {
+    "Enabled": true,
+    "OrderLinkingEnabled": false
+  }
+}
+```
+
+- Varsayilan `Enabled=true`; yeni kasa profil/cozumleme endpointleri aktif gelir.
+- Ortam degiskeni ile kapatma: `GreenGrocerProductCases__Enabled=false`
+- `Enabled=false` ise bu bolumdeki endpointler `409 Conflict` doner ve detay mesajinda ozelligin konfigurasyonla kapali oldugu belirtilir.
+- UI kapali durumda `resolution-preview` cagirmamali, profil ekranini gizlemeli ve eski manav siparis/sevk akisini kullanmaya devam etmelidir.
+- Varsayilan `OrderLinkingEnabled=false`; manav sevkte siparis GUID'i gelse bile eski davranis korunur ve GUID temizlenir.
+- Siparise bagli manav sevk istenirse `GreenGrocerProductCases__OrderLinkingEnabled=true` yapilir. Bu ayar ancak `Enabled=true` iken anlamlidir.
+- `OrderLinkingEnabled=true` iken `resolution-preview` response'undaki `isOrderLinkable=true` ise UI ilgili siparis satirinin `lineGuid` degerini sevk request satirinda `warehouseOrderLineGuid` olarak gonderebilir.
+- Bu ayar otomatik depo siparisi uretmez; yalnizca UI'nin gonderdigi gercek siparis satiri GUID'inin korunup sevke baglanmasini saglar.
+- `OrderLinkingEnabled=false` iken UI manav sevkinde siparis secme/kalan siparis kapatma akisiyle ugrasmamalidir; sadece barkod/etiket okutulan gercek KG/ADET miktariyla siparissiz sevk yapmalidir.
+- `OrderLinkingEnabled=true` iken manav depo gelen siparis detayi `items[].greenGrocerCase` dolu gelen satirlari "kasa talebi + tahmini KG/ADET" olarak gosterir ve UI sevkte bu satirin `lineGuid` degerini tasiyabilir.
+
+Cozumleme siniflari:
+
+```text
+InputMode:
+- Case      kasa girisi
+- Pack      koli/paket girisi
+- Piece     direkt adet girisi
+- KgDirect  direkt kg girisi
+- Sarf      kasa/ambalaj/sarf malzemesi
+
+ConversionMode:
+- LabelAverageKgPerCase  Furpa etiket gecmisinden kg/kasa ortalamasi
+- ManualKgPerCase        profil uzerindeki manuel kg/kasa
+- FixedUnitsPerCase      Mikro birim2 katsayisi veya manuel adet/koli katsayisi
+- DirectQuantity         girilen miktari direkt Mikro ana birimine yaz
+- ManualOnly             otomatik hesaplama yok, manuel karar gerekli
+- Blocked                bu urun manav kasa siparisinde engelli
+
+Confidence:
+- High
+- Medium
+- Low
+- Blocked
+```
+
+Profil listeleme:
+
+`GET /api/green-grocer/product-case-profiles?search=KARPUZ&includeInactive=false&take=100`
+
+Query:
+
+- `search`: opsiyonel, stok kodu, stok adi, model adi veya not icinde arar
+- `includeInactive`: opsiyonel, default `false`
+- `take`: opsiyonel, default `100`, max `500`
+
+Response:
+
+```json
+[
+  {
+    "id": "ed2486c3-bd7f-4f4c-84f0-7c099cb9a6d1",
+    "stockCode": "000488",
+    "stockName": "MNV KARPUZ KG",
+    "modelCode": "10",
+    "modelName": "Meyve",
+    "unit1": "KG",
+    "unit2": "",
+    "unit2Factor": 0,
+    "isActive": true,
+    "inputMode": "Case",
+    "conversionMode": "ManualKgPerCase",
+    "manualKgPerCase": 12.5,
+    "manualUnitsPerCase": null,
+    "minExpectedKgPerCase": 8,
+    "maxExpectedKgPerCase": 25,
+    "averageWindowDays": 30,
+    "minAverageRecordCount": 5,
+    "minAverageCaseCount": 20,
+    "maxCoefficientOfVariation": 0.25,
+    "requiresManualApproval": true,
+    "allowOrderLinking": true,
+    "overDeliveryTolerancePercent": 20,
+    "notes": "Karpuz manuel kasa ortalamasi ile yonetilir.",
+    "createdAtUtc": "2026-07-31T06:17:50Z",
+    "updatedAtUtc": null
+  }
+]
+```
+
+Profil detayi:
+
+`GET /api/green-grocer/product-case-profiles/{stockCode}`
+
+Ornek:
+
+`GET /api/green-grocer/product-case-profiles/000488`
+
+Response tek `GreenGrocerProductCaseProfileDto` modelidir. Profil yoksa `404` doner.
+
+Profil kaydetme:
+
+`PUT /api/green-grocer/product-case-profiles/{stockCode}`
+
+Body:
+
+```json
+{
+  "isActive": true,
+  "inputMode": "Case",
+  "conversionMode": "ManualKgPerCase",
+  "manualKgPerCase": 12.5,
+  "manualUnitsPerCase": null,
+  "minExpectedKgPerCase": 8,
+  "maxExpectedKgPerCase": 25,
+  "averageWindowDays": 30,
+  "minAverageRecordCount": 5,
+  "minAverageCaseCount": 20,
+  "maxCoefficientOfVariation": 0.25,
+  "requiresManualApproval": true,
+  "allowOrderLinking": true,
+  "overDeliveryTolerancePercent": 20,
+  "notes": "Karpuz manuel kg/kasa ile hesaplanacak."
+}
+```
+
+Kaydetme kurallari:
+
+- `stockCode` Mikro `STOKLAR` icinde bulunmalidir.
+- Sadece `sto_model_kodu` `10`, `11`, `12`, `23` olan urunlere profil kaydedilir.
+- `ManualKgPerCase` modunda `manualKgPerCase > 0` zorunludur.
+- `FixedUnitsPerCase` modunda `manualUnitsPerCase` verilmezse backend Mikro `sto_birim2_katsayi` degerini kullanabilir.
+- `DELETE` fiziksel silmez; profili pasife alir.
+
+Profil pasife alma:
+
+`DELETE /api/green-grocer/product-case-profiles/{stockCode}`
+
+Basarili response:
+
+```text
+204 No Content
+```
+
+Cozumleme onizleme:
+
+`POST /api/green-grocer/product-case-profiles/resolution-preview`
+
+Alias:
+
+`POST /api/green-grocer/product-case-profiles/cozumleme-onizleme`
+
+Body:
+
+```json
+{
+  "stockCode": "001082",
+  "inputQuantity": 3,
+  "sourceWarehouseNo": 56,
+  "targetWarehouseNo": 110,
+  "orderDate": "2026-07-31T00:00:00"
+}
+```
+
+Response:
+
+Not: `isOrderLinkable` alani profilin `allowOrderLinking` degeri ile global
+`GreenGrocerProductCases:OrderLinkingEnabled` ayarinin birlikte sonucudur. Global
+ayar kapaliysa profil izin verse bile response `isOrderLinkable=false` doner.
+Asagidaki ornekte `OrderLinkingEnabled=true` varsayilmistir.
+
+```json
+{
+  "stockCode": "001082",
+  "stockName": "MNV SEFTALI KG",
+  "modelCode": "10",
+  "modelName": "Meyve",
+  "unit1": "KG",
+  "unit2": "",
+  "unit2Factor": 0,
+  "inputQuantity": 3,
+  "inputMode": "Case",
+  "conversionMode": "LabelAverageKgPerCase",
+  "microUnit": "KG",
+  "estimatedQuantity": 11.25,
+  "averageKgPerCase": 3.75,
+  "unitsPerCase": null,
+  "averageSource": "LabelHistory",
+  "averageRecordCount": 47,
+  "averageCaseCount": 7526,
+  "coefficientOfVariation": 0.08,
+  "latestLabelDate": "2026-07-30T00:00:00",
+  "confidence": "High",
+  "requiresManualApproval": false,
+  "isOrderLinkable": true,
+  "isUsable": true,
+  "warnings": [],
+  "errors": []
+}
+```
+
+ADET/koli ornegi:
+
+```json
+{
+  "stockCode": "016167",
+  "inputQuantity": 3,
+  "sourceWarehouseNo": 56
+}
+```
+
+Response mantigi:
+
+```json
+{
+  "stockCode": "016167",
+  "stockName": "MNV MAYDANOZ ADET",
+  "inputMode": "Pack",
+  "conversionMode": "FixedUnitsPerCase",
+  "microUnit": "ADET",
+  "estimatedQuantity": 75,
+  "unitsPerCase": 25,
+  "averageSource": "StockUnitFactor",
+  "confidence": "High",
+  "isUsable": true,
+  "warnings": [],
+  "errors": []
+}
+```
+
+Ortalama yoksa response hata listeleyerek doner:
+
+```json
+{
+  "stockCode": "023740",
+  "stockName": "MNV KIRKAGAC KAVUN KG",
+  "inputMode": "Case",
+  "conversionMode": "ManualOnly",
+  "microUnit": "KG",
+  "estimatedQuantity": 0,
+  "averageSource": "None",
+  "confidence": "Blocked",
+  "requiresManualApproval": true,
+  "isOrderLinkable": false,
+  "isUsable": false,
+  "warnings": [],
+  "errors": [
+    "Urun icin guncel kasa kg ortalamasi yok; manuel profil tanimlanmali."
+  ]
+}
+```
+
+UI onerisi:
+
+- Siparis ekraninda kullanici yine kasa/koli girer.
+- Barkod/stok secildikten sonra `resolution-preview` cagrilir.
+- `isUsable=false` ise satir ekletilmez; `errors.first` kullaniciya gosterilir.
+- `confidence=Medium` ise satir eklenebilir ama uyari gosterilir.
+- `estimatedQuantity` Mikro siparis satirina yazilacak KG/ADET miktaridir.
+- `inputQuantity`, `inputMode`, `averageKgPerCase` veya `unitsPerCase` UI'da "3 kasa ~= 11.25 KG" gibi gosterilir.
+- Depo siparisi kaydederken `outWarehouseNo=56` ve `resolution-preview` kullanildiysa satirda `quantity = estimatedQuantity` gonderilmeli, response'taki cozumleme bilgileri de `greenGrocerCase` nesnesine aynen tasinmalidir. Backend bu bilgiyi `green_grocer_order_line_snapshots` tablosuna satir GUID'iyle yazar.
+- `isOrderLinkable=true` ve `GreenGrocerProductCases:OrderLinkingEnabled=true` ise sevk ekraninda ilgili siparis satiri GUID'i `warehouseOrderLineGuid` olarak gonderilebilir.
 
 Tip secenekleri:
 
@@ -2295,6 +2606,19 @@ Response:
   "documentCount": 18,
   "productCount": 42,
   "totalQuantity": 1250.75,
+  "caseInfo": {
+    "inputQuantity": 312,
+    "inputMode": "Case",
+    "estimatedQuantity": 1250.75,
+    "microUnit": "KG",
+    "averageKgPerCase": 4.01,
+    "unitsPerCase": null,
+    "averageSource": "Mixed",
+    "confidence": "Mixed",
+    "averageRecordCount": 470,
+    "averageCaseCount": 75260,
+    "coefficientOfVariation": 0.1
+  },
   "typeSummaries": [
     {
       "typeCode": "12",
@@ -2302,7 +2626,20 @@ Response:
       "branchCount": 12,
       "documentCount": 12,
       "productCount": 8,
-      "totalQuantity": 210.5
+      "totalQuantity": 210.5,
+      "caseInfo": {
+        "inputQuantity": 84,
+        "inputMode": "Pack",
+        "estimatedQuantity": 210.5,
+        "microUnit": "ADET",
+        "averageKgPerCase": null,
+        "unitsPerCase": 25,
+        "averageSource": "StockUnitFactor",
+        "confidence": "High",
+        "averageRecordCount": null,
+        "averageCaseCount": null,
+        "coefficientOfVariation": null
+      }
     }
   ],
   "branches": [],
@@ -2331,7 +2668,20 @@ Response item:
   "typeName": "Manav Tip 10",
   "productCode": "016201",
   "productName": "ELMA",
-  "quantity": 42.5
+  "quantity": 42.5,
+  "caseInfo": {
+    "inputQuantity": 10,
+    "inputMode": "Case",
+    "estimatedQuantity": 42.5,
+    "microUnit": "KG",
+    "averageKgPerCase": 4.25,
+    "unitsPerCase": null,
+    "averageSource": "LabelHistory",
+    "confidence": "High",
+    "averageRecordCount": 47,
+    "averageCaseCount": 7526,
+    "coefficientOfVariation": 0.08
+  }
 }
 ```
 
@@ -2360,7 +2710,20 @@ Response:
       "productName": "ELMA",
       "quantity": 12,
       "latestCreateDate": "2026-06-04T09:15:10",
-      "canDelete": true
+      "canDelete": true,
+      "caseInfo": {
+        "inputQuantity": 3,
+        "inputMode": "Case",
+        "estimatedQuantity": 12,
+        "microUnit": "KG",
+        "averageKgPerCase": 4,
+        "unitsPerCase": null,
+        "averageSource": "LabelHistory",
+        "confidence": "High",
+        "averageRecordCount": 47,
+        "averageCaseCount": 7526,
+        "coefficientOfVariation": 0.08
+      }
     }
   ],
   "lazyBranches": [
@@ -2385,6 +2748,7 @@ Amac:
 
 - Urunleri toplam miktar ve sube/evrak kirilimiyle dondurur.
 - `branches` kiriliminda `latestCreateDate` ve `canDelete` alanlari bulunur; UI sil butonunu `canDelete=true` ve kullanicida `green-grocer.reports.update` yetkisi varsa gostermelidir.
+- `caseInfo` doluysa rapor satiri siparis anindaki kasa/koli snapshot'ini de icerir. `quantity` ve `caseInfo.estimatedQuantity` Mikro'ya yazilan KG/ADET toplamidir; `caseInfo.inputQuantity` subenin girdigi kasa/koli toplamidir.
 
 ### Yesillik Raporu
 
@@ -2517,7 +2881,7 @@ UI kullanim notu:
 
 - Mal kabulde `isGoodsAcceptanceBlocked = true` olan urunlerde uyari gosterilebilir.
 - Siparis girisinde `isOrderBlocked = true` olan urunlerde uyari veya engel uygulanabilir.
-- Satis/sevk formlarinda `isSalesBlocked = true` olan urunlerde uyari gosterilebilir.
+- Satis/sevk formlarinda `isSalesBlocked = true` olan urunlerde uyari gosterilebilir; depolar arasi sevkte bu alan tek basina satira ekleme engeli degildir.
 - Barkod okutulan satir ekleme ekranlarinda nihai karar icin once `barkodlar/{barcode}/cozumle` cagrilmalidir; `urunler` daha cok liste/arama deneyimi icindir.
 
 ### Fiyat Gor
@@ -2659,6 +3023,7 @@ Onemli not:
 - `isSalesBlocked`, `isOrderBlocked`, `isGoodsAcceptanceBlocked` ve `isPassive` depo detay degerleri varsa depo ozelinden, yoksa stok kartindan hesaplanir.
 - `isAllowedForTargetWarehouse` hedef depo verilirse `DEPOLAR.dep_barkod_yazici_yolu` icindeki model kod listesine gore hesaplanir.
 - `operationType=shipment` icin hedef depo model kod sonucu bilgi olarak donebilir; fakat hedef depo model kodu sevkte `isUsableInOperation=false` yapmaz.
+- `operationType=shipment` icin `isSalesBlocked=true` bilgi/uyari olarak doner; pasif/DLS disinda tek basina satira eklemeyi bloklamaz.
 - `hasPurchaseRequirement` tedarikci/companyCode verilirse veya operasyon `receiving`/`order` ise `SATINALMA_SARTLARI` kontrol sonucudur. Bu sonuc sadece mal kabul/siparis operasyonunda satira ekleme kararina dahil edilir.
 - `operationType=shipment` icin sirf `targetWarehouseNo` geldi diye satinalma sarti kontrolu calismaz ve satira ekleme bloklanmaz.
 - `salesPrice` ve `priceTypeCode` secili depodaki fiyat satirindan gelir.
@@ -2729,7 +3094,7 @@ UI kullanim notu:
 
 - Kamera ile tek barkod okutulan ekranlarda once bu endpoint cagrilmalidir.
 - UI barkodun urun/stok/ad/tipi tahminini frontend'de yapmamalidir; okutulan degeri aynen bu endpoint'e gondermelidir.
-- Satira ekleme karari icin ana alan `isUsableInOperation` olmalidir. `false` ise `operationDecision` ve `errors` kullaniciya gosterilmelidir.
+- Satira ekleme karari icin ana alan `isUsableInOperation` olmalidir. `false` ise `operationDecision` ve `errors` kullaniciya gosterilmelidir. Sevkte `isSalesBlocked` tek basina engel gibi yorumlanmamalidir.
 - Terazi barkodunda satir miktari icin `embeddedQuantity` kullanilabilir; bos ise varsayilan miktar UI tarafinda `1` kabul edilebilir.
 - Koli barkodu okutulduysa `isCaseBarcode = true` ve `matchedUnitsPerCase` dolu gelir; UI koli ici adet kadar miktar onerebilir.
 - `caseBarcode` doluysa koli barkodu tekrar okutma, koli bozma veya alternatif birim secimi gibi kisayollar acilabilir.
@@ -2972,6 +3337,9 @@ Onemli not:
 - `documentOrderNo` ayni seri icin test DB'deki mevcut maksimum sira okunarak uretilir; ilk evrak `0`, sonraki evraklar `1, 2...` seklinde gider.
 - `siparis-islemleri.verilen-depo-siparisleri.all-warehouses` yoksa `inWarehouseNo` sorulmaz; backend JWT icindeki kullanici deposunu kullanir. Bu yetki varsa baska depo adina siparis olusturulacaksa body'de opsiyonel `inWarehouseNo` gonderilebilir.
 - `outWarehouseNo` siparis verilen/karsi depo numarasidir.
+- Manav depo siparisinde `outWarehouseNo=56` olmalidir. UI `resolution-preview` kullandiysa satirda `quantity = estimatedQuantity` gonderir; kullanicinin girdigi kasa/koli ve ortalama bilgisi opsiyonel `greenGrocerCase` nesnesinde gonderilir.
+- `greenGrocerCase` gonderilirse `estimatedQuantity` ile satir `quantity` birebir eslesmelidir; eslesmezse API `400 Bad Request` doner.
+- `greenGrocerCase` sadece snapshot/rapor/detay gosterimi icindir; Mikro siparis satirina yine `quantity` alani yazilir.
 
 Request:
 
@@ -2992,6 +3360,41 @@ Request:
       "packageCode": "",
       "projectCode": "",
       "responsibilityCenter": ""
+    }
+  ]
+}
+```
+
+Manav kasa siparisi request ornegi:
+
+```json
+{
+  "outWarehouseNo": 56,
+  "orderDate": "2026-07-31",
+  "deliveryDate": "2026-07-31",
+  "description": "Manav siparisi",
+  "lines": [
+    {
+      "stockCode": "001082",
+      "quantity": 11.25,
+      "recommendedQuantity": 0,
+      "unitPrice": 0,
+      "unitPointer": 1,
+      "description": "3 kasa",
+      "greenGrocerCase": {
+        "inputQuantity": 3,
+        "inputMode": "Case",
+        "conversionMode": "LabelAverageKgPerCase",
+        "microUnit": "KG",
+        "estimatedQuantity": 11.25,
+        "averageKgPerCase": 3.75,
+        "unitsPerCase": null,
+        "averageSource": "LabelHistory",
+        "averageRecordCount": 47,
+        "averageCaseCount": 7526,
+        "coefficientOfVariation": 0.08,
+        "confidence": "High"
+      }
     }
   ]
 }
@@ -3443,6 +3846,7 @@ Yetki:
   },
   "items": [
     {
+      "lineGuid": "8d4a5a77-1b3f-4f2a-93a1-b90a1b7d3c11",
       "lineNo": 0,
       "stockCode": "015550",
       "stockName": "Stok Adi",
@@ -3532,7 +3936,42 @@ Yetki:
       "isClosed": false,
       "description": "",
       "packageCode": "",
-      "projectCode": ""
+      "projectCode": "",
+      "greenGrocerCase": null
+    },
+    {
+      "lineGuid": "03d6df6a-b1b2-4923-b8f0-28060446e61f",
+      "lineNo": 1,
+      "stockCode": "001082",
+      "stockName": "MNV SEFTALI KG",
+      "unitName": "KG",
+      "unitPointer": 1,
+      "quantity": 11.25,
+      "deliveredQuantity": 0,
+      "remainingQuantity": 11.25,
+      "unitPrice": 0,
+      "lineAmount": 0,
+      "isClosed": false,
+      "description": "3 kasa",
+      "packageCode": "",
+      "projectCode": "",
+      "greenGrocerCase": {
+        "inputQuantity": 3,
+        "inputMode": "Case",
+        "conversionMode": "LabelAverageKgPerCase",
+        "estimatedQuantity": 11.25,
+        "microUnit": "KG",
+        "averageKgPerCase": 3.75,
+        "unitsPerCase": null,
+        "averageSource": "LabelHistory",
+        "averageRecordCount": 47,
+        "averageCaseCount": 7526,
+        "coefficientOfVariation": 0.08,
+        "confidence": "High",
+        "actualShippedQuantity": null,
+        "actualShippedCaseCount": null,
+        "status": "Ordered"
+      }
     }
   ]
 }
@@ -3546,6 +3985,9 @@ UI kullanim notlari:
 - alternatif olarak `documentKey` de saklanabilir
 - detay ekraninda ust kart icin `header`, grid icin `items` kullanilmalidir
 - Depo siparis detayi `items[].lineGuid` dondurur; depolar arasi sevki siparise baglamak icin bu guid `warehouseOrderLineGuid` olarak gonderilebilir
+- `items[].greenGrocerCase` doluysa satir manav kasa/koli cozumleme snapshot'i ile olusmustur. UI manav depo gelen siparisinde bu satiri "3 kasa ~= 11.25 KG, ort 3.75 KG/kasa" gibi gostermelidir.
+- `OrderLinkingEnabled=false` ise UI bu `lineGuid` bilgisini manav sevke tasimaz; satir sadece bilgilendirme/rapor icin kullanilir.
+- `OrderLinkingEnabled=true` ise UI manav sevkte ayni satirin `lineGuid` degerini `warehouseOrderLineGuid` olarak gonderir ve gercek sevk miktarini okutulan KG/ADET olarak yollar.
 
 ## Sevk Islemleri
 
@@ -3649,9 +4091,13 @@ Onemli not:
 - `transitWarehouseNo` verilmezse `60` kullanilir ve `sth_giris_depo_no` alanina yazilir.
 - `documentSerie` backend tarafinda `F{islemDepoNo}` olarak uretilir.
 - `documentOrderNo` ayni seri ve `sth_evraktip = 17` icin write DB'deki maksimum sira okunarak uretilir.
+- Backend ayni `documentSerie` icin sevk olusturma islemlerini SQL application lock ile siraya alir. Bu, terminalden pes pese kaydetme veya ayni anda birden fazla sevk olusturma durumunda sira numarasi/insert deadlock riskini azaltir.
+- Backend son 5 dakika icinde ayni kaynak depo, hedef depo, transit depo, tarih ve birebir ayni satirlar ile olusmus bir sevk bulursa yeni evrak acmaz; mevcut evrakin `documentSerie` ve `documentOrderNo` bilgisini ayni response modeliyle dondurur. Bu alan response'ta ayrica isaretlenmez, UI ayni response'u basar.
+- UI kaydet butonunu ilk tiklamadan sonra request bitene kadar disable etmeli ve timeout sonrasi ayni body tekrar gonderildiginde ayni evrak numarasinin donebilecegini kabul etmelidir. Timeout gorulse bile kullaniciya liste/detay yenileme secenegi verilmesi onerilir.
 - Satirda `warehouseOrderLineGuid` verilirse depo siparis satirina baglanir. `MikroWriteRouting:InterWarehouseShipment=Database` modunda backend `STOK_HAREKETLERI_EK.sth_subesip_uid` linkini DB'de kurar; `MikroApi` modunda ayni GUID `DahiliStokHareketKaydetV2` satirina `sth_subesip_uid` olarak gonderilir ve link/teslim etkisi Mikro tarafina birakilir.
 - `warehouseOrderLineGuid` verilmezse satir normalde siparissiz sevk olarak olusur; otomatik depo siparisi kurali devredeyse backend once Mikro API ile depo siparisi olusturup satiri bu yeni siparis GUID'ine baglar.
 - Siparise bagli satirda stok kodu, kaynak depo, hedef depo ve kalan miktar kontrol edilir.
+- Manav istisnasi: `sourceWarehouseNo = 56` ve stok model kodu `10`, `11` veya `12` ise `GreenGrocerProductCases:OrderLinkingEnabled=false` durumunda satirdaki `warehouseOrderLineGuid` yok sayilir, otomatik depo siparisi/linki uretilmez ve kalan siparis miktari kontrolu uygulanmaz. `OrderLinkingEnabled=true` ise UI'nin gonderdigi gercek siparis satiri GUID'i korunur, sevk siparise baglanir ve kalan/teslim miktari kontrolleri calisir. Bu satirlarda `quantity` gercek okutulan KG/ADET sevk miktaridir.
 - Plaka, sofor adi ve TCKN bu create request'inde gonderilmez. Bu alanlar e-irsaliye gonderim request'inde zorunludur.
 
 Siparissiz request:
@@ -6832,6 +7278,512 @@ Response:
 ]
 ```
 
+### Etiket Basim
+
+Eski WinForms `Etiket Basim` uygulamasindaki manav/depo mal kabul etiketi akisi icin yeni API moduludur. Bu modul, mevcut `etiket-belgeleri` modulunden farklidir; `Furpa.dbo.Manav_Depo_Mal_Kabul_Etiket` kabul kayitlarini yonetir, kasa/net kilo hesaplar ve UI'nin yazdirabilecegi etiket datasini dondurur.
+
+Bu bolum UI tarafinin baska bir dokumana gitmeden kullanabilmesi icin tum endpoint, request, response, status ve yazdirma notlarini icerir.
+
+Root route:
+
+`/api/kasa-islemleri/etiket-basim`
+
+Yetkiler:
+
+- `kasa-islemleri.etiket-basim.list`
+- `kasa-islemleri.etiket-basim.detail`
+- `kasa-islemleri.etiket-basim.create`
+- `kasa-islemleri.etiket-basim.update`
+- `kasa-islemleri.etiket-basim.delete`
+- `kasa-islemleri.etiket-basim.transfer`
+- `kasa-islemleri.etiket-basim.all-warehouses`
+
+Genel HTTP notlari:
+
+- Tum endpointler token ister.
+- Yetki yoksa `403`, token yok/gecersizse `401` doner.
+- Validation hatalarinda standart `ProblemDetails` ile `400` doner.
+- Kayit bulunamazsa `404`, aktarilmis kayit guncelleme/silme denemesinde `409` doner.
+- `DELETE` basarili olursa body donmez, `204 No Content` doner.
+
+Endpoint ozeti:
+
+| Method | Endpoint | Request | Response | Yetki |
+|---|---|---|---|---|
+| `GET` | `/suppliers` | query: `query`, `take` | `EtiketBasimSupplierSuggestionDto[]` | `list` |
+| `GET` | `/suppliers/by-name` | query: `name` | `EtiketBasimSupplierSuggestionDto` | `list` |
+| `GET` | `/stocks` | query: `query`, `prefix`, `take` | `EtiketBasimStockSuggestionDto[]` | `list` |
+| `GET` | `/stocks/by-name` | query: `name` | `EtiketBasimStockSuggestionDto` | `list` |
+| `GET` | `/stocks/{stockCode}` | path: `stockCode` | `EtiketBasimStockSuggestionDto` | `list` |
+| `POST` | `/acceptance-records/calculate` | body: `EtiketBasimCalculationHttpRequest` | `EtiketBasimCalculationDto` | `create` |
+| `GET` | `/acceptance-records` | query: `date` | `EtiketBasimAcceptanceRecordDto[]` | `list` |
+| `GET` | `/acceptance-records/{id}` | path: `id` | `EtiketBasimAcceptanceRecordDto` | `detail` |
+| `POST` | `/acceptance-records` | body: `SaveEtiketBasimAcceptanceRecordHttpRequest` | `EtiketBasimAcceptanceRecordDto` | `create` |
+| `PUT` | `/acceptance-records/{id}` | path: `id`, body: `SaveEtiketBasimAcceptanceRecordHttpRequest` | `EtiketBasimAcceptanceRecordDto` | `update` |
+| `DELETE` | `/acceptance-records/{id}` | path: `id` | `204 No Content` | `delete` |
+| `GET` | `/acceptance-records/{id}/label` | path: `id` | `EtiketBasimLabelDto` | `detail` |
+| `POST` | `/labels/preview` | body: `SaveEtiketBasimAcceptanceRecordHttpRequest` | `EtiketBasimLabelDto` | `create` |
+| `GET` | `/reports/received-products` | query: `date` | `EtiketBasimReceivedProductReportItemDto[]` | `list` |
+| `GET` | `/reports/depot-stock` | query: `warehouseNo`, `date` | `EtiketBasimDepotStockReportItemDto[]` | `list` |
+| `POST` | `/micro/goods-receipts` | body: `EtiketBasimMicroTransferHttpRequest` | `501 EtiketBasimMicroTransferUnavailableDto` | `transfer` |
+
+Referans arama endpointleri:
+
+`GET /api/kasa-islemleri/etiket-basim/suppliers?query=ABC&take=20`
+
+Query:
+
+- `query`: zorunlu, en az 2 karakter
+- `take`: opsiyonel, varsayilan `20`, aralik `1-100`
+
+Response:
+
+```json
+[
+  {
+    "supplierCode": "120.001",
+    "supplierName": "TEDARIKCI A"
+  },
+  {
+    "supplierCode": "120.002",
+    "supplierName": "TEDARIKCI B"
+  }
+]
+```
+
+`GET /api/kasa-islemleri/etiket-basim/suppliers/by-name?name=TEDARIKCI%20A`
+
+Query:
+
+- `name`: zorunlu, tedarikci adi
+
+Response:
+
+```json
+{
+  "supplierCode": "120.001",
+  "supplierName": "TEDARIKCI A"
+}
+```
+
+`GET /api/kasa-islemleri/etiket-basim/stocks?query=DOMATES&prefix=MNV&take=20`
+
+Query:
+
+- `query`: opsiyonel, stok adi/stok kodu/barkod aramasi
+- `prefix`: opsiyonel, varsayilan `MNV`, en fazla 10 karakter
+- `take`: opsiyonel, varsayilan `20`, aralik `1-100`
+
+Response:
+
+```json
+[
+  {
+    "stockCode": "MNV001",
+    "stockName": "MNV DOMATES",
+    "barcode": "1234567"
+  },
+  {
+    "stockCode": "MNV002",
+    "stockName": "MNV BIBER",
+    "barcode": "7654321"
+  }
+]
+```
+
+`GET /api/kasa-islemleri/etiket-basim/stocks/by-name?name=MNV%20DOMATES`
+
+Query:
+
+- `name`: zorunlu, stok adi
+
+Response:
+
+```json
+{
+  "stockCode": "MNV001",
+  "stockName": "MNV DOMATES",
+  "barcode": "1234567"
+}
+```
+
+`GET /api/kasa-islemleri/etiket-basim/stocks/MNV001`
+
+Path:
+
+- `stockCode`: zorunlu, stok kodu
+
+Response:
+
+```json
+{
+  "stockCode": "MNV001",
+  "stockName": "MNV DOMATES",
+  "barcode": "1234567"
+}
+```
+
+Referans arama notlari:
+
+- tedarikci aramada eski uygulamadaki cari kod prefix haricleri korunur: `8888`, `1999`, `2012`, `4690`, `1998`, `2022`, `120.MY`
+- stok aramada varsayilan prefix `MNV` olur
+- `query` stok adi, stok kodu veya barkod icinde aranir
+- `*` karakteri SQL wildcard gibi `%` davranisina cevrilir
+- `suppliers/by-name`, `stocks/by-name` ve `stocks/{stockCode}` sonuc bulamazsa `404` doner
+
+Hesaplama:
+
+`POST /api/kasa-islemleri/etiket-basim/acceptance-records/calculate`
+
+Request:
+
+```json
+{
+  "grossWeight": 100.0,
+  "caseTare": 1.2,
+  "caseCount": 10,
+  "palletTare": 5.0,
+  "stockBarcode": "1234567"
+}
+```
+
+Body:
+
+- `grossWeight`: zorunlu, brut kilo
+- `caseTare`: zorunlu, tek kasa darasi
+- `caseCount`: opsiyonel, bos gelirse `1`
+- `palletTare`: opsiyonel, bos gelirse `0`
+- `stockBarcode`: opsiyonel, doluysa etiket barkodu hesaplanir
+
+Response:
+
+```json
+{
+  "caseTotalTare": 12.0,
+  "netReceivedWeight": 83.0,
+  "averageCaseWeight": 8.3,
+  "labelBarcodeRaw": "123456708300",
+  "labelBarcode": "1234567083001",
+  "barcodeSymbology": "EAN13"
+}
+```
+
+Hesap kurali:
+
+- `caseTotalTare = caseTare * caseCount`
+- `netReceivedWeight = grossWeight - caseTotalTare - palletTare`
+- `averageCaseWeight = netReceivedWeight / caseCount`
+- `caseCount` bos gelirse `1`, `palletTare` bos gelirse `0` kabul edilir
+- `averageCaseWeight > 99` ise API hata doner
+- `stockBarcode` gonderilirse API eski uygulamadaki ortalama kilo formatina gore `labelBarcodeRaw` uretir; `labelBarcode` yazdirilacak nihai barkoddur
+
+Kabul kayitlari:
+
+- `GET /api/kasa-islemleri/etiket-basim/acceptance-records?date=2026-07-30`
+- `GET /api/kasa-islemleri/etiket-basim/acceptance-records/{id}`
+- `POST /api/kasa-islemleri/etiket-basim/acceptance-records`
+- `PUT /api/kasa-islemleri/etiket-basim/acceptance-records/{id}`
+- `DELETE /api/kasa-islemleri/etiket-basim/acceptance-records/{id}`
+
+Liste request:
+
+```text
+date  zorunlu; yyyy-MM-dd
+```
+
+Liste response:
+
+```json
+[
+  {
+    "id": 15,
+    "createdAt": "2026-07-30T10:20:00",
+    "updatedAt": "2026-07-30T10:20:00",
+    "supplierCode": "120.001",
+    "supplierName": "TEDARIKCI A",
+    "documentSeries": "MNV",
+    "documentNo": "12345",
+    "seriesAndNumber": "MNV12345",
+    "stockCode": "MNV001",
+    "stockName": "MNV DOMATES",
+    "stockBarcode": "1234567",
+    "grossWeight": 100.0,
+    "caseTare": 1.2,
+    "caseCount": 10,
+    "caseTotalTare": 12.0,
+    "palletTare": 5.0,
+    "averageCaseWeight": 8.3,
+    "netReceivedWeight": 83.0,
+    "receivedBy": "Ali",
+    "microTransferred": false,
+    "status": "Bekliyor",
+    "caseType": "REHINLI",
+    "labelBarcodeRaw": "123456708300",
+    "labelBarcode": "1234567083001",
+    "barcodeSymbology": "EAN13"
+  }
+]
+```
+
+Tek kayit request:
+
+```text
+id  zorunlu path parametresi
+```
+
+Tek kayit response, create response ve update response ayni `EtiketBasimAcceptanceRecordDto` modelini doner.
+
+Kayit request:
+
+```json
+{
+  "supplierCode": "120.001",
+  "supplierName": "TEDARIKCI A",
+  "documentSeries": "MNV",
+  "documentNo": "12345",
+  "stockCode": "MNV001",
+  "stockName": "MNV DOMATES",
+  "stockBarcode": "1234567",
+  "grossWeight": 100.0,
+  "caseTare": 1.2,
+  "caseCount": 10,
+  "palletTare": 5.0,
+  "receivedBy": "Ali",
+  "caseType": "REHINLI"
+}
+```
+
+Kayit request alanlari:
+
+- `supplierCode`: zorunlu, en fazla 25 karakter
+- `supplierName`: zorunlu, en fazla 255 karakter
+- `documentSeries`: opsiyonel, en fazla 25 karakter, bos gelirse `MNV`
+- `documentNo`: zorunlu, en fazla 25 karakter
+- `stockCode`: zorunlu, en fazla 25 karakter
+- `stockName`: zorunlu, en fazla 255 karakter
+- `stockBarcode`: zorunlu, en fazla 50 karakter
+- `grossWeight`: zorunlu, brut kilo
+- `caseTare`: zorunlu, tek kasa darasi
+- `caseCount`: opsiyonel, bos gelirse `1`
+- `palletTare`: opsiyonel, bos gelirse `0`
+- `receivedBy`: zorunlu, en fazla 100 karakter
+- `caseType`: zorunlu, en fazla 20 karakter, `REHINLI` veya `REHINSIZ`
+
+Kayit response:
+
+```json
+{
+  "id": 15,
+  "createdAt": "2026-07-30T10:20:00",
+  "updatedAt": "2026-07-30T10:20:00",
+  "supplierCode": "120.001",
+  "supplierName": "TEDARIKCI A",
+  "documentSeries": "MNV",
+  "documentNo": "12345",
+  "seriesAndNumber": "MNV12345",
+  "stockCode": "MNV001",
+  "stockName": "MNV DOMATES",
+  "stockBarcode": "1234567",
+  "grossWeight": 100.0,
+  "caseTare": 1.2,
+  "caseCount": 10,
+  "caseTotalTare": 12.0,
+  "palletTare": 5.0,
+  "averageCaseWeight": 8.3,
+  "netReceivedWeight": 83.0,
+  "receivedBy": "Ali",
+  "microTransferred": false,
+  "status": "Bekliyor",
+  "caseType": "REHINLI",
+  "labelBarcodeRaw": "123456708300",
+  "labelBarcode": "1234567083001",
+  "barcodeSymbology": "EAN13"
+}
+```
+
+Create/update/delete statuslari:
+
+- `POST /acceptance-records` basariliysa `201 Created` ve yukaridaki `EtiketBasimAcceptanceRecordDto` response'unu doner
+- `PUT /acceptance-records/{id}` basariliysa `200 OK` ve guncellenmis `EtiketBasimAcceptanceRecordDto` response'unu doner
+- `PUT /acceptance-records/{id}` icin kayit yoksa `404`, kayit Mikro'ya aktarilmissa `409` doner
+- `DELETE /acceptance-records/{id}` basariliysa `204 No Content` doner
+- `DELETE /acceptance-records/{id}` icin kayit yoksa `404`, kayit Mikro'ya aktarilmissa `409` doner
+
+Kayit notlari:
+
+- yeni kayit `Mikro_Aktarildi = 0` olarak acilir
+- `documentSeries` bos gelirse `MNV` kabul edilir
+- aktarilmis kayit guncellenemez ve silinemez
+- `caseType` icin request tarafinda `REHINLI` ve `REHINSIZ` gonderilebilir; API response'u tablo degeriyle uyumlu normalize edilmis kasa tipini doner
+
+Etiket datasini alma:
+
+- kaydedilmis satir icin `GET /api/kasa-islemleri/etiket-basim/acceptance-records/{id}/label`
+- kaydetmeden onizleme icin `POST /api/kasa-islemleri/etiket-basim/labels/preview`
+
+Kaydedilmis etiket request:
+
+```text
+id  zorunlu path parametresi
+```
+
+Preview request:
+
+```json
+{
+  "supplierCode": "120.001",
+  "supplierName": "TEDARIKCI A",
+  "documentSeries": "MNV",
+  "documentNo": "12345",
+  "stockCode": "MNV001",
+  "stockName": "MNV DOMATES",
+  "stockBarcode": "1234567",
+  "grossWeight": 100.0,
+  "caseTare": 1.2,
+  "caseCount": 10,
+  "palletTare": 5.0,
+  "receivedBy": "Ali",
+  "caseType": "REHINLI"
+}
+```
+
+Label response:
+
+```json
+{
+  "recordId": 15,
+  "stockCode": "MNV001",
+  "stockName": "MNV DOMATES",
+  "stockBarcode": "1234567",
+  "supplierName": "TEDARIKCI A",
+  "averageCaseWeight": 8.3,
+  "labelDate": "2026-07-30T10:20:00",
+  "labelCount": 10,
+  "labelBarcodeRaw": "123456708300",
+  "labelBarcode": "1234567083001",
+  "barcodeSymbology": "EAN13",
+  "caseTare": 1.2,
+  "caseType": "REHINLI"
+}
+```
+
+UI yazdirma akisi:
+
+1. Kullanici kayitli satirdan yazdiracaksa `GET /acceptance-records/{id}/label` cagrilir.
+2. Kullanici henuz kaydetmeden etiket gormek/yazdirmak istiyorsa ayni kayit body modeliyle `POST /labels/preview` cagrilir.
+3. API etiket resmi, PDF veya ZPL dondurmez; eski sistem gibi UI/terminal Windows printer driver uzerinden kendi yazici entegrasyonunu calistirir.
+4. Eski rapor olcusu referans alinacaksa etiket alani yaklasik `57.9 mm x 38.9 mm`, sifir margin dusunulebilir.
+5. UI etikette en az stok adi, tedarikci, tarih, ortalama kasa kilosu, kasa tipi, kasa darasi ve barkod metnini gostermelidir.
+6. `labelCount` kasa sayisidir; UI bu degeri yazdirma kopya adedi olarak kullanmali veya kullaniciya adet olarak onermelidir.
+7. `barcodeSymbology = EAN13` ise EAN-13, `EAN8` ise EAN-8, diger durumda Code128 renderer kullanilmalidir.
+8. Normal yazdirma icin `labelBarcode` kullanilmalidir; bu alan EAN13 icin check-digit eklenmis nihai degerdir. Kullanilan renderer check digit'i kendisi hesaplamak istiyorsa `labelBarcodeRaw` verilebilir.
+9. Yazdirma butonu ikinci kez tiklanmaya karsi loading/disabled durumda tutulmalidir; baski basarili olursa kayit tekrar kaydedilmez.
+
+Eski yazdirma referansi:
+
+- Eski sistem ZPL, ESC/POS, Bluetooth veya socket komutu uretmez.
+- Kullanici standart Windows `PrintDialog` ile Windows'ta tanimli yaziciyi secer.
+- Etiket DevExpress `XtraReport` olarak hazirlanir ve `ReportPrintTool.Print()` ile printer driver'a gonderilir.
+- API'nin ilk surumde data-only kalmasi eski davranisa uygundur; PDF/PNG/ZPL uretimi ayrica istenirse yeni endpoint olarak tasarlanmalidir.
+
+Eski etiket tasarim alani:
+
+| API alani | Eski rapor kontrolu | UI kullanimi |
+|---|---|---|
+| `stockName` | `XrStokAdi` | ust bolumde genis urun adi |
+| `stockCode` | `XrStokKodu` | barkod ustu bilgi satiri |
+| `stockBarcode` | `XrBarkod` | barkod ustu urun barkodu |
+| `averageCaseWeight` | `XrMiktar` | orta bolumde ortalama kasa kilosu |
+| `caseTare` | `XrDara` | orta bolumde kasa darasi |
+| `caseType` | `XrKasaTip` | orta/alt bolumde kasa tipi |
+| `labelDate` | `XrTarih` | orta/alt bolumde tarih |
+| `labelBarcode` | `xrBarCode1` | alt bolumde asil barkod |
+| `supplierName` | `XrCariUnvan` | en alt bolumde tedarikci |
+
+Raporlar:
+
+- `GET /api/kasa-islemleri/etiket-basim/reports/received-products?date=2026-07-30`
+- `GET /api/kasa-islemleri/etiket-basim/reports/depot-stock?warehouseNo=56&date=2026-07-30`
+
+Alinan urunler raporu request:
+
+```text
+date  zorunlu; yyyy-MM-dd
+```
+
+Alinan urunler raporu response:
+
+```json
+[
+  {
+    "supplierName": "TEDARIKCI A",
+    "stockCode": "MNV001",
+    "barcode": "1234567",
+    "stockName": "MNV DOMATES",
+    "grossWeight": 100.0,
+    "caseTotalTare": 12.0,
+    "palletTare": 5.0,
+    "caseCount": 10,
+    "netReceivedWeight": 83.0,
+    "invoiceQuantity": 80.0,
+    "invoiceDifference": 3.0
+  }
+]
+```
+
+Depo stok raporu request:
+
+```text
+warehouseNo  opsiyonel; bos ise 56 kullanilir
+date         opsiyonel; bos ise bugun kullanilir
+```
+
+Depo stok raporu response:
+
+```json
+[
+  {
+    "stockCode": "MNV001",
+    "stockName": "MNV DOMATES",
+    "responsible": "SATINALMA SORUMLUSU",
+    "currentStock": 125.5,
+    "purchasePriceWithVat": 18.75,
+    "salesPrice": 24.9
+  }
+]
+```
+
+Rapor notlari:
+
+- depo stok raporunda `warehouseNo` verilmezse eski akisla uyumlu varsayilan depo `56` olur
+- kullanici kendi deposu disinda depo isterse ilgili tum depo yetkisi gerekir
+- alinan urunler raporu Furpa kabul kayitlarini Mikro fatura miktarlariyla karsilastirmak icindir
+
+Mikro aktarim:
+
+`POST /api/kasa-islemleri/etiket-basim/micro/goods-receipts`
+
+Request:
+
+```json
+{
+  "date": "2026-07-30",
+  "supplierCode": "120.001"
+}
+```
+
+Response: `501 Not Implemented`
+
+```json
+{
+  "isAvailable": false,
+  "message": "Mikro aktarim henuz guvenli sekilde aktif degil.",
+  "requiredRule": "Sadece bekleyen kayitlar, transaction, duplicate korumasi ve evrak no stratejisi netlestikten sonra acilmalidir."
+}
+```
+
+Bu route sozlesme olarak vardir fakat su an `501 Not Implemented` doner. UI bu butonu canli aktarim gibi calistirmamalidir. Eski sistem Mikro `STOK_HAREKETLERI` tablosuna dogrudan insert attigi, duplicate/idempotency ve evrak sira uretimi netlesmedigi icin aktarim bilincli olarak kapali tutulmustur.
+
 ### Fiyati Degisen Etiket Urunleri
 
 Belirli bir zaman bilgisinden sonra fiyati degisen ve etikete uygun urunleri getirir. `kasa-islemleri.etiket-belgeleri.all-warehouses` yoksa depo sorulmaz; yetki varsa query'de opsiyonel `warehouseNo` gonderilebilir.
@@ -7380,7 +8332,7 @@ Response:
 
 ### E-Irsaliye Gonderme Response
 
-Dort e-irsaliye gonderme endpointi de ayni request body modelini bekler ve ayni response modelini doner. `plaque`, `driverNameSurname` ve `driverTckn` zorunludur; UI bu alanlari sevk/iade create ekraninda degil, e-irsaliye gonderme aninda almalidir.
+Dort e-irsaliye gonderme endpointi de ayni request body modelini bekler ve ayni response modelini doner. `plaque`, `driverNameSurname` ve `driverTckn` zorunludur; UI bu alanlari sevk/iade create ekraninda degil, e-irsaliye gonderme aninda almalidir. `driverNameSurname` en az iki kelime olacak sekilde `Ad Soyad` formatinda gonderilmelidir; tek kelime gelirse API 400 doner. Backend UBL uretiminde `DriverPerson` icinde sirayi `FirstName`, `FamilyName`, `NationalityID` olarak yazar; `NationalityID` soyaddan once gonderilmez.
 
 Request:
 
@@ -9740,6 +10692,20 @@ Kasa Islemleri / Manav Kunye Etiket Yazdirma
   -> zengin liste satirlarini KunyeLabelTagDto ile goster
   -> endpoint token istemez
 
+Kasa Islemleri / Etiket Basim
+  -> ekran acilisinda gunluk liste icin GET /api/kasa-islemleri/etiket-basim/acceptance-records?date=...
+  -> tedarikci secimi icin GET /api/kasa-islemleri/etiket-basim/suppliers?query=...
+  -> stok secimi icin GET /api/kasa-islemleri/etiket-basim/stocks?query=...&prefix=MNV
+  -> brut kilo, kasa darasi, kasa sayisi ve palet darasi girildikce POST /api/kasa-islemleri/etiket-basim/acceptance-records/calculate
+  -> kaydetmek icin POST /api/kasa-islemleri/etiket-basim/acceptance-records
+  -> duzenlemek icin PUT /api/kasa-islemleri/etiket-basim/acceptance-records/{id}
+  -> silmek icin DELETE /api/kasa-islemleri/etiket-basim/acceptance-records/{id}
+  -> kayitli satirdan yazdirmak icin GET /api/kasa-islemleri/etiket-basim/acceptance-records/{id}/label
+  -> kaydetmeden onizleme/yazdirma icin POST /api/kasa-islemleri/etiket-basim/labels/preview
+  -> UI labelBarcodeRaw, labelBarcode, barcodeSymbology ve labelCount alanlariyla yazici entegrasyonunu kendisi calistirir
+  -> raporlar icin GET /api/kasa-islemleri/etiket-basim/reports/received-products ve /reports/depot-stock
+  -> Mikro aktarim endpoint'i 501 dondugu icin UI'da kapali veya "hazir degil" olarak gosterilmelidir
+
 Stok Islemleri / Virmanlar
   -> liste filtreleri: tarih araligi, opsiyonel depo
   -> GET /api/stok-islemleri/virmanlar
@@ -10223,7 +11189,7 @@ Davranis:
 - `sourceTotalCount` Uyumsoft'un genisletilmis execution penceresinde bildirdigi toplam kayit, `fetchedCount` tum sayfalardan gercekten okunan kayit sayisi, `matchedCount` ise secilen Fatura Tarihi araligina uyup cache'e aday olan tekil kayit sayisidir
 - Uyumsoft cagrisi basarisiz olursa progress `status=failed` olur; sessiz basarili sayilmaz
 - Uyumsoft zaman asiminda progress `status=failed` olur; UI kullaniciya daha kucuk tarih araligi denemesini onermelidir
-- Uyumsoft e-fatura WCF timeout degeri `EInvoice:TimeoutSeconds` konfigurasyonuyla yonetilir; varsayilan appsettings degeri `180` saniyedir
+- Uyumsoft e-fatura WCF timeout degeri `EInvoice:TimeoutSeconds` konfigurasyonuyla yonetilir; varsayilan appsettings degeri `360` saniyedir
 - backend her Uyumsoft sayfasi icin page index, page size, item count, total count, total page ve sure bilgisini loglar; ayrica Fatura Tarihi araligina uyan `MatchedItems` / `MatchedTotal` ve sayfa upsert sayilari loglanir
 - timeout durumunda ayni tarih araligiyla tekrar `POST /senkronize` calistirilirse onceki denemede cache'e yazilmis sayfalar korunur, eksik kalan sayfalardan gelen kayitlar guncellenerek devam eder
 - tekrar eden veya degisiklik icermeyen sayfalar icin koruma vardir; sonsuz donguye girmez
@@ -11223,6 +12189,7 @@ Liste ekranlarinda onerilen kolonlar:
 - Zayiat ve masraf fisleri icin: belge tarihi, seri, sira, creator, acceptor, depo, satir sayisi, toplam miktar
 - Sayim sonuclari icin: belge tarihi, belge no, sayim adi, depo, satir sayisi, toplam miktar
 - Etiket belgeleri icin: olusturma tarihi, documentId, depo
+- Etiket basim icin: olusturma tarihi, cari, evrak seri/sira, stok kodu, stok adi, brut kilo, net kilo, kasa sayisi, ortalama kasa kilosu, durum, Mikro aktarildi
 - Kasa sayimlari icin: tarih, seri, sira, kasa no, z no, kasiyer, yonetici, toplam
 - Kasa cirolari icin: is tarihi, sube, vardiya, kasiyer kodu, kasiyer adi, satis tutari, tahsilat tutari, komisyon, net tahsilat
 - Depo iadeleri icin: belge tarihi, seri, sira, kaynak depo, hedef depo, satir sayisi, toplam miktar
@@ -14722,7 +15689,25 @@ public sealed record WarehouseOrderLineItemDto(
     bool IsClosed,
     string Description,
     string PackageCode,
-    string ProjectCode);
+    string ProjectCode,
+    WarehouseOrderLineGreenGrocerCaseDto? GreenGrocerCase = null);
+
+public sealed record WarehouseOrderLineGreenGrocerCaseDto(
+    double InputQuantity,
+    string InputMode,
+    string ConversionMode,
+    double EstimatedQuantity,
+    string MicroUnit,
+    double? AverageKgPerCase,
+    double? UnitsPerCase,
+    string AverageSource,
+    int? AverageRecordCount,
+    int? AverageCaseCount,
+    double? CoefficientOfVariation,
+    string Confidence,
+    double? ActualShippedQuantity,
+    double? ActualShippedCaseCount,
+    string Status);
 
 public sealed record WarehouseOrderDetailDto(
     WarehouseOrderHeaderDto Header,
@@ -16808,6 +17793,9 @@ Bu bolumde yalnizca endpointlerin dogrudan baglandigi HTTP request modelleri yer
 
 - `GreenGrocerReportHttpRequest`: `Date`, `DateToGet`, `WarehouseNo`, `TypeCode`, `Search`, `IncludeLazyBranches`, `Take`
 - `DeleteGreenGrocerOrderHttpRequest`: `DocumentSerie`, `DocumentOrderNo`, `WarehouseNo`
+- `GreenGrocerProductCaseProfileListHttpRequest`: `Search`, `IncludeInactive`, `Take`
+- `SaveGreenGrocerProductCaseProfileHttpRequest`: `IsActive`, `InputMode`, `ConversionMode`, `ManualKgPerCase`, `ManualUnitsPerCase`, `MinExpectedKgPerCase`, `MaxExpectedKgPerCase`, `AverageWindowDays`, `MinAverageRecordCount`, `MinAverageCaseCount`, `MaxCoefficientOfVariation`, `RequiresManualApproval`, `AllowOrderLinking`, `OverDeliveryTolerancePercent`, `Notes`
+- `GreenGrocerProductCaseResolutionHttpRequest`: `StockCode`, `OrderDate`, `SourceWarehouseNo`, `InputQuantity`
 
 ### Arama Request Modelleri
 
@@ -16826,7 +17814,8 @@ Bu bolumde yalnizca endpointlerin dogrudan baglandigi HTTP request modelleri yer
 - `CreateIssuedCompanyOrderHttpRequest`: `WarehouseNo`, `CustomerCode`, `OrderDate`, `DeliveryDate`, `Description1`, `Description2`, `Deliverer`, `Receiver`, `Lines`
 - `CreateIssuedCompanyOrderLineHttpRequest`: `StockCode`, `Quantity`, `RecommendedQuantity`, `UnitPrice`, `UnitPointer`, `Description1`, `Description2`, `PackageCode`, `ProjectCode`, `CustomerResponsibilityCenter`, `ProductResponsibilityCenter`
 - `CreateIssuedWarehouseOrderHttpRequest`: `InWarehouseNo`, `OutWarehouseNo`, `OrderDate`, `DeliveryDate`, `Description`, `Lines`
-- `CreateIssuedWarehouseOrderLineHttpRequest`: `StockCode`, `Quantity`, `RecommendedQuantity`, `UnitPrice`, `UnitPointer`, `Description`, `PackageCode`, `ProjectCode`, `ResponsibilityCenter`
+- `CreateIssuedWarehouseOrderLineHttpRequest`: `StockCode`, `Quantity`, `RecommendedQuantity`, `UnitPrice`, `UnitPointer`, `Description`, `PackageCode`, `ProjectCode`, `ResponsibilityCenter`, `GreenGrocerCase`
+- `GreenGrocerOrderLineSnapshotHttpRequest`: `InputQuantity`, `InputMode`, `ConversionMode`, `MicroUnit`, `EstimatedQuantity`, `AverageKgPerCase`, `UnitsPerCase`, `AverageSource`, `AverageRecordCount`, `AverageCaseCount`, `CoefficientOfVariation`, `Confidence`
 - `SuggestedWarehouseOrderListHttpRequest`: `TargetWarehouseNo`, `SourceWarehouseNo`, `LookbackDays`, `FallbackRecommendedDay`
 - `ConvertSuggestedWarehouseOrderHttpRequest`: `TargetWarehouseNo`, `SourceWarehouseNo`, `OrderDate`, `DeliveryDate`, `Description`, `Lines`
 - `ConvertSuggestedWarehouseOrderLineHttpRequest`: `StockCode`, `Quantity`, `RecommendedQuantity`, `UnitPrice`, `UnitPointer`, `Description`, `PackageCode`, `ProjectCode`, `ResponsibilityCenter`
@@ -16852,6 +17841,13 @@ Bu bolumde yalnizca endpointlerin dogrudan baglandigi HTTP request modelleri yer
 - `LabelPriceChangedProductListHttpRequest`: `WarehouseNo`, `DateTimeFilter`
 - `CreateLabelDocumentHttpRequest`: `WarehouseNo`, `Lines`
 - `CreateLabelDocumentLineHttpRequest`: `ProductCode`
+- `EtiketBasimReferenceSearchHttpRequest`: `Query`, `Take`
+- `EtiketBasimStockSearchHttpRequest`: `Query`, `Prefix`, `Take`
+- `EtiketBasimDateHttpRequest`: `Date`
+- `EtiketBasimCalculationHttpRequest`: `GrossWeight`, `CaseTare`, `CaseCount`, `PalletTare`, `StockBarcode`
+- `SaveEtiketBasimAcceptanceRecordHttpRequest`: `SupplierCode`, `SupplierName`, `DocumentSeries`, `DocumentNo`, `StockCode`, `StockName`, `StockBarcode`, `GrossWeight`, `CaseTare`, `CaseCount`, `PalletTare`, `ReceivedBy`, `CaseType`
+- `EtiketBasimDepotStockReportHttpRequest`: `WarehouseNo`, `Date`
+- `EtiketBasimMicroTransferHttpRequest`: `Date`, `SupplierCode`
 
 ### Rapor Request Modelleri
 

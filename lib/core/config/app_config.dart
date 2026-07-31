@@ -2,11 +2,20 @@ import 'package:flutter/foundation.dart';
 
 abstract final class AppConfig {
   static const String appName = 'Furpa Merkez Terminal';
-  static const Duration requestTimeout = Duration(seconds: 25);
+  static const Duration requestTimeout = Duration(seconds: 300);
   static const String _defaultBaseUrl = 'http://10.0.0.100:7508';
   static const String updateManifestUrl = String.fromEnvironment(
     'UPDATE_MANIFEST_URL',
     defaultValue: 'http://10.0.0.100:802/Terminal/version.json',
+  );
+  static const bool greenGrocerProductCasesOrderLinkingEnabled =
+      bool.fromEnvironment(
+        'GreenGrocerProductCases__OrderLinkingEnabled',
+        defaultValue: false,
+      );
+  static const bool greenGrocerProductCasesEnabled = bool.fromEnvironment(
+    'GreenGrocerProductCases__Enabled',
+    defaultValue: true,
   );
 
   static String get baseUrl {

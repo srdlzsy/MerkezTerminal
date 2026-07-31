@@ -643,6 +643,10 @@ class _WarehouseReturnCreateSheetState extends State<WarehouseReturnCreateSheet>
                                 'Kaynak depo: ${widget.defaultWarehouseNo}',
                                 style: theme.textTheme.bodySmall,
                               ),
+                              const SizedBox(height: 8),
+                              TerminalLineCountBadge(
+                                count: _filledLineIndexes().length,
+                              ),
                             ],
                           ),
                         ),
@@ -655,25 +659,27 @@ class _WarehouseReturnCreateSheetState extends State<WarehouseReturnCreateSheet>
                       ],
                     ),
                   ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: <Widget>[
+                        _buildHeaderSection(theme),
+                        const SizedBox(height: 12),
+                        TerminalSectionToolbar(
+                          title: 'Satirlar',
+                          actions: const <Widget>[],
+                        ),
+                        const SizedBox(height: 8),
+                        _buildEntryLineCard(theme),
+                      ],
+                    ),
+                  ),
+
                   Expanded(
                     child: CustomScrollView(
                       controller: _scrollController,
                       slivers: <Widget>[
-                        SliverPadding(
-                          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                          sliver: SliverList.list(
-                            children: <Widget>[
-                              _buildHeaderSection(theme),
-                              const SizedBox(height: 12),
-                              TerminalSectionToolbar(
-                                title: 'Satirlar',
-                                actions: const <Widget>[],
-                              ),
-                              const SizedBox(height: 8),
-                              _buildEntryLineCard(theme),
-                            ],
-                          ),
-                        ),
                         _buildLazyLineSliver(theme),
                         SliverPadding(
                           padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),

@@ -78,4 +78,51 @@ void main() {
       ),
     );
   });
+
+  test('authorization header keeps only the compact access token', () async {
+    final capturedAuthorizationHeaders = <String?>[];
+    final client = ApiClient(
+      baseUrl: 'http://localhost:5228',
+      httpClient: MockClient((request) async {
+        capturedAuthorizationHeaders.add(request.headers['Authorization']);
+        return http.Response('{"ok":true}', 200);
+      }),
+    );
+
+    await client.getJsonMap('/api/test', accessToken: 'Bearer compact-token');
+    await client.getJsonMap(
+      '/api/test',
+      accessToken:
+          '{"accessToken":"json-token","user":{"permissions":["a","b"]}}',
+    );
+
+    expect(capturedAuthorizationHeaders, <String?>[
+      'Bearer compact-token',
+      'Bearer json-token',
+    ]);
+    expect(capturedAuthorizationHeaders.join(' '), isNot(contains('user')));
+    expect(
+      capturedAuthorizationHeaders.join(' '),
+      isNot(contains('permissions')),
+    );
+  });
+
+  test('authorization header is omitted for invalid token payloads', () async {
+    final capturedAuthorizationHeaders = <String?>[];
+    final client = ApiClient(
+      baseUrl: 'http://localhost:5228',
+      httpClient: MockClient((request) async {
+        capturedAuthorizationHeaders.add(request.headers['Authorization']);
+        return http.Response('{"ok":true}', 200);
+      }),
+    );
+
+    await client.getJsonMap(
+      '/api/test',
+      accessToken: '{"user":{"permissions":["too-large"]}}',
+    );
+    await client.getJsonMap('/api/test', accessToken: 'token with spaces');
+
+    expect(capturedAuthorizationHeaders, <String?>[null, null]);
+  });
 }

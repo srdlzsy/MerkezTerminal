@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:furpa_merkez_terminal/features/green_grocer/product_cases/data/green_grocer_product_cases_repository.dart';
 import 'package:furpa_merkez_terminal/features/order_operations/given_warehouse_orders/data/given_warehouse_orders_repository.dart';
 import 'package:furpa_merkez_terminal/features/order_operations/given_warehouse_orders/presentation/widgets/given_warehouse_order_create_sheet.dart';
 import 'package:furpa_merkez_terminal/features/order_operations/shared/presentation/views/warehouse_orders_page.dart';
@@ -14,6 +15,7 @@ class GivenWarehouseOrdersPage extends StatelessWidget {
     required this.defaultWarehouseNo,
     required this.mobileWarehouseCatalogRepository,
     required this.userWarehouseName,
+    this.greenGrocerProductCasesRepository,
     this.currentUserId = '',
     this.draftRepository,
   });
@@ -24,6 +26,7 @@ class GivenWarehouseOrdersPage extends StatelessWidget {
   final String defaultWarehouseNo;
   final MobileWarehouseCatalogLocalRepository mobileWarehouseCatalogRepository;
   final String userWarehouseName;
+  final GreenGrocerProductCasesRepository? greenGrocerProductCasesRepository;
   final String currentUserId;
   final CreateDraftRepository? draftRepository;
 
@@ -46,6 +49,7 @@ class GivenWarehouseOrdersPage extends StatelessWidget {
           repository: repository,
           accessToken: accessToken,
           defaultWarehouseNo: defaultWarehouseNo,
+          greenGrocerProductCasesRepository: greenGrocerProductCasesRepository,
           mobileWarehouseCatalogRepository: mobileWarehouseCatalogRepository,
           draft: draft,
           draftRepository: draftRepository,

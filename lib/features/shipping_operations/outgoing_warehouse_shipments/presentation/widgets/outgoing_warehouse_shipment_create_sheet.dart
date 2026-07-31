@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:furpa_merkez_terminal/core/config/app_config.dart';
 import 'package:furpa_merkez_terminal/core/network/api_exception.dart';
 import 'package:furpa_merkez_terminal/features/order_operations/received_warehouse_orders/data/received_warehouse_orders_repository.dart';
 import 'package:furpa_merkez_terminal/features/order_operations/shared/data/models/warehouse_order_models.dart';
@@ -276,13 +277,8 @@ class _OutgoingWarehouseShipmentCreateSheetState
     }
 
     final linkedLines = selectedOrder.detail.items
-        .where((item) => item.remainingQuantity > 0)
-        .map(
-          (item) => _LinkedShipmentLineDraft.fromOrderItem(
-            item,
-            onChanged: _draftSession.scheduleSave,
-          ),
-        )
+        .where(_shouldIncludeOrderItemForShipment)
+        .map(_createLinkedOrderLine)
         .toList(growable: false);
 
     if (linkedLines.isEmpty) {
@@ -307,6 +303,19 @@ class _OutgoingWarehouseShipmentCreateSheetState
     });
     _draftSession.scheduleSave();
     _focusFreshLinkedEntryLine();
+  }
+
+  _LinkedShipmentLineDraft _createLinkedOrderLine(
+    WarehouseOrderDetailItem item,
+  ) {
+    final line = _LinkedShipmentLineDraft.fromOrderItem(
+      item,
+      onChanged: _draftSession.scheduleSave,
+    );
+    if (_shouldDetachGreenGrocerOrderLink(line)) {
+      line.clearShipmentQuantity();
+    }
+    return line;
   }
 
   Future<void> _pickProduct(_ManualShipmentLineDraft line) async {
@@ -590,12 +599,18 @@ class _OutgoingWarehouseShipmentCreateSheetState
 
     final product = ProductLookupItem.fromBarcodeResolution(resolution);
     final addedQuantity = resolution.suggestedQuantity;
+    final quantityStep = _quantityStepForResolution(resolution);
     var mergedIntoExisting = false;
     setState(() {
       line.quantityController.text = productEntryController.formatQuantity(
         addedQuantity,
       );
-      mergedIntoExisting = _applyProductToManualLine(line, product);
+      line.quantityStep = quantityStep;
+      mergedIntoExisting = _applyProductToManualLine(
+        line,
+        product,
+        syncQuantityStep: true,
+      );
       if (!mergedIntoExisting) {
         line.setLookupStatus(_resolvedBarcodeMessage(resolution));
       }
@@ -625,12 +640,18 @@ class _OutgoingWarehouseShipmentCreateSheetState
 
     final product = ProductLookupItem.fromBarcodeResolution(resolution);
     final addedQuantity = resolution.suggestedQuantity;
+    final quantityStep = _quantityStepForResolution(resolution);
     var mergedIntoExisting = false;
     setState(() {
       line.quantityController.text = productEntryController.formatQuantity(
         addedQuantity,
       );
-      mergedIntoExisting = _applyProductToLinkedLine(line, product);
+      line.quantityStep = quantityStep;
+      mergedIntoExisting = _applyProductToLinkedLine(
+        line,
+        product,
+        syncQuantityStep: true,
+      );
       if (!mergedIntoExisting) {
         line.setLookupStatus(_resolvedBarcodeMessage(resolution));
       }
@@ -647,6 +668,10 @@ class _OutgoingWarehouseShipmentCreateSheetState
       totalQuantity: _linkedLineQuantityFor(product),
     );
     return true;
+  }
+
+  double _quantityStepForResolution(BarcodeResolutionResult resolution) {
+    return resolution.suggestedQuantity > 0 ? resolution.suggestedQuantity : 1;
   }
 
   bool _isResolutionUsable(
@@ -726,8 +751,7 @@ class _OutgoingWarehouseShipmentCreateSheetState
     if (!_isShipmentResolution(resolution) ||
         !resolution.isFound ||
         resolution.isPassive ||
-        resolution.isBlocked ||
-        resolution.isSalesBlocked) {
+        resolution.isBlocked) {
       return false;
     }
 
@@ -740,7 +764,8 @@ class _OutgoingWarehouseShipmentCreateSheetState
     ].where((message) => message.trim().isNotEmpty).toList(growable: false);
 
     if (messages.isEmpty) {
-      return resolution.isAllowedForTargetWarehouse == false ||
+      return resolution.isSalesBlocked ||
+          resolution.isAllowedForTargetWarehouse == false ||
           resolution.hasPurchaseRequirement == false;
     }
 
@@ -764,8 +789,15 @@ class _OutgoingWarehouseShipmentCreateSheetState
         (normalized.contains('model') || normalized.contains('izinli'));
     final isPurchaseRequirementMessage =
         normalized.contains('satinalma') && normalized.contains('sart');
+    final isSalesBlockedMessage =
+        (normalized.contains('satis') || normalized.contains('sevk')) &&
+        (normalized.contains('kapali') ||
+            normalized.contains('blok') ||
+            normalized.contains('yasak'));
 
-    return isTargetWarehouseModelMessage || isPurchaseRequirementMessage;
+    return isTargetWarehouseModelMessage ||
+        isPurchaseRequirementMessage ||
+        isSalesBlockedMessage;
   }
 
   bool _isShipmentResolution(BarcodeResolutionResult resolution) {
@@ -919,8 +951,9 @@ class _OutgoingWarehouseShipmentCreateSheetState
 
   bool _applyProductToManualLine(
     _ManualShipmentLineDraft line,
-    ProductLookupItem product,
-  ) {
+    ProductLookupItem product, {
+    bool syncQuantityStep = false,
+  }) {
     final existingLine = productEntryController.findDuplicateLine(
       ProductEntryDuplicateMergePolicy<_ManualShipmentLineDraft>(
         currentLine: line,
@@ -949,45 +982,78 @@ class _OutgoingWarehouseShipmentCreateSheetState
                 product.unitMultiplier,
               ),
         );
+    if (syncQuantityStep) {
+      existingLine.quantityStep = line.quantityStep;
+    }
     _recycleMergedManualLine(line, createReplacement: _createManualLine);
     return true;
   }
 
   bool _applyProductToLinkedLine(
     _LinkedShipmentLineDraft line,
-    ProductLookupItem product,
-  ) {
-    final existingLine = productEntryController.findDuplicateLine(
-      ProductEntryDuplicateMergePolicy<_LinkedShipmentLineDraft>(
-        currentLine: line,
-        targetBarcode: product.barcode,
-        targetStockCode: product.stockCode,
-        lines: _linkedLines,
-        lineBarcode: (line) => line.selectedProduct?.barcode ?? '',
-        lineStockCode: (line) => line.stockCode,
-        canMergeLine: (line) =>
-            !line.isOrderLinked && line.selectedProduct != null,
-      ),
-    );
+    ProductLookupItem product, {
+    bool syncQuantityStep = false,
+  }) {
+    final existingLine =
+        _findGreenGrocerLinkedOrderLineForProduct(line, product) ??
+        productEntryController.findDuplicateLine(
+          ProductEntryDuplicateMergePolicy<_LinkedShipmentLineDraft>(
+            currentLine: line,
+            targetBarcode: product.barcode,
+            targetStockCode: product.stockCode,
+            lines: _linkedLines,
+            lineBarcode: (line) => line.selectedProduct?.barcode ?? '',
+            lineStockCode: (line) => line.stockCode,
+            canMergeLine: (line) =>
+                !line.isOrderLinked && line.selectedProduct != null,
+          ),
+        );
 
     if (existingLine == null) {
       line.applyProduct(product);
       return false;
     }
 
+    final increment = productEntryController.quantityInputOrUnitMultiplier(
+      line.quantityController.text,
+      product.unitMultiplier,
+    );
+    final quantity =
+        productEntryController.readQuantity(
+          existingLine.quantityController.text,
+          fallback: 0,
+        ) +
+        increment;
+    existingLine.applyScannedProduct(product);
     existingLine.quantityController.text = productEntryController
-        .formatQuantity(
-          productEntryController.readQuantity(
-                existingLine.quantityController.text,
-                fallback: 0,
-              ) +
-              productEntryController.quantityInputOrUnitMultiplier(
-                line.quantityController.text,
-                product.unitMultiplier,
-              ),
-        );
+        .formatQuantity(quantity);
+    if (syncQuantityStep) {
+      existingLine.quantityStep = line.quantityStep;
+    }
     _recycleMergedLinkedLine(line, createReplacement: _createLinkedLine);
     return true;
+  }
+
+  _LinkedShipmentLineDraft? _findGreenGrocerLinkedOrderLineForProduct(
+    _LinkedShipmentLineDraft currentLine,
+    ProductLookupItem product,
+  ) {
+    final stockCode = product.stockCode.trim();
+    if (stockCode.isEmpty) {
+      return null;
+    }
+
+    for (final line in _linkedLines) {
+      if (identical(line, currentLine) ||
+          !_shouldDetachGreenGrocerOrderLink(line)) {
+        continue;
+      }
+      if (line.stockCode.trim() == stockCode) {
+        return line;
+      }
+    }
+
+    return null;
   }
 
   void _recycleMergedManualLine(
@@ -1110,6 +1176,15 @@ class _OutgoingWarehouseShipmentCreateSheetState
     return line.selectedProduct == null &&
         line.stockCodeController.text.trim().isEmpty &&
         line.barcodeController.text.trim().isEmpty;
+  }
+
+  int _activeShipmentLineCount() {
+    return switch (_mode) {
+      _ShipmentCreateMode.manual =>
+        _manualLines.where((line) => !_isBlankManualLine(line)).length,
+      _ShipmentCreateMode.orderLinked =>
+        _linkedLines.where((line) => !_isBlankLinkedLine(line)).length,
+    };
   }
 
   void _removeManualLine(_ManualShipmentLineDraft line) {
@@ -1300,7 +1375,8 @@ class _OutgoingWarehouseShipmentCreateSheetState
         return null;
       }
 
-      if (line.isOrderLinked && quantity > line.maxQuantity) {
+      final isQuantityLimited = _isLinkedLineQuantityLimited(line);
+      if (isQuantityLimited && quantity > line.maxQuantity) {
         setState(() {
           _validationMessage =
               '${index + 1}. satir icin miktar kalan siparis miktarini asamaz.';
@@ -1310,7 +1386,9 @@ class _OutgoingWarehouseShipmentCreateSheetState
 
       lines.add(
         WarehouseShipmentCreateLine(
-          warehouseOrderLineGuid: line.lineGuid,
+          warehouseOrderLineGuid: _shouldDetachGreenGrocerOrderLink(line)
+              ? null
+              : line.lineGuid,
           stockCode: stockCode,
           quantity: quantity,
           unitPrice: line.selectedProduct?.price ?? line.unitPrice,
@@ -1380,6 +1458,10 @@ class _OutgoingWarehouseShipmentCreateSheetState
                                 'Kaynak depo: ${widget.defaultWarehouseNo}',
                                 style: theme.textTheme.bodySmall,
                               ),
+                              const SizedBox(height: 8),
+                              TerminalLineCountBadge(
+                                count: _activeShipmentLineCount(),
+                              ),
                             ],
                           ),
                         ),
@@ -1392,17 +1474,29 @@ class _OutgoingWarehouseShipmentCreateSheetState
                       ],
                     ),
                   ),
-                  Expanded(
-                    child: ListView(
-                      controller: _scrollController,
-                      padding: const EdgeInsets.all(16),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: <Widget>[
                         _buildShipmentSetupSection(theme),
                         const SizedBox(height: 10),
                         if (_mode == _ShipmentCreateMode.manual)
-                          _buildManualLinesSection(theme)
+                          _buildManualEntrySection(theme)
                         else
-                          _buildOrderLinkedSection(theme),
+                          _buildOrderLinkedEntrySection(theme),
+                      ],
+                    ),
+                  ),
+                  Expanded(
+                    child: ListView(
+                      controller: _scrollController,
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                      children: <Widget>[
+                        if (_mode == _ShipmentCreateMode.manual)
+                          _buildManualFilledLinesSection(theme)
+                        else
+                          _buildOrderLinkedFilledLinesSection(theme),
                         if (_validationMessage != null) ...<Widget>[
                           const SizedBox(height: 12),
                           _ValidationBlock(message: _validationMessage!),
@@ -1537,7 +1631,7 @@ class _OutgoingWarehouseShipmentCreateSheetState
     );
   }
 
-  Widget _buildManualLinesSection(ThemeData theme) {
+  Widget _buildManualEntrySection(ThemeData theme) {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -1563,13 +1657,13 @@ class _OutgoingWarehouseShipmentCreateSheetState
             ),
           ],
           const SizedBox(height: 10),
-          _buildLazyManualLineList(),
+          _buildManualEntryLine(),
         ],
       ),
     );
   }
 
-  Widget _buildOrderLinkedSection(ThemeData theme) {
+  Widget _buildOrderLinkedEntrySection(ThemeData theme) {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -1606,161 +1700,247 @@ class _OutgoingWarehouseShipmentCreateSheetState
               ),
             ),
             const SizedBox(height: 6),
-            _buildLazyLinkedLineList(),
+            _buildLinkedEntryLine(),
           ],
         ],
       ),
     );
   }
 
-  Widget _buildLazyManualLineList() {
-    final entryIndex = _manualLines.indexWhere(_isBlankManualLine);
-    final filledIndexes = <int>[
-      for (var index = 0; index < _manualLines.length; index++)
-        if (!_isBlankManualLine(_manualLines[index])) index,
-    ];
+  Widget _buildManualFilledLinesSection(ThemeData theme) {
+    final filledIndexes = _manualFilledLineIndexes();
+    if (filledIndexes.isEmpty) {
+      return const SizedBox.shrink();
+    }
 
-    return Column(
-      children: <Widget>[
-        if (entryIndex != -1)
-          _ManualShipmentLineCard(
-            lineNumber: 0,
-            isFreshEntry: true,
-            line: _manualLines[entryIndex],
-            isReadyForScanning: _hasTargetWarehouseSelection,
-            canRemove: false,
-            onPickProduct: () => _pickProduct(_manualLines[entryIndex]),
-            onScanWithCamera: () =>
-                _scanProductWithCamera(_manualLines[entryIndex]),
-            onRemove: () => _removeManualLine(_manualLines[entryIndex]),
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: theme.colorScheme.outlineVariant.withAlpha(70),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          const Text(
+            'Eklenen kalemler',
+            style: TextStyle(fontWeight: FontWeight.w700),
           ),
-        if (entryIndex != -1 && filledIndexes.isNotEmpty)
           const SizedBox(height: 8),
-        if (filledIndexes.isNotEmpty && filledIndexes.length <= 3)
-          ...filledIndexes.asMap().entries.map((entry) {
-            final visibleIndex = entry.key;
-            final index = entry.value;
-            final line = _manualLines[index];
-            return Padding(
-              padding: EdgeInsets.only(
-                bottom: visibleIndex == filledIndexes.length - 1 ? 0 : 8,
-              ),
-              child: _ManualShipmentLineCard(
-                lineNumber: visibleIndex + 1,
-                isFreshEntry: false,
-                line: line,
-                isReadyForScanning: _hasTargetWarehouseSelection,
-                canRemove: _manualLines.length > 1,
-                onPickProduct: () => _pickProduct(line),
-                onScanWithCamera: () => _scanProductWithCamera(line),
-                onRemove: () => _removeManualLine(line),
-              ),
-            );
-          })
-        else if (filledIndexes.isNotEmpty)
-          SizedBox(
-            height: _lazyLineListHeight(filledIndexes.length),
-            child: ListView.builder(
-              padding: EdgeInsets.zero,
-              itemCount: filledIndexes.length,
-              itemBuilder: (context, visibleIndex) {
-                final index = filledIndexes[visibleIndex];
-                final line = _manualLines[index];
-                return Padding(
-                  padding: EdgeInsets.only(
-                    bottom: visibleIndex == filledIndexes.length - 1 ? 0 : 8,
-                  ),
-                  child: _ManualShipmentLineCard(
-                    lineNumber: visibleIndex + 1,
-                    isFreshEntry: false,
-                    line: line,
-                    isReadyForScanning: _hasTargetWarehouseSelection,
-                    canRemove: _manualLines.length > 1,
-                    onPickProduct: () => _pickProduct(line),
-                    onScanWithCamera: () => _scanProductWithCamera(line),
-                    onRemove: () => _removeManualLine(line),
-                  ),
-                );
-              },
-            ),
-          ),
-      ],
+          _buildManualFilledLineList(filledIndexes),
+        ],
+      ),
     );
   }
 
-  Widget _buildLazyLinkedLineList() {
+  Widget _buildOrderLinkedFilledLinesSection(ThemeData theme) {
+    final filledIndexes = _linkedFilledLineIndexes();
+    if (filledIndexes.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: theme.colorScheme.outlineVariant.withAlpha(70),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          const Text(
+            'Eklenen kalemler',
+            style: TextStyle(fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 8),
+          _buildLinkedFilledLineList(filledIndexes),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildManualEntryLine() {
+    final entryIndex = _manualLines.indexWhere(_isBlankManualLine);
+    if (entryIndex == -1) {
+      return const SizedBox.shrink();
+    }
+
+    return _ManualShipmentLineCard(
+      lineNumber: 0,
+      isFreshEntry: true,
+      line: _manualLines[entryIndex],
+      isReadyForScanning: _hasTargetWarehouseSelection,
+      canRemove: false,
+      onPickProduct: () => _pickProduct(_manualLines[entryIndex]),
+      onScanWithCamera: () => _scanProductWithCamera(_manualLines[entryIndex]),
+      onRemove: () => _removeManualLine(_manualLines[entryIndex]),
+    );
+  }
+
+  Widget _buildManualFilledLineList(List<int> filledIndexes) {
+    if (filledIndexes.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    if (filledIndexes.length <= 3) {
+      return Column(
+        children: filledIndexes
+            .asMap()
+            .entries
+            .map((entry) {
+              final visibleIndex = entry.key;
+              final index = entry.value;
+              final line = _manualLines[index];
+              return Padding(
+                padding: EdgeInsets.only(
+                  bottom: visibleIndex == filledIndexes.length - 1 ? 0 : 8,
+                ),
+                child: _ManualShipmentLineCard(
+                  lineNumber: visibleIndex + 1,
+                  isFreshEntry: false,
+                  line: line,
+                  isReadyForScanning: _hasTargetWarehouseSelection,
+                  canRemove: _manualLines.length > 1,
+                  onPickProduct: () => _pickProduct(line),
+                  onScanWithCamera: () => _scanProductWithCamera(line),
+                  onRemove: () => _removeManualLine(line),
+                ),
+              );
+            })
+            .toList(growable: false),
+      );
+    }
+
+    return SizedBox(
+      height: _lazyLineListHeight(filledIndexes.length),
+      child: ListView.builder(
+        padding: EdgeInsets.zero,
+        itemCount: filledIndexes.length,
+        itemBuilder: (context, visibleIndex) {
+          final index = filledIndexes[visibleIndex];
+          final line = _manualLines[index];
+          return Padding(
+            padding: EdgeInsets.only(
+              bottom: visibleIndex == filledIndexes.length - 1 ? 0 : 8,
+            ),
+            child: _ManualShipmentLineCard(
+              lineNumber: visibleIndex + 1,
+              isFreshEntry: false,
+              line: line,
+              isReadyForScanning: _hasTargetWarehouseSelection,
+              canRemove: _manualLines.length > 1,
+              onPickProduct: () => _pickProduct(line),
+              onScanWithCamera: () => _scanProductWithCamera(line),
+              onRemove: () => _removeManualLine(line),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  List<int> _manualFilledLineIndexes() {
+    return <int>[
+      for (var index = 0; index < _manualLines.length; index++)
+        if (!_isBlankManualLine(_manualLines[index])) index,
+    ];
+  }
+
+  Widget _buildLinkedEntryLine() {
     final entryIndex = _linkedLines.indexWhere(_isBlankLinkedLine);
-    final filledIndexes = <int>[
+    if (entryIndex == -1) {
+      return const SizedBox.shrink();
+    }
+
+    return _LinkedShipmentLineCard(
+      lineNumber: 0,
+      isFreshEntry: true,
+      line: _linkedLines[entryIndex],
+      isReadyForScanning: _hasTargetWarehouseSelection,
+      isQuantityLimited: _isLinkedLineQuantityLimited(_linkedLines[entryIndex]),
+      canRemove: false,
+      onPickProduct: () => _pickLinkedProduct(_linkedLines[entryIndex]),
+      onScanWithCamera: () =>
+          _scanLinkedProductWithCamera(_linkedLines[entryIndex]),
+      onRemove: () => _removeLinkedLine(_linkedLines[entryIndex]),
+    );
+  }
+
+  Widget _buildLinkedFilledLineList(List<int> filledIndexes) {
+    if (filledIndexes.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    if (filledIndexes.length <= 3) {
+      return Column(
+        children: filledIndexes
+            .asMap()
+            .entries
+            .map((entry) {
+              final visibleIndex = entry.key;
+              final index = entry.value;
+              final line = _linkedLines[index];
+              return Padding(
+                padding: EdgeInsets.only(
+                  bottom: visibleIndex == filledIndexes.length - 1 ? 0 : 8,
+                ),
+                child: _LinkedShipmentLineCard(
+                  lineNumber: visibleIndex + 1,
+                  isFreshEntry: false,
+                  line: line,
+                  isReadyForScanning: _hasTargetWarehouseSelection,
+                  isQuantityLimited: _isLinkedLineQuantityLimited(line),
+                  canRemove: true,
+                  onPickProduct: () => _pickLinkedProduct(line),
+                  onScanWithCamera: () => _scanLinkedProductWithCamera(line),
+                  onRemove: () => _removeLinkedLine(line),
+                ),
+              );
+            })
+            .toList(growable: false),
+      );
+    }
+
+    return SizedBox(
+      height: _lazyLineListHeight(filledIndexes.length),
+      child: ListView.builder(
+        padding: EdgeInsets.zero,
+        itemCount: filledIndexes.length,
+        itemBuilder: (context, visibleIndex) {
+          final index = filledIndexes[visibleIndex];
+          final line = _linkedLines[index];
+          return Padding(
+            padding: EdgeInsets.only(
+              bottom: visibleIndex == filledIndexes.length - 1 ? 0 : 8,
+            ),
+            child: _LinkedShipmentLineCard(
+              lineNumber: visibleIndex + 1,
+              isFreshEntry: false,
+              line: line,
+              isReadyForScanning: _hasTargetWarehouseSelection,
+              isQuantityLimited: _isLinkedLineQuantityLimited(line),
+              canRemove: true,
+              onPickProduct: () => _pickLinkedProduct(line),
+              onScanWithCamera: () => _scanLinkedProductWithCamera(line),
+              onRemove: () => _removeLinkedLine(line),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  List<int> _linkedFilledLineIndexes() {
+    return <int>[
       for (var index = 0; index < _linkedLines.length; index++)
         if (!_isBlankLinkedLine(_linkedLines[index])) index,
     ];
-
-    return Column(
-      children: <Widget>[
-        if (entryIndex != -1)
-          _LinkedShipmentLineCard(
-            lineNumber: 0,
-            isFreshEntry: true,
-            line: _linkedLines[entryIndex],
-            isReadyForScanning: _hasTargetWarehouseSelection,
-            canRemove: false,
-            onPickProduct: () => _pickLinkedProduct(_linkedLines[entryIndex]),
-            onScanWithCamera: () =>
-                _scanLinkedProductWithCamera(_linkedLines[entryIndex]),
-            onRemove: () => _removeLinkedLine(_linkedLines[entryIndex]),
-          ),
-        if (entryIndex != -1 && filledIndexes.isNotEmpty)
-          const SizedBox(height: 8),
-        if (filledIndexes.isNotEmpty && filledIndexes.length <= 3)
-          ...filledIndexes.asMap().entries.map((entry) {
-            final visibleIndex = entry.key;
-            final index = entry.value;
-            final line = _linkedLines[index];
-            return Padding(
-              padding: EdgeInsets.only(
-                bottom: visibleIndex == filledIndexes.length - 1 ? 0 : 8,
-              ),
-              child: _LinkedShipmentLineCard(
-                lineNumber: visibleIndex + 1,
-                isFreshEntry: false,
-                line: line,
-                isReadyForScanning: _hasTargetWarehouseSelection,
-                canRemove: true,
-                onPickProduct: () => _pickLinkedProduct(line),
-                onScanWithCamera: () => _scanLinkedProductWithCamera(line),
-                onRemove: () => _removeLinkedLine(line),
-              ),
-            );
-          })
-        else if (filledIndexes.isNotEmpty)
-          SizedBox(
-            height: _lazyLineListHeight(filledIndexes.length),
-            child: ListView.builder(
-              padding: EdgeInsets.zero,
-              itemCount: filledIndexes.length,
-              itemBuilder: (context, visibleIndex) {
-                final index = filledIndexes[visibleIndex];
-                final line = _linkedLines[index];
-                return Padding(
-                  padding: EdgeInsets.only(
-                    bottom: visibleIndex == filledIndexes.length - 1 ? 0 : 8,
-                  ),
-                  child: _LinkedShipmentLineCard(
-                    lineNumber: visibleIndex + 1,
-                    isFreshEntry: false,
-                    line: line,
-                    isReadyForScanning: _hasTargetWarehouseSelection,
-                    canRemove: true,
-                    onPickProduct: () => _pickLinkedProduct(line),
-                    onScanWithCamera: () => _scanLinkedProductWithCamera(line),
-                    onRemove: () => _removeLinkedLine(line),
-                  ),
-                );
-              },
-            ),
-          ),
-      ],
-    );
   }
 
   double _lazyLineListHeight(int itemCount) {
@@ -1769,6 +1949,57 @@ class _OutgoingWarehouseShipmentCreateSheetState
 
   static int? _parseInt(String value) {
     return int.tryParse(value.trim());
+  }
+
+  bool _shouldIncludeOrderItemForShipment(WarehouseOrderDetailItem item) {
+    if (item.remainingQuantity > 0) {
+      return true;
+    }
+
+    return !_isGreenGrocerOrderLinkingEnabled &&
+        _isGreenGrocerSourceWarehouse &&
+        _isGreenGrocerShipmentModel(
+          modelCode: item.modelCode,
+          stockName: item.stockName,
+        );
+  }
+
+  bool _isLinkedLineQuantityLimited(_LinkedShipmentLineDraft line) {
+    return line.isOrderLinked && !_shouldDetachGreenGrocerOrderLink(line);
+  }
+
+  bool _shouldDetachGreenGrocerOrderLink(_LinkedShipmentLineDraft line) {
+    return !_isGreenGrocerOrderLinkingEnabled &&
+        _isGreenGrocerSourceWarehouse &&
+        _isGreenGrocerShipmentModel(
+          modelCode: line.modelCode,
+          stockName: line.stockName,
+        );
+  }
+
+  bool get _isGreenGrocerOrderLinkingEnabled {
+    return AppConfig.greenGrocerProductCasesOrderLinkingEnabled;
+  }
+
+  bool get _isGreenGrocerSourceWarehouse {
+    return _parseInt(widget.defaultWarehouseNo) == 56;
+  }
+
+  bool _isGreenGrocerShipmentModel({
+    required String modelCode,
+    required String stockName,
+  }) {
+    final normalizedModelCode = modelCode.trim();
+    if (normalizedModelCode == '10' ||
+        normalizedModelCode == '11' ||
+        normalizedModelCode == '12') {
+      return true;
+    }
+
+    final normalizedName = _normalizeDecisionMessage(stockName);
+    return normalizedName == 'mnv' ||
+        normalizedName.startsWith('mnv ') ||
+        normalizedName.startsWith('manav ');
   }
 
   static DateTime _normalizedDate(DateTime value) {
@@ -1824,6 +2055,7 @@ class _ManualShipmentLineCard extends StatelessWidget {
         quantityController: line.quantityController,
         unitLabel: product.unitName,
         barcode: product.barcode,
+        quantityStep: line.quantityStep,
         canDelete: canRemove,
         onDelete: onRemove,
         onMinimumReached: canRemove ? onRemove : null,
@@ -1914,6 +2146,7 @@ class _ManualShipmentLineCard extends StatelessWidget {
             TerminalQuantityStepper(
               controller: line.quantityController,
               label: 'Miktar',
+              step: line.quantityStep,
               onMinimumReached: canRemove ? onRemove : null,
               validator: (value) {
                 final parsed = double.tryParse(
@@ -1938,6 +2171,7 @@ class _LinkedShipmentLineCard extends StatelessWidget {
     required this.isFreshEntry,
     required this.line,
     required this.isReadyForScanning,
+    required this.isQuantityLimited,
     required this.canRemove,
     required this.onPickProduct,
     required this.onScanWithCamera,
@@ -1948,6 +2182,7 @@ class _LinkedShipmentLineCard extends StatelessWidget {
   final bool isFreshEntry;
   final _LinkedShipmentLineDraft line;
   final bool isReadyForScanning;
+  final bool isQuantityLimited;
   final bool canRemove;
   final VoidCallback onPickProduct;
   final VoidCallback onScanWithCamera;
@@ -1965,11 +2200,18 @@ class _LinkedShipmentLineCard extends StatelessWidget {
         quantityController: line.quantityController,
         unitLabel: line.unitName,
         barcode: product?.barcode,
-        priceLabel: line.isOrderLinked
+        quantityStep: line.quantityStep,
+        priceLabel: isQuantityLimited
             ? 'Kalan ${AppFormatters.quantity(line.maxQuantity)}'
+            : line.isOrderLinked
+            ? 'Sip. ${AppFormatters.quantity(line.orderQuantity)}'
             : null,
-        warningLabel: line.isOrderLinked ? 'Siparisli' : null,
-        maximumQuantity: line.isOrderLinked ? line.maxQuantity : null,
+        warningLabel: line.isOrderLinked
+            ? isQuantityLimited
+                  ? 'Siparisli'
+                  : 'Manav'
+            : null,
+        maximumQuantity: isQuantityLimited ? line.maxQuantity : null,
         canDelete: canRemove,
         onDelete: onRemove,
         onMinimumReached: canRemove ? onRemove : null,
@@ -2043,17 +2285,19 @@ class _LinkedShipmentLineCard extends StatelessWidget {
                     label: 'Sip. miktar',
                     value: AppFormatters.quantity(line.orderQuantity),
                   ),
-                  _InfoPill(
-                    label: 'Kalan',
-                    value: AppFormatters.quantity(line.maxQuantity),
-                  ),
+                  if (isQuantityLimited)
+                    _InfoPill(
+                      label: 'Kalan',
+                      value: AppFormatters.quantity(line.maxQuantity),
+                    ),
                 ],
                 SizedBox(
                   width: 210,
                   child: TerminalQuantityStepper(
                     controller: line.quantityController,
                     label: 'Sevk miktari',
-                    maximum: line.isOrderLinked ? line.maxQuantity : null,
+                    step: line.quantityStep,
+                    maximum: isQuantityLimited ? line.maxQuantity : null,
                     onMinimumReached: canRemove ? onRemove : null,
                     validator: (value) {
                       final parsed = double.tryParse(
@@ -2062,7 +2306,7 @@ class _LinkedShipmentLineCard extends StatelessWidget {
                       if (parsed == null || parsed <= 0) {
                         return 'Miktar > 0';
                       }
-                      if (line.isOrderLinked && parsed > line.maxQuantity) {
+                      if (isQuantityLimited && parsed > line.maxQuantity) {
                         return 'Kalan asildi';
                       }
                       return null;
@@ -2763,6 +3007,7 @@ class _ManualShipmentLineDraft {
       stockCodeController.text = draft['stockCode']?.toString() ?? '';
       barcodeController.text = draft['barcode']?.toString() ?? '';
       quantityController.text = draft['quantity']?.toString() ?? '';
+      quantityStep = _shipmentQuantityStep(draft['quantityStep']);
       final productJson = _shipmentDraftMap(draft['selectedProduct']);
       if (productJson != null) {
         selectedProduct = ProductLookupItem.fromJson(productJson);
@@ -2779,6 +3024,7 @@ class _ManualShipmentLineDraft {
   final FocusNode barcodeFocusNode = FocusNode();
   final VoidCallback? onChanged;
   ProductLookupItem? selectedProduct;
+  double quantityStep = 1;
   String? lookupStatusMessage;
   bool isLookupStatusLoading = false;
   bool isLookupStatusError = false;
@@ -2812,6 +3058,7 @@ class _ManualShipmentLineDraft {
     barcodeController.clear();
     quantityController.clear();
     selectedProduct = null;
+    quantityStep = 1;
     lookupStatusMessage = null;
     isLookupStatusLoading = false;
     isLookupStatusError = false;
@@ -2845,6 +3092,7 @@ class _ManualShipmentLineDraft {
       'stockCode': stockCodeController.text,
       'barcode': barcodeController.text,
       'quantity': quantityController.text,
+      'quantityStep': quantityStep,
       'selectedProduct': selectedProduct == null
           ? null
           : _shipmentProductJson(selectedProduct!),
@@ -2857,6 +3105,7 @@ class _ManualShipmentLineDraft {
 class _LinkedShipmentLineDraft {
   _LinkedShipmentLineDraft({
     required this.lineGuid,
+    required this.modelCode,
     required String stockCode,
     required String stockName,
     required String unitName,
@@ -2869,6 +3118,7 @@ class _LinkedShipmentLineDraft {
     required this.lotNo,
     required this.projectCode,
     required this.warehouseOrderNo,
+    this.quantityStep = 1,
     this.selectedProduct,
     this.onChanged,
   }) : stockCodeController = TextEditingController(text: stockCode),
@@ -2886,6 +3136,7 @@ class _LinkedShipmentLineDraft {
   }
 
   final String lineGuid;
+  final String modelCode;
   final TextEditingController stockCodeController;
   final TextEditingController barcodeController;
   final TextEditingController stockNameController;
@@ -2903,6 +3154,7 @@ class _LinkedShipmentLineDraft {
   final FocusNode barcodeFocusNode = FocusNode();
   final VoidCallback? onChanged;
   ProductLookupItem? selectedProduct;
+  double quantityStep;
 
   String get stockCode => stockCodeController.text;
   String get stockName => stockNameController.text;
@@ -2933,6 +3185,7 @@ class _LinkedShipmentLineDraft {
   factory _LinkedShipmentLineDraft.empty({VoidCallback? onChanged}) {
     return _LinkedShipmentLineDraft(
       lineGuid: '',
+      modelCode: '',
       stockCode: '',
       stockName: '',
       unitName: '',
@@ -2955,6 +3208,7 @@ class _LinkedShipmentLineDraft {
   }) {
     return _LinkedShipmentLineDraft(
       lineGuid: item.lineGuid,
+      modelCode: item.modelCode,
       stockCode: item.stockCode,
       stockName: item.stockName,
       unitName: item.unitName,
@@ -2981,6 +3235,7 @@ class _LinkedShipmentLineDraft {
         : ProductLookupItem.fromJson(productJson);
     final draft = _LinkedShipmentLineDraft(
       lineGuid: json['lineGuid']?.toString() ?? '',
+      modelCode: json['modelCode']?.toString() ?? '',
       stockCode: json['stockCode']?.toString() ?? '',
       stockName: json['stockName']?.toString() ?? '',
       unitName: json['unitName']?.toString() ?? '',
@@ -2994,6 +3249,7 @@ class _LinkedShipmentLineDraft {
       lotNo: int.tryParse(json['lotNo']?.toString() ?? '') ?? 0,
       projectCode: json['projectCode']?.toString() ?? '',
       warehouseOrderNo: json['warehouseOrderNo']?.toString() ?? '',
+      quantityStep: _shipmentQuantityStep(json['quantityStep']),
       selectedProduct: selectedProduct,
       onChanged: onChanged,
     );
@@ -3003,16 +3259,24 @@ class _LinkedShipmentLineDraft {
   }
 
   void applyProduct(ProductLookupItem product) {
-    selectedProduct = product;
-    stockCodeController.text = product.stockCode;
-    barcodeController.text = product.barcode;
-    stockNameController.text = product.stockName;
-    unitNameController.text = product.unitName;
+    applyScannedProduct(product);
     if (quantityController.text.trim().isEmpty) {
       quantityController.text = productEntryController.formatQuantity(
         productEntryController.unitMultiplierQuantity(product.unitMultiplier),
       );
     }
+  }
+
+  void applyScannedProduct(ProductLookupItem product) {
+    selectedProduct = product;
+    stockCodeController.text = product.stockCode;
+    barcodeController.text = product.barcode;
+    stockNameController.text = product.stockName;
+    unitNameController.text = product.unitName;
+  }
+
+  void clearShipmentQuantity() {
+    quantityController.clear();
   }
 
   void clear() {
@@ -3023,6 +3287,7 @@ class _LinkedShipmentLineDraft {
     unitNameController.clear();
     quantityController.clear();
     selectedProduct = null;
+    quantityStep = 1;
     _lookupStatusMessage = null;
     _isLookupStatusLoading = false;
     _isLookupStatusError = false;
@@ -3056,6 +3321,7 @@ class _LinkedShipmentLineDraft {
   Map<String, dynamic> toDraftJson() {
     return <String, dynamic>{
       'lineGuid': lineGuid,
+      'modelCode': modelCode,
       'stockCode': stockCode,
       'barcode': barcodeController.text,
       'stockName': stockName,
@@ -3070,6 +3336,7 @@ class _LinkedShipmentLineDraft {
       'projectCode': projectCode,
       'warehouseOrderNo': warehouseOrderNo,
       'quantity': quantityController.text,
+      'quantityStep': quantityStep,
       'selectedProduct': selectedProduct == null
           ? null
           : _shipmentProductJson(selectedProduct!),
@@ -3110,6 +3377,16 @@ Map<String, dynamic>? _shipmentDraftMap(Object? value) {
   };
 }
 
+double _shipmentQuantityStep(Object? value) {
+  final normalized = value?.toString().trim().replaceAll(',', '.') ?? '';
+  final parsed = double.tryParse(normalized);
+  if (parsed == null || parsed <= 0) {
+    return 1;
+  }
+
+  return parsed;
+}
+
 Map<String, dynamic> _shipmentWarehouseJson(WarehouseLookupItem item) {
   return <String, dynamic>{
     'warehouseNo': item.warehouseNo,
@@ -3126,6 +3403,7 @@ Map<String, dynamic> _shipmentProductJson(ProductLookupItem item) {
     'barcode': item.barcode,
     'stockCode': item.stockCode,
     'stockName': item.stockName,
+    'modelCode': item.modelCode,
     'price': item.price,
     'unitName': item.unitName,
     'unitMultiplier': item.unitMultiplier,
@@ -3207,7 +3485,9 @@ Map<String, dynamic> _warehouseOrderDetailItemJson(
     'description': item.description,
     'packageCode': item.packageCode,
     'projectCode': item.projectCode,
+    'modelCode': item.modelCode,
     'lineGuid': item.lineGuid,
+    'greenGrocerCase': item.greenGrocerCase?.toJson(),
   };
 }
 

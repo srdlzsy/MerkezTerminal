@@ -558,74 +558,91 @@ class _StockReceiptCreateSheetState extends State<StockReceiptCreateSheet>
       child: Form(
         key: _formKey,
         autovalidateMode: createFormAutovalidateMode,
-        child: CustomScrollView(
-          slivers: <Widget>[
-            SliverList.list(
-              children: <Widget>[
-                TerminalSheetHeader(
-                  title: widget.kind.createTitle,
-                  subtitle:
-                      'Creator ve acceptor alanlari evrak notu gibi calisir. Satirlar yalnizca secilen kullanici deposu icin cikis hareketine doner.',
-                  padding: EdgeInsets.zero,
-                ),
-                const SizedBox(height: 16),
-                Wrap(
-                  spacing: 10,
-                  runSpacing: 10,
-                  children: <Widget>[
-                    SizedBox(
-                      width: 220,
-                      child: TextFormField(
-                        controller: _creatorController,
-                        decoration: const InputDecoration(labelText: 'Creator'),
-                      ),
-                    ),
-                    SizedBox(
-                      width: 220,
-                      child: TextFormField(
-                        controller: _acceptorController,
-                        decoration: const InputDecoration(
-                          labelText: 'Acceptor',
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: _descriptionController,
-                  minLines: 2,
-                  maxLines: 3,
-                  decoration: const InputDecoration(labelText: 'Aciklama'),
-                ),
-                const SizedBox(height: 12),
-                TerminalSectionToolbar(
-                  title: 'Satirlar',
-                  actions: const <Widget>[],
-                ),
-                const SizedBox(height: 10),
-                _buildEntryLineCard(),
-                const SizedBox(height: 8),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
+            TerminalSheetHeader(
+              title: widget.kind.createTitle,
+              subtitle:
+                  'Creator ve acceptor alanlari evrak notu gibi calisir. Satirlar yalnizca secilen kullanici deposu icin cikis hareketine doner.',
+              badges: <Widget>[
+                TerminalLineCountBadge(count: _filledLineIndexes().length),
               ],
+              padding: EdgeInsets.zero,
             ),
-            _buildLazyLineSliver(),
-            SliverToBoxAdapter(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: <Widget>[
-                  if (_lookupError != null) ...<Widget>[
-                    TerminalMessageBlock.error(message: _lookupError!),
+            const SizedBox(height: 16),
+            Flexible(
+              child: SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: <Widget>[
+                    Wrap(
+                      spacing: 10,
+                      runSpacing: 10,
+                      children: <Widget>[
+                        SizedBox(
+                          width: 220,
+                          child: TextFormField(
+                            controller: _creatorController,
+                            decoration: const InputDecoration(
+                              labelText: 'Creator',
+                            ),
+                          ),
+                        ),
+                        SizedBox(
+                          width: 220,
+                          child: TextFormField(
+                            controller: _acceptorController,
+                            decoration: const InputDecoration(
+                              labelText: 'Acceptor',
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: _descriptionController,
+                      minLines: 2,
+                      maxLines: 3,
+                      decoration: const InputDecoration(labelText: 'Aciklama'),
+                    ),
                     const SizedBox(height: 12),
                   ],
-                  TerminalFormActionRow(
-                    cancel: OutlinedButton(
-                      onPressed: () => Navigator.of(context).pop(),
-                      child: const Text('Vazgec'),
-                    ),
-                    submit: FilledButton.icon(
-                      onPressed: _submit,
-                      icon: const Icon(Icons.save_alt_rounded),
-                      label: const Text('Kaydet'),
+                ),
+              ),
+            ),
+            TerminalSectionToolbar(
+              title: 'Satirlar',
+              actions: const <Widget>[],
+            ),
+            const SizedBox(height: 10),
+            _buildEntryLineCard(),
+            const SizedBox(height: 8),
+            Expanded(
+              child: CustomScrollView(
+                slivers: <Widget>[
+                  _buildLazyLineSliver(),
+                  SliverToBoxAdapter(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: <Widget>[
+                        if (_lookupError != null) ...<Widget>[
+                          TerminalMessageBlock.error(message: _lookupError!),
+                          const SizedBox(height: 12),
+                        ],
+                        TerminalFormActionRow(
+                          cancel: OutlinedButton(
+                            onPressed: () => Navigator.of(context).pop(),
+                            child: const Text('Vazgec'),
+                          ),
+                          submit: FilledButton.icon(
+                            onPressed: _submit,
+                            icon: const Icon(Icons.save_alt_rounded),
+                            label: const Text('Kaydet'),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ],
