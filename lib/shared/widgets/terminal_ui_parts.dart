@@ -620,7 +620,7 @@ class TerminalSectionToolbar extends StatelessWidget {
       title,
       style: Theme.of(
         context,
-      ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
+      ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900, height: 1),
     );
 
     return LayoutBuilder(
@@ -943,7 +943,7 @@ class TerminalPdaLineCard extends StatelessWidget {
 
     return Container(
       width: double.infinity,
-      margin: const EdgeInsets.only(bottom: 7),
+      margin: const EdgeInsets.only(bottom: 6),
       decoration: BoxDecoration(
         color: isEntryLine
             ? theme.colorScheme.primaryContainer.withAlpha(42)
@@ -966,7 +966,7 @@ class TerminalPdaLineCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
           Padding(
-            padding: const EdgeInsets.fromLTRB(8, 7, 8, 5),
+            padding: const EdgeInsets.fromLTRB(8, 5, 8, 4),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: <Widget>[
@@ -1026,7 +1026,7 @@ class TerminalPdaLineCard extends StatelessWidget {
             ),
           ),
           const Divider(height: 1),
-          Padding(padding: const EdgeInsets.all(7), child: child),
+          Padding(padding: const EdgeInsets.all(6), child: child),
         ],
       ),
     );
@@ -1774,7 +1774,7 @@ class TerminalSheetHeader extends StatelessWidget {
     required this.title,
     this.subtitle,
     this.badges = const <Widget>[],
-    this.padding = const EdgeInsets.fromLTRB(20, 16, 12, 12),
+    this.padding = const EdgeInsets.fromLTRB(12, 8, 8, 8),
     this.elevated = false,
   });
 
@@ -1803,44 +1803,57 @@ class TerminalSheetHeader extends StatelessWidget {
             : null,
       ),
       child: Row(
-        crossAxisAlignment: subtitle == null
-            ? CrossAxisAlignment.center
-            : CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: <Widget>[
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: <Widget>[
-                Text(
-                  title,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.w800,
-                  ),
+                Row(
+                  children: <Widget>[
+                    Expanded(
+                      child: Text(
+                        title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          height: 1.05,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ),
+                    if (badges.isNotEmpty) ...<Widget>[
+                      const SizedBox(width: 6),
+                      Flexible(
+                        child: Wrap(
+                          spacing: 4,
+                          runSpacing: 4,
+                          children: badges,
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
                 if (subtitle != null) ...<Widget>[
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 2),
                   Text(
                     subtitle!,
-                    style: theme.textTheme.bodyMedium?.copyWith(height: 1.35),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.bodySmall?.copyWith(height: 1.15),
                   ),
-                ],
-                if (badges.isNotEmpty) ...<Widget>[
-                  const SizedBox(height: 8),
-                  Wrap(spacing: 6, runSpacing: 6, children: badges),
                 ],
               ],
             ),
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: 6),
           IconButton(
             onPressed: () => Navigator.of(context).pop(),
-            icon: const Icon(Icons.close_rounded, size: 26),
+            icon: const Icon(Icons.close_rounded, size: 22),
             tooltip: 'Kapat',
             padding: EdgeInsets.zero,
-            constraints: const BoxConstraints.tightFor(width: 44, height: 44),
+            constraints: const BoxConstraints.tightFor(width: 36, height: 36),
           ),
         ],
       ),
@@ -1858,7 +1871,7 @@ class TerminalLineCountBadge extends StatelessWidget {
     final theme = Theme.of(context);
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
       decoration: BoxDecoration(
         color: theme.colorScheme.primary.withAlpha(16),
         borderRadius: BorderRadius.circular(999),
@@ -1869,6 +1882,7 @@ class TerminalLineCountBadge extends StatelessWidget {
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
         style: theme.textTheme.labelSmall?.copyWith(
+          height: 1,
           color: theme.colorScheme.primary,
           fontWeight: FontWeight.w900,
         ),

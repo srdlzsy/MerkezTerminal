@@ -1078,7 +1078,7 @@ class _CompanyAcceptanceCreateSheetState
     final viewInsets = MediaQuery.viewInsetsOf(context);
 
     return Padding(
-      padding: EdgeInsets.fromLTRB(20, 8, 20, 20 + viewInsets.bottom),
+      padding: EdgeInsets.fromLTRB(12, 6, 12, 12 + viewInsets.bottom),
       child: Form(
         key: _formKey,
         autovalidateMode: createFormAutovalidateMode,
@@ -1094,7 +1094,7 @@ class _CompanyAcceptanceCreateSheetState
               ],
               padding: EdgeInsets.zero,
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 8),
             Flexible(
               child: SingleChildScrollView(
                 child: Column(
@@ -1109,9 +1109,9 @@ class _CompanyAcceptanceCreateSheetState
                         ),
                       ),
                     ],
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 8),
                     _buildCustomerLookupRow(),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 8),
                     TextFormField(
                       controller: _customerCodeController,
                       decoration: const InputDecoration(
@@ -1130,15 +1130,15 @@ class _CompanyAcceptanceCreateSheetState
                         return null;
                       },
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 6),
                     _buildDocumentDetailsSection(),
                   ],
                 ),
               ),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 6),
             _buildLinesToolbar(),
-            const SizedBox(height: 10),
+            const SizedBox(height: 6),
             _buildEntryLineCard(),
             const SizedBox(height: 8),
             Expanded(
@@ -1519,7 +1519,7 @@ class _CompanyAcceptanceCreateSheetState
       'Satirlar',
       style: Theme.of(
         context,
-      ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
+      ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900, height: 1),
     );
 
     final orderButton = OutlinedButton.icon(
@@ -1532,7 +1532,7 @@ class _CompanyAcceptanceCreateSheetState
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        if (constraints.maxWidth < 360) {
+        if (constraints.maxWidth < 400) {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[

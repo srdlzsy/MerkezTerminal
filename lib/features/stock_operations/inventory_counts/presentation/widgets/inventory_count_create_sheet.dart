@@ -488,7 +488,7 @@ class _InventoryCountCreateSheetState extends State<InventoryCountCreateSheet>
       child: Padding(
         padding: EdgeInsets.only(bottom: viewInsets.bottom),
         child: FractionallySizedBox(
-          heightFactor: 0.94,
+          heightFactor: 0.97,
           child: Material(
             color: theme.scaffoldBackgroundColor,
             child: Form(
@@ -496,53 +496,18 @@ class _InventoryCountCreateSheetState extends State<InventoryCountCreateSheet>
               autovalidateMode: createFormAutovalidateMode,
               child: Column(
                 children: <Widget>[
-                  Container(
-                    padding: const EdgeInsets.fromLTRB(16, 14, 10, 10),
-                    decoration: BoxDecoration(
-                      color: theme.colorScheme.surface,
-                      boxShadow: <BoxShadow>[
-                        BoxShadow(
-                          color: Colors.black.withAlpha(14),
-                          blurRadius: 3,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    child: Row(
-                      children: <Widget>[
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: <Widget>[
-                              Text(
-                                'Yeni Sayim Sonucu',
-                                style: theme.textTheme.titleLarge?.copyWith(
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                'Depo: ${widget.defaultWarehouseNo}',
-                                style: theme.textTheme.bodySmall,
-                              ),
-                              const SizedBox(height: 8),
-                              TerminalLineCountBadge(
-                                count: _filledLineIndexes().length,
-                              ),
-                            ],
-                          ),
-                        ),
-                        IconButton(
-                          onPressed: () => Navigator.of(context).pop(),
-                          icon: const Icon(Icons.close_rounded, size: 26),
-                          padding: EdgeInsets.zero,
-                          constraints: const BoxConstraints(),
-                        ),
-                      ],
-                    ),
+                  TerminalSheetHeader(
+                    title: 'Yeni Sayim Sonucu',
+                    subtitle: 'Depo: ${widget.defaultWarehouseNo}',
+                    badges: <Widget>[
+                      TerminalLineCountBadge(
+                        count: _filledLineIndexes().length,
+                      ),
+                    ],
+                    elevated: true,
                   ),
                   Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                    padding: const EdgeInsets.fromLTRB(12, 8, 12, 6),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: <Widget>[
@@ -594,7 +559,7 @@ class _InventoryCountCreateSheetState extends State<InventoryCountCreateSheet>
                       slivers: <Widget>[
                         _buildLazyLineSliver(theme),
                         SliverPadding(
-                          padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                          padding: const EdgeInsets.fromLTRB(12, 6, 12, 12),
                           sliver: SliverToBoxAdapter(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -772,7 +737,7 @@ class _InventoryCountCreateSheetState extends State<InventoryCountCreateSheet>
     }
 
     return SliverPadding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 12),
       sliver: SliverList(
         delegate: SliverChildBuilderDelegate((context, visibleIndex) {
           final index = indexes[visibleIndex];

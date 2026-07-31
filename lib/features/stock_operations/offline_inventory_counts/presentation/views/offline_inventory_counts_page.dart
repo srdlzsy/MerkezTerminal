@@ -778,7 +778,7 @@ class _OfflineInventoryCountCreateSheetState
     return Material(
       color: Theme.of(context).scaffoldBackgroundColor,
       child: Padding(
-        padding: EdgeInsets.fromLTRB(20, 8, 20, 20 + viewInsets.bottom),
+        padding: EdgeInsets.fromLTRB(12, 6, 12, 12 + viewInsets.bottom),
         child: Form(
           key: _formKey,
           autovalidateMode: createFormAutovalidateMode,
@@ -794,7 +794,7 @@ class _OfflineInventoryCountCreateSheetState
                 ],
                 padding: EdgeInsets.zero,
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 8),
               Flexible(
                 child: SingleChildScrollView(
                   child: Column(
@@ -812,13 +812,13 @@ class _OfflineInventoryCountCreateSheetState
                           return null;
                         },
                       ),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: 8),
                       TerminalFilterButton(
                         label: 'Belge Tarihi',
                         value: AppFormatters.date(_documentDate),
                         onPressed: _pickDate,
                       ),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: 8),
                     ],
                   ),
                 ),
@@ -827,7 +827,7 @@ class _OfflineInventoryCountCreateSheetState
                 title: 'Satirlar',
                 actions: const <Widget>[],
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: 6),
               _buildEntryLineCard(),
               const SizedBox(height: 8),
               Expanded(

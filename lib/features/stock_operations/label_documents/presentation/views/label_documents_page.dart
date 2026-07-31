@@ -883,7 +883,7 @@ class _LabelDocumentCreateSheetState extends State<_LabelDocumentCreateSheet> {
     final viewInsets = MediaQuery.viewInsetsOf(context);
 
     return Padding(
-      padding: EdgeInsets.fromLTRB(20, 8, 20, 20 + viewInsets.bottom),
+      padding: EdgeInsets.fromLTRB(12, 6, 12, 12 + viewInsets.bottom),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: <Widget>[
@@ -896,7 +896,7 @@ class _LabelDocumentCreateSheetState extends State<_LabelDocumentCreateSheet> {
             ],
             padding: EdgeInsets.zero,
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 8),
           _buildEntryLineCard(),
           const SizedBox(height: 8),
           Expanded(

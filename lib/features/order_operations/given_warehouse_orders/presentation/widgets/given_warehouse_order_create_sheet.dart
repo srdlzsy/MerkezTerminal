@@ -784,7 +784,7 @@ class _GivenWarehouseOrderCreateSheetState
       child: Padding(
         padding: EdgeInsets.only(bottom: viewInsets.bottom),
         child: FractionallySizedBox(
-          heightFactor: 0.94,
+          heightFactor: 0.97,
           child: Material(
             color: theme.scaffoldBackgroundColor,
             child: Form(
@@ -792,55 +792,19 @@ class _GivenWarehouseOrderCreateSheetState
               autovalidateMode: createFormAutovalidateMode,
               child: Column(
                 children: [
-                  // ========== HEADER (Sabit) ==========
-                  Container(
-                    padding: const EdgeInsets.fromLTRB(20, 16, 12, 12),
-                    decoration: BoxDecoration(
-                      color: theme.colorScheme.surface,
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withAlpha(20),
-                          blurRadius: 4,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Yeni Verilen Depo Siparisi',
-                                style: theme.textTheme.titleLarge?.copyWith(
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                'Kaynak depo: ${widget.defaultWarehouseNo}',
-                                style: theme.textTheme.bodySmall,
-                              ),
-                              const SizedBox(height: 8),
-                              TerminalLineCountBadge(
-                                count: _filledLineIndexes().length,
-                              ),
-                            ],
-                          ),
-                        ),
-                        IconButton(
-                          onPressed: () => Navigator.of(context).pop(),
-                          icon: const Icon(Icons.close_rounded, size: 28),
-                          padding: EdgeInsets.zero,
-                          constraints: const BoxConstraints(),
-                        ),
-                      ],
-                    ),
+                  TerminalSheetHeader(
+                    title: 'Yeni Verilen Depo Siparisi',
+                    subtitle: 'Kaynak depo: ${widget.defaultWarehouseNo}',
+                    badges: <Widget>[
+                      TerminalLineCountBadge(
+                        count: _filledLineIndexes().length,
+                      ),
+                    ],
+                    elevated: true,
                   ),
 
                   Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                    padding: const EdgeInsets.fromLTRB(12, 8, 12, 6),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: <Widget>[
@@ -862,7 +826,7 @@ class _GivenWarehouseOrderCreateSheetState
                       slivers: <Widget>[
                         _buildLazyLineSliver(theme),
                         SliverPadding(
-                          padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                          padding: const EdgeInsets.fromLTRB(12, 6, 12, 12),
                           sliver: SliverToBoxAdapter(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1067,7 +1031,7 @@ class _GivenWarehouseOrderCreateSheetState
     }
 
     return SliverPadding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 12),
       sliver: SliverList(
         delegate: SliverChildBuilderDelegate((context, visibleIndex) {
           final index = indexes[visibleIndex];

@@ -1421,7 +1421,7 @@ class _OutgoingWarehouseShipmentCreateSheetState
       child: Padding(
         padding: EdgeInsets.only(bottom: viewInsets.bottom),
         child: FractionallySizedBox(
-          heightFactor: 0.94,
+          heightFactor: 0.97,
           child: Material(
             color: theme.scaffoldBackgroundColor,
             child: Form(
@@ -1429,53 +1429,16 @@ class _OutgoingWarehouseShipmentCreateSheetState
               autovalidateMode: createFormAutovalidateMode,
               child: Column(
                 children: <Widget>[
-                  Container(
-                    padding: const EdgeInsets.fromLTRB(20, 16, 12, 12),
-                    decoration: BoxDecoration(
-                      color: theme.colorScheme.surface,
-                      boxShadow: <BoxShadow>[
-                        BoxShadow(
-                          color: Colors.black.withAlpha(20),
-                          blurRadius: 4,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    child: Row(
-                      children: <Widget>[
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: <Widget>[
-                              Text(
-                                'Yeni Giden Depolar Arasi Sevk',
-                                style: theme.textTheme.titleLarge?.copyWith(
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                'Kaynak depo: ${widget.defaultWarehouseNo}',
-                                style: theme.textTheme.bodySmall,
-                              ),
-                              const SizedBox(height: 8),
-                              TerminalLineCountBadge(
-                                count: _activeShipmentLineCount(),
-                              ),
-                            ],
-                          ),
-                        ),
-                        IconButton(
-                          onPressed: () => Navigator.of(context).pop(),
-                          icon: const Icon(Icons.close_rounded, size: 28),
-                          padding: EdgeInsets.zero,
-                          constraints: const BoxConstraints(),
-                        ),
-                      ],
-                    ),
+                  TerminalSheetHeader(
+                    title: 'Yeni Giden Depolar Arasi Sevk',
+                    subtitle: 'Kaynak depo: ${widget.defaultWarehouseNo}',
+                    badges: <Widget>[
+                      TerminalLineCountBadge(count: _activeShipmentLineCount()),
+                    ],
+                    elevated: true,
                   ),
                   Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                    padding: const EdgeInsets.fromLTRB(12, 8, 12, 6),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: <Widget>[
@@ -1491,7 +1454,7 @@ class _OutgoingWarehouseShipmentCreateSheetState
                   Expanded(
                     child: ListView(
                       controller: _scrollController,
-                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                      padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
                       children: <Widget>[
                         if (_mode == _ShipmentCreateMode.manual)
                           _buildManualFilledLinesSection(theme)
@@ -1535,7 +1498,7 @@ class _OutgoingWarehouseShipmentCreateSheetState
 
   Widget _buildShipmentSetupSection(ThemeData theme) {
     return Container(
-      padding: const EdgeInsets.all(10),
+      padding: const EdgeInsets.all(6),
       decoration: BoxDecoration(
         color: theme.colorScheme.surface,
         borderRadius: BorderRadius.circular(10),
@@ -1583,22 +1546,24 @@ class _OutgoingWarehouseShipmentCreateSheetState
             },
           );
 
-          if (constraints.maxWidth < 520) {
+          if (constraints.maxWidth < 300) {
             return Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: <Widget>[
                 modeSelector,
-                const SizedBox(height: 8),
+                const SizedBox(height: 6),
                 targetWarehouseField,
               ],
             );
           }
 
+          final selectorWidth = constraints.maxWidth < 360 ? 128.0 : 176.0;
+
           return Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
-              SizedBox(width: 214, child: modeSelector),
-              const SizedBox(width: 10),
+              SizedBox(width: selectorWidth, child: modeSelector),
+              const SizedBox(width: 8),
               Expanded(child: targetWarehouseField),
             ],
           );
@@ -1633,7 +1598,7 @@ class _OutgoingWarehouseShipmentCreateSheetState
 
   Widget _buildManualEntrySection(ThemeData theme) {
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
         color: theme.colorScheme.surface,
         borderRadius: BorderRadius.circular(12),
@@ -1644,19 +1609,13 @@ class _OutgoingWarehouseShipmentCreateSheetState
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          const Text(
-            'Sevk satirlari',
-            style: TextStyle(fontWeight: FontWeight.w700),
-          ),
-          const SizedBox(height: 8),
           if (!_hasTargetWarehouseSelection) ...<Widget>[
-            const SizedBox(height: 10),
             const _ValidationBlock(
               message:
                   'Manuel sevk satirlarina gecmeden once hedef depo secilmelidir.',
             ),
+            const SizedBox(height: 6),
           ],
-          const SizedBox(height: 10),
           _buildManualEntryLine(),
         ],
       ),
@@ -1665,7 +1624,7 @@ class _OutgoingWarehouseShipmentCreateSheetState
 
   Widget _buildOrderLinkedEntrySection(ThemeData theme) {
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
         color: theme.colorScheme.surface,
         borderRadius: BorderRadius.circular(12),
@@ -1714,7 +1673,7 @@ class _OutgoingWarehouseShipmentCreateSheetState
     }
 
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
         color: theme.colorScheme.surface,
         borderRadius: BorderRadius.circular(12),
@@ -1724,14 +1683,7 @@ class _OutgoingWarehouseShipmentCreateSheetState
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          const Text(
-            'Eklenen kalemler',
-            style: TextStyle(fontWeight: FontWeight.w700),
-          ),
-          const SizedBox(height: 8),
-          _buildManualFilledLineList(filledIndexes),
-        ],
+        children: <Widget>[_buildManualFilledLineList(filledIndexes)],
       ),
     );
   }
@@ -1743,7 +1695,7 @@ class _OutgoingWarehouseShipmentCreateSheetState
     }
 
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
         color: theme.colorScheme.surface,
         borderRadius: BorderRadius.circular(12),
@@ -1753,14 +1705,7 @@ class _OutgoingWarehouseShipmentCreateSheetState
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          const Text(
-            'Eklenen kalemler',
-            style: TextStyle(fontWeight: FontWeight.w700),
-          ),
-          const SizedBox(height: 8),
-          _buildLinkedFilledLineList(filledIndexes),
-        ],
+        children: <Widget>[_buildLinkedFilledLineList(filledIndexes)],
       ),
     );
   }
@@ -3551,7 +3496,7 @@ class _ShipmentModeButton extends StatelessWidget {
         onTap: onTap,
         borderRadius: BorderRadius.circular(8),
         child: SizedBox(
-          height: 40,
+          height: 34,
           child: Center(
             child: FittedBox(
               fit: BoxFit.scaleDown,

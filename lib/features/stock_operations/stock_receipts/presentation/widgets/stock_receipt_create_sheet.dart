@@ -554,7 +554,7 @@ class _StockReceiptCreateSheetState extends State<StockReceiptCreateSheet>
     final viewInsets = MediaQuery.viewInsetsOf(context);
 
     return Padding(
-      padding: EdgeInsets.fromLTRB(20, 8, 20, 20 + viewInsets.bottom),
+      padding: EdgeInsets.fromLTRB(12, 6, 12, 12 + viewInsets.bottom),
       child: Form(
         key: _formKey,
         autovalidateMode: createFormAutovalidateMode,
@@ -570,7 +570,7 @@ class _StockReceiptCreateSheetState extends State<StockReceiptCreateSheet>
               ],
               padding: EdgeInsets.zero,
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 8),
             Flexible(
               child: SingleChildScrollView(
                 child: Column(
@@ -578,7 +578,7 @@ class _StockReceiptCreateSheetState extends State<StockReceiptCreateSheet>
                   children: <Widget>[
                     Wrap(
                       spacing: 10,
-                      runSpacing: 10,
+                      runSpacing: 8,
                       children: <Widget>[
                         SizedBox(
                           width: 220,
@@ -600,14 +600,14 @@ class _StockReceiptCreateSheetState extends State<StockReceiptCreateSheet>
                         ),
                       ],
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 8),
                     TextFormField(
                       controller: _descriptionController,
                       minLines: 2,
                       maxLines: 3,
                       decoration: const InputDecoration(labelText: 'Aciklama'),
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 8),
                   ],
                 ),
               ),
@@ -616,7 +616,7 @@ class _StockReceiptCreateSheetState extends State<StockReceiptCreateSheet>
               title: 'Satirlar',
               actions: const <Widget>[],
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 6),
             _buildEntryLineCard(),
             const SizedBox(height: 8),
             Expanded(
