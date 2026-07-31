@@ -1155,8 +1155,7 @@ class _OutgoingWarehouseShipmentCreateSheetState
   bool _isBlankLinkedLine(_LinkedShipmentLineDraft line) {
     return !line.isOrderLinked &&
         line.selectedProduct == null &&
-        line.stockCode.trim().isEmpty &&
-        line.barcodeController.text.trim().isEmpty;
+        line.stockCode.trim().isEmpty;
   }
 
   void _focusFreshManualEntryLine() {
@@ -1174,8 +1173,7 @@ class _OutgoingWarehouseShipmentCreateSheetState
 
   bool _isBlankManualLine(_ManualShipmentLineDraft line) {
     return line.selectedProduct == null &&
-        line.stockCodeController.text.trim().isEmpty &&
-        line.barcodeController.text.trim().isEmpty;
+        line.stockCodeController.text.trim().isEmpty;
   }
 
   int _activeShipmentLineCount() {

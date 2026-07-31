@@ -449,8 +449,7 @@ class _WarehouseReturnCreateSheetState extends State<WarehouseReturnCreateSheet>
 
   bool _isBlankLine(_ReturnLineDraft line) {
     return line.selectedProduct == null &&
-        line.stockCodeController.text.trim().isEmpty &&
-        line.lookupController.text.trim().isEmpty;
+        line.stockCodeController.text.trim().isEmpty;
   }
 
   bool _applyProductToLine(_ReturnLineDraft line, ProductLookupItem product) {

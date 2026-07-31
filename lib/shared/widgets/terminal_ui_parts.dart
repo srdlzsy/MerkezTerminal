@@ -355,7 +355,7 @@ class TerminalResponsiveLookupRow extends StatelessWidget {
     required this.field,
     required this.action,
     this.trailingAction,
-    this.breakpoint = 430,
+    this.breakpoint = 360,
     this.spacing = 8,
   });
 
@@ -2063,7 +2063,7 @@ class TerminalMessageBlock extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
         color: backgroundColor,
         borderRadius: BorderRadius.circular(8),

@@ -312,8 +312,7 @@ class _GivenWarehouseOrderCreateSheetState
 
   bool _isBlankLine(_CreateLineDraft line) {
     return line.selectedProduct == null &&
-        line.stockCodeController.text.trim().isEmpty &&
-        line.barcodeController.text.trim().isEmpty;
+        line.stockCodeController.text.trim().isEmpty;
   }
 
   bool _applyProductToLine(_CreateLineDraft line, ProductLookupItem product) {

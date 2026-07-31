@@ -564,8 +564,7 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
   }
 
   bool _isBlankLine(_MovementLineDraft line) {
-    return line.selectedProduct == null &&
-        line.lookupController.text.trim().isEmpty;
+    return line.selectedProduct == null;
   }
 
   Future<void> _submit() async {
@@ -657,30 +656,30 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
               padding: EdgeInsets.zero,
             ),
             const SizedBox(height: 8),
-            Flexible(
-              child: SingleChildScrollView(
-                child: TerminalResponsiveLookupRow(
-                  breakpoint: 360,
-                  field: TextFormField(
-                    controller: _customerController,
-                    decoration: const InputDecoration(
-                      labelText: 'Cari',
-                      hintText: 'Cari adi veya kodu',
-                    ),
-                    validator: (_) {
-                      if (_selectedCustomer == null) {
-                        return 'Cari secimi zorunludur.';
-                      }
-
-                      return null;
-                    },
-                  ),
-                  action: FilledButton.icon(
-                    onPressed: _searchCustomer,
-                    icon: const Icon(Icons.search_rounded),
-                    label: const Text('Bul'),
+            TerminalResponsiveLookupRow(
+              field: TextFormField(
+                controller: _customerController,
+                decoration: const InputDecoration(
+                  labelText: 'Cari',
+                  hintText: 'Cari adi veya kodu',
+                  isDense: true,
+                  contentPadding: EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 10,
                   ),
                 ),
+                validator: (_) {
+                  if (_selectedCustomer == null) {
+                    return 'Cari secimi zorunludur.';
+                  }
+
+                  return null;
+                },
+              ),
+              action: FilledButton.icon(
+                onPressed: _searchCustomer,
+                icon: const Icon(Icons.search_rounded),
+                label: const Text('Bul'),
               ),
             ),
             const SizedBox(height: 8),

@@ -403,8 +403,7 @@ class _GivenCompanyOrderCreateSheetState
 
   bool _isBlankLine(_CompanyOrderLineDraft line) {
     return line.selectedProduct == null &&
-        line.stockCodeController.text.trim().isEmpty &&
-        line.barcodeController.text.trim().isEmpty;
+        line.stockCodeController.text.trim().isEmpty;
   }
 
   void _removeLine(_CompanyOrderLineDraft line) {

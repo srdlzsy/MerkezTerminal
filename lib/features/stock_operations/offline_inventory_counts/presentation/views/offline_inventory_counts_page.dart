@@ -707,9 +707,7 @@ class _OfflineInventoryCountCreateSheetState
   }
 
   bool _isBlankLine(_OfflineLineDraft line) {
-    return line.lookupController.text.trim().isEmpty &&
-        line.stockCodeController.text.trim().isEmpty &&
-        line.barcodeController.text.trim().isEmpty;
+    return line.stockCodeController.text.trim().isEmpty;
   }
 
   void _showFeedback(String message) {

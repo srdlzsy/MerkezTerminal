@@ -11,6 +11,7 @@ import 'package:furpa_merkez_terminal/shared/drafts/create_draft_session.dart';
 import 'package:furpa_merkez_terminal/shared/formatters/app_formatters.dart';
 import 'package:furpa_merkez_terminal/shared/offline/mobile_customer_catalog_repository.dart';
 import 'package:furpa_merkez_terminal/shared/offline/mobile_product_catalog_repository.dart';
+import 'package:furpa_merkez_terminal/shared/product_entry/product_entry_widgets.dart';
 import 'package:furpa_merkez_terminal/shared/utils/client_request_id.dart';
 import 'package:furpa_merkez_terminal/shared/utils/create_form_validation.dart';
 import 'package:furpa_merkez_terminal/shared/utils/e_despatch_qr_parser.dart';
@@ -761,8 +762,7 @@ class _CompanyAcceptanceCreateSheetState
 
   bool _isBlankLine(_AcceptanceLineDraft line) {
     return line.selectedProduct == null &&
-        line.stockCodeController.text.trim().isEmpty &&
-        line.lookupController.text.trim().isEmpty;
+        line.stockCodeController.text.trim().isEmpty;
   }
 
   Future<void> _addLinesFromOpenOrders() async {
@@ -1095,28 +1095,36 @@ class _CompanyAcceptanceCreateSheetState
               padding: EdgeInsets.zero,
             ),
             const SizedBox(height: 8),
-            Flexible(
+            ConstrainedBox(
+              constraints: BoxConstraints(
+                maxHeight: _setupMaxHeight(context, maxHeight: 240),
+              ),
               child: SingleChildScrollView(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: <Widget>[
                     _buildEDespatchLookupRow(),
                     if (_lastEDespatchPrefill != null) ...<Widget>[
-                      const SizedBox(height: 10),
+                      const SizedBox(height: 6),
                       TerminalMessageBlock.info(
                         message: _eDespatchSummaryMessage(
                           _lastEDespatchPrefill!,
                         ),
                       ),
                     ],
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 6),
                     _buildCustomerLookupRow(),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 6),
                     TextFormField(
                       controller: _customerCodeController,
                       decoration: const InputDecoration(
                         labelText: 'Cari Kodu*',
                         hintText: 'Internet yoksa elle girin',
+                        isDense: true,
+                        contentPadding: EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 10,
+                        ),
                       ),
                       onChanged: (_) {
                         setState(() {});
@@ -1164,6 +1172,11 @@ class _CompanyAcceptanceCreateSheetState
         ),
       ),
     );
+  }
+
+  double _setupMaxHeight(BuildContext context, {required double maxHeight}) {
+    final screenHeight = MediaQuery.sizeOf(context).height;
+    return (screenHeight * 0.28).clamp(132.0, maxHeight);
   }
 
   Widget _buildEntryLineCard() {
@@ -1293,7 +1306,7 @@ class _CompanyAcceptanceCreateSheetState
       children: <Widget>[
         Wrap(
           spacing: 8,
-          runSpacing: 8,
+          runSpacing: 6,
           children: <Widget>[
             TerminalFilterButton(
               label: 'Hareket Tarihi',
@@ -1307,16 +1320,16 @@ class _CompanyAcceptanceCreateSheetState
             ),
           ],
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 6),
         LayoutBuilder(
           builder: (context, constraints) {
             final maxWidth = constraints.maxWidth;
-            final twoColumn = maxWidth >= 330;
+            final twoColumn = maxWidth >= 300;
             final halfWidth = twoColumn ? (maxWidth - 8) / 2 : maxWidth;
 
             return Wrap(
               spacing: 8,
-              runSpacing: 8,
+              runSpacing: 6,
               children: <Widget>[
                 SizedBox(
                   width: maxWidth,
@@ -1381,7 +1394,7 @@ class _CompanyAcceptanceCreateSheetState
             );
           },
         ),
-        const SizedBox(height: 6),
+        const SizedBox(height: 4),
         _CompactCheckboxTile(
           value: _allowOrderOverReceiving,
           title: 'Siparis kalanindan fazla kabul etmeye izin ver',
@@ -1421,6 +1434,8 @@ class _CompanyAcceptanceCreateSheetState
         decoration: const InputDecoration(
           labelText: 'E-Irsaliye ETTN / QR',
           hintText: 'QR okutun veya UUID girin',
+          isDense: true,
+          contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           suffixIcon: Icon(Icons.qr_code_2_rounded),
         ),
       ),
@@ -1445,12 +1460,12 @@ class _CompanyAcceptanceCreateSheetState
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        if (constraints.maxWidth < 430) {
+        if (constraints.maxWidth < 360) {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: <Widget>[
               lookupField,
-              const SizedBox(height: 8),
+              const SizedBox(height: 6),
               Row(
                 children: <Widget>[
                   Expanded(child: resolveButton),
@@ -1465,7 +1480,7 @@ class _CompanyAcceptanceCreateSheetState
         return Row(
           children: <Widget>[
             Expanded(child: lookupField),
-            const SizedBox(width: 12),
+            const SizedBox(width: 8),
             resolveButton,
             const SizedBox(width: 8),
             scanButton,
@@ -1481,6 +1496,8 @@ class _CompanyAcceptanceCreateSheetState
       decoration: const InputDecoration(
         labelText: 'Cari Arama',
         hintText: 'Cari adi veya kodu',
+        isDense: true,
+        contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       ),
     );
 
@@ -1492,12 +1509,12 @@ class _CompanyAcceptanceCreateSheetState
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        if (constraints.maxWidth < 360) {
+        if (constraints.maxWidth < 330) {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: <Widget>[
               lookupField,
-              const SizedBox(height: 8),
+              const SizedBox(height: 6),
               searchButton,
             ],
           );
@@ -1506,7 +1523,7 @@ class _CompanyAcceptanceCreateSheetState
         return Row(
           children: <Widget>[
             Expanded(child: lookupField),
-            const SizedBox(width: 12),
+            const SizedBox(width: 8),
             searchButton,
           ],
         );
@@ -1585,29 +1602,22 @@ class _CompanyAcceptanceCreateSheetState
   }
 
   Widget _buildProductLookupRow(_AcceptanceLineDraft line) {
-    final lookupField = TerminalSubmitOnTab(
+    final lookupField = ProductLookupField(
+      controller: line.lookupController,
+      focusNode: line.lookupFocusNode,
       enabled: !line.isLookupStatusLoading,
+      hintText: 'Arama veya barkod',
       onSubmit: () => _searchProduct(line),
-      child: TextFormField(
-        controller: line.lookupController,
-        focusNode: line.lookupFocusNode,
-        textInputAction: TextInputAction.search,
-        onFieldSubmitted: (_) => _searchProduct(line),
-        decoration: const InputDecoration(
-          labelText: 'Barkod / stok kodu / urun adi',
-          hintText: 'Arama veya barkod',
-        ),
-        validator: (_) {
-          if (_isBlankLine(line)) {
-            return null;
-          }
-
-          if (line.stockCodeController.text.trim().isEmpty) {
-            return 'Urun secin';
-          }
+      validator: (_) {
+        if (_isBlankLine(line)) {
           return null;
-        },
-      ),
+        }
+
+        if (line.stockCodeController.text.trim().isEmpty) {
+          return 'Urun secin';
+        }
+        return null;
+      },
     );
 
     final searchButton = FilledButton.icon(

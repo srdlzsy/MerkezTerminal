@@ -92,6 +92,44 @@ void main() {
     expect(find.text('Test Urun'), findsOneWidget);
     expect(find.text('8690000000012'), findsWidgets);
   });
+
+  testWidgets('keeps unresolved lookup as entry row without adding a line', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 1000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: StockReceiptCreateSheet(
+            repository: _FakeStockReceiptsRepository(),
+            kind: StockReceiptKind.outage,
+            accessToken: 'token',
+            defaultWarehouseNo: '50',
+          ),
+        ),
+      ),
+    );
+
+    final productField = find
+        .widgetWithText(TextFormField, 'Barkod / stok kodu / urun adi')
+        .first;
+    await tester.enterText(productField, '9999999999999');
+    await tester.tap(find.widgetWithText(FilledButton, 'Urun').first);
+    await tester.pumpAndSettle();
+
+    expect(find.text('1 kalem'), findsNothing);
+    expect(find.text('Giris satiri'), findsOneWidget);
+    expect(find.text('Satir 1'), findsNothing);
+    expect(find.text('Urun bulunamadi.'), findsWidgets);
+    expect(
+      find.widgetWithText(TextFormField, 'Barkod / stok kodu / urun adi'),
+      findsOneWidget,
+    );
+  });
 }
 
 class _FakeStockReceiptsRepository implements StockReceiptsRepository {

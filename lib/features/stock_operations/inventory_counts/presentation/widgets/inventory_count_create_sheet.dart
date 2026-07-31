@@ -395,8 +395,7 @@ class _InventoryCountCreateSheetState extends State<InventoryCountCreateSheet>
 
   bool _isBlankLine(_InventoryLineDraft line) {
     return line.selectedProduct == null &&
-        line.stockCodeController.text.trim().isEmpty &&
-        line.barcodeController.text.trim().isEmpty;
+        line.stockCodeController.text.trim().isEmpty;
   }
 
   void _removeLine(_InventoryLineDraft line) {

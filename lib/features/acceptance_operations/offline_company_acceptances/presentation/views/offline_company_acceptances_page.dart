@@ -13,6 +13,7 @@ import 'package:furpa_merkez_terminal/shared/offline/mobile_customer_catalog_rep
 import 'package:furpa_merkez_terminal/shared/offline/mobile_product_catalog_repository.dart';
 import 'package:furpa_merkez_terminal/shared/offline/offline_record_status.dart';
 import 'package:furpa_merkez_terminal/shared/offline/offline_sync_service.dart';
+import 'package:furpa_merkez_terminal/shared/product_entry/product_entry_widgets.dart';
 import 'package:furpa_merkez_terminal/shared/utils/client_request_id.dart';
 import 'package:furpa_merkez_terminal/shared/utils/create_form_validation.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/barcode_camera_scan_page.dart';
@@ -917,9 +918,7 @@ class _OfflineCompanyAcceptanceCreateSheetState
 
   bool _isBlankLine(_OfflineCompanyAcceptanceLineDraft line) {
     return line.selectedProduct == null &&
-        line.lookupController.text.trim().isEmpty &&
-        line.stockCodeController.text.trim().isEmpty &&
-        line.barcodeController.text.trim().isEmpty;
+        line.stockCodeController.text.trim().isEmpty;
   }
 
   void _showFeedback(String message) {
@@ -1206,17 +1205,25 @@ class _OfflineCompanyAcceptanceCreateSheetState
                 padding: EdgeInsets.zero,
               ),
               const SizedBox(height: 8),
-              Flexible(
+              ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxHeight: _setupMaxHeight(context, maxHeight: 220),
+                ),
                 child: SingleChildScrollView(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: <Widget>[
                       _buildCustomerLookupRow(),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 6),
                       TextFormField(
                         controller: _customerCodeController,
                         decoration: const InputDecoration(
                           labelText: 'Cari Kodu*',
+                          isDense: true,
+                          contentPadding: EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 10,
+                          ),
                         ),
                         onChanged: (_) => setState(() {}),
                         validator: (value) {
@@ -1263,6 +1270,11 @@ class _OfflineCompanyAcceptanceCreateSheetState
         ),
       ),
     );
+  }
+
+  double _setupMaxHeight(BuildContext context, {required double maxHeight}) {
+    final screenHeight = MediaQuery.sizeOf(context).height;
+    return (screenHeight * 0.26).clamp(124.0, maxHeight);
   }
 
   Widget _buildEntryLineCard() {
@@ -1370,15 +1382,16 @@ class _OfflineCompanyAcceptanceCreateSheetState
   Widget _buildDocumentDetailsSection() {
     return ExpansionTile(
       tilePadding: EdgeInsets.zero,
-      childrenPadding: const EdgeInsets.only(top: 8),
+      childrenPadding: const EdgeInsets.only(top: 6),
+      dense: true,
       title: const Text('Belge detaylari'),
       subtitle: Text(
         '${AppFormatters.date(_movementDate)} | ${AppFormatters.date(_documentDate)}',
       ),
       children: <Widget>[
         Wrap(
-          spacing: 12,
-          runSpacing: 12,
+          spacing: 8,
+          runSpacing: 6,
           children: <Widget>[
             TerminalFilterButton(
               label: 'Hareket Tarihi',
@@ -1392,43 +1405,71 @@ class _OfflineCompanyAcceptanceCreateSheetState
             ),
           ],
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 6),
         TextFormField(
           controller: _documentNoController,
           decoration: const InputDecoration(
             labelText: 'Belge No / Seri',
             hintText: 'Bos birakilabilir veya ULK gibi seri girilebilir',
+            isDense: true,
+            contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           ),
         ),
-        const SizedBox(height: 12),
-        Wrap(
-          spacing: 10,
-          runSpacing: 10,
-          children: <Widget>[
-            SizedBox(
-              width: 220,
-              child: TextFormField(
-                controller: _delivererController,
-                decoration: const InputDecoration(labelText: 'Teslim Eden'),
-              ),
-            ),
-            SizedBox(
-              width: 220,
-              child: TextFormField(
-                controller: _receiverController,
-                decoration: const InputDecoration(labelText: 'Teslim Alan'),
-              ),
-            ),
-          ],
+        const SizedBox(height: 6),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final maxWidth = constraints.maxWidth;
+            final twoColumn = maxWidth >= 300;
+            final fieldWidth = twoColumn ? (maxWidth - 8) / 2 : maxWidth;
+
+            return Wrap(
+              spacing: 8,
+              runSpacing: 6,
+              children: <Widget>[
+                SizedBox(
+                  width: fieldWidth,
+                  child: TextFormField(
+                    controller: _delivererController,
+                    decoration: const InputDecoration(
+                      labelText: 'Teslim Eden',
+                      isDense: true,
+                      contentPadding: EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 10,
+                      ),
+                    ),
+                  ),
+                ),
+                SizedBox(
+                  width: fieldWidth,
+                  child: TextFormField(
+                    controller: _receiverController,
+                    decoration: const InputDecoration(
+                      labelText: 'Teslim Alan',
+                      isDense: true,
+                      contentPadding: EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 10,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            );
+          },
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 6),
         TextFormField(
           controller: _descriptionController,
-          minLines: 2,
-          maxLines: 3,
-          decoration: const InputDecoration(labelText: 'Aciklama'),
+          minLines: 1,
+          maxLines: 2,
+          decoration: const InputDecoration(
+            labelText: 'Aciklama',
+            isDense: true,
+            contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          ),
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 6),
         CheckboxListTile(
           value: _allowOrderOverReceiving,
           title: const Text('Siparis kalanindan fazla kabul etmeye izin ver'),
@@ -1569,17 +1610,10 @@ class _OfflineCompanyAcceptanceCreateSheetState
   }
 
   Widget _buildProductLookupRow(_OfflineCompanyAcceptanceLineDraft line) {
-    final lookupField = TerminalSubmitOnTab(
+    final lookupField = ProductLookupField(
+      controller: line.lookupController,
+      focusNode: line.lookupFocusNode,
       onSubmit: () => _searchProduct(line),
-      child: TextField(
-        controller: line.lookupController,
-        focusNode: line.lookupFocusNode,
-        textInputAction: TextInputAction.search,
-        onSubmitted: (_) => _searchProduct(line),
-        decoration: const InputDecoration(
-          labelText: 'Barkod / stok kodu / urun adi',
-        ),
-      ),
     );
 
     final searchButton = FilledButton.icon(
@@ -1594,35 +1628,10 @@ class _OfflineCompanyAcceptanceCreateSheetState
       icon: const Icon(Icons.photo_camera_back_rounded),
     );
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        if (constraints.maxWidth < 430) {
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: <Widget>[
-              lookupField,
-              const SizedBox(height: 8),
-              Row(
-                children: <Widget>[
-                  Expanded(child: searchButton),
-                  const SizedBox(width: 8),
-                  scanButton,
-                ],
-              ),
-            ],
-          );
-        }
-
-        return Row(
-          children: <Widget>[
-            Expanded(child: lookupField),
-            const SizedBox(width: 12),
-            searchButton,
-            const SizedBox(width: 8),
-            scanButton,
-          ],
-        );
-      },
+    return TerminalResponsiveLookupRow(
+      field: lookupField,
+      action: searchButton,
+      trailingAction: scanButton,
     );
   }
 

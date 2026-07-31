@@ -491,8 +491,7 @@ class _StockReceiptCreateSheetState extends State<StockReceiptCreateSheet>
   }
 
   bool _isBlankLine(_StockReceiptLineDraft line) {
-    return line.selectedProduct == null &&
-        line.lookupController.text.trim().isEmpty;
+    return line.selectedProduct == null;
   }
 
   Future<void> _submit() async {
@@ -571,47 +570,8 @@ class _StockReceiptCreateSheetState extends State<StockReceiptCreateSheet>
               padding: EdgeInsets.zero,
             ),
             const SizedBox(height: 8),
-            Flexible(
-              child: SingleChildScrollView(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: <Widget>[
-                    Wrap(
-                      spacing: 10,
-                      runSpacing: 8,
-                      children: <Widget>[
-                        SizedBox(
-                          width: 220,
-                          child: TextFormField(
-                            controller: _creatorController,
-                            decoration: const InputDecoration(
-                              labelText: 'Creator',
-                            ),
-                          ),
-                        ),
-                        SizedBox(
-                          width: 220,
-                          child: TextFormField(
-                            controller: _acceptorController,
-                            decoration: const InputDecoration(
-                              labelText: 'Acceptor',
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    TextFormField(
-                      controller: _descriptionController,
-                      minLines: 2,
-                      maxLines: 3,
-                      decoration: const InputDecoration(labelText: 'Aciklama'),
-                    ),
-                    const SizedBox(height: 8),
-                  ],
-                ),
-              ),
-            ),
+            _buildReceiptSetupSection(),
+            const SizedBox(height: 6),
             TerminalSectionToolbar(
               title: 'Satirlar',
               actions: const <Widget>[],
@@ -651,6 +611,70 @@ class _StockReceiptCreateSheetState extends State<StockReceiptCreateSheet>
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildReceiptSetupSection() {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final maxWidth = constraints.maxWidth;
+        final twoColumn = maxWidth >= 300;
+        final fieldWidth = twoColumn ? (maxWidth - 8) / 2 : maxWidth;
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
+            Wrap(
+              spacing: 8,
+              runSpacing: 6,
+              children: <Widget>[
+                SizedBox(
+                  width: fieldWidth,
+                  child: TextFormField(
+                    controller: _creatorController,
+                    decoration: const InputDecoration(
+                      labelText: 'Creator',
+                      isDense: true,
+                      contentPadding: EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 10,
+                      ),
+                    ),
+                  ),
+                ),
+                SizedBox(
+                  width: fieldWidth,
+                  child: TextFormField(
+                    controller: _acceptorController,
+                    decoration: const InputDecoration(
+                      labelText: 'Acceptor',
+                      isDense: true,
+                      contentPadding: EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 10,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            TextFormField(
+              controller: _descriptionController,
+              minLines: 1,
+              maxLines: 2,
+              decoration: const InputDecoration(
+                labelText: 'Aciklama',
+                isDense: true,
+                contentPadding: EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 10,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 

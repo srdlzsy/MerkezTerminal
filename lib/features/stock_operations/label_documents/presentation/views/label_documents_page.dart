@@ -838,8 +838,7 @@ class _LabelDocumentCreateSheetState extends State<_LabelDocumentCreateSheet> {
   }
 
   bool _isBlankLine(_LabelDocumentLineDraft line) {
-    return line.selectedProduct == null &&
-        line.lookupController.text.trim().isEmpty;
+    return line.selectedProduct == null;
   }
 
   Future<void> _submit() async {

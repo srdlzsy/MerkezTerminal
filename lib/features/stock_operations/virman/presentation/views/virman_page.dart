@@ -909,8 +909,7 @@ class _VirmanCreateSheetState extends State<_VirmanCreateSheet>
   }
 
   bool _isBlankLine(_VirmanDraftLine line) {
-    return line.lookupController.text.trim().isEmpty &&
-        line.stockCodeController.text.trim().isEmpty;
+    return line.stockCodeController.text.trim().isEmpty;
   }
 
   void _showFeedback(String message) {

@@ -89,6 +89,11 @@ class _ProductLookupFieldState extends State<ProductLookupField> {
         decoration: InputDecoration(
           labelText: widget.labelText,
           hintText: widget.hintText,
+          isDense: true,
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 12,
+            vertical: 10,
+          ),
           suffixIcon: widget.suffixIcon,
         ),
         validator: widget.validator,
