@@ -128,9 +128,9 @@ class _FakeAuthRepository extends AuthRepository {
 
 AuthSession _buildSession() {
   const action = PermissionAction(
-    code: 'list',
-    name: 'Listele',
-    permissionCode: 'test.list',
+    code: 'page',
+    name: 'Ekran',
+    permissionCode: 'test-modulu.birinci-menu.page',
   );
   const module = PermissionModule(
     code: 'test-modulu',
@@ -163,7 +163,10 @@ AuthSession _buildSession() {
       warehouseName: 'KESTEL 1',
       isActive: true,
       roles: <String>['Operator'],
-      permissions: <String>['test.list'],
+      permissions: <String>[
+        'test-modulu.birinci-menu.page',
+        'test-modulu.ikinci-menu.page',
+      ],
       modules: <PermissionModule>[module],
     ),
   );

@@ -25,8 +25,17 @@ class AppSessionController extends ChangeNotifier {
   String? get accessToken => _session?.accessToken;
   CurrentUser? get currentUser => _session?.user;
   String? get errorMessage => _errorMessage;
-  List<MenuEntry> get menuEntries =>
-      flattenMenus(currentUser?.modules ?? const <PermissionModule>[]);
+  List<MenuEntry> get menuEntries {
+    final user = currentUser;
+    if (user == null) {
+      return const <MenuEntry>[];
+    }
+
+    return flattenVisibleMenus(
+      user.modules,
+      userPermissionCodes: user.permissions,
+    );
+  }
 
   bool can(String permissionCode) {
     return currentUser?.hasPermission(permissionCode) ?? false;

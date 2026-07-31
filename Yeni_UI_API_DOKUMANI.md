@@ -9,8 +9,10 @@ Bu dokuman, mevcut backend durumuna gore frontend/UI tasarimi ve entegrasyonu ic
 - Tarihler `ISO 8601` formatindadir.
 - Yetki sistemi `module > menu > action` mantigindadir.
 - UI menu agaci ve buton gorunurlugu `me` cevabindan uretilmelidir.
+- Menu/route gorunurlugu icin aksiyon endpoint yetkileri kullanilmamalidir. Normal ekranlar `{module}.{menu}.page`, tanim/yonetim ekranlari `{module}.{menu}.manage` yetkisine bakmalidir.
+- `list`, `detail`, `create`, `update`, `delete`, `archive`, `transfer` gibi yetkiler API endpoint ve buton/aksiyon kontroludur; tek basina sol menu veya route acma sebebi olmamalidir.
 - Depo yetkisi backend tarafinda merkezi ve permission bazli uygulanir. Kullanici sadece JWT icindeki kendi deposunda islem yapar; baska depo veya tum depo kapsami icin ilgili menuye ait `{module}.{menu}.all-warehouses` yetkisi gerekir.
-- `Admin`/`Administrator` rolu backend tarafinda tam yetkili kabul edilir. UI tarafinda yine role name'e gore ekran acilmamalidir; menu, buton ve depo secici kararlari `login.user.permissions` veya `GET /api/auth/me` cevabindaki `permissions` listesine gore verilmelidir.
+- `Admin`/`Administrator` rolu backend tarafinda tam yetkili kabul edilir. UI tarafinda yine role name'e gore ekran acilmamalidir; menu, route, buton ve depo secici kararlari `login.user.permissions` veya `GET /api/auth/me` cevabindaki `permissions` listesine gore verilmelidir.
 - UI depo secici/filtresi gosterecegi zaman role bakmamalidir. Secili ekrandaki permission setinde ilgili `*.all-warehouses` kodu varsa depo secici acilir; yoksa depo alani gizlenir veya kilitlenir.
 - Liste/rapor endpointlerinde `*.all-warehouses` yetkisi olan kullanici `WarehouseNo`/`warehouseNo` alanini bos veya `null` gonderirse endpoint destekliyorsa tum depolar doner; belirli depo icin depo no gonderilir. Tek depo gerektiren create/update/detail islemlerinde `null` tum depo anlamina gelmez; backend token deposunu varsayar veya ilgili islem icin secili depo bekler.
 - Tum depolari listeleyen kullanici detay ekranina gecis icin UI, secilen satirdaki depo bilgisini kullanmalidir. Detay endpointine `warehouseNo=null` gonderilmemelidir; satirda gelen `warehouseNo`, `sourceWarehouseNo`, `targetWarehouseNo`, `branchNo` veya ilgili islem deposu query/body alanina yazilmalidir.
@@ -70,7 +72,7 @@ Controller'da acik olan pratik alias/canonical route'lar:
 - Depo kapsamli menu/action setlerinde `all-warehouses` aksiyonu bulunur. Kod formati `{module}.{menu}.all-warehouses` seklindedir.
 - UI depo secici gostermek icin role degil, aktif kullanicinin `permissions` listesindeki ilgili `all-warehouses` koduna bakmalidir.
 - Ornek: stok raporlari icin tum sube yetkisi `rapor-islemleri.stok-raporlari.all-warehouses`; belge akis icin `operasyon-islemleri.belge-akis-takibi.all-warehouses`; kasa sayimi goruntuleme icin `kasa-islemleri.kasa-sayimlari.all-warehouses`; icmal girisi icin `kasa-islemleri.icmal-kaydi-girisi.all-warehouses`; POS muhasebe aktarimi icin `entegrasyon-islemleri.pos-muhasebe-aktarimi.all-warehouses`.
-- Admin rolu migration/seed ile bu yetkilerin tamamini alir. Admin olmayan role modul bazli tum depo verilecekse sadece ilgili menu icin `list/detail/create/update/delete` aksiyonlariyla birlikte `all-warehouses` atanir.
+- Admin rolu migration/seed ile bu yetkilerin tamamini alir. Admin olmayan role modul bazli tum depo verilecekse ilgili menu icin `page` veya `manage`, gerekli `list/detail/create/update/delete` aksiyonlari ve `all-warehouses` birlikte atanir.
 - Backend policy'deki aksiyon kodundan tum depo kodunu turetir: `rapor-islemleri.stok-raporlari.list` isteginde depo secimi icin `rapor-islemleri.stok-raporlari.all-warehouses` aranir.
 - Bu yetkileri Auth DB'ye ekleyen migration: `20260727150749_AddAllWarehouseScopePermissions`.
 
@@ -581,7 +583,7 @@ UI icin onerilen kullanim:
 - Kullanici duyuruyu actiginda veya "okundu" aksiyonuna bastiginda `PATCH /api/home/duyurular/{id}/okundu` cagrilir.
 - Okundu isleminden sonra header badge icin tekrar `GET /api/home/duyurular/ozet` cagrilmalidir.
 - Uzun acik kalan oturumlarda UI periyodik olarak veya uygulama tekrar odaga geldiginde `GET /api/home/duyurular/ozet` ile badge bilgisini tazeleyebilir.
-- Yonetim ekrani `OrtakIslemler > Duyurular` altinda acilabilir; menu icin `ortak-islemler.duyurular.list` kullanilmalidir.
+- Yonetim ekrani `OrtakIslemler > Duyurular` altinda acilabilir; menu/route icin `ortak-islemler.duyurular.page`, liste API'si icin `ortak-islemler.duyurular.list` kullanilmalidir.
 - Create butonu `create`, duzenle butonu `update`, arsivle butonu `archive`, depo/kullanici kapsam genisletme kontrolleri `all-warehouses` yetkisine gore acilmalidir.
 - `all-warehouses` yoksa hedef tipi seciminde "Tum Depolar" pasif olmalidir; depo hedeflemede sadece kullanicinin kendi deposu secilebilir.
 - Kullanici hedefleme ekraninda id elle yazdirilmaz; arama kutusu `GET /api/ortak-islemler/duyurular/hedef-kullanicilar?search=...` ile beslenir.
@@ -2254,10 +2256,13 @@ Yetki:
 
 - `green-grocer.reports.list`: raporlari goruntuleme
 - `green-grocer.reports.update`: manav siparisi silme
+- `green-grocer.product-case-profiles.manage`: kasa profil yonetim sayfasi/menu/route gorunurlugu
 - `green-grocer.product-case-profiles.list`: kasa profil listeleme ve cozumleme onizleme
 - `green-grocer.product-case-profiles.detail`: kasa profil detayi
 - `green-grocer.product-case-profiles.update`: kasa profil kaydetme
 - `green-grocer.product-case-profiles.delete`: kasa profil pasife alma
+
+UI notu: `product-case-profiles` ekrani sol menude ve route guard'da sadece `manage` ile acilmalidir. `list/detail/update/delete` yetkileri endpoint ve buton aksiyonlari icindir; sube kullanicisinda cozumleme/liste yetkisi bulunabilir ama bu durum profil yonetim ekranini acmamalidir.
 
 Tarih query alani:
 
@@ -7249,7 +7254,7 @@ Not:
 - `salesPrice` alani Mikro `dbo.fn_StokSatisFiyati(stockCode, '1', branchNo, '1')` fonksiyonundan gelir
 - `dateToGet` verilirse tarih filtresi secilen gunun tamamini kapsar; verilmezse `ShippingDate` son 1 ay ile sinirlanir
 - liste `ShippingDate desc` siralanir
-- menu permission kodu `kasa-islemleri.manav-kunye-etiket-yazdirma.list`; endpoint anonim oldugu icin API cagrisi token istemez
+- menu permission kodu `kasa-islemleri.manav-kunye-etiket-yazdirma.page`; liste aksiyonu `kasa-islemleri.manav-kunye-etiket-yazdirma.list`; endpoint anonim oldugu icin API cagrisi token istemez
 
 Response:
 
@@ -10495,7 +10500,8 @@ Home / Sikayet Oneri Kutusu
   -> body'ye kullanici/depo bilgisi koyma; backend JWT claim'lerinden doldurur
 
 Ortak Islemler / Sikayet Oneri Yonetimi
-  -> menu permission'i: ortak-islemler.sikayet-oneri.list
+  -> menu/route permission'i: ortak-islemler.sikayet-oneri.page
+  -> liste API permission'i: ortak-islemler.sikayet-oneri.list
   -> tum kayit kapsami icin ortak-islemler.sikayet-oneri.list-all gerekir
   -> list-all olmayan kullanici sadece kendi actigi kayitlari liste/detay olarak gorur
   -> okundu, durum veya admin notu aksiyonlari icin ortak-islemler.sikayet-oneri.update gerekir
@@ -10513,7 +10519,8 @@ Home / Duyurular Kutusu
   -> baslik/metin/oncelik/tarih/hedef bilgilerini AnnouncementDto ile goster
 
 Ortak Islemler / Duyurular Yonetimi
-  -> menu permission'i: ortak-islemler.duyurular.list
+  -> menu/route permission'i: ortak-islemler.duyurular.page
+  -> liste API permission'i: ortak-islemler.duyurular.list
   -> create butonu icin ortak-islemler.duyurular.create
   -> duzenle butonu icin ortak-islemler.duyurular.update
   -> arsivle butonu icin ortak-islemler.duyurular.archive

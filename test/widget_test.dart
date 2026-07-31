@@ -61,9 +61,9 @@ void main() {
     WidgetTester tester,
   ) async {
     const action = PermissionAction(
-      code: 'list',
-      name: 'Listele',
-      permissionCode: 'stok-islemleri.sayim-sonuclari.list',
+      code: 'page',
+      name: 'Ekran',
+      permissionCode: 'stok-islemleri.sayim-sonuclari.page',
     );
     const module = PermissionModule(
       code: 'stok-islemleri',

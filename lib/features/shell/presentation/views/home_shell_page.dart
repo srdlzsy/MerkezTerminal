@@ -51,9 +51,12 @@ class _HomeShellPageState extends State<HomeShellPage>
     super.didUpdateWidget(oldWidget);
 
     final user = widget.sessionController.currentUser;
-    final availableMenus = _flattenVisibleMenus(
-      _visibleModules(user?.modules ?? const <PermissionModule>[]),
-    );
+    final availableMenus = user == null
+        ? const <MenuEntry>[]
+        : flattenVisibleMenus(
+            user.modules,
+            userPermissionCodes: user.permissions,
+          );
     _syncMenuStateWithAvailableMenus(availableMenus);
   }
 
@@ -80,8 +83,8 @@ class _HomeShellPageState extends State<HomeShellPage>
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
-    final visibleModules = _visibleModules(user.modules);
-    final availableMenus = _flattenVisibleMenus(visibleModules);
+    final visibleModules = _visibleModules(user);
+    final availableMenus = flattenMenus(visibleModules);
     final isWide = MediaQuery.sizeOf(context).width >= 1080;
 
     _syncMenuStateWithAvailableMenus(availableMenus);
@@ -267,29 +270,11 @@ class _HomeShellPageState extends State<HomeShellPage>
     }
   }
 
-  List<PermissionModule> _visibleModules(List<PermissionModule> modules) {
-    return modules
-        .map(
-          (module) => PermissionModule(
-            code: module.code,
-            name: module.name,
-            menus: module.menus
-                .where((item) => item.actions.isNotEmpty)
-                .toList(growable: false),
-          ),
-        )
-        .where((item) => item.menus.isNotEmpty)
-        .toList(growable: false);
-  }
-
-  List<MenuEntry> _flattenVisibleMenus(List<PermissionModule> modules) {
-    return modules
-        .expand(
-          (module) => module.menus.map(
-            (menu) => MenuEntry.fromPermissionMenu(module, menu),
-          ),
-        )
-        .toList(growable: false);
+  List<PermissionModule> _visibleModules(CurrentUser user) {
+    return visiblePermissionModules(
+      user.modules,
+      userPermissionCodes: user.permissions,
+    );
   }
 
   Widget _buildContent({
