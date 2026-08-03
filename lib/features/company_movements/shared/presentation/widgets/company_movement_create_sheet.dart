@@ -13,6 +13,7 @@ import 'package:furpa_merkez_terminal/shared/offline/mobile_customer_catalog_rep
 import 'package:furpa_merkez_terminal/shared/product_entry/product_entry_controller.dart';
 import 'package:furpa_merkez_terminal/shared/product_entry/product_entry_widgets.dart';
 import 'package:furpa_merkez_terminal/shared/utils/create_form_validation.dart';
+import 'package:furpa_merkez_terminal/shared/utils/terminal_feedback.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/barcode_camera_scan_page.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/terminal_ui_parts.dart';
 
@@ -60,6 +61,7 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
   Future<void> _draftSaveQueue = Future<void>.value();
   bool _restoringDraft = true;
   bool _submitted = false;
+  String? _lastAddedProductKey;
 
   @override
   void initState() {
@@ -445,9 +447,10 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
     });
     _focusFreshEntryLine();
 
-    if (mergedIntoExisting) {
-      _showFeedback('Ayni barkod mevcut satira eklendi; miktar artirildi.');
-    }
+    _notifySuccessfulProductAdd(
+      product: pickedProduct,
+      mergedIntoExisting: mergedIntoExisting,
+    );
   }
 
   Future<void> _scanProductWithCamera(_MovementLineDraft line) async {
@@ -527,6 +530,51 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
 
     _recycleMergedLine(line, createReplacement: _createLine);
     return true;
+  }
+
+  void _notifySuccessfulProductAdd({
+    required SearchProductLookupItem product,
+    required bool mergedIntoExisting,
+  }) {
+    if (_shouldWarnNonConsecutiveDuplicate(
+      product: product,
+      mergedIntoExisting: mergedIntoExisting,
+    )) {
+      unawaited(TerminalFeedback.warning());
+      _showFeedback('Bu urun listede vardi; miktar artirildi.');
+    }
+  }
+
+  bool _shouldWarnNonConsecutiveDuplicate({
+    required SearchProductLookupItem product,
+    required bool mergedIntoExisting,
+  }) {
+    final key = _productKey(
+      stockCode: product.stockCode,
+      barcode: product.barcode,
+    );
+    if (key.isEmpty) {
+      return false;
+    }
+
+    final previousKey = _lastAddedProductKey;
+    _lastAddedProductKey = key;
+
+    return mergedIntoExisting && previousKey != key;
+  }
+
+  String _productKey({required String stockCode, required String barcode}) {
+    final normalizedStockCode = stockCode.trim().toUpperCase();
+    if (normalizedStockCode.isNotEmpty) {
+      return 'S:$normalizedStockCode';
+    }
+
+    final normalizedBarcode = barcode.trim().toUpperCase();
+    if (normalizedBarcode.isNotEmpty) {
+      return 'B:$normalizedBarcode';
+    }
+
+    return '';
   }
 
   void _recycleMergedLine(

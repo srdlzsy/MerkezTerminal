@@ -54,6 +54,7 @@ class _WarehouseReturnCreateSheetState extends State<WarehouseReturnCreateSheet>
   WarehouseLookupItem? _selectedWarehouse;
   String? _validationMessage;
   late final CreateDraftSession _draftSession;
+  String? _lastAddedProductKey;
 
   bool get _hasTargetWarehouse =>
       _selectedWarehouse != null ||
@@ -241,12 +242,10 @@ class _WarehouseReturnCreateSheetState extends State<WarehouseReturnCreateSheet>
     _draftSession.scheduleSave();
     _focusFreshEntryLine();
 
-    if (mergedIntoExisting) {
-      unawaited(TerminalFeedback.success());
-      _showFeedback('Ayni barkod mevcut satira eklendi; miktar artirildi.');
-    } else {
-      unawaited(TerminalFeedback.success());
-    }
+    _notifySuccessfulProductAdd(
+      product: pickedProduct,
+      mergedIntoExisting: mergedIntoExisting,
+    );
   }
 
   Future<bool> _tryResolveBarcode(_ReturnLineDraft line, String query) async {
@@ -401,24 +400,74 @@ class _WarehouseReturnCreateSheetState extends State<WarehouseReturnCreateSheet>
   }) {
     final warning = resolution.quickWarningMessage;
     if (warning.isNotEmpty) {
+      _rememberAddedProduct(product);
       unawaited(TerminalFeedback.warning());
       _showFeedback(warning);
       return;
     }
 
-    unawaited(TerminalFeedback.success());
-    final unitName = product.unitName.trim();
-    final quantityLabel =
-        '${AppFormatters.quantity(addedQuantity)}${unitName.isEmpty ? '' : ' $unitName'}';
-    if (mergedIntoExisting) {
-      _showFeedback(
-        'Urun zaten sepetteydi. +${AppFormatters.quantity(addedQuantity)} '
-        'eklendi. Toplam: ${AppFormatters.quantity(totalQuantity)} '
-        '${product.unitName}.',
-      );
-    } else {
-      _showFeedback('Eklendi: ${product.stockName}. Miktar: $quantityLabel.');
+    _notifySuccessfulProductAdd(
+      product: product,
+      mergedIntoExisting: mergedIntoExisting,
+    );
+  }
+
+  void _notifySuccessfulProductAdd({
+    required ProductLookupItem product,
+    required bool mergedIntoExisting,
+  }) {
+    if (_shouldWarnNonConsecutiveDuplicate(
+      product: product,
+      mergedIntoExisting: mergedIntoExisting,
+    )) {
+      unawaited(TerminalFeedback.warning());
+      _showFeedback('Bu urun listede vardi; miktar artirildi.');
+      return;
     }
+
+    unawaited(TerminalFeedback.success());
+  }
+
+  bool _shouldWarnNonConsecutiveDuplicate({
+    required ProductLookupItem product,
+    required bool mergedIntoExisting,
+  }) {
+    final key = _productKey(
+      stockCode: product.stockCode,
+      barcode: product.barcode,
+    );
+    if (key.isEmpty) {
+      return false;
+    }
+
+    final previousKey = _lastAddedProductKey;
+    _lastAddedProductKey = key;
+
+    return mergedIntoExisting && previousKey != key;
+  }
+
+  void _rememberAddedProduct(ProductLookupItem product) {
+    final key = _productKey(
+      stockCode: product.stockCode,
+      barcode: product.barcode,
+    );
+    if (key.isNotEmpty) {
+      _lastAddedProductKey = key;
+    }
+  }
+
+  String _productKey({required String stockCode, required String barcode}) {
+    final normalizedStockCode = stockCode.trim().toUpperCase();
+    if (normalizedStockCode.isNotEmpty) {
+      return 'S:$normalizedStockCode';
+    }
+
+    final normalizedBarcode = barcode.trim().toUpperCase();
+    if (normalizedBarcode.isNotEmpty) {
+      return 'B:$normalizedBarcode';
+    }
+
+    return '';
   }
 
   String _resolvedBarcodeMessage(BarcodeResolutionResult resolution) {

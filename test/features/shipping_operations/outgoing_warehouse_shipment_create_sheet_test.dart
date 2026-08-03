@@ -139,6 +139,64 @@ void main() {
     expect(find.text('4'), findsOneWidget);
   });
 
+  testWidgets('warns only for non-consecutive duplicate scanned products', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 1000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: OutgoingWarehouseShipmentCreateSheet(
+            repository: _FakeOutgoingWarehouseShipmentsRepository(
+              barcodeResolutionBuilder: (request) {
+                final isSecondProduct = request.barcode == '2222222222222';
+                return buildBarcodeResolutionResult(
+                  barcode: request.barcode,
+                  warehouseNo: int.tryParse(request.warehouseNo ?? '') ?? 110,
+                  stockCode: isSecondProduct ? 'B002' : 'A001',
+                  stockName: isSecondProduct ? 'B Urun' : 'A Urun',
+                  operationType: request.operationType ?? '',
+                  screenCode: request.screenCode ?? '',
+                );
+              },
+            ),
+            receivedWarehouseOrdersRepository:
+                _FakeReceivedWarehouseOrdersRepository(),
+            accessToken: 'token',
+            defaultWarehouseNo: '110',
+            mobileWarehouseCatalogRepository:
+                _emptyWarehouseCatalogRepository(),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.widgetWithText(TextField, 'Hedef depo no*'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('50 - MERKEZ DEPO'));
+    await tester.pumpAndSettle();
+
+    await _enterShipmentBarcode(tester, barcode: '1111111111111');
+    await _enterShipmentBarcode(tester, barcode: '1111111111111');
+
+    expect(find.text('A Urun'), findsOneWidget);
+    expect(find.textContaining('Bu urun listede vardi'), findsNothing);
+
+    await _enterShipmentBarcode(tester, barcode: '2222222222222');
+
+    expect(find.text('B Urun'), findsOneWidget);
+    expect(find.textContaining('Bu urun listede vardi'), findsNothing);
+
+    await _enterShipmentBarcode(tester, barcode: '1111111111111');
+
+    expect(find.text('A Urun'), findsOneWidget);
+    expect(find.textContaining('Bu urun listede vardi'), findsOneWidget);
+  });
+
   testWidgets('does not block shipment for target warehouse model warning', (
     tester,
   ) async {
@@ -188,7 +246,7 @@ void main() {
 
     expect(find.text('Test Urun'), findsOneWidget);
     expect(find.text(targetWarehouseMessage), findsNothing);
-    expect(find.textContaining('Eklendi: Test Urun'), findsOneWidget);
+    expect(find.textContaining('Eklendi: Test Urun'), findsNothing);
   });
 
   testWidgets(
@@ -239,7 +297,7 @@ void main() {
 
       expect(find.text('Test Urun'), findsOneWidget);
       expect(find.text(salesBlockedMessage), findsNothing);
-      expect(find.textContaining('Eklendi: Test Urun'), findsOneWidget);
+      expect(find.textContaining('Eklendi: Test Urun'), findsNothing);
     },
   );
 
