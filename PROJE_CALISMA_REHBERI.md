@@ -1,76 +1,133 @@
 # Proje Calisma Rehberi
 
-Bu belge, `Furpa Merkez Terminal` projesinin nasil calistigini, hangi dosyanin ne ise yaradigini ve projeye yeni bir sey eklerken nasil ilerlenmesi gerektigini anlatiyor.
+Bu belge `Furpa Merkez Terminal` projesine yeni giren bir gelistiricinin
+projeyi hizli anlamasi, dogru dosyadan baslamasi ve mevcut mimariyi bozmadan
+degisiklik yapmasi icin hazirlanmistir.
+
+Guncel durum:
+
+- Son guncelleme: 2026-08-03
+- Flutter uygulamasi: Furpa merkez el terminali / PDA arayuzu
+- Guncel paket versiyonu: `1.1.37+38`
+- Guncel test durumu: `flutter analyze` temiz, `flutter test` 93/93 basarili
+- Ana tasarim hedefi: eski kullanici aliskanligini bozmadan hata yapmayi zorlastirmak
 
 ## 0. Hizli Yon Bulma
 
-Projeye yeni giren biri icin en pratik okuma sirasi:
+Projeye ilk kez giriyorsan dosyalari su sirayla oku:
 
-1. Uygulama nasil aciliyor?
+1. Uygulama nasil ayaga kalkiyor?
    - `lib/main.dart`
    - `lib/app/bootstrap.dart`
    - `lib/app/app.dart`
-2. Bagimliliklar nerede kuruluyor?
+2. Repository ve servisler nerede kuruluyor?
    - `lib/app/dependencies.dart`
 3. Menu hangi ekrani aciyor?
    - `lib/features/shell/presentation/routing/shell_module_registry.dart`
    - `lib/features/shell/presentation/views/home_shell_page.dart`
-4. Tum HTTP istekleri nereden geciyor?
-   - `lib/core/network/api_client.dart`
-5. Oturum ve yetki nerede tutuluyor?
+4. Oturum, token ve yetki nerede?
    - `lib/features/shell/presentation/view_models/app_session_controller.dart`
    - `lib/features/auth/data/auth_repository.dart`
-6. Offline kuyruk nerede?
+   - `lib/features/shell/domain/menu_entry.dart`
+5. Tum HTTP istekleri nereden geciyor?
+   - `lib/core/network/api_client.dart`
+6. Barkod ve urun giris mantigi nerede?
+   - `lib/shared/product_entry/product_entry_widgets.dart`
+   - `lib/shared/product_entry/product_entry_controller.dart`
+   - `lib/shared/data/barcode_resolution_repository.dart`
+7. PDA ortak UI parcalari nerede?
+   - `lib/shared/widgets/terminal_ui_parts.dart`
+   - `lib/shared/widgets/terminal_create_page.dart`
+   - `lib/shared/utils/terminal_feedback.dart`
+8. Offline ve mobil katalog mantigi nerede?
    - `lib/shared/offline/offline_sync_service.dart`
    - `lib/core/storage/local_database.dart`
    - `lib/core/storage/local_sqlite_database.dart`
-7. Offline kataloglar nerede?
    - `lib/shared/offline/mobile_product_catalog_repository.dart`
    - `lib/shared/offline/mobile_customer_catalog_repository.dart`
    - `lib/shared/offline/mobile_warehouse_catalog_repository.dart`
 
-Kisa sorumluluk haritasi:
+Kisa klasor haritasi:
 
 ```text
-app/      -> uygulama ayaga kalkisi, tema, dependency kurulum
-core/     -> network, config, storage, ortak teknik altyapi
-features/ -> is modulleri, ekranlar, repository ve controller'lar
-shared/   -> moduller arasi ortak widget, formatter, offline servisleri
-test/     -> controller, repository ve kritik akis testleri
+lib/app/       -> uygulama kabugu, tema, dependency kurulum
+lib/core/      -> network, config, update, storage, teknik altyapi
+lib/features/  -> is modulleri, ekranlar, repository, controller
+lib/shared/    -> ortak widget, formatter, offline, draft, barkod parcalari
+test/          -> controller, widget, repository ve kritik akis testleri
 ```
 
-Bir dosyayi degistirmeden once su soruyu sor:
+Bir dosyayi degistirmeden once sunu sor:
 
-> Bu dosya sadece kendi feature'ini mi etkiliyor, yoksa app/core/shared seviyesinde herkesi etkileyen bir davranis mi degistiriyor?
+> Bu degisiklik sadece tek feature'i mi etkiliyor, yoksa shared/core/app seviyesinde tum ekranlara mi yayiliyor?
 
-`core/`, `shared/`, `app/` altindaki degisikliklerin etki alani genelde daha buyuktur. Bu dosyalarda degisiklik yaparken test ve manuel kontrol daha dikkatli yapilmalidir.
+`app/`, `core/` ve `shared/` altindaki degisiklikler genelde daha buyuk etki
+alanina sahiptir. Bu dosyalarda mutlaka test calistir.
 
 ## 1. Proje Ne Yapiyor?
 
-Bu proje Flutter ile yazilmis bir merkez terminal uygulamasi.
+Bu proje Flutter ile yazilmis merkez el terminali uygulamasidir. Kullanici PDA
+veya terminal cihazindan stok, siparis, sevk, iade, mal kabul, sayim, virman,
+etiket ve yardimci arac islemlerini yapar.
 
-Ana is mantigi su:
+Ana kullanim mantigi:
 
 1. Kullanici login olur.
-2. Backend kullanicinin yetkilerini ve menu yapisini verir.
-3. Uygulama gelen menuye gore ekranlari acabilir hale gelir.
-4. Kullanici listeleri gorur, detay acar, create ekranlari ile yeni kayit ekler.
-5. Bazi akislar internet varsa aninda sunucuya gider.
-6. Bazi akislar internet yoksa offline taslak olarak cihaza yazilir ve daha sonra senkronize edilir.
+2. Backend kullanicinin menu ve yetkilerini dondurur.
+3. Uygulama gelen menuye gore sadece yetkili ekranlari gosterir.
+4. Kullanici liste/detail/create akislarini kullanir.
+5. Create ekranlarinda barkod okutma ana akis olarak korunur.
+6. Bazi islemler online API'ye gider.
+7. Offline destekli islemler network yoksa local draft/kuyruk olarak saklanir.
+8. Uygulama online oldugunda bekleyen offline islemleri senkronize eder.
 
-Bu proje statik menulu basit bir uygulama degil. Menu, yetki ve bazi ekran davranislari kullanicidan gelen backend datasina gore sekilleniyor.
+Bu proje statik menulu bir uygulama degildir. Menu, yetki ve bazi davranislar
+backend datasina gore sekillenir.
 
-## 2. Giris Akisi
+## 2. API Dokumani ile Iliski
 
-Uygulamanin acilis zinciri:
+Backend/API kontrati icin ana referans:
 
-1. `lib/main.dart`
-2. `lib/app/bootstrap.dart`
-3. `lib/app/dependencies.dart`
-4. `lib/app/app.dart`
-5. `lib/features/shell/presentation/views/home_shell_page.dart`
+- `Yeni_UI_API_DOKUMANI.md`
 
-Akis soyle:
+Bu dosya cok genis bir API katalogudur. Proje gelistirirken su ayrim onemlidir:
+
+- API dokumaninda endpoint olmasi, UI tarafinda mutlaka yeni ekran acilacak
+  anlamina gelmez.
+- UI ekran karari kullanici ihtiyaci, mevcut menu yapisi ve saha akisina gore
+  verilir.
+- Var olan ekrana entegre edilebilecek bir is icin yeni sayfa acilmaz.
+- Yeni route/menu eklemek gerekiyorsa once `ShellModuleRegistry`, permission
+  modeli ve kullanici akisina bakilir.
+
+Ozellikle not:
+
+- `Etiket Basim` API dokumaninda gecse bile bu projede su an ayri yeni ekran
+  olarak eklenmeyecek bir is olarak kabul edilir.
+- Manav kasa / GreenGrocer kasa cozumleme de ayri ekran olarak degil, mevcut
+  verilen depo siparisi ve giden depo sevk akislarina entegre edilmis
+  davranis olarak ele alinmalidir.
+
+API dokumani guncellendiginde uygulama tarafinda sirayla su kontrol yapilir:
+
+1. Degisen kisim bizim aktif ekrani etkiliyor mu?
+2. Yeni alan request/response modeline girmeli mi?
+3. Offline draft veya sync zinciri etkileniyor mu?
+4. Permission/menu gorunurlugu degisiyor mu?
+5. Mevcut PDA create akisi bozulmadan entegre edilebilir mi?
+6. Test eklemek veya mevcut testi guncellemek gerekiyor mu?
+
+## 3. Uygulama Acilis Akisi
+
+Acilis zinciri:
+
+```text
+main.dart
+  -> bootstrap.dart
+    -> AppDependencies.create()
+      -> FurpaMerkezApp
+        -> HomeShellPage veya LoginPage
+```
 
 ### `main.dart`
 
@@ -78,338 +135,667 @@ Sadece `bootstrap()` cagirir.
 
 ### `bootstrap.dart`
 
-- Flutter binding ayaga kalkar.
-- `AppDependencies.create()` ile tum repository ve servisler uretilir.
-- `FurpaMerkezApp` calistirilir.
-- Arka planda `sessionController.restoreSession()` ile kayitli token varsa oturum geri yuklenmeye calisilir.
+- Flutter binding'i ayaga kaldirir.
+- `AppDependencies.create()` ile repository ve servisleri olusturur.
+- `FurpaMerkezApp` widget'ini baslatir.
+- Arka planda `sessionController.restoreSession()` ile kayitli oturumu geri
+  yuklemeye calisir.
 
 ### `app.dart`
 
-Burada uygulamanin ana state secimi yapilir:
-
-- `booting` -> Splash
-- `unauthenticated` -> Login
-- `authenticated` -> Home shell
-
-Yani route mantigi named routes uzerinden degil, session status uzerinden akiyor.
-
-## 3. Klasor Yapisi
-
-Ana `lib/` yapisi:
+Uygulama route mantigi session status uzerinden ilerler:
 
 ```text
-lib/
-  app/
-  core/
-  features/
-  shared/
+booting          -> SplashPage
+unauthenticated  -> LoginPage
+authenticated    -> HomeShellPage
 ```
 
-### `app/`
+Yani ana akista klasik named route listesi degil, session durumuna gore ekran
+secimi vardir.
 
-Uygulamanin kabugu:
+## 4. Konfigurasyon
 
-- `bootstrap.dart`
-- `app.dart`
-- `dependencies.dart`
-- `theme/`
+Ana dosya:
 
-### `core/`
+- `lib/core/config/app_config.dart`
 
-Tum modullerin kullandigi temel katman:
-
-- `config/` -> app config ve base url
-- `network/` -> `ApiClient`, `ApiException`
-- `storage/` -> token storage ve `LocalDatabase` / SQLite local tablo altyapisi
-- `utils/` -> request epoch, safe notifier, tarih helperlari
-
-### `features/`
-
-Is modulleri burada:
-
-- `auth`
-- `shell`
-- `order_operations`
-- `shipping_operations`
-- `acceptance_operations`
-- `stock_operations`
-- `return_operations`
-- `company_movements`
-- `legacy_tools`
-
-### `shared/`
-
-Ortak tekrar kullanilan parcalar:
-
-- `widgets/`
-- `formatters/`
-- `offline/`
-- `data/`
-- `utils/`
-
-## 4. Temel Mimari Mantik
-
-Projede katman mantigi genel olarak su:
+Guncel onemli ayarlar:
 
 ```text
-UI/Page/Sheet
-  -> Controller veya local State
+AppConfig.appName = Furpa Merkez Terminal
+AppConfig.requestTimeout = 300 saniye
+Varsayilan API = http://10.0.0.100:7508
+Varsayilan update manifest = http://10.0.0.100:802/Terminal/version.json
+```
+
+API adresi build sirasinda override edilebilir:
+
+```powershell
+flutter run --dart-define=API_BASE_URL=http://10.0.0.100:7508
+flutter build apk --release --dart-define=API_BASE_URL_ANDROID=http://10.0.0.100:7508
+```
+
+Platform bazli override:
+
+```powershell
+--dart-define=API_BASE_URL_ANDROID=http://10.0.0.100:7508
+--dart-define=API_BASE_URL_DESKTOP=http://localhost:7508
+--dart-define=API_BASE_URL_WEB=http://10.0.0.100:7508
+```
+
+Manav kasa / GreenGrocer flag'leri:
+
+```text
+GreenGrocerProductCases__Enabled
+GreenGrocerProductCases__OrderLinkingEnabled
+```
+
+Guncel default degerler `false` durumundadir. Bu ozellikler acilacaksa build
+sirasinda dart-define ile verilmelidir:
+
+```powershell
+flutter run `
+  --dart-define=GreenGrocerProductCases__Enabled=true `
+  --dart-define=GreenGrocerProductCases__OrderLinkingEnabled=true
+```
+
+Testlerde gerekiyorsa widget seviyesinde explicit override kullanilabilir.
+Ornek:
+
+```dart
+GivenWarehouseOrderCreateSheet(
+  greenGrocerProductCasesEnabled: true,
+  greenGrocerProductCasesRepository: fakeRepository,
+  ...
+)
+```
+
+## 5. Temel Mimari
+
+Genel veri akisi:
+
+```text
+UI Page / Sheet
+  -> Controller veya StatefulWidget state
     -> Repository
       -> ApiClient
         -> Backend
 ```
 
-Sonra cevap ayni zincirle geri doner:
+Cevap donusu:
 
 ```text
 Backend
-  -> Model
-    -> Repository
-      -> Controller / StatefulWidget
+  -> model parse
+    -> repository sonucu
+      -> controller/state
         -> UI
 ```
 
-### Repository ne yapiyor?
+### Model
 
-Repository, backend endpointlerini uygulama tarafinda anlamli methodlara donusturuyor.
+Model dosyalari:
 
-Ornek:
+- JSON parse eder.
+- Request body uretir.
+- Backend'in farkli tiplerde donebilecegi degerlere toleransli davranir.
 
-- `fetchCounts()`
-- `fetchCountDetail()`
-- `createCount()`
-- `searchProducts()`
+Yeni model yazarken dikkat:
 
-Ornek dosya:
+- `DateTime.parse` yerine mumkunse `DateTime.tryParse`
+- `int`, `double`, `bool` icin helper veya toleransli parse
+- `null`, bos string, `0/1`, string sayi gibi durumlara dikkat
+- UI/navigasyon mantigi model icine yazilmamali
 
-- `lib/features/stock_operations/inventory_counts/data/inventory_counts_repository.dart`
+### Repository
 
-### Controller ne yapiyor?
+Repository dosyalari:
 
-Controller, ekran state'ini yonetiyor:
+- Endpoint path'lerini bilir.
+- Query/body olusturur.
+- `ApiClient` cagrisi yapar.
+- Response'u modele cevirir.
 
-- loading
-- error
-- secili kayit
-- create sonrasi listeyi yenileme
-- stale request korumasi
+Repository icinde UI widget veya snackbar mantigi olmamali.
 
-Ornek:
+### Controller
 
-- `lib/features/stock_operations/inventory_counts/presentation/view_models/inventory_counts_controller.dart`
+Controller olan ekranlarda controller:
 
-### Page ne yapiyor?
+- listeyi yukler
+- detail secimini yonetir
+- stale response riskini azaltir
+- create sonrasi listeyi yeniler
+- loading/error/submitting state'ini tutar
 
-Page genelde:
+Ornek controller patternleri:
 
-- controller olusturur
-- filtreleri toplar
-- list/detay alanlarini cizer
-- create sheet acar
+- `inventory_counts_controller.dart`
+- `warehouse_returns_controller.dart`
+- `outgoing_warehouse_shipments_controller.dart`
+- `company_movements_controller.dart`
 
-Ornek:
+### Page
 
-- `lib/features/stock_operations/inventory_counts/presentation/views/inventory_counts_page.dart`
+Page:
 
-### Widget / Sheet ne yapiyor?
+- filtreleri ve liste layout'unu yonetir
+- controller'a baglanir
+- detail sayfalarini acar
+- create sheet/page acislarini tetikler
 
-Alt formlar, lookup sheetleri, create bottom sheetleri burada olur.
+### Create Sheet
 
-Ornek:
+Bir cok create ekrani state'i kendi icinde tasir. Bu normaldir. Ozellikle
+barkod okutma, focus, draft save ve satir merge gibi islemler create sheet
+icinde yonetilir.
 
-- `inventory_count_create_sheet.dart`
-- `company_acceptance_create_sheet.dart`
-- `outgoing_warehouse_shipment_create_sheet.dart`
+Create sheet'lerde artik ana hedef PDA hizli islem akisini korumaktir.
 
-## 5. Network Katmani Nasil Calisiyor?
+## 6. Menu, Yetki ve Shell
 
-Merkez parca:
-
-- `lib/core/network/api_client.dart`
-
-`ApiClient` sunlari yapar:
-
-- base url ile final URI olusturur
-- `Authorization: Bearer ...` header ekler
-- timeout uygular
-- json map/list decode eder
-- hata response'larini `ApiException`'a cevirir
-
-Yani repository dogrudan `http` ile ugrasmaz. Her sey `ApiClient` uzerinden gider.
-
-## 6. Session ve Yetki Mantigi
-
-### Login
-
-`AuthRepository`:
-
-- `/api/auth/login` cagirir
-- gelen token ile `/api/auth/me` cagirir
-- token ve cached session'i local storage'a yazar
-
-Ilgili dosyalar:
-
-- `lib/features/auth/data/auth_repository.dart`
-- `lib/core/storage/token_storage.dart`
-
-### Session restore
-
-Uygulama acilinca:
-
-- token okunur
-- `/api/auth/me` ile gecerlilik kontrol edilir
-- network yoksa, cached session varsa kullanilabilir
-
-Bu sayede uygulama her acilista zorunlu login ekranina dusmez.
-
-### Yetki ve menu
-
-`AppSessionController` icinde:
-
-- `currentUser`
-- `accessToken`
-- `menuEntries`
-
-uretilir.
-
-Menu, `CurrentUser.modules` icinden flatten edilir:
+Ana dosyalar:
 
 - `lib/features/shell/domain/menu_entry.dart`
-
-## 7. Ana Shell ve Ekran Secimi
-
-Projenin en kritik dosyalarindan biri:
-
+- `lib/features/shell/presentation/view_models/app_session_controller.dart`
 - `lib/features/shell/presentation/views/home_shell_page.dart`
 - `lib/features/shell/presentation/routing/shell_module_registry.dart`
 
-Burada su olur:
+### Menu gorunurlugu
 
-1. Kullanici modulleri gorunur menulere cevrilir.
-2. Sol menu veya dashboard secim yapar.
-3. Secilen menu `ShellModuleRegistry` uzerinden ilgili page'e baglanir.
+Backend kullaniciya module/menu/action yapisini dondurur. Uygulama bunu
+gorunur menulere cevirir.
 
-Iki ana pattern var:
+Guncel yetki mantigi:
 
-### A. Dogrudan route key esleme
+- Menu route gorunurlugu `page` veya `manage` aksiyonlariyla okunur.
+- Permission code suffix'i olarak `.page` ve `.manage` desteklenir.
+- Eski `list/detail/create` gibi route gorunurluk suffix'leri ana kural
+  degildir.
+- `userPermissionCodes` flat listesi varsa fallback olarak kontrol edilir.
 
-`moduleCode.menuCode` string'i ile exact route key eslemesi yapilir.
+Bu mantik `menu_entry.dart` icindeki helper'larda toplanir:
 
-Ornek:
+```text
+visiblePermissionModules(...)
+flattenVisibleMenus(...)
+hasMenuRoutePermission(...)
+```
 
-- `siparis-islemleri.verilen-firma-siparisleri`
-- `stok-islemleri.sayim-sonuclari`
+Yeni menu acilmiyorsa sirayla kontrol et:
 
-### B. Fallback route matching
+1. Backend menuyu gercekten gonderiyor mu?
+2. Menu action listesi icinde `page` veya `manage` var mi?
+3. Permission code `.page` veya `.manage` ile geliyor mu?
+4. `ShellModuleRegistry` icinde route eslemesi var mi?
+5. Page icin gerekli repository `AppDependencies` icinde veriliyor mu?
 
-Backend menu code bazen tam sabit olmayabilir. Bu durumda:
+### Ekran esleme
 
-- exact route key
-- menu code
-- keyword
+`ShellModuleRegistry` backend menusu ile Flutter ekranini baglar.
 
-ile eslesen `ShellModuleRoute.matches(...)` mantigi calisir.
+Iki esleme tipi var:
 
-Bu kisim yeni ekran baglarken cok onemli.
+1. Exact route key:
 
-## 8. Offline Mantigi
+```text
+moduleCode.menuCode
+```
 
-Bu projede offline sadece "ekrani ac" degil, gercek kuyruk mantigi ile calisiyor.
+2. Fallback matching:
 
-Temel dosyalar:
+```text
+menu code
+keyword
+title
+```
 
-- `lib/shared/offline/offline_sync_service.dart`
-- `lib/core/storage/local_database.dart`
-- `lib/core/storage/local_sqlite_database.dart`
-- `lib/shared/offline/mobile_product_catalog_repository.dart`
-- `lib/shared/offline/mobile_customer_catalog_repository.dart`
-- `lib/shared/offline/mobile_warehouse_catalog_repository.dart`
+Yeni ekran eklerken once exact key ile bagla. Backend menu code'u degisebilir
+diye gerekiyorsa fallback keyword ekle.
+
+## 7. Network Katmani
+
+Ana dosya:
+
+- `lib/core/network/api_client.dart`
+
+`ApiClient` sorumluluklari:
+
+- base URL normalize eder
+- endpoint ile final URI olusturur
+- Authorization header ekler
+- timeout uygular
+- JSON map/list decode eder
+- backend hata response'unu `ApiException` olarak tasir
+
+Repository'ler dogrudan `http` kullanmamalidir. Tum HTTP istekleri
+`ApiClient` uzerinden gecmelidir.
+
+Hata gosterirken teknik stack trace kullaniciya verilmemeli. `ApiException`
+icinden okunabilir mesaj uretilmeli.
+
+## 8. Offline, Draft ve Mobil Kataloglar
+
+Ana dosyalar:
+
+```text
+lib/shared/offline/offline_sync_service.dart
+lib/core/storage/local_database.dart
+lib/core/storage/local_sqlite_database.dart
+lib/shared/drafts/create_draft_session.dart
+lib/shared/drafts/create_draft_repository.dart
+lib/shared/offline/mobile_product_catalog_repository.dart
+lib/shared/offline/mobile_customer_catalog_repository.dart
+lib/shared/offline/mobile_warehouse_catalog_repository.dart
+```
+
+### Local storage
+
+`LocalDatabase` ortak storage arayuzudur. Ana implementasyon:
+
+- `LocalSqliteDatabase`
+
+Iki veri tipi kullanilir:
+
+```text
+table    -> ayni key altinda coklu JSON row
+document -> tek key altinda tek JSON document
+```
+
+Yeni offline veri yazarken dogrudan `SharedPreferences` kullanma. `LocalDatabase`
+uzerinden ilerle.
 
 ### Offline create akisi
 
-Ornek sayim veya firma mal kabul create sirasinda:
+Tipik akisi:
 
-1. Uygulama once online create dener.
-2. Network hatasi varsa islem hemen fail olmak yerine kuyruga alinabilir.
-3. Draft, local storage'a yazilir.
-4. Sonra kullanici offline taslak ekranindan veya otomatik sync ile gonderebilir.
+1. Kullanici create formunu doldurur.
+2. Online create denenir.
+3. Network kaynakli hata varsa local draft/kuyruk yazilir.
+4. `clientRequestId` korunur.
+5. Sync sirasinda ayni request tekrar gonderilir.
+6. Backend duplicate/recover durumunu `clientRequestId` ile cozebilir.
 
-### Local storage nasil?
+`clientRequestId` kaybolursa ayni evrak iki kere olusabilir. Offline destekli
+formlarda bu alan kritik kabul edilir.
 
-`LocalDatabase` ortak storage arayuzudur. Uygulamada bunun ana implementasyonu `LocalSqliteDatabase`tir.
+### Draft session
 
-`LocalSqliteDatabase`, `sqflite` uzerinden iki tip veri saklar:
+Create ekranlarinda taslak mantigi icin:
 
-- table: ayni key altinda birden fazla json row
-- document: tek key altinda tek json document
+- `CreateDraftSession`
+- `CreateDraftRepository`
+- `CreateDraftPicker`
 
-Eski `SharedPreferencesAsync` tabanli offline draft/cache verileri varsa ilk acilista SQLite'a migrate edilmeye calisilir. Bu yuzden yeni offline veri yazarken dogrudan `SharedPreferencesAsync` kullanma; `LocalDatabase` uzerinden ilerle.
+kullanilir.
 
-### Offline sync ne zaman olur?
+Yeni create form alani eklenirse draft payload'a da eklenmelidir. Aksi halde
+kullanici ekran kapatip actiginda alan kaybolur.
 
-`HomeShellPage` icinde:
+### Mobil kataloglar
 
-- uygulama acilinca
-- uygulama resume olunca
-- her 45 saniyede bir
+API yokken arama yapabilmek icin local kataloglar kullanilir:
 
-`offlineSyncService.syncPending(...)` calisir.
+- urun katalogu
+- cari katalogu
+- depo katalogu
 
-### Mobil kataloglar ne ise yariyor?
+Kullanim ornekleri:
 
-Offline urun/cari/depo aramalari icin eski "son aranan cache" yerine mobil katalog mantigi kullanilir:
+- urun arama: `MobileProductCatalogLocalRepository`
+- cari arama: `MobileCustomerCatalogLocalRepository`
+- depo arama: `MobileWarehouseCatalogLocalRepository`
 
-- product catalog
-- customer catalog
-- warehouse catalog
+Not: Local fallback'in sonuc vermesi icin katalog daha once cihaza inmis
+olmalidir.
 
-Bu kataloglar local SQLite icinde saklanir. Arama ekranlari once API'den arar; API `ApiException` verirse ilgili local katalogdan sonuc donmeye calisir.
+## 9. Barkod, Urun Girisi ve Cozumleme
 
-Ornekler:
+Ana dosyalar:
 
-- sayim ve urun arama akislarinda `MobileProductCatalogLocalRepository`
-- firma mal kabul, firma hareketleri ve verilen firma siparislerinde `MobileCustomerCatalogLocalRepository`
-- verilen depo siparisi, depo sevki ve depo iadesinde `MobileWarehouseCatalogLocalRepository`
+```text
+lib/shared/product_entry/product_entry_widgets.dart
+lib/shared/product_entry/product_entry_controller.dart
+lib/shared/data/barcode_resolution_repository.dart
+lib/shared/data/barcode_resolution_models.dart
+```
 
-Sync servisleri `AppDependencies` icinde kurulur:
+### PDA barkod akisi
 
-- `MobileProductCatalogSyncService`
-- `MobileCustomerCatalogSyncService`
-- `MobileWarehouseCatalogSyncService`
+Eski kullanici aliskanligi korunur:
 
-Kullanici tetiklemesi `Fiyat Gor` ve `Var Yok` ekranlarindaki `Mobil Katalog Sync` butonudur. Bu buton sirasiyla urun, cari ve depo kataloglarini sync eder.
+```text
+Barkod okut
+  -> urun bulunur
+    -> miktar belirlenir
+      -> sepete/kaleme eklenir
+        -> barkod alani tekrar hazir olur
+```
 
-Kritik not: Local fallback'in sonuc verebilmesi icin ilgili katalog daha once cihaza inmis olmalidir. API yokken hic katalog yoksa arama bos donebilir.
+Yeni ekranda popup sayisi azaltildi. Ana hedef:
 
-## 9. Controller Yardimcilari
+- barkod alani her zaman hizli erisilebilir olsun
+- Enter/Tab/PDA okuyucu submit yapsin
+- ayni urun tekrar okutulursa mevcut satirin miktari artsin
+- basarili islemde kucuk feedback verilsin
+- kritik hatada satir eklenmesin
 
-Iki kucuk ama onemli utility var:
+### Ortak widget'lar
 
-### `RequestEpoch`
+`ProductLookupField`:
 
-Dosya:
+- barkod/stok/urun arama input'u
+- focus gelince metni secer
+- PDA okuyucunun Enter/Tab davranisini yakalar
+- soft keyboard'u gerektiginde baskilar
+- dense input tasarimi kullanir
 
-- `lib/core/utils/request_epoch.dart`
+`TerminalResponsiveLookupRow`:
 
-Amaci:
+- input + arama butonu + kamera butonunu PDA genisligine gore dizer
+- cok dar ekranda alt alta iner
+- normal terminal genisliginde yatay kalmaya calisir
 
-- Eski request gec donerse yeni secimi ezmesin.
+`TerminalSubmitOnTab`:
 
-Ozellikle listeden detaya tiklama gibi hizli akislar icin onemli.
+- `Tab`
+- `Enter`
+- `NumpadEnter`
 
-### `SafeChangeNotifier`
+tuslarini submit olarak yakalar.
 
-Dosya:
+### ProductEntryController
 
-- `lib/core/utils/safe_change_notifier.dart`
+Ortak miktar ve duplicate mantigi:
 
-Amaci:
+- urun kimligi: barkod varsa barkod, yoksa stok kodu
+- miktar parse/format
+- unit multiplier fallback
+- duplicate satir bulma
 
-- widget dispose olduktan sonra `notifyListeners()` hatasi olmasin.
+Yeni create ekraninda urun ekleme/merge yapacaksan once buradaki helper'lari
+kullan.
 
-## 10. Feature Dosya Patterni
+### Barkod cozumleme
 
-Bu projede ideal feature pattern genelde su:
+`BarcodeResolutionRepository` backend tarafindan gelen net urun kararini okur.
+Frontend koli barkodu, alternatif barkod veya terazi barkodu gibi ayrimlari
+tahmin etmemelidir. Backend sonucu ne donduruyorsa UI onu gostermelidir.
+
+Create ekranlarinda request gonderirken mumkunse su bilgiler verilir:
+
+```text
+barcode
+warehouseNo
+operationType
+screenCode
+targetWarehouseNo
+```
+
+## 10. PDA Create Ekran Standardi
+
+Bu proje artik create ekranlarinda PDA mantigini ana standart kabul eder.
+
+Genel layout:
+
+```text
+TerminalSheetHeader
+  -> kisa setup / evrak bilgisi
+    -> sabit giris satiri
+      -> Expanded CustomScrollView
+        -> dolu kalemler
+        -> validasyon mesaji
+        -> kaydet/vazgec aksiyonlari
+```
+
+Kural:
+
+- Header dikeyde az yer kaplamali.
+- Evrak/setup bilgisi gerekmedikce buyuk scroll bolgesi olmamali.
+- Girdi satiri kaybolmamali.
+- Terminal ekraninda en buyuk alan kalem listesine kalmali.
+- Dolu kalemler ve alttaki kaydet alani ayni scroll alaninda olmali.
+- Kalem listesi icinde ikinci bir `ListView` acilmamali.
+- 200 kalem gibi limitlere yaklasma kullaniciya erken gosterilmeli.
+
+### Bos giris satiri kurali
+
+Bulunamayan urun veya basarisiz barkod okutma kalem sayilmamalidir.
+
+Dogru mantik:
+
+```text
+selectedProduct yoksa ve stockCode yoksa
+  -> bu satir hala giris satiridir
+```
+
+Yanlis mantik:
+
+```text
+lookup text doluysa kalem say
+```
+
+Bu yanlis mantik su sorunlara yol acar:
+
+- urun bulunamadi ama `1 kalem` gorunur
+- giris satiri asagi kayar veya kaybolur
+- kaydet sirasinda "urun secin" hatasi gereksiz cikar
+
+Bu yuzden son create duzeninde `_isBlankLine` kontrolleri lookup text'e degil,
+gercek urun/stok secimine gore yapilir.
+
+### Satir ekleme kurali
+
+Basarili urun bulmada:
+
+1. Urun satira uygulanir.
+2. Ayni urun daha once varsa miktar mevcut satira eklenir.
+3. Kullaniciya kucuk feedback verilir.
+4. En ustte yeni bos giris satiri olusturulur.
+5. Focus yeni giris satirina doner.
+
+Bulunamayan urunde:
+
+1. Satir eklenmez.
+2. Kalem sayisi artmaz.
+3. Hata mesaji giris satirinda kalir.
+4. Focus giris satirina doner.
+
+### Miktar artirma/azaltma
+
+`TerminalCompactProductLineCard` ve `TerminalQuantityStepper` kullanilir.
+
+Manav/terazi gibi ozel satirlarda miktar step'i standart `1` olmak zorunda
+degildir. Ornek:
+
+- okutulan barkod 10 KG ise
+- satir miktar step'i 10 olabilir
+- arti butonu 10 artirir
+- tekrar okutma toplam miktari 20 KG yapar
+
+## 11. Giden Depolar Arasi Sevk Create Notlari
+
+Ana dosya:
+
+- `lib/features/shipping_operations/outgoing_warehouse_shipments/presentation/widgets/outgoing_warehouse_shipment_create_sheet.dart`
+
+Bu ekran iki modla calisir:
+
+```text
+Siparissiz -> manuel sevk
+Siparisli  -> depo siparisine bagli sevk
+```
+
+Guncel layout:
+
+- `TerminalSheetHeader` en ustte kompakt durur.
+- Sevk tipi ve hedef depo kismi dikeyde az yer kaplar.
+- Girdigi satir sabit ust bolgede kalir.
+- Dolu kalemler `CustomScrollView` icinde `SliverList` olarak akar.
+- Validasyon ve `Vazgec / Sevki Hazirla` butonlari kalemlerle ayni scroll
+  alanindadir.
+- Kalem listesi icinde nested `ListView` yoktur.
+
+Bu ekran icin kritik kural:
+
+> Kalemler ve kaydet alani ayni scroll davranisini paylasmali.
+
+Eger tekrar ic ice scroll eklenirse PDA'da kullanici kalemlerden kaydet
+butonuna gecmekte zorlanir.
+
+### Hedef depo model uyarisi
+
+Backend bazen su tarz uyarilar dondurebilir:
+
+```text
+Hedef depo icin model kodu yoktur.
+```
+
+Bu inter-warehouse shipment icin her zaman blok sebebi degildir. Backend
+`warnings/errors/operationDecision` dondurse bile ekran operasyon tipine gore
+karari yorumlar. Mevcut testlerde bu uyarinin sevki bloklamamasi korunur.
+
+### Manav depo sevk
+
+Manav depoda KG'li barkod okutulunca miktar okutulan barkod kilosuna gore
+artmalidir.
+
+Ornek:
+
+```text
+1. okutma -> 10 KG
+2. okutma -> toplam 20 KG
+arti butonu -> +10 KG
+eksi butonu -> -10 KG
+```
+
+Bu davranis `quantityStep` uzerinden satira tasinir.
+
+## 12. Verilen Depo Siparisi ve Manav Kasa
+
+Ana dosya:
+
+- `lib/features/order_operations/given_warehouse_orders/presentation/widgets/given_warehouse_order_create_sheet.dart`
+
+Manav kasa ozelligi yeni bir ekran degildir. Var olan verilen depo siparisi
+create akisi icinde calisir.
+
+Akis:
+
+```text
+Karsi depo sec
+  -> urun/kasa gir
+    -> miktar kasa/adet olarak girilir
+      -> submit oncesi GreenGrocer preview cozumlenir
+        -> Mikro'ya KG/ADET miktari gider
+```
+
+Ilgili repository:
+
+- `lib/features/green_grocer/product_cases/data/green_grocer_product_cases_repository.dart`
+
+Flag:
+
+- `GreenGrocerProductCases__Enabled`
+
+Testte explicit olarak acilabilir:
+
+```dart
+greenGrocerProductCasesEnabled: true
+```
+
+## 13. Firma Mal Kabul ve Offline Mal Kabul
+
+Ana dosyalar:
+
+```text
+lib/features/acceptance_operations/company_acceptances/presentation/widgets/company_acceptance_create_sheet.dart
+lib/features/acceptance_operations/offline_company_acceptances/presentation/views/offline_company_acceptances_page.dart
+```
+
+Guncel PDA standardi:
+
+- E-irsaliye/cari/evrak alani sinirli yukseklikte scroll edebilir.
+- Bu setup alani giris satirini asagi itip kaybettirmemelidir.
+- `Teslim Eden` ve `Teslim Alan` gibi alanlar uygun genislikte yan yana gelir.
+- Barkod/urun girisi `ProductLookupField` standardini kullanir.
+- Siparisli ve siparissiz satirlar ayni fis icinde olabilir.
+- Eksik kabul farki iade aksiyonuyla baglantilidir.
+
+E-irsaliye QR/ETTN cozme:
+
+- `e_despatch_qr_parser.dart`
+- `resolveEDespatchByEttn`
+
+QR bulunamazsa belge bilgileri forma aktarilabilir ama kalemler manuel
+girilebilir.
+
+## 14. Stok Giris, Sayim, Iade, Virman ve Diger Create Akislari
+
+Ortak kural:
+
+- Ust evrak bilgisi kompakt olmali.
+- Girdigi satir sabit kalmali.
+- Kalemler ana alani kullanmali.
+- Bulunamayan urun kalem sayilmamali.
+
+Ornek dosyalar:
+
+```text
+lib/features/stock_operations/stock_receipts/presentation/widgets/stock_receipt_create_sheet.dart
+lib/features/stock_operations/inventory_counts/presentation/widgets/inventory_count_create_sheet.dart
+lib/features/return_operations/warehouse_returns/presentation/widgets/warehouse_return_create_sheet.dart
+lib/features/stock_operations/virman/presentation/views/virman_page.dart
+lib/features/company_movements/shared/presentation/widgets/company_movement_create_sheet.dart
+lib/features/stock_operations/label_documents/presentation/views/label_documents_page.dart
+lib/features/stock_operations/offline_inventory_counts/presentation/views/offline_inventory_counts_page.dart
+```
+
+Stok giriste `Creator` ve `Acceptor` alanlari tek satira yatkin kompakt setup
+olarak kullanilir. Uzun aciklama alani gereksiz yere ekranin buyuk kismini
+kaplamamalidir.
+
+## 15. Ortak PDA UI Parcalari
+
+Ana dosya:
+
+- `lib/shared/widgets/terminal_ui_parts.dart`
+
+Sik kullanilan parcalar:
+
+```text
+TerminalSheetHeader
+TerminalLineCountBadge
+TerminalPdaRecordCard
+TerminalPdaDetailPanel
+TerminalPdaInfoGrid
+TerminalPdaLineCard
+TerminalCompactProductLineCard
+TerminalCompactProductLineSummary
+TerminalQuantityStepper
+TerminalResponsiveLookupRow
+TerminalMessageBlock
+TerminalFormActionRow
+TerminalFilterButton
+```
+
+Tasarim kurallari:
+
+- Kart radius genelde 8px civari tutulur.
+- Card icinde card kullanma.
+- Gereksiz buyuk hero/marketing tasarimi yapma.
+- Operasyon ekranlari sessiz, hizli okunur, tekrarli kullanim icin ergonomik
+  olmalidir.
+- Butonlarda uygun ikon varsa Material icon kullan.
+- PDA'da text tasmasi olmamali; `maxLines`, `overflow`, responsive width
+  kullan.
+- Lookup ve aksiyonlar mumkunse ayni satirda kalir; cok dar ekranda alt satira
+  iner.
+
+## 16. Feature Dosya Patterni
+
+Ideal pattern:
 
 ```text
 features/<module>/<feature>/
@@ -422,808 +808,201 @@ features/<module>/<feature>/
     widgets/
 ```
 
-Ama her feature birebir ayni degil.
+Her feature birebir ayni olmayabilir:
 
-Ornek:
+- Bazi ekranlarda controller vardir.
+- Bazi create sheet'ler local state kullanir.
+- Bazi repository'ler generic tekrar kullanilir.
 
-- Bazi feature'larda controller var.
-- Bazi create sheet'ler state'i kendi icinde tasiyor.
-- Bazi repository'ler generic yapida tekrar kullaniliyor.
-
-## 11. Generic Repository Kullanan Alanlar
-
-Tum feature'lar sifirdan repository yazmiyor.
-
-Ornek:
+Ornek generic repository:
 
 - `CompanyMovementsRepository`
 
-Bu repository farkli endpoint path'leri ile tekrar kullaniliyor:
+Bu repository farkli hareket tiplerinde tekrar kullanilir:
 
 - giden firma sevkleri
 - gelen firma sevkleri
 - firma iadeleri
 
-Bu pattern yeni ekran eklerken tekrar kullanima uygun mu diye once bakilmasi gerektigi anlamina gelir.
+Yeni feature eklemeden once benzer generic pattern var mi kontrol et.
 
-## 11.1 Projeyi Yonetilebilir Tutma Kurallari
+## 17. Yeni Bir Sey Eklerken Yol Haritasi
 
-Bu projede teknik borcu kontrol etmek icin en onemli konu, degisikligin hangi katmana ait oldugunu dogru secmektir.
-
-### Degisiklik tipini once siniflandir
-
-Her is icin once asagidaki tiplerden hangisi oldugunu belirle:
+Once degisikligi siniflandir:
 
 ```text
-UI-only          -> sadece gosterim, layout, label, renk, buton yeri
-Feature logic    -> belirli bir ekranin state, filtre, create, detail davranisi
-API contract     -> request/response modeli veya endpoint degisikligi
-Offline contract -> local draft, sync, recover veya mobil katalog degisikligi
-Cross-cutting    -> ApiClient, AppConfig, storage, session, theme, shared widget
+UI-only          -> layout, metin, buton, renk, spacing
+Feature logic    -> belirli ekranin state/create/detail davranisi
+API contract     -> endpoint, request, response, model
+Offline contract -> draft, queue, sync, local catalog
+Cross-cutting    -> ApiClient, AppConfig, storage, session, shared widget
 ```
 
-Risk seviyesi:
-
-- `UI-only` dusuk risklidir; widget kontrolu ve gerekirse snapshot/manual test yeterli olabilir.
-- `Feature logic` icin controller veya page akisi test edilmelidir.
-- `API contract` icin model parse, query param ve hata response'u kontrol edilmelidir.
-- `Offline contract` yuksek risklidir; online create, offline kayit, sync ve duplicate recover birlikte dusunulmelidir.
-- `Cross-cutting` en yuksek risklidir; birden fazla modul etkilenebilir.
-
-### Dosya sorumluluklarini karistirma
-
-Genel kural:
-
-- `models/` sadece veri okuma/yazma ve request/response donusumu yapar.
-- `repository` sadece API veya local storage erisimini bilir.
-- `controller` ekran state'ini, loading/error/selection akisini yonetir.
-- `page` kullanici etkilesimini ve layout'u yonetir.
-- `widgets/` tekrar kullanilan kucuk UI parcalarini barindirir.
-
-Bir repository icinde UI text'i, bir page icinde ham HTTP istegi veya bir model icinde navigasyon mantigi olmamali.
-
-### Yeni alan eklerken zinciri tamamla
-
-Bir form alanini eklemek genelde tek dosya degildir. Kontrol zinciri:
-
-```text
-Create sheet
-  -> Create request model
-    -> Repository body/query mapping
-      -> Backend response model
-        -> Detail/list UI
-          -> Offline draft varsa local model
-            -> Offline sync mapping
-              -> Test
-```
-
-Bu zincirde bir halka eksik kalirsa en sik gorulen sorunlar:
-
-- alan ekranda var ama backend'e gitmez
-- backend'e gider ama offline taslakta kaybolur
-- offline sync sonrasi eski data gonderilir
-- detail ekraninda yeni alan gorunmez
-- testler eski davranisi korudugu icin hata gec fark edilir
-
-### `AppDependencies` buyumesini kontrol et
-
-`lib/app/dependencies.dart` su an tum repository ve servisleri merkezi olarak kuruyor. Bu basit ve anlasilir, ama proje buyudukce dosya agirlasir.
-
-Yeni dependency eklerken:
-
-1. Gercekten global uygulama dependency'si mi?
-2. Sadece tek feature icinde olusturulabilir mi?
-3. Var olan generic repository yeniden kullanilabilir mi?
-4. Testte fake yazmayi zorlastiriyor mu?
-
-Eger bu dosya daha da buyurse ileride su sekilde bolunebilir:
-
-```text
-app/dependencies.dart
-app/dependency_modules/auth_dependencies.dart
-app/dependency_modules/order_dependencies.dart
-app/dependency_modules/stock_dependencies.dart
-app/dependency_modules/offline_dependencies.dart
-```
-
-Simdilik tek dosya kabul edilebilir; ama her yeni modul eklenirken gereksiz dependency tasimamak gerekir.
-
-### Menu eslemesi tek merkezden yonetilmeli
-
-Yeni ekran baglanirken ana merkez:
-
-- `lib/features/shell/presentation/routing/shell_module_registry.dart`
-
-Backend'den gelen menu adlari degisebilir. Bu yuzden route eslesmesinde mumkunse once exact key, sonra gerekiyorsa menu code/keyword fallback kullanilir.
-
-Yeni menu acilmiyorsa sirayla sunlari kontrol et:
-
-1. Backend kullaniciya bu menuyu gonderiyor mu?
-2. Menu action listesi bos mu?
-3. `moduleCode.menuCode` beklenen string mi?
-4. `ShellModuleRegistry` icinde route var mi?
-5. Page icin gerekli repository `AppDependencies` icinde veriliyor mu?
-
-### Offline davranista duplicate riskini koru
-
-Offline create akislarinda `clientRequestId` kritik. Bu alan:
-
-- online create denenirken gonderilir
-- network koparsa local draft icinde saklanir
-- sync sirasinda tekrar gonderilir
-- backend tarafinda recover/status kontrolu icin kullanilir
-
-Bu alan kaybolursa ayni islem ikinci kez olusabilir veya recover calismaz.
-
-Offline destekli feature'larda yeni alan eklerken su dosyalara ozellikle bak:
-
-- online create request modeli
-- offline draft modeli
-- draft `toJson/fromJson`
-- draft `toCreateRequest`
-- `OfflineSyncService`
-- offline liste/create UI
-
-### Error ve loading state ayni dilde olmali
-
-Ekranlarda hata gosterimi kullaniciya teknik stack trace gostermemeli. Repository/API hatalari `ApiException.message` uzerinden okunabilir olmali.
-
-Controller patterninde beklenen state alanlari:
-
-- `isLoading`
-- `isDetailLoading`
-- `isSubmitting`
-- `errorMessage`
-- `selected...`
-- `items`
-
-Bu isimlendirme feature'lar arasi tutarli tutulursa yeni ekran okumak kolaylasir.
-
-### Model parse ederken toleransli ol
-
-Backend bazen sayiyi string, tarihi null, bool'u 0/1 gibi dondurebilir. Bu projede modeller genelde helper methodlarla toleransli parse eder.
-
-Yeni model yazarken:
-
-- `DateTime.parse` yerine mumkunse `DateTime.tryParse`
-- nullable alanlarda bos string kontrolu
-- int/double parse helper'i
-- list/map cast hatalarina karsi guvenli okuma
-
-tercih edilmelidir.
-
-## 12. Yeni Bir Sey Eklerken Hangi Yol Izlenmeli?
-
-Yeni bir sey eklemeden once isi dogru kategoriye koy. Cunku her kategori farkli dosyalari etkiler.
-
-### Once su karari ver
-
-```text
-Sadece ekranda bir metin/gorunum mu degisecek?
-  -> UI-only
-
-Var olan form/list/detail davranisi mi degisecek?
-  -> Feature logic
-
-Backend'e yeni alan veya yeni endpoint mi gidecek?
-  -> API contract
-
-Internet yokken de calismasi gerekiyor mu?
-  -> Offline contract
-
-Tum ekranlari etkileyen ortak bir davranis mi?
-  -> Cross-cutting
-```
-
-### Genel ekleme akisi
-
-Her yeni is icin temel akis:
+Genel akis:
 
 1. Ilgili feature klasorunu bul.
 2. Degisiklik hangi katmanlari etkiliyor not al.
-3. Model gerekiyorsa once modeli guncelle.
-4. API gerekiyorsa repository methodunu ekle/guncelle.
-5. State gerekiyorsa controller'a ekle.
-6. UI gerekiyorsa page veya widget'a ekle.
-7. Menu ile yeni ekran acilacaksa `ShellModuleRegistry` baglantisini yap.
-8. Offline gerekiyorsa draft + sync katmanini unutma.
+3. Model gerekiyorsa modeli guncelle.
+4. Repository gerekiyorsa endpoint/body/query mapping yap.
+5. State gerekiyorsa controller veya create state'e ekle.
+6. UI gerekiyorsa page/widget/sheet'i guncelle.
+7. Menu gerekiyorsa `ShellModuleRegistry` baglantisini yap.
+8. Offline gerekiyorsa draft + sync zincirini unutma.
 9. Test ekle veya mevcut testi guncelle.
-10. `dart format lib test`, `flutter analyze`, `flutter test` calistir.
+10. `dart format`, `flutter analyze`, `flutter test` calistir.
 
-### Hangi dosyadan baslayacagim?
-
-| Eklemek istedigin sey | Once bakilacak yer | Sonra bakilacak yer |
-| --- | --- | --- |
-| Yeni buton | Ilgili `page.dart` veya `detail` widget | Controller/repository aksiyonu |
-| Yeni form alani | Ilgili `create_sheet.dart` | request model, offline draft |
-| Yeni liste kolonu/badge | Ilgili `page.dart` list item UI | list response modeli |
-| Yeni filtre | Ilgili `page.dart` filtre state'i | repository query param |
-| Yeni endpoint | Ilgili repository | model + controller/page |
-| Yeni ekran | `features/...` yeni klasor | `AppDependencies`, `ShellModuleRegistry` |
-| Yeni offline akis | online create modeli | offline draft, repository, sync service |
-| Ortak hata/timeout davranisi | `ApiClient` | tum repository testleri |
-| Yeni app config | `AppConfig` | README ve build komutlari |
-
-### Yeni ekran ekleme dosya sirasi
-
-Tamamen yeni bir ekran ekleyeceksen ideal dosya sirasi:
+### Yeni form alani ekleme checklist
 
 ```text
-1. lib/features/<module>/<feature>/data/models/<feature>_models.dart
-2. lib/features/<module>/<feature>/data/<feature>_repository.dart
-3. lib/features/<module>/<feature>/presentation/view_models/<feature>_controller.dart
-4. lib/features/<module>/<feature>/presentation/views/<feature>_page.dart
-5. lib/features/<module>/<feature>/presentation/widgets/...
-6. lib/app/dependencies.dart
-7. lib/features/shell/presentation/routing/shell_module_registry.dart
-8. test/features/<module>/<feature>_controller_test.dart
+create sheet controller/state
+create request model
+request toJson/body mapping
+repository create methodu
+detail/list response modeli
+detail/list UI
+offline draft varsa payload
+offline sync mapping varsa request donusumu
+test
 ```
 
-Her ekran controller gerektirmeyebilir. Ama liste/detail/create gibi state'i olan ekranlarda controller kullanmak projeyi daha okunur tutar.
-
-### Yeni alan ekleme dosya sirasi
-
-Var olan create formuna yeni alan eklenecekse:
+### Yeni endpoint ekleme checklist
 
 ```text
-1. create sheet state/controller
-2. create request model
-3. request toJson mapping
-4. repository body/query param
-5. detail/list response modeli
-6. detail/list UI
-7. offline draft varsa fromJson/toJson/toCreateRequest
-8. ilgili test
+model
+repository method
+controller method
+page/button/filter
+error/loading state
+test
 ```
 
-Offline destekli ekranda 7. adim atlanirsa kullanici offline kayit yaptiginda yeni alan kaybolabilir.
-
-### Yeni endpoint ekleme dosya sirasi
-
-Yeni bir backend aksiyonu eklenecekse:
+### Yeni ekran ekleme checklist
 
 ```text
-1. request/response model
-2. repository interface methodu
-3. API repository implementation
-4. controller methodu veya page action
-5. loading/error state
-6. UI butonu veya aksiyon tetigi
-7. test
+feature klasoru
+models
+repository
+controller gerekiyorsa controller
+page
+widgets
+AppDependencies
+ShellModuleRegistry
+menu permission kontrolu
+test
 ```
 
-Endpoint hata dondurebiliyorsa `ApiException.message` kullaniciya anlasilir sekilde gosterilmeli.
+## 18. Test Stratejisi
 
-Asagida en sik senaryolari ayirarak anlatiyorum.
-
-### Senaryo A - Var olan bir create ekranina yeni alan eklemek
-
-Ornek:
-
-- create formuna `plaka`
-- aciklama 2
-- yeni checkbox
-- yeni tarih alani
-
-Izlenecek yol:
-
-1. Ilgili create widget'i bul.
-   Ornek:
-   - `.../presentation/widgets/...create_sheet.dart`
-2. Form state'ine controller veya alan ekle.
-3. Submit sirasinda request modeline map et.
-4. Ilgili create request modelinde alan yoksa onu ekle.
-5. `toJson()` icinde backend'e gidecek sekle bagla.
-6. Detay/listede de gosterilecekse ilgili view model veya detail UI'yi guncelle.
-7. Eger ayni akis offline destekliyorsa offline draft modelini de guncelle.
-
-Offline destek varsa atlanmamasi gereken yerler:
-
-- offline draft model
-- offline repository
-- sync service mapping
-- offline create sheet
-
-### Senaryo B - Var olan ekrana yeni filtre, buton veya gosterim eklemek
-
-Ornek:
-
-- listeye yeni badge
-- yeni filtre tarihi
-- yeni refresh mantigi
-
-Izlenecek yol:
-
-1. Ilgili `Page` dosyasini bul.
-2. Controller kullaniliyorsa state'i orada tut.
-3. Sadece gorsel ise `Page` veya alt widget'ta tut.
-4. Filtre backend'e gidiyorsa repository method imzasini guncelle.
-5. Filter model varsa query param mapper'ini guncelle.
-
-### Senaryo C - Var olan modula yeni endpoint eklemek
-
-Ornek:
-
-- create var ama cancel eklenecek
-- detail var ama pdf indir eklenecek
-
-Izlenecek yol:
-
-1. Ilgili repository interface'ine method ekle.
-2. API implementation'a endpoint bagla.
-3. Gerekli response/request modeli varsa ekle.
-4. UI butonunu ilgili page/detail ekranina ekle.
-5. Hata ve loading state'ini controller veya page state'inde yonet.
-
-### Senaryo D - Tamamen yeni bir ekran/modul eklemek
-
-En onemli senaryo bu.
-
-Adimlar:
-
-1. Feature klasorunu olustur.
-2. `data/models` altina request-response modellerini yaz.
-3. `data/<feature>_repository.dart` olustur.
-4. Repository abstract interface + API implementation yaz.
-5. Gerekirse `presentation/view_models` altina controller yaz.
-6. `presentation/views` altina page yaz.
-7. Create/detay/filter alt widgetlarini `presentation/widgets` altina ayir.
-8. `AppDependencies.create()` icinde repository instance'ini ekle.
-9. `ShellModuleRegistry` constructor'una gerekli repository'yi ekle.
-10. `ShellModuleRegistry._buildRoutes()` icinde ilgili menu eslemesini yap.
-11. Eger backend menusu tutarsiz adlandirma kullaniyorsa `menuCodes` veya `keywords` fallback ekle.
-12. Gerekirse test ekle.
-
-### Senaryo E - Yeni ekran offline da calissin istiyorum
-
-Bu biraz daha buyuk is.
-
-Gerekenler:
-
-1. Online create request modelin olmali.
-2. Bunun local draft karsiligi olmali.
-3. Offline repository olmali.
-4. `OfflineSyncService` icine submit + sync draft mantigi eklenmeli.
-5. Offline taslak liste ekranin olmali.
-6. Lookup gerekiyorsa ilgili mobil katalog repository'si ve fallback mantigi eklenmeli.
-7. Katalog sync gerekiyorsa `AppDependencies` ve `ShellModuleRegistry` uzerinden local/sync servisleri ekrana tasinmali.
-
-Kisacasi offline destek, sadece "save locally" degil; ayri bir is akisi.
-
-## 13. Yeni Modulu Menuye Baglama Rehberi
-
-Bu kisim cok onemli.
-
-Yeni bir page yazdin ama ekranda gorunmuyor ise buyuk ihtimalle baglanti eksiklerinden biri vardir.
-
-Kontrol listesi:
-
-1. Repository `AppDependencies` icinde olusturuldu mu?
-2. Repository `ShellModuleRegistry` constructor'una eklendi mi?
-3. `AppDependencies` icinde `ShellModuleRegistry` olusturulurken pass edildi mi?
-4. `ShellModuleRegistry._buildRoutes()` icinde route baglandi mi?
-5. Backend'den gelen `moduleCode` ve `menuCode` gercekten senin bekledigin isim mi?
-6. Gerekirse `menuCodes` veya `keywords` ile fallback tanimlandi mi?
-7. Kullanicide o menuye ait action var mi?
-
-Ozellikle `canCreate` su mantikla belirleniyor:
+Guncel test durumu:
 
 ```text
-selectedMenu.actions.any((action) => action.code == 'create')
+flutter analyze -> temiz
+flutter test    -> 93/93 basarili
 ```
 
-Yani create butonunun cikmasi sadece UI degil, permission datasina da bagli.
+Rutin komutlar:
 
-## 14. Ornek Zincir: Sayim Sonuclari
-
-Bu modulu referans alin, cunku duzgun katmanli.
-
-Dosyalar:
-
-- `data/inventory_counts_repository.dart`
-- `data/models/inventory_count_models.dart`
-- `presentation/view_models/inventory_counts_controller.dart`
-- `presentation/views/inventory_counts_page.dart`
-- `presentation/widgets/inventory_count_create_sheet.dart`
-- `test/features/stock_operations/inventory_counts_controller_test.dart`
-
-Calisma mantigi:
-
-1. Page controller olusturur.
-2. Controller listeyi yukler.
-3. Secili kayit varsa detay ister.
-4. Create sheet request dondurur.
-5. Page dogrudan repository'e gitmek yerine offline sync service uzerinden create eder.
-6. Basariliysa liste tekrar yuklenir.
-
-Bu pattern yeni liste-detay-create modulleri icin iyi bir referanstir.
-
-## 15. Test Yazma Mantigi
-
-Repo icinde testler ozellikle controller seviyesinde fake repository ile yazilmis.
-
-Ornek:
-
-- `test/features/stock_operations/inventory_counts_controller_test.dart`
-
-Pattern:
-
-1. Fake repository olustur.
-2. Controller'i bu fake ile ayaga kaldir.
-3. `loadCounts`, `createCount`, `selectCount` gibi akislar test edilir.
-4. Hangi state'in secili oldugu assert edilir.
-
-Yeni modulde controller varsa ayni patterni kullan.
-
-### Test seviyesi nasil secilir?
-
-Her degisiklik icin test seviyesi ayni olmak zorunda degil.
-
-```text
-UI label/layout             -> manuel kontrol yeterli olabilir
-Controller state degisikligi -> controller unit test
-Repository mapping          -> repository veya ApiClient fake response test
-Offline sync                -> draft save + sync + recover test
-Session/auth                -> AppSessionController/AuthRepository test
-Shared helper               -> dogrudan unit test
-```
-
-Yeni test yazarken amac sadece coverage degil, ileride bozulmasi en olasi davranisi kilitlemektir.
-
-Iyi test ornekleri:
-
-- liste yuklenince ilk kayit seciliyor mu?
-- create sonrasi liste yenileniyor mu?
-- eski detail response yeni secimi eziyor mu?
-- 401 gelince session recover calisiyor mu?
-- network yokken offline draft kuyruga aliniyor mu?
-
-Offline draft veya mobil katalog testlerinde gercek SQLite yerine `test/support/memory_local_database.dart` icindeki `MemoryLocalDatabase` kullanilabilir. Bu sayede repository testleri dosya sistemi veya platform SQLite'a baglanmadan calisir.
-
-Ornek:
-
-```dart
-final repository = MobileProductCatalogLocalRepository(
-  database: MemoryLocalDatabase(),
-);
-```
-
-`TokenStorage` veya legacy SharedPreferences migration testlerinde `SharedPreferencesAsync` gerekiyorsa in-memory platform kurulmalidir. Ornek:
-
-```dart
-setUp(() {
-  SharedPreferencesAsyncPlatform.instance =
-      InMemorySharedPreferencesAsync.empty();
-});
-
-tearDown(() {
-  SharedPreferencesAsyncPlatform.instance = null;
-});
-```
-
-Bu kurulmazsa SharedPreferences kullanan testlerde `The SharedPreferencesAsyncPlatform instance must be set` hatasi alinabilir.
-
-## 16. Bu Projede Dikkat Edilmesi Gereken Tuzaklar
-
-### 1. Sadece UI eklemek yetmez
-
-Bir sey ekledigin zaman cogu zaman su katmanlardan birkaci birlikte degisir:
-
-- model
-- repository
-- page
-- create sheet
-- offline draft
-- test
-
-### 2. Menu eslemesi unutulursa ekran hic acilmaz
-
-Ozellikle yeni moduller icin ilk bakilacak yer `home_shell_page.dart`.
-
-### 3. `clientRequestId` kritik
-
-Offline/online recover mantigi icin create request'lerde `clientRequestId` korunur.
-Bunu bozarsan duplicate veya recover akislarini kirabilirsin.
-
-### 4. Offline destek varsa iki tarafta da alan ekle
-
-Sadece online request modeline alan ekleyip offline draft'e eklemezsen veri kaybi olur.
-
-### 5. Standalone page ile embedded page farkli olabilir
-
-Offline sayfalarda `standalone` gibi page kabugu farklari var.
-Route ile acilan sayfada `Scaffold/Material` eksik kalirsa siyah ekran gibi sorunlar gorulebilir.
-
-### 6. Controller yarislari
-
-Hizli secim degisikliklerinde stale response problemi olabilir.
-Bu projede bunun icin `RequestEpoch` kullaniliyor.
-
-### 7. Dispose sonrasi notify
-
-Controller yaziyorsan `SafeChangeNotifier` patternini koru.
-
-### 8. Token storage release icin hassas
-
-Tokenlar su an `SharedPreferencesAsync` uzerinden saklaniyor.
-
-Bu gelistirme ve lokal kullanim icin basit bir cozumdur. Uretim/release guvenligi artirilacaksa access token ve refresh token icin `flutter_secure_storage` gibi platform secure storage dusunulmelidir.
-
-Ilgili dosya:
-
-- `lib/core/storage/token_storage.dart`
-
-### 9. HTTP ve cleartext ayarlari bilincli kullanilmali
-
-Varsayilan API adresi lokal agdaki HTTP sunucusudur:
-
-```text
-http://10.0.0.100:7508
-```
-
-Android tarafinda cleartext traffic, iOS tarafinda App Transport Security istisnasi aciktir. Bu lokal ag/VPN senaryosu icin anlasilabilir, ama public release icin HTTPS tercih edilmelidir.
-
-Kontrol edilecek yerler:
-
-- `lib/core/config/app_config.dart`
-- `android/app/src/main/AndroidManifest.xml`
-- `ios/Runner/Info.plist`
-
-### 10. Offline storage buyurse SQLite semasi degerlendirilmeli
-
-Offline draft ve mobil kataloglar su an `LocalDatabase` arayuzu arkasinda SQLite icinde JSON row/document olarak tutuluyor. Bu yapi SharedPreferences'a gore daha uygundur, ama veri cok buyurse tek tek JSON row saklamak veya tum tabloyu okuyup filtrelemek pahali hale gelebilir.
-
-Eger offline veri buyurse veya ayni anda cok yazma/okuma ihtiyaci artarsa su alternatifler degerlendirilmeli:
-
-- Drift veya typed SQLite tablolar
-- Isar
-- Hive
-
-Bu gecis yapilacaksa once `LocalDatabase` arayuzu korunup alt implementasyon veya katalog repository'lerinin ic sorgu stratejisi degistirilmelidir.
-
-### 11. Dependency guncellemesi major ise ayri is olarak yap
-
-`flutter pub outdated` yeni major surumleri gosterebilir. Major guncellemeler ozellikle kamera, yazdirma ve platform pluginlerinde davranis degistirebilir.
-
-Guncelleme stratejisi:
-
-1. Ayri branch veya ayri is olarak ele al.
-2. `flutter pub upgrade --major-versions` sonrasi changelog oku.
-3. Android/iOS permission ve manifest degisikliklerini kontrol et.
-4. `flutter analyze` ve `flutter test` calistir.
-5. Kamera/barkod/yazdirma gibi native ozellikleri cihazda manuel dene.
-
-## 17. Yeni Bir Ekran Eklerken Kisa Checklist
-
-Asagidaki listeyi sirayla gec:
-
-1. Backend endpointi net mi?
-2. Request/response modeli yazildi mi?
-3. Repository interface + API implementation tamam mi?
-4. Gerekliyse controller var mi?
-5. Page ve alt widgetlar ayrildi mi?
-6. Dependency injection baglandi mi?
-7. `HomeShellPage` icinde menu map'i yapildi mi?
-8. Permission kaynakli `canCreate` veya benzeri aksiyonlar dusunuldu mu?
-9. Offline gerekiyorsa draft + sync katmani eklendi mi?
-10. Hata/loading/empty state'leri yazildi mi?
-11. Liste/detail/create akisi stale response'a karsi guvenli mi?
-12. Test ve en azindan `flutter analyze` calistirildi mi?
-13. Offline veya native ozellik varsa cihazda manuel kontrol yapildi mi?
-
-## 18. Gelistirme Sirasinda Pratik Komutlar
-
-### Rutin kontrol sirasi
-
-Bir degisiklik tamamlanmadan once ideal kontrol sirasi:
-
-```text
-1. dart format lib test
-2. flutter analyze
-3. flutter test
-4. Degisiklik native/plugin etkiliyorsa cihazda manuel test
-5. API contract degistiyse backend ile request/response kontrolu
-6. Offline etkileniyorsa internet kapali/geri acik senaryosu
-```
-
-Kucuk UI degisikliklerinde tum manuel senaryolari calistirmak gerekmeyebilir, ama `flutter analyze` ve ilgili testler temiz olmalidir.
-
-### Haftalik / periyodik bakim
-
-Proje aktif gelistiriliyorsa arada su kontroller yapilabilir:
-
-```bash
-flutter pub outdated
+```powershell
+dart format lib test
 flutter analyze
 flutter test
 ```
 
-Bakimda ozellikle sunlara bak:
+Tek test dosyasi:
 
-- major dependency guncellemesi var mi?
-- testler localde ve CI'da ayni sonucu veriyor mu?
-- Android/iOS manifest izinleri gereksiz genislemis mi?
-- offline draft formatinda migration gerektiren degisiklik var mi?
-- README ve bu rehber yeni akisla uyumlu mu?
+```powershell
+flutter test test/features/shipping_operations/outgoing_warehouse_shipment_create_sheet_test.dart
+```
 
-### Release oncesi kisa kontrol
+Test seviyesi secimi:
 
-Release veya saha test paketi almadan once su liste gecilmeli:
+- Model parse degisirse model/repository testi.
+- Controller state degisirse controller testi.
+- Create satiri, focus, barkod, layout degisirse widget testi.
+- Offline sync degisirse offline sync testi.
+- Shared widget degisirse shared widget testi ve en az bir feature testi.
 
-1. API base URL dogru mu?
-2. HTTP/HTTPS ve cleartext ayari hedef ortama uygun mu?
-3. Android signing dosyalari hazir mi?
-4. Kamera/barkod izni cihazda calisiyor mu?
-5. Yazdirma/PDF akisi hedef cihazda denenmis mi?
-6. Login, session restore, logout denenmis mi?
-7. Offline create + sync akisi denenmis mi?
-8. `flutter analyze` temiz mi?
-9. `flutter test` temiz mi?
-
-### Android release signing ilk kurulum
-
-Release APK'nin kullanici cihazinda guncelleme olarak kurulabilmesi icin ayni uygulama imzasi korunmalidir. Bu yuzden keystore dosyasi kaybedilmemeli ve sifreleri guvenli yerde saklanmalidir.
-
-Bu projede Android imza ayari su dosyada yapilir:
+Son create/PDA duzenlerinden sonra kritik test dosyalari:
 
 ```text
-android/app/build.gradle.kts
+test/features/shipping_operations/outgoing_warehouse_shipment_create_sheet_test.dart
+test/features/order_operations/given_warehouse_order_create_sheet_test.dart
+test/features/stock_operations/stock_receipt_create_sheet_test.dart
+test/features/acceptance_operations/company_acceptance_create_sheet_test.dart
+test/features/return_operations/warehouse_return_create_sheet_test.dart
+test/features/company_movements/company_movements_page_test.dart
+test/shared/product_entry/product_entry_widgets_test.dart
+test/shared/product_entry/product_entry_controller_test.dart
 ```
 
-Mantik su:
+PDA layout testi yazarken sadece metin aramak yetmeyebilir. Kullanici davranisini
+test et:
 
-- `android/key.properties` varsa release build bu dosyadaki keystore ile imzalanir.
-- `android/key.properties` yoksa build debug imzasina duser.
-- Debug imzali APK saha test icin kurulabilir ama nihai dagitim sayilmamalidir.
+- barkod gir
+- `Urun` butonuna bas
+- kalem sayisi artiyor mu?
+- giris satiri duruyor mu?
+- duplicate okutma miktari artiriyor mu?
+- bulunamayan urun kalem sayilmiyor mu?
+- dar genislikte overflow yok mu?
 
-Ilk kez release anahtari olusturma:
+## 19. Release ve Android Guncelleme
 
-```powershell
-keytool -genkeypair -v -keystore android\app\upload-keystore.jks -storetype JKS -keyalg RSA -keysize 2048 -validity 10000 -alias upload
-```
-
-Sonra `android/key.properties` dosyasi olusturulur:
-
-```properties
-storePassword=KEYSTORE_SIFRESI
-keyPassword=KEY_SIFRESI
-keyAlias=upload
-storeFile=app/upload-keystore.jks
-```
-
-`keytool` sirasinda key password icin Enter ile ayni sifre kullanildiysa `storePassword` ve `keyPassword` ayni olabilir.
-
-Asla commitlenmemesi gereken dosyalar:
-
-```text
-android/key.properties
-android/app/upload-keystore.jks
-```
-
-`android/.gitignore` bu dosyalari ignore eder. Yine de commit oncesi `git status` ile kontrol edilmelidir.
-
-Keystore olustu mu hizli kontrol:
-
-```powershell
-Test-Path android\key.properties
-Test-Path android\app\upload-keystore.jks
-```
-
-Alias kontrolu gerekiyorsa:
-
-```powershell
-keytool -list -v -keystore android\app\upload-keystore.jks -alias upload
-```
-
-Bu komut sifre sorar; sifre ekrana yazilmaz.
-
-### Yeni versiyon atma akisi
-
-Yeni APK/AAB cikmadan once `pubspec.yaml` icindeki version artirilmalidir:
+Paket versiyonu `pubspec.yaml` icindedir:
 
 ```yaml
-version: 1.0.0+1
+version: 1.1.37+38
 ```
 
 Burada:
 
-- `1.0.0` kullanicinin gorecegi versiyondur.
-- `+1` Android `versionCode` degeridir.
-- Ayni cihaza veya Play Store'a guncelleme vermek icin `+` sonrasi sayi her release'te artmalidir.
+- `1.1.37` kullanicinin gordugu versionName
+- `+38` Android versionCode
 
-Ornek:
+Yeni release icin ikisi de bilincli artirilmalidir. Otomatik guncelleme
+penceresi kullanici versiyonunu karsilastirir; sadece `+38 -> +39` yapmak
+yeterli olmayabilir.
 
-```yaml
-version: 1.0.1+2
-```
-
-Sadece ic test paketi alirken bile build numarasini artirmak kurulum karisikliklarini azaltir.
-
-Yeni surumden once rutin komutlar:
+Release oncesi:
 
 ```powershell
 flutter pub get
 dart format lib test
 flutter analyze
 flutter test
-```
-
-Icon degistiyse:
-
-```powershell
-flutter pub run flutter_launcher_icons
-```
-
-Release APK alma:
-
-```powershell
 flutter build apk --release
 ```
 
-APK cikti yolu:
+APK cikti:
 
 ```text
 build/app/outputs/flutter-apk/app-release.apk
 ```
 
-Play Store veya merkezi dagitim AAB istiyorsa:
+AAB cikti:
 
 ```powershell
 flutter build appbundle --release
 ```
 
-AAB cikti yolu:
-
 ```text
 build/app/outputs/bundle/release/app-release.aab
 ```
 
-Hedef ortama gore API adresi build sirasinda verilecekse:
+### Android signing
 
-```powershell
-flutter build apk --release --dart-define=API_BASE_URL_ANDROID=http://10.0.0.100:7508
-```
-
-### Otomatik APK guncelleme akisi
-
-Android uygulama acilinca yeni surum kontrolu otomatik yapilir. Varsayilan manifest adresi:
+Gerekli dosyalar:
 
 ```text
-http://10.0.0.100:802/Terminal/version.json
+android/key.properties
+android/app/upload-keystore.jks
 ```
 
-Manifest formati:
+Bu dosyalar commitlenmemelidir. `git status` ile kontrol et.
 
-```json
-{
-  "version": "1.0.3",
-  "apk": "http://10.0.0.100:802/Terminal/app-release.apk"
-}
-```
+### Otomatik APK guncelleme
 
-Akis su sekildedir:
-
-1. Uygulama acilirken `version.json` okunur.
-2. `version` degeri cihazdaki uygulama versiyonundan buyukse kullaniciya "Yeni surum var, indirelim mi?" sorulur.
-3. Kullanici `Indir` derse APK cache'e indirilir.
-4. Android sistem kurulum ekrani acilir.
-5. Cihazda bilinmeyen kaynaklardan kurulum izni kapaliysa izin sayfasi acilir; izin verilince kurulum ekrani otomatik devam eder.
-
-Onemli ilk kurulum mantigi:
-
-- Otomatik guncelleme kodu eski APK'nin icinde yoksa eski uygulama `version.json` kontrol edemez.
-- Bu nedenle otomatik guncelleme sistemi eklendikten sonra uretilen ilk APK cihaza bir kere manuel kurulmalidir.
-- Bundan sonraki surumlerde uygulama acilinca otomatik kontrol calisir.
-
-Ornek:
-
-1. Cihaza manuel olarak `1.1.5+6` kurulur. Bu APK artik otomatik guncelleme kodunu icerir.
-2. Sonraki release `pubspec.yaml` icinde `version: 1.1.6+7` yapilir.
-3. Yeni APK sunucuya `app-release.apk` olarak koyulur.
-4. Sunucudaki `version.json` `1.1.6` gosterir.
-5. Cihazda yüklü `1.1.5` uygulama acilinca `1.1.6` daha buyuk oldugu icin guncelleme sorusu cikar.
-
-Bu akis su dosyalardadir:
+Ana dosyalar:
 
 ```text
 lib/core/update/app_update_service.dart
@@ -1233,139 +1012,50 @@ android/app/src/main/AndroidManifest.xml
 android/app/src/main/res/xml/file_paths.xml
 ```
 
-Yeni surumu yayinlarken:
-
-1. `pubspec.yaml` icindeki `version` degerini artir.
-2. `flutter build apk --release` ile APK al.
-3. `build/app/outputs/flutter-apk/app-release.apk` dosyasini `http://10.0.0.100:802/Terminal/app-release.apk` olacak sekilde sunucuya koy.
-4. Sunucudaki `version.json` icindeki `version` degerini APK'nin kullanici versiyonu ile ayni yap.
-5. `apk` alaninin indirilebilir APK adresini gosterdigini kontrol et.
-
-Ornek: `pubspec.yaml` icinde `version: 1.0.3+6` varsa `version.json` icindeki deger `1.0.3` olmalidir. Otomatik kontrol `+6` build numarasini degil kullanici versiyonunu karsilastirir; bu yuzden saha guncellemesi icin noktali versiyon da artirilmalidir.
-
-Kritik kural:
-
-- Cihazdaki uygulama `1.1.5` ise sunucudaki `version.json` da `1.1.5` ise guncelleme sorusu cikmaz.
-- Guncelleme sorusu cikmasi icin sunucudaki `version` cihazdaki uygulama surumunden buyuk olmalidir.
-- `version.json` icindeki `version`, sunucuya koyulan APK'nin `versionName` degeriyle ayni olmalidir.
-- Sadece `+6`, `+7` gibi build numarasini artirmak otomatik guncelleme penceresi icin yetmez; `1.1.5 -> 1.1.6` gibi kullanici versiyonu da artmalidir.
-
-APK'nin icindeki gercek surumu kontrol etmek icin:
-
-```powershell
-& "$env:LOCALAPPDATA\Android\Sdk\build-tools\36.1.0-rc1\aapt.exe" dump badging build\app\outputs\flutter-apk\app-release.apk | Select-String "package:"
-```
-
-Beklenen ornek cikti:
+Varsayilan manifest:
 
 ```text
-versionCode='7' versionName='1.1.6'
+http://10.0.0.100:802/Terminal/version.json
 ```
 
-Sunucunun gercekten hangi `version.json` dosyasini servis ettigini kontrol etmek icin:
+Manifest ornegi:
 
-```powershell
-(Invoke-WebRequest -Uri http://10.0.0.100:802/Terminal/version.json -UseBasicParsing).Content
+```json
+{
+  "version": "1.1.38",
+  "apk": "http://10.0.0.100:802/Terminal/app-release.apk"
+}
 ```
 
-Masaustundeki `C:\Users\devse\Desktop\version.json` dosyasini duzenlemek tek basina yeterli olmayabilir. Esas kontrol edilmesi gereken dosya, tarayicidan veya `Invoke-WebRequest` ile `http://10.0.0.100:802/Terminal/version.json` adresinden okunan dosyadir.
+Yayin akisi:
 
-Guncelleme manifest adresi farkli ortamda degisecekse build sirasinda verilebilir:
+1. `pubspec.yaml` version artir.
+2. Release APK al.
+3. APK'yi sunucuya koy.
+4. `version.json` icindeki `version` degerini APK versionName ile ayni yap.
+5. Cihazda uygulamayi acip update penceresini kontrol et.
 
-```powershell
-flutter build apk --release --dart-define=UPDATE_MANIFEST_URL=http://10.0.0.100:802/Terminal/version.json
-```
-
-Notlar:
-
-- APK ayni `applicationId` ve ayni release keystore ile imzalanmali.
-- `version.json` veya APK adresi HTTP ise Android manifestte cleartext traffic izni gerekir; bu projede aciktir.
-- APK kurulumunu Android sistem kurucusu yapar, uygulama sessiz kurulum yapmaz.
-- Ilk saha kurulumunda cihazda "bu uygulamadan kurulum" izni istenebilir.
-
-Android uygulama kimligi su anda:
+Android application id:
 
 ```text
 com.furpa.furpa_merkez_terminal
 ```
 
-Bu deger degistirilirse cihaz bunu eski uygulamanin guncellemesi olarak gormez; yeni uygulama gibi kurulur. Mecbur kalmadikca `applicationId` degistirilmemelidir.
+Bu deger degisirse Android mevcut uygulamanin guncellemesi olarak gormez.
 
-### Saha cihazi guncelleme notlari
+## 20. Gelistirme Ortami Notlari
 
-APK ayni `applicationId` ve ayni release keystore ile imzalandiysa mevcut uygulamanin uzerine guncelleme olarak kurulabilir.
-
-ADB ile manuel kurulum:
-
-```powershell
-adb install -r build\app\outputs\flutter-apk\app-release.apk
-```
-
-Temiz kurulum gerekiyorsa once uygulama kaldirilabilir, ama bu lokal token/offline draft gibi cihazdaki uygulama verilerini silebilir. Offline kayit bekleyen cihazlarda once sync tamamlanmalidir.
-
-Dagitimdan sonra sahada minimum manuel smoke test:
-
-1. Uygulama aciliyor mu?
-2. Ikon ve uygulama adi dogru mu?
-3. Login oluyor mu?
-4. Menu listesi geliyor mu?
-5. Barkod/kamera izni calisiyor mu?
-6. Kritik liste/detail ekranlari aciliyor mu?
-7. Terminal geri tusu uygulamayi kapatmadan once menu/anasayfa akisini yapiyor mu?
-8. Offline create kullanilan cihazda internet kapali/acik senaryosu calisiyor mu?
-9. `version.json` daha yuksek versiyon gosterince guncelleme sorusu cikiyor mu?
-10. `Indir` sonrasi APK kurulum ekrani aciliyor mu?
-
-### Release icin eksik sayilacak durumlar
-
-Asagidakilerden biri varsa paket "dagitima hazir" sayilmamalidir:
-
-- `flutter analyze` hata veriyor.
-- `flutter test` hata veriyor.
-- `android/key.properties` yok veya bos alan iceriyor.
-- `android/app/upload-keystore.jks` yok.
-- `pubspec.yaml` `version` build numarasi artirilmamis.
-- API base URL test/production hedefi icin yanlis.
-- Otomatik guncelleme icin `version.json` ve APK sunucuya yuklenmemis veya yanlis URL gosteriyor.
-- Kamera veya internet izni hedef cihazda denenmemis.
-- Offline draft bekleyen cihazlara temiz kurulum yapilacaksa sync plani yok.
-- Ikon/app adi degistiyse launcher icon ve manifest yeniden uretilmemis.
-
-### Codex / Windows ortam notu
-
-Bu proje Flutter SDK'yi `C:\dev\flutter` altindan kullaniyor. Codex sandbox sadece proje klasorune yazabiliyorsa `flutter analyze`, `flutter test`, `flutter pub get` gibi komutlar takilabilir.
-
-Sebep proje buyuklugu degildir. Flutter komutlari calisirken SDK cache altina lock/cache dosyasi yazar:
+Bu proje Windows ortaminda PowerShell ile calisiyor. Flutter SDK yolu:
 
 ```text
-C:\dev\flutter\bin\cache\lockfile
-C:\dev\flutter\bin\cache\flutter.bat.lock
+C:\dev\flutter
 ```
 
-Codex bu klasore yazamazsa `flutter.bat` sessizce lock bekleyebilir ve komut cikti vermeden uzun sure bitmeyebilir.
+Flutter komutlari SDK cache altina lock/cache dosyasi yazabilir. Codex veya
+benzeri sandbox ortamlarinda `C:\dev\flutter` yazilabilir degilse komutlar
+takilabilir.
 
-Kalici cozum icin `C:\Users\devse\.codex\config.toml` icinde root seviyede su ayarlar bulunmali:
-
-```toml
-model = "gpt-5.5"
-model_reasoning_effort = "xhigh"
-sandbox_mode = "workspace-write"
-
-[windows]
-sandbox = "elevated"
-
-[sandbox_workspace_write]
-writable_roots = [
-  "C:\\Users\\devse\\Desktop\\PROJECTS\\FurpaMerkezTerminal",
-  "C:\\dev\\flutter"
-]
-```
-
-Onemli: `sandbox_mode = "workspace-write"` satiri herhangi bir `[section]` altinda kalmamali; dosyanin root seviyesinde, ilk section basligindan once durmali.
-
-Config degistikten sonra Codex tamamen kapatilip tekrar acilmali.
-
-Eger Flutter komutu daha once takildiysa once eski dart surecleri ve lock dosyalari temizlenebilir:
+Takilan dart/flutter sureclerini temizlemek icin:
 
 ```powershell
 Stop-Process -Name dart -Force -ErrorAction SilentlyContinue
@@ -1373,238 +1063,135 @@ Remove-Item C:\dev\flutter\bin\cache\lockfile -Force -ErrorAction SilentlyContin
 Remove-Item C:\dev\flutter\bin\cache\flutter.bat.lock -Force -ErrorAction SilentlyContinue
 ```
 
-Format:
+Bu calisma ortaminda `D:\PROJECTS\FURPA(Serdal OZSOY)\FurpaMerkezTerminal`
+ana proje klasorudur.
 
-```bash
-dart format lib test
-```
+## 21. Sik Tuzaklar
 
-Analiz:
+### 1. Bulunamayan urunu kalem saymak
 
-```bash
-flutter analyze
-```
+Lookup text dolu diye satiri aktif kalem sayma. Gercek urun secimi veya stok
+kodu yoksa satir giris satiridir.
+
+### 2. Girdigi satiri scroll icinde kaybetmek
+
+Create ekraninda giris satiri kullanicinin hizli okutma dongusudur. Header,
+evrak alanlari veya liste scroll'u bu satiri kaybettirmemeli.
+
+### 3. Nested scroll kullanmak
+
+Kalem listesi icinde ayrica `ListView` acma. Dolu kalemler, validasyon ve
+kaydet butonu ayni ana scroll icinde olmali.
+
+### 4. Offline alanini unutmak
+
+Online create request'e eklenen alan offline draft'a eklenmezse cihaz offline
+senaryoda eski veri gonderir.
+
+### 5. `clientRequestId` kaybetmek
+
+Offline recover ve duplicate kontrolu bozulur.
+
+### 6. Menu route baglamayi unutmak
+
+Page yazilsa bile `ShellModuleRegistry` baglantisi yoksa kullanici ekrani
+acamaz.
+
+### 7. AppDependencies'e gereksiz dependency eklemek
+
+Sadece tek feature icinde uretilebilecek nesneleri global hale getirme.
+
+### 8. AppConfig default degerini fark etmemek
+
+Feature flag kapaliysa test veya build sirasinda explicit acilmalidir.
+
+### 9. Testi eski UI detayina baglamak
+
+PDA UI degisikliginde tek uzun metin yerine parcalanmis grid kullanilabilir.
+Test kullanici davranisini assert etmeli.
+
+### 10. Release version artirmamak
+
+APK build alinsa bile `version.json` ayni versiyonu gosterirse update penceresi
+cikmaz.
+
+## 22. Minimum Manuel Saha Kontrolu
+
+Her release veya buyuk PDA degisikliginden sonra sahada su kontrol yapilmali:
+
+1. Login oluyor mu?
+2. Session restore calisiyor mu?
+3. Yetkili menuler gorunuyor mu?
+4. Liste/detail gecisleri calisiyor mu?
+5. Giden depo sevk create'te hedef depo seciliyor mu?
+6. Barkod okutunca urun geliyor mu?
+7. Bulunamayan barkod kalem eklemiyor mu?
+8. Ayni barkod tekrar okutulunca miktar artiyor mu?
+9. Girdigi satir kaybolmadan tekrar okutmaya hazir kaliyor mu?
+10. Kalem listesi ile kaydet butonu ayni scroll icinde mi?
+11. Kamera barkod izni ve okuma calisiyor mu?
+12. Offline destekli ekranlarda internet kapali/acik senaryosu calisiyor mu?
+13. 320-390 px terminal genisliginde overflow yok mu?
+14. Otomatik update penceresi dogru versiyonda cikiyor mu?
+
+## 23. Commit Mesaji Ornekleri
+
+PDA create akisi icin:
+
+```text
+feat: pda create ekranlarinda giris akisini sabitle
+
+- Create ekranlarinda giris satirinin kaybolmasi engellendi
+- Bulunamayan urunlerin kalem sayilmasi onlendi
+- Barkod lookup satirlari ortak ProductLookupField davranisina yaklastirildi
+- Kalem listesi ve kaydet aksiyonlari ayni scroll akisi icinde tutuldu
+- Dar terminal genislikleri icin layout testleri guncellendi
 
 Test:
-
-```bash
-flutter test
-```
-
-Belirli dosya analizi:
-
-```bash
-dart analyze lib/features/stock_operations/inventory_counts/presentation/view_models/inventory_counts_controller.dart
-```
-
-## 19. Guncel PDA Uyum Durumu
-
-2026-07-13 itibariyle proje ana akislar icin PDA uyumlu ve saha kullanimi icin kullanilabilir seviyededir. Son PDA uyum calismasindan sonra `flutter analyze` temiz calismis, `flutter test` ise 72/72 basarili gecmistir.
-
-Bu ifade "hic manuel test gerekmiyor" anlamina gelmez. PDA uyumlu demek:
-
-- ekranlar dar terminal genisliginde okunabilir
-- ana menuler PDA'da liste mantigiyla erisilebilir
-- liste kartlari secilebilir/kart oldugu belli olacak sekilde gorunur
-- detaylar ana listenin icinde sikismak yerine ayri sayfada acilir
-- create ekranlari bottom sheet gibi dar alanda kalmak yerine tam ekran sayfa hissi verir
-- create ekranlarindaki bos "Giris satiri" yanlislikla silinmez
-- urun/barkod girisleri Enter/Tab/PDA okuyucu akisina daha uygundur
-- kart icindeki bilgiler mumkun oldugunca alt alta yigilmak yerine siktiginda yan yana grid olarak gosterilir
-- PDA'da gereksiz cift header veya cift kapatma ikonlari azaltilmistir
-
-Saha cihazinda yine de minimum manuel kontrol yapilmalidir:
-
-1. Login ve session restore.
-2. Home menude tum yetkili menulerin gorunmesi.
-3. Ana liste ekranlarinda kart secimi.
-4. Detay ekranlarinin ayri sayfa olarak acilip geri donebilmesi.
-5. Create ekranlarinda ilk giris satirinin silinmemesi.
-6. Barkod okuyucunun Enter/Tab davranisi.
-7. Kamera ile barkod okutma izni ve sonucu.
-8. Offline create destekli ekranlarda internet kapali/acik senaryosu.
-9. Kritik ekranlarda 320-390 px civari terminal genisliginde tasma olmamasi.
-
-### PDA UI standardi
-
-Yeni ekran veya yeni kart eklerken mevcut PDA parcalari tekrar kullanilmalidir:
-
-- Liste kaydi: `TerminalPdaRecordCard`
-- Detay paneli: `TerminalPdaDetailPanel`
-- Bilgi alani: `TerminalPdaInfoGrid` ve `TerminalPdaInfo`
-- Create satiri: `TerminalPdaLineCard`
-- Liste ust bolumu / filtre basligi: `TerminalListHeaderCard`
-- Bolum kapsayici: `SectionCard`
-- Tam ekran create acma: `openTerminalCreatePage`
-- Barkod/urun giris satiri: `TerminalResponsiveLookupRow`, `ProductLookupField`
-- Terminal geri bildirimleri: `TerminalFeedback`
-
-Kural:
-
-- Yeni liste kartlari duz beyaz `Container` olarak yazilmamali.
-- Detay bilgisi ana liste icinde genisleyerek tum ekrani doldurmamali; ayri sayfa daha okunur.
-- Create satirlarinda silme butonu sadece gercek kayit satirlari icin gorunmeli; bos giris satiri korunmali.
-- Barkod, stok kodu, birim, miktar gibi bilgiler tek uzun metin olarak degil, mumkunse `TerminalPdaInfoGrid` icinde parca parca gosterilmeli.
-- PDA ekraninda sikan bilgiler yan yana, sikmayanlar alt satira akacak sekilde tasarlanmali.
-- Kucuk lookup/secim pencereleri bottom sheet kalabilir; ama ana liste/detay/create akislari tam ekran veya PDA uyumlu yuzey olmalidir.
-
-### PDA uyumu etkileyen ana dosyalar
-
-Ortak UI parcalari:
-
-```text
-lib/shared/widgets/terminal_ui_parts.dart
-lib/shared/widgets/terminal_create_page.dart
-lib/shared/widgets/section_card.dart
-lib/shared/product_entry/product_entry_widgets.dart
-lib/shared/product_entry/product_entry_controller.dart
-lib/shared/utils/terminal_feedback.dart
-```
-
-Home ve menu:
-
-```text
-lib/features/shell/presentation/views/home_shell_page.dart
-lib/features/shell/presentation/widgets/home_dashboard.dart
-lib/features/shell/presentation/widgets/module_navigation_panel.dart
-```
-
-PDA uyumu guncellenmis ana akis ornekleri:
-
-```text
-lib/features/order_operations/given_company_orders/presentation/views/given_company_orders_page.dart
-lib/features/order_operations/given_company_orders/presentation/widgets/given_company_order_create_sheet.dart
-lib/features/order_operations/given_warehouse_orders/presentation/widgets/given_warehouse_order_create_sheet.dart
-lib/features/order_operations/shared/presentation/views/warehouse_orders_page.dart
-lib/features/shipping_operations/outgoing_warehouse_shipments/presentation/views/outgoing_warehouse_shipments_page.dart
-lib/features/shipping_operations/outgoing_warehouse_shipments/presentation/widgets/outgoing_warehouse_shipment_create_sheet.dart
-lib/features/return_operations/warehouse_returns/presentation/views/warehouse_returns_page.dart
-lib/features/return_operations/warehouse_returns/presentation/widgets/warehouse_return_create_sheet.dart
-lib/features/acceptance_operations/company_acceptances/presentation/views/company_acceptances_page.dart
-lib/features/acceptance_operations/company_acceptances/presentation/widgets/company_acceptance_create_sheet.dart
-lib/features/acceptance_operations/warehouse_acceptances/presentation/views/warehouse_acceptances_page.dart
-lib/features/stock_operations/inventory_counts/presentation/views/inventory_counts_page.dart
-lib/features/stock_operations/inventory_counts/presentation/widgets/inventory_count_create_sheet.dart
-lib/features/stock_operations/stock_receipts/presentation/views/stock_receipts_page.dart
-lib/features/stock_operations/virman/presentation/views/virman_page.dart
-lib/features/stock_operations/label_documents/presentation/views/label_documents_page.dart
-lib/features/stock_operations/label_printing/presentation/views/label_printing_page.dart
-lib/features/stock_operations/offline_inventory_counts/presentation/views/offline_inventory_counts_page.dart
-lib/features/acceptance_operations/offline_company_acceptances/presentation/views/offline_company_acceptances_page.dart
-lib/features/company_movements/shared/presentation/views/company_movements_page.dart
-lib/features/company_movements/shared/presentation/widgets/company_movement_create_sheet.dart
-lib/features/legacy_tools/presentation/views/legacy_tool_pages.dart
-```
-
-### PDA degisikligi sonrasi test beklentisi
-
-PDA UI degisikligi sadece gorunum gibi dursa da create satiri, barkod focus, satir silme veya detay navigasyonu davranisini etkileyebilir. Bu yuzden en az su komutlar calistirilmelidir:
-
-```bash
-dart format lib test
-flutter analyze
-flutter test
-```
-
-Eger testler eski tek satir metinleri ariyorsa, test kullanici davranisini koruyacak sekilde guncellenmelidir. Ornek: `"Kod | Urun | Birim | Barkod"` gibi tek metin yerine `Kod`, `Urun`, `Birim`, `Barkod` alanlarinin ayri ayri gorundugu assert edilebilir.
-
-## 20. Ozet
-
-Bu projeyi anlamanin en kisa yolu su:
-
-- `app/` = uygulama kabugu
-- `core/` = temel altyapi
-- `features/` = is modulleri
-- `shared/` = ortak parcalar
-- `HomeShellPage` = menu -> ekran esleme merkezi
-- `AppDependencies` = dependency injection merkezi
-- `ApiClient` = tum HTTP kapisi
-- `OfflineSyncService` = offline kuyruk ve recover merkezi
-
-Bir sey eklerken once su soruyu sor:
-
-> Bu degisiklik sadece UI degisikligi mi, yoksa model + repository + menu + offline + test zincirini de etkiliyor mu?
-
-Bu soruya dogru cevap verdiginde projede kaybolman cok azalir.
-
-## 21. Genis Commit Mesaji Ornegi
-
-Asagidaki ornek, son PDA uyum calismasi gibi genis kapsamli bir degisiklik icin kullanilabilir. Commit atarken gerekirse dosya listesi kisaltilabilir, ama kapsam ve test bilgisi korunmalidir.
-
-```text
-feat(pda): terminal ekranlarini PDA kullanimina uygun hale getir
-
-Bu commit, Furpa Merkez Terminal uygulamasindaki ana liste, detay ve
-create akislarini PDA/terminal cihaz kullanimi icin daha tutarli ve
-kullanilabilir hale getirir.
-
-Genel PDA UI duzenlemeleri:
-- Ortak PDA kart ve bilgi bilesenleri genisletildi.
-- Liste kayitlari TerminalPdaRecordCard yapisina tasindi.
-- Detay alanlari TerminalPdaDetailPanel ile daha okunur hale getirildi.
-- Kod, barkod, birim, miktar gibi bilgiler TerminalPdaInfoGrid icinde
-  yan yana sigacak sekilde gosterilmeye baslandi.
-- Create satirlari TerminalPdaLineCard yapisina alindi.
-- Duz beyaz Container gibi secilebilirligi zayif kartlar azaltildi.
-- Kart radius/padding/renk/border yapisi PDA ekraninda daha net olacak
-  sekilde standartlastirildi.
-- IntrinsicHeight kaynakli dar ekran layout problemi kaldirildi.
-
-Home ve menu:
-- Home giris ekrani PDA mantigina daha uygun liste/menu yapisina cekildi.
-- Yetkili tum menu gruplarinin PDA ekraninda daha kolay taranmasi saglandi.
-- Menu gecisi ve terminal geri tusu akisi korunacak sekilde duzenlendi.
-
-Liste ve detay davranisi:
-- Detaylar ana liste icinde acilmak yerine ayri sayfa mantigina tasindi.
-- Verilen firma siparisleri, depo siparisleri, sevkiyatlar, iadeler,
-  sayimlar, stok fisleri, virman, etiket islemleri, mal kabul ve cari
-  hareket ekranlarinda detay gorunumleri PDA uyumlu hale getirildi.
-- Etiket islemleri detayi da ayri sayfa mantigina alindi.
-- Liste kartlarinda bilgiler alt alta yigilmak yerine siktiginda yan yana
-  gosterilecek sekilde duzenlendi.
-
-Create ekranlari:
-- Create ekranlari bottom sheet hissinden uzaklastirilip tam ekran sayfa
-  deneyimine yaklastirildi.
-- Create ekranlarindaki ekstra/cift header ve cift kapatma ikonlari
-  temizlendi.
-- Bos "Giris satiri"nin silinmemesi saglandi.
-- Satir silme butonlari sadece gercek eklenmis satirlar icin gosterilecek
-  sekilde duzenlendi.
-- Urun/barkod giris alanlari PDA okuyucu Enter/Tab akisina daha uygun hale
-  getirildi.
-- Iade, sevkiyat, siparis, sayim, mal kabul, virman ve offline create
-  satirlari ortak PDA satir karti yapisina yaklastirildi.
-
-Offline ve legacy ekranlar:
-- Offline sayim ve offline firma mal kabul taslak kartlari PDA uyumlu
-  detay paneli ve bilgi grid yapisina tasindi.
-- Offline create satir kartlari ortak create satiri yapisina alindi.
-- Fiyat gor, cari bul ve diger legacy arac sonuc kartlari PDA bilgi paneli
-  mantigina uyarlandi.
-
-Geri bildirim ve barkod akis:
-- TerminalFeedback yardimcisi ile basari/uyari/hata mesajlari ortak hale
-  getirildi.
-- Barkod/kamera okuma sonrasi kullanici geri bildirimi iyilestirildi.
-- TerminalSubmitOnTab ile Tab/Enter/NumpadEnter davranisi PDA okuyuculara
-  daha uygun hale getirildi.
-
-Testler:
-- Eski tek satir urun bilgi metinlerine bagli testler yeni PDA grid
-  gosterimine gore guncellendi.
-- Dar terminal genisliginde layout tasma riskleri icin mevcut widget testleri
-  korunarak guncellendi.
-
-Dogrulama:
-- dart format lib test
 - flutter analyze
 - flutter test
-
-Son durum:
-- flutter analyze temiz.
-- flutter test 72/72 basarili.
-- Proje ana liste/detay/create akislarinda PDA uyumlu ve saha testi icin
-  kullanilabilir seviyede.
 ```
+
+Giden depo sevk scroll duzenlemesi icin:
+
+```text
+fix: depo sevk create scroll akisini kalemlerle birlestir
+
+- Giden depo sevk create ekraninda nested ListView kaldirildi
+- Manuel ve siparisli kalemler SliverList ile ana scroll alanina tasindi
+- Validasyon ve Sevki Hazirla aksiyonu kalemlerle ayni scroll sonuna alindi
+- Ilgili widget testleri CustomScrollView yapisina gore guncellendi
+
+Test:
+- flutter analyze
+- flutter test
+```
+
+Genis kapsamli degisikliklerde commit mesaji mutlaka su bilgileri icermeli:
+
+- Hangi ekranlar etkilendi?
+- Is mantigi degisti mi, yoksa sadece layout mu?
+- Offline veya API contract degisti mi?
+- Hangi testler calisti?
+
+## 24. Kisa Ozet
+
+Bu projede kaybolmamayi saglayan ana fikir:
+
+```text
+app       -> uygulama kabugu ve dependency
+core      -> network/config/storage/update
+features  -> is ekranlari
+shared    -> ortak PDA, barkod, offline ve draft parcalari
+```
+
+En kritik akillar:
+
+- Menu backend datasindan gelir, route registry ile ekrana baglanir.
+- Yetki gorunurlugu `page/manage` mantigiyla okunur.
+- HTTP sadece `ApiClient` uzerinden gitmelidir.
+- Offline create varsa `clientRequestId` ve draft zinciri korunmalidir.
+- PDA create ekraninda giris satiri kullanicinin ana kas hafizasidir.
+- Bulunamayan urun kalem degildir.
+- Dolu kalemler ve kaydet aksiyonu ayni scroll alaninda olmalidir.
+- Shared UI degisikligi yaptiktan sonra full test calistir.

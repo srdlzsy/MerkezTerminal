@@ -26,6 +26,7 @@ import 'package:furpa_merkez_terminal/features/stock_operations/label_documents/
 import 'package:furpa_merkez_terminal/features/stock_operations/offline_inventory_counts/data/offline_inventory_counts_repository.dart';
 import 'package:furpa_merkez_terminal/features/stock_operations/stock_receipts/data/stock_receipts_repository.dart';
 import 'package:furpa_merkez_terminal/features/stock_operations/virman/data/virman_repository.dart';
+import 'package:furpa_merkez_terminal/shared/data/despatch_drivers_repository.dart';
 import 'package:furpa_merkez_terminal/shared/drafts/create_draft_repository.dart';
 import 'package:furpa_merkez_terminal/shared/offline/mobile_customer_catalog_repository.dart';
 import 'package:furpa_merkez_terminal/shared/offline/mobile_product_catalog_repository.dart';
@@ -127,6 +128,9 @@ class AppDependencies {
       supportsCreate: true,
       supportsEDespatch: true,
     );
+    final despatchDriversRepository = ApiDespatchDriversRepository(
+      apiClient: apiClient,
+    );
     final stockReceiptsRepository = ApiStockReceiptsRepository(
       apiClient: apiClient,
     );
@@ -173,6 +177,7 @@ class AppDependencies {
       outgoingCompanyShipmentsRepository: outgoingCompanyShipmentsRepository,
       incomingCompanyShipmentsRepository: incomingCompanyShipmentsRepository,
       companyReturnsRepository: companyReturnsRepository,
+      despatchDriversRepository: despatchDriversRepository,
       companyAcceptancesRepository: companyAcceptancesRepository,
       stockReceiptsRepository: stockReceiptsRepository,
       labelDocumentsRepository: labelDocumentsRepository,

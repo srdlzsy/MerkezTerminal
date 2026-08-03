@@ -84,7 +84,7 @@ void main() {
 
     await tester.tap(find.text('Siparisli'));
     await tester.pumpAndSettle();
-    await tester.drag(find.byType(ListView).first, const Offset(0, -260));
+    await _dragShipmentCreateScroll(tester);
     await tester.pumpAndSettle();
     await tester.tap(find.widgetWithText(OutlinedButton, 'Depo Siparisi Sec'));
     await tester.pumpAndSettle();
@@ -272,7 +272,7 @@ void main() {
 
     await tester.tap(find.text('Siparisli'));
     await tester.pumpAndSettle();
-    await tester.drag(find.byType(ListView).first, const Offset(0, -260));
+    await _dragShipmentCreateScroll(tester);
     await tester.pumpAndSettle();
     await tester.tap(find.widgetWithText(OutlinedButton, 'Depo Siparisi Sec'));
     await tester.pumpAndSettle();
@@ -376,7 +376,7 @@ void main() {
 
       await tester.tap(find.text('Siparisli'));
       await tester.pumpAndSettle();
-      await tester.drag(find.byType(ListView).first, const Offset(0, -260));
+      await _dragShipmentCreateScroll(tester);
       await tester.pumpAndSettle();
       await tester.tap(
         find.widgetWithText(OutlinedButton, 'Depo Siparisi Sec'),
@@ -477,7 +477,7 @@ void main() {
 
       await tester.tap(find.text('Siparisli'));
       await tester.pumpAndSettle();
-      await tester.drag(find.byType(ListView).first, const Offset(0, -260));
+      await _dragShipmentCreateScroll(tester);
       await tester.pumpAndSettle();
       await tester.tap(
         find.widgetWithText(OutlinedButton, 'Depo Siparisi Sec'),
@@ -535,6 +535,11 @@ Future<void> _enterShipmentBarcode(
   await tester.pumpAndSettle();
 
   expect(find.text('Urun Ara'), findsNothing);
+}
+
+Future<void> _dragShipmentCreateScroll(WidgetTester tester) async {
+  await tester.drag(find.byType(CustomScrollView).first, const Offset(0, -260));
+  await tester.pumpAndSettle();
 }
 
 MobileWarehouseCatalogLocalRepository _emptyWarehouseCatalogRepository() {

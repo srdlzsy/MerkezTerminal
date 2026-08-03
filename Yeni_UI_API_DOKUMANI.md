@@ -1760,11 +1760,13 @@ Bu modul eski `SettingsController` islevlerini yeni API mimarisine uygun olarak 
 - `AyarIslemleri > SubeAyarlari`
 - `AyarIslemleri > KasaPosTerminalleri`
 - `AyarIslemleri > Kasiyerler`
+- `AyarIslemleri > Soforler`
 
 Veri kaynaklari:
 
 - Furpa DB: `DeviceDetails`, `DeviceTypes`, `BranchDetails`, `CashRegistryDetails`, `Cashiers`
 - Mikro write DB: `CashRegisterDetails`, `CashRegisterBranches`
+- Auth DB: `despatch_drivers`
 
 Onemli alan ayrimi:
 
@@ -1779,6 +1781,7 @@ UI icin tip/lookup kullanimi:
 - Sube ayarlari ekrani acilirken `GET /api/ayar-islemleri/sube-ayarlari/secenekler` cagrilip `scalesTypes` ve `cashTypes` dropdown'lari doldurulabilir.
 - Kasa/POS terminal ekrani acilirken `GET /api/ayar-islemleri/kasa-pos-terminalleri/secenekler` cagrilip `cashTypes` dropdown'i doldurulabilir.
 - Cihaz tipi dropdown'i icin mevcut `GET /api/ayar-islemleri/cihazlar/tipler` endpoint'i kullanilir.
+- E-irsaliye gonderme modalinda sofor secimi icin `GET /api/ayar-islemleri/soforler?search=ali&take=20` kullanilir. Secilen kaydin `id` degeri e-irsaliye body icinde `driverId` olarak gonderilebilir; UI isterse `fullName`, `plateNumber` ve `tckn` alanlarini forma otomatik basar.
 - Numeric alanlar geriye uyumluluk icin korunur; response'larda yanina `scalesTypeName`, `cashTypeName`, `stateName` ve aciklama alanlari eklenir.
 - `ScalesType` desteklenen kesin katalogdur: `0 = CAS 16`, `1 = CAS 500`.
 - `CashType` is kurali adi eski veri sozlugunde netlesmedigi icin simdilik merkezi ve notr adlarla (`Kasa Tipi 0`, `Kasa Tipi 1`) doner. Dogru is adlari teyit edilince sadece servis katalogu guncellenmelidir.
@@ -1806,7 +1809,17 @@ ayar-islemleri.kasiyerler.list
 ayar-islemleri.kasiyerler.detail
 ayar-islemleri.kasiyerler.create
 ayar-islemleri.kasiyerler.update
+
+ayar-islemleri.soforler.manage
+ayar-islemleri.soforler.list
+ayar-islemleri.soforler.detail
+ayar-islemleri.soforler.create
+ayar-islemleri.soforler.update
+ayar-islemleri.soforler.delete
+ayar-islemleri.soforler.all-warehouses
 ```
+
+Not: `Soforler` ekrani tanim/yonetim ekranidir. UI menu/route acilisinda `ayar-islemleri.soforler.manage` yetkisine bakmali; liste ve butonlarda ilgili `list/detail/create/update/delete` yetkilerini kullanmalidir.
 
 Endpoint ozeti:
 
@@ -1835,6 +1848,11 @@ Endpoint ozeti:
 | `POST /api/ayar-islemleri/kasiyerler` | body | `CreateCashierHttpRequest` | `CashierPasswordMutationDto` | `kasiyerler.create` |
 | `PUT /api/ayar-islemleri/kasiyerler/{cashierCode}` | body + path | `UpdateCashierHttpRequest` | `CashierDto` | `kasiyerler.update` |
 | `POST /api/ayar-islemleri/kasiyerler/{cashierCode}/sifre-sifirla` | path | `cashierCode: int` | `CashierPasswordMutationDto` | `kasiyerler.update` |
+| `GET /api/ayar-islemleri/soforler?search=&includeInactive=false&take=100` | query | `DespatchDriverListHttpRequest` | `DespatchDriverDto[]` | `soforler.list` |
+| `GET /api/ayar-islemleri/soforler/{id}` | path | `id: guid` | `DespatchDriverDto` | `soforler.detail` |
+| `POST /api/ayar-islemleri/soforler` | body | `SaveDespatchDriverHttpRequest` | `DespatchDriverDto` | `soforler.create` |
+| `PUT /api/ayar-islemleri/soforler/{id}` | body + path | `SaveDespatchDriverHttpRequest` | `DespatchDriverDto` | `soforler.update` |
+| `DELETE /api/ayar-islemleri/soforler/{id}` | path | `id: guid` | - | `soforler.delete` |
 
 ### Cihazlar
 
@@ -2238,6 +2256,127 @@ Body:
 `POST /api/ayar-islemleri/kasiyerler/{cashierCode}/sifre-sifirla`
 
 Kasiyere yeni 6 haneli numeric sifre uretir. Response `CashierPasswordMutationDto` modelidir.
+
+### Soforler
+
+Bu ekran e-irsaliye gonderirken kullanilan surucu bilgilerini Auth DB tarafinda tanimlamak icindir. UI bu ekrani sadece `ayar-islemleri.soforler.manage` yetkisi varsa menu/route olarak acmalidir. E-irsaliye modalinda otomatik doldurma icin `list` yetkisi yeterlidir.
+
+Veri tablosu:
+
+- Auth DB: `despatch_drivers`
+
+Temel alanlar:
+
+- `firstName`: ad, zorunlu, max 60
+- `lastName`: soyad, zorunlu, max 60
+- `fullName`: response'ta `firstName + lastName`
+- `plateNumber`: plaka, zorunlu, max 20; backend buyuk harfe normalize eder
+- `tckn`: 11 haneli sofor TCKN; e-irsaliye formunu otomatik doldurmak icin tam gelir
+- `maskedTckn`: liste/table gorunumu icin maskeli TCKN
+- `isActive`: pasif kayit e-irsaliye secim listesinde normalde gosterilmez
+- `notes`: opsiyonel yonetim notu
+
+`GET /api/ayar-islemleri/soforler?search=ali&includeInactive=false&take=20`
+
+Yetki:
+
+- `ayar-islemleri.soforler.list`
+
+Query:
+
+```text
+search           opsiyonel; ad, soyad, plaka veya TCKN icinde arar
+includeInactive  opsiyonel; default false
+take             opsiyonel; default 100, max 500
+```
+
+Response:
+
+```json
+[
+  {
+    "id": "1bc27065-f775-468f-9fc9-0e1ad107d105",
+    "firstName": "Ali",
+    "lastName": "Veli",
+    "fullName": "Ali Veli",
+    "plateNumber": "16 ABC 123",
+    "tckn": "11111111111",
+    "maskedTckn": "111*****111",
+    "isActive": true,
+    "notes": null,
+    "createdAtUtc": "2026-08-03T06:00:00Z",
+    "updatedAtUtc": null
+  }
+]
+```
+
+UI notu:
+
+- Liste/table kolonunda `maskedTckn` goster; e-irsaliye formunu doldururken `tckn` kullan.
+- Arama kutusu yazildikca debounce ile bu endpoint cagrilabilir.
+- E-irsaliye modalinda pasif sofor secilmemeli; bu yuzden `includeInactive=false` kullan.
+
+`GET /api/ayar-islemleri/soforler/{id}`
+
+Yetki:
+
+- `ayar-islemleri.soforler.detail`
+
+Response tek `DespatchDriverDto` doner. Kayit yoksa `404 Not Found`.
+
+`POST /api/ayar-islemleri/soforler`
+
+Yetki:
+
+- `ayar-islemleri.soforler.create`
+
+Request:
+
+```json
+{
+  "firstName": "Ali",
+  "lastName": "Veli",
+  "plateNumber": "16 abc 123",
+  "tckn": "11111111111",
+  "isActive": true,
+  "notes": "Ana sevk soforu"
+}
+```
+
+Response:
+
+- `201 Created`
+- Body tek `DespatchDriverDto`
+
+Kurallar:
+
+- `tckn` tam 11 numeric karakter olmalidir; degilse `400 Bad Request`.
+- Ayni aktif `plateNumber + tckn` kombinasyonu varsa `409 Conflict`.
+- `plateNumber` response'ta buyuk harfli doner.
+
+`PUT /api/ayar-islemleri/soforler/{id}`
+
+Yetki:
+
+- `ayar-islemleri.soforler.update`
+
+Request modeli `POST` ile aynidir. Response tek `DespatchDriverDto` doner. Kayit yoksa `404 Not Found`.
+
+`DELETE /api/ayar-islemleri/soforler/{id}`
+
+Yetki:
+
+- `ayar-islemleri.soforler.delete`
+
+Fiziksel silme yapmaz; kaydi pasife alir. Basarili response `204 No Content`.
+
+E-irsaliye modal entegrasyonu:
+
+1. Modal acilirken veya arama yazildikca `GET /api/ayar-islemleri/soforler?search={text}&take=20` cagrilir.
+2. Kullanici sofor secince UI `fullName`, `plateNumber`, `tckn` alanlarini forma basabilir.
+3. Gonderimde body'ye sadece `driverId` gonderilebilir; backend aktif sofor kaydindan plaka/ad soyad/TCKN alanlarini doldurur.
+4. Kullanici secilen sofor bilgisini formda degistirdiyse `driverId` ile birlikte manuel alanlar da gonderilebilir. Manuel dolu alanlar, secili sofor kaydinin ustune yazilir.
+5. Kullanici listeden secmeden eski akisi kullanacaksa `driverId` gondermez; bu durumda `plaque`, `driverNameSurname`, `driverTckn` zorunludur.
 
 ## GreenGrocer / Manav Yesillik Raporlari
 
@@ -4068,7 +4207,7 @@ UI kullanim notlari:
 - `shippingState = 1` ise sevk hedef depoya ulasmis kabul edilebilir; diger durumlar icin operasyonel isimlendirme UI tarafinda netlestirilebilir
 - `warehouseOrderNo` varsa sevkin hangi depo siparisine bagli oldugunu gostermek icin kullanilabilir
 - Mal kabul satir eslestirmesi icin detay response icindeki `items[].movementGuid` kullanilmalidir; sadece stok kodu ile eslestirme ayni stoktan birden fazla satir oldugunda hatali olabilir
-- Plaka, sofor adi ve sofor TCKN create ekraninda sorulmaz; kullanici bu bilgileri sadece e-irsaliye gonderirken zorunlu modal/form icinde girer
+- Plaka, sofor adi ve sofor TCKN create ekraninda sorulmaz; kullanici bu bilgileri e-irsaliye gonderirken elle girer veya kayitli sofor listesinden secer.
 
 ### Depolar Arasi Giden Sevk Olustur
 
@@ -4103,7 +4242,7 @@ Onemli not:
 - `warehouseOrderLineGuid` verilmezse satir normalde siparissiz sevk olarak olusur; otomatik depo siparisi kurali devredeyse backend once Mikro API ile depo siparisi olusturup satiri bu yeni siparis GUID'ine baglar.
 - Siparise bagli satirda stok kodu, kaynak depo, hedef depo ve kalan miktar kontrol edilir.
 - Manav istisnasi: `sourceWarehouseNo = 56` ve stok model kodu `10`, `11` veya `12` ise `GreenGrocerProductCases:OrderLinkingEnabled=false` durumunda satirdaki `warehouseOrderLineGuid` yok sayilir, otomatik depo siparisi/linki uretilmez ve kalan siparis miktari kontrolu uygulanmaz. `OrderLinkingEnabled=true` ise UI'nin gonderdigi gercek siparis satiri GUID'i korunur, sevk siparise baglanir ve kalan/teslim miktari kontrolleri calisir. Bu satirlarda `quantity` gercek okutulan KG/ADET sevk miktaridir.
-- Plaka, sofor adi ve TCKN bu create request'inde gonderilmez. Bu alanlar e-irsaliye gonderim request'inde zorunludur.
+- Plaka, sofor adi ve TCKN bu create request'inde gonderilmez. E-irsaliye gonderiminde manuel akista bu alanlar zorunludur; kayitli sofor secilirse `driverId` yeterlidir.
 
 Siparissiz request:
 
@@ -4201,7 +4340,7 @@ Yetki:
 Onemli not:
 
 - Bu endpoint yeni evrak kesmez; mevcut sevk kaydini okuyup Uyumsoft e-irsaliye servisine yollar.
-- UI tarafinda beklenen akis: kullanici once detay ekranini acar, sonra `E-Irsaliyeye Cevir` butonuna basar ve acilan formda plaka, sofor adi soyadi ve sofor TCKN girer.
+- UI tarafinda beklenen akis: kullanici once detay ekranini acar, sonra `E-Irsaliyeye Cevir` butonuna basar ve acilan formda plaka/sofor/TCKN bilgisini elle girer veya kayitli sofor listesinden secer.
 - `warehouseNo` verilmezse JWT icindeki kullanici deposu kullanilir.
 - Body zorunludur; seri ve sira bilgisi URL'den, tasima bilgileri body'den alinir.
 - Basarili gonderimden sonra ilgili Mikro satirlari kilitlenmeye calisilir; bu yerel guncelleme basarisiz olsa bile servis gonderimi basariliysa response doner.
@@ -4381,7 +4520,7 @@ Onemli not:
 - `customerCode` zorunludur ve write DB'de `CARI_HESAPLAR` icinde kontrol edilir.
 - `documentSerie` backend tarafinda `F{islemDepoNo}` olarak uretilir.
 - `documentOrderNo` ayni seri, evrak tipi ve iade tipi icin write DB'deki mevcut maksimum sira okunarak uretilir; ilk evrak `0`, sonraki evraklar `1, 2...` seklinde gider.
-- Plaka, sofor adi ve TCKN bu create request'inde gonderilmez. Bu alanlar e-irsaliye gonderim request'inde zorunludur.
+- Plaka, sofor adi ve TCKN bu create request'inde gonderilmez. E-irsaliye gonderiminde manuel akista bu alanlar zorunludur; kayitli sofor secilirse `driverId` yeterlidir.
 - Satir bazinda `unitPrice` verilirse `totalAmount` `quantity * unitPrice` toplamindan olusur; verilmezse `0` olur.
 
 Request:
@@ -4462,7 +4601,7 @@ Onemli not:
 - Body zorunludur; seri ve sira bilgisi URL'den, tasima bilgileri body'den alinir.
 - `warehouseNo` verilmezse JWT icindeki kullanici deposu kullanilir.
 - Musteri vergi numarasi, e-irsaliye alias'i ve adres bilgileri Mikro cari kaydindan okunur.
-- Plaka, sofor adi soyadi ve sofor TCKN body'den alinir; basarili gonderimden sonra bu bilgiler ilgili Mikro hareket satirlarina yazilmaya calisilir.
+- Plaka, sofor adi soyadi ve sofor TCKN body'deki `driverId` veya manuel alanlardan cozulur; basarili gonderimden sonra bu bilgiler ilgili Mikro hareket satirlarina yazilmaya calisilir.
 
 Request:
 
@@ -8147,7 +8286,7 @@ Onemli not:
 - `documentOrderNo` ayni seri, evrak tipi ve iade tipi icin write DB'deki mevcut maksimum sira okunarak uretilir.
 - Depolar arasi sevkten farki: UI request'inde `warehouseOrderLineGuid` yoktur. Otomatik depo siparisi ayari aciksa backend once depo siparisini olusturur ve satir GUID'ini iade hareketine `sth_subesip_uid` olarak baglar; ayar kapaliysa siparis baglantisi kurulmaz.
 - `MikroApi` modunda otomatik depo siparisi gerekiyorsa `MikroWriteRouting:IssuedWarehouseOrder` de `MikroApi` olmalidir; aksi halde backend DB tamamlayici insert yapmadan hata dondurur.
-- Plaka, sofor adi ve TCKN bu create request'inde gonderilmez. Bu alanlar e-irsaliye gonderim request'inde zorunludur.
+- Plaka, sofor adi ve TCKN bu create request'inde gonderilmez. E-irsaliye gonderiminde manuel akista bu alanlar zorunludur; kayitli sofor secilirse `driverId` yeterlidir.
 
 Request:
 
@@ -8288,7 +8427,7 @@ Onemli not:
 - `customerCode` zorunludur ve write DB'de `CARI_HESAPLAR` icinde kontrol edilir.
 - `documentSerie` backend tarafinda `F{islemDepoNo}` olarak uretilir.
 - `documentOrderNo` ayni seri, evrak tipi ve iade tipi icin write DB'deki mevcut maksimum sira okunarak uretilir; ilk evrak `0`, sonraki evraklar `1, 2...` seklinde gider.
-- Plaka, sofor adi ve TCKN bu create request'inde gonderilmez. Bu alanlar e-irsaliye gonderim request'inde zorunludur.
+- Plaka, sofor adi ve TCKN bu create request'inde gonderilmez. E-irsaliye gonderiminde manuel akista bu alanlar zorunludur; kayitli sofor secilirse `driverId` yeterlidir.
 - Request/response modeli firma giden sevk create ile aynidir; tek fark kaydin `returnType = 1` olarak yazilmasidir.
 
 Request:
@@ -8337,9 +8476,16 @@ Response:
 
 ### E-Irsaliye Gonderme Response
 
-Dort e-irsaliye gonderme endpointi de ayni request body modelini bekler ve ayni response modelini doner. `plaque`, `driverNameSurname` ve `driverTckn` zorunludur; UI bu alanlari sevk/iade create ekraninda degil, e-irsaliye gonderme aninda almalidir. `driverNameSurname` en az iki kelime olacak sekilde `Ad Soyad` formatinda gonderilmelidir; tek kelime gelirse API 400 doner. Backend UBL uretiminde `DriverPerson` icinde sirayi `FirstName`, `FamilyName`, `NationalityID` olarak yazar; `NationalityID` soyaddan once gonderilmez.
+Dort e-irsaliye gonderme endpointi de ayni request body modelini bekler ve ayni response modelini doner. UI bu bilgileri sevk/iade create ekraninda degil, e-irsaliye gonderme aninda almalidir.
 
-Request:
+Sofor bilgisi iki sekilde gonderilebilir:
+
+- Elle giris: `driverId` bos gonderilir; `plaque`, `driverNameSurname` ve `driverTckn` zorunludur.
+- Listeden secim: `driverId` gonderilir; backend `despatch_drivers` tablosundaki aktif soforu okuyup plaka/ad soyad/TCKN alanlarini doldurur.
+
+`driverNameSurname` dolu gonderilirse en az iki kelime olacak sekilde `Ad Soyad` formatinda olmalidir; tek kelime gelirse API 400 doner. `driverTckn` dolu gonderilirse 11 haneli numeric olmalidir. Backend UBL uretiminde `DriverPerson` icinde sirayi `FirstName`, `FamilyName`, `NationalityID` olarak yazar; `NationalityID` soyaddan once gonderilmez.
+
+Request - elle giris:
 
 ```json
 {
@@ -8348,6 +8494,30 @@ Request:
   "driverTckn": "11111111111"
 }
 ```
+
+Request - kayitli sofor secimi:
+
+```json
+{
+  "driverId": "1bc27065-f775-468f-9fc9-0e1ad107d105"
+}
+```
+
+Request - kayitli sofor secilip plaka manuel duzeltilirse:
+
+```json
+{
+  "driverId": "1bc27065-f775-468f-9fc9-0e1ad107d105",
+  "plaque": "16 XYZ 999"
+}
+```
+
+Notlar:
+
+- `driverId` bos veya yoksa eski manuel zorunlu alan mantigi calisir.
+- `driverId` doluysa kayit aktif degilse veya bulunamazsa `404 Not Found` doner.
+- `driverId` ile birlikte gelen dolu manuel alanlar secili sofor kaydinin ustune yazilir; bos manuel alanlar sofor tanimindan doldurulur.
+- Basarili gonderimden sonra cozulmus plaka ve TCKN Mikro hareket satirlarina metadata olarak yazilmaya calisilir.
 
 Response:
 
@@ -10591,7 +10761,7 @@ Sevk Islemleri / Giden Depolar Arasi Sevkler
   -> kullanici satira tiklar
   -> GET /api/sevk-islemleri/depolar-arasi-sevkler/giden/{seri}/{sira}
   -> kullanici 'E-Irsaliyeye Cevir' derse
-  -> plaka, sofor adi soyadi ve sofor TCKN modal/form ile zorunlu alinir
+  -> sofor bilgisi modalda elle alinir veya kayitli sofor secilip driverId gonderilir
   -> POST /api/sevk-islemleri/depolar-arasi-sevkler/giden/{seri}/{sira}/e-irsaliye
   -> basarili gonderimden sonra kullanici 'PDF Goster' derse
   -> GET /api/sevk-islemleri/depolar-arasi-sevkler/giden/{seri}/{sira}/e-irsaliye/pdf
@@ -10608,7 +10778,7 @@ Sevk Islemleri / Giden Firma Sevkleri
   -> kullanici satira tiklar
   -> GET /api/sevk-islemleri/firma-sevkleri/giden/{seri}/{sira}
   -> kullanici 'E-Irsaliyeye Cevir' derse
-  -> plaka, sofor adi soyadi ve sofor TCKN modal/form ile zorunlu alinir
+  -> sofor bilgisi modalda elle alinir veya kayitli sofor secilip driverId gonderilir
   -> POST /api/sevk-islemleri/firma-sevkleri/giden/{seri}/{sira}/e-irsaliye
   -> basarili gonderimden sonra kullanici 'PDF Goster' derse
   -> GET /api/sevk-islemleri/firma-sevkleri/giden/{seri}/{sira}/e-irsaliye/pdf
@@ -10730,7 +10900,7 @@ Iade Islemleri / Firma Iadeleri
   -> kullanici satira tiklar
   -> GET /api/iade-islemleri/firma-iadeleri/{seri}/{sira}
   -> kullanici 'E-Irsaliyeye Cevir' derse
-  -> plaka, sofor adi soyadi ve sofor TCKN modal/form ile zorunlu alinir
+  -> sofor bilgisi modalda elle alinir veya kayitli sofor secilip driverId gonderilir
   -> POST /api/iade-islemleri/firma-iadeleri/{seri}/{sira}/e-irsaliye
   -> basarili gonderimden sonra kullanici 'PDF Goster' derse
   -> GET /api/iade-islemleri/firma-iadeleri/{seri}/{sira}/e-irsaliye/pdf
@@ -10744,7 +10914,7 @@ Iade Islemleri / Depo Iadeleri
   -> kaynak sube icin GET /api/iade-islemleri/depo-iadeleri/giden/{seri}/{sira}
   -> alici sube icin GET /api/iade-islemleri/depo-iadeleri/gelen/{seri}/{sira}
   -> kullanici 'E-Irsaliyeye Cevir' derse
-  -> plaka, sofor adi soyadi ve sofor TCKN modal/form ile zorunlu alinir
+  -> sofor bilgisi modalda elle alinir veya kayitli sofor secilip driverId gonderilir
   -> POST /api/iade-islemleri/depo-iadeleri/giden/{seri}/{sira}/e-irsaliye
   -> basarili gonderimden sonra kullanici 'PDF Goster' derse
   -> GET /api/iade-islemleri/depo-iadeleri/giden/{seri}/{sira}/e-irsaliye/pdf
@@ -16624,6 +16794,19 @@ public sealed record CashierPasswordMutationDto(
     int CashierCode,
     string GeneratedPassword,
     CashierDto Cashier);
+
+public sealed record DespatchDriverDto(
+    Guid Id,
+    string FirstName,
+    string LastName,
+    string FullName,
+    string PlateNumber,
+    string Tckn,
+    string MaskedTckn,
+    bool IsActive,
+    string? Notes,
+    DateTime CreatedAtUtc,
+    DateTime? UpdatedAtUtc);
 ```
 
 ### Kasa Modelleri
@@ -17778,7 +17961,7 @@ Bu bolumde yalnizca endpointlerin dogrudan baglandigi HTTP request modelleri yer
 
 - `HomeWarehousePrioritiesHttpRequest`: `Date`, `WarehouseNo`
 - `WarehouseOrderDateRangeHttpRequest`: `WarehouseNo`, `StartDate`, `EndDate`
-- `SendEDespatchHttpRequest`: `Plaque`, `DriverNameSurname`, `DriverTckn`
+- `SendEDespatchHttpRequest`: `DriverId`, `Plaque`, `DriverNameSurname`, `DriverTckn`
 - `ModuleActionRequest`: `Fields`
 - `CreateFeedbackItemHttpRequest`: `Type`, `Title`, `Message`, `Priority`
 - `FeedbackManagementListHttpRequest`: `Status`, `Type`, `WarehouseNo`, `StartDate`, `EndDate`, `Take`
@@ -17912,6 +18095,8 @@ Bu bolumde yalnizca endpointlerin dogrudan baglandigi HTTP request modelleri yer
 - `CreateCashRegisterTerminalHttpRequest`: `TerminalNo`, `Bank`, `TerminalId`, `MerchantNo`
 - `CreateCashierHttpRequest`: `CashierName`, `CashierAuthorization`
 - `UpdateCashierHttpRequest`: `CashierName`, `CashierAuthorization`, `CashierState`
+- `DespatchDriverListHttpRequest`: `Search`, `IncludeInactive`, `Take`
+- `SaveDespatchDriverHttpRequest`: `FirstName`, `LastName`, `PlateNumber`, `Tckn`, `IsActive`, `Notes`
 
 ### Kasa Request Modelleri
 

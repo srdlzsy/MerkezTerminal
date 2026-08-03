@@ -8,6 +8,7 @@ import 'package:furpa_merkez_terminal/features/return_operations/warehouse_retur
 import 'package:furpa_merkez_terminal/features/return_operations/warehouse_returns/presentation/views/warehouse_return_pdf_preview_page.dart';
 import 'package:furpa_merkez_terminal/features/return_operations/warehouse_returns/presentation/widgets/warehouse_return_create_sheet.dart';
 import 'package:furpa_merkez_terminal/features/return_operations/warehouse_returns/presentation/widgets/warehouse_return_e_despatch_sheet.dart';
+import 'package:furpa_merkez_terminal/shared/data/despatch_drivers_repository.dart';
 import 'package:furpa_merkez_terminal/shared/drafts/create_draft.dart';
 import 'package:furpa_merkez_terminal/shared/drafts/create_draft_picker.dart';
 import 'package:furpa_merkez_terminal/shared/drafts/create_draft_repository.dart';
@@ -28,6 +29,7 @@ class WarehouseReturnsPage extends StatefulWidget {
     required this.direction,
     this.currentUserId = '',
     this.draftRepository,
+    this.despatchDriversRepository,
   });
 
   final WarehouseReturnsRepository repository;
@@ -38,6 +40,7 @@ class WarehouseReturnsPage extends StatefulWidget {
   final WarehouseReturnDirection direction;
   final String currentUserId;
   final CreateDraftRepository? draftRepository;
+  final DespatchDriversRepository? despatchDriversRepository;
 
   @override
   State<WarehouseReturnsPage> createState() => _WarehouseReturnsPageState();
@@ -187,6 +190,13 @@ class _WarehouseReturnsPageState extends State<WarehouseReturnsPage> {
           initialPlaque: header?.plaque ?? '',
           initialDriverNameSurname: header?.driverNameSurname ?? '',
           initialDriverTckn: header?.driverTckn ?? '',
+          onSearchDrivers: widget.despatchDriversRepository == null
+              ? null
+              : (query) => widget.despatchDriversRepository!.searchDrivers(
+                  accessToken: widget.accessToken,
+                  search: query,
+                  take: 20,
+                ),
         );
       },
     );

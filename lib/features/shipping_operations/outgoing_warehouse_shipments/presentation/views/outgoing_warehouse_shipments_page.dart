@@ -10,6 +10,7 @@ import 'package:furpa_merkez_terminal/features/shipping_operations/outgoing_ware
 import 'package:furpa_merkez_terminal/features/shipping_operations/outgoing_warehouse_shipments/data/outgoing_warehouse_shipments_repository.dart';
 import 'package:furpa_merkez_terminal/features/shipping_operations/outgoing_warehouse_shipments/presentation/view_models/outgoing_warehouse_shipments_controller.dart';
 import 'package:furpa_merkez_terminal/features/shipping_operations/outgoing_warehouse_shipments/presentation/widgets/outgoing_warehouse_shipment_create_sheet.dart';
+import 'package:furpa_merkez_terminal/shared/data/despatch_drivers_repository.dart';
 import 'package:furpa_merkez_terminal/shared/drafts/create_draft.dart';
 import 'package:furpa_merkez_terminal/shared/drafts/create_draft_picker.dart';
 import 'package:furpa_merkez_terminal/shared/drafts/create_draft_repository.dart';
@@ -35,6 +36,7 @@ class OutgoingWarehouseShipmentsPage extends StatefulWidget {
     this.currentUserId = '',
     this.draftModuleKey = '',
     this.draftRepository,
+    this.despatchDriversRepository,
   });
 
   final OutgoingWarehouseShipmentsRepository repository;
@@ -50,6 +52,7 @@ class OutgoingWarehouseShipmentsPage extends StatefulWidget {
   final String currentUserId;
   final String draftModuleKey;
   final CreateDraftRepository? draftRepository;
+  final DespatchDriversRepository? despatchDriversRepository;
 
   @override
   State<OutgoingWarehouseShipmentsPage> createState() =>
@@ -280,6 +283,13 @@ class _OutgoingWarehouseShipmentsPageState
           initialPlaque: header?.plaque ?? '',
           initialDriverNameSurname: header?.driverNameSurname ?? '',
           initialDriverTckn: header?.driverTckn ?? '',
+          onSearchDrivers: widget.despatchDriversRepository == null
+              ? null
+              : (query) => widget.despatchDriversRepository!.searchDrivers(
+                  accessToken: widget.accessToken,
+                  search: query,
+                  take: 20,
+                ),
         );
       },
     );

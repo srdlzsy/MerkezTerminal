@@ -1450,37 +1450,49 @@ class _OutgoingWarehouseShipmentCreateSheetState
                     ),
                   ),
                   Expanded(
-                    child: ListView(
+                    child: CustomScrollView(
                       controller: _scrollController,
-                      padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-                      children: <Widget>[
+                      slivers: <Widget>[
                         if (_mode == _ShipmentCreateMode.manual)
-                          _buildManualFilledLinesSection(theme)
+                          _buildManualFilledLinesSliver()
                         else
-                          _buildOrderLinkedFilledLinesSection(theme),
-                        if (_validationMessage != null) ...<Widget>[
-                          const SizedBox(height: 12),
-                          _ValidationBlock(message: _validationMessage!),
-                        ],
-                        const SizedBox(height: 12),
-                        Row(
-                          children: <Widget>[
-                            Expanded(
-                              child: OutlinedButton(
-                                onPressed: () => Navigator.of(context).pop(),
-                                child: const Text('Vazgec'),
-                              ),
+                          _buildLinkedFilledLinesSliver(),
+                        SliverPadding(
+                          padding: const EdgeInsets.fromLTRB(12, 6, 12, 12),
+                          sliver: SliverToBoxAdapter(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: <Widget>[
+                                if (_validationMessage != null) ...<Widget>[
+                                  const SizedBox(height: 6),
+                                  _ValidationBlock(
+                                    message: _validationMessage!,
+                                  ),
+                                  const SizedBox(height: 10),
+                                ],
+                                Row(
+                                  children: <Widget>[
+                                    Expanded(
+                                      child: OutlinedButton(
+                                        onPressed: () =>
+                                            Navigator.of(context).pop(),
+                                        child: const Text('Vazgec'),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      flex: 2,
+                                      child: FilledButton.icon(
+                                        onPressed: _submit,
+                                        icon: const Icon(Icons.save_outlined),
+                                        label: const Text('Sevki Hazirla'),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
                             ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              flex: 2,
-                              child: FilledButton.icon(
-                                onPressed: _submit,
-                                icon: const Icon(Icons.save_outlined),
-                                label: const Text('Sevki Hazirla'),
-                              ),
-                            ),
-                          ],
+                          ),
                         ),
                       ],
                     ),
@@ -1664,46 +1676,67 @@ class _OutgoingWarehouseShipmentCreateSheetState
     );
   }
 
-  Widget _buildManualFilledLinesSection(ThemeData theme) {
+  Widget _buildManualFilledLinesSliver() {
     final filledIndexes = _manualFilledLineIndexes();
     if (filledIndexes.isEmpty) {
-      return const SizedBox.shrink();
+      return const SliverToBoxAdapter(child: SizedBox.shrink());
     }
 
-    return Container(
-      padding: const EdgeInsets.all(8),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: theme.colorScheme.outlineVariant.withAlpha(70),
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[_buildManualFilledLineList(filledIndexes)],
+    return SliverPadding(
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      sliver: SliverList(
+        delegate: SliverChildBuilderDelegate((context, visibleIndex) {
+          final index = filledIndexes[visibleIndex];
+          final line = _manualLines[index];
+          return Padding(
+            padding: EdgeInsets.only(
+              bottom: visibleIndex == filledIndexes.length - 1 ? 0 : 8,
+            ),
+            child: _ManualShipmentLineCard(
+              lineNumber: visibleIndex + 1,
+              isFreshEntry: false,
+              line: line,
+              isReadyForScanning: _hasTargetWarehouseSelection,
+              canRemove: _manualLines.length > 1,
+              onPickProduct: () => _pickProduct(line),
+              onScanWithCamera: () => _scanProductWithCamera(line),
+              onRemove: () => _removeManualLine(line),
+            ),
+          );
+        }, childCount: filledIndexes.length),
       ),
     );
   }
 
-  Widget _buildOrderLinkedFilledLinesSection(ThemeData theme) {
+  Widget _buildLinkedFilledLinesSliver() {
     final filledIndexes = _linkedFilledLineIndexes();
     if (filledIndexes.isEmpty) {
-      return const SizedBox.shrink();
+      return const SliverToBoxAdapter(child: SizedBox.shrink());
     }
 
-    return Container(
-      padding: const EdgeInsets.all(8),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: theme.colorScheme.outlineVariant.withAlpha(70),
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[_buildLinkedFilledLineList(filledIndexes)],
+    return SliverPadding(
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      sliver: SliverList(
+        delegate: SliverChildBuilderDelegate((context, visibleIndex) {
+          final index = filledIndexes[visibleIndex];
+          final line = _linkedLines[index];
+          return Padding(
+            padding: EdgeInsets.only(
+              bottom: visibleIndex == filledIndexes.length - 1 ? 0 : 8,
+            ),
+            child: _LinkedShipmentLineCard(
+              lineNumber: visibleIndex + 1,
+              isFreshEntry: false,
+              line: line,
+              isReadyForScanning: _hasTargetWarehouseSelection,
+              isQuantityLimited: _isLinkedLineQuantityLimited(line),
+              canRemove: true,
+              onPickProduct: () => _pickLinkedProduct(line),
+              onScanWithCamera: () => _scanLinkedProductWithCamera(line),
+              onRemove: () => _removeLinkedLine(line),
+            ),
+          );
+        }, childCount: filledIndexes.length),
       ),
     );
   }
@@ -1723,68 +1756,6 @@ class _OutgoingWarehouseShipmentCreateSheetState
       onPickProduct: () => _pickProduct(_manualLines[entryIndex]),
       onScanWithCamera: () => _scanProductWithCamera(_manualLines[entryIndex]),
       onRemove: () => _removeManualLine(_manualLines[entryIndex]),
-    );
-  }
-
-  Widget _buildManualFilledLineList(List<int> filledIndexes) {
-    if (filledIndexes.isEmpty) {
-      return const SizedBox.shrink();
-    }
-
-    if (filledIndexes.length <= 3) {
-      return Column(
-        children: filledIndexes
-            .asMap()
-            .entries
-            .map((entry) {
-              final visibleIndex = entry.key;
-              final index = entry.value;
-              final line = _manualLines[index];
-              return Padding(
-                padding: EdgeInsets.only(
-                  bottom: visibleIndex == filledIndexes.length - 1 ? 0 : 8,
-                ),
-                child: _ManualShipmentLineCard(
-                  lineNumber: visibleIndex + 1,
-                  isFreshEntry: false,
-                  line: line,
-                  isReadyForScanning: _hasTargetWarehouseSelection,
-                  canRemove: _manualLines.length > 1,
-                  onPickProduct: () => _pickProduct(line),
-                  onScanWithCamera: () => _scanProductWithCamera(line),
-                  onRemove: () => _removeManualLine(line),
-                ),
-              );
-            })
-            .toList(growable: false),
-      );
-    }
-
-    return SizedBox(
-      height: _lazyLineListHeight(filledIndexes.length),
-      child: ListView.builder(
-        padding: EdgeInsets.zero,
-        itemCount: filledIndexes.length,
-        itemBuilder: (context, visibleIndex) {
-          final index = filledIndexes[visibleIndex];
-          final line = _manualLines[index];
-          return Padding(
-            padding: EdgeInsets.only(
-              bottom: visibleIndex == filledIndexes.length - 1 ? 0 : 8,
-            ),
-            child: _ManualShipmentLineCard(
-              lineNumber: visibleIndex + 1,
-              isFreshEntry: false,
-              line: line,
-              isReadyForScanning: _hasTargetWarehouseSelection,
-              canRemove: _manualLines.length > 1,
-              onPickProduct: () => _pickProduct(line),
-              onScanWithCamera: () => _scanProductWithCamera(line),
-              onRemove: () => _removeManualLine(line),
-            ),
-          );
-        },
-      ),
     );
   }
 
@@ -1815,79 +1786,11 @@ class _OutgoingWarehouseShipmentCreateSheetState
     );
   }
 
-  Widget _buildLinkedFilledLineList(List<int> filledIndexes) {
-    if (filledIndexes.isEmpty) {
-      return const SizedBox.shrink();
-    }
-
-    if (filledIndexes.length <= 3) {
-      return Column(
-        children: filledIndexes
-            .asMap()
-            .entries
-            .map((entry) {
-              final visibleIndex = entry.key;
-              final index = entry.value;
-              final line = _linkedLines[index];
-              return Padding(
-                padding: EdgeInsets.only(
-                  bottom: visibleIndex == filledIndexes.length - 1 ? 0 : 8,
-                ),
-                child: _LinkedShipmentLineCard(
-                  lineNumber: visibleIndex + 1,
-                  isFreshEntry: false,
-                  line: line,
-                  isReadyForScanning: _hasTargetWarehouseSelection,
-                  isQuantityLimited: _isLinkedLineQuantityLimited(line),
-                  canRemove: true,
-                  onPickProduct: () => _pickLinkedProduct(line),
-                  onScanWithCamera: () => _scanLinkedProductWithCamera(line),
-                  onRemove: () => _removeLinkedLine(line),
-                ),
-              );
-            })
-            .toList(growable: false),
-      );
-    }
-
-    return SizedBox(
-      height: _lazyLineListHeight(filledIndexes.length),
-      child: ListView.builder(
-        padding: EdgeInsets.zero,
-        itemCount: filledIndexes.length,
-        itemBuilder: (context, visibleIndex) {
-          final index = filledIndexes[visibleIndex];
-          final line = _linkedLines[index];
-          return Padding(
-            padding: EdgeInsets.only(
-              bottom: visibleIndex == filledIndexes.length - 1 ? 0 : 8,
-            ),
-            child: _LinkedShipmentLineCard(
-              lineNumber: visibleIndex + 1,
-              isFreshEntry: false,
-              line: line,
-              isReadyForScanning: _hasTargetWarehouseSelection,
-              isQuantityLimited: _isLinkedLineQuantityLimited(line),
-              canRemove: true,
-              onPickProduct: () => _pickLinkedProduct(line),
-              onScanWithCamera: () => _scanLinkedProductWithCamera(line),
-              onRemove: () => _removeLinkedLine(line),
-            ),
-          );
-        },
-      ),
-    );
-  }
-
   List<int> _linkedFilledLineIndexes() {
     return <int>[
       for (var index = 0; index < _linkedLines.length; index++)
         if (!_isBlankLinkedLine(_linkedLines[index])) index,
     ];
-  }
-
-  double _lazyLineListHeight(int itemCount) {
-    return (itemCount * 74.0).clamp(74.0, 420.0).toDouble();
   }
 
   static int? _parseInt(String value) {

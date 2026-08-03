@@ -54,20 +54,31 @@ extension WarehouseReturnDirectionX on WarehouseReturnDirection {
 
 class EDespatchSendRequest {
   const EDespatchSendRequest({
+    this.driverId,
     required this.plaque,
     required this.driverNameSurname,
     required this.driverTckn,
   });
 
+  final String? driverId;
   final String plaque;
   final String driverNameSurname;
   final String driverTckn;
 
   JsonMap toJson() {
+    final normalizedDriverId = driverId?.trim() ?? '';
+    final normalizedPlaque = plaque.trim();
+    final normalizedDriverNameSurname = driverNameSurname.trim();
+    final normalizedDriverTckn = driverTckn.trim();
+
     return <String, dynamic>{
-      'plaque': plaque.trim(),
-      'driverNameSurname': driverNameSurname.trim(),
-      'driverTckn': driverTckn.trim(),
+      if (normalizedDriverId.isNotEmpty) 'driverId': normalizedDriverId,
+      if (normalizedDriverId.isEmpty || normalizedPlaque.isNotEmpty)
+        'plaque': normalizedPlaque,
+      if (normalizedDriverId.isEmpty || normalizedDriverNameSurname.isNotEmpty)
+        'driverNameSurname': normalizedDriverNameSurname,
+      if (normalizedDriverId.isEmpty || normalizedDriverTckn.isNotEmpty)
+        'driverTckn': normalizedDriverTckn,
     };
   }
 }

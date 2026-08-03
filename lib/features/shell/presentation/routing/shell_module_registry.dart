@@ -41,6 +41,7 @@ import 'package:furpa_merkez_terminal/features/stock_operations/stock_receipts/d
 import 'package:furpa_merkez_terminal/features/stock_operations/stock_receipts/presentation/views/stock_receipts_page.dart';
 import 'package:furpa_merkez_terminal/features/stock_operations/virman/data/virman_repository.dart';
 import 'package:furpa_merkez_terminal/features/stock_operations/virman/presentation/views/virman_page.dart';
+import 'package:furpa_merkez_terminal/shared/data/despatch_drivers_repository.dart';
 import 'package:furpa_merkez_terminal/shared/drafts/create_draft_repository.dart';
 import 'package:furpa_merkez_terminal/shared/offline/mobile_customer_catalog_repository.dart';
 import 'package:furpa_merkez_terminal/shared/offline/mobile_product_catalog_repository.dart';
@@ -71,6 +72,14 @@ class ShellModuleRouteContext {
 
   bool get canUpdate =>
       selectedMenu.actions.any((action) => action.code == 'update');
+
+  bool hasPermission(String permissionCode) {
+    final normalizedPermissionCode = permissionCode.trim().toLowerCase();
+
+    return user.permissions.any(
+      (item) => item.trim().toLowerCase() == normalizedPermissionCode,
+    );
+  }
 }
 
 class ShellModuleRoute {
@@ -133,6 +142,7 @@ class ShellModuleRegistry {
     required this.outgoingCompanyShipmentsRepository,
     required this.incomingCompanyShipmentsRepository,
     required this.companyReturnsRepository,
+    required this.despatchDriversRepository,
     required this.companyAcceptancesRepository,
     required this.stockReceiptsRepository,
     required this.labelDocumentsRepository,
@@ -167,6 +177,7 @@ class ShellModuleRegistry {
   final CompanyMovementsRepository outgoingCompanyShipmentsRepository;
   final CompanyMovementsRepository incomingCompanyShipmentsRepository;
   final CompanyMovementsRepository companyReturnsRepository;
+  final DespatchDriversRepository despatchDriversRepository;
   final CompanyAcceptancesRepository companyAcceptancesRepository;
   final StockReceiptsRepository stockReceiptsRepository;
   final LabelDocumentsRepository labelDocumentsRepository;
@@ -184,6 +195,9 @@ class ShellModuleRegistry {
   final MobileWarehouseCatalogSyncService mobileWarehouseCatalogSyncService;
   final LegacyToolsRepository legacyToolsRepository;
   final CreateDraftRepository createDraftRepository;
+
+  static const String _despatchDriverListPermission =
+      'ayar-islemleri.soforler.list';
 
   late final List<ShellModuleRoute> routes = _buildRoutes();
 
@@ -312,6 +326,10 @@ class ShellModuleRegistry {
           userWarehouseName: context.user.warehouseName,
           title: 'Giden Depo Sevkleri',
           subtitle: 'Depolar arasi sevkler.',
+          despatchDriversRepository:
+              context.hasPermission(_despatchDriverListPermission)
+              ? despatchDriversRepository
+              : null,
         ),
       ),
       ShellModuleRoute(
@@ -369,6 +387,10 @@ class ShellModuleRegistry {
           direction: WarehouseReturnDirection.outgoing,
           currentUserId: context.user.id,
           draftRepository: createDraftRepository,
+          despatchDriversRepository:
+              context.hasPermission(_despatchDriverListPermission)
+              ? despatchDriversRepository
+              : null,
         ),
       ),
       ShellModuleRoute(
@@ -449,6 +471,10 @@ class ShellModuleRegistry {
           createButtonLabel: 'Yeni Sevk',
           emptyListMessage:
               'Secilen tarih araliginda giden firma sevki bulunamadi.',
+          despatchDriversRepository:
+              context.hasPermission(_despatchDriverListPermission)
+              ? despatchDriversRepository
+              : null,
         ),
       ),
       ShellModuleRoute(
@@ -511,6 +537,10 @@ class ShellModuleRegistry {
           createButtonLabel: 'Yeni Iade',
           emptyListMessage: 'Secilen tarih araliginda firma iadesi bulunamadi.',
           showCreateDocumentNoField: false,
+          despatchDriversRepository:
+              context.hasPermission(_despatchDriverListPermission)
+              ? despatchDriversRepository
+              : null,
         ),
       ),
       ShellModuleRoute(

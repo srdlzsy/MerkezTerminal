@@ -9,6 +9,7 @@ import 'package:furpa_merkez_terminal/features/company_movements/shared/presenta
 import 'package:furpa_merkez_terminal/features/return_operations/warehouse_returns/data/models/warehouse_return_models.dart';
 import 'package:furpa_merkez_terminal/features/return_operations/warehouse_returns/presentation/views/warehouse_return_pdf_preview_page.dart';
 import 'package:furpa_merkez_terminal/features/return_operations/warehouse_returns/presentation/widgets/warehouse_return_e_despatch_sheet.dart';
+import 'package:furpa_merkez_terminal/shared/data/despatch_drivers_repository.dart';
 import 'package:furpa_merkez_terminal/shared/drafts/create_draft.dart';
 import 'package:furpa_merkez_terminal/shared/drafts/create_draft_picker.dart';
 import 'package:furpa_merkez_terminal/shared/drafts/create_draft_repository.dart';
@@ -37,6 +38,7 @@ class CompanyMovementsPage extends StatefulWidget {
     required this.createButtonLabel,
     this.emptyListMessage = 'Secilen tarih araliginda kayit bulunamadi.',
     this.showCreateDocumentNoField = true,
+    this.despatchDriversRepository,
   });
 
   final CompanyMovementsRepository repository;
@@ -55,6 +57,7 @@ class CompanyMovementsPage extends StatefulWidget {
   final String createButtonLabel;
   final String emptyListMessage;
   final bool showCreateDocumentNoField;
+  final DespatchDriversRepository? despatchDriversRepository;
 
   @override
   State<CompanyMovementsPage> createState() => _CompanyMovementsPageState();
@@ -277,6 +280,13 @@ class _CompanyMovementsPageState extends State<CompanyMovementsPage> {
       builder: (context) {
         return WarehouseReturnEDespatchSheet(
           documentNoLabel: currentMovement.documentNoLabel,
+          onSearchDrivers: widget.despatchDriversRepository == null
+              ? null
+              : (query) => widget.despatchDriversRepository!.searchDrivers(
+                  accessToken: widget.accessToken,
+                  search: query,
+                  take: 20,
+                ),
         );
       },
     );

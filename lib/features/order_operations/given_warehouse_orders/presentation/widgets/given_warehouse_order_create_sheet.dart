@@ -26,6 +26,8 @@ class GivenWarehouseOrderCreateSheet extends StatefulWidget {
     required this.defaultWarehouseNo,
     required this.mobileWarehouseCatalogRepository,
     this.greenGrocerProductCasesRepository,
+    this.greenGrocerProductCasesEnabled =
+        AppConfig.greenGrocerProductCasesEnabled,
     this.draft,
     this.draftRepository,
   });
@@ -35,6 +37,7 @@ class GivenWarehouseOrderCreateSheet extends StatefulWidget {
   final String defaultWarehouseNo;
   final MobileWarehouseCatalogLocalRepository mobileWarehouseCatalogRepository;
   final GreenGrocerProductCasesRepository? greenGrocerProductCasesRepository;
+  final bool greenGrocerProductCasesEnabled;
   final CreateDraft? draft;
   final CreateDraftRepository? draftRepository;
 
@@ -67,7 +70,7 @@ class _GivenWarehouseOrderCreateSheetState
 
   bool get _isGreenGrocerOrderFlow {
     return _sourceWarehouseNo == 56 &&
-        AppConfig.greenGrocerProductCasesEnabled &&
+        widget.greenGrocerProductCasesEnabled &&
         widget.greenGrocerProductCasesRepository != null &&
         _isGreenGrocerPreviewEnabled;
   }

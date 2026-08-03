@@ -170,6 +170,7 @@ void main() {
                           defaultWarehouseNo: '56',
                           greenGrocerProductCasesRepository:
                               greenGrocerRepository,
+                          greenGrocerProductCasesEnabled: true,
                           mobileWarehouseCatalogRepository:
                               MobileWarehouseCatalogLocalRepository(
                                 database: MemoryLocalDatabase(),

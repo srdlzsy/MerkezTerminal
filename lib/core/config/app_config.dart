@@ -15,7 +15,7 @@ abstract final class AppConfig {
       );
   static const bool greenGrocerProductCasesEnabled = bool.fromEnvironment(
     'GreenGrocerProductCases__Enabled',
-    defaultValue: true,
+    defaultValue: false,
   );
 
   static String get baseUrl {
