@@ -18,6 +18,8 @@ import 'package:furpa_merkez_terminal/shared/utils/e_despatch_qr_parser.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/barcode_camera_scan_page.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/terminal_ui_parts.dart';
 
+enum _CompanyAcceptanceCreateStep { document, lines }
+
 class CompanyAcceptanceCreateSheet extends StatefulWidget {
   const CompanyAcceptanceCreateSheet({
     super.key,
@@ -64,6 +66,7 @@ class _CompanyAcceptanceCreateSheetState
   bool _isResolvingEDespatch = false;
   String? _lookupError;
   CompanyAcceptanceEDespatchPrefill? _lastEDespatchPrefill;
+  _CompanyAcceptanceCreateStep _step = _CompanyAcceptanceCreateStep.document;
   late final CreateDraftSession _draftSession;
 
   @override
@@ -106,6 +109,9 @@ class _CompanyAcceptanceCreateSheetState
               payload['autoCreateReturnForPartialAcceptance']?.toString() ==
                   'true'
         : true;
+    _step = payload['activeStep']?.toString() == 'lines'
+        ? _CompanyAcceptanceCreateStep.lines
+        : _CompanyAcceptanceCreateStep.document;
     _draftSession = CreateDraftSession(
       draft: widget.draft,
       repository: widget.draftRepository,
@@ -189,6 +195,7 @@ class _CompanyAcceptanceCreateSheetState
       'allowOrderOverReceiving': _allowOrderOverReceiving,
       'autoCreateReturnForPartialAcceptance':
           _autoCreateReturnForPartialAcceptance,
+      'activeStep': _step.name,
       'lines': _lines
           .where((line) => line.hasContent)
           .map((line) => line.toDraftJson())
@@ -905,16 +912,18 @@ class _CompanyAcceptanceCreateSheetState
 
     final customerCode = _customerCodeController.text.trim();
     if (customerCode.isEmpty) {
-      setState(() {
-        _lookupError = 'Cari kodu zorunludur.';
-      });
+      _showStepError(
+        step: _CompanyAcceptanceCreateStep.document,
+        message: 'Cari kodu zorunludur.',
+      );
       return;
     }
 
-    if (_documentDate.isBefore(_movementDate)) {
-      setState(() {
-        _lookupError = 'Belge tarihi hareket tarihinden once olamaz.';
-      });
+    if (_isDocumentDateAfterMovementDate()) {
+      _showStepError(
+        step: _CompanyAcceptanceCreateStep.document,
+        message: 'Belge tarihi hareket tarihinden sonra olamaz.',
+      );
       return;
     }
 
@@ -923,9 +932,10 @@ class _CompanyAcceptanceCreateSheetState
         .toList(growable: false);
 
     if (activeLines.isEmpty) {
-      setState(() {
-        _lookupError = 'En az bir urun satiri ekleyin.';
-      });
+      _showStepError(
+        step: _CompanyAcceptanceCreateStep.lines,
+        message: 'En az bir urun satiri ekleyin.',
+      );
       return;
     }
 
@@ -933,56 +943,63 @@ class _CompanyAcceptanceCreateSheetState
     for (var index = 0; index < activeLines.length; index += 1) {
       final line = activeLines[index];
       if (line.stockCodeController.text.trim().isEmpty) {
-        setState(() {
-          _lookupError = '${index + 1}. satir icin urun secin.';
-        });
+        _showStepError(
+          step: _CompanyAcceptanceCreateStep.lines,
+          message: '${index + 1}. satir icin urun secin.',
+        );
         return;
       }
 
       if (line.dispatchQuantity <= 0) {
-        setState(() {
-          _lookupError =
-              '${index + 1}. satir icin irsaliye miktari sifirdan buyuk olmali.';
-        });
+        _showStepError(
+          step: _CompanyAcceptanceCreateStep.lines,
+          message:
+              '${index + 1}. satir icin irsaliye miktari sifirdan buyuk olmali.',
+        );
         return;
       }
 
       if (line.acceptedQuantity < 0) {
-        setState(() {
-          _lookupError =
-              '${index + 1}. satir icin fiili kabul miktari negatif olamaz.';
-        });
+        _showStepError(
+          step: _CompanyAcceptanceCreateStep.lines,
+          message:
+              '${index + 1}. satir icin fiili kabul miktari negatif olamaz.',
+        );
         return;
       }
 
       if (line.acceptedQuantity > line.dispatchQuantity) {
-        setState(() {
-          _lookupError =
-              '${index + 1}. satirda fiili kabul irsaliye miktarini gecemez.';
-        });
+        _showStepError(
+          step: _CompanyAcceptanceCreateStep.lines,
+          message:
+              '${index + 1}. satirda fiili kabul irsaliye miktarini gecemez.',
+        );
         return;
       }
 
       if (line.unitPointer <= 0 || line.unitPointer > 255) {
-        setState(() {
-          _lookupError = '${index + 1}. satir icin unitPointer 1-255 olmali.';
-        });
+        _showStepError(
+          step: _CompanyAcceptanceCreateStep.lines,
+          message: '${index + 1}. satir icin unitPointer 1-255 olmali.',
+        );
         return;
       }
 
       if (line.lotNo < 0) {
-        setState(() {
-          _lookupError = '${index + 1}. satir icin lot no negatif olamaz.';
-        });
+        _showStepError(
+          step: _CompanyAcceptanceCreateStep.lines,
+          message: '${index + 1}. satir icin lot no negatif olamaz.',
+        );
         return;
       }
 
       final orderGuid = line.orderGuid?.trim() ?? '';
       if (orderGuid.isNotEmpty && !usedOrderGuids.add(orderGuid)) {
-        setState(() {
-          _lookupError =
-              '${index + 1}. satirda ayni siparis satiri tekrar kullanilamaz.';
-        });
+        _showStepError(
+          step: _CompanyAcceptanceCreateStep.lines,
+          message:
+              '${index + 1}. satirda ayni siparis satiri tekrar kullanilamaz.',
+        );
         return;
       }
     }
@@ -1075,12 +1092,75 @@ class _CompanyAcceptanceCreateSheetState
     }
   }
 
+  void _goToLinesStep() {
+    if (!_validateDocumentStep()) {
+      return;
+    }
+
+    setState(() {
+      _step = _CompanyAcceptanceCreateStep.lines;
+      _lookupError = null;
+    });
+    _draftSession.scheduleSave();
+    _focusFreshEntryLine();
+  }
+
+  void _goToDocumentStep() {
+    setState(() {
+      _step = _CompanyAcceptanceCreateStep.document;
+      _lookupError = null;
+    });
+    _draftSession.scheduleSave();
+  }
+
+  bool _validateDocumentStep() {
+    final form = _formKey.currentState;
+    if (form != null && !validateCreateForm(_formKey)) {
+      return false;
+    }
+
+    final customerCode = _customerCodeController.text.trim();
+    if (customerCode.isEmpty) {
+      setState(() {
+        _step = _CompanyAcceptanceCreateStep.document;
+        _lookupError = 'Cari kodu zorunludur.';
+      });
+      return false;
+    }
+
+    if (_isDocumentDateAfterMovementDate()) {
+      setState(() {
+        _step = _CompanyAcceptanceCreateStep.document;
+        _lookupError = 'Belge tarihi hareket tarihinden sonra olamaz.';
+      });
+      return false;
+    }
+
+    return true;
+  }
+
+  bool _isDocumentDateAfterMovementDate() {
+    return _normalizedDate(
+      _documentDate,
+    ).isAfter(_normalizedDate(_movementDate));
+  }
+
+  void _showStepError({
+    required _CompanyAcceptanceCreateStep step,
+    required String message,
+  }) {
+    setState(() {
+      _step = step;
+      _lookupError = message;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
-    final viewInsets = MediaQuery.viewInsetsOf(context);
+    final isDocumentStep = _step == _CompanyAcceptanceCreateStep.document;
 
     return Padding(
-      padding: EdgeInsets.fromLTRB(12, 6, 12, 12 + viewInsets.bottom),
+      padding: const EdgeInsets.fromLTRB(12, 6, 12, 12),
       child: Form(
         key: _formKey,
         autovalidateMode: createFormAutovalidateMode,
@@ -1089,86 +1169,19 @@ class _CompanyAcceptanceCreateSheetState
           children: <Widget>[
             TerminalSheetHeader(
               title: 'Yeni Firma Mal Kabul',
-              subtitle:
-                  'Ayni fis icinde siparisli ve siparissiz satirlar bir arada gidebilir. Siparisli satirlarda siparis baglantisi otomatik tasinir.',
+              subtitle: isDocumentStep
+                  ? 'Belge ve cari bilgisini hazirla, sonra kalemlere gec.'
+                  : 'Barkod okut, miktari kontrol et ve kalemleri kaydet.',
               badges: <Widget>[
                 TerminalLineCountBadge(count: _filledLineIndexes().length),
               ],
               padding: EdgeInsets.zero,
             ),
-            const SizedBox(height: 8),
-            ConstrainedBox(
-              constraints: BoxConstraints(
-                maxHeight: _setupMaxHeight(context, maxHeight: 240),
-              ),
-              child: SingleChildScrollView(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: <Widget>[
-                    _buildEDespatchLookupRow(),
-                    if (_lastEDespatchPrefill != null) ...<Widget>[
-                      const SizedBox(height: 6),
-                      TerminalMessageBlock.info(
-                        message: _eDespatchSummaryMessage(
-                          _lastEDespatchPrefill!,
-                        ),
-                      ),
-                    ],
-                    const SizedBox(height: 6),
-                    _buildCustomerLookupRow(),
-                    const SizedBox(height: 6),
-                    TextFormField(
-                      controller: _customerCodeController,
-                      decoration: const InputDecoration(
-                        labelText: 'Cari Kodu*',
-                        hintText: 'Internet yoksa elle girin',
-                        isDense: true,
-                        contentPadding: EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 10,
-                        ),
-                      ),
-                      onChanged: (_) {
-                        setState(() {});
-                        _draftSession.scheduleSave();
-                      },
-                      validator: (value) {
-                        if ((value ?? '').trim().isEmpty) {
-                          return 'Cari kodu zorunlu';
-                        }
-
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 6),
-                    _buildDocumentDetailsSection(),
-                  ],
-                ),
-              ),
-            ),
             const SizedBox(height: 6),
-            _buildLinesToolbar(),
-            const SizedBox(height: 6),
-            _buildEntryLineCard(),
+            _buildStepSelector(),
             const SizedBox(height: 8),
             Expanded(
-              child: CustomScrollView(
-                slivers: <Widget>[
-                  _buildLazyLineSliver(),
-                  SliverToBoxAdapter(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: <Widget>[
-                        if (_lookupError != null) ...<Widget>[
-                          TerminalMessageBlock.error(message: _lookupError!),
-                          const SizedBox(height: 12),
-                        ],
-                        _buildFormActions(),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
+              child: isDocumentStep ? _buildDocumentStep() : _buildLinesStep(),
             ),
           ],
         ),
@@ -1176,9 +1189,271 @@ class _CompanyAcceptanceCreateSheetState
     );
   }
 
-  double _setupMaxHeight(BuildContext context, {required double maxHeight}) {
-    final screenHeight = MediaQuery.sizeOf(context).height;
-    return (screenHeight * 0.28).clamp(132.0, maxHeight);
+  Widget _buildStepSelector() {
+    return SizedBox(
+      height: 36,
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: SegmentedButton<_CompanyAcceptanceCreateStep>(
+          showSelectedIcon: false,
+          selected: <_CompanyAcceptanceCreateStep>{_step},
+          style: const ButtonStyle(
+            minimumSize: WidgetStatePropertyAll(Size(0, 34)),
+            padding: WidgetStatePropertyAll(
+              EdgeInsets.symmetric(horizontal: 8),
+            ),
+            visualDensity: VisualDensity(horizontal: -3, vertical: -3),
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          ),
+          segments: const <ButtonSegment<_CompanyAcceptanceCreateStep>>[
+            ButtonSegment<_CompanyAcceptanceCreateStep>(
+              value: _CompanyAcceptanceCreateStep.document,
+              icon: Icon(Icons.assignment_outlined, size: 18),
+              label: Text('Belge'),
+            ),
+            ButtonSegment<_CompanyAcceptanceCreateStep>(
+              value: _CompanyAcceptanceCreateStep.lines,
+              icon: Icon(Icons.playlist_add_check_rounded, size: 18),
+              label: Text('Kalemler'),
+            ),
+          ],
+          onSelectionChanged: (selection) {
+            final nextStep = selection.first;
+            if (nextStep == _CompanyAcceptanceCreateStep.lines) {
+              _goToLinesStep();
+              return;
+            }
+
+            _goToDocumentStep();
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDocumentStep() {
+    return SingleChildScrollView(
+      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+      padding: const EdgeInsets.only(top: 2, bottom: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          if (_lookupError != null) ...<Widget>[
+            TerminalMessageBlock.error(message: _lookupError!),
+            const SizedBox(height: 8),
+          ],
+          _buildEDespatchLookupRow(),
+          if (_lastEDespatchPrefill != null) ...<Widget>[
+            const SizedBox(height: 6),
+            TerminalMessageBlock.info(
+              message: _eDespatchSummaryMessage(_lastEDespatchPrefill!),
+            ),
+          ],
+          const SizedBox(height: 6),
+          _buildCustomerLookupRow(),
+          const SizedBox(height: 6),
+          _buildCustomerCodeField(),
+          const SizedBox(height: 6),
+          _buildDocumentDetailsSection(),
+          const SizedBox(height: 12),
+          _buildDocumentStepActions(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLinesStep() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        _buildLineStepSummary(),
+        if (_lookupError != null) ...<Widget>[
+          const SizedBox(height: 6),
+          TerminalMessageBlock.error(message: _lookupError!),
+        ],
+        const SizedBox(height: 6),
+        _buildEntryLineCard(),
+        const SizedBox(height: 8),
+        Expanded(
+          child: CustomScrollView(
+            slivers: <Widget>[
+              _buildLazyLineSliver(),
+              SliverToBoxAdapter(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: <Widget>[
+                    const SizedBox(height: 4),
+                    _buildLineStepActions(),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCustomerCodeField() {
+    return TextFormField(
+      controller: _customerCodeController,
+      decoration: const InputDecoration(
+        labelText: 'Cari Kodu*',
+        hintText: 'Internet yoksa elle girin',
+        isDense: true,
+        contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      ),
+      onChanged: (_) {
+        setState(() {});
+        _draftSession.scheduleSave();
+      },
+      validator: (value) {
+        if ((value ?? '').trim().isEmpty) {
+          return 'Cari kodu zorunlu';
+        }
+
+        return null;
+      },
+    );
+  }
+
+  Widget _buildDocumentStepActions() {
+    final cancelButton = OutlinedButton(
+      onPressed: () => Navigator.of(context).pop(),
+      child: const Text('Vazgec'),
+    );
+
+    final nextButton = FilledButton.icon(
+      onPressed: _goToLinesStep,
+      icon: const Icon(Icons.arrow_forward_rounded),
+      label: const Text('Kalemlere Gec'),
+    );
+
+    return TerminalFormActionRow(cancel: cancelButton, submit: nextButton);
+  }
+
+  Widget _buildLineStepActions() {
+    final documentButton = OutlinedButton.icon(
+      onPressed: _goToDocumentStep,
+      icon: const Icon(Icons.assignment_outlined),
+      label: const Text('Belge'),
+    );
+
+    final submitButton = FilledButton.icon(
+      onPressed: _submit,
+      icon: const Icon(Icons.save_alt_rounded),
+      label: const Text('Mal Kabul Et'),
+    );
+
+    return TerminalFormActionRow(cancel: documentButton, submit: submitButton);
+  }
+
+  Widget _buildLineStepSummary() {
+    final theme = Theme.of(context);
+    final customerText = _customerController.text.trim();
+    final customerCode = _customerCodeController.text.trim();
+    final documentNo = _documentNoController.text.trim();
+    final lineCount = _filledLineIndexes().length;
+    final dispatchTotal = _totalDispatchQuantity();
+    final acceptedTotal = _totalAcceptedQuantity();
+    final returnTotal = _totalReturnQuantity();
+    final title = customerText.isNotEmpty
+        ? customerText
+        : customerCode.isNotEmpty
+        ? customerCode
+        : 'Cari secilmedi';
+    final totalsLabel = <String>[
+      '$lineCount kalem',
+      'Irs ${AppFormatters.quantity(dispatchTotal)}',
+      'Kabul ${AppFormatters.quantity(acceptedTotal)}',
+      if (returnTotal > 0) 'Fark ${AppFormatters.quantity(returnTotal)}',
+      if (documentNo.isNotEmpty) documentNo,
+    ].join(' | ');
+    final orderButton = IconButton.outlined(
+      visualDensity: VisualDensity.compact,
+      tooltip: 'Siparis bagla',
+      onPressed: _customerCodeController.text.trim().isEmpty
+          ? null
+          : _addLinesFromOpenOrders,
+      icon: const Icon(Icons.link_rounded),
+    );
+    final documentButton = IconButton.outlined(
+      visualDensity: VisualDensity.compact,
+      tooltip: 'Belge bilgileri',
+      onPressed: _goToDocumentStep,
+      icon: const Icon(Icons.edit_note_rounded),
+    );
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: theme.colorScheme.outlineVariant.withAlpha(88),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Row(
+            children: <Widget>[
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.labelLarge?.copyWith(
+                        fontWeight: FontWeight.w900,
+                        height: 1.05,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      totalsLabel,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: returnTotal > 0
+                            ? theme.colorScheme.tertiary
+                            : theme.colorScheme.onSurface.withAlpha(160),
+                        fontWeight: FontWeight.w800,
+                        height: 1.05,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 6),
+              orderButton,
+              const SizedBox(width: 4),
+              documentButton,
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  double _totalDispatchQuantity() {
+    return _lines
+        .where((line) => !_isBlankLine(line))
+        .fold<double>(0, (total, line) => total + line.dispatchQuantity);
+  }
+
+  double _totalAcceptedQuantity() {
+    return _lines
+        .where((line) => !_isBlankLine(line))
+        .fold<double>(0, (total, line) => total + line.acceptedQuantity);
+  }
+
+  double _totalReturnQuantity() {
+    return _lines
+        .where((line) => !_isBlankLine(line))
+        .fold<double>(0, (total, line) => total + line.returnQuantity);
   }
 
   Widget _buildEntryLineCard() {
@@ -1431,17 +1706,21 @@ class _CompanyAcceptanceCreateSheetState
       onSubmit: _resolveEDespatchFromInput,
       child: TextFormField(
         controller: _ettnController,
+        maxLines: 1,
+        scrollPadding: EdgeInsets.zero,
+        textAlignVertical: TextAlignVertical.center,
         textInputAction: TextInputAction.search,
         onFieldSubmitted: (_) => _resolveEDespatchFromInput(),
         decoration: const InputDecoration(
-          labelText: 'E-Belge ETTN / QR',
-          hintText: 'QR okutun veya UUID girin',
+          labelText: 'ETTN / QR',
+          hintText: 'UUID veya QR okut',
+          floatingLabelBehavior: FloatingLabelBehavior.never,
           isDense: true,
-          contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          suffixIcon: Icon(Icons.qr_code_2_rounded),
+          contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         ),
       ),
     );
+    final fixedLookupField = SizedBox(height: 42, child: lookupField);
 
     final resolveButton = FilledButton.icon(
       onPressed: _isResolvingEDespatch ? null : _resolveEDespatchFromInput,
@@ -1451,7 +1730,7 @@ class _CompanyAcceptanceCreateSheetState
               child: CircularProgressIndicator(strokeWidth: 2),
             )
           : const Icon(Icons.fact_check_rounded),
-      label: Text(_isResolvingEDespatch ? 'Sorgu' : 'Cozumle'),
+      label: Text(_isResolvingEDespatch ? 'Sorgu' : 'Bul'),
     );
 
     final scanButton = IconButton.filledTonal(
@@ -1462,11 +1741,11 @@ class _CompanyAcceptanceCreateSheetState
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        if (constraints.maxWidth < 360) {
+        if (constraints.maxWidth < 430) {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: <Widget>[
-              lookupField,
+              fixedLookupField,
               const SizedBox(height: 6),
               Row(
                 children: <Widget>[
@@ -1481,7 +1760,7 @@ class _CompanyAcceptanceCreateSheetState
 
         return Row(
           children: <Widget>[
-            Expanded(child: lookupField),
+            Expanded(child: fixedLookupField),
             const SizedBox(width: 8),
             resolveButton,
             const SizedBox(width: 8),
@@ -1527,76 +1806,6 @@ class _CompanyAcceptanceCreateSheetState
             Expanded(child: lookupField),
             const SizedBox(width: 8),
             searchButton,
-          ],
-        );
-      },
-    );
-  }
-
-  Widget _buildLinesToolbar() {
-    final title = Text(
-      'Satirlar',
-      style: Theme.of(
-        context,
-      ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900, height: 1),
-    );
-
-    final orderButton = OutlinedButton.icon(
-      onPressed: _customerCodeController.text.trim().isEmpty
-          ? null
-          : _addLinesFromOpenOrders,
-      icon: const Icon(Icons.link_rounded),
-      label: const Text('Siparis Bagla'),
-    );
-
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        if (constraints.maxWidth < 400) {
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              title,
-              const SizedBox(height: 8),
-              Wrap(spacing: 8, runSpacing: 8, children: <Widget>[orderButton]),
-            ],
-          );
-        }
-
-        return Row(children: <Widget>[title, const Spacer(), orderButton]);
-      },
-    );
-  }
-
-  Widget _buildFormActions() {
-    final cancelButton = OutlinedButton(
-      onPressed: () => Navigator.of(context).pop(),
-      child: const Text('Vazgec'),
-    );
-
-    final submitButton = FilledButton.icon(
-      onPressed: _submit,
-      icon: const Icon(Icons.save_alt_rounded),
-      label: const Text('Mal Kabul Et'),
-    );
-
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        if (constraints.maxWidth < 360) {
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: <Widget>[
-              cancelButton,
-              const SizedBox(height: 10),
-              submitButton,
-            ],
-          );
-        }
-
-        return Row(
-          children: <Widget>[
-            Expanded(child: cancelButton),
-            const SizedBox(width: 12),
-            Expanded(child: submitButton),
           ],
         );
       },

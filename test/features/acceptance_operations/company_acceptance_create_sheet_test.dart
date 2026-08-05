@@ -59,6 +59,149 @@ void main() {
     },
   );
 
+  testWidgets('renders two-step company acceptance flow on terminal width', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(320, 780);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: CompanyAcceptanceCreateSheet(
+            repository: _FakeCompanyAcceptancesRepository(),
+            ordersRepository: _FakeGivenCompanyOrdersRepository(),
+            accessToken: 'token',
+            defaultWarehouseNo: '110',
+            mobileCustomerCatalogRepository:
+                MobileCustomerCatalogLocalRepository(
+                  database: MemoryLocalDatabase(),
+                ),
+            mobileProductCatalogRepository: MobileProductCatalogLocalRepository(
+              database: MemoryLocalDatabase(),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    expect(tester.takeException(), isNull);
+    expect(find.text('Belge'), findsWidgets);
+    expect(find.text('Kalemler'), findsOneWidget);
+
+    await _goToLineStepIfNeeded(tester);
+
+    expect(find.text('Giris satiri'), findsOneWidget);
+    expect(
+      find.widgetWithText(TextFormField, 'Barkod / stok kodu / urun adi'),
+      findsOneWidget,
+    );
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+    'keeps e-document lookup compact when focused on terminal width',
+    (tester) async {
+      tester.view.physicalSize = const Size(320, 780);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: CompanyAcceptanceCreateSheet(
+              repository: _FakeCompanyAcceptancesRepository(),
+              ordersRepository: _FakeGivenCompanyOrdersRepository(),
+              accessToken: 'token',
+              defaultWarehouseNo: '110',
+              mobileCustomerCatalogRepository:
+                  MobileCustomerCatalogLocalRepository(
+                    database: MemoryLocalDatabase(),
+                  ),
+              mobileProductCatalogRepository:
+                  MobileProductCatalogLocalRepository(
+                    database: MemoryLocalDatabase(),
+                  ),
+            ),
+          ),
+        ),
+      );
+
+      final ettnField = find.widgetWithText(TextFormField, 'ETTN / QR');
+      expect(ettnField, findsOneWidget);
+
+      final fieldHeight = tester.getSize(ettnField).height;
+      final selectorBottom = tester.getBottomLeft(find.text('Kalemler')).dy;
+      expect(tester.getTopLeft(ettnField).dy, greaterThan(selectorBottom));
+
+      await tester.tap(ettnField);
+      await tester.pumpAndSettle();
+      await tester.enterText(ettnField, '12345678-1234-1234-1234-123456789012');
+      await tester.pumpAndSettle();
+
+      expect(tester.getSize(ettnField).height, fieldHeight);
+      expect(tester.getTopLeft(ettnField).dy, greaterThan(selectorBottom));
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets('allows supplier document date before movement date', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 1000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final draft =
+        CreateDraft.empty(
+          moduleKey: 'mal-kabul-islemleri.firma-mal-kabulleri',
+          userId: '7',
+          warehouseNo: '110',
+          title: 'Yeni Firma Mal Kabul',
+        ).copyWith(
+          payload: <String, dynamic>{
+            'customerText': 'Test Cari',
+            'customerCode': 'CR001',
+            'movementDate': '2026-08-05T00:00:00',
+            'documentDate': '2026-08-01T00:00:00',
+          },
+        );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: CompanyAcceptanceCreateSheet(
+            repository: _FakeCompanyAcceptancesRepository(),
+            ordersRepository: _FakeGivenCompanyOrdersRepository(),
+            accessToken: 'token',
+            defaultWarehouseNo: '110',
+            mobileCustomerCatalogRepository:
+                MobileCustomerCatalogLocalRepository(
+                  database: MemoryLocalDatabase(),
+                ),
+            mobileProductCatalogRepository: MobileProductCatalogLocalRepository(
+              database: MemoryLocalDatabase(),
+            ),
+            draft: draft,
+          ),
+        ),
+      ),
+    );
+
+    await _goToLineStepIfNeeded(tester);
+
+    expect(find.text('Giris satiri'), findsOneWidget);
+    expect(
+      find.text('Belge tarihi hareket tarihinden sonra olamaz.'),
+      findsNothing,
+    );
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('autosaves and restores company acceptance draft fields', (
     tester,
   ) async {
@@ -136,6 +279,11 @@ void main() {
     await tester.pumpWidget(buildSheet(savedDrafts.single));
     await tester.pump();
 
+    if (find.widgetWithText(TextFormField, 'Cari Arama').evaluate().isEmpty) {
+      await tester.tap(find.text('Belge').first);
+      await tester.pumpAndSettle();
+    }
+
     final customerField = tester.widget<TextFormField>(
       find.widgetWithText(TextFormField, 'Cari Arama'),
     );
@@ -144,11 +292,7 @@ void main() {
     );
     expect(customerField.controller?.text, 'Test Cari');
     expect(customerCodeField.controller?.text, 'CR001');
-    await tester.drag(
-      find.byType(CustomScrollView).first,
-      const Offset(0, -900),
-    );
-    await tester.pumpAndSettle();
+    await _goToLineStepIfNeeded(tester);
     expect(find.text('Test Urun'), findsOneWidget);
     expect(find.text('015792'), findsOneWidget);
     expect(find.text('KL'), findsOneWidget);
@@ -156,17 +300,12 @@ void main() {
 }
 
 Future<void> _pickProduct(WidgetTester tester) async {
+  await _goToLineStepIfNeeded(tester);
+
   final lookupFinder = find.widgetWithText(
     TextFormField,
     'Barkod / stok kodu / urun adi',
   );
-  if (lookupFinder.evaluate().isEmpty) {
-    await tester.drag(
-      find.byType(CustomScrollView).first,
-      const Offset(0, -900),
-    );
-    await tester.pumpAndSettle();
-  }
 
   await tester.enterText(lookupFinder.first, '8690000000012');
 
@@ -177,6 +316,38 @@ Future<void> _pickProduct(WidgetTester tester) async {
   await tester.pumpAndSettle();
 
   expect(find.text('Urun Ara'), findsNothing);
+}
+
+Future<void> _goToLineStepIfNeeded(WidgetTester tester) async {
+  if (find
+      .widgetWithText(TextFormField, 'Barkod / stok kodu / urun adi')
+      .evaluate()
+      .isNotEmpty) {
+    return;
+  }
+
+  final customerField = find.widgetWithText(TextFormField, 'Cari Arama');
+  if (customerField.evaluate().isNotEmpty) {
+    final widget = tester.widget<TextFormField>(customerField.first);
+    if ((widget.controller?.text.trim() ?? '').isEmpty) {
+      await tester.enterText(customerField.first, 'Test Cari');
+    }
+  }
+
+  final customerCodeField = find.widgetWithText(TextFormField, 'Cari Kodu*');
+  if (customerCodeField.evaluate().isNotEmpty) {
+    final widget = tester.widget<TextFormField>(customerCodeField.first);
+    if ((widget.controller?.text.trim() ?? '').isEmpty) {
+      await tester.enterText(customerCodeField.first, 'CR001');
+    }
+  }
+
+  await tester.pump();
+  final nextButton = find.widgetWithText(FilledButton, 'Kalemlere Gec');
+  await tester.ensureVisible(nextButton);
+  await tester.pumpAndSettle();
+  await tester.tap(nextButton);
+  await tester.pumpAndSettle();
 }
 
 class _FakeCompanyAcceptancesRepository

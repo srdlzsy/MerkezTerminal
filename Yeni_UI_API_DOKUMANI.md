@@ -5607,6 +5607,7 @@ Onemli not:
 - `*.all-warehouses` yoksa `warehouseNo` sorulmaz; backend JWT icindeki kullanici deposunu kullanir. `mal-kabul-islemleri.firma-mal-kabulleri.all-warehouses` yetkisi olan kullanici baska depo adina firma mal kabul olusturacaksa body'de opsiyonel `warehouseNo` gonderebilir.
 - Mobil offline pilotta request'e `clientRequestId` eklenmelidir.
 - Backend `sth_evraktip = 13`, `sth_tip = 0`, `sth_normal_iade = 0` olarak yeni giris hareketi olusturur.
+- `movementDate` bizim mal kabul/stok hareket tarihidir; `documentDate` tedarikci fatura/irsaliye tarihidir. Firma belge tarihi hareket tarihinden eski olabilir, fakat `documentDate > movementDate` kabul edilmez.
 - Mal kabul giris hareketinde `sth_miktar` irsaliye/gelen miktari olan `dispatchQuantity` ile yazilir.
 - Fiili/net kabul miktari `acceptedQuantity` alanidir. UI farkli kabul durumunda `dispatchQuantity` ve `acceptedQuantity` alanlarini ayri gondermelidir.
 - Eski uyumluluk icin `quantity` hala desteklenir; UI sadece `quantity` gonderirse backend bunu hem `dispatchQuantity` hem `acceptedQuantity` gibi yorumlar.
