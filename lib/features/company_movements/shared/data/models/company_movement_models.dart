@@ -325,6 +325,7 @@ class CompanyMovementCreateLine {
     required this.projectCode,
     required this.customerResponsibilityCenter,
     required this.productResponsibilityCenter,
+    this.orderLineGuid,
   });
 
   final String stockCode;
@@ -337,8 +338,11 @@ class CompanyMovementCreateLine {
   final String projectCode;
   final String customerResponsibilityCenter;
   final String productResponsibilityCenter;
+  final String? orderLineGuid;
 
   JsonMap toJson() {
+    final normalizedOrderLineGuid = orderLineGuid?.trim() ?? '';
+
     return <String, dynamic>{
       'stockCode': stockCode,
       'quantity': quantity,
@@ -350,6 +354,8 @@ class CompanyMovementCreateLine {
       'projectCode': projectCode,
       'customerResponsibilityCenter': customerResponsibilityCenter,
       'productResponsibilityCenter': productResponsibilityCenter,
+      if (normalizedOrderLineGuid.isNotEmpty)
+        'orderLineGuid': normalizedOrderLineGuid,
     };
   }
 }

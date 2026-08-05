@@ -124,11 +124,16 @@ class ApiCompanyAcceptancesRepository implements CompanyAcceptancesRepository {
     required String ettn,
   }) async {
     final normalizedEttn = ettn.trim();
+    final normalizedWarehouseNo = warehouseNo.trim();
     final response = await _apiClient.getJsonMap(
-      '/api/mal-kabul-islemleri/firma-mal-kabulleri/e-irsaliye/ettn/'
+      '/api/mal-kabul-islemleri/firma-mal-kabulleri/resmi-belge/ettn/'
       '$normalizedEttn',
       accessToken: accessToken,
-      queryParameters: <String, String>{'warehouseNo': warehouseNo.trim()},
+      queryParameters: <String, String>{
+        if (normalizedWarehouseNo.isNotEmpty)
+          'warehouseNo': normalizedWarehouseNo,
+        'documentKind': 'auto',
+      },
     );
 
     return CompanyAcceptanceEDespatchPrefill.fromJson(response);

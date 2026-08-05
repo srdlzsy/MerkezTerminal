@@ -224,15 +224,15 @@ class _CompanyAcceptanceCreateSheetState
     if (!supportsCameraBarcodeScanning) {
       setState(() {
         _lookupError =
-            'Bu cihazda kamera ile e-irsaliye QR okutma desteklenmiyor.';
+            'Bu cihazda kamera ile e-belge QR okutma desteklenmiyor.';
       });
       return;
     }
 
     final qrValue = await openBarcodeCameraScanner(
       context,
-      title: 'E-Irsaliye QR',
-      subtitle: 'Tedarikci irsaliyesindeki QR kodu okutun.',
+      title: 'E-Belge QR',
+      subtitle: 'Tedarikci belgesindeki QR kodu okutun.',
       qrOnly: true,
     );
 
@@ -278,13 +278,14 @@ class _CompanyAcceptanceCreateSheetState
       }
 
       if (!prefill.isFound) {
+        final documentLabel = prefill.effectiveDocumentLabel;
         setState(() {
           _ettnController.text = ettn;
           _lastEDespatchPrefill = prefill;
           _isResolvingEDespatch = false;
           _lookupError = qrPayload.hasDocumentPrefill
-              ? 'Bu ETTN ile gelen e-irsaliye bulunamadi; QR belge bilgileri forma aktarildi.'
-              : 'Bu ETTN ile gelen e-irsaliye bulunamadi: $ettn';
+              ? 'Bu ETTN ile gelen $documentLabel bulunamadi; QR belge bilgileri forma aktarildi.'
+              : 'Bu ETTN ile gelen $documentLabel bulunamadi: $ettn';
         });
         _draftSession.scheduleSave();
         return;
@@ -303,11 +304,12 @@ class _CompanyAcceptanceCreateSheetState
 
       await _fillCustomerFromQrSenderIfNeeded(qrPayload);
 
-      final documentNo = prefill.despatchNumber.trim();
+      final documentNo = prefill.effectiveDocumentNumber;
+      final documentLabel = prefill.effectiveDocumentLabel;
       _showFeedback(
         documentNo.isEmpty
-            ? 'E-irsaliye bilgileri forma aktarildi.'
-            : '$documentNo icin e-irsaliye bilgileri forma aktarildi.',
+            ? '$documentLabel bilgileri forma aktarildi.'
+            : '$documentNo icin $documentLabel bilgileri forma aktarildi.',
       );
     } catch (error) {
       if (!mounted) {
@@ -370,14 +372,14 @@ class _CompanyAcceptanceCreateSheetState
   }
 
   void _applyEDespatchPrefill(CompanyAcceptanceEDespatchPrefill prefill) {
-    final despatchNumber = prefill.despatchNumber.trim();
-    if (despatchNumber.isNotEmpty) {
-      _documentNoController.text = despatchNumber;
+    final documentNumber = prefill.effectiveDocumentNumber;
+    if (documentNumber.isNotEmpty) {
+      _documentNoController.text = documentNumber;
     }
 
-    final issueDate = prefill.issueDate;
-    if (issueDate != null) {
-      _documentDate = _normalizedDate(issueDate);
+    final documentDate = prefill.effectiveDocumentDate;
+    if (documentDate != null) {
+      _documentDate = _normalizedDate(documentDate);
     }
 
     final suggestedCustomer = _preferredCustomerSuggestion(prefill);
@@ -1432,7 +1434,7 @@ class _CompanyAcceptanceCreateSheetState
         textInputAction: TextInputAction.search,
         onFieldSubmitted: (_) => _resolveEDespatchFromInput(),
         decoration: const InputDecoration(
-          labelText: 'E-Irsaliye ETTN / QR',
+          labelText: 'E-Belge ETTN / QR',
           hintText: 'QR okutun veya UUID girin',
           isDense: true,
           contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -1454,7 +1456,7 @@ class _CompanyAcceptanceCreateSheetState
 
     final scanButton = IconButton.filledTonal(
       onPressed: _isResolvingEDespatch ? null : _scanEDespatchQr,
-      tooltip: 'E-irsaliye QR oku',
+      tooltip: 'E-belge QR oku',
       icon: const Icon(Icons.qr_code_scanner_rounded),
     );
 
@@ -1778,16 +1780,26 @@ class _CompanyAcceptanceCreateSheetState
   }
 
   String _eDespatchSummaryMessage(CompanyAcceptanceEDespatchPrefill prefill) {
+    final documentLabel = prefill.effectiveDocumentLabel;
     if (!prefill.isFound) {
-      return 'E-irsaliye bulunamadi. ETTN: ${prefill.ettn}';
+      final parts = <String>[
+        '$documentLabel bulunamadi',
+        'ETTN: ${prefill.ettn}',
+        if (prefill.warnings.isNotEmpty)
+          'Uyari: ${prefill.warnings.join(' / ')}',
+      ];
+      return parts.join(' | ');
     }
 
     final suggestedCustomer = _preferredCustomerSuggestion(prefill);
     final parts = <String>[
-      if (prefill.despatchNumber.trim().isNotEmpty)
-        'Belge: ${prefill.despatchNumber}',
-      'Irsaliye satiri: ${prefill.totalLineCount}',
+      if (prefill.effectiveDocumentNumber.isNotEmpty)
+        '$documentLabel: ${prefill.effectiveDocumentNumber}',
+      'Belge satiri: ${prefill.totalLineCount}',
       'Kalemler manuel girilecek',
+      if (prefill.isInvoice && prefill.invoiceTotal != null)
+        'Fatura tutari: ${AppFormatters.currency(prefill.invoiceTotal!)} ${prefill.currencyCode}',
+      if (prefill.warnings.isNotEmpty) 'Uyari: ${prefill.warnings.join(' / ')}',
       if (prefill.sender.title.trim().isNotEmpty)
         'Gonderici: ${prefill.sender.title}',
       if (suggestedCustomer != null)

@@ -316,11 +316,22 @@ class CompanyAcceptanceEDespatchPrefill {
     required this.warehouseNo,
     required this.receivingContext,
     required this.ettn,
+    required this.sourceDocumentKind,
+    required this.sourceDocumentLabel,
+    required this.sourceDocumentNumber,
     required this.despatchNumber,
     required this.issueDate,
     required this.actualDespatchDate,
     required this.profileId,
     required this.despatchAdviceTypeCode,
+    required this.invoiceNumber,
+    required this.invoiceDate,
+    required this.invoiceTotal,
+    required this.taxExclusiveAmount,
+    required this.taxTotal,
+    required this.currencyCode,
+    required this.despatchReferences,
+    required this.warnings,
     required this.notes,
     required this.sender,
     required this.receiver,
@@ -336,11 +347,22 @@ class CompanyAcceptanceEDespatchPrefill {
   final int warehouseNo;
   final String receivingContext;
   final String ettn;
+  final String sourceDocumentKind;
+  final String sourceDocumentLabel;
+  final String sourceDocumentNumber;
   final String despatchNumber;
   final DateTime? issueDate;
   final DateTime? actualDespatchDate;
   final String profileId;
   final String despatchAdviceTypeCode;
+  final String invoiceNumber;
+  final DateTime? invoiceDate;
+  final double? invoiceTotal;
+  final double? taxExclusiveAmount;
+  final double? taxTotal;
+  final String currencyCode;
+  final List<String> despatchReferences;
+  final List<String> warnings;
   final List<String> notes;
   final CompanyAcceptanceEDespatchParty sender;
   final CompanyAcceptanceEDespatchParty receiver;
@@ -351,19 +373,92 @@ class CompanyAcceptanceEDespatchPrefill {
   final List<CompanyAcceptanceCustomerSuggestion> suggestedCustomers;
   final List<CompanyAcceptanceEDespatchLine> lines;
 
+  bool get isInvoice => sourceDocumentKind.trim().toLowerCase() == 'e-invoice';
+
+  String get effectiveDocumentLabel {
+    final label = sourceDocumentLabel.trim();
+    if (label.isNotEmpty) {
+      return label;
+    }
+
+    final kind = sourceDocumentKind.trim().toLowerCase();
+    if (kind == 'e-invoice') {
+      return 'E-Fatura';
+    }
+    if (kind == 'e-despatch') {
+      return 'E-Irsaliye';
+    }
+
+    return 'E-Belge';
+  }
+
+  String get effectiveDocumentNumber {
+    for (final value in <String>[
+      sourceDocumentNumber,
+      despatchNumber,
+      invoiceNumber,
+    ]) {
+      final normalized = value.trim();
+      if (normalized.isNotEmpty) {
+        return normalized;
+      }
+    }
+
+    return '';
+  }
+
+  DateTime? get effectiveDocumentDate => invoiceDate ?? issueDate;
+
   factory CompanyAcceptanceEDespatchPrefill.fromJson(JsonMap json) {
     final primaryCustomerSuggestionJson = json['primaryCustomerSuggestion'];
+    final despatchNumber = _readString(json['despatchNumber']);
+    final invoiceNumber = _readString(json['invoiceNumber']);
+    final sourceDocumentNumber =
+        _readString(json['sourceDocumentNumber']).trim().isEmpty
+        ? despatchNumber.trim().isEmpty
+              ? invoiceNumber
+              : despatchNumber
+        : _readString(json['sourceDocumentNumber']);
+    final sourceDocumentKind =
+        _readString(json['sourceDocumentKind']).trim().isEmpty
+        ? !_readBool(json['isFound'])
+              ? 'auto'
+              : invoiceNumber.trim().isEmpty
+              ? 'e-despatch'
+              : 'e-invoice'
+        : _readString(json['sourceDocumentKind']);
+    final normalizedSourceDocumentKind = sourceDocumentKind
+        .trim()
+        .toLowerCase();
 
     return CompanyAcceptanceEDespatchPrefill(
       isFound: _readBool(json['isFound']),
       warehouseNo: _readInt(json['warehouseNo']),
       receivingContext: _readString(json['receivingContext']),
       ettn: _readString(json['ettn']),
-      despatchNumber: _readString(json['despatchNumber']),
+      sourceDocumentKind: sourceDocumentKind,
+      sourceDocumentLabel:
+          _readString(json['sourceDocumentLabel']).trim().isEmpty
+          ? normalizedSourceDocumentKind == 'e-invoice'
+                ? 'E-Fatura'
+                : normalizedSourceDocumentKind == 'e-despatch'
+                ? 'E-Irsaliye'
+                : 'E-Belge'
+          : _readString(json['sourceDocumentLabel']),
+      sourceDocumentNumber: sourceDocumentNumber,
+      despatchNumber: despatchNumber,
       issueDate: _readDate(json['issueDate']),
       actualDespatchDate: _readDate(json['actualDespatchDate']),
       profileId: _readString(json['profileId']),
       despatchAdviceTypeCode: _readString(json['despatchAdviceTypeCode']),
+      invoiceNumber: invoiceNumber,
+      invoiceDate: _readDate(json['invoiceDate']),
+      invoiceTotal: _readNullableDouble(json['invoiceTotal']),
+      taxExclusiveAmount: _readNullableDouble(json['taxExclusiveAmount']),
+      taxTotal: _readNullableDouble(json['taxTotal']),
+      currencyCode: _readString(json['currencyCode']),
+      despatchReferences: _readStringList(json['despatchReferences']),
+      warnings: _readStringList(json['warnings']),
       notes: _readStringList(json['notes']),
       sender: CompanyAcceptanceEDespatchParty.fromJson(
         json['sender'] as JsonMap? ?? <String, dynamic>{},
@@ -473,6 +568,9 @@ class CompanyAcceptanceEDespatchLine {
     required this.isMatched,
     required this.isGoodsAcceptanceBlocked,
     required this.canUseForGoodsAcceptance,
+    required this.unitPrice,
+    required this.lineAmount,
+    required this.quantitySource,
   });
 
   final int lineNo;
@@ -490,6 +588,9 @@ class CompanyAcceptanceEDespatchLine {
   final bool isMatched;
   final bool isGoodsAcceptanceBlocked;
   final bool canUseForGoodsAcceptance;
+  final double? unitPrice;
+  final double? lineAmount;
+  final String quantitySource;
 
   bool get hasUsableInternalStock =>
       canUseForGoodsAcceptance && internalStockCode.trim().isNotEmpty;
@@ -530,6 +631,9 @@ class CompanyAcceptanceEDespatchLine {
       isMatched: _readBool(json['isMatched']),
       isGoodsAcceptanceBlocked: _readBool(json['isGoodsAcceptanceBlocked']),
       canUseForGoodsAcceptance: _readBool(json['canUseForGoodsAcceptance']),
+      unitPrice: _readNullableDouble(json['unitPrice']),
+      lineAmount: _readNullableDouble(json['lineAmount']),
+      quantitySource: _readString(json['quantitySource']),
     );
   }
 }
