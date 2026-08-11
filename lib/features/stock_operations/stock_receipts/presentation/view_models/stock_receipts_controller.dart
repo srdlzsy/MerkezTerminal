@@ -5,6 +5,7 @@ import 'package:furpa_merkez_terminal/core/utils/request_epoch.dart';
 import 'package:furpa_merkez_terminal/core/utils/safe_change_notifier.dart';
 import 'package:furpa_merkez_terminal/features/stock_operations/stock_receipts/data/models/stock_receipt_models.dart';
 import 'package:furpa_merkez_terminal/features/stock_operations/stock_receipts/data/stock_receipts_repository.dart';
+import 'package:furpa_merkez_terminal/shared/utils/safe_create_retry.dart';
 
 class StockReceiptsController extends ChangeNotifier with SafeChangeNotifier {
   StockReceiptsController({
@@ -33,6 +34,7 @@ class StockReceiptsController extends ChangeNotifier with SafeChangeNotifier {
   String? _listError;
   String? _detailError;
   String? _createError;
+  int? _createErrorStatusCode;
   List<StockReceiptListItem> _receipts = const <StockReceiptListItem>[];
   StockReceiptListItem? _selectedReceipt;
   StockReceiptDetail? _selectedReceiptDetail;
@@ -46,6 +48,7 @@ class StockReceiptsController extends ChangeNotifier with SafeChangeNotifier {
   String? get listError => _listError;
   String? get detailError => _detailError;
   String? get createError => _createError;
+  int? get createErrorStatusCode => _createErrorStatusCode;
   List<StockReceiptListItem> get receipts => _receipts;
   StockReceiptListItem? get selectedReceipt => _selectedReceipt;
   StockReceiptDetail? get selectedReceiptDetail => _selectedReceiptDetail;
@@ -159,6 +162,7 @@ class StockReceiptsController extends ChangeNotifier with SafeChangeNotifier {
   ) async {
     _isCreating = true;
     _createError = null;
+    _createErrorStatusCode = null;
     notifySafely();
 
     try {
@@ -179,7 +183,8 @@ class StockReceiptsController extends ChangeNotifier with SafeChangeNotifier {
       return result;
     } on ApiException catch (error) {
       _isCreating = false;
-      _createError = error.message;
+      _createError = safeCreateRetryErrorMessage(error);
+      _createErrorStatusCode = error.statusCode;
       notifySafely();
       return null;
     }

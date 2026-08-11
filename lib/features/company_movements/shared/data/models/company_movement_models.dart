@@ -292,8 +292,10 @@ class CompanyMovementCreateRequest {
     required this.documentNo,
     required this.description,
     required this.lines,
+    this.clientRequestId,
   });
 
+  final String? clientRequestId;
   final String customerCode;
   final DateTime movementDate;
   final DateTime documentDate;
@@ -303,6 +305,8 @@ class CompanyMovementCreateRequest {
 
   JsonMap toJson() {
     return <String, dynamic>{
+      if (clientRequestId != null && clientRequestId!.trim().isNotEmpty)
+        'clientRequestId': clientRequestId!.trim(),
       'customerCode': customerCode,
       'movementDate': _toApiDate(movementDate),
       'documentDate': _toApiDate(documentDate),

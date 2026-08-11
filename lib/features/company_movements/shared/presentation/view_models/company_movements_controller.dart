@@ -6,6 +6,7 @@ import 'package:furpa_merkez_terminal/core/utils/safe_change_notifier.dart';
 import 'package:furpa_merkez_terminal/features/company_movements/shared/data/company_movements_repository.dart';
 import 'package:furpa_merkez_terminal/features/company_movements/shared/data/models/company_movement_models.dart';
 import 'package:furpa_merkez_terminal/features/return_operations/warehouse_returns/data/models/warehouse_return_models.dart';
+import 'package:furpa_merkez_terminal/shared/utils/safe_create_retry.dart';
 
 class CompanyMovementsController extends ChangeNotifier
     with SafeChangeNotifier {
@@ -34,6 +35,7 @@ class CompanyMovementsController extends ChangeNotifier
   String? _listError;
   String? _detailError;
   String? _createError;
+  int? _createErrorStatusCode;
   String? _sendEDespatchError;
   String? _pdfError;
   List<CompanyMovementListItem> _movements = const <CompanyMovementListItem>[];
@@ -52,6 +54,7 @@ class CompanyMovementsController extends ChangeNotifier
   String? get listError => _listError;
   String? get detailError => _detailError;
   String? get createError => _createError;
+  int? get createErrorStatusCode => _createErrorStatusCode;
   String? get sendEDespatchError => _sendEDespatchError;
   String? get pdfError => _pdfError;
   List<CompanyMovementListItem> get movements => _movements;
@@ -200,6 +203,7 @@ class CompanyMovementsController extends ChangeNotifier
 
     _isCreating = true;
     _createError = null;
+    _createErrorStatusCode = null;
     notifySafely();
 
     try {
@@ -219,7 +223,8 @@ class CompanyMovementsController extends ChangeNotifier
       return result;
     } on ApiException catch (error) {
       _isCreating = false;
-      _createError = error.message;
+      _createError = safeCreateRetryErrorMessage(error);
+      _createErrorStatusCode = error.statusCode;
       notifySafely();
       return null;
     }

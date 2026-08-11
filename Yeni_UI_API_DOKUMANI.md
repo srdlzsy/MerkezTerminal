@@ -1027,16 +1027,26 @@ Yetki ve kapsam:
 - `all-warehouses` olan kullanici tum duyurulari arsivleyebilir.
 - `all-warehouses` olmayan kullanici sadece kendi olusturdugu duyuruyu arsivleyebilir.
 
-## Mobil Offline Pilot Kurallari
+## Mobil Offline ve Guvenli Retry Kurallari
 
 Bu bolum mobil uygulamanin offline iken olusturdugu fisleri internet geldiginde guvenli sekilde backend'e gondermesi icin create retry kurallarini anlatir.
 
-Offline create pilotu su iki create akisinda vardir:
+Offline durum sorgusu olan pilot create akislari:
 
 - `POST /api/mal-kabul-islemleri/firma-mal-kabulleri`
 - `POST /api/stok-islemleri/sayim-sonuclari`
 
-Bu iki endpoint legacy UI gibi normal online da kullanilabilir. Ancak mobil uygulama offline-first calisacaksa su kurallar uygulanmalidir:
+Guvenli retry destegi genisletilen diger kritik create akislari:
+
+- `POST /api/sevk-islemleri/depolar-arasi-sevkler/giden`
+- `POST /api/sevk-islemleri/firma-sevkleri/giden`
+- `POST /api/iade-islemleri/depo-iadeleri/giden`
+- `POST /api/iade-islemleri/firma-iadeleri`
+- `POST /api/stok-islemleri/zayiat-fisleri`
+- `POST /api/stok-islemleri/masraf-fisleri`
+- `POST /api/stok-islemleri/virmanlar`
+
+Bu endpointler legacy UI gibi normal online da kullanilabilir. Ancak mobil uygulama veya web UI timeout/tekrar basma riskine karsi guvenli calisacaksa su kurallar uygulanmalidir:
 
 - Her yeni create denemesi icin istemci tarafinda bir `clientRequestId` uretilmelidir. Format `GUID` olmali ve ayni mantiksal fis boyunca degismemelidir.
 - `clientRequestId` teknik olarak opsiyoneldir, ama offline guvenli tekrar gonderim icin pratikte zorunludur.
@@ -1046,7 +1056,22 @@ Bu iki endpoint legacy UI gibi normal online da kullanilabilir. Ancak mobil uygu
 - Ayni `clientRequestId` ile ayni payload tekrar gelirse backend ayni is sonucunu donmeye calisir; boylece timeout veya kopan internet sonrasi guvenli retry yapilabilir.
 - Ayni `clientRequestId` ile farkli payload gelirse endpoint `409 Conflict` doner.
 - Ayni `clientRequestId` halen isleniyorsa endpoint `409 Conflict` doner.
-- POST cevabi cihaza ulasmadiysa mobil uygulama once ayni `clientRequestId` ile tekrar POST deneyebilir; durum hala belirsizse ilgili `offline-sync/{clientRequestId}` endpoint'i ile durum sorgulayabilir.
+- POST cevabi cihaza ulasmadiysa mobil uygulama once ayni `clientRequestId` ile tekrar POST denemelidir.
+- Firma mal kabul ve sayim sonucunda durum hala belirsizse ilgili `offline-sync/{clientRequestId}` endpoint'i ile durum sorgulanabilir.
+- Sevk, iade, zayiat, masraf ve virman create akislarinda ayri durum endpoint'i yoktur; sonuc ayni `clientRequestId` ile tekrar POST edilerek toparlanir.
+- Stok hareketi yazan genisletilmis akislarda backend `clientRequestId` izini `FR` prefixli 24 karakterlik trace olarak Mikro `STOK_HAREKETLERI.sth_eticaret_kanal_kodu` alanina tasir. `MikroApi` rotasinda da ayni iz payload'a eklenir.
+- `FR` prefix'i bu alan ileride dolu goruldugunde kaydin Furpa guvenli retry izinden geldigini ayirt etmek icindir.
+
+UI davranis kurali:
+
+- `clientRequestId` form ekraninin kimligi degildir; tek mantiksal kaydetme denemesinin kimligidir.
+- UI ilk `Kaydet` aninda `clientRequestId` uretmeli, gonderilen body'nin snapshot'ini bu id ile birlikte saklamalidir.
+- Request devam ederken kaydet butonu ve form alanlari kilitlenmelidir.
+- Timeout, network kopmasi veya belirsiz sonuc olursa UI ayni body snapshot'i ve ayni `clientRequestId` ile `Tekrar Dene` yapmalidir.
+- Kullanici belirsiz kayit modundayken formu degistirmek isterse UI bunu yeni islem kabul etmeli, eski `clientRequestId` degerini birakip sonraki kaydetmede yeni `clientRequestId` uretmelidir.
+- Ayni `clientRequestId` ile farkli body gonderilip API `409 Conflict` donerse UI bunu teknik hata gibi degil, "Bu kayit denemesinin icerigi degismis; yeni islem olarak tekrar kaydedin." durumu gibi ele almalidir.
+- `409 Conflict` sonrasi kullanici devam edecekse UI yeni `clientRequestId` uretmeli ve guncel body'yi yeni kaydetme denemesi olarak gondermelidir.
+- En guvenli akista `Normal Edit Mode` alanlari degistirilebilir, `Pending/Retry Mode` alanlari kilitlidir; pending durumundan cikmak icin kullanici acikca `Yeni islem olarak duzenle` veya `Vazgec` aksiyonu secmelidir.
 
 Offline durum sorgu endpointleri:
 
@@ -4892,6 +4917,7 @@ Siparissiz request:
 
 ```json
 {
+  "clientRequestId": "2e8f99f1-8ad5-4dfb-a375-82b93f9aa101",
   "targetWarehouseNo": 50,
   "transitWarehouseNo": 60,
   "movementDate": "2026-04-17",
@@ -4917,6 +4943,7 @@ Siparise bagli request:
 
 ```json
 {
+  "clientRequestId": "2e8f99f1-8ad5-4dfb-a375-82b93f9aa101",
   "targetWarehouseNo": 50,
   "transitWarehouseNo": 60,
   "movementDate": "2026-04-17",
@@ -5174,6 +5201,7 @@ Request:
 
 ```json
 {
+  "clientRequestId": "5b0b7e62-3514-43b6-a776-220853ef2c3f",
   "customerCode": "120.01.001",
   "movementDate": "2026-04-17",
   "documentDate": "2026-04-17",
@@ -5926,7 +5954,7 @@ Onemli not:
 - `documentNo` bos veya sadece sayisal bir degerse backend seri icin cari unvanina duser.
 - Response'taki `documentNo`, uretilen nihai `documentSerie + 9 haneli documentOrderNo` degeridir.
 - Ayni depo icinde ayni `documentSerie + documentOrderNo` kombinasyonu tekrar kullanilamaz.
-- Mobil retry icin backend `clientRequestId` izini `sth_eticaret_kanal_kodu` alanina tasir; `MikroApi` modunda bu payload ile Mikro'ya gider, tekrar istekte sonuc bu iz uzerinden toparlanabilir.
+- Mobil retry icin backend `clientRequestId` izini `FR` prefixli trace olarak `sth_eticaret_kanal_kodu` alanina tasir; `MikroApi` modunda bu payload ile Mikro'ya gider, tekrar istekte sonuc bu iz uzerinden toparlanabilir.
 - Ayni `clientRequestId` ile ayni payload tekrar gonderilirse backend ayni business response'u dondurmeye calisir.
 - Ayni `clientRequestId` ile farkli payload gonderilirse `409 Conflict` doner.
 - Ayni `clientRequestId` halen isleniyorsa `409 Conflict` doner.
@@ -7487,6 +7515,7 @@ Request:
 
 ```json
 {
+  "clientRequestId": "3e39228d-5429-4f1e-b521-60b7e82b2c25",
   "creator": "VARDIYA-1",
   "acceptor": "SEF-01",
   "movementDate": "2026-04-21",
@@ -7586,6 +7615,7 @@ Request:
 
 ```json
 {
+  "clientRequestId": "bc00ec38-5fbb-4669-87d5-7480f88e1987",
   "creator": "VARDIYA-2",
   "acceptor": "SEF-02",
   "movementDate": "2026-04-21",
@@ -7726,7 +7756,7 @@ Onemli not:
 - `name` alani `sym_parti_kodu` kolonuna yazilir
 - satirda `barcode` bos gelirse backend `BARKOD_TANIMLARI` tablosundan stok koduna gore barkod bulmaya calisir
 - eski yapiya gore `sym_fileid = 28`, `sym_create_user = 39`, `sym_lastup_user = 39` degerleri kullanilir
-- Mobil retry icin backend `clientRequestId` izini `SAYIM_SONUCLARI.sym_serino` alanina yazar ve ayni istek tekrar geldiginde bu iz uzerinden sonucu toparlayabilir.
+- Mobil retry icin backend `clientRequestId` izini `FR` prefixli trace olarak `SAYIM_SONUCLARI.sym_serino` alanina yazar ve ayni istek tekrar geldiginde bu iz uzerinden sonucu toparlayabilir.
 - Ayni `clientRequestId` ile ayni payload tekrar gonderilirse backend ayni business response'u dondurmeye calisir.
 - Ayni `clientRequestId` ile farkli payload gonderilirse `409 Conflict` doner.
 - Ayni `clientRequestId` halen isleniyorsa `409 Conflict` doner.
@@ -8918,6 +8948,7 @@ Request:
 
 ```json
 {
+  "clientRequestId": "f56fc5a6-b846-4421-a02a-b8f9f0e52d4c",
   "movementDate": "2026-04-21",
   "documentDate": "2026-04-21",
   "documentNo": "",
@@ -9132,6 +9163,7 @@ Request:
 
 ```json
 {
+  "clientRequestId": "622208d6-f427-48ef-b9fb-bd4e6e1844eb",
   "targetWarehouseNo": 50,
   "transitWarehouseNo": 60,
   "movementDate": "2026-04-17",
@@ -9274,6 +9306,7 @@ Request:
 
 ```json
 {
+  "clientRequestId": "527c6a79-f98b-438d-92f7-9f1cfc16cd64",
   "customerCode": "120.01.001",
   "movementDate": "2026-04-17",
   "documentDate": "2026-04-17",

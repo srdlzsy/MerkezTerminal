@@ -5,6 +5,7 @@ import 'package:furpa_merkez_terminal/core/utils/request_epoch.dart';
 import 'package:furpa_merkez_terminal/core/utils/safe_change_notifier.dart';
 import 'package:furpa_merkez_terminal/features/stock_operations/virman/data/models/virman_models.dart';
 import 'package:furpa_merkez_terminal/features/stock_operations/virman/data/virman_repository.dart';
+import 'package:furpa_merkez_terminal/shared/utils/safe_create_retry.dart';
 
 class VirmanController extends ChangeNotifier with SafeChangeNotifier {
   VirmanController({
@@ -30,6 +31,7 @@ class VirmanController extends ChangeNotifier with SafeChangeNotifier {
   String? _listError;
   String? _detailError;
   String? _createError;
+  int? _createErrorStatusCode;
   List<VirmanListItem> _virmans = const <VirmanListItem>[];
   VirmanListItem? _selectedVirman;
   VirmanDetail? _selectedVirmanDetail;
@@ -43,6 +45,7 @@ class VirmanController extends ChangeNotifier with SafeChangeNotifier {
   String? get listError => _listError;
   String? get detailError => _detailError;
   String? get createError => _createError;
+  int? get createErrorStatusCode => _createErrorStatusCode;
   List<VirmanListItem> get virmans => _virmans;
   VirmanListItem? get selectedVirman => _selectedVirman;
   VirmanDetail? get selectedVirmanDetail => _selectedVirmanDetail;
@@ -152,6 +155,7 @@ class VirmanController extends ChangeNotifier with SafeChangeNotifier {
   Future<VirmanCreateResult?> createVirman(VirmanCreateRequest request) async {
     _isCreating = true;
     _createError = null;
+    _createErrorStatusCode = null;
     notifySafely();
 
     try {
@@ -171,7 +175,8 @@ class VirmanController extends ChangeNotifier with SafeChangeNotifier {
       return result;
     } on ApiException catch (error) {
       _isCreating = false;
-      _createError = error.message;
+      _createError = safeCreateRetryErrorMessage(error);
+      _createErrorStatusCode = error.statusCode;
       notifySafely();
       return null;
     }

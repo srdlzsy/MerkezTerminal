@@ -260,8 +260,10 @@ class WarehouseShipmentCreateRequest {
     required this.documentNo,
     required this.description,
     required this.lines,
+    this.clientRequestId,
   });
 
+  final String? clientRequestId;
   final int targetWarehouseNo;
   final int? transitWarehouseNo;
   final DateTime movementDate;
@@ -272,6 +274,8 @@ class WarehouseShipmentCreateRequest {
 
   JsonMap toJson() {
     return <String, dynamic>{
+      if (clientRequestId != null && clientRequestId!.trim().isNotEmpty)
+        'clientRequestId': clientRequestId!.trim(),
       'targetWarehouseNo': targetWarehouseNo,
       if (transitWarehouseNo != null) 'transitWarehouseNo': transitWarehouseNo,
       'movementDate': _toApiDate(movementDate),

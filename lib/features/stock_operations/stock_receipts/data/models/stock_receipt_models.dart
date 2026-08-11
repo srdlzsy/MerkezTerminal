@@ -1,9 +1,6 @@
 import 'package:furpa_merkez_terminal/core/network/api_client.dart';
 
-enum StockReceiptKind {
-  outage,
-  expense,
-}
+enum StockReceiptKind { outage, expense }
 
 extension StockReceiptKindX on StockReceiptKind {
   String get pathSegment => switch (this) {
@@ -116,10 +113,7 @@ class StockReceiptListItem {
 }
 
 class StockReceiptDetail {
-  const StockReceiptDetail({
-    required this.header,
-    required this.items,
-  });
+  const StockReceiptDetail({required this.header, required this.items});
 
   final StockReceiptHeader header;
   final List<StockReceiptLineItem> items;
@@ -266,8 +260,10 @@ class StockReceiptCreateRequest {
     required this.documentNo,
     required this.description,
     required this.lines,
+    this.clientRequestId,
   });
 
+  final String? clientRequestId;
   final String creator;
   final String acceptor;
   final DateTime movementDate;
@@ -278,6 +274,8 @@ class StockReceiptCreateRequest {
 
   JsonMap toJson() {
     return <String, dynamic>{
+      if (clientRequestId != null && clientRequestId!.trim().isNotEmpty)
+        'clientRequestId': clientRequestId!.trim(),
       'creator': creator,
       'acceptor': acceptor,
       'movementDate': _toApiDate(movementDate),

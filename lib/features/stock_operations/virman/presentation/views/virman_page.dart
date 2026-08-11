@@ -14,7 +14,9 @@ import 'package:furpa_merkez_terminal/shared/formatters/app_formatters.dart';
 import 'package:furpa_merkez_terminal/shared/offline/mobile_product_catalog_repository.dart';
 import 'package:furpa_merkez_terminal/shared/product_entry/product_entry_controller.dart';
 import 'package:furpa_merkez_terminal/shared/product_entry/product_entry_widgets.dart';
+import 'package:furpa_merkez_terminal/shared/utils/client_request_id.dart';
 import 'package:furpa_merkez_terminal/shared/utils/create_form_validation.dart';
+import 'package:furpa_merkez_terminal/shared/utils/safe_create_retry.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/barcode_camera_scan_page.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/section_card.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/terminal_create_page.dart';
@@ -210,6 +212,13 @@ class _VirmanPageState extends State<VirmanPage> {
       return;
     }
 
+    await _submitCreateRequest(request, draft);
+  }
+
+  Future<void> _submitCreateRequest(
+    VirmanCreateRequest request,
+    CreateDraft? draft,
+  ) async {
     final result = await _controller.createVirman(request);
 
     if (!mounted) {
@@ -223,6 +232,14 @@ class _VirmanPageState extends State<VirmanPage> {
       messenger.showSnackBar(
         SnackBar(
           content: Text(_controller.createError ?? 'Virman kaydedilemedi.'),
+          action: shouldOfferSafeCreateRetry(_controller.createErrorStatusCode)
+              ? SnackBarAction(
+                  label: 'Tekrar Dene',
+                  onPressed: () {
+                    unawaited(_submitCreateRequest(request, draft));
+                  },
+                )
+              : null,
         ),
       );
       return;
@@ -1004,6 +1021,7 @@ class _VirmanCreateSheetState extends State<_VirmanCreateSheet>
     });
 
     final request = VirmanCreateRequest(
+      clientRequestId: generateClientRequestId(),
       movementDate: _movementDate,
       documentDate: _documentDate,
       documentNo: '',

@@ -10,6 +10,7 @@ import 'package:furpa_merkez_terminal/shared/drafts/create_draft.dart';
 import 'package:furpa_merkez_terminal/shared/drafts/create_draft_picker.dart';
 import 'package:furpa_merkez_terminal/shared/drafts/create_draft_repository.dart';
 import 'package:furpa_merkez_terminal/shared/formatters/app_formatters.dart';
+import 'package:furpa_merkez_terminal/shared/utils/safe_create_retry.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/section_card.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/terminal_create_page.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/terminal_ui_parts.dart';
@@ -208,6 +209,13 @@ class _StockReceiptsPageState extends State<StockReceiptsPage> {
       return;
     }
 
+    await _submitCreateRequest(request, draft);
+  }
+
+  Future<void> _submitCreateRequest(
+    StockReceiptCreateRequest request,
+    CreateDraft? draft,
+  ) async {
     final result = await _controller.createReceipt(request);
 
     if (!mounted) {
@@ -221,6 +229,14 @@ class _StockReceiptsPageState extends State<StockReceiptsPage> {
       messenger.showSnackBar(
         SnackBar(
           content: Text(_controller.createError ?? 'Fis kaydedilemedi.'),
+          action: shouldOfferSafeCreateRetry(_controller.createErrorStatusCode)
+              ? SnackBarAction(
+                  label: 'Tekrar Dene',
+                  onPressed: () {
+                    unawaited(_submitCreateRequest(request, draft));
+                  },
+                )
+              : null,
         ),
       );
       return;

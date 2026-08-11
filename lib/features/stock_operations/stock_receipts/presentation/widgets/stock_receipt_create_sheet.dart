@@ -12,6 +12,7 @@ import 'package:furpa_merkez_terminal/shared/drafts/create_draft_session.dart';
 import 'package:furpa_merkez_terminal/shared/formatters/app_formatters.dart';
 import 'package:furpa_merkez_terminal/shared/product_entry/product_entry_controller.dart';
 import 'package:furpa_merkez_terminal/shared/product_entry/product_entry_widgets.dart';
+import 'package:furpa_merkez_terminal/shared/utils/client_request_id.dart';
 import 'package:furpa_merkez_terminal/shared/utils/create_form_validation.dart';
 import 'package:furpa_merkez_terminal/shared/utils/terminal_feedback.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/barcode_camera_scan_page.dart';
@@ -520,6 +521,7 @@ class _StockReceiptCreateSheetState extends State<StockReceiptCreateSheet>
     }
 
     final request = StockReceiptCreateRequest(
+      clientRequestId: generateClientRequestId(),
       creator: _creatorController.text.trim(),
       acceptor: _acceptorController.text.trim(),
       movementDate: _movementDate,

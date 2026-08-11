@@ -5,6 +5,7 @@ import 'package:furpa_merkez_terminal/core/utils/request_epoch.dart';
 import 'package:furpa_merkez_terminal/core/utils/safe_change_notifier.dart';
 import 'package:furpa_merkez_terminal/features/return_operations/warehouse_returns/data/models/warehouse_return_models.dart';
 import 'package:furpa_merkez_terminal/features/return_operations/warehouse_returns/data/warehouse_returns_repository.dart';
+import 'package:furpa_merkez_terminal/shared/utils/safe_create_retry.dart';
 
 class WarehouseReturnsController extends ChangeNotifier
     with SafeChangeNotifier {
@@ -36,6 +37,7 @@ class WarehouseReturnsController extends ChangeNotifier
   String? _listError;
   String? _detailError;
   String? _createError;
+  int? _createErrorStatusCode;
   String? _sendEDespatchError;
   String? _pdfError;
   List<WarehouseReturnListItem> _returns = const <WarehouseReturnListItem>[];
@@ -54,6 +56,7 @@ class WarehouseReturnsController extends ChangeNotifier
   String? get listError => _listError;
   String? get detailError => _detailError;
   String? get createError => _createError;
+  int? get createErrorStatusCode => _createErrorStatusCode;
   String? get sendEDespatchError => _sendEDespatchError;
   String? get pdfError => _pdfError;
   List<WarehouseReturnListItem> get returns => _returns;
@@ -204,6 +207,7 @@ class WarehouseReturnsController extends ChangeNotifier
 
     _isCreating = true;
     _createError = null;
+    _createErrorStatusCode = null;
     notifySafely();
 
     try {
@@ -223,7 +227,8 @@ class WarehouseReturnsController extends ChangeNotifier
       return result;
     } on ApiException catch (error) {
       _isCreating = false;
-      _createError = error.message;
+      _createError = safeCreateRetryErrorMessage(error);
+      _createErrorStatusCode = error.statusCode;
       notifySafely();
       return null;
     }

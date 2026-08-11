@@ -92,8 +92,9 @@ class VirmanDetail {
       ),
       items: (json['items'] as List<dynamic>? ?? const <dynamic>[])
           .map(
-            (item) =>
-                VirmanLineItem.fromJson(item as JsonMap? ?? <String, dynamic>{}),
+            (item) => VirmanLineItem.fromJson(
+              item as JsonMap? ?? <String, dynamic>{},
+            ),
           )
           .toList(growable: false),
     );
@@ -218,8 +219,10 @@ class VirmanCreateRequest {
     required this.documentNo,
     required this.description,
     required this.lines,
+    this.clientRequestId,
   });
 
+  final String? clientRequestId;
   final DateTime movementDate;
   final DateTime documentDate;
   final String documentNo;
@@ -228,6 +231,8 @@ class VirmanCreateRequest {
 
   JsonMap toJson() {
     return <String, dynamic>{
+      if (clientRequestId != null && clientRequestId!.trim().isNotEmpty)
+        'clientRequestId': clientRequestId!.trim(),
       'movementDate': _toApiDate(movementDate),
       'documentDate': _toApiDate(documentDate),
       'documentNo': documentNo,

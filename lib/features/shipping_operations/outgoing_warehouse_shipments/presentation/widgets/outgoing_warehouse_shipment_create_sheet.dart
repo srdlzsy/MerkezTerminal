@@ -15,6 +15,7 @@ import 'package:furpa_merkez_terminal/shared/formatters/app_formatters.dart';
 import 'package:furpa_merkez_terminal/shared/offline/mobile_warehouse_catalog_repository.dart';
 import 'package:furpa_merkez_terminal/shared/product_entry/product_entry_controller.dart';
 import 'package:furpa_merkez_terminal/shared/product_entry/product_entry_widgets.dart';
+import 'package:furpa_merkez_terminal/shared/utils/client_request_id.dart';
 import 'package:furpa_merkez_terminal/shared/utils/create_form_validation.dart';
 import 'package:furpa_merkez_terminal/shared/utils/terminal_feedback.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/barcode_camera_scan_page.dart';
@@ -1312,6 +1313,7 @@ class _OutgoingWarehouseShipmentCreateSheetState
     }
 
     final request = WarehouseShipmentCreateRequest(
+      clientRequestId: generateClientRequestId(),
       targetWarehouseNo: targetWarehouseNo,
       transitWarehouseNo: transitWarehouseNo,
       movementDate: _movementDate,

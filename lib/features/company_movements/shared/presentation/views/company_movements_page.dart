@@ -15,6 +15,7 @@ import 'package:furpa_merkez_terminal/shared/drafts/create_draft_picker.dart';
 import 'package:furpa_merkez_terminal/shared/drafts/create_draft_repository.dart';
 import 'package:furpa_merkez_terminal/shared/formatters/app_formatters.dart';
 import 'package:furpa_merkez_terminal/shared/offline/mobile_customer_catalog_repository.dart';
+import 'package:furpa_merkez_terminal/shared/utils/safe_create_retry.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/section_card.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/terminal_create_page.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/terminal_ui_parts.dart';
@@ -234,6 +235,13 @@ class _CompanyMovementsPageState extends State<CompanyMovementsPage> {
       return;
     }
 
+    await _submitCreateRequest(request, draft);
+  }
+
+  Future<void> _submitCreateRequest(
+    CompanyMovementCreateRequest request,
+    CreateDraft? draft,
+  ) async {
     final result = await _controller.createMovement(request);
 
     if (!mounted) {
@@ -247,6 +255,14 @@ class _CompanyMovementsPageState extends State<CompanyMovementsPage> {
       messenger.showSnackBar(
         SnackBar(
           content: Text(_controller.createError ?? 'Evrak olusturulamadi.'),
+          action: shouldOfferSafeCreateRetry(_controller.createErrorStatusCode)
+              ? SnackBarAction(
+                  label: 'Tekrar Dene',
+                  onPressed: () {
+                    unawaited(_submitCreateRequest(request, draft));
+                  },
+                )
+              : null,
         ),
       );
       return;
@@ -261,7 +277,7 @@ class _CompanyMovementsPageState extends State<CompanyMovementsPage> {
     );
 
     if (draft != null) {
-      await draftRepository?.deleteDraft(draft.id);
+      await widget.draftRepository?.deleteDraft(draft.id);
     }
   }
 
