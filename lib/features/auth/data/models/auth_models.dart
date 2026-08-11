@@ -30,18 +30,21 @@ class AuthSession {
     required this.user,
     this.expiresAtUtc,
     this.refreshToken,
+    this.refreshTokenExpiresAtUtc,
   });
 
   final String accessToken;
   final CurrentUser user;
   final DateTime? expiresAtUtc;
   final String? refreshToken;
+  final DateTime? refreshTokenExpiresAtUtc;
 
   JsonMap toJson() {
     return <String, dynamic>{
       'accessToken': accessToken,
       'expiresAtUtc': expiresAtUtc?.toIso8601String(),
       'refreshToken': refreshToken,
+      'refreshTokenExpiresAtUtc': refreshTokenExpiresAtUtc?.toIso8601String(),
       'user': user.toJson(),
     };
   }
@@ -51,6 +54,9 @@ class AuthSession {
       accessToken: json['accessToken']?.toString() ?? '',
       expiresAtUtc: _readNullableDate(json['expiresAtUtc']),
       refreshToken: _readNullableString(json['refreshToken']),
+      refreshTokenExpiresAtUtc: _readNullableDate(
+        json['refreshTokenExpiresAtUtc'],
+      ),
       user: CurrentUser.fromJson(
         json['user'] as JsonMap? ?? <String, dynamic>{},
       ),
@@ -64,12 +70,14 @@ class LoginResponse {
     required this.expiresAtUtc,
     required this.user,
     this.refreshToken,
+    this.refreshTokenExpiresAtUtc,
   });
 
   final String accessToken;
   final DateTime expiresAtUtc;
   final CurrentUser user;
   final String? refreshToken;
+  final DateTime? refreshTokenExpiresAtUtc;
 
   factory LoginResponse.fromJson(JsonMap json) {
     return LoginResponse(
@@ -78,6 +86,9 @@ class LoginResponse {
         json['expiresAtUtc']?.toString() ?? DateTime.now().toUtc().toString(),
       ),
       refreshToken: _readNullableString(json['refreshToken']),
+      refreshTokenExpiresAtUtc: _readNullableDate(
+        json['refreshTokenExpiresAtUtc'],
+      ),
       user: CurrentUser.fromJson(
         json['user'] as JsonMap? ?? <String, dynamic>{},
       ),
@@ -90,17 +101,22 @@ class RefreshTokenResponse {
     required this.accessToken,
     this.expiresAtUtc,
     this.refreshToken,
+    this.refreshTokenExpiresAtUtc,
   });
 
   final String accessToken;
   final DateTime? expiresAtUtc;
   final String? refreshToken;
+  final DateTime? refreshTokenExpiresAtUtc;
 
   factory RefreshTokenResponse.fromJson(JsonMap json) {
     return RefreshTokenResponse(
       accessToken: json['accessToken']?.toString() ?? '',
       expiresAtUtc: _readNullableDate(json['expiresAtUtc']),
       refreshToken: _readNullableString(json['refreshToken']),
+      refreshTokenExpiresAtUtc: _readNullableDate(
+        json['refreshTokenExpiresAtUtc'],
+      ),
     );
   }
 }

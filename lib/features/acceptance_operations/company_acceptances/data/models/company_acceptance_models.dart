@@ -13,6 +13,10 @@ class CompanyAcceptanceCreateRequest {
     required this.lines,
     this.autoCreateReturnForPartialAcceptance = true,
     this.clientRequestId,
+    this.officialDocumentKind,
+    this.officialDocumentNo,
+    this.officialDocumentDate,
+    this.officialDocumentEttn,
   });
 
   final String customerCode;
@@ -26,6 +30,10 @@ class CompanyAcceptanceCreateRequest {
   final bool autoCreateReturnForPartialAcceptance;
   final List<CompanyAcceptanceCreateLine> lines;
   final String? clientRequestId;
+  final String? officialDocumentKind;
+  final String? officialDocumentNo;
+  final DateTime? officialDocumentDate;
+  final String? officialDocumentEttn;
 
   JsonMap toJson() {
     return <String, dynamic>{
@@ -35,6 +43,16 @@ class CompanyAcceptanceCreateRequest {
       'documentNo': documentNo,
       if (clientRequestId != null && clientRequestId!.trim().isNotEmpty)
         'clientRequestId': clientRequestId!.trim(),
+      if (officialDocumentKind != null &&
+          officialDocumentKind!.trim().isNotEmpty)
+        'officialDocumentKind': officialDocumentKind!.trim(),
+      if (officialDocumentNo != null && officialDocumentNo!.trim().isNotEmpty)
+        'officialDocumentNo': officialDocumentNo!.trim(),
+      if (officialDocumentDate != null)
+        'officialDocumentDate': _toApiDate(officialDocumentDate!),
+      if (officialDocumentEttn != null &&
+          officialDocumentEttn!.trim().isNotEmpty)
+        'officialDocumentEttn': officialDocumentEttn!.trim(),
       'deliverer': deliverer,
       'receiver': receiver,
       'description': description,
@@ -62,6 +80,18 @@ class CompanyAcceptanceCreateRequest {
       clientRequestId: _readString(json['clientRequestId']).trim().isEmpty
           ? null
           : _readString(json['clientRequestId']),
+      officialDocumentKind:
+          _readString(json['officialDocumentKind']).trim().isEmpty
+          ? null
+          : _readString(json['officialDocumentKind']),
+      officialDocumentNo: _readString(json['officialDocumentNo']).trim().isEmpty
+          ? null
+          : _readString(json['officialDocumentNo']),
+      officialDocumentDate: _readDate(json['officialDocumentDate']),
+      officialDocumentEttn:
+          _readString(json['officialDocumentEttn']).trim().isEmpty
+          ? null
+          : _readString(json['officialDocumentEttn']),
       lines: (json['lines'] as List<dynamic>? ?? const <dynamic>[])
           .map(
             (item) => CompanyAcceptanceCreateLine.fromJson(

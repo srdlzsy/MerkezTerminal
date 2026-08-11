@@ -34,6 +34,7 @@ class AuthRepository {
     final session = AuthSession(
       accessToken: loginResponse.accessToken,
       refreshToken: loginResponse.refreshToken,
+      refreshTokenExpiresAtUtc: loginResponse.refreshTokenExpiresAtUtc,
       user: currentUser,
       expiresAtUtc: loginResponse.expiresAtUtc,
     );
@@ -59,6 +60,7 @@ class AuthRepository {
         accessToken: accessToken,
         refreshToken: storedTokens.refreshToken,
         expiresAtUtc: cachedSession?.expiresAtUtc,
+        refreshTokenExpiresAtUtc: cachedSession?.refreshTokenExpiresAtUtc,
       );
     } on ApiException catch (error) {
       if (error.statusCode == 401) {
@@ -97,6 +99,7 @@ class AuthRepository {
         accessToken: accessToken,
         refreshToken: storedTokens.refreshToken,
         expiresAtUtc: cachedSession?.expiresAtUtc,
+        refreshTokenExpiresAtUtc: cachedSession?.refreshTokenExpiresAtUtc,
       );
     } on ApiException catch (error) {
       if (error.statusCode == 401) {
@@ -148,6 +151,7 @@ class AuthRepository {
   }
 
   Future<void> clearSession() async {
+    await _logoutRefreshToken();
     await _tokenStorage.clear();
   }
 
@@ -190,11 +194,13 @@ class AuthRepository {
     required String accessToken,
     required String? refreshToken,
     required DateTime? expiresAtUtc,
+    DateTime? refreshTokenExpiresAtUtc,
   }) async {
     final currentUser = await fetchCurrentUser(accessToken);
     final session = AuthSession(
       accessToken: accessToken,
       refreshToken: refreshToken,
+      refreshTokenExpiresAtUtc: refreshTokenExpiresAtUtc,
       user: currentUser,
       expiresAtUtc: expiresAtUtc,
     );
@@ -224,6 +230,9 @@ class AuthRepository {
         accessToken: refreshedTokens.accessToken!,
         refreshToken: refreshedTokens.refreshToken,
         expiresAtUtc: refreshedTokens.expiresAtUtc ?? fallbackExpiresAtUtc,
+        refreshTokenExpiresAtUtc:
+            refreshedTokens.refreshTokenExpiresAtUtc ??
+            cachedSession?.refreshTokenExpiresAtUtc,
       );
     } on ApiException catch (error) {
       if (error.statusCode == 0 && cachedSession != null) {
@@ -264,6 +273,7 @@ class AuthRepository {
         accessToken: nextAccessToken,
         refreshToken: nextRefreshToken,
         expiresAtUtc: response.expiresAtUtc,
+        refreshTokenExpiresAtUtc: response.refreshTokenExpiresAtUtc,
       );
     } on ApiException catch (error) {
       if (error.statusCode == 404 || error.statusCode == 501) {
@@ -279,7 +289,26 @@ class AuthRepository {
       accessToken: await _tokenStorage.readToken(),
       refreshToken: await _tokenStorage.readRefreshToken(),
       expiresAtUtc: null,
+      refreshTokenExpiresAtUtc: null,
     );
+  }
+
+  Future<void> _logoutRefreshToken() async {
+    final logoutPath = AppConfig.authLogoutPath;
+    final refreshToken = (await _tokenStorage.readRefreshToken())?.trim() ?? '';
+    if (logoutPath == null || refreshToken.isEmpty) {
+      return;
+    }
+
+    try {
+      await _apiClient.postJsonMap(
+        logoutPath,
+        body: <String, dynamic>{'refreshToken': refreshToken},
+        allowUnauthorizedRecovery: false,
+      );
+    } on ApiException {
+      // Lokal cikis server logout hatasina takilmamali.
+    }
   }
 }
 
@@ -288,9 +317,11 @@ class _StoredTokens {
     required this.accessToken,
     required this.refreshToken,
     required this.expiresAtUtc,
+    required this.refreshTokenExpiresAtUtc,
   });
 
   final String? accessToken;
   final String? refreshToken;
   final DateTime? expiresAtUtc;
+  final DateTime? refreshTokenExpiresAtUtc;
 }

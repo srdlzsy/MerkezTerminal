@@ -1010,6 +1010,10 @@ class _CompanyAcceptanceCreateSheetState
       documentDate: _documentDate,
       documentNo: _documentNoController.text.trim(),
       clientRequestId: generateClientRequestId(),
+      officialDocumentKind: _officialDocumentKindForRequest(),
+      officialDocumentNo: _officialDocumentNoForRequest(),
+      officialDocumentDate: _officialDocumentDateForRequest(),
+      officialDocumentEttn: _officialDocumentEttnForRequest(),
       deliverer: _delivererController.text.trim(),
       receiver: _receiverController.text.trim(),
       description: _descriptionController.text.trim(),
@@ -1043,6 +1047,45 @@ class _CompanyAcceptanceCreateSheetState
       return;
     }
     Navigator.of(context).pop(request);
+  }
+
+  String? _officialDocumentKindForRequest() {
+    final prefill = _lastEDespatchPrefill;
+    if (prefill == null || !prefill.isFound) {
+      return null;
+    }
+
+    final kind = prefill.sourceDocumentKind.trim();
+    return kind.isEmpty || kind == 'auto' ? null : kind;
+  }
+
+  String? _officialDocumentNoForRequest() {
+    final prefill = _lastEDespatchPrefill;
+    if (prefill == null || !prefill.isFound) {
+      return null;
+    }
+
+    final documentNo = prefill.effectiveDocumentNumber.trim();
+    return documentNo.isEmpty ? null : documentNo;
+  }
+
+  DateTime? _officialDocumentDateForRequest() {
+    final prefill = _lastEDespatchPrefill;
+    if (prefill == null || !prefill.isFound) {
+      return null;
+    }
+
+    return prefill.effectiveDocumentDate;
+  }
+
+  String? _officialDocumentEttnForRequest() {
+    final prefill = _lastEDespatchPrefill;
+    if (prefill == null || !prefill.isFound) {
+      return null;
+    }
+
+    final ettn = prefill.ettn.trim();
+    return ettn.isEmpty ? _ettnController.text.trim() : ettn;
   }
 
   Future<List<CustomerLookupItem>> _searchCustomersWithFallback(

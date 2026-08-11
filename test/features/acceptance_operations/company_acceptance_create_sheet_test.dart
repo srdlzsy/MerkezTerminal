@@ -202,6 +202,89 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('carries resolved official document fields into create request', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 1000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final repository = _FakeCompanyAcceptancesRepository()
+      ..eDocumentPrefill = _buildEDespatchPrefill();
+    CompanyAcceptanceCreateRequest? capturedRequest;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) {
+            return Scaffold(
+              body: Center(
+                child: FilledButton(
+                  onPressed: () async {
+                    capturedRequest = await Navigator.of(context)
+                        .push<CompanyAcceptanceCreateRequest>(
+                          MaterialPageRoute(
+                            builder: (_) => Scaffold(
+                              body: CompanyAcceptanceCreateSheet(
+                                repository: repository,
+                                ordersRepository:
+                                    _FakeGivenCompanyOrdersRepository(),
+                                accessToken: 'token',
+                                defaultWarehouseNo: '110',
+                                mobileCustomerCatalogRepository:
+                                    MobileCustomerCatalogLocalRepository(
+                                      database: MemoryLocalDatabase(),
+                                    ),
+                                mobileProductCatalogRepository:
+                                    MobileProductCatalogLocalRepository(
+                                      database: MemoryLocalDatabase(),
+                                    ),
+                              ),
+                            ),
+                          ),
+                        );
+                  },
+                  child: const Text('Ac'),
+                ),
+              ),
+            );
+          },
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Ac'));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(
+      find.widgetWithText(TextFormField, 'ETTN / QR'),
+      '3fd0e4f4-87a2-43f2-b5ca-f2a4fd778111',
+    );
+    await tester.tap(find.widgetWithText(FilledButton, 'Bul').first);
+    await tester.pumpAndSettle();
+    await tester.pump(const Duration(seconds: 4));
+    await tester.pumpAndSettle();
+
+    await _pickProduct(tester);
+    await tester.ensureVisible(
+      find.widgetWithText(FilledButton, 'Mal Kabul Et'),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Mal Kabul Et'));
+    await tester.pumpAndSettle();
+
+    expect(capturedRequest, isNotNull);
+    expect(capturedRequest!.officialDocumentKind, 'e-despatch');
+    expect(capturedRequest!.officialDocumentNo, 'ST12026000002395');
+    expect(capturedRequest!.officialDocumentDate, DateTime(2026, 4, 20));
+    expect(
+      capturedRequest!.officialDocumentEttn,
+      '3fd0e4f4-87a2-43f2-b5ca-f2a4fd778111',
+    );
+    expect(capturedRequest!.toJson()['officialDocumentKind'], 'e-despatch');
+  });
+
   testWidgets('autosaves and restores company acceptance draft fields', (
     tester,
   ) async {
@@ -352,6 +435,8 @@ Future<void> _goToLineStepIfNeeded(WidgetTester tester) async {
 
 class _FakeCompanyAcceptancesRepository
     implements CompanyAcceptancesRepository {
+  CompanyAcceptanceEDespatchPrefill? eDocumentPrefill;
+
   @override
   Future<CompanyAcceptanceCreateResult> createAcceptance({
     required String accessToken,
@@ -392,7 +477,12 @@ class _FakeCompanyAcceptancesRepository
     required String warehouseNo,
     required String ettn,
   }) {
-    throw UnimplementedError();
+    final prefill = eDocumentPrefill;
+    if (prefill == null) {
+      throw UnimplementedError();
+    }
+
+    return Future<CompanyAcceptanceEDespatchPrefill>.value(prefill);
   }
 
   @override
@@ -432,6 +522,56 @@ class _FakeCompanyAcceptancesRepository
       ),
     ];
   }
+}
+
+CompanyAcceptanceEDespatchPrefill _buildEDespatchPrefill() {
+  return CompanyAcceptanceEDespatchPrefill(
+    isFound: true,
+    warehouseNo: 110,
+    receivingContext: 'firma-mal-kabulleri',
+    ettn: '3fd0e4f4-87a2-43f2-b5ca-f2a4fd778111',
+    sourceDocumentKind: 'e-despatch',
+    sourceDocumentLabel: 'E-Irsaliye',
+    sourceDocumentNumber: 'ST12026000002395',
+    despatchNumber: 'ST12026000002395',
+    issueDate: DateTime(2026, 4, 20),
+    actualDespatchDate: DateTime(2026, 4, 20),
+    profileId: '',
+    despatchAdviceTypeCode: 'SEVK',
+    invoiceNumber: '',
+    invoiceDate: null,
+    invoiceTotal: null,
+    taxExclusiveAmount: null,
+    taxTotal: null,
+    currencyCode: '',
+    despatchReferences: const <String>[],
+    warnings: const <String>[],
+    notes: const <String>[],
+    sender: const CompanyAcceptanceEDespatchParty(
+      title: 'ORNEK TEDARIKCI A.S.',
+      taxNoOrTckn: '1234567890',
+      alias: '',
+      city: '',
+    ),
+    receiver: const CompanyAcceptanceEDespatchParty(
+      title: 'FURPA KESTEL 1',
+      taxNoOrTckn: '0987654321',
+      alias: '',
+      city: '',
+    ),
+    primaryCustomerSuggestion: const CompanyAcceptanceCustomerSuggestion(
+      customerCode: 'CR001',
+      customerName: 'Test Cari',
+      taxNoOrTckn: '1234567890',
+      matchReason: 'vkn-tckn',
+      isPrimarySuggestion: true,
+    ),
+    totalLineCount: 1,
+    matchedLineCount: 1,
+    unmatchedLineCount: 0,
+    suggestedCustomers: const <CompanyAcceptanceCustomerSuggestion>[],
+    lines: const <CompanyAcceptanceEDespatchLine>[],
+  );
 }
 
 class _FakeGivenCompanyOrdersRepository

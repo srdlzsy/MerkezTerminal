@@ -65,8 +65,23 @@ abstract final class AppConfig {
   }
 
   static String? get authRefreshPath {
-    const configured = String.fromEnvironment('AUTH_REFRESH_PATH');
-    final trimmed = configured.trim();
+    const configured = String.fromEnvironment(
+      'AUTH_REFRESH_PATH',
+      defaultValue: '/api/auth/refresh',
+    );
+    return _normalizeOptionalPath(configured);
+  }
+
+  static String? get authLogoutPath {
+    const configured = String.fromEnvironment(
+      'AUTH_LOGOUT_PATH',
+      defaultValue: '/api/auth/logout',
+    );
+    return _normalizeOptionalPath(configured);
+  }
+
+  static String? _normalizeOptionalPath(String value) {
+    final trimmed = value.trim();
 
     if (trimmed.isEmpty) {
       return null;

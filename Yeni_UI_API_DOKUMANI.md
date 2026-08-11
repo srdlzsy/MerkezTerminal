@@ -89,9 +89,9 @@ Bu tablo UI icin ana permission referansidir. Kaynak kod tarafi `PermissionCatal
 | `home` | `depo-oncelikleri` | `home.depo-oncelikleri.page` | - | `home.depo-oncelikleri.all-warehouses` |
 | `arama-islemleri` | `fiyat-gor` | `arama-islemleri.fiyat-gor.page` | `arama-islemleri.fiyat-gor.list` | `arama-islemleri.fiyat-gor.all-warehouses` |
 | `arama-islemleri` | `cari-bul` | `arama-islemleri.cari-bul.page` | `arama-islemleri.cari-bul.list` | `arama-islemleri.cari-bul.all-warehouses` |
-| `green-grocer` | `reports` | `green-grocer.reports.page` | `green-grocer.reports.list`<br>`green-grocer.reports.detail`<br>`green-grocer.reports.update` | `green-grocer.reports.all-warehouses` |
-| `green-grocer` | `product-case-profiles` | `green-grocer.product-case-profiles.manage` | `green-grocer.product-case-profiles.list`<br>`green-grocer.product-case-profiles.detail`<br>`green-grocer.product-case-profiles.create`<br>`green-grocer.product-case-profiles.update`<br>`green-grocer.product-case-profiles.delete` | `green-grocer.product-case-profiles.all-warehouses` |
-| `green-grocer` | `operations` | `green-grocer.operations.page` | `green-grocer.operations.list`<br>`green-grocer.operations.create` | `green-grocer.operations.all-warehouses` |
+| `green-grocer` (`Manav`) | `reports` (`ManavRaporlari`) | `green-grocer.reports.page` | `green-grocer.reports.list`<br>`green-grocer.reports.detail`<br>`green-grocer.reports.update` | `green-grocer.reports.all-warehouses` |
+| `green-grocer` (`Manav`) | `product-case-profiles` (`ManavKasaProfilleri`) | `green-grocer.product-case-profiles.manage` | `green-grocer.product-case-profiles.list`<br>`green-grocer.product-case-profiles.detail`<br>`green-grocer.product-case-profiles.create`<br>`green-grocer.product-case-profiles.update`<br>`green-grocer.product-case-profiles.delete` | `green-grocer.product-case-profiles.all-warehouses` |
+| `green-grocer` (`Manav`) | `operations` (`ManavOperasyonPaneli`) | `green-grocer.operations.page` | `green-grocer.operations.list`<br>`green-grocer.operations.create` | `green-grocer.operations.all-warehouses` |
 | `ortak-islemler` | `sikayet-oneri` | `ortak-islemler.sikayet-oneri.page` | `ortak-islemler.sikayet-oneri.list`<br>`ortak-islemler.sikayet-oneri.detail`<br>`ortak-islemler.sikayet-oneri.update`<br>`ortak-islemler.sikayet-oneri.list-all` | `-` |
 | `ortak-islemler` | `duyurular` | `ortak-islemler.duyurular.page` | `ortak-islemler.duyurular.list`<br>`ortak-islemler.duyurular.detail`<br>`ortak-islemler.duyurular.create`<br>`ortak-islemler.duyurular.update`<br>`ortak-islemler.duyurular.archive` | `ortak-islemler.duyurular.all-warehouses` |
 | `ayar-islemleri` | `cihazlar` | `ayar-islemleri.cihazlar.manage` | `ayar-islemleri.cihazlar.list`<br>`ayar-islemleri.cihazlar.detail`<br>`ayar-islemleri.cihazlar.create`<br>`ayar-islemleri.cihazlar.update` | `ayar-islemleri.cihazlar.all-warehouses` |
@@ -124,7 +124,7 @@ Bu tablo UI icin ana permission referansidir. Kaynak kod tarafi `PermissionCatal
 | `rapor-islemleri` | `stok-raporlari` | `rapor-islemleri.stok-raporlari.page` | `rapor-islemleri.stok-raporlari.list` | `rapor-islemleri.stok-raporlari.all-warehouses` |
 | `rapor-islemleri` | `promosyon-raporlari` | `rapor-islemleri.promosyon-raporlari.page` | `rapor-islemleri.promosyon-raporlari.list` | `rapor-islemleri.promosyon-raporlari.all-warehouses` |
 | `rapor-islemleri` | `tedarikci-performans-karnesi` | `rapor-islemleri.tedarikci-performans-karnesi.page` | `rapor-islemleri.tedarikci-performans-karnesi.list`<br>`rapor-islemleri.tedarikci-performans-karnesi.detail` | `rapor-islemleri.tedarikci-performans-karnesi.all-warehouses` |
-| `operasyon-islemleri` | `operations` | `operasyon-islemleri.operations.page` | `operasyon-islemleri.operations.list`<br>`operasyon-islemleri.operations.detail`<br>`operasyon-islemleri.operations.create`<br>`operasyon-islemleri.operations.update` | `operasyon-islemleri.operations.all-warehouses` |
+| `operasyon-islemleri` | `operations` (`Operasyonlar`) | `operasyon-islemleri.operations.page` | `operasyon-islemleri.operations.list`<br>`operasyon-islemleri.operations.detail`<br>`operasyon-islemleri.operations.create`<br>`operasyon-islemleri.operations.update` | `operasyon-islemleri.operations.all-warehouses` |
 | `operasyon-islemleri` | `belge-akis-takibi` | `operasyon-islemleri.belge-akis-takibi.page` | `operasyon-islemleri.belge-akis-takibi.list`<br>`operasyon-islemleri.belge-akis-takibi.detail` | `operasyon-islemleri.belge-akis-takibi.all-warehouses` |
 | `operasyon-islemleri` | `depo-operasyon-paneli` | `operasyon-islemleri.depo-operasyon-paneli.page` | `operasyon-islemleri.depo-operasyon-paneli.list` | `operasyon-islemleri.depo-operasyon-paneli.all-warehouses` |
 | `operasyon-islemleri` | `urun-dagilimlari` | `operasyon-islemleri.urun-dagilimlari.page` | `operasyon-islemleri.urun-dagilimlari.list`<br>`operasyon-islemleri.urun-dagilimlari.detail`<br>`operasyon-islemleri.urun-dagilimlari.create`<br>`operasyon-islemleri.urun-dagilimlari.update`<br>`operasyon-islemleri.urun-dagilimlari.delete` | `operasyon-islemleri.urun-dagilimlari.all-warehouses` |
@@ -147,7 +147,7 @@ Bu tablo UI icin ana permission referansidir. Kaynak kod tarafi `PermissionCatal
 | `kasa-islemleri` | `manav-kunye-etiket-yazdirma` | `kasa-islemleri.manav-kunye-etiket-yazdirma.page` | `kasa-islemleri.manav-kunye-etiket-yazdirma.list` | `kasa-islemleri.manav-kunye-etiket-yazdirma.all-warehouses` |
 | `kasa-islemleri` | `banknot-takipleri` | `kasa-islemleri.banknot-takipleri.page` | `kasa-islemleri.banknot-takipleri.list`<br>`kasa-islemleri.banknot-takipleri.detail`<br>`kasa-islemleri.banknot-takipleri.create` | `kasa-islemleri.banknot-takipleri.all-warehouses` |
 
-## Home / Depo Oncelikleri
+## AnaSayfa / Depo Oncelikleri
 
 Bu endpoint home acilisinda eski hizli erisim menusu yerine "bugun neye bakmaliyim?" paneli icin eklendi. Amac, giris yapan depo kullanicisinin kendi deposundaki acil operasyon konularini tek kartta gormesidir.
 
@@ -273,7 +273,7 @@ UI onerisi:
 - `priorities` bos ise pozitif bos durum goster: `headline` zaten "Bugun acil oncelik yok" doner.
 - `home.depo-oncelikleri.all-warehouses` yetkisi olan kullanicida depo filtresi eklenebilir; diger kullanicida depo secici gosterilmemelidir.
 
-## Home / Ortak Sikayet Oneri
+## AnaSayfa / Ortak Sikayet Oneri
 
 Bu modul home sayfasinda kucuk bir "Sikayet / Oneri" kutusu acmak ve yonetim tarafinda gelen kayitlari permission'a gore izlemek icin eklendi.
 
@@ -571,7 +571,7 @@ Not:
 - Endpoint `ortak-islemler.sikayet-oneri.update` ister.
 - Baska kullanicinin kaydi icin ayrica `ortak-islemler.sikayet-oneri.list-all` gerekir.
 
-## Home / Ortak Duyurular
+## AnaSayfa / Ortak Duyurular
 
 Bu modul yetkili kullanicinin tum depolara, belirli depolara veya belirli kullanicilara duyuru yayinlamasi icin eklendi. Home tarafinda kullanici kendisine dusen aktif duyurulari gorur ve okundu isaretler; yonetim tarafinda yetkili kullanici duyuru olusturur, gunceller, arsivler ve hedef kapsamlarini izler.
 
@@ -1408,19 +1408,23 @@ Olasi durumlar:
 UI akisi:
 
 1. `POST /api/auth/login`
-2. `accessToken` al
-3. token'i `Authorization: Bearer {token}` ile sakla/gonder
+2. `accessToken`, `refreshToken`, `expiresAtUtc` ve `refreshTokenExpiresAtUtc` al
+3. API isteklerinde sadece `accessToken` degerini `Authorization: Bearer {token}` olarak gonder
 4. `GET /api/auth/me` ile kullanici, roller, permission listesi ve module-menu-action agacini al
 5. sol menu ve butonlari bu cevapla ciz
+6. access token suresi dolmadan veya 401 alindiginda `POST /api/auth/refresh` ile yeni access/refresh token al
+7. kullanici cikis yaparsa `POST /api/auth/logout` ile refresh token'i iptal et
 
 Token ve yetki notu:
 
-- UI request/response contract'i degismedi; login yine `accessToken`, `expiresAtUtc`, `user` doner.
+- Login/register/refresh response modeli `AuthResponse` doner: `accessToken`, `expiresAtUtc`, `user`, `refreshToken`, `refreshTokenExpiresAtUtc`.
 - `Authorization` header'inda sadece `accessToken` gonderilir. Tum login response'u, `user` objesi veya `permissions/modules` listesi header'a konmaz.
+- `refreshToken` header'a konmaz; sadece `/api/auth/refresh` ve `/api/auth/logout` body alaninda kullanilir.
 - Backend JWT'yi header limitlerine takilmamak icin kompakt tutar. Token icinde tum permission listesi garanti edilmez.
 - UI, JWT decode ederek menu/buton yetkisi uretmemelidir. Full yetki listesi icin `login.user.permissions` veya `GET /api/auth/me` cevabindaki `permissions` kullanilir.
 - `400 Bad Request - Request Too Long` gorulurse ilk kontrol `Authorization` header'idir; `Bearer eyJ...` disinda JSON/obje veya asiri uzun header gonderiliyor olabilir.
-- Bu kompakt token davranisi deploy edildikten sonra mevcut eski tokenlar degismez; kullanici logout/login yapmali veya UI storage temizlenmelidir.
+- Refresh token rotate edilir: `/refresh` basarili olunca eski refresh token iptal olur, response'taki yeni `refreshToken` saklanir.
+- Kullanici yonetiminde `newPassword` ile sifre degistirilirse kullanicinin aktif refresh token'lari iptal edilir. Access token suresi dolana kadar calisabilir; yeni token almak icin tekrar login gerekir.
 
 ## Auth Endpointleri
 
@@ -1445,6 +1449,8 @@ Response:
 {
   "accessToken": "jwt-token",
   "expiresAtUtc": "2026-04-15T12:00:00Z",
+  "refreshToken": "refresh-token",
+  "refreshTokenExpiresAtUtc": "2026-04-29T12:00:00Z",
   "user": {
     "id": "8c2c3d56-3f0d-4ab3-8b2d-4f2d17d6d100",
     "username": "admin",
@@ -1465,6 +1471,46 @@ Response:
   }
 }
 ```
+
+### `POST /api/auth/refresh`
+
+Amac:
+
+- access token suresi dolunca tekrar kullanici sifresi istemeden yeni access token almak
+- refresh token'i rotate etmek
+
+Request:
+
+```json
+{
+  "refreshToken": "refresh-token"
+}
+```
+
+Response:
+
+- `POST /api/auth/login` ile ayni `AuthResponse` modelini doner.
+- Response icindeki yeni `refreshToken` saklanmali, eski refresh token kullanilmamalidir.
+- Refresh token gecersiz, suresi dolmus, iptal edilmis veya kullanici pasifse `401 Unauthorized` doner.
+
+### `POST /api/auth/logout`
+
+Amac:
+
+- refresh token'i iptal etmek
+
+Request:
+
+```json
+{
+  "refreshToken": "refresh-token"
+}
+```
+
+Response:
+
+- `204 No Content`
+- Access token server tarafinda aninda geri cekilmez; istemci kendi access token'ini storage'dan silmelidir.
 
 ### `POST /api/auth/register`
 
@@ -1489,7 +1535,7 @@ Request:
 Response modeli:
 
 - `POST /api/auth/login` ile ayni `AuthResponse` modelini doner.
-- Yani response alanlari `accessToken`, `expiresAtUtc` ve `user` alanlaridir.
+- Yani response alanlari `accessToken`, `expiresAtUtc`, `user`, `refreshToken` ve `refreshTokenExpiresAtUtc` alanlaridir.
 - `400` validation hatasi, `409` ayni username/email zaten varsa conflict doner.
 
 ### `GET /api/auth/me`
@@ -1789,9 +1835,12 @@ Request:
   "lastName": "Doe",
   "warehouseNo": "110",
   "warehouseName": "KESTEL 1",
-  "isActive": true
+  "isActive": true,
+  "newPassword": null
 }
 ```
+
+`newPassword` opsiyoneldir. Bos/null gonderilirse mevcut sifre korunur. Dolu gonderilirse en az 6 karakter olmalidir, sifre hash'lenerek kaydedilir ve kullanicinin aktif refresh token'lari iptal edilir.
 
 Response modeli:
 
@@ -2457,7 +2506,7 @@ E-irsaliye modal entegrasyonu:
 4. Kullanici secilen sofor bilgisini formda degistirdiyse `driverId` ile birlikte manuel alanlar da gonderilebilir. Manuel dolu alanlar, secili sofor kaydinin ustune yazilir.
 5. Kullanici listeden secmeden eski akisi kullanacaksa `driverId` gondermez; bu durumda `plaque`, `driverNameSurname`, `driverTckn` zorunludur.
 
-## GreenGrocer / Manav Yesillik Raporlari
+## Manav / Manav Raporlari
 
 Bu modul eski `Furpa.GreenGrocerWebUI` icindeki manav/yesillik raporlarini yeni API'ye tasir.
 
@@ -2502,7 +2551,7 @@ Ortak query:
 date                 opsiyonel; rapor tarihi, verilmezse bugun
 dateToGet            opsiyonel; date icin geriye uyum alias'i
 warehouseNo          opsiyonel; `green-grocer.reports.all-warehouses` yoksa backend JWT deposunu uygular, yetki varsa bos birakilirsa tum subeler
-typeCode             opsiyonel; 10, 11, 12, 23, yesillik, sarf veya all/tum
+typeCode             opsiyonel; 10/meyve, 11/sebze, 12/yesillik, 23/sarf/manav-sarf/ambalaj veya all/tum/tumu
 search               opsiyonel; urun kodu, urun adi, sube adi veya evrak serisinde arar
 includeLazyBranches  opsiyonel; default true, siparis girmeyen subeleri de dondurur
 take                 opsiyonel; default 1000, max 5000
@@ -2821,7 +2870,7 @@ Query:
 startDate          opsiyonel; verilmezse endDate - 7 gun
 endDate            opsiyonel; verilmezse bugun
 warehouseNo        opsiyonel; default 56, all-warehouses yoksa JWT deposu uygulanir
-typeCode           opsiyonel; 10, 11, 12, 23, all veya tum
+typeCode           opsiyonel; 10/meyve, 11/sebze, 12/yesillik, 23/sarf/manav-sarf/ambalaj veya all/tum/tumu
 search             opsiyonel; stok kodu veya stok adinda arar
 onlyWithActivity   opsiyonel; default true, aktivitesi olmayan urunleri gizler
 take               opsiyonel; default 500, max 2000
@@ -2874,6 +2923,7 @@ Response:
       "stockCode": "001082",
       "stockName": "MNV SEFTALI KG",
       "modelCode": "10",
+      "modelName": "Meyve",
       "unitName": "KG",
       "currentStockQuantity": 184.35,
       "purchaseQuantity": 300,
@@ -3059,7 +3109,12 @@ Response:
 [
   {
     "typeCode": "10",
-    "typeName": "Manav Tip 10",
+    "typeName": "Meyve",
+    "isGreens": false
+  },
+  {
+    "typeCode": "11",
+    "typeName": "Sebze",
     "isGreens": false
   },
   {
@@ -3073,6 +3128,35 @@ Response:
     "isGreens": false
   }
 ]
+```
+
+Rapor response ortak alanlari:
+
+- Urun iceren tum rapor satirlarinda eski uyumluluk icin `productCode` ve `productName` korunur.
+- `stockCode`, Mikro `STOKLAR.sto_kod` alanidir. UI'da net urun kodu kolonu icin bunu kullan.
+- `stockName`, Mikro `STOKLAR.sto_isim` alanidir. UI'da tam stok adi gerekiyorsa bunu kullan.
+- `productName`, kullaniciya okunakli gostermek icin kisa ad varsa `STOKLAR.sto_kisa_ismi`, yoksa `STOKLAR.sto_isim` fallback'idir.
+- `product.shortName`, `STOKLAR.sto_kisa_ismi`; `product.displayName`, UI liste adi; `product.unitName`, `STOKLAR.sto_birim1_ad`.
+- `product.primaryBarcode`, `BARKOD_TANIMLARI` icinden aktif/master oncelikli ilk barkoddur.
+- `branch` nesnesi depo/sube bilgisinin net halidir. Eski `branchNo`, `branchName` alanlari geriye uyumluluk icin durur.
+- `document` nesnesi evrak seri/sira ve ekranda gostermeye hazir `documentNo` bilgisini tasir.
+
+Ortak product modeli:
+
+```json
+{
+  "stockCode": "016201",
+  "productCode": "016201",
+  "stockName": "MNV ELMA STARKING KG",
+  "shortName": "ELMA",
+  "displayName": "ELMA",
+  "productName": "ELMA",
+  "modelCode": "10",
+  "modelName": "Meyve",
+  "unitName": "KG",
+  "globalProductCode": "8690000000000",
+  "primaryBarcode": "2801620100000"
+}
 ```
 
 ### Dashboard / Ozet
@@ -3135,9 +3219,61 @@ Response:
       }
     }
   ],
-  "branches": [],
-  "topProducts": [],
-  "lazyBranches": []
+  "branches": [
+    {
+      "branchNo": 110,
+      "branchName": "KESTEL 1",
+      "branch": {
+        "warehouseNo": 110,
+        "warehouseName": "KESTEL 1",
+        "regionCode": "1"
+      },
+      "documentCount": 1,
+      "productCount": 8,
+      "totalQuantity": 84.25,
+      "caseInfo": null
+    }
+  ],
+  "topProducts": [
+    {
+      "typeCode": "10",
+      "typeName": "Meyve",
+      "productCode": "016201",
+      "productName": "ELMA",
+      "stockCode": "016201",
+      "stockName": "MNV ELMA STARKING KG",
+      "unitName": "KG",
+      "primaryBarcode": "2801620100000",
+      "globalProductCode": "8690000000000",
+      "product": {
+        "stockCode": "016201",
+        "productCode": "016201",
+        "stockName": "MNV ELMA STARKING KG",
+        "shortName": "ELMA",
+        "displayName": "ELMA",
+        "productName": "ELMA",
+        "modelCode": "10",
+        "modelName": "Meyve",
+        "unitName": "KG",
+        "globalProductCode": "8690000000000",
+        "primaryBarcode": "2801620100000"
+      },
+      "quantity": 42.5,
+      "caseInfo": null
+    }
+  ],
+  "lazyBranches": [
+    {
+      "branchNo": 120,
+      "branchName": "ORNEK SUBE",
+      "branch": {
+        "warehouseNo": 120,
+        "warehouseName": "ORNEK SUBE",
+        "regionCode": "1"
+      },
+      "regionCode": "1"
+    }
+  ]
 }
 ```
 
@@ -3158,9 +3294,27 @@ Response item:
 ```json
 {
   "typeCode": "10",
-  "typeName": "Manav Tip 10",
+  "typeName": "Meyve",
   "productCode": "016201",
   "productName": "ELMA",
+  "stockCode": "016201",
+  "stockName": "MNV ELMA STARKING KG",
+  "unitName": "KG",
+  "primaryBarcode": "2801620100000",
+  "globalProductCode": "8690000000000",
+  "product": {
+    "stockCode": "016201",
+    "productCode": "016201",
+    "stockName": "MNV ELMA STARKING KG",
+    "shortName": "ELMA",
+    "displayName": "ELMA",
+    "productName": "ELMA",
+    "modelCode": "10",
+    "modelName": "Meyve",
+    "unitName": "KG",
+    "globalProductCode": "8690000000000",
+    "primaryBarcode": "2801620100000"
+  },
   "quantity": 42.5,
   "caseInfo": {
     "inputQuantity": 10,
@@ -3195,12 +3349,40 @@ Response:
       "orderDate": "2026-06-04T00:00:00",
       "branchNo": 110,
       "branchName": "KESTEL 1",
+      "branch": {
+        "warehouseNo": 110,
+        "warehouseName": "KESTEL 1",
+        "regionCode": "1"
+      },
       "documentSerie": "F110",
       "documentOrderNo": 1234,
+      "document": {
+        "documentSerie": "F110",
+        "documentOrderNo": 1234,
+        "documentNo": "F110/1234"
+      },
       "typeCode": "10",
-      "typeName": "Manav Tip 10",
+      "typeName": "Meyve",
       "productCode": "016201",
       "productName": "ELMA",
+      "stockCode": "016201",
+      "stockName": "MNV ELMA STARKING KG",
+      "unitName": "KG",
+      "primaryBarcode": "2801620100000",
+      "globalProductCode": "8690000000000",
+      "product": {
+        "stockCode": "016201",
+        "productCode": "016201",
+        "stockName": "MNV ELMA STARKING KG",
+        "shortName": "ELMA",
+        "displayName": "ELMA",
+        "productName": "ELMA",
+        "modelCode": "10",
+        "modelName": "Meyve",
+        "unitName": "KG",
+        "globalProductCode": "8690000000000",
+        "primaryBarcode": "2801620100000"
+      },
       "quantity": 12,
       "latestCreateDate": "2026-06-04T09:15:10",
       "canDelete": true,
@@ -3223,6 +3405,11 @@ Response:
     {
       "branchNo": 120,
       "branchName": "ORNEK SUBE",
+      "branch": {
+        "warehouseNo": 120,
+        "warehouseName": "ORNEK SUBE",
+        "regionCode": "1"
+      },
       "regionCode": "1"
     }
   ]
@@ -3243,6 +3430,59 @@ Amac:
 - `branches` kiriliminda `latestCreateDate` ve `canDelete` alanlari bulunur; UI sil butonunu `canDelete=true` ve kullanicida `green-grocer.reports.update` yetkisi varsa gostermelidir.
 - `caseInfo` doluysa rapor satiri siparis anindaki kasa/koli snapshot'ini de icerir. `quantity` ve `caseInfo.estimatedQuantity` Mikro'ya yazilan KG/ADET toplamidir; `caseInfo.inputQuantity` subenin girdigi kasa/koli toplamidir.
 
+Response item:
+
+```json
+{
+  "typeCode": "10",
+  "typeName": "Meyve",
+  "productCode": "016201",
+  "productName": "ELMA",
+  "stockCode": "016201",
+  "stockName": "MNV ELMA STARKING KG",
+  "unitName": "KG",
+  "primaryBarcode": "2801620100000",
+  "globalProductCode": "8690000000000",
+  "product": {
+    "stockCode": "016201",
+    "productCode": "016201",
+    "stockName": "MNV ELMA STARKING KG",
+    "shortName": "ELMA",
+    "displayName": "ELMA",
+    "productName": "ELMA",
+    "modelCode": "10",
+    "modelName": "Meyve",
+    "unitName": "KG",
+    "globalProductCode": "8690000000000",
+    "primaryBarcode": "2801620100000"
+  },
+  "totalQuantity": 42.5,
+  "caseInfo": null,
+  "branches": [
+    {
+      "branchNo": 110,
+      "branchName": "KESTEL 1",
+      "branch": {
+        "warehouseNo": 110,
+        "warehouseName": "KESTEL 1",
+        "regionCode": "1"
+      },
+      "documentSerie": "F110",
+      "documentOrderNo": 1234,
+      "document": {
+        "documentSerie": "F110",
+        "documentOrderNo": 1234,
+        "documentNo": "F110/1234"
+      },
+      "quantity": 12,
+      "latestCreateDate": "2026-06-04T09:15:10",
+      "canDelete": true,
+      "caseInfo": null
+    }
+  ]
+}
+```
+
 ### Yesillik Raporu
 
 `GET /api/green-grocer/reports/greens?date=2026-06-04`
@@ -3255,6 +3495,55 @@ Amac:
 
 - Yalnizca `STOKLAR.sto_model_kodu = '12'` olan satirlari sube ve evrak bilgisiyle listeler.
 - `typeCode` query verilse bile bu endpoint yesillik tipine sabitlenir.
+
+Response item:
+
+```json
+{
+  "orderDate": "2026-06-04T00:00:00",
+  "branchNo": 110,
+  "branchName": "KESTEL 1",
+  "branch": {
+    "warehouseNo": 110,
+    "warehouseName": "KESTEL 1",
+    "regionCode": "1"
+  },
+  "documentSerie": "F110",
+  "documentOrderNo": 1234,
+  "document": {
+    "documentSerie": "F110",
+    "documentOrderNo": 1234,
+    "documentNo": "F110/1234"
+  },
+  "rowNo": 0,
+  "typeCode": "12",
+  "typeName": "Yesillik",
+  "productCode": "018501",
+  "productName": "MARUL",
+  "stockCode": "018501",
+  "stockName": "MNV MARUL ADET",
+  "unitName": "ADET",
+  "primaryBarcode": "2801850100000",
+  "globalProductCode": "",
+  "product": {
+    "stockCode": "018501",
+    "productCode": "018501",
+    "stockName": "MNV MARUL ADET",
+    "shortName": "MARUL",
+    "displayName": "MARUL",
+    "productName": "MARUL",
+    "modelCode": "12",
+    "modelName": "Yesillik",
+    "unitName": "ADET",
+    "globalProductCode": "",
+    "primaryBarcode": "2801850100000"
+  },
+  "quantity": 25,
+  "latestCreateDate": "2026-06-04T09:15:10",
+  "canDelete": true,
+  "caseInfo": null
+}
+```
 
 ### Manav Siparisi Sil
 
@@ -3594,23 +3883,26 @@ UI kullanim notu:
 
 ### Urunden Cari Onerileri
 
-Secili urun icin varsayilan tedarikciyi ve yakin gecmiste ayni urunle hareket gormus cari onerilerini getirmek icin:
+Secili urun icin varsayilan tedarikciyi, aktif satinalma sarti carilerini ve yakin gecmiste ayni urunle hareket gormus cari onerilerini getirmek icin:
 
-`GET /api/arama-islemleri/urunler/015550/cari-onerileri?take=10`
+`GET /api/arama-islemleri/urunler/015550/cari-onerileri?warehouseNo=110&take=10`
 
 Query:
 
 ```text
+warehouseNo    opsiyonel; verilmezse JWT deposu kullanilir, SATINALMA_SARTLARI.sas_depo_no icin 0 veya bu depo kabul edilir
 take    opsiyonel; default 10, max 25
 ```
 
 Onemli not:
 
 - Endpoint once stok kartini bulur; bulunamazsa `isProductFound = false` ve bos liste doner.
-- Oneriler iki kaynaktan uretilir:
+- Oneriler uc kaynaktan uretilir:
   - `varsayilan-tedarikci`: stok kartindaki `sto_sat_cari_kod`
+  - `satinalma-sarti`: `SATINALMA_SARTLARI` icindeki aktif tedarikci kayitlari
   - `stok-hareketleri`: urunun bagli oldugu yakin tarihli stok hareketleri
-- Ayni cari iki kaynaktan da gelirse `sources` alaninda iki kaynak birlikte doner.
+- Ayni cari birden fazla kaynaktan gelirse `sources` alaninda kaynaklar birlikte doner.
+- Sira: once varsayilan tedarikci, sonra aktif satinalma sarti carileri, sonra stok hareket gecmisi gelir.
 - Bu endpoint otomatik cari set etmek zorunda degildir; sadece UI'a "onerilen firma" bilgisini verir.
 
 Response:
@@ -3632,6 +3924,7 @@ Response:
       "lastMovementDate": "2026-05-01T00:00:00",
       "lastDocumentNo": "ST12026000002395",
       "sources": [
+        "satinalma-sarti",
         "stok-hareketleri",
         "varsayilan-tedarikci"
       ]
@@ -3647,7 +3940,7 @@ UI kullanim notu:
 
 ### Barkoddan Cari Bul
 
-Arama Islemleri altinda menu olarak gosterilebilecek hizli cari/firma bulma ekranidir. Backend once barkodu stokla eslestirir, sonra stok kartindaki varsayilan tedarikciyi ve yakin gecmis stok hareketlerinden cari onerilerini doner.
+Arama Islemleri altinda menu olarak gosterilebilecek hizli cari/firma bulma ekranidir. Backend once barkodu stokla eslestirir, sonra stok kartindaki varsayilan tedarikciyi, aktif satinalma sarti carilerini ve yakin gecmis stok hareketlerinden cari onerilerini doner.
 
 `GET /api/arama-islemleri/cari-bul?barcode=8690000000000&warehouseNo=110&take=10`
 
@@ -3693,6 +3986,7 @@ Response:
       "lastMovementDate": "2026-05-01T00:00:00",
       "lastDocumentNo": "ST12026000002395",
       "sources": [
+        "satinalma-sarti",
         "stok-hareketleri",
         "varsayilan-tedarikci"
       ]
@@ -3706,6 +4000,7 @@ UI kullanim notu:
 - Sol menu altinda `AramaIslemleri > CariBul` gibi ayri bir hizli ekran olarak sunulabilir.
 - `isFound = false` ise barkod/stok eslesmesi yoktur; UI "urun bulunamadi" gibi kisa bir mesaj gosterebilir.
 - `suggestions` bos ama `defaultSupplierCode` doluysa UI varsayilan tedarikciyi tek onerilen firma gibi gosterebilir.
+- `sources` icinde `satinalma-sarti` varsa cari, urunun aktif satinalma sarti kaydindan gelmistir; mal kabul/siparis senaryolarinda diger gecmis hareket onerilerinden daha guvenilir adaydir.
 
 ### Cari Ara
 
@@ -5621,6 +5916,9 @@ Onemli not:
 - Satirda `orderGuid` bos veya `null` ise siparis GUID'i bos gider ve siparis tablosuna dokunulmaz.
 - Siparis kalanindan fazla kabul varsayilan olarak engellenir. `allowOrderOverReceiving = true` gonderilirse kalan kadar siparisli, fazla kisim siparissiz hareket olarak bolunur.
 - `documentNo` opsiyoneldir. E-belge/e-irsaliye no varsa tam `seri + 9 haneli sayisal sira` formatinda gonderilebilir.
+- ETTN/UUID ile cozumlenen resmi belge varsa UI kaydetmede `officialDocumentKind`, `officialDocumentNo`, `officialDocumentDate` ve `officialDocumentEttn` alanlarini da gondermelidir. Backend bu bilgileri Mikro hareket satirina yazmaz; `document_flows.external_document_no` ve `document_flows.external_uuid` alanlarina iz olarak kaydeder.
+- UI lookup response'unu direkt tasimak isterse `sourceDocumentKind`, `sourceDocumentNumber`, `sourceDocumentDate`, `despatchNumber`, `issueDate`, `invoiceNumber`, `invoiceDate` ve `ettn` alias alanlari da kabul edilir. `officialDocument*` alanlari doluysa onlar onceliklidir.
+- `documentNo` Mikro `STOK_HAREKETLERI.sth_belge_no` alanina basilan tedarikci belge numarasidir. ETTN/UUID bu alana basilmaz; resmi belgeyi bulmak icin Belge Akis Takibi'nde `externalUuid` olarak aranir.
 - Ornek tam `documentNo` degerleri: `ST12026000002395`, `C682026000003472`, `FRM2026600059281`, `OY32026000000162`
 - Tam formatta `documentNo` gelirse `documentSerie` son 9 hane atilarak, `documentOrderNo` son 9 hane sayi olarak okunarak uretilir.
 - `documentNo` bos gelirse backend cari unvanindan seri uretir ve ayni depo/seri icin siradaki `documentOrderNo` degerini verir.
@@ -5642,6 +5940,10 @@ Request:
   "movementDate": "2026-04-20",
   "documentDate": "2026-04-20",
   "documentNo": "ST12026000002395",
+  "officialDocumentKind": "e-despatch",
+  "officialDocumentNo": "ST12026000002395",
+  "officialDocumentDate": "2026-04-20",
+  "officialDocumentEttn": "3fd0e4f4-87a2-43f2-b5ca-f2a4fd778111",
   "deliverer": "Teslim Eden",
   "receiver": "Teslim Alan",
   "description": "",
@@ -5798,6 +6100,9 @@ Firma mal kabul UI akisi:
 - Yeni fis icin kullanici `Yeni Mal Kabul` aksiyonuna basar. Create ekraninda cari secimi zorunludur; cari secilmeden satir kaydetme ve `Siparis Bagla` pasif kalmalidir.
 - Kullanici QR'dan ETTN/UUID okutursa UI ilk adimda `GET /api/mal-kabul-islemleri/firma-mal-kabulleri/resmi-belge/ettn/{ettn}?documentKind=auto` cagirabilir. Bu akista backend once e-irsaliye, bulunamazsa e-fatura gelen kutusunu dener.
 - Bu response'tan `primaryCustomerSuggestion` varsa cari alani icin varsayilan onerilir; `despatchNumber` ve `issueDate` alanlari `documentNo` ve `documentDate` icin on dolum adayi olarak kullanilabilir.
+- Kaydetmede resmi belge izinin Belge Akis Takibi'ne dusmesi icin UI lookup response'undan `sourceDocumentKind`, `sourceDocumentNumber`, `issueDate` veya `invoiceDate` ve `ettn` alanlarini create body'deki `officialDocumentKind`, `officialDocumentNo`, `officialDocumentDate`, `officialDocumentEttn` alanlarina tasimalidir.
+- Backend ayrica `sourceDocumentKind`, `sourceDocumentNumber`, `sourceDocumentDate`, `despatchNumber`, `issueDate`, `invoiceNumber`, `invoiceDate` ve `ettn` alias alanlarini da kabul eder; fakat sade UI modeli icin `officialDocument*` alanlari onerilir.
+- Kayit sonrasi `documentNo` Mikro `sth_belge_no` alaninda, resmi belge no/ETTN ise Belge Akis Takibi listesinde `externalDocumentNo` ve `externalUuid` alanlarinda aranabilir olur.
 - `lines[].isMatched = true` olan satirlar tek tikla create satirina aktarilabilir; `isMatched = false` olanlar ayrica "manuel eslestir" listesine dusurulebilir.
 - `DocumentNo` artik zorunlu degildir. E-belge/e-irsaliye no varsa UI tam `seri + 9 haneli sayisal sira` formatinda gonderebilir; yoksa bos gonderebilir.
 - Kullanici e-belge olmayan firmalarda isterse `ABC`, `ULK`, cari unvanin ilk 2-3 harfi gibi harf iceren bir prefix girebilir. Backend bu prefix'ten seri uretip siradaki sira numarasini verir.
@@ -9538,7 +9843,7 @@ Response:
 
 #### Yeni Kasa Saglik Ozeti
 
-Secilen tarih araliginda sube/kasa bazinda fiÃ…Å¸ sagligini tek bakista gosterir. Dashboard ust kartlari veya risk listesi icin kullanilir.
+Secilen tarih araliginda sube/kasa bazinda fiÃƒâ€¦Ã…Â¸ sagligini tek bakista gosterir. Dashboard ust kartlari veya risk listesi icin kullanilir.
 
 `GET /api/kasa-islemleri/yeni-kasa-analizleri/saglik-ozeti?startDate=2026-07-08&endDate=2026-07-08&warehouseNo=110`
 
@@ -9962,8 +10267,8 @@ filterValue filterType/scope ile eslesen kod veya arama degeri
 Notlar:
 
 - `filterType` icin Turkce aliaslar da kabul edilir: `stok`, `kategori`, `uretici`, `tedarikci`, `satin-almaci`, `satinalmaci`, `model`.
-- Turkce karakterli aliaslar da kabul edilir: `urun`, `ÃƒÂ¼rÃƒÂ¼n`, `ÃƒÂ¼retici`, `tedarikÃƒÂ§i`, `satÃ„Â±n-almacÃ„Â±`.
-- `filterType` ve `filterValue` birlikte kullanÃ„Â±lmalÃ„Â±dÃ„Â±r; sadece biri gÃƒÂ¶nderilirse backend 400 dÃƒÂ¶ner.
+- Turkce karakterli aliaslar da kabul edilir: `urun`, `ÃƒÆ’Ã‚Â¼rÃƒÆ’Ã‚Â¼n`, `ÃƒÆ’Ã‚Â¼retici`, `tedarikÃƒÆ’Ã‚Â§i`, `satÃƒâ€Ã‚Â±n-almacÃƒâ€Ã‚Â±`.
+- `filterType` ve `filterValue` birlikte kullanÃƒâ€Ã‚Â±lmalÃƒâ€Ã‚Â±dÃƒâ€Ã‚Â±r; sadece biri gÃƒÆ’Ã‚Â¶nderilirse backend 400 dÃƒÆ’Ã‚Â¶ner.
 - `scope` bos verilirse karlilik raporu `producer` kirilimi ile doner.
 - Sayisal toplamlar backend tarafinda 2 ondaliga yuvarlanir.
 - Barkod alanlari master/birim-1 barkod onceligiyle secilir.
@@ -10424,6 +10729,7 @@ Mevcut backend durumu:
 - zamanli importta `Date` verilmezse `KasaHareketAktarimi:ScheduledAddDay` kullanilir; default `-1`, yani dunun dosyalarini okur
 - dosya yolu `{root}\{subeNo}\HRddMMyy.*` ve `{root}\{subeNo}\IPddMMyy.*` desenindedir
 - `cashRegisters` filtresi verilirse dosya adi `{prefix}{ddMMyy}.{kasaNo:000}` olarak aranir
+- HR/IP satir formatinda virgullu, noktali virgul, tab ve bosluk ayraclari desteklenir; guncel kasa dosyalari genellikle `1,00006,01,FIS,...` seklinde virgullu gelir
 - `skipExisting=true` iken duplicate kontrolu `Sube + KasaNo + FisNo + BelgeTuru + Tarih` alanlariyla yapilir
 - `dryRun=true` import dosyalarini parse eder, barkod lookup ve hata/uyari listesi uretir, staging'e yazmaz
 - barkod lookup Mikro barkod tanimlarindan urun kodu bulmaya calisir; bulunamayan barkodlar response `warnings` icinde doner
@@ -11471,7 +11777,7 @@ Kasa Islemleri / Etiket Basim
   -> raporlar icin GET /api/kasa-islemleri/etiket-basim/reports/received-products ve /reports/depot-stock
   -> Mikro aktarim endpoint'i 501 dondugu icin UI'da kapali veya "hazir degil" olarak gosterilmelidir
 
-GreenGrocer / Manav Operasyon Paneli
+Manav / Manav Operasyon Paneli
   -> menu/route permission'i: green-grocer.operations.page
   -> panel verisi ve onizleme icin green-grocer.operations.list
   -> MNV duzeltme kaydet butonu icin green-grocer.operations.create
@@ -11626,7 +11932,7 @@ Mevcut API'yi kullanarak ilerleyecekseniz akisi su sekilde okuyun:
 6. Kontrol sonucu uygunsa secilen gonderilmemis faturalari canli Uyumsoft'a gondermek icin `POST /api/fatura-islemleri/fatura-gonderimi/send`
    - `send` endpoint'i hiz icin `/validate` kontrolunu tekrar calistirmaz; UI "Kontrol Et" butonunu ayri aksiyon olarak sunmalidir
    - backend ayni belge icin eszamanli ikinci `send` istegini Uyumsoft'a gitmeden durdurur; UI bu durumda satir bazli hata mesajini gosterip ilk istegin sonucunu beklemelidir
-   - daha once Uyumsoft'a gonderilmis fakat yeniden kuyruÃ„Å¸a alinmasi gereken faturalar icin ayri olarak `POST /api/fatura-islemleri/fatura-gonderimi/retry` kullanilir
+   - daha once Uyumsoft'a gonderilmis fakat yeniden kuyruÃƒâ€Ã…Â¸a alinmasi gereken faturalar icin ayri olarak `POST /api/fatura-islemleri/fatura-gonderimi/retry` kullanilir
 7. Gelen/inbox faturalari icin secilen tarih araligini Uyumsoft'tan cache tabloya almak gerekirse `POST /api/fatura-islemleri/fatura-goruntuleme/senkronize`
 8. Gelen/inbox cache listesini okumak icin `GET /api/fatura-islemleri/fatura-goruntuleme`
 9. Gelen/inbox resmi PDF icin `GET /api/fatura-islemleri/fatura-goruntuleme/{documentId}` veya `/pdf` alias'i kullanilir.
@@ -11679,6 +11985,10 @@ Geriye uyumlu ornek:
 
 `GET /api/fatura-islemleri/fatura-goruntuleme?StartDate=2026-05-01&EndDate=2026-05-05&ProcessedState=-1&PrintedState=-1&SearchField=InvoiceId&SearchText=INV-2026&PageNumber=1&PageSize=50`
 
+Arama metnini tarih araligiyla birlikte daraltma:
+
+`GET /api/fatura-islemleri/fatura-goruntuleme?StartDate=2026-05-01&EndDate=2026-05-05&SearchField=InvoiceId&SearchText=INV-2026&applyDateFilterWithSearch=true`
+
 Yetki:
 
 - `fatura-islemleri.fatura-goruntuleme.list`
@@ -11705,6 +12015,7 @@ maxInvoiceTotal opsiyonel; toplam tutar ust siniri
 hasDespatchId   opsiyonel; true=irsaliyeli faturalar, false=irsaliye no bos olanlar
 SearchField     opsiyonel; InvoiceDate, InvoiceId, DocumentId, CustomerTitle, CustomerTcknVkn, InvoiceTotal, DespatchId, Any, Status, InvoiceType, EnvelopeIdentifier, OrderDocumentId, Message
 SearchText      opsiyonel; SearchField verilmezse genel arama olarak uygulanir
+applyDateFilterWithSearch opsiyonel; default false. true ise arama/structured filtreler dolu olsa bile StartDate/EndDate de uygulanir. Alias: useDateFilterWithSearch
 page            opsiyonel; UI icin onerilen alias, default 1
 PageNumber      opsiyonel; default 1
 PageSize        opsiyonel; geriye uyumluluk icin kabul edilir, liste sonucu artik PageSize ile kesilmez
@@ -11715,7 +12026,9 @@ UI notu:
 - yeni UI gelistirmelerinde `isProcessed`, `isPrinted` ve `page` kullanilmasi tavsiye edilir
 - eski istemciler icin `ProcessedState`, `PrintedState` ve `PageNumber` hala desteklenir
 - ayni request'te hem yeni hem eski alias gonderilirse yeni aliaslar (`isProcessed`, `isPrinted`, `page`) oncelikli kabul edilir
-- arama alani bossa listeleme `StartDate` / `EndDate` araligina gore yapilir; `SearchText`, `invoiceId/invoiceNo`, `despatchId/despatchNo`, `customerTitle`, `customerTcknVkn/tcknVkn`, `documentId/ettn`, `orderDocumentId`, `status` veya `invoiceType` doluysa tarih filtresi devre disi kalir
+- arama alani bossa listeleme `StartDate` / `EndDate` araligina gore yapilir.
+- `SearchText`, `invoiceId/invoiceNo`, `despatchId/despatchNo`, `customerTitle`, `customerTcknVkn/tcknVkn`, `documentId/ettn`, `orderDocumentId`, `status` veya `invoiceType` doluysa varsayilan olarak tarih filtresi devre disi kalir; bu eski hizli belge bulma davranisidir.
+- Kullanici "tarih icinde ara" isterse UI `applyDateFilterWithSearch=true` gondermelidir. Bu durumda once `StartDate` / `EndDate` araligi uygulanir, sonra arama ve diger filtreler uygulanir.
 - filtreleme iki asamali dusunulmelidir:
   - backend filtreleri tarih araligindaki genis veri setini daraltir ve DB/cache uzerinden calisir
   - frontend/grid filtreleri backend'den donen aday set uzerinde anlik lokal filtreleme yapar
@@ -12671,6 +12984,7 @@ Davranis:
 - karekod icerigi ve gorseli tamamen secilen embedded veya fallback XSLT'nin sorumlulugundadir
 - satir ve `Mal Hizmet Toplam Tutari` alanlari iskonto oncesi brut tutari gosterir; ilk `AllowanceCharge/BaseAmount` satir brutunun kaynagidir
 - `Toplam Iskonto` UBL `AllowanceTotalAmount`, `Iskonto Sonrasi Vergi Haric Tutar` ise `TaxExclusiveAmount` alanindan gosterilir
+- satir iskonto yuzdesinin bozulmamasi icin `AllowanceCharge/Amount` ve `AllowanceCharge/BaseAmount` en fazla 4 ondalik hassasiyetle yazilir; genel para toplamlari (`LineExtensionAmount`, `TaxAmount`, `PayableAmount`, `AllowanceTotalAmount`) 2 ondalik kalir
 - bu endpoint sadece onizleme/render icindir; Uyumsoft'a gonderim yapmaz
 
 ### Fatura Gonderimi Render
@@ -12816,7 +13130,7 @@ Response `SendInvoiceDocumentsResponse`:
 
 Davranis:
 
-- secimler duplicate ise backend tekilleÃ…Å¸tirir
+- secimler duplicate ise backend tekilleÃƒâ€¦Ã…Â¸tirir
 - gonderim Uyumsoft WCF client ile fatura bazli tek tek yapilir; boylece basarili/hatali kayitlar response icinde ayri ayri gorulur
 - her belge icin UBL invoice uretilir ve Uyumsoft `SendInvoice` operasyonu cagrilir
 - hiz icin UBL-TR is kurali ve XSD dogrulamalari burada tekrar calistirilmaz; bu kontroller icin kullanici once `/validate` endpoint'ini cagirir
@@ -12841,6 +13155,7 @@ UBL / gonderim kurallari:
   - aksi halde `SATIS`
 - stok satirlarinda iskonto alanlari `AllowanceCharge` olarak satir bazinda XML'e yazilir
 - `AllowanceCharge/MultiplierFactorNumeric` ondalik katsayi olarak yazilir; ornegin `%3 = 0.03`, `%5 = 0.05`. XSLT ekranda bu degeri `100` ile carparak yuzdeyi gosterir.
+- `AllowanceCharge/Amount` ve `AllowanceCharge/BaseAmount` 4 ondaliga kadar hassas yazilir. Ornek: Mikro `sth_iskonto1 = 0.6042` ise UBL `Amount` degeri `0.6042` olur; bu sayede `20.14` baz tutarda %3 iskonto Uyumsoft/alici ekraninda %2.98 gibi gorunmez.
 - e-arsiv gonderiminde `EArchiveInvoiceInfo DeliveryType="Electronic"` kullanilir
 
 ### Fatura Gonderimi Retry
@@ -13959,18 +14274,45 @@ Operasyon modulu notlari:
 
 ## Entegrasyon Islemleri
 
-Bu modul, eski `Furpa.WorkerService` akisini yeni API icinde worker + manuel endpoint ayrimi ile yonetmek icin eklendi. UI tarafinda bu ekran "entegrasyon gorevi sec, preview al, dry-run yap veya outbox'a at, sonra job durumunu izle" mantigiyla kurgulanmalidir.
+Bu modul, eski `Furpa.WorkerService` akisini yeni API icinde worker + manuel endpoint ayrimi ile yonetmek icin eklendi. UI tarafinda ana ekran `workbench/is-merkezi` mantigiyla, teknik detaylar ise gelismis bolumlerde kurgulanmalidir.
+
+Yeni sade is merkezi yaklasimi:
+
+- UI ana ekrani once `GET /api/integrations/axata-sync/workbench` veya Turkce alias olarak `GET /api/integrations/axata-sync/is-merkezi` endpointini cagirmalidir.
+- Bu endpoint veri yazmaz; panel, ekran bolumleri, operasyon gruplari, endpoint sozlugu, terimler ve kurallari tek response'ta doner.
+- Normal UI route ailesi `operations/...`, manuel kurtarma route ailesi `recovery/...`, teknik route ailesi `advanced/...` olarak ayrildi.
+- Eski `live/...` ve `manual/...` route'lari geriye uyumluluk icin calismaya devam eder; yeni UI bunlari ana route olarak kullanmamalidir.
+- Teknik listeler, raw farklar, job/outbox ve payload detaylari "Gelismis/teknik detay" olarak `GET /api/integrations/axata-sync/audit` ve `advanced/...` endpointlerinden acilmalidir.
+
+Sade route ailesi:
+
+| Route ailesi | Amac | Veri yazar mi? | UI konumu |
+|---|---|---:|---|
+| `GET /workbench`, `GET /is-merkezi` | Tum AXATA ekranini kuracak is merkezi response'u | Hayir | Ilk cagri |
+| `GET /panel` | Yalniz ozet kartlar, akis ve oncelikli belgeler | Hayir | Hafif yenileme |
+| `GET /status`, `GET /connection-test`, `GET /profiles`, `GET /audit` | Durum, baglanti, profil ve teknik fark analizi | Hayir | Kontrol/teknik detay |
+| `operations/product-master/...` | Urun master onizle/gonder | Preview hayir, dispatch evet | Master veri |
+| `operations/{taskCode}/documents/...` | Mikro evrak aday/onizle/AXATA'ya gonder | Dispatch evet | Mikro -> AXATA |
+| `operations/c01-shipment/...` | C01 depo sevki onizle/import/rescue | Import evet | AXATA -> Mikro |
+| `operations/c02-company-shipment/...` | C02 firma sevki onizle/import | Import evet | AXATA -> Mikro |
+| `operations/c03-legacy-movement/...` | C03 legacy hareket onizle/import | Import evet | Gelismis operasyon |
+| `operations/c04-legacy-transfer/...` | C04/C4 legacy transfer onizle/import | Import evet | Gelismis operasyon |
+| `operations/g01-company-receiving/...` | G01 ATF firma mal kabul onizle/import | Import evet | AXATA -> Mikro |
+| `operations/g02-warehouse-receiving/...` | G02 depo kabul onizle/import/rescue | Import evet | AXATA -> Mikro |
+| `operations/dynamic-census/...` | AXATA stok duzeltme onizle/import | Import evet | Stok duzeltme |
+| `recovery/...` | Elle body, serbest mal kabul/sayim, bekleyen depo kabul | Evet | Manuel kurtarma |
+| `advanced/...` | Job, outbox, generic task execute | Duruma gore | Teknik detay |
 
 Sonuc odakli kullanim icin onerilen ana yollar:
 
-- Urun master: `live/products/preview` ile kontrol et, secili urun icin `live/products/{productCode}/dispatch`, toplu secim icin `live/products/dispatch` kullan. Job/outbox akisini ikincil/teknik arac olarak goster.
-- Mikro -> AXATA evrak kurtarma: once `manual/tasks/{taskCode}/documents/candidates`, sonra `preview`, son olarak gercek gonderim icin `dispatch` kullan. `execute/Outbox` AXATA'ya gondermez, sadece dosya hazirlar.
-- AXATA -> Mikro C01 sevk: once `live/axata/outbound-deliveries/c01/preview`, uygun kayit varsa `import` kullan. Import ekraninda `acknowledge` secimi kullaniciya acik gosterilmelidir.
-- AXATA -> Mikro C02 firma sevk: once `live/axata/outbound-deliveries/c02/preview`, uygun kayit varsa `import` kullan. Backend firma sevki yazar, siparis satiri linkini `sth_sip_uid` ile kurar ve siparis teslim miktarini gunceller. `MikroWriteRouting:CompanyMovement=Database` ise eski DB transaction yolu, `MikroApi` ise `IrsaliyeKaydetV2` yolu kullanilir.
-- AXATA -> Mikro C03/C4 legacy hareketler: once ilgili `c03` veya `c04` preview, sonra `import` kullan. UI bu aksiyonlari teknik/operasyonel import olarak etiketlemelidir.
-- AXATA -> Mikro G01 firma mal kabul: once `live/axata/inbound-atf/g01/preview`, uygun kayit varsa `import` kullan. Backend `S16SIPN/S16KALN` ile firma siparisine baglar. Yazma yolu `MikroWriteRouting:CompanyReceiving` ile secilir; `Database` eski worker DB yolunu, `MikroApi` firma mal kabul use case / `IrsaliyeKaydetV2` yolunu kullanir.
-- AXATA -> Mikro G02 depo mal kabul: once `live/axata/inbound-deliveries/g02/preview`, uygun kayit varsa `import` kullan. Backend bekleyen Mikro sevk fisini kabul eder, siparis teslim miktarini AXATA kabul miktarina gore duzeltir ve sonra AXATA ack atar.
-- AXATA -> Mikro DynamicCensus: once `live/axata/dynamic-census/preview`, uygun satir varsa `import` kullan. Backend `vw_stok_duzeltme` satirlarini Mikro stok duzeltme hareketine cevirir.
+- Urun master: `operations/product-master/preview` ile kontrol et, secili/toplu urun icin `operations/product-master/dispatch` kullan. Job/outbox akisini ikincil/teknik arac olarak goster.
+- Mikro -> AXATA evrak kurtarma: once `operations/{taskCode}/documents/candidates`, sonra `preview`, son olarak gercek gonderim icin `dispatch` kullan. `advanced/{taskCode}/documents/outbox` AXATA'ya gondermez, sadece dosya hazirlar.
+- AXATA -> Mikro C01 sevk: once `operations/c01-shipment/preview`, uygun kayit varsa `operations/c01-shipment/import` kullan. Import ekraninda `acknowledge` secimi kullaniciya acik gosterilmelidir.
+- AXATA -> Mikro C02 firma sevk: once `operations/c02-company-shipment/preview`, uygun kayit varsa `operations/c02-company-shipment/import` kullan. Backend firma sevki yazar, siparis satiri linkini `sth_sip_uid` ile kurar ve siparis teslim miktarini gunceller.
+- AXATA -> Mikro C03/C4 legacy hareketler: once ilgili `operations/c03-legacy-movement/preview` veya `operations/c04-legacy-transfer/preview`, sonra `import` kullan. UI bu aksiyonlari gelismis/operasyonel import olarak etiketlemelidir.
+- AXATA -> Mikro G01 firma mal kabul: once `operations/g01-company-receiving/preview`, uygun kayit varsa `import` kullan.
+- AXATA -> Mikro G02 depo mal kabul: once `operations/g02-warehouse-receiving/preview`, uygun kayit varsa `import` kullan. Backend bekleyen Mikro sevk fisini kabul eder, siparis teslim miktarini AXATA kabul miktarina gore duzeltir ve sonra AXATA ack atar.
+- AXATA -> Mikro DynamicCensus: once `operations/dynamic-census/preview`, uygun satir varsa `import` kullan. Backend `vw_stok_duzeltme` satirlarini Mikro stok duzeltme hareketine cevirir.
 - Manuel body/import ekranlari: yalnizca operasyon AXATA body bilgisini elle sagladiginda kullanilacak yardimci araclar olarak konumlandir.
 
 AXATA ekranlari icin genel sadelik ilkesi:
@@ -14015,16 +14357,40 @@ Execution mode:
 
 Mevcut endpointler:
 
+Not: Bu listede eski teknik route'lar da bulunabilir. Yeni UI icin oncelikli route'lar `workbench/is-merkezi`, `operations/...`, `recovery/...` ve `advanced/...` aileleridir. Eski `live/...` ve `manual/...` route'lari geriye uyumluluk icin korunur.
+
 - `GET /api/integrations/axata-sync`
   - modulu, aktif task'lari, schedule ayarlarini ve son job'lari doner
   - response `AxataSynchronizationOverviewDto`
+- `GET /api/integrations/axata-sync/status`
+  - `GET /api/integrations/axata-sync` icin sade alias
+  - veri yazmaz
 - `GET /api/integrations/axata-sync/health`
   - Mikro SQL, Furpa SQL ve AXATA endpoint erisimi icin probe sonucunu doner
   - response `AxataSynchronizationConnectionTestDto`
+- `GET /api/integrations/axata-sync/connection-test`
+  - `health` icin sade alias
+  - veri yazmaz
 - `GET /api/integrations/axata-sync/fetch-profiles`
   - eski worker parity icin planlanan AXATA fetch/import profillerini listeler
   - her profil icin bugunku fallback route ve implementasyon durumu gorulebilir
   - response `AxataSynchronizationFetchProfilesOverviewDto`
+- `GET /api/integrations/axata-sync/profiles`
+  - `fetch-profiles` icin sade alias
+  - veri yazmaz
+- `GET /api/integrations/axata-sync/workbench?startDate=2026-08-05&endDate=2026-08-06&warehouseNo=50&take=50`
+  - UI ana ekrani icin onerilen birincil endpointtir
+  - `panel`, `screenSections`, `operationGroups`, `endpointGroups`, `glossary` ve `rules` alanlarini tek response'ta doner
+  - veri yazmaz
+  - response `AxataSynchronizationWorkbenchDto`
+- `GET /api/integrations/axata-sync/is-merkezi?startDate=2026-08-05&endDate=2026-08-06&warehouseNo=50&take=50`
+  - `workbench` icin Turkce route alias
+  - veri yazmaz
+- `GET /api/integrations/axata-sync/panel?startDate=2026-08-05&endDate=2026-08-06&warehouseNo=50&take=50`
+  - UI ana ekrani icin sade kontrol paneli doner
+  - Mikro -> AXATA -> Mikro akis durumunu tek response'ta ozetler
+  - veri yazmaz; manuel mudahale icin kullanilacak route bilgilerini `actions` ve `primaryEndpoints` icinde verir
+  - response `AxataSynchronizationPanelDto`
 - `GET /api/integrations/axata-sync/live/products/preview?productCode=URUN001&take=20`
   - Mikro aktif stok, tum barkod ve birimlerini AXATA `addSKUMaster` paketinde onizler; veri yazmaz
   - response `AxataProductSynchronizationPreviewDto`
@@ -14098,7 +14464,7 @@ Mevcut endpointler:
   - `issued-warehouse-order-sync` worker parity icin `C01` hareket kodu ile `addOutboundOrder*` operasyonunu kullanir
   - `issued-warehouse-order-sync` basarili donerse `ssip_special1=1` bayragi `MikroWriteRouting:IssuedWarehouseOrder=Database` iken DB update ile, `MikroApi` iken `POST /Api/apiMethods/DepolarArasiSiparisDuzeltV2` ile satir `ssip_Guid` degerleri uzerinden yazilir; MikroApi modunda DB fallback yoktur ve yazim read-only geri okuma ile dogrulanir
   - `warehouse-inbound-order-sync` worker parity icin `G02` hareket kodu ile `addInboundOrder*` operasyonunu kullanir; basarili donerse `ssip_special1=1` bayragi `ssip_girdepo = warehouseNo` evreninde isaretlenir
-  - `company-receiving-sync` worker parity icin `G01` hareket kodu ile `addInboundOrder*` operasyonunu kullanir
+  - `company-receiving-sync` worker parity icin verilen firma/satinalma siparisini `G01` hareket kodu ile `addInboundOrder*` operasyonuna gonderir; basarili donerse `sip_special1=1` bayragi isaretlenir
 - `POST /api/integrations/axata-sync/manual/tasks/{taskCode}/documents/dispatch-batch`
   - secilen birden fazla evraki canli WCF dispatch ile toplu gonderir
   - response `AxataSynchronizationManualDispatchBatchDto`
@@ -14236,19 +14602,144 @@ Mevcut endpointler:
   - birden fazla bekleyen depo mal kabulunu toplu kabul eder
   - response `AxataManualIncomingWarehouseReceivingBatchResponse`
 
+Sade panel response ana alanlari:
+
+```json
+{
+  "title": "Mikro -> AXATA -> Mikro fark kontrolu",
+  "state": "MikroTransferRequired",
+  "severity": "Critical",
+  "message": "Mikro'da 120 siparis var; AXATA siparis eslesmesi 120, AXATA sevk 80, Mikro'ya baglanan sevk 75...",
+  "isInSync": false,
+  "generatedAtUtc": "2026-08-06T09:00:00Z",
+  "startDate": "2026-08-05T00:00:00",
+  "endDate": "2026-08-06T00:00:00",
+  "warehouseNo": 50,
+  "summaryCards": [
+    {
+      "code": "ready-to-import-mikro",
+      "label": "Mikro'ya islenecek",
+      "value": 5,
+      "severity": "Critical",
+      "description": "AXATA sevki hazir olup Mikro sevk linki eksik olan ve import edilebilecek belgeler."
+    }
+  ],
+  "flowSteps": [
+    {
+      "code": "mikro-transfer",
+      "label": "4. Mikro sevk donusu",
+      "state": "Difference",
+      "severity": "Critical",
+      "currentDocumentCount": 75,
+      "expectedDocumentCount": 80,
+      "differenceDocumentCount": 5,
+      "description": "AXATA'da sevki olusmus belgelerin Mikro STOK_HAREKETLERI_EK siparis linki var mi kontrol eder.",
+      "listRoute": "/api/integrations/axata-sync/audit#interventionCandidates"
+    }
+  ],
+  "actions": [
+    {
+      "code": "sent-to-axata-missing-mikro-shipment",
+      "label": "AXATA sevk kesilmis Mikro donus eksik",
+      "state": "ActionRequired",
+      "severity": "Critical",
+      "documentCount": 5,
+      "lineCount": 20,
+      "quantity": 430.0,
+      "canExecute": true,
+      "writesData": true,
+      "listRoute": "/api/integrations/axata-sync/audit#sentWarehouseOrdersMissingMikroShipments",
+      "previewRoute": "/api/integrations/axata-sync/operations/c01-shipment/documents/{documentSerie}/{documentOrderNo}/preview",
+      "executeRoute": "/api/integrations/axata-sync/operations/c01-shipment/documents/{documentSerie}/{documentOrderNo}/import",
+      "description": "AXATA C01 outbound delivery kaydi bulunan pozitif miktarli sevklerde Mikro link yoksa rescue yapilabilir."
+    }
+  ],
+  "priorityDocuments": [
+    {
+      "documentSerie": "F50",
+      "documentOrderNo": 16122,
+      "documentNo": "F50.16122",
+      "documentDate": "2026-08-05T00:00:00",
+      "sourceWarehouseNo": 50,
+      "targetWarehouseNo": 172,
+      "synchronizationState": "WaitingForMikroTransfer",
+      "synchronizationStateLabel": "AXATA sevki var, Mikro sevk linki yok",
+      "severity": "Critical",
+      "recommendedActionCode": "RESCUE_COMPLETED_C01",
+      "recommendedActionTitle": "Tamamlanmis AXATA SEV'inin eksik Mikro linkini isle",
+      "canExecute": true,
+      "previewRoute": "/api/integrations/axata-sync/operations/c01-shipment/documents/F50/16122/preview?status=1",
+      "executeRoute": "/api/integrations/axata-sync/operations/c01-shipment/documents/F50/16122/import",
+      "mikroOrderQuantity": 430.0,
+      "mikroDeliveredQuantity": 0.0,
+      "axataShipmentQuantity": 430.0,
+      "mikroLinkedShipmentQuantity": 0.0,
+      "existingMikroShipmentLineCount": 0,
+      "existingMikroShipmentQuantity": 0.0,
+      "existingMikroShipmentDocumentNo": null,
+      "quantitySummary": "Siparis 430 / Teslim 0 / AXATA sevk 430 / Mikro link 0",
+      "reason": "AXATA'da 430 miktar SEV var, Mikro siparisine bagli sevk bulunamadi."
+    }
+  ],
+  "primaryEndpoints": [
+    {
+      "code": "panel",
+      "label": "Sade panel",
+      "method": "GET",
+      "route": "/api/integrations/axata-sync/panel",
+      "writesData": false,
+      "description": "UI ana ekrani icin ozet kartlari, akis adimlari, aksiyonlar ve oncelikli belgeleri dondurur."
+    }
+  ],
+  "notes": []
+}
+```
+
+Sade panel UI yerlesimi:
+
+- Ust satir: `summaryCards`.
+- Orta alan: `flowSteps`; her adim icin durum rengi `severity` alanindan alinmali.
+- Sag/alt aksiyon listesi: `actions`; `writesData=true` aksiyonlarda onay modali acilmali.
+- Belge listesi: `priorityDocuments`; UI gorunen durum icin `synchronizationStateLabel`, miktar ozet satiri icin `quantitySummary`, aksiyon butonu icin `recommendedActionTitle` kullanmali. `synchronizationState` teknik kod olarak filtre/renk/esleme icin saklanmali.
+- `canExecute=true` ise once `previewRoute`, kullanici onayindan sonra `executeRoute` cagrilmali.
+- `WaitingForMikroTransfer` teknik olarak "AXATA sevki var ama Mikro siparis satirlarina bagli `STOK_HAREKETLERI_EK.sth_subesip_uid` hareketi bulunamadi" anlamina gelir. `Siparis x / AXATA sevk x / Mikro link 0` goruluyorsa belge AXATA'da tamamlanmis olabilir ama Mikro'ya donus linki eksiktir; bu durumda C01 belge rescue/import preview ile kontrol edilmelidir.
+- `MikroOrderDeliveredMissingLink` / `REVIEW_DELIVERED_ORDER_MISSING_LINK`: Mikro siparisinde `ssip_teslim_miktar` doludur ama `STOK_HAREKETLERI_EK.sth_subesip_uid` linki yoktur. Bu durumda UI import/execute butonu gostermemeli; cunku AXATA miktari kalan siparisten buyuk gorunur ve tekrar import duplicate/fazla sevk riski tasir.
+- `MikroShipmentLinkMissing` / `REVIEW_EXISTING_MIKRO_SHIPMENT_LINK`: Mikro'da sevk fisi bulunur ama siparis satiri linki yoktur. UI bunu link/evrak izi onarimi veya manuel inceleme olarak gostermeli; otomatik C01 import butonu acilmamalidir.
+- Teknik detay butonu: ayni query ile `GET /api/integrations/axata-sync/audit`.
+
 AXATA live import ortak request modeli:
 
 ```json
 {
   "take": 20,
   "continueOnError": true,
-  "acknowledge": true
+  "acknowledge": true,
+  "dateMode": "today",
+  "movementDate": null,
+  "documentDate": null
 }
 ```
 
 - `take`: kac belge/satir islenecek. Outbound/G01/G02 icin 1-200, DynamicCensus icin backend 500'e kadar kabul eder.
 - `continueOnError`: `true` ise hatali belge `failures` listesine eklenir ve digerleri denenir.
 - `acknowledge`: `true` ise Mikro yazimi basarili olduktan sonra AXATA EXT status alanlari `1` yapilir. Yazim basarisizsa ack atilmaz.
+- `dateMode`: C01 AXATA -> Mikro depo sevki icin kullanilir. Bos/null veya `today/bugun/current/api-date` gonderilirse Mikro `sth_tarih` ve `sth_belge_tarih` bugun olur. `axata/axata-date/teslimat/teslimat-tarihi` gonderilirse AXATA `S06ITAR` teslimat tarihi kullanilir. `custom/manual/elle` gonderilirse `movementDate` zorunludur, `documentDate` bos ise `movementDate` kullanilir. C02/C03/C04/G02/G01 akislari bu alanlari dikkate almaz.
+- UI sade kullanim icin kisa route'lari tercih etmelidir; eski `live/axata/...` ve `operations/...` route'lari geriye uyumluluk icin calismaya devam eder.
+
+AXATA import kisa route ozeti:
+
+| Islem | Kisa route | Eski/uyumlu route |
+| --- | --- | --- |
+| Outbound kuyruk | `GET /api/integrations/axata-sync/outbound-deliveries?movementType=C01&take=20` | `GET /api/integrations/axata-sync/live/axata/outbound-deliveries/preview` |
+| C01 preview | `GET /api/integrations/axata-sync/c01/preview?take=20` | `GET /api/integrations/axata-sync/live/axata/outbound-deliveries/c01/preview` |
+| C01 import | `POST /api/integrations/axata-sync/c01/import` | `POST /api/integrations/axata-sync/live/axata/outbound-deliveries/c01/import` |
+| C01 belge preview | `GET /api/integrations/axata-sync/c01/documents/{documentSerie}/{documentOrderNo}/preview?status=1` | `GET /api/integrations/axata-sync/live/axata/outbound-deliveries/c01/documents/{documentSerie}/{documentOrderNo}/preview` |
+| C01 belge import | `POST /api/integrations/axata-sync/c01/documents/{documentSerie}/{documentOrderNo}/import` | `POST /api/integrations/axata-sync/live/axata/outbound-deliveries/c01/documents/{documentSerie}/{documentOrderNo}/import` |
+| C02 preview/import | `GET/POST /api/integrations/axata-sync/c02/preview|import` | `GET/POST /api/integrations/axata-sync/live/axata/outbound-deliveries/c02/preview|import` |
+| C03 preview/import | `GET/POST /api/integrations/axata-sync/c03/preview|import` | `GET/POST /api/integrations/axata-sync/live/axata/outbound-deliveries/c03/preview|import` |
+| C04 preview/import | `GET/POST /api/integrations/axata-sync/c04/preview|import` | `GET/POST /api/integrations/axata-sync/live/axata/outbound-deliveries/c04/preview|import` |
+| G02 preview/import | `GET/POST /api/integrations/axata-sync/g02/preview|import` | `GET/POST /api/integrations/axata-sync/live/axata/inbound-deliveries/g02/preview|import` |
+| G02 belge preview/import | `GET/POST /api/integrations/axata-sync/g02/documents/{documentSerie}/{documentOrderNo}/preview|import` | `GET/POST /api/integrations/axata-sync/live/axata/inbound-deliveries/g02/documents/{documentSerie}/{documentOrderNo}/preview|import` |
 
 C01/C02/C03/C04/G02 import preview response ortak ana alanlari:
 
@@ -14310,7 +14801,11 @@ C01/C02/C03/C04/G02 import execute response ortak ana alanlari:
       "createdMovementLineCount": 3,
       "createdMovementQuantity": 30.0,
       "acknowledged": true,
-      "message": "Mikro kaydi olusturuldu ve AXATA ack atildi."
+      "message": "Mikro kaydi olusturuldu ve AXATA ack atildi.",
+      "axataDate": "2026-08-05T00:00:00",
+      "movementDate": "2026-08-06T00:00:00",
+      "documentDate": "2026-08-06T00:00:00",
+      "movementDocumentNo": "F50-15035"
     }
   ],
   "failures": [
@@ -14323,6 +14818,11 @@ C01/C02/C03/C04/G02 import execute response ortak ana alanlari:
   "notes": []
 }
 ```
+
+- `axataDate`: AXATA teslimat/kabul kaydindan gelen tarih. C01 icin kaynak `ENT006.S06ITAR`.
+- `movementDate`: Mikro hareket tarihi. C01 defaultta import gunudur; `dateMode=axata` verilirse AXATA tarihi olur.
+- `documentDate`: Mikro belge tarihi. Bos birakilirsa `movementDate` ile ayni yazilir.
+- `movementDocumentNo`: UI'da gostermek icin olusan Mikro evrak numarasi (`movementSerie-movementOrderNo`).
 
 G01 preview response ana farklari:
 
@@ -14389,6 +14889,7 @@ UI icin endpoint davranis rehberi:
 
 | UI bolumu | Endpoint | Ne yapar | Veri yazar mi? | UI aksiyonu |
 |---|---|---|---|---|
+| Sade Panel | `GET /api/integrations/axata-sync/panel` | Ozet kartlar, akis adimlari, aksiyonlar ve oncelikli belgeleri tek response'ta verir | Hayir | Sayfa ana verisi olarak cagir |
 | Genel Durum | `GET /api/integrations/axata-sync` | Task listesini, aktif/pasif durumlari, worker/scheduler bilgisini ve son job'lari getirir | Hayir | Sayfa acilisinda cagir |
 | Genel Durum | `GET /api/integrations/axata-sync/health` | Mikro SQL, Furpa SQL, AXATA Main ve EXT endpoint erisimini kontrol eder | Hayir | "Baglanti testi" veya otomatik durum karti |
 | Profil Katalogu | `GET /api/integrations/axata-sync/fetch-profiles` | AXATA servislerinden hangi profillerin okunabilecegini ve backendde hangi seviyede desteklendigini listeler | Hayir | UI butonlarini capability'ye gore ac/kapat |
@@ -14635,7 +15136,7 @@ Bu cagri veri yazmaz. Amaci eski worker calisirken durumu anlamaktir:
 - Her Mikro siparisi AXATA `ENT000/ENT001` icinde evrak numarasi ile dogrudan aranir; `ssip_special1=1` yalnizca worker gonderim bayragidir ve AXATA'da gercek kayit bulundugunun yerine kullanilmaz
 - Secilen Mikro siparisine ait AXATA C01 `ENT006/ENT007` SEV kayitlari sevk tarihinden bagimsiz aranir; boylece bir gun acilan siparisin sonraki gun kesilen sevki ayni yasam dongusunde gorulur
 - Bir siparise ait birden fazla SEV miktari toplanir ve `PartiallyShipped`, `FullyShipped` veya `OverShipped` olarak siniflandirilir
-- Mikro donusu `STOK_HAREKETLERI_EK.sth_subesip_uid` ile bagli gercek `STOK_HAREKETLERI.sth_miktar` toplami uzerinden `WaitingForMikroTransfer`, `PartiallyLinked` veya `FullyLinked` olarak siniflandirilir
+- Mikro donusu once `STOK_HAREKETLERI_EK.sth_subesip_uid` ile bagli gercek `STOK_HAREKETLERI.sth_miktar` toplami uzerinden siniflandirilir. Link yoksa ek olarak `ssip_teslim_miktar` ve mevcut Mikro sevk fisi kontrol edilir; mevcut sevk aramasi siparis tarihinden 1 gun once baslar, 7 gun sonrasina kadar ayni depo + aciklama veya ayni stok/miktar imzasi arar. Sonuc `WaitingForMikroTransfer`, `MikroOrderMarkedDeliveredMissingLink`, `ExistingMikroShipmentMissingLink`, `PartiallyLinked` veya `FullyLinked` olabilir.
 - `orderLifecycles[].recommendedAction` yeniden siparis gonderme, C01 import, tamamlanmis SEV rescue, sadece AXATA ACK, bekleme veya manuel fark inceleme kararini evrak bazinda verir
 - `isInSync=true` ise secili tarih araliginda Mikro kaynakli siparis gonderim bayraklari tamam, AXATA `Status=0` bekleyen sevk kuyrugu bos, iptal/zero olmayan AXATA sevkleri Mikro'ya dusmus/baglanmis ve AXATA sevk kayitlarinda satirsiz/anomali belge yok demektir
 - `unsyncedWarehouseOrders` Mikro'da olup worker basari bayragi tum satirlarda `1` olmayan depolar arasi siparisleri gosterir
@@ -14726,6 +15227,7 @@ Import davranisi:
 - Mikro eslesme: `S06TESL` degeri `DocumentSerie.DocumentOrderNo` olarak okunur
 - Satir eslesme: once `S07KALN + S07SKOD` -> `ssip_satirno + ssip_stok_kod`, sonra 1-bazli satir no farki, son olarak tekil stok + kalan miktar kontrolu
 - Mikro yazim: depolar arasi sevk fisi ve bagli satirlarda `sth_subesip_uid` ile Mikro tarafinda siparis linki/teslim etkisi
+- Mikro tarih kuralı: C01 sevk Mikro'ya hangi gun import ediliyorsa `STOK_HAREKETLERI.sth_tarih` ve `sth_belge_tarih` o gun olur. AXATA `ENT006.S06ITAR` siparis/sevk izleme ve filtreleme bilgisidir; Mikro fis tarihi olarak kullanilmaz.
 - AXATA ack: Mikro yazim basarili olursa `AxataServicePoolEXT.svc/updIntegrationTableAsync` ile `ENT006.S06STAT=1`, `IDField=S06SIRA`
 - `acknowledge=false` verilirse Mikro yazilir ama AXATA status guncellenmez; bu sadece kontrollu test/kurtarma icin kullanilmalidir
 
@@ -14836,6 +15338,8 @@ Entegrasyon modulu notlari:
 - `issued-warehouse-order-sync`, `warehouse-inbound-order-sync`, `company-receiving-sync` ve `inventory-count-sync` task'larinda `warehouseNo` gerekir
 - `issued-warehouse-order-sync` icin `warehouseNo` AXATA kaynak/cikis depodur; aday liste, task preview, execute ve dispatch ayni `ssip_cikdepo` evrenine bakar
 - `warehouse-inbound-order-sync` icin `warehouseNo` AXATA hedef/giris depodur; aday liste, task preview, execute ve dispatch ayni `ssip_girdepo` evrenine bakar
+- `company-receiving-sync` ismine ragmen firma mal kabul fisini degil, `SIPARISLER.sip_tip=1` verilen firma/satinalma siparisini AXATA `G01` inbound order olarak gonderir
+- Zamanli/live C01/C02/G01/G02 dispatch task'lari `Special1=1` olan kaynak siparisleri tekrar aday yapmaz; AXATA basarili donerse kaynak siparis satirlari `Special1=1` olarak isaretlenir
 - `firm-master-sync` ve `product-master-sync` depo bagimsiz task'lardir
 - `manual/tasks/{taskCode}/documents/*` endpoint'leri yalnizca evrak bazli task'larda kullanilmalidir
 - `manual/tasks/{taskCode}/documents/dispatch*` endpoint'leri yalnizca AXATA'ya canli gonderim icindir; `Outbox` yerine kullanilir
@@ -14868,7 +15372,7 @@ UI task/aksiyon matrisi:
 | `issued-warehouse-order-sync` | Var | Var | Var | Var | Mikro -> AXATA manuel kurtarma icin ana task |
 | `received-company-order-sync` | Var | Var | Var | Var | Mikro -> AXATA C02 alinan firma siparisi |
 | `warehouse-inbound-order-sync` | Var | Var | Var | Var | Mikro -> AXATA G02 giris siparisi icin ana task |
-| `company-receiving-sync` | Var | Var | Var | Var | Mikro -> AXATA manuel kurtarma icin ana task |
+| `company-receiving-sync` | Var | Var | Var | Var | Mikro -> AXATA G01 verilen firma/satinalma siparisi |
 | `inventory-count-sync` | Var | Var | Var | Var | DryRun/Outbox Mikro sayim payload; Live AXATA DynamicCensus import |
 
 UI manuel aktarim senaryolari:
@@ -14880,7 +15384,7 @@ UI manuel aktarim senaryolari:
 - Mikro'da kesilmis `depolar-arasi-sevk` belgesi var ve bu belgenin AXATA'ya direkt gonderilmesi isteniyorsa:
   - su an hazir endpoint yok
   - UI bu belge tipi icin AXATA'ya manuel dispatch aksiyonu gostermemelidir
-- Mikro'da firma mal kabul belgesi var ve AXATA'ya yeniden gonderilecekse:
+- Mikro'da verilen firma/satinalma siparisi var ve AXATA G01 inbound order olarak yeniden gonderilecekse:
   - `manual/tasks/company-receiving-sync/documents/candidates`
   - `manual/tasks/company-receiving-sync/documents/preview`
   - gerekiyorsa `.../dispatch` veya `.../dispatch-batch`
@@ -15621,7 +16125,53 @@ UI'da kullanim:
 
 - dropdown veya operasyon explorer
 - kategori bazli filtreleme
-- request formunu operasyon tipine gore dinamik cizme
+- `parameters` alanina bakarak request formunu operasyon tipine gore dinamik cizme
+- enum alanlarda `allowedValues` listesini dropdown olarak sunma
+- array alanlarda ayni parametre adiyla coklu satir gonderebilme
+
+Kisaltilmis response ornegi:
+
+```json
+[
+  {
+    "operationName": "GetOutboxInvoiceList",
+    "groupName": "Giden Fatura",
+    "soapAction": "GetOutboxInvoiceList",
+    "requestHint": "Liste sorgusu alanlarini parameter olarak gonderin.",
+    "parameters": [
+      {
+        "name": "PageIndex",
+        "type": "int",
+        "isArray": false,
+        "isRequired": false,
+        "description": "0 tabanli sayfa indexi. Bos veya eksi gelirse 0 kabul edilir.",
+        "allowedValues": []
+      },
+      {
+        "name": "PageSize",
+        "type": "int",
+        "isArray": false,
+        "isRequired": false,
+        "description": "Sayfa boyutu. Bos veya 0 gelirse 50 kabul edilir.",
+        "allowedValues": []
+      },
+      {
+        "name": "StatusInList",
+        "type": "InvoiceStatus[]",
+        "isArray": true,
+        "isRequired": false,
+        "description": "Dahil edilecek durum listesi.",
+        "allowedValues": ["NotPrepared", "NotSend", "Draft", "Canceled", "Queued", "Processing", "SentToGib", "Approved", "WaitingForAprovement", "Declined", "Return", "EArchivedCanceled", "Error"]
+      }
+    ]
+  }
+]
+```
+
+Not:
+
+- `allowedValues` Uyumsoft generated enum isimlerinden gelir; UI bu isimleri request'te aynen gondermelidir.
+- `parameters` listesi WCF operasyon imzasindan otomatik uretilir. Bu yuzden e-fatura ve e-irsaliye generic operasyon ekranlari ayni mantikla form cizebilir.
 
 #### `GET /api/entegrasyon-islemleri/uyumsoft/e-fatura/get/{operationName}`
 
@@ -15632,6 +16182,8 @@ Amac:
 Query:
 
 - `parameter` tekrar eden query parametresidir ve `name=value` formatinda gonderilir
+- direkt query alanlari da desteklenir; ornek `?PageIndex=0&PageSize=50&IsArchived=false`
+- iki format birlikte gelirse hepsi ayni parameter listesine eklenir
 
 Response:
 
@@ -15693,7 +16245,9 @@ Tek endpoint uzerinden farkli operasyonlar `query string` ile de cagrilabilir.
 
 Format:
 
-- her scalar parametre icin ayri `parameter=name=value` query parametresi gonderilir
+- her scalar parametre icin ayri `parameter=name=value` query parametresi gonderilebilir
+- veya parametreler direkt query alanlari olarak gonderilebilir
+- array alanlarda direkt query formatinda ayni key tekrar edilebilir; ornek `?InvoiceIds=uuid1&InvoiceIds=uuid2`
 
 Ornekler:
 
@@ -15701,6 +16255,13 @@ Sistem tarihi formatli alma:
 
 ```http
 GET /api/entegrasyon-islemleri/uyumsoft/e-fatura/get/GetSystemDateWithFormat?parameter=format=yyyy-MM-dd%20HH:mm:ss
+Authorization: Bearer {token}
+```
+
+Direkt query ile gelen fatura listesi:
+
+```http
+GET /api/entegrasyon-islemleri/uyumsoft/e-fatura/get/GetInboxInvoiceList?PageIndex=0&PageSize=50&ExecutionStartDate=2026-08-01T00:00:00&ExecutionEndDate=2026-08-10T23:59:59&OnlyNewestInvoices=true
 Authorization: Bearer {token}
 ```
 
@@ -15730,7 +16291,29 @@ Alan kurallari:
 - `parameters`
   - scalar metod argumanlari ve query model property'leri icin kullanilir
   - ornek: `format`, `invoiceId`, `despatchId`, `isInbox`, `PageIndex`, `PageSize`, `IsArchived`
-  - array alanlarda ayni `name` birden fazla kez gonderilebilir; ornek `despatchId` / `despatchIds`
+  - array alanlarda ayni `name` birden fazla kez gonderilebilir; ornek `InvoiceIds`, `StatusInList`, `DespatchIds`
+  - array alanlar icin tekil ad da kabul edilir; ornek `InvoiceId` -> `InvoiceIds`, `DespatchId` -> `DespatchIds`
+  - tarih alanlari ISO formatta gonderilmelidir; ornek `2026-08-01T00:00:00`
+  - bool alanlar `true` / `false` olarak gonderilmelidir
+  - enum alanlar icin `GET .../operations` cevabindaki `allowedValues` degerleri kullanilmalidir
+
+### E-Fatura Generic Operasyon Parametreleri
+
+UI sabit liste yazmak zorunda degildir; asagidaki liste `GET /operations` cevabindaki `parameters` alanindan okunmalidir. Yine de ana kullanim icin beklenen alanlar sunlardir:
+
+- Tekil fatura operasyonlari: `invoiceId`
+- Zarf operasyonu: `invoiceId`, `isInbox`
+- Sistem tarihi formatli: `format`
+- Kullanici alias sorgusu: `vknTckn`
+- Kullanici listesi: `PageIndex`, `PageSize`
+- Sistem kullanicisi filtreleri: `PageIndex`, `PageSize`, `Filter`, `SystemCreateDateBegin`, `SystemCreateDateEnd`, `FirstCreateDateBegin`, `FirstCreateDateEnd`, `UpdateDateBegin`, `UpdateDateEnd`
+- Gelen fatura detay/veri sorgulari: `PageIndex`, `PageSize`, `ExecutionStartDate`, `ExecutionEndDate`, `InvoiceIds`, `InvoiceNumbers`, `SetTaken`, `OnlyNewestInvoices`
+- Giden fatura detay/veri sorgulari: `PageIndex`, `PageSize`, `ExecutionStartDate`, `ExecutionEndDate`, `InvoiceIds`, `InvoiceNumbers`
+- Gelen fatura liste sorgusu: `PageIndex`, `PageSize`, `ExecutionStartDate`, `ExecutionEndDate`, `CreateStartDate`, `CreateEndDate`, `Status`, `InvoiceIds`, `InvoiceNumbers`, `StatusInList`, `StatusNotInList`, `SortColumn`, `SortMode`, `IsArchived`, `TargetTitle`, `TargetTcknVkn`, `OnlyNewestInvoices`
+- Giden fatura liste sorgusu: `PageIndex`, `PageSize`, `ExecutionStartDate`, `ExecutionEndDate`, `CreateStartDate`, `CreateEndDate`, `Status`, `InvoiceIds`, `InvoiceNumbers`, `StatusInList`, `StatusNotInList`, `SortColumn`, `SortMode`, `IsArchived`, `TargetTitle`, `TargetTcknVkn`, `Scenario`
+- Ozet rapor: `startDate`, `endDate`, `periodFormat`
+
+Durum/siralama/senaryo gibi enum alanlarin gecerli degerleri dokumanda sabit tutulmamalidir; UI `operations[].parameters[].allowedValues` listesini esas almalidir.
 
 Ornekler:
 
@@ -16458,7 +17041,16 @@ public sealed record UyumsoftOperationDefinitionDto(
     string OperationName,
     string GroupName,
     string SoapAction,
-    string RequestHint);
+    string RequestHint,
+    IReadOnlyCollection<UyumsoftOperationParameterDefinitionDto> Parameters);
+
+public sealed record UyumsoftOperationParameterDefinitionDto(
+    string Name,
+    string Type,
+    bool IsArray,
+    bool IsRequired,
+    string? Description,
+    IReadOnlyCollection<string> AllowedValues);
 
 public sealed record UyumsoftOperationResponseDto(
     string ServiceKey,
@@ -16536,7 +17128,9 @@ public sealed record UyumsoftInvoiceListItemDto(
 public sealed record AuthResponse(
     string AccessToken,
     DateTime ExpiresAtUtc,
-    UserDto User);
+    UserDto User,
+    string RefreshToken,
+    DateTime RefreshTokenExpiresAtUtc);
 
 public sealed record UserDto(
     Guid Id,
@@ -18374,6 +18968,168 @@ public sealed record AxataSynchronizationTaskDto(
     bool SupportsLiveDispatch,
     string? LiveOperationName);
 
+public sealed record AxataSynchronizationPanelDto(
+    string Title,
+    string State,
+    string Severity,
+    string Message,
+    bool IsInSync,
+    DateTime GeneratedAtUtc,
+    DateTime StartDate,
+    DateTime EndDate,
+    int? WarehouseNo,
+    IReadOnlyCollection<AxataSynchronizationPanelMetricDto> SummaryCards,
+    IReadOnlyCollection<AxataSynchronizationPanelFlowStepDto> FlowSteps,
+    IReadOnlyCollection<AxataSynchronizationPanelActionDto> Actions,
+    IReadOnlyCollection<AxataSynchronizationPanelDocumentDto> PriorityDocuments,
+    IReadOnlyCollection<AxataSynchronizationPanelEndpointDto> PrimaryEndpoints,
+    IReadOnlyCollection<string> Notes);
+
+public sealed record AxataSynchronizationPanelMetricDto(
+    string Code,
+    string Label,
+    int Value,
+    string Severity,
+    string Description);
+
+public sealed record AxataSynchronizationPanelFlowStepDto(
+    string Code,
+    string Label,
+    string State,
+    string Severity,
+    int CurrentDocumentCount,
+    int ExpectedDocumentCount,
+    int DifferenceDocumentCount,
+    string Description,
+    string? ListRoute);
+
+public sealed record AxataSynchronizationPanelActionDto(
+    string Code,
+    string Label,
+    string State,
+    string Severity,
+    int DocumentCount,
+    int LineCount,
+    double Quantity,
+    bool CanExecute,
+    bool WritesData,
+    string? ListRoute,
+    string? PreviewRoute,
+    string? ExecuteRoute,
+    string Description);
+
+public sealed record AxataSynchronizationPanelDocumentDto(
+    string DocumentSerie,
+    int DocumentOrderNo,
+    string DocumentNo,
+    DateTime DocumentDate,
+    int SourceWarehouseNo,
+    int TargetWarehouseNo,
+    string SynchronizationState,
+    string SynchronizationStateLabel,
+    string Severity,
+    string RecommendedActionCode,
+    string RecommendedActionTitle,
+    bool CanExecute,
+    string? PreviewRoute,
+    string? ExecuteRoute,
+    double MikroOrderQuantity,
+    double MikroDeliveredQuantity,
+    double AxataShipmentQuantity,
+    double MikroLinkedShipmentQuantity,
+    int ExistingMikroShipmentLineCount,
+    double ExistingMikroShipmentQuantity,
+    string? ExistingMikroShipmentDocumentNo,
+    string QuantitySummary,
+    string Reason);
+
+public sealed record AxataSynchronizationPanelEndpointDto(
+    string Code,
+    string Label,
+    string Method,
+    string Route,
+    bool WritesData,
+    string Description);
+
+public sealed record AxataSynchronizationWorkbenchDto(
+    string Title,
+    string Purpose,
+    string State,
+    string Severity,
+    string Message,
+    AxataSynchronizationPanelDto Panel,
+    IReadOnlyCollection<AxataSynchronizationWorkbenchScreenSectionDto> ScreenSections,
+    IReadOnlyCollection<AxataSynchronizationWorkbenchOperationGroupDto> OperationGroups,
+    IReadOnlyCollection<AxataSynchronizationWorkbenchEndpointGroupDto> EndpointGroups,
+    IReadOnlyCollection<AxataSynchronizationWorkbenchGlossaryItemDto> Glossary,
+    IReadOnlyCollection<string> Rules);
+
+public sealed record AxataSynchronizationWorkbenchScreenSectionDto(
+    string Code,
+    string Title,
+    int SortOrder,
+    string DataSource,
+    string Purpose,
+    string UiBehavior);
+
+public sealed record AxataSynchronizationWorkbenchOperationGroupDto(
+    string Code,
+    string Title,
+    string Direction,
+    string Description,
+    IReadOnlyCollection<AxataSynchronizationWorkbenchOperationDto> Operations);
+
+public sealed record AxataSynchronizationWorkbenchOperationDto(
+    string Code,
+    string Title,
+    string ShortTitle,
+    string Direction,
+    string SourceSystem,
+    string TargetSystem,
+    string? MovementType,
+    string Purpose,
+    string NormalFlow,
+    string WhenToUse,
+    string State,
+    string Severity,
+    int DocumentCount,
+    int LineCount,
+    double Quantity,
+    bool CanExecute,
+    bool WritesData,
+    string WriteScope,
+    string PrimaryButtonLabel,
+    string ConfirmationMessage,
+    string? ListRoute,
+    string? PreviewRoute,
+    string? ExecuteRoute,
+    IReadOnlyCollection<string> EndpointCodes);
+
+public sealed record AxataSynchronizationWorkbenchEndpointGroupDto(
+    string Code,
+    string Title,
+    string Description,
+    IReadOnlyCollection<AxataSynchronizationWorkbenchEndpointDto> Endpoints);
+
+public sealed record AxataSynchronizationWorkbenchEndpointDto(
+    string Code,
+    string Title,
+    string Method,
+    string Route,
+    string Level,
+    bool WritesData,
+    string WriteScope,
+    string ButtonLabel,
+    string Description,
+    string? RequestModel,
+    string? ResponseModel);
+
+public sealed record AxataSynchronizationWorkbenchGlossaryItemDto(
+    string Term,
+    string UiLabel,
+    string Meaning,
+    string UserWarning);
+
 public sealed record AxataSynchronizationFetchProfilesOverviewDto(
     DateTime GeneratedAtUtc,
     IReadOnlyCollection<AxataSynchronizationFetchProfileDto> Profiles,
@@ -18837,10 +19593,11 @@ Bu bolumde yalnizca endpointlerin dogrudan baglandigi HTTP request modelleri yer
 
 - `RegisterUserRequest`: `Username`, `Email`, `Password`, `FirstName`, `LastName`, `WarehouseNo`, `WarehouseName`
 - `LoginUserRequest`: `UsernameOrEmail`, `Password`
+- `RefreshTokenBody`: `RefreshToken`
 - `SavePermissionBody`: `Code`, `Name`, `Description`
 - `SaveRoleBody`: `Name`, `Description`, `IsActive`
 - `AssignPermissionsBody`: `PermissionIds`
-- `UpdateUserBody`: `Username`, `Email`, `FirstName`, `LastName`, `WarehouseNo`, `WarehouseName`, `IsActive`
+- `UpdateUserBody`: `Username`, `Email`, `FirstName`, `LastName`, `WarehouseNo`, `WarehouseName`, `IsActive`, `NewPassword`
 - `AssignRolesBody`: `RoleIds`
 
 ### Ortak Request Modelleri
@@ -18886,7 +19643,7 @@ Bu bolumde yalnizca endpointlerin dogrudan baglandigi HTTP request modelleri yer
 - `BarcodeResolutionHttpRequest`: `WarehouseNo`, `OperationType`, `TargetWarehouseNo`, `SupplierCode`, `CompanyCode`, `IsRefund`, `ScreenCode`
 - `BarcodeCustomerLookupHttpRequest`: `Barcode`, `WarehouseNo`, `Take`
 - `BarcodeCustomerLookupByPathHttpRequest`: `WarehouseNo`, `Take`
-- `ProductCustomerSuggestionHttpRequest`: `Take`
+- `ProductCustomerSuggestionHttpRequest`: `WarehouseNo`, `Take`
 
 ### Siparis Request Modelleri
 
@@ -19103,7 +19860,7 @@ Bu bolumde yalnizca endpointlerin dogrudan baglandigi HTTP request modelleri yer
 - `POST /api/integrations/axata-sync/live/axata/inbound-deliveries/g02/documents/{documentSerie}/{documentOrderNo}/import` body'de `status` ve `acknowledge` alir; `acknowledge=false` kontrollu rescue icin onerilir
 - `ExecutionMode` su an yalnizca `DryRun` veya `Outbox` olabilir
 - `dispatch` ve `dispatch-batch` endpoint'leri `ExecutionMode` almaz; bunlar dogrudan canli AXATA WCF gonderimidir
-- `issued-warehouse-order-sync` dispatch payload'i worker parity icin `C01`, `company-receiving-sync` dispatch payload'i `G01` hareket kodu ile gonderilir
+- `issued-warehouse-order-sync` dispatch payload'i worker parity icin `C01`, `company-receiving-sync` dispatch payload'i verilen firma/satinalma siparisinden uretilip `G01` hareket kodu ile gonderilir
   - `warehouse-inbound-order-sync` dispatch payload'i worker parity icin `G02` hareket kodu ile `addInboundOrder*` operasyonuna gider
 - `manual/tasks/{taskCode}/documents/preview` ve `manual/tasks/{taskCode}/documents/execute` request body alanlari task'a gore kullanilir:
   - `issued-warehouse-order-sync`: `DocumentSerie` + `DocumentOrderNo`
@@ -19139,5 +19896,8 @@ Bu bolumde yalnizca endpointlerin dogrudan baglandigi HTTP request modelleri yer
 - Cok sayida detay endpointi ayri request class'i kullanmaz; path parametreleri ve opsiyonel `warehouseNo` query parametresi ile calisir.
 - `GET /api/kasa-islemleri/etiket-belgeleri`, `GET /api/kasa-islemleri/etiket-belgeleri/son`, `GET /api/kasa-islemleri/etiket-belgeleri/tumu` ve `GET /api/kasa-islemleri/etiket-belgeleri/{documentId}` endpointleri ayri request class'i yerine dogrudan action parametreleri kullanir.
 - `LabelPriceChangedProductListHttpRequest.DateTimeFilter` alaninin beklenen formati `dd.MM.yyyy HH:mm:ss` degeridir.
+
+
+
 
 
