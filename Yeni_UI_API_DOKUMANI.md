@@ -4798,6 +4798,8 @@ UI kullanim notlari:
 - alternatif olarak `documentKey` de saklanabilir
 - detay ekraninda ust kart icin `header`, grid icin `items` kullanilmalidir
 - Depo siparis detayi `items[].lineGuid` dondurur; depolar arasi sevki siparise baglamak icin bu guid `warehouseOrderLineGuid` olarak gonderilebilir
+- Depolar arasi siparise bagli parcali sevk akisi icin UI, sevk satiri hazirlarken `items[].quantity` yerine `items[].remainingQuantity` alanini esas almalidir. `remainingQuantity <= 0` veya `isClosed = true` olan satirlar sevk satiri secimine tekrar getirilmemeli, sadece gecmis/bilgi olarak gosterilmelidir.
+- Depo siparis detayi parcali sevk sonrasinda satir bazinda `deliveredQuantity`, `remainingQuantity` ve `isClosed` alanlarini guncel doner. UI kalan sevk ekranini acmadan once detayi yeniden okumali; kullaniciya varsayilan sevk miktari olarak kalan miktari onermelidir.
 - `items[].greenGrocerCase` doluysa satir manav kasa/koli cozumleme snapshot'i ile olusmustur. UI manav depo gelen siparisinde bu satiri "3 kasa ~= 11.25 KG, ort 3.75 KG/kasa" gibi gostermelidir.
 - `OrderLinkingEnabled=false` ise UI bu `lineGuid` bilgisini manav sevke tasimaz; satir sadece bilgilendirme/rapor icin kullanilir.
 - `OrderLinkingEnabled=true` ise UI manav sevkte ayni satirin `lineGuid` degerini `warehouseOrderLineGuid` olarak gonderir ve gercek sevk miktarini okutulan KG/ADET olarak yollar.
@@ -4910,6 +4912,8 @@ Onemli not:
 - Satirda `warehouseOrderLineGuid` verilirse depo siparis satirina baglanir. `MikroWriteRouting:InterWarehouseShipment=Database` modunda backend `STOK_HAREKETLERI_EK.sth_subesip_uid` linkini DB'de kurar; `MikroApi` modunda ayni GUID `DahiliStokHareketKaydetV2` satirina `sth_subesip_uid` olarak gonderilir ve link/teslim etkisi Mikro tarafina birakilir.
 - `warehouseOrderLineGuid` verilmezse satir normalde siparissiz sevk olarak olusur; otomatik depo siparisi kurali devredeyse backend once Mikro API ile depo siparisi olusturup satiri bu yeni siparis GUID'ine baglar.
 - Siparise bagli satirda stok kodu, kaynak depo, hedef depo ve kalan miktar kontrol edilir.
+- Siparise bagli parcali sevkte UI satir miktarini `remainingQuantity` degerinden buyuk onermemeli ve gondermemelidir. Backend kalan miktari asan sevki reddeder; UI bunu kullanici hatasi gibi gosterip satir miktarini guncel kalan miktara cekmelidir.
+- Siparise bagli sevk olusturulduktan sonra UI ilgili siparis detayini tekrar cagirip `deliveredQuantity`, `remainingQuantity` ve `isClosed` alanlarini yenilemelidir. Tum satirlarin `remainingQuantity <= 0` veya `isClosed = true` oldugu durumda siparis tekrar sevk secim listesine konmamalidir.
 - Manav istisnasi: `sourceWarehouseNo = 56` ve stok model kodu `10`, `11`, `12` veya `23` ise `GreenGrocerProductCases:OrderLinkingEnabled=false` durumunda satirdaki `warehouseOrderLineGuid` yok sayilir, otomatik depo siparisi/linki uretilmez ve kalan siparis miktari kontrolu uygulanmaz. `OrderLinkingEnabled=true` ise UI'nin gonderdigi gercek siparis satiri GUID'i korunur, sevk siparise baglanir ve kalan/teslim miktari kontrolleri calisir. Bu satirlarda `quantity` gercek okutulan KG/ADET sevk miktaridir.
 - Plaka, sofor adi ve TCKN bu create request'inde gonderilmez. E-irsaliye gonderiminde manuel akista bu alanlar zorunludur; kayitli sofor secilirse `driverId` yeterlidir.
 
@@ -5947,6 +5951,7 @@ Onemli not:
 - ETTN/UUID ile cozumlenen resmi belge varsa UI kaydetmede `officialDocumentKind`, `officialDocumentNo`, `officialDocumentDate` ve `officialDocumentEttn` alanlarini da gondermelidir. Backend bu bilgileri Mikro hareket satirina yazmaz; `document_flows.external_document_no` ve `document_flows.external_uuid` alanlarina iz olarak kaydeder.
 - UI lookup response'unu direkt tasimak isterse `sourceDocumentKind`, `sourceDocumentNumber`, `sourceDocumentDate`, `despatchNumber`, `issueDate`, `invoiceNumber`, `invoiceDate` ve `ettn` alias alanlari da kabul edilir. `officialDocument*` alanlari doluysa onlar onceliklidir.
 - `documentNo` Mikro `STOK_HAREKETLERI.sth_belge_no` alanina basilan tedarikci belge numarasidir. ETTN/UUID bu alana basilmaz; resmi belgeyi bulmak icin Belge Akis Takibi'nde `externalUuid` olarak aranir.
+- UYARI: `documentNo` veya `description = "E-Irsaliye: ..."` gondermek resmi belge izini Belge Akis Takibi'ne yazdirmaz. `document_flows.external_document_no` icin mutlaka `officialDocumentNo` veya alias'i, `document_flows.external_uuid` icin mutlaka `officialDocumentEttn` veya `ettn` gonderilmelidir.
 - Ornek tam `documentNo` degerleri: `ST12026000002395`, `C682026000003472`, `FRM2026600059281`, `OY32026000000162`
 - Tam formatta `documentNo` gelirse `documentSerie` son 9 hane atilarak, `documentOrderNo` son 9 hane sayi olarak okunarak uretilir.
 - `documentNo` bos gelirse backend cari unvanindan seri uretir ve ayni depo/seri icin siradaki `documentOrderNo` degerini verir.
@@ -6130,6 +6135,7 @@ Firma mal kabul UI akisi:
 - Bu response'tan `primaryCustomerSuggestion` varsa cari alani icin varsayilan onerilir; `despatchNumber` ve `issueDate` alanlari `documentNo` ve `documentDate` icin on dolum adayi olarak kullanilabilir.
 - Kaydetmede resmi belge izinin Belge Akis Takibi'ne dusmesi icin UI lookup response'undan `sourceDocumentKind`, `sourceDocumentNumber`, `issueDate` veya `invoiceDate` ve `ettn` alanlarini create body'deki `officialDocumentKind`, `officialDocumentNo`, `officialDocumentDate`, `officialDocumentEttn` alanlarina tasimalidir.
 - Backend ayrica `sourceDocumentKind`, `sourceDocumentNumber`, `sourceDocumentDate`, `despatchNumber`, `issueDate`, `invoiceNumber`, `invoiceDate` ve `ettn` alias alanlarini da kabul eder; fakat sade UI modeli icin `officialDocument*` alanlari onerilir.
+- UI sadece `documentNo = ST42026000001970` ve `description = "E-Irsaliye: ST42026000001970"` gonderirse Mikro mal kabul evragi dogru olusur, fakat Belge Akis Takibi'nde `externalDocumentNo` ve `externalUuid` bos kalir. QR/ETTN ile cozumlenmis belgede lookup sonucu mutlaka `officialDocument*` alanlarina tasinmalidir.
 - Kayit sonrasi `documentNo` Mikro `sth_belge_no` alaninda, resmi belge no/ETTN ise Belge Akis Takibi listesinde `externalDocumentNo` ve `externalUuid` alanlarinda aranabilir olur.
 - `lines[].isMatched = true` olan satirlar tek tikla create satirina aktarilabilir; `isMatched = false` olanlar ayrica "manuel eslestir" listesine dusurulebilir.
 - `DocumentNo` artik zorunlu degildir. E-belge/e-irsaliye no varsa UI tam `seri + 9 haneli sayisal sira` formatinda gonderebilir; yoksa bos gonderebilir.

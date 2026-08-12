@@ -25,10 +25,10 @@ class HomeDashboard extends StatelessWidget {
 
     return ListView(
       padding: EdgeInsets.fromLTRB(
-        12,
-        12,
-        12,
-        16 + MediaQuery.paddingOf(context).bottom,
+        8,
+        8,
+        8,
+        12 + MediaQuery.paddingOf(context).bottom,
       ),
       children: <Widget>[
         _UserSummary(
@@ -36,19 +36,19 @@ class HomeDashboard extends StatelessWidget {
           offlineQueueCount: offlineQueueCount,
           offlineFailedCount: offlineFailedCount,
         ),
-        const SizedBox(height: 10),
+        const SizedBox(height: 8),
         SectionCard(
           title: 'Tum Menuler',
           subtitle: menus.isEmpty
               ? 'Kullaniciya atanmis menu bulunamadi.'
-              : '${menus.length} ekran kullanima hazir.',
+              : '${menus.length} ekran kullanima hazir',
           child: menus.isEmpty
               ? const _DashboardEmptyState()
               : Column(
                   children: <Widget>[
                     for (var index = 0; index < menuGroups.length; index += 1)
                       Padding(
-                        padding: EdgeInsets.only(top: index == 0 ? 0 : 10),
+                        padding: EdgeInsets.only(top: index == 0 ? 0 : 8),
                         child: _MenuModuleGroup(
                           group: menuGroups[index],
                           onSelectMenu: onSelectMenu,
@@ -100,107 +100,133 @@ class _UserSummary extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.primary,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          Row(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isCompact = constraints.maxWidth < 380;
+
+        return Container(
+          padding: EdgeInsets.all(isCompact ? 8 : 10),
+          decoration: BoxDecoration(
+            color: theme.colorScheme.primary,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
-              Container(
-                width: 36,
-                height: 36,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: Colors.white.withAlpha(24),
-                  borderRadius: BorderRadius.circular(9),
-                ),
-                child: const Icon(
-                  Icons.person_outline_rounded,
-                  color: Colors.white,
-                  size: 21,
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    Text(
-                      user.fullName,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    const SizedBox(height: 1),
-                    Text(
-                      'Depo ${user.warehouseNo} - ${user.warehouseName}',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: Colors.white.withAlpha(210),
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 9),
-          Text(
-            'Islem yapmak icin asagidaki menu listesinden bir ekran secin.',
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: Colors.white.withAlpha(205),
-              height: 1.3,
-            ),
-          ),
-          if (offlineQueueCount > 0) ...<Widget>[
-            const SizedBox(height: 10),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-              decoration: BoxDecoration(
-                color: Colors.white.withAlpha(26),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.white.withAlpha(38)),
-              ),
-              child: Row(
+              Row(
                 children: <Widget>[
-                  Icon(
-                    offlineFailedCount > 0
-                        ? Icons.error_outline_rounded
-                        : Icons.cloud_upload_outlined,
-                    color: Colors.white,
-                    size: 19,
+                  Container(
+                    width: 32,
+                    height: 32,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withAlpha(26),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(
+                      Icons.person_outline_rounded,
+                      color: Colors.white,
+                      size: 19,
+                    ),
                   ),
                   const SizedBox(width: 8),
                   Expanded(
-                    child: Text(
-                      offlineFailedCount > 0
-                          ? '$offlineQueueCount offline kayit var, $offlineFailedCount hata bekliyor.'
-                          : '$offlineQueueCount offline kayit senkron bekliyor.',
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w800,
-                        height: 1.25,
-                      ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        Text(
+                          user.fullName,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.titleSmall?.copyWith(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                        const SizedBox(height: 1),
+                        Text(
+                          'Depo ${user.warehouseNo} - ${user.warehouseName}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.labelMedium?.copyWith(
+                            color: Colors.white.withAlpha(215),
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ],
               ),
+              const SizedBox(height: 6),
+              Text(
+                'Islem yapmak icin asagidaki menu listesinden bir ekran secin.',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: Colors.white.withAlpha(205),
+                  height: 1.2,
+                ),
+              ),
+              if (offlineQueueCount > 0) ...<Widget>[
+                const SizedBox(height: 7),
+                _OfflineStatusPill(
+                  offlineQueueCount: offlineQueueCount,
+                  offlineFailedCount: offlineFailedCount,
+                ),
+              ],
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _OfflineStatusPill extends StatelessWidget {
+  const _OfflineStatusPill({
+    required this.offlineQueueCount,
+    required this.offlineFailedCount,
+  });
+
+  final int offlineQueueCount;
+  final int offlineFailedCount;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final hasError = offlineFailedCount > 0;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.white.withAlpha(24),
+        borderRadius: BorderRadius.circular(7),
+        border: Border.all(color: Colors.white.withAlpha(36)),
+      ),
+      child: Row(
+        children: <Widget>[
+          Icon(
+            hasError
+                ? Icons.error_outline_rounded
+                : Icons.cloud_upload_outlined,
+            color: Colors.white,
+            size: 17,
+          ),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              hasError
+                  ? '$offlineQueueCount offline kayit, $offlineFailedCount hata'
+                  : '$offlineQueueCount offline kayit senkron bekliyor',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: Colors.white,
+                fontWeight: FontWeight.w900,
+              ),
             ),
-          ],
+          ),
         ],
       ),
     );
@@ -228,39 +254,59 @@ class _MenuModuleGroup extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final iconColor = _moduleColor(group.moduleCode);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
-        Padding(
-          padding: const EdgeInsets.fromLTRB(2, 0, 2, 6),
+        Container(
+          padding: const EdgeInsets.fromLTRB(6, 4, 6, 5),
+          decoration: BoxDecoration(
+            color: iconColor.withAlpha(13),
+            borderRadius: BorderRadius.circular(7),
+          ),
           child: Row(
             children: <Widget>[
+              Icon(
+                _moduleIcon(group.moduleCode, group.moduleName),
+                size: 16,
+                color: iconColor,
+              ),
+              const SizedBox(width: 6),
               Expanded(
                 child: Text(
                   group.moduleName,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: theme.textTheme.labelLarge?.copyWith(
-                    color: const Color(0xFF5C6B80),
+                    color: theme.colorScheme.onSurface.withAlpha(200),
                     fontWeight: FontWeight.w900,
                   ),
                 ),
               ),
-              Text(
-                '${group.menus.length}',
-                style: theme.textTheme.labelMedium?.copyWith(
-                  color: theme.colorScheme.primary,
-                  fontWeight: FontWeight.w800,
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: iconColor.withAlpha(25),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text(
+                  '${group.menus.length}',
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: iconColor,
+                    fontWeight: FontWeight.w900,
+                  ),
                 ),
               ),
             ],
           ),
         ),
+        const SizedBox(height: 5),
         for (var index = 0; index < group.menus.length; index += 1)
           Padding(
-            padding: EdgeInsets.only(top: index == 0 ? 0 : 6),
+            padding: EdgeInsets.only(top: index == 0 ? 0 : 4),
             child: _PdaMenuTile(
+              moduleColor: iconColor,
               menu: group.menus[index],
               onTap: () => onSelectMenu(group.menus[index]),
             ),
@@ -271,8 +317,13 @@ class _MenuModuleGroup extends StatelessWidget {
 }
 
 class _PdaMenuTile extends StatelessWidget {
-  const _PdaMenuTile({required this.menu, required this.onTap});
+  const _PdaMenuTile({
+    required this.moduleColor,
+    required this.menu,
+    required this.onTap,
+  });
 
+  final Color moduleColor;
   final MenuEntry menu;
   final VoidCallback onTap;
 
@@ -281,11 +332,11 @@ class _PdaMenuTile extends StatelessWidget {
     final theme = Theme.of(context);
 
     return SizedBox(
-      height: 58,
+      height: 48,
       child: Material(
         color: theme.colorScheme.surfaceContainerHighest.withAlpha(55),
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(9),
+          borderRadius: BorderRadius.circular(7),
           side: BorderSide(
             color: theme.colorScheme.outlineVariant.withAlpha(85),
           ),
@@ -294,24 +345,20 @@ class _PdaMenuTile extends StatelessWidget {
         child: InkWell(
           onTap: onTap,
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
             child: Row(
               children: <Widget>[
                 Container(
-                  width: 34,
-                  height: 34,
+                  width: 31,
+                  height: 31,
                   alignment: Alignment.center,
                   decoration: BoxDecoration(
-                    color: theme.colorScheme.primary.withAlpha(18),
-                    borderRadius: BorderRadius.circular(8),
+                    color: moduleColor.withAlpha(18),
+                    borderRadius: BorderRadius.circular(7),
                   ),
-                  child: Icon(
-                    Icons.apps_rounded,
-                    size: 19,
-                    color: theme.colorScheme.primary,
-                  ),
+                  child: Icon(_menuIcon(menu), size: 18, color: moduleColor),
                 ),
-                const SizedBox(width: 10),
+                const SizedBox(width: 8),
                 Expanded(
                   child: Text(
                     menu.displayMenuName,
@@ -322,10 +369,10 @@ class _PdaMenuTile extends StatelessWidget {
                     ),
                   ),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: 5),
                 Icon(
                   Icons.chevron_right_rounded,
-                  size: 24,
+                  size: 22,
                   color: theme.colorScheme.onSurface.withAlpha(120),
                 ),
               ],
@@ -335,6 +382,124 @@ class _PdaMenuTile extends StatelessWidget {
       ),
     );
   }
+}
+
+IconData _moduleIcon(String moduleCode, String moduleName) {
+  final key = _normalizedMenuKey('$moduleCode $moduleName');
+
+  if (key.contains('siparis')) {
+    return Icons.assignment_outlined;
+  }
+  if (key.contains('sevk')) {
+    return Icons.local_shipping_outlined;
+  }
+  if (key.contains('mal kabul')) {
+    return Icons.inventory_2_outlined;
+  }
+  if (key.contains('stok')) {
+    return Icons.warehouse_outlined;
+  }
+  if (key.contains('iade')) {
+    return Icons.assignment_return_outlined;
+  }
+  if (key.contains('legacy') || key.contains('arac')) {
+    return Icons.qr_code_scanner_rounded;
+  }
+  return Icons.dashboard_customize_outlined;
+}
+
+IconData _menuIcon(MenuEntry menu) {
+  final key = _normalizedMenuKey(
+    '${menu.moduleCode} ${menu.menuCode} ${menu.menuName}',
+  );
+
+  if (key.contains('fiyat')) {
+    return Icons.price_check_rounded;
+  }
+  if (key.contains('cari')) {
+    return Icons.person_search_rounded;
+  }
+  if (key.contains('barkod') || key.contains('barcode')) {
+    return Icons.qr_code_scanner_rounded;
+  }
+  if (key.contains('etiket') || key.contains('label')) {
+    return Icons.local_offer_outlined;
+  }
+  if (key.contains('sayim')) {
+    return Icons.fact_check_outlined;
+  }
+  if (key.contains('zayiat')) {
+    return Icons.delete_sweep_outlined;
+  }
+  if (key.contains('masraf')) {
+    return Icons.receipt_long_outlined;
+  }
+  if (key.contains('virman')) {
+    return Icons.swap_horiz_rounded;
+  }
+  if (key.contains('iade')) {
+    return Icons.keyboard_return_rounded;
+  }
+  if (key.contains('gelen')) {
+    return Icons.call_received_rounded;
+  }
+  if (key.contains('giden')) {
+    return Icons.call_made_rounded;
+  }
+  if (key.contains('sevk')) {
+    return Icons.local_shipping_outlined;
+  }
+  if (key.contains('mal kabul')) {
+    return Icons.inventory_2_outlined;
+  }
+  if (key.contains('fark')) {
+    return Icons.difference_outlined;
+  }
+  if (key.contains('onerilen')) {
+    return Icons.recommend_outlined;
+  }
+  if (key.contains('siparis')) {
+    return Icons.assignment_outlined;
+  }
+  if (key.contains('firma')) {
+    return Icons.business_outlined;
+  }
+  if (key.contains('depo')) {
+    return Icons.warehouse_outlined;
+  }
+  return Icons.apps_rounded;
+}
+
+Color _moduleColor(String moduleCode) {
+  final key = _normalizedMenuKey(moduleCode);
+
+  if (key.contains('siparis')) {
+    return const Color(0xFF2E6F95);
+  }
+  if (key.contains('sevk')) {
+    return const Color(0xFF2F7D57);
+  }
+  if (key.contains('mal kabul')) {
+    return const Color(0xFF8A5A22);
+  }
+  if (key.contains('stok')) {
+    return const Color(0xFF6C5A9E);
+  }
+  if (key.contains('iade')) {
+    return const Color(0xFF9A4D4A);
+  }
+  return const Color(0xFF58667A);
+}
+
+String _normalizedMenuKey(String value) {
+  return value
+      .replaceAll('-', ' ')
+      .replaceAll('_', ' ')
+      .replaceAllMapped(
+        RegExp(r'(?<=[a-z])([A-Z])'),
+        (match) => ' ${match.group(0)}',
+      )
+      .toLowerCase();
 }
 
 class _DashboardEmptyState extends StatelessWidget {
