@@ -719,6 +719,12 @@ class _CompanyLookupToolPageState extends State<CompanyLookupToolPage> {
                                       : item.taxNumber,
                                 ),
                                 TerminalPdaInfo(
+                                  label: 'Musteri',
+                                  value: item.customerName.isEmpty
+                                      ? '-'
+                                      : item.customerName,
+                                ),
+                                TerminalPdaInfo(
                                   label: 'Temsilci',
                                   value: item.representativeName.isEmpty
                                       ? '-'
