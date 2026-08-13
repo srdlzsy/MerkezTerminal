@@ -575,7 +575,19 @@ class _AcceptanceReadyBodyState extends State<_AcceptanceReadyBody> {
     return _drafts.any((draft) => draft.differenceType != 'none');
   }
 
+  bool get _hasRequiredEDespatch {
+    return widget.detail.header.hasRequiredEDespatchForAcceptance;
+  }
+
   Future<void> _submit() async {
+    if (!_hasRequiredEDespatch) {
+      setState(() {
+        _validationMessage =
+            'Gonderen taraf e-irsaliyesi olusmadan depo mal kabul yapilamaz.';
+      });
+      return;
+    }
+
     if (_drafts.isEmpty) {
       setState(() {
         _validationMessage = 'Kabul edilecek satir bulunamadi.';
@@ -620,6 +632,7 @@ class _AcceptanceReadyBodyState extends State<_AcceptanceReadyBody> {
   @override
   Widget build(BuildContext context) {
     final submitError = widget.submitError;
+    final hasRequiredEDespatch = _hasRequiredEDespatch;
 
     return TerminalPdaDetailPanel(
       child: Column(
@@ -759,6 +772,13 @@ class _AcceptanceReadyBodyState extends State<_AcceptanceReadyBody> {
               ),
             ),
           ],
+          if (!hasRequiredEDespatch) ...<Widget>[
+            const SizedBox(height: 10),
+            const _InfoBlock(
+              message:
+                  'Kabul icin gonderen taraf e-irsaliyesi zorunlu. Sevk/iade e-irsaliye olarak gonderildikten sonra mal kabul yapilabilir.',
+            ),
+          ],
           if (!widget.canSubmit) ...<Widget>[
             const SizedBox(height: 10),
             const _InfoBlock(
@@ -778,7 +798,10 @@ class _AcceptanceReadyBodyState extends State<_AcceptanceReadyBody> {
           Align(
             alignment: Alignment.centerRight,
             child: FilledButton.icon(
-              onPressed: widget.canSubmit && !widget.isSubmitting
+              onPressed:
+                  widget.canSubmit &&
+                      hasRequiredEDespatch &&
+                      !widget.isSubmitting
                   ? _submit
                   : null,
               icon: widget.isSubmitting

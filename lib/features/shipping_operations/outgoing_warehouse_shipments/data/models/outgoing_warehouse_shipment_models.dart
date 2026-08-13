@@ -71,6 +71,10 @@ class WarehouseShipmentListItem {
   String get documentNoLabel => '$documentSerie.$documentOrderNo';
   bool get hasDocumentNo => documentNo.trim().isNotEmpty;
   bool get canConvertToEDespatch => !hasDocumentNo;
+  bool get hasRequiredEDespatchForAcceptance => _hasOfficialEDespatchTrace(
+    documentNo: documentNo,
+    descriptionEttn: descriptionEttn,
+  );
 
   factory WarehouseShipmentListItem.fromJson(JsonMap json) {
     return WarehouseShipmentListItem(
@@ -170,6 +174,10 @@ class WarehouseShipmentDetailHeader {
   String get documentNoLabel => '$documentSerie.$documentOrderNo';
   bool get hasDocumentNo => documentNo.trim().isNotEmpty;
   bool get canConvertToEDespatch => !hasDocumentNo;
+  bool get hasRequiredEDespatchForAcceptance => _hasOfficialEDespatchTrace(
+    documentNo: documentNo,
+    descriptionEttn: descriptionEttn,
+  );
 
   factory WarehouseShipmentDetailHeader.fromJson(JsonMap json) {
     return WarehouseShipmentDetailHeader(
@@ -436,6 +444,19 @@ bool _readBool(Object? value) {
 
   final normalized = value?.toString().trim().toLowerCase();
   return normalized == 'true' || normalized == '1';
+}
+
+bool _hasOfficialEDespatchTrace({
+  required String documentNo,
+  required String descriptionEttn,
+}) {
+  final normalizedDocumentNo = documentNo.trim().toUpperCase();
+  final normalizedEttn = descriptionEttn.trim();
+
+  return normalizedDocumentNo.startsWith('FRM') &&
+      RegExp(
+        r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$',
+      ).hasMatch(normalizedEttn);
 }
 
 String _readString(Object? value) {

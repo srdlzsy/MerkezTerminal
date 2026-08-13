@@ -15,7 +15,10 @@ Bu dokuman, mevcut backend durumuna gore frontend/UI tasarimi ve entegrasyonu ic
 - `Admin`/`Administrator` rolu backend tarafinda tam yetkili kabul edilir. UI tarafinda yine role name'e gore ekran acilmamalidir; menu, route, buton ve depo secici kararlari `login.user.permissions` veya `GET /api/auth/me` cevabindaki `permissions` listesine gore verilmelidir.
 - UI depo secici/filtresi gosterecegi zaman role bakmamalidir. Secili ekrandaki permission setinde ilgili `*.all-warehouses` kodu varsa depo secici acilir; yoksa depo alani gizlenir veya kilitlenir.
 - Liste/rapor endpointlerinde `*.all-warehouses` yetkisi olan kullanici `WarehouseNo`/`warehouseNo` alanini bos veya `null` gonderirse endpoint destekliyorsa tum depolar doner; belirli depo icin depo no gonderilir. Tek depo gerektiren create/update/detail islemlerinde `null` tum depo anlamina gelmez; backend token deposunu varsayar veya ilgili islem icin secili depo bekler.
-- Tum depolari listeleyen kullanici detay ekranina gecis icin UI, secilen satirdaki depo bilgisini kullanmalidir. Detay endpointine `warehouseNo=null` gonderilmemelidir; satirda gelen `warehouseNo`, `sourceWarehouseNo`, `targetWarehouseNo`, `branchNo` veya ilgili islem deposu query/body alanina yazilmalidir.
+- Tum depolari listeleyen kullanici detay ekranina gecis icin UI, secilen satirdaki depo bilgisini kullanmalidir. Detay endpointine mumkunse satirda gelen `warehouseNo`, `sourceWarehouseNo`, `targetWarehouseNo`, `branchNo` veya ilgili islem deposu query/body alanina yazilmalidir.
+- Kasa Sayimlari ozelinde UI `warehouseNo` bos gonderirse backend sadece kullanicida ilgili `kasa-islemleri.kasa-sayimlari.all-warehouses` yetkisi varsa `documentSerie` icinden subeyi cozer; ornek `F116.54` -> `116`. Bu yetki yoksa eski davranis korunur ve oturumdaki kullanici deposu kullanilir.
+- Kasa Sayimlari ozelinde kullanicida ilgili `kasa-islemleri.kasa-sayimlari.all-warehouses` yetkisi varsa ve `documentSerie` sube bilgisi iceriyorsa backend hedef subeyi seriden alir; ornek `F116.57?warehouseNo=1` isteginde hedef belge subesi `116` kabul edilir. Bu senaryoda `warehouseNo` UI/oturum deposu gibi gelse bile hedef belge subesi olarak yorumlanmaz.
+- Icmal Kaydi Girisi create ozelinde `kasa-islemleri.icmal-kaydi-girisi.all-warehouses` yetkisi olan kullanici hedef subeyi secmeli ve body'de `warehouseNo` gondermelidir; bos gonderirse API `400 Bad Request` doner.
 - Ilgili `*.all-warehouses` yetkisi olmayan kullanici farkli `WarehouseNo`, `BranchNo` veya islem deposu gonderirse API `403 Forbidden` doner.
 - Tarih aralikli liste endpointlerinde `StartDate` ve `EndDate` zorunludur; depo yetkisi yoksa `WarehouseNo` verilmez ve backend JWT icindeki depoyu kullanir.
 - Development CORS originleri su an `http://localhost:5176`, `http://localhost:5173` ve `http://localhost:4200` icin aciktir.
@@ -135,8 +138,8 @@ Bu tablo UI icin ana permission referansidir. Kaynak kod tarafi `PermissionCatal
 | `entegrasyon-islemleri` | `uyumsoft-e-irsaliye` | `entegrasyon-islemleri.uyumsoft-e-irsaliye.page` | `entegrasyon-islemleri.uyumsoft-e-irsaliye.list`<br>`entegrasyon-islemleri.uyumsoft-e-irsaliye.detail`<br>`entegrasyon-islemleri.uyumsoft-e-irsaliye.create`<br>`entegrasyon-islemleri.uyumsoft-e-irsaliye.update` | `entegrasyon-islemleri.uyumsoft-e-irsaliye.all-warehouses` |
 | `fatura-islemleri` | `fatura-goruntuleme` | `fatura-islemleri.fatura-goruntuleme.page` | `fatura-islemleri.fatura-goruntuleme.list`<br>`fatura-islemleri.fatura-goruntuleme.detail`<br>`fatura-islemleri.fatura-goruntuleme.update` | `fatura-islemleri.fatura-goruntuleme.all-warehouses` |
 | `fatura-islemleri` | `fatura-gonderimi` | `fatura-islemleri.fatura-gonderimi.page` | `fatura-islemleri.fatura-gonderimi.list`<br>`fatura-islemleri.fatura-gonderimi.detail`<br>`fatura-islemleri.fatura-gonderimi.create` | `fatura-islemleri.fatura-gonderimi.all-warehouses` |
-| `kasa-islemleri` | `kasa-sayimlari` | `kasa-islemleri.kasa-sayimlari.page` | `kasa-islemleri.kasa-sayimlari.list`<br>`kasa-islemleri.kasa-sayimlari.detail` | `kasa-islemleri.kasa-sayimlari.all-warehouses` |
-| `kasa-islemleri` | `icmal-kaydi-girisi` | `kasa-islemleri.icmal-kaydi-girisi.page` | `kasa-islemleri.icmal-kaydi-girisi.list`<br>`kasa-islemleri.icmal-kaydi-girisi.create`<br>`kasa-islemleri.icmal-kaydi-girisi.update`<br>`kasa-islemleri.icmal-kaydi-girisi.delete` | `kasa-islemleri.icmal-kaydi-girisi.all-warehouses` |
+| `kasa-islemleri` | `kasa-sayimlari` | `kasa-islemleri.kasa-sayimlari.page` | `kasa-islemleri.kasa-sayimlari.list`<br>`kasa-islemleri.kasa-sayimlari.detail`<br>`kasa-islemleri.kasa-sayimlari.update`<br>`kasa-islemleri.kasa-sayimlari.delete` | `kasa-islemleri.kasa-sayimlari.all-warehouses` |
+| `kasa-islemleri` | `icmal-kaydi-girisi` | `kasa-islemleri.icmal-kaydi-girisi.page` | `kasa-islemleri.icmal-kaydi-girisi.list`<br>`kasa-islemleri.icmal-kaydi-girisi.create` | `kasa-islemleri.icmal-kaydi-girisi.all-warehouses` |
 | `kasa-islemleri` | `kasa-cirolari` | `kasa-islemleri.kasa-cirolari.page` | `kasa-islemleri.kasa-cirolari.list`<br>`kasa-islemleri.kasa-cirolari.detail` | `kasa-islemleri.kasa-cirolari.all-warehouses` |
 | `kasa-islemleri` | `yeni-kasa-analizleri` | `kasa-islemleri.yeni-kasa-analizleri.page` | `kasa-islemleri.yeni-kasa-analizleri.list` | `kasa-islemleri.yeni-kasa-analizleri.all-warehouses` |
 | `kasa-islemleri` | `kasa-ciro-aktarimi` | `kasa-islemleri.kasa-ciro-aktarimi.page` | `kasa-islemleri.kasa-ciro-aktarimi.list`<br>`kasa-islemleri.kasa-ciro-aktarimi.detail`<br>`kasa-islemleri.kasa-ciro-aktarimi.create` | `kasa-islemleri.kasa-ciro-aktarimi.all-warehouses` |
@@ -4998,6 +5001,72 @@ Yetki:
 
 - `sevk-islemleri.giden-depolar-arasi-sevkler.detail`
 
+### Depolar Arasi Giden Sevk Guncelle
+
+E-irsaliyesi henuz olusturulup gonderilmemis giden depolar arasi sevk evragini detay ekranindan gunceller.
+
+`PUT /api/sevk-islemleri/depolar-arasi-sevkler/giden/F110/3694?warehouseNo=110`
+
+Geriye uyum icin root route da ayni update gibi calisir:
+
+`PUT /api/sevk-islemleri/depolar-arasi-sevkler/F110/3694?warehouseNo=110`
+
+Yetki:
+
+- `sevk-islemleri.giden-depolar-arasi-sevkler.update`
+
+Onemli not:
+
+- Bu endpoint sadece giden/kaynak depo tarafinda calisir; gelen depo mal kabul detayindan sevk evragi degistirilmez.
+- `*.all-warehouses` yoksa `warehouseNo` sorulmaz; backend JWT icindeki kullanici deposunu kaynak depo kabul eder. Bu yetki varsa baska kaynak depo icin `warehouseNo` query parametresi gonderilebilir.
+- Evrak e-irsaliye olarak gonderildiyse update reddedilir. Backend `sth_kilitli`, `sth_belge_no = FRM...` ve `sth_aciklama = UUID` izlerini kontrol eder.
+- Evrak alici depo tarafindan kabul edildiyse (`sth_nakliyedurumu = 1`) update reddedilir.
+- Satir eslestirmesi zorunlu olarak `movementGuid` ile yapilir; stok kodu tek basina kullanilmaz.
+- Bu endpoint mevcut satirlari gunceller; yeni satir ekleme veya satir silme yapmaz.
+- `quantity` alani `sth_miktar` degerini degistirir. `unitPrice` gonderilip `amount` bos birakilirsa backend `sth_tutar = quantity * unitPrice` hesaplar. `amount` gonderilirse tutar aynen kullanilir.
+- Siparise bagli sevkte miktar degisirse backend bagli depo siparis satirinin `ssip_teslim_miktar` alanini delta kadar gunceller; siparis miktarini asan update reddedilir.
+
+Request:
+
+```json
+{
+  "movementDate": "2026-04-17",
+  "documentDate": "2026-04-17",
+  "targetWarehouseNo": 50,
+  "transitWarehouseNo": 60,
+  "description": "Sevk duzeltildi",
+  "lines": [
+    {
+      "movementGuid": "8d4a5a77-1b3f-4f2a-93a1-b90a1b7d3c11",
+      "quantity": 8,
+      "unitPrice": 12.5,
+      "unitPointer": 1,
+      "description": "Miktar duzeltildi"
+    }
+  ]
+}
+```
+
+Response:
+
+```json
+{
+  "documentSerie": "F110",
+  "documentOrderNo": 3694,
+  "sourceWarehouseNo": 110,
+  "targetWarehouseNo": 50,
+  "transitWarehouseNo": 60,
+  "isReturn": false,
+  "updatedLineCount": 1,
+  "lineCount": 1,
+  "totalQuantity": 8,
+  "totalAmount": 100,
+  "updatedAt": "2026-08-13T14:30:00",
+  "updateUser": 110,
+  "writeConnectionName": "testMikroConnection"
+}
+```
+
 ### Depolar Arasi Giden Sevki E-Irsaliyeye Cevir
 
 Detay ekranindaki mevcut evragi e-irsaliye olarak gondermek icin:
@@ -5522,6 +5591,7 @@ Onemli not:
 - `isReturn = false` normal gelen depo sevkini, `isReturn = true` gelen depo iadesini ifade eder.
 - `*.all-warehouses` yoksa `warehouseNo` sorulmaz; backend JWT icindeki kullanici deposunu kullanir. `mal-kabul-islemleri.depo-mal-kabulleri.all-warehouses` yetkisi olan kullanici baska depo icin kabul yapacaksa body'de opsiyonel `warehouseNo` gonderebilir.
 - Bekleyen kabul icin hareketlerde `sth_nakliyedeposu = kullaniciDeposu` ve `sth_nakliyedurumu != 1` olmalidir.
+- Kabul icin gonderen taraf e-irsaliyesi zorunludur. Backend `sth_kilitli = true`, `sth_belge_no` degerinin `FRM` ile baslamasi ve `sth_aciklama` degerinin UUID olmasi izlerini kontrol eder; bu iz yoksa kabul islemi reddedilir. UI kabul aksiyonunu e-irsaliye gonderilmeden aktif etmemelidir.
 - `sth_miktar` degistirilmez; resmi sevk/e-irsaliye miktari olarak korunur.
 - UI'dan gelen sayilan miktar `sth_FormulMiktar` alanina yazilir.
 - Kabulde depo swap yapilir: `sth_giris_depo_no = kullaniciDeposu`, `sth_nakliyedeposu = eski sth_giris_depo_no` ve `sth_nakliyedurumu = 1`.
@@ -9088,6 +9158,72 @@ Not:
 - `gelen` detayda ayni evrak, hedef/transfer alanlarina gore alici sube perspektifinden okunur
 - bu endpoint Mikro veritabaninda sadece SELECT yapar; insert/update/delete yoktur
 
+### Depo Iadesi Guncelle
+
+E-irsaliyesi henuz olusturulup gonderilmemis giden depo iade evragini detay ekranindan gunceller.
+
+`PUT /api/iade-islemleri/depo-iadeleri/giden/F110/42?warehouseNo=110`
+
+Geriye uyum icin root route da ayni update gibi calisir:
+
+`PUT /api/iade-islemleri/depo-iadeleri/F110/42?warehouseNo=110`
+
+Yetki:
+
+- `iade-islemleri.giden-depo-iadeleri.update`
+
+Onemli not:
+
+- Bu endpoint sadece giden/kaynak depo iadesinde calisir; gelen iade/mal kabul tarafindan iade evragi degistirilmez.
+- `*.all-warehouses` yoksa `warehouseNo` sorulmaz; backend JWT icindeki kullanici deposunu kaynak depo kabul eder. Bu yetki varsa baska kaynak depo icin `warehouseNo` query parametresi gonderilebilir.
+- Evrak e-irsaliye olarak gonderildiyse update reddedilir. Backend `sth_kilitli`, `sth_belge_no = FRM...` ve `sth_aciklama = UUID` izlerini kontrol eder.
+- Evrak karsi depo tarafindan kabul edildiyse (`sth_nakliyedurumu = 1`) update reddedilir.
+- Satir eslestirmesi zorunlu olarak `movementGuid` ile yapilir.
+- Bu endpoint mevcut satirlari gunceller; yeni satir ekleme veya satir silme yapmaz.
+- `quantity` alani `sth_miktar` degerini degistirir. `unitPrice` gonderilip `amount` bos birakilirsa backend `sth_tutar = quantity * unitPrice` hesaplar. `amount` gonderilirse tutar aynen kullanilir.
+- Iade icin otomatik depo siparis satiri olusturulduysa backend bagli `DEPOLAR_ARASI_SIPARISLER` satirini yeni miktar, tutar, stok, depo ve aciklama bilgileriyle aynalar.
+
+Request:
+
+```json
+{
+  "movementDate": "2026-04-17",
+  "documentDate": "2026-04-17",
+  "targetWarehouseNo": 50,
+  "transitWarehouseNo": 60,
+  "description": "Iade duzeltildi",
+  "lines": [
+    {
+      "movementGuid": "8d4a5a77-1b3f-4f2a-93a1-b90a1b7d3c11",
+      "quantity": 8,
+      "unitPrice": 12.5,
+      "unitPointer": 1,
+      "description": "Miktar duzeltildi"
+    }
+  ]
+}
+```
+
+Response:
+
+```json
+{
+  "documentSerie": "F110",
+  "documentOrderNo": 42,
+  "sourceWarehouseNo": 110,
+  "targetWarehouseNo": 50,
+  "transitWarehouseNo": 60,
+  "isReturn": true,
+  "updatedLineCount": 1,
+  "lineCount": 1,
+  "totalQuantity": 8,
+  "totalAmount": 100,
+  "updatedAt": "2026-08-13T14:30:00",
+  "updateUser": 110,
+  "writeConnectionName": "testMikroConnection"
+}
+```
+
 ### Depo Iadesini E-Irsaliyeye Cevir
 
 Detay ekranindaki mevcut depo iade evragini e-irsaliye olarak gondermek icin:
@@ -10769,10 +10905,12 @@ Mevcut backend durumu:
 - dosya yolu `{root}\{subeNo}\HRddMMyy.*` ve `{root}\{subeNo}\IPddMMyy.*` desenindedir
 - `cashRegisters` filtresi verilirse dosya adi `{prefix}{ddMMyy}.{kasaNo:000}` olarak aranir
 - HR/IP satir formatinda virgullu, noktali virgul, tab ve bosluk ayraclari desteklenir; guncel kasa dosyalari genellikle `1,00006,01,FIS,...` seklinde virgullu gelir
+- HR para alanlari ayiracsiz numeric gelirse kurus kabul edilir ve 100'e bolunur; ornek `003342011` -> `33420.11`. Alan `33420.11`, `33420,11` veya `730.00` gibi acik ondalik ayracla gelirse deger aynen decimal okunur.
 - `skipExisting=true` iken duplicate kontrolu `Sube + KasaNo + FisNo + BelgeTuru + Tarih` alanlariyla yapilir
 - `dryRun=true` import dosyalarini parse eder, barkod lookup ve hata/uyari listesi uretir, staging'e yazmaz
 - barkod lookup Mikro barkod tanimlarindan urun kodu bulmaya calisir; bulunamayan barkodlar response `warnings` icinde doner
 - HR import normal kasa hareketlerini, IP import iptal belgelerini staging'e alir
+- HR import `FIS`, `FAT`, `IRS` ve `GPS` belge basliklarini fis olarak okur; `FAT` satirlari `documentKind = 2` / `documentKindName = Fatura` olarak staging'e kaydedilir. Bu nedenle ayni fis numarasi `FIS` ve `FAT` olarak gelirse duplicate sayilmaz, belge turu ayrimi korunur.
 - Mikro aktar/sil endpointleri stored procedure calistirir; response sadece procedure adi, mesaj ve filtre bilgisini doner
 
 Endpoint'ler:
@@ -10789,6 +10927,11 @@ Endpoint'ler:
 | `DELETE /api/kasa-islemleri/kasa-hareket-aktarimi/mikro` | body | `KasaHareketMikroTransferHttpRequest` | `KasaHareketProcedureResultDto` | `update` |
 | `POST /api/kasa-islemleri/kasa-hareket-aktarimi/mikro/aralik-aktar` | body | `KasaHareketMikroTransferRangeHttpRequest` | `KasaHareketProcedureResultDto` | `create` |
 | `GET /api/kasa-islemleri/kasa-hareket-aktarimi/rapor` | query | `KasaHareketReportHttpRequest` | `KasaHareketReportRowDto[]` | `detail` |
+| `GET /api/kasa-islemleri/kasa-hareket-aktarimi/rapor/ozet` | query | `KasaHareketReportHttpRequest` | `KasaHareketReportSummaryDto` | `detail` |
+| `GET /api/kasa-islemleri/kasa-hareket-aktarimi/rapor/excel` | query | `KasaHareketReportHttpRequest` | `text/csv` dosya | `detail` |
+| `GET /api/kasa-islemleri/kasa-hareket-aktarimi/icmal-karsilastirma` | query | `KasaHareketCashSummaryComparisonHttpRequest` | `KasaHareketCashSummaryComparisonDto` | `detail` |
+| `GET /api/kasa-islemleri/kasa-hareket-aktarimi/icmal-karsilastirma/excel` | query | `KasaHareketCashSummaryComparisonHttpRequest` | `text/csv` dosya | `detail` |
+| `GET /api/kasa-islemleri/kasa-hareket-aktarimi/icmal-karsilastirma/detay` | query | `KasaHareketDetailHttpRequest` | `KasaHareketDetailDto` | `detail` |
 
 Import request:
 
@@ -10920,6 +11063,14 @@ Rapor:
 
 `GET /api/kasa-islemleri/kasa-hareket-aktarimi/rapor?date=2026-06-09&branchNo=110&cashRegisterNo=1`
 
+Query:
+
+```text
+date            zorunlu; rapor tarihi
+branchNo        opsiyonel; sube/depo no. all-warehouses yoksa backend JWT deposunu uygular
+cashRegisterNo  opsiyonel; kasa no
+```
+
 Response:
 
 ```json
@@ -10937,6 +11088,333 @@ Response:
 ]
 ```
 
+Alan notlari:
+
+- `netAmount`: `PosFaturas.Toplam + PosFaturas.ToplamKdv` icinde satis/fatura kabul edilen kayit toplamidir; staging toplaminda fatura indirimi zaten uygulanmis kabul edilir.
+- `expense`: `BelgeTuru = 4` icin `PosFaturas.Toplam + PosFaturas.ToplamKdv` gider pusulasi toplamidir.
+- `checkAmount`: `PosFaturaOdemes` icinde `OdemeTipi = 4` cek toplamidir.
+- `difference`: eski WinUI ekranindaki `Z Raporu` kolonudur; hesap `netAmount - expense - checkAmount` seklindedir.
+
+Rapor ozet:
+
+`GET /api/kasa-islemleri/kasa-hareket-aktarimi/rapor/ozet?date=2026-06-09&branchNo=110`
+
+Response:
+
+```json
+{
+  "date": "2026-06-09T00:00:00",
+  "branchNo": 110,
+  "cashRegisterNo": null,
+  "rowCount": 2,
+  "totalNetAmount": 45000.75,
+  "totalExpense": 500.25,
+  "totalCheckAmount": 2500,
+  "totalDifference": 42000.5
+}
+```
+
+Excel/CSV export:
+
+`GET /api/kasa-islemleri/kasa-hareket-aktarimi/rapor/excel?date=2026-06-09&branchNo=110`
+
+Not:
+
+- Endpoint `text/csv; charset=utf-8` dosya doner.
+- Dosya adi `kasa-hareket-rapor-yyyyMMdd.csv` formatindadir.
+- CSV `;` ayraclidir ve UTF-8 BOM icerir; Excel ile direkt acilabilir.
+- Gercek `.xlsx` uretilmez. UI isterse ayni `rapor` response'unu kendi grid/export mekanizmasi ile `.xlsx` olarak uretebilir.
+
+Icmal karsilastirma:
+
+`GET /api/kasa-islemleri/kasa-hareket-aktarimi/icmal-karsilastirma?date=2026-06-09&branchNo=110&cashRegisterNo=1&tolerance=0.01`
+
+Amac:
+
+- Kasa hareket aktarim raporundaki eski `Z Raporu` degeri ile Mikro `Summaries` icmal kayitlarini sube+kasa bazinda karsilastirir.
+- Aktarim tarafi `PosFaturas` ve `PosFaturaOdemes` staging tablolarindan okunur.
+- Icmal tarafi Mikro `Summaries` tablosundan okunur.
+
+Query:
+
+```text
+date            zorunlu; is gunu
+branchNo        opsiyonel; sube/depo no. all-warehouses yoksa backend JWT deposunu uygular
+cashRegisterNo  opsiyonel; kasa no
+tolerance       opsiyonel; varsayilan 0.01. Mutabik kabul edilecek parasal tolerans
+```
+
+Karsilastirma hesabi:
+
+```text
+movementZReportAmount = netAmount - expense - checkAmount
+cashSummaryAmount     = Summaries icinde PaymentTypeID < 100 veya PaymentTypeID = 500 olan Amount toplami
+differenceAmount      = movementZReportAmount - cashSummaryAmount
+```
+
+Not:
+
+- `PaymentTypeID >= 100` gider/masraf gruplari karsilastirma toplaminda sayilmaz. Bu davranis `kasa-sayimlari` liste toplam mantigiyla aynidir.
+- Satir anahtari `branchNo + cashRegisterNo` seklindedir.
+- Sadece aktarimda veya sadece icmalde olan kasa satirlari da response'a dahil edilir.
+
+Response:
+
+```json
+{
+  "date": "2026-06-09T00:00:00",
+  "branchNo": 110,
+  "cashRegisterNo": 1,
+  "tolerance": 0.01,
+  "summary": {
+    "rowCount": 1,
+    "balancedCount": 0,
+    "differenceCount": 1,
+    "missingCashSummaryCount": 0,
+    "missingMovementCount": 0,
+    "totalMovementZReportAmount": 22900.5,
+    "totalCashSummaryAmount": 22850.5,
+    "totalDifferenceAmount": 50
+  },
+  "rows": [
+    {
+      "date": "2026-06-09T00:00:00",
+      "branchNo": 110,
+      "branchName": "KESTEL 1",
+      "cashRegisterNo": 1,
+      "movementNetAmount": 24500.75,
+      "movementExpense": 350.25,
+      "movementCheckAmount": 1250,
+      "movementZReportAmount": 22900.5,
+      "cashSummaryAmount": 22850.5,
+      "cashSummaryDocumentCount": 1,
+      "differenceAmount": 50,
+      "status": "difference",
+      "statusName": "Fark Var"
+    }
+  ]
+}
+```
+
+`status` degerleri:
+
+```text
+balanced              tolerans icinde mutabik
+difference            aktarim ve icmal var ama tutar farkli
+missing-cash-summary  aktarim/staging raporu var, icmal kaydi yok
+missing-movement      icmal kaydi var, aktarim/staging raporu yok
+```
+
+Icmal karsilastirma detay:
+
+`GET /api/kasa-islemleri/kasa-hareket-aktarimi/icmal-karsilastirma/detay?date=2026-06-09&branchNo=110&cashRegisterNo=1&receiptTake=500`
+
+Amac:
+
+- Karsilastirma satirina tiklandiginda farkin nereden geldigini arastirmak icin detayli drill-down datasini doner.
+- Backend burada Excel dosyasi uretmez; UI bu JSON response'u grid/sheet olarak kullanip kendi Excel export'unu uretebilir.
+- `branchNo` ve `cashRegisterNo` zorunludur; detay endpointi tum sube/tum kasa icin calistirilmamalidir.
+
+Query:
+
+```text
+date            zorunlu; is gunu
+branchNo        zorunlu; sube/depo no
+cashRegisterNo  zorunlu; kasa no
+receiptTake     opsiyonel; default 500, max 5000. Fis listesinde getirilecek maksimum satir
+```
+
+Response ana bolumleri:
+
+```text
+movementReport             aktarim raporundaki sube+kasa satiri
+comparison                 aktarim Z raporu ile Mikro icmal toplam farki
+summary                    detay ekraninin ust KPI toplamları
+cashierSummaries           aktarim fislerinden kasiyer bazli ozet
+movementPaymentSummaries   aktarim fislerinin odeme tipi kirilimi
+cashSummaryPayments        Mikro Summaries odeme tipi kirilimi
+cashSummaryDocuments       Mikro icmal belge listesi
+receipts                   Furpa PosFaturas fis listesi
+canceledReceipts           Furpa PosFaturaIptals iptal fis listesi
+```
+
+Ornek response:
+
+```json
+{
+  "date": "2026-06-09T00:00:00",
+  "branchNo": 110,
+  "branchName": "KESTEL 1",
+  "cashRegisterNo": 1,
+  "movementReport": {
+    "date": "2026-06-09T00:00:00",
+    "branchNo": 110,
+    "branchName": "KESTEL 1",
+    "cashRegisterNo": 1,
+    "netAmount": 24500.75,
+    "expense": 350.25,
+    "checkAmount": 1250,
+    "difference": 22900.5
+  },
+  "comparison": {
+    "movementZReportAmount": 22900.5,
+    "cashSummaryAmount": 22850.5,
+    "differenceAmount": 50,
+    "status": "difference",
+    "statusName": "Fark Var"
+  },
+  "summary": {
+    "receiptCount": 320,
+    "returnedReceiptCount": 500,
+    "canceledReceiptCount": 2,
+    "movementLineCount": 1250,
+    "movementPaymentCount": 340,
+    "cashSummaryDocumentCount": 1,
+    "cashSummaryPaymentCount": 8,
+    "movementNetAmount": 24500.75,
+    "movementExpense": 350.25,
+    "movementCheckAmount": 1250,
+    "movementZReportAmount": 22900.5,
+    "cashSummaryAmount": 22850.5,
+    "differenceAmount": 50,
+    "minReceiptNo": 1,
+    "maxReceiptNo": 330,
+    "missingReceiptNos": [18, 27]
+  },
+  "cashierSummaries": [
+    {
+      "cashierCode": "1001",
+      "cashierName": "MEHMET YILMAZ",
+      "receiptCount": 120,
+      "lineCount": 420,
+      "netAmount": 9200,
+      "expense": 0,
+      "checkAmount": 400,
+      "zReportAmount": 8800
+    }
+  ],
+  "movementPaymentSummaries": [
+    {
+      "paymentType": 1,
+      "paymentTypeName": "Nakit",
+      "paymentCount": 80,
+      "amount": 10000
+    }
+  ],
+  "cashSummaryPayments": [
+    {
+      "paymentTypeId": 500,
+      "paymentTypeName": "Nakit",
+      "accountCode": "",
+      "slipCount": 1,
+      "amount": 9800,
+      "isIncludedInComparison": true
+    }
+  ],
+  "cashSummaryDocuments": [
+    {
+      "documentSerie": "KS110",
+      "documentOrderNo": 12,
+      "documentNo": "KS110/12",
+      "cashNo": 1,
+      "zReportNo": 125,
+      "cashierNo": 1001,
+      "cashierName": "MEHMET YILMAZ",
+      "managerNo": 1002,
+      "managerName": "AYSE DEMIR",
+      "summaryDate": "2026-06-09T00:00:00",
+      "totalAmount": 22850.5,
+      "paymentLineCount": 8,
+      "createDate": "2026-06-09T23:05:00"
+    }
+  ],
+  "receipts": [
+    {
+      "invoiceGuid": "8d4a5a77-1b3f-4f2a-93a1-b90a1b7d3c11",
+      "date": "2026-06-09T00:00:00",
+      "time": "13:45:10",
+      "branchNo": 110,
+      "cashRegisterNo": 1,
+      "receiptNo": 1450,
+      "zNo": "125",
+      "documentKind": 1,
+      "documentKindName": "Fis",
+      "cashierCode": "1001",
+      "cashierName": "MEHMET YILMAZ",
+      "cardNumber": "",
+      "customerCurrentCode": "",
+      "grossAmount": 120,
+      "taxAmount": 20,
+      "discountAmount": 0,
+      "netAmount": 140,
+      "expenseAmount": 0,
+      "checkAmount": 0,
+      "zReportAmount": 140,
+      "lineCount": 3,
+      "paymentCount": 1,
+      "promotionCount": 0,
+      "fiscalMemoryCode": "ABC123",
+      "processResult": "",
+      "cancelReason": 0,
+      "cancelReasonName": ""
+    }
+  ],
+  "canceledReceipts": [
+    {
+      "invoiceGuid": "5887c858-8083-4bf9-a9ef-0f95fbd90572",
+      "date": "2026-06-09T00:00:00",
+      "time": "15:12:40",
+      "branchNo": 110,
+      "cashRegisterNo": 1,
+      "receiptNo": 18,
+      "zNo": "125",
+      "documentKind": 1,
+      "documentKindName": "Fis",
+      "cashierCode": "1001",
+      "cashierName": "MEHMET YILMAZ",
+      "cardNumber": "",
+      "customerCurrentCode": "",
+      "grossAmount": 120,
+      "taxAmount": 20,
+      "discountAmount": 0,
+      "netAmount": 0,
+      "expenseAmount": 0,
+      "checkAmount": 0,
+      "zReportAmount": 0,
+      "lineCount": 3,
+      "paymentCount": 0,
+      "promotionCount": 0,
+      "fiscalMemoryCode": "ABC123",
+      "processResult": "",
+      "cancelReason": 1,
+      "cancelReasonName": "Iptal Nedeni 1"
+    }
+  ]
+}
+```
+
+UI onerisi:
+
+- `icmal-karsilastirma` gridinde sorunlu satira tiklaninca detay paneli veya sayfasi acilmali.
+- Detay ustunde `movementZReportAmount`, `cashSummaryAmount`, `differenceAmount`, `statusName` KPI olarak gosterilmeli.
+- `summary.receiptCount` toplam normal fis sayisidir; `summary.returnedReceiptCount` response'ta donen normal fis sayisidir. `receiptTake` dusukse bu iki deger farkli olabilir.
+- `summary.canceledReceiptCount` iptal fis sayisidir; iptal fisler `canceledReceipts` koleksiyonunda ayrica doner ve aktarim Z raporu toplamlarini etkilemez.
+- `summary.missingReceiptNos`, normal fis numara araliginda eksik gorunen fis numaralarini verir; bu liste iptal fisler veya kaynak dosyada gelmeyen fisleri arastirmak icin kullanilmalidir.
+- Alt kisimda sekmeler: `Kasiyer Ozeti`, `Aktarim Odeme Kirilimi`, `Icmal Odeme Kirilimi`, `Icmal Belgeleri`, `Fisler`, `Iptal Fisler`, `Eksik Fis Numaralari`.
+- Excel export UI tarafinda bu response ile uretilirse her sekme ayri sheet yapilabilir; backend CSV endpointleri sadece basit/hizli indirme icin kalabilir.
+- `receiptTake=0` gonderilirse fis listesi bos gelir; sadece ozet/kirilim isteyen ekranlarda kullanilabilir.
+
+Icmal karsilastirma Excel/CSV export:
+
+`GET /api/kasa-islemleri/kasa-hareket-aktarimi/icmal-karsilastirma/excel?date=2026-06-09&branchNo=110`
+
+Not:
+
+- Endpoint `text/csv; charset=utf-8` dosya doner.
+- Dosya adi `kasa-hareket-icmal-karsilastirma-yyyyMMdd.csv` formatindadir.
+- CSV kolonlari: tarih, sube, kasa, aktarim net tutar, gider pusulasi, cek, aktarim Z raporu, icmal toplam, icmal belge sayisi, fark ve durum.
+- UI basit indirme icin bu dosyayi kullanabilir. Daha zengin Excel icin `icmal-karsilastirma/detay` response'u uzerinden client-side `.xlsx` uretilmesi onerilir.
+
 UI beklentisi:
 
 - ekran tek menu olarak acilabilir; `Import`, `Rapor`, `Mikro Aktarim` sekmeleri yeterlidir
@@ -10946,6 +11424,11 @@ UI beklentisi:
 - `skipExisting=true` varsayilani korunmalidir; tekrar import gereken durumlarda kullanici bilincli olarak kapatmalidir
 - `staging sil`, `Mikro'ya aktar`, `Mikro'dan sil` ve `aralik aktar` aksiyonlari ayri butonlar olmalidir
 - procedure response'unda adet bilgisi yoktur; UI mesaj alanini ve calistirilan filtreleri gostermelidir
+- rapor sekmesinde `rapor`, ust kartlar icin `rapor/ozet`, Excel butonu icin `rapor/excel` kullanilabilir
+- icmal kontrol sekmesinde `icmal-karsilastirma` response'u kullanilmali; `difference` ve `missing-*` durumlari renkli/filtrelenebilir gosterilmelidir
+- icmal kontrol satirindan detay icin `icmal-karsilastirma/detay` cagrilmalidir
+- zengin Excel export UI tarafinda detay response'undaki `cashierSummaries`, `movementPaymentSummaries`, `cashSummaryPayments`, `cashSummaryDocuments`, `receipts`, `canceledReceipts` ve `summary.missingReceiptNos` koleksiyonlari ayri sheet yapilarak uretilmelidir
+- basit tek sheet export gerekirse `icmal-karsilastirma/excel` endpointi kullanilabilir
 
 ### Kasa Sayimlari Liste
 
@@ -11365,7 +11848,7 @@ Not:
 
 ### Icmal Kaydi Girisi / Olustur
 
-Secili kullanici deposu icin yeni kasa sayimi yazar.
+Secili sube icin yeni kasa sayimi yazar.
 
 `POST /api/kasa-islemleri/kasa-sayimlari`
 
@@ -11375,11 +11858,14 @@ Yetki:
 
 Onemli not:
 
-- `kasa-islemleri.icmal-kaydi-girisi.all-warehouses` yoksa `warehouseNo` sorulmaz; backend JWT icindeki kullanici deposunu kullanir. Bu yetki varsa baska depo adina kasa sayimi/complete icmal kaydi olusturulacaksa body'de opsiyonel `warehouseNo` gonderilebilir
+- `kasa-islemleri.icmal-kaydi-girisi.all-warehouses` yoksa `warehouseNo` sorulmaz; backend JWT icindeki kullanici deposunu kullanir
+- `kasa-islemleri.icmal-kaydi-girisi.all-warehouses` varsa UI sube secici gostermeli ve body'de secilen subeyi `warehouseNo` olarak gondermelidir; bos gonderilirse API `400 Bad Request` doner
 - en az bir `paymentTypes`, `storeExpenses` veya `banknoteMovements` satiri zorunludur
 - backend `Summaries`, `BanknoteMovements`, `GiftCheckMovements` ve `CARI_HESAP_HAREKETLERI` tarafina yazar
-- `documentSerie` backend tarafinda `KS{islemDepoNo}` olarak uretilir
+- `documentSerie` backend tarafinda legacy kasa icmal formatinda `F{islemDepoNo}.{cashNo}` olarak uretilir
 - `documentOrderNo` ayni seri icin mevcut maksimum degerin bir fazlasi olarak uretilir
+- `zReportNo` Z rapor numarasidir; `zTotalValue` Z rapor tutaridir
+- `zTotalValue` eski sistemle uyumlu sekilde `Summaries` satiri olarak saklanmaz; `CARI_HESAP_HAREKETLERI` tarafinda `400 = Z Rapor Toplami`, `300 = total - zTotalValue fark` satirlari olarak yazilir
 - nakit toplam `paymentTypes` icinde manuel gonderilmez; backend banknot hareketlerinden `PaymentTypeID = 500`, `description = "Nakit Toplam"` satirini garanti eder
 - UI yanlislikla `paymentTypes` icinde `Nakit` veya `paymentTypeNo = 500` gonderirse backend bunu ayri odeme satiri olarak yazmaz, 500 satirini banknot toplamindan uretir
 
@@ -11387,6 +11873,7 @@ Request:
 
 ```json
 {
+  "warehouseNo": 110,
   "cashNo": 1,
   "zReportNo": 125,
   "cashierNo": 1001,
@@ -11421,7 +11908,7 @@ Response:
 
 ```json
 {
-  "documentSerie": "KS110",
+  "documentSerie": "F110.1",
   "documentOrderNo": 12,
   "summaryDate": "2026-04-24T00:00:00",
   "warehouseNo": 110,
@@ -11431,28 +11918,42 @@ Response:
 }
 ```
 
-### Icmal Kaydi Girisi / Guncelleme ve Silme
+### Kasa Sayimlari / Secili Kaydi Guncelleme ve Silme
+
+Bu akis Kasa Sayimlari liste ekranindan secilen kayit icindir. Icmal Kaydi Girisi sadece yeni kayit olusturma ekranidir.
 
 Belge uzerindeki satirlari ve fiziksel para detaylarini guncellemek icin ayri endpointler kullanilir.
 
 Route'lar:
 
-- `PUT /api/kasa-islemleri/kasa-sayimlari/KS110/12/detaylar`
-- `PUT /api/kasa-islemleri/kasa-sayimlari/KS110/12/banknot-hareketleri`
-- `DELETE /api/kasa-islemleri/kasa-sayimlari/KS110/12`
+- `PUT /api/kasa-islemleri/kasa-sayimlari/F110.1/12/detaylar`
+- `PUT /api/kasa-islemleri/kasa-sayimlari/F110.1/12/banknot-hareketleri`
+- `DELETE /api/kasa-islemleri/kasa-sayimlari/F110.1/12`
+
+Legacy uyumluluk route'lari:
+
+- `POST /api/kasa-islemleri/kasa-sayimlari/UpdateSummaryDetails`
+- `POST /api/kasa-islemleri/kasa-sayimlari/UpdateBanknoteMovements`
+- `POST /api/kasa-islemleri/kasa-sayimlari/DeleteSummary`
 
 Yetki:
 
-- detay ve banknot update icin `kasa-islemleri.icmal-kaydi-girisi.update`
-- silme icin `kasa-islemleri.icmal-kaydi-girisi.delete`
+- detay ve banknot update icin `kasa-islemleri.kasa-sayimlari.update`
+- silme icin `kasa-islemleri.kasa-sayimlari.delete`
 
 Not:
 
 - detay update request'inde `details` listesi zorunludur
-- detay update request'inde nakit/500 satiri gonderilmez; backend mevcut banknot toplamindan 500 satirini korur
+- detay update patch degildir; UI belgede kalmasini istedigi tum odeme/masraf detay satirlarini `details` icinde gondermelidir
+- detay listesinde eski satir yeni degerleriyle gelirse guncellenir; yeni satir gelirse olusur; eski satir gonderilmezse kaldirilir
+- UI sadece degisen tek satiri gondermemelidir; aksi halde diger detay satirlari kaldirilmis kabul edilir
+- nakit/500 satiri UI tarafindan normal detay gibi yonetilmez; backend mevcut banknot/nakit toplamindan 500 satirini yeniden uretir
+- banknot update de patch degildir; `banknoteMovements` son durumda kalacak tum banknotlari icermelidir
 - banknot update request'inde `banknoteMovements` bos gonderilirse mevcut banknot satirlari temizlenebilir
 - banknot update sonrasi backend `PaymentTypeID = 500` nakit toplam satirini ve ilgili cari hareket toplamlarini yeni belge toplamiyla gunceller
-- `DELETE` cagrisinda `warehouseNo` body'den alinmaz; JWT deposu kullanilir
+- update belge yoksa yeni belge olusturmaz; yeni kasa sayimi/icmal kaydi icin create endpointi kullanilir
+- modern `DELETE` cagrisinda sube icin query `warehouseNo` veya JWT deposu kullanilir
+- legacy `POST DeleteSummary` cagrisinda `warehouseNo` yoksa backend `documentSerie` icinden subeyi cozer, ornek `F110.1` -> `110`
 
 Detay update request:
 
@@ -11476,7 +11977,7 @@ Detay update response:
 
 ```json
 {
-  "documentSerie": "KS110",
+  "documentSerie": "F110.1",
   "documentOrderNo": 12,
   "updatedLineCount": 2,
   "totalAmount": 6500
@@ -11505,16 +12006,62 @@ Banknot update response modeli:
 - `updatedLineCount`
 - `totalAmount`
 
+Legacy detay update request:
+
+```json
+{
+  "documentSerie": "F110.1",
+  "documentOrderNo": 12,
+  "summariesDetails": [
+    {
+      "typeName": "Akbank POS",
+      "paymentTypeID": 1,
+      "accountCode": "POS-AKBANK",
+      "slipNumber": 12,
+      "amount": 2500,
+      "terminalId": "TERM-01",
+      "description": ""
+    }
+  ]
+}
+```
+
+Legacy banknot update request:
+
+```json
+{
+  "documentSerie": "F110.1",
+  "documentOrderNo": 12,
+  "banknoteMovements": [
+    {
+      "value": 200,
+      "banknoteTypeID": 1,
+      "quantity": 25,
+      "total": 5000
+    }
+  ]
+}
+```
+
 Delete response:
 
 ```json
 {
-  "documentSerie": "KS110",
+  "documentSerie": "F110.1",
   "documentOrderNo": 12,
   "deletedSummaryLineCount": 2,
   "deletedBanknoteLineCount": 1,
   "deletedGiftCheckLineCount": 0,
   "deletedCustomerMovementCount": 1
+}
+```
+
+Legacy delete request:
+
+```json
+{
+  "documentSerie": "F110.1",
+  "documentOrderNo": 12
 }
 ```
 
@@ -11866,21 +12413,22 @@ Iade Islemleri / Depo Iadeleri
 Kasa Islemleri / Kasa Sayimlari
   -> ekran acilisinda o gunun belge listesi icin GET /api/kasa-islemleri/kasa-sayimlari?dateToGet=...
   -> ust rapor kartlari icin GET /api/kasa-islemleri/kasa-sayimlari/rapor?dateToGet=...
-  -> bu gorev sadece goruntuleme/listeleme icindir; icmal girisi butonu burada permission olarak cizilmemelidir
   -> kullanici satira tiklar
   -> GET /api/kasa-islemleri/kasa-sayimlari/{seri}/{sira}
   -> gerekiyorsa banknot ve hediye ceki detaylarini ayri sekmelerde
   -> GET /api/kasa-islemleri/kasa-sayimlari/{seri}/{sira}/banknot-hareketleri
   -> GET /api/kasa-islemleri/kasa-sayimlari/{seri}/{sira}/hediye-ceki-hareketleri
+  -> kullanicida kasa-islemleri.kasa-sayimlari.update varsa 'Duzenle' aksiyonu gosterilir
+  -> detay duzenleme icin PUT /api/kasa-islemleri/kasa-sayimlari/{seri}/{sira}/detaylar
+  -> banknot duzenleme icin PUT /api/kasa-islemleri/kasa-sayimlari/{seri}/{sira}/banknot-hareketleri
+  -> kullanicida kasa-islemleri.kasa-sayimlari.delete varsa 'Sil' aksiyonu gosterilir
+  -> silme icin DELETE /api/kasa-islemleri/kasa-sayimlari/{seri}/{sira}
 
 Kasa Islemleri / Icmal Kaydi Girisi
   -> UI bu gorevi Kasa Sayimlari'ndan ayri menu/task olarak gostermelidir
   -> lookup alanlari icin kasiyer, kasa, odeme tipi ve banknot tipi endpointlerini paralel cagir
   -> Z rapor karsilastirmasi icin GET /api/kasa-islemleri/kasa-sayimlari/z-rapor-toplam?... 
   -> kaydetmek icin POST /api/kasa-islemleri/kasa-sayimlari
-  -> detay duzenleme icin PUT /api/kasa-islemleri/kasa-sayimlari/{seri}/{sira}/detaylar
-  -> banknot duzenleme icin PUT /api/kasa-islemleri/kasa-sayimlari/{seri}/{sira}/banknot-hareketleri
-  -> silme icin DELETE /api/kasa-islemleri/kasa-sayimlari/{seri}/{sira}
 
 Kasa Islemleri / Banknot Takipleri
   -> fiziksel para teslim takibi icin GET /api/kasa-islemleri/banknot-takipleri?dateToGet=...
@@ -11910,6 +12458,10 @@ Kasa Islemleri / Kasa Hareket Aktarimi
   -> zamanli/gunluk toplu calistirma icin POST /api/kasa-islemleri/kasa-hareket-aktarimi/zamanli-aktarim/calistir
   -> import oncesi dryRun=true ile parse/lookup sonucu gosterilebilir
   -> rapor gridini doldurmak icin GET /api/kasa-islemleri/kasa-hareket-aktarimi/rapor?date=...
+  -> rapor ust kartlari icin GET /api/kasa-islemleri/kasa-hareket-aktarimi/rapor/ozet?date=...
+  -> raporu Excel uyumlu CSV indirmek icin GET /api/kasa-islemleri/kasa-hareket-aktarimi/rapor/excel?date=...
+  -> icmal ile aktarim Z raporu karsilastirmasi icin GET /api/kasa-islemleri/kasa-hareket-aktarimi/icmal-karsilastirma?date=...
+  -> icmal karsilastirmasini Excel uyumlu CSV indirmek icin GET /api/kasa-islemleri/kasa-hareket-aktarimi/icmal-karsilastirma/excel?date=...
   -> staging temizleme icin DELETE /api/kasa-islemleri/kasa-hareket-aktarimi/staging
   -> staging hareketlerini Mikro'ya yazmak icin POST /api/kasa-islemleri/kasa-hareket-aktarimi/mikro/aktar
   -> Mikro'ya yazilmis hareketleri silmek icin DELETE /api/kasa-islemleri/kasa-hareket-aktarimi/mikro

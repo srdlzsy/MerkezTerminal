@@ -56,6 +56,58 @@ void main() {
     expect(controller.selectedAcceptance, isNull);
     expect(controller.selectedAcceptanceDetail, isNull);
   });
+
+  test('requires official e-despatch trace for warehouse acceptance', () {
+    expect(
+      _buildHeader(
+        documentNo: 'SVK-0001',
+        descriptionEttn: '7c9b31f6-1ab4-4ed1-b02b-2a90e5e7d3fd',
+      ).hasRequiredEDespatchForAcceptance,
+      isFalse,
+    );
+    expect(
+      _buildHeader(
+        documentNo: 'FRM2026000000001',
+        descriptionEttn: '',
+      ).hasRequiredEDespatchForAcceptance,
+      isFalse,
+    );
+    expect(
+      _buildHeader(
+        documentNo: 'FRM2026000000001',
+        descriptionEttn: '7c9b31f6-1ab4-4ed1-b02b-2a90e5e7d3fd',
+      ).hasRequiredEDespatchForAcceptance,
+      isTrue,
+    );
+  });
+}
+
+WarehouseShipmentDetailHeader _buildHeader({
+  required String documentNo,
+  required String descriptionEttn,
+}) {
+  return WarehouseShipmentDetailHeader(
+    documentDate: null,
+    movementDate: null,
+    documentNo: documentNo,
+    documentSerie: 'F110',
+    documentOrderNo: 3694,
+    sourceWarehouseNo: 50,
+    sourceWarehouse: 'MERKEZ DEPO',
+    targetWarehouseNo: 110,
+    targetWarehouse: 'KESTEL 1',
+    shippingWarehouseNo: 60,
+    shippingState: 0,
+    plaque: '',
+    driverNameSurname: '',
+    driverTckn: '',
+    descriptionEttn: descriptionEttn,
+    warehouseOrderNo: '',
+    warehouseOrderNos: const <String>[],
+    lineCount: 1,
+    totalQuantity: 10,
+    totalAmount: 1250,
+  );
 }
 
 class _FakeWarehouseAcceptancesRepository
