@@ -156,7 +156,7 @@ Bu endpoint home acilisinda eski hizli erisim menusu yerine "bugun neye bakmaliy
 
 Kaynaklar:
 
-- `document_flows`: bugunku sevk, bugunku depo kabul, bekleyen depo kabul ve basarisiz e-irsaliye sayilari
+- `document_flows`: bugunku sevk, bugunku iade, bugunku depo kabul, bekleyen depo kabul ve basarisiz e-irsaliye sayilari
 - `stock_anomalies`: acik veya kabul edilmis stok anomalileri
 - `feedback_items`: giris yapan kullanicinin kapanmamis sikayet/onerileri
 
@@ -14026,6 +14026,15 @@ Authorization file ekran akis onerisi:
 
 Bu ekran sevk, iade, mal kabul, siparis ve e-irsaliye adimlarini Auth DB tarafinda izlemek icin eklendi. Mikro semasina yazmaz; kayitlar `document_flows` ve `document_flow_events` tablolarinda tutulur.
 
+Alan mantigi:
+
+- `sourceWarehouseNo`: belgeyi veya cikis hareketini baslatan depodur. Firma sevki, firma iadesi, depolar arasi sevk ve depo iadesi bu depoda cikis/aksiyon olarak gorunur.
+- `targetWarehouseNo`: depolar arasi sevk ve depo iadesinde mal kabulu beklenen veya tamamlayan karsi depodur. Firma sevki ve firma iadesinde bos gelir.
+- `currentStep = DocumentCreated`: belge API tarafindan olusturuldu.
+- `currentStep = EDespatchSubmission`: e-irsaliye gonderim adimi calisti. `status = Failed` ise hata panelde kaynak depoya yazilir.
+- `currentStep = WarehouseReceivingAccepted`: hedef depo mal kabul islemini tamamladı. Depo Operasyon Paneli bu adimi hedef depoda tamamlanan kabul olarak sayar.
+- Depolar arasi belgelerde tek belge akis kaydi hem kaynak depo hem hedef depo icin kullanilir; liste filtresinde iki taraftan biri eslesirse kayit gelir.
+
 ### Mikro API Yazma Audit Kayitlari
 
 Mikro API uzerinden yapilan teknik yazma cagrilari, Belge Akis Takibi'nden ayri olarak Auth DB icindeki `mikro_api_write_audits` tablosunda izlenir. Belge Akis Takibi is surecini, bu tablo ise Mikro HTTP isteginin teknik sonucunu kaydeder.
@@ -14113,15 +14122,25 @@ GET /api/operasyon-islemleri/depo-operasyon-paneli?date=2026-07-02
 - UI bu kaydi `Operasyon Islemleri > Depo Operasyon Paneli` menusu olarak gosterebilir.
 - `date` opsiyoneldir ve `yyyy-MM-dd` formatindadir. Gonderilmezse API sunucusunun bugunku tarihi kullanilir.
 - `todayShipmentCount`: secilen gunde API uzerinden olusturulan firma ve depolar arasi sevklerdir; kaynak depoya yazilir.
+- `todayReturnCount`: secilen gunde API uzerinden olusturulan firma iadesi ve depo iadesi hareketleridir; kaynak depoya yazilir.
 - `todayReceivingCount`: secilen gunde API uzerinden tamamlanan depo mal kabulleridir; hedef depoya yazilir.
 - `pendingReceivingCount`: depolar arasi sevk veya depo iadesi olusturulmus, henuz depo mal kabulu tamamlanmamis kayitlardir; hedef depoya yazilir.
 - `failedEDespatchCount`: son belge akis adimi basarisiz e-irsaliye gonderimi olan kayitlardir; kaynak depoya yazilir.
 - `incompleteOperationCount`: bekleyen mal kabulleri ve basarisiz e-irsaliye gonderimlerini ifade eder. Genel ozette ayni belge bir kez sayilir.
 - `averageReceivingMinutes`: secilen gunde tamamlanan mal kabullerinin sevk olusturma ile kabul arasindaki ortalama suresidir.
-- `busiestWarehouse.value`: secilen gunun sevk ve mal kabul toplami.
+- `busiestWarehouse.value`: secilen gunun sevk, iade ve mal kabul toplami.
 - `slowestWarehouse.value`: dakika cinsinden ortalama mal kabul suresi.
 - `healthStatus`: e-irsaliye hatasi varsa `Critical`, bekleyen kabul varsa `Warning`, ikisi de yoksa `Healthy` doner.
 - `trackingEnabled = false` ise yeni belge akisi yazimi kapalidir; panel mevcut eski kayitlardan hesaplanmaya devam eder.
+
+Capraz depo mantigi:
+
+- Depo 56 MANAV bir depolar arasi sevk keserse kayit `sourceWarehouseNo = 56`, `targetWarehouseNo = hedef depo` olarak tutulur.
+- Ayni kayit MANAV satirinda `todayShipmentCount` olarak, hedef depo satirinda kabul edilene kadar `pendingReceivingCount` olarak gorunur.
+- Hedef depo kabul islemini tamamladiginda ayni belge `currentStep = WarehouseReceivingAccepted` olur; artik hedef depo satirinda `todayReceivingCount` sayilir.
+- Kabul tarihi sevk tarihinden farkliysa sevk kaynak deponun sevk gununde, kabul hedef deponun kabul gununde raporlanir.
+- Depo iadesinde de ayni kaynak/hedef mantigi calisir; cikis deposunda `todayReturnCount`, hedef depoda bekleyen veya tamamlanan kabul sayaci beslenir.
+- E-irsaliye adimi eski veya manuel olusmus bir depolar arasi belge icin ilk belge akis kaydini acarsa backend hedef depoyu Mikro `STOK_HAREKETLERI.sth_nakliyedeposu` alanindan cozer ve `targetWarehouseNo` olarak kaydeder.
 
 Response ornegi:
 
@@ -14133,6 +14152,7 @@ Response ornegi:
   "summary": {
     "warehouseCount": 60,
     "todayShipmentCount": 420,
+    "todayReturnCount": 12,
     "todayReceivingCount": 385,
     "pendingReceivingCount": 35,
     "incompleteOperationCount": 38,
@@ -14153,6 +14173,7 @@ Response ornegi:
       "warehouseNo": 12,
       "warehouseName": "Kadikoy",
       "todayShipmentCount": 24,
+      "todayReturnCount": 2,
       "todayReceivingCount": 17,
       "pendingReceivingCount": 3,
       "incompleteOperationCount": 3,
