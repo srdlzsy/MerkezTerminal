@@ -234,6 +234,11 @@ class _WarehouseReturnCreateSheetState extends State<WarehouseReturnCreateSheet>
     }
     final pickedProduct = product;
 
+    if (!await _confirmDuplicateIncrease(line, pickedProduct)) {
+      _cancelDuplicateCandidate(line);
+      return;
+    }
+
     var mergedIntoExisting = false;
     setState(() {
       mergedIntoExisting = _applyProductToLine(line, pickedProduct);
@@ -309,6 +314,11 @@ class _WarehouseReturnCreateSheetState extends State<WarehouseReturnCreateSheet>
 
     final product = ProductLookupItem.fromBarcodeResolution(resolution);
     final addedQuantity = resolution.suggestedQuantity;
+    if (!await _confirmDuplicateIncrease(line, product)) {
+      _cancelDuplicateCandidate(line);
+      return true;
+    }
+
     var mergedIntoExisting = false;
     setState(() {
       line.quantityController.text = productEntryController.formatQuantity(
@@ -417,34 +427,72 @@ class _WarehouseReturnCreateSheetState extends State<WarehouseReturnCreateSheet>
     required ProductLookupItem product,
     required bool mergedIntoExisting,
   }) {
-    if (_shouldWarnNonConsecutiveDuplicate(
-      product: product,
-      mergedIntoExisting: mergedIntoExisting,
-    )) {
-      unawaited(TerminalFeedback.warning());
-      _showFeedback('Bu urun listede vardi; miktar artirildi.');
-      return;
-    }
-
+    _rememberAddedProduct(product);
     unawaited(TerminalFeedback.success());
   }
 
-  bool _shouldWarnNonConsecutiveDuplicate({
-    required ProductLookupItem product,
-    required bool mergedIntoExisting,
-  }) {
+  Future<bool> _confirmDuplicateIncrease(
+    _ReturnLineDraft line,
+    ProductLookupItem product,
+  ) async {
+    final existingLine = _findMergeTarget(line, product);
     final key = _productKey(
       stockCode: product.stockCode,
       barcode: product.barcode,
     );
-    if (key.isEmpty) {
-      return false;
+    if (existingLine == null ||
+        productEntryController.readQuantity(
+              existingLine.quantityController.text,
+              fallback: 0,
+            ) <=
+            0 ||
+        key.isEmpty ||
+        _lastAddedProductKey == key) {
+      return true;
     }
 
-    final previousKey = _lastAddedProductKey;
-    _lastAddedProductKey = key;
+    unawaited(TerminalFeedback.warning());
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Urun listede var'),
+          content: Text(
+            '${product.stockName} daha once eklenmis. Miktar artirilsin mi?',
+          ),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Vazgec'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('Artir'),
+            ),
+          ],
+        );
+      },
+    );
 
-    return mergedIntoExisting && previousKey != key;
+    return confirmed == true;
+  }
+
+  void _cancelDuplicateCandidate(_ReturnLineDraft line) {
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      if (line.selectedProduct == null) {
+        line.clear();
+      } else {
+        line.clearLookupStatus();
+      }
+      _ensureFreshEntryLine();
+      _validationMessage = null;
+    });
+    _draftSession.scheduleSave();
+    _focusFreshEntryLine();
   }
 
   void _rememberAddedProduct(ProductLookupItem product) {
@@ -503,17 +551,7 @@ class _WarehouseReturnCreateSheetState extends State<WarehouseReturnCreateSheet>
   }
 
   bool _applyProductToLine(_ReturnLineDraft line, ProductLookupItem product) {
-    final existingLine = productEntryController.findDuplicateLine(
-      ProductEntryDuplicateMergePolicy<_ReturnLineDraft>(
-        currentLine: line,
-        targetBarcode: product.barcode,
-        targetStockCode: product.stockCode,
-        lines: _lines,
-        lineBarcode: (line) => line.selectedProduct?.barcode ?? '',
-        lineStockCode: (line) => line.selectedProduct?.stockCode ?? '',
-        canMergeLine: (line) => line.selectedProduct != null,
-      ),
-    );
+    final existingLine = _findMergeTarget(line, product);
 
     if (existingLine == null) {
       line.applyProduct(product);
@@ -533,6 +571,23 @@ class _WarehouseReturnCreateSheetState extends State<WarehouseReturnCreateSheet>
         );
     _recycleMergedLine(line, createReplacement: _createLine);
     return true;
+  }
+
+  _ReturnLineDraft? _findMergeTarget(
+    _ReturnLineDraft line,
+    ProductLookupItem product,
+  ) {
+    return productEntryController.findDuplicateLine(
+      ProductEntryDuplicateMergePolicy<_ReturnLineDraft>(
+        currentLine: line,
+        targetBarcode: product.barcode,
+        targetStockCode: product.stockCode,
+        lines: _lines,
+        lineBarcode: (line) => line.selectedProduct?.barcode ?? '',
+        lineStockCode: (line) => line.selectedProduct?.stockCode ?? '',
+        canMergeLine: (line) => line.selectedProduct != null,
+      ),
+    );
   }
 
   void _recycleMergedLine(
@@ -1035,6 +1090,23 @@ class _ReturnLineDraft {
     if (unitPrice == 0 && product.price > 0) {
       unitPriceController.text = _formatDouble(product.price);
     }
+  }
+
+  void clear() {
+    lookupFocusNode.unfocus();
+    lookupController.clear();
+    stockCodeController.clear();
+    quantityController.clear();
+    unitPriceController.text = '0';
+    unitPointerController.text = '1';
+    descriptionController.clear();
+    partyCodeController.clear();
+    lotNoController.text = '0';
+    projectCodeController.clear();
+    selectedProduct = null;
+    lookupStatusMessage = null;
+    isLookupStatusLoading = false;
+    isLookupStatusError = false;
   }
 
   void setLookupStatus(

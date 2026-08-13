@@ -139,7 +139,7 @@ void main() {
     expect(find.text('4'), findsOneWidget);
   });
 
-  testWidgets('warns only for non-consecutive duplicate scanned products', (
+  testWidgets('asks before increasing non-consecutive duplicate scans', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(390, 1000);
@@ -147,34 +147,57 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
 
+    WarehouseShipmentCreateRequest? request;
+
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
-          body: OutgoingWarehouseShipmentCreateSheet(
-            repository: _FakeOutgoingWarehouseShipmentsRepository(
-              barcodeResolutionBuilder: (request) {
-                final isSecondProduct = request.barcode == '2222222222222';
-                return buildBarcodeResolutionResult(
-                  barcode: request.barcode,
-                  warehouseNo: int.tryParse(request.warehouseNo ?? '') ?? 110,
-                  stockCode: isSecondProduct ? 'B002' : 'A001',
-                  stockName: isSecondProduct ? 'B Urun' : 'A Urun',
-                  operationType: request.operationType ?? '',
-                  screenCode: request.screenCode ?? '',
-                );
-              },
-            ),
-            receivedWarehouseOrdersRepository:
-                _FakeReceivedWarehouseOrdersRepository(),
-            accessToken: 'token',
-            defaultWarehouseNo: '110',
-            mobileWarehouseCatalogRepository:
-                _emptyWarehouseCatalogRepository(),
+          body: Builder(
+            builder: (context) {
+              return FilledButton(
+                onPressed: () async {
+                  request =
+                      await showModalBottomSheet<WarehouseShipmentCreateRequest>(
+                        context: context,
+                        isScrollControlled: true,
+                        builder: (_) => OutgoingWarehouseShipmentCreateSheet(
+                          repository: _FakeOutgoingWarehouseShipmentsRepository(
+                            barcodeResolutionBuilder: (request) {
+                              final isSecondProduct =
+                                  request.barcode == '2222222222222';
+                              return buildBarcodeResolutionResult(
+                                barcode: request.barcode,
+                                warehouseNo:
+                                    int.tryParse(request.warehouseNo ?? '') ??
+                                    110,
+                                stockCode: isSecondProduct ? 'B002' : 'A001',
+                                stockName: isSecondProduct
+                                    ? 'B Urun'
+                                    : 'A Urun',
+                                operationType: request.operationType ?? '',
+                                screenCode: request.screenCode ?? '',
+                              );
+                            },
+                          ),
+                          receivedWarehouseOrdersRepository:
+                              _FakeReceivedWarehouseOrdersRepository(),
+                          accessToken: 'token',
+                          defaultWarehouseNo: '110',
+                          mobileWarehouseCatalogRepository:
+                              _emptyWarehouseCatalogRepository(),
+                        ),
+                      );
+                },
+                child: const Text('Ac'),
+              );
+            },
           ),
         ),
       ),
     );
 
+    await tester.tap(find.text('Ac'));
+    await tester.pumpAndSettle();
     await tester.tap(find.widgetWithText(TextField, 'Hedef depo no*'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('50 - MERKEZ DEPO'));
@@ -184,17 +207,61 @@ void main() {
     await _enterShipmentBarcode(tester, barcode: '1111111111111');
 
     expect(find.text('A Urun'), findsOneWidget);
-    expect(find.textContaining('Bu urun listede vardi'), findsNothing);
+    expect(find.text('Urun listede var'), findsNothing);
 
     await _enterShipmentBarcode(tester, barcode: '2222222222222');
 
     expect(find.text('B Urun'), findsOneWidget);
-    expect(find.textContaining('Bu urun listede vardi'), findsNothing);
+    expect(find.text('Urun listede var'), findsNothing);
 
-    await _enterShipmentBarcode(tester, barcode: '1111111111111');
+    await _enterShipmentBarcode(
+      tester,
+      barcode: '1111111111111',
+      settleAfterSubmit: false,
+    );
+
+    expect(find.text('Urun listede var'), findsOneWidget);
+    expect(find.textContaining('Miktar artirilsin mi?'), findsOneWidget);
+
+    await tester.tap(
+      find.descendant(
+        of: find.byType(AlertDialog),
+        matching: find.widgetWithText(TextButton, 'Vazgec'),
+      ),
+    );
+    await tester.pumpAndSettle();
 
     expect(find.text('A Urun'), findsOneWidget);
-    expect(find.textContaining('Bu urun listede vardi'), findsOneWidget);
+
+    await _enterShipmentBarcode(
+      tester,
+      barcode: '1111111111111',
+      settleAfterSubmit: false,
+    );
+
+    expect(find.text('Urun listede var'), findsOneWidget);
+    await tester.tap(
+      find.descendant(
+        of: find.byType(AlertDialog),
+        matching: find.widgetWithText(FilledButton, 'Artir'),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.scrollUntilVisible(
+      find.text('Sevki Hazirla'),
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.tap(find.widgetWithText(FilledButton, 'Sevki Hazirla'));
+    await tester.pumpAndSettle();
+
+    expect(request, isNotNull);
+    final linesByStockCode = <String, WarehouseShipmentCreateLine>{
+      for (final line in request!.lines) line.stockCode: line,
+    };
+    expect(linesByStockCode['A001']?.quantity, 3);
+    expect(linesByStockCode['B002']?.quantity, 1);
   });
 
   testWidgets('does not block shipment for target warehouse model warning', (
@@ -581,6 +648,7 @@ void main() {
 Future<void> _enterShipmentBarcode(
   WidgetTester tester, {
   String barcode = '8690000000012',
+  bool settleAfterSubmit = true,
 }) async {
   final productField = find
       .widgetWithText(TextFormField, 'Barkod / stok kodu / urun adi')
@@ -590,9 +658,16 @@ Future<void> _enterShipmentBarcode(
 
   await tester.enterText(productField, barcode);
   await tester.tap(find.widgetWithText(FilledButton, 'Urun').first);
-  await tester.pumpAndSettle();
+  if (settleAfterSubmit) {
+    await tester.pumpAndSettle();
+  } else {
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 350));
+  }
 
-  expect(find.text('Urun Ara'), findsNothing);
+  if (settleAfterSubmit) {
+    expect(find.text('Urun Ara'), findsNothing);
+  }
 }
 
 Future<void> _dragShipmentCreateScroll(WidgetTester tester) async {

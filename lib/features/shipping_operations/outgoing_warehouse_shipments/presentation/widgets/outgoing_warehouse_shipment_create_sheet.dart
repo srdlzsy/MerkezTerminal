@@ -388,6 +388,11 @@ class _OutgoingWarehouseShipmentCreateSheetState
     }
     final pickedProduct = product;
 
+    if (!await _confirmManualDuplicateIncrease(line, pickedProduct)) {
+      _cancelManualDuplicateCandidate(line);
+      return;
+    }
+
     var mergedIntoExisting = false;
     setState(() {
       mergedIntoExisting = _applyProductToManualLine(line, pickedProduct);
@@ -475,6 +480,11 @@ class _OutgoingWarehouseShipmentCreateSheetState
       return;
     }
     final pickedProduct = product;
+
+    if (!await _confirmLinkedDuplicateIncrease(line, pickedProduct)) {
+      _cancelLinkedDuplicateCandidate(line);
+      return;
+    }
 
     var mergedIntoExisting = false;
     setState(() {
@@ -586,10 +596,10 @@ class _OutgoingWarehouseShipmentCreateSheetState
     }
   }
 
-  bool _applyResolvedManualBarcode(
+  Future<bool> _applyResolvedManualBarcode(
     _ManualShipmentLineDraft line,
     BarcodeResolutionResult resolution,
-  ) {
+  ) async {
     if (!_isResolutionUsable(resolution, line.setLookupStatus)) {
       _refocusLine(line.barcodeFocusNode);
       return true;
@@ -598,6 +608,11 @@ class _OutgoingWarehouseShipmentCreateSheetState
     final product = ProductLookupItem.fromBarcodeResolution(resolution);
     final addedQuantity = resolution.suggestedQuantity;
     final quantityStep = _quantityStepForResolution(resolution);
+    if (!await _confirmManualDuplicateIncrease(line, product)) {
+      _cancelManualDuplicateCandidate(line);
+      return true;
+    }
+
     var mergedIntoExisting = false;
     setState(() {
       line.quantityController.text = productEntryController.formatQuantity(
@@ -627,10 +642,10 @@ class _OutgoingWarehouseShipmentCreateSheetState
     return true;
   }
 
-  bool _applyResolvedLinkedBarcode(
+  Future<bool> _applyResolvedLinkedBarcode(
     _LinkedShipmentLineDraft line,
     BarcodeResolutionResult resolution,
-  ) {
+  ) async {
     if (!_isResolutionUsable(resolution, line.setLookupStatus)) {
       _refocusLine(line.barcodeFocusNode);
       return true;
@@ -639,6 +654,11 @@ class _OutgoingWarehouseShipmentCreateSheetState
     final product = ProductLookupItem.fromBarcodeResolution(resolution);
     final addedQuantity = resolution.suggestedQuantity;
     final quantityStep = _quantityStepForResolution(resolution);
+    if (!await _confirmLinkedDuplicateIncrease(line, product)) {
+      _cancelLinkedDuplicateCandidate(line);
+      return true;
+    }
+
     var mergedIntoExisting = false;
     setState(() {
       line.quantityController.text = productEntryController.formatQuantity(
@@ -717,34 +737,116 @@ class _OutgoingWarehouseShipmentCreateSheetState
     required ProductLookupItem product,
     required bool mergedIntoExisting,
   }) {
-    if (_shouldWarnNonConsecutiveDuplicate(
-      product: product,
-      mergedIntoExisting: mergedIntoExisting,
-    )) {
-      unawaited(TerminalFeedback.warning());
-      _showFeedback('Bu urun listede vardi; miktar artirildi.');
-      return;
-    }
-
+    _rememberAddedProduct(product);
     unawaited(TerminalFeedback.success());
   }
 
-  bool _shouldWarnNonConsecutiveDuplicate({
+  Future<bool> _confirmManualDuplicateIncrease(
+    _ManualShipmentLineDraft line,
+    ProductLookupItem product,
+  ) {
+    final existingLine = _findManualMergeTarget(line, product);
+    return _confirmDuplicateIncrease(
+      product: product,
+      alreadyAdded:
+          existingLine != null &&
+          productEntryController.readQuantity(
+                existingLine.quantityController.text,
+                fallback: 0,
+              ) >
+              0,
+    );
+  }
+
+  Future<bool> _confirmLinkedDuplicateIncrease(
+    _LinkedShipmentLineDraft line,
+    ProductLookupItem product,
+  ) {
+    final existingLine = _findLinkedMergeTarget(line, product);
+    return _confirmDuplicateIncrease(
+      product: product,
+      alreadyAdded:
+          existingLine != null &&
+          productEntryController.readQuantity(
+                existingLine.quantityController.text,
+                fallback: 0,
+              ) >
+              0,
+    );
+  }
+
+  Future<bool> _confirmDuplicateIncrease({
     required ProductLookupItem product,
-    required bool mergedIntoExisting,
-  }) {
+    required bool alreadyAdded,
+  }) async {
     final key = _productKey(
       stockCode: product.stockCode,
       barcode: product.barcode,
     );
-    if (key.isEmpty) {
-      return false;
+    if (!alreadyAdded || key.isEmpty || _lastAddedProductKey == key) {
+      return true;
     }
 
-    final previousKey = _lastAddedProductKey;
-    _lastAddedProductKey = key;
+    unawaited(TerminalFeedback.warning());
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Urun listede var'),
+          content: Text(
+            '${product.stockName} daha once eklenmis. Miktar artirilsin mi?',
+          ),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Vazgec'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('Artir'),
+            ),
+          ],
+        );
+      },
+    );
 
-    return mergedIntoExisting && previousKey != key;
+    return confirmed == true;
+  }
+
+  void _cancelManualDuplicateCandidate(_ManualShipmentLineDraft line) {
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      if (line.selectedProduct == null) {
+        line.clear();
+      } else {
+        line.clearLookupStatus();
+      }
+      _ensureFreshManualEntryLine();
+      _validationMessage = null;
+    });
+    _draftSession.scheduleSave();
+    _focusFreshManualEntryLine();
+  }
+
+  void _cancelLinkedDuplicateCandidate(_LinkedShipmentLineDraft line) {
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      if (line.selectedProduct == null && !line.isOrderLinked) {
+        line.clear();
+      } else {
+        line.clearLookupStatus();
+      }
+      _ensureFreshLinkedEntryLine();
+      _validationMessage = null;
+    });
+    _draftSession.scheduleSave();
+    _focusFreshLinkedEntryLine();
   }
 
   void _rememberAddedProduct(ProductLookupItem product) {
@@ -1002,17 +1104,7 @@ class _OutgoingWarehouseShipmentCreateSheetState
     ProductLookupItem product, {
     bool syncQuantityStep = false,
   }) {
-    final existingLine = productEntryController.findDuplicateLine(
-      ProductEntryDuplicateMergePolicy<_ManualShipmentLineDraft>(
-        currentLine: line,
-        targetBarcode: product.barcode,
-        targetStockCode: product.stockCode,
-        lines: _manualLines,
-        lineBarcode: (line) => line.selectedProduct?.barcode ?? '',
-        lineStockCode: (line) => line.selectedProduct?.stockCode ?? '',
-        canMergeLine: (line) => line.selectedProduct != null,
-      ),
-    );
+    final existingLine = _findManualMergeTarget(line, product);
 
     if (existingLine == null) {
       line.applyProduct(product);
@@ -1037,25 +1129,29 @@ class _OutgoingWarehouseShipmentCreateSheetState
     return true;
   }
 
+  _ManualShipmentLineDraft? _findManualMergeTarget(
+    _ManualShipmentLineDraft line,
+    ProductLookupItem product,
+  ) {
+    return productEntryController.findDuplicateLine(
+      ProductEntryDuplicateMergePolicy<_ManualShipmentLineDraft>(
+        currentLine: line,
+        targetBarcode: product.barcode,
+        targetStockCode: product.stockCode,
+        lines: _manualLines,
+        lineBarcode: (line) => line.selectedProduct?.barcode ?? '',
+        lineStockCode: (line) => line.selectedProduct?.stockCode ?? '',
+        canMergeLine: (line) => line.selectedProduct != null,
+      ),
+    );
+  }
+
   bool _applyProductToLinkedLine(
     _LinkedShipmentLineDraft line,
     ProductLookupItem product, {
     bool syncQuantityStep = false,
   }) {
-    final existingLine =
-        _findGreenGrocerLinkedOrderLineForProduct(line, product) ??
-        productEntryController.findDuplicateLine(
-          ProductEntryDuplicateMergePolicy<_LinkedShipmentLineDraft>(
-            currentLine: line,
-            targetBarcode: product.barcode,
-            targetStockCode: product.stockCode,
-            lines: _linkedLines,
-            lineBarcode: (line) => line.selectedProduct?.barcode ?? '',
-            lineStockCode: (line) => line.stockCode,
-            canMergeLine: (line) =>
-                !line.isOrderLinked && line.selectedProduct != null,
-          ),
-        );
+    final existingLine = _findLinkedMergeTarget(line, product);
 
     if (existingLine == null) {
       line.applyProduct(product);
@@ -1080,6 +1176,25 @@ class _OutgoingWarehouseShipmentCreateSheetState
     }
     _recycleMergedLinkedLine(line, createReplacement: _createLinkedLine);
     return true;
+  }
+
+  _LinkedShipmentLineDraft? _findLinkedMergeTarget(
+    _LinkedShipmentLineDraft line,
+    ProductLookupItem product,
+  ) {
+    return _findGreenGrocerLinkedOrderLineForProduct(line, product) ??
+        productEntryController.findDuplicateLine(
+          ProductEntryDuplicateMergePolicy<_LinkedShipmentLineDraft>(
+            currentLine: line,
+            targetBarcode: product.barcode,
+            targetStockCode: product.stockCode,
+            lines: _linkedLines,
+            lineBarcode: (line) => line.selectedProduct?.barcode ?? '',
+            lineStockCode: (line) => line.stockCode,
+            canMergeLine: (line) =>
+                !line.isOrderLinked && line.selectedProduct != null,
+          ),
+        );
   }
 
   _LinkedShipmentLineDraft? _findGreenGrocerLinkedOrderLineForProduct(

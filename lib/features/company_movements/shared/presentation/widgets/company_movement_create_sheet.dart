@@ -435,6 +435,11 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
     }
     final pickedProduct = selected;
 
+    if (!await _confirmDuplicateIncrease(line, pickedProduct)) {
+      _cancelDuplicateCandidate(line);
+      return;
+    }
+
     var mergedIntoExisting = false;
     setState(() {
       mergedIntoExisting = _applyProductToLine(line, pickedProduct);
@@ -491,17 +496,7 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
     _MovementLineDraft line,
     SearchProductLookupItem product,
   ) {
-    final existingLine = productEntryController.findDuplicateLine(
-      ProductEntryDuplicateMergePolicy<_MovementLineDraft>(
-        currentLine: line,
-        targetBarcode: product.barcode,
-        targetStockCode: product.stockCode,
-        lines: _lines,
-        lineBarcode: (line) => line.selectedProduct?.barcode ?? '',
-        lineStockCode: (line) => line.selectedProduct?.stockCode ?? '',
-        canMergeLine: (line) => line.selectedProduct != null,
-      ),
-    );
+    final existingLine = _findMergeTarget(line, product);
 
     if (existingLine == null) {
       line.applyProduct(product);
@@ -533,35 +528,103 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
     return true;
   }
 
+  _MovementLineDraft? _findMergeTarget(
+    _MovementLineDraft line,
+    SearchProductLookupItem product,
+  ) {
+    return productEntryController.findDuplicateLine(
+      ProductEntryDuplicateMergePolicy<_MovementLineDraft>(
+        currentLine: line,
+        targetBarcode: product.barcode,
+        targetStockCode: product.stockCode,
+        lines: _lines,
+        lineBarcode: (line) => line.selectedProduct?.barcode ?? '',
+        lineStockCode: (line) => line.selectedProduct?.stockCode ?? '',
+        canMergeLine: (line) => line.selectedProduct != null,
+      ),
+    );
+  }
+
   void _notifySuccessfulProductAdd({
     required SearchProductLookupItem product,
     required bool mergedIntoExisting,
   }) {
-    if (_shouldWarnNonConsecutiveDuplicate(
-      product: product,
-      mergedIntoExisting: mergedIntoExisting,
-    )) {
-      unawaited(TerminalFeedback.warning());
-      _showFeedback('Bu urun listede vardi; miktar artirildi.');
-    }
+    _rememberAddedProduct(product);
+    unawaited(TerminalFeedback.success());
   }
 
-  bool _shouldWarnNonConsecutiveDuplicate({
-    required SearchProductLookupItem product,
-    required bool mergedIntoExisting,
-  }) {
+  Future<bool> _confirmDuplicateIncrease(
+    _MovementLineDraft line,
+    SearchProductLookupItem product,
+  ) async {
+    final existingLine = _findMergeTarget(line, product);
     final key = _productKey(
       stockCode: product.stockCode,
       barcode: product.barcode,
     );
-    if (key.isEmpty) {
-      return false;
+    if (existingLine == null ||
+        productEntryController.readQuantity(
+              existingLine.quantityController.text,
+              fallback: 0,
+            ) <=
+            0 ||
+        key.isEmpty ||
+        _lastAddedProductKey == key) {
+      return true;
     }
 
-    final previousKey = _lastAddedProductKey;
-    _lastAddedProductKey = key;
+    unawaited(TerminalFeedback.warning());
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Urun listede var'),
+          content: Text(
+            '${product.stockName} daha once eklenmis. Miktar artirilsin mi?',
+          ),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Vazgec'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('Artir'),
+            ),
+          ],
+        );
+      },
+    );
 
-    return mergedIntoExisting && previousKey != key;
+    return confirmed == true;
+  }
+
+  void _cancelDuplicateCandidate(_MovementLineDraft line) {
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      if (line.selectedProduct == null) {
+        line.clear();
+      } else {
+        line.clearLookupStatus();
+      }
+      _ensureFreshEntryLine();
+      _lookupError = null;
+    });
+    _scheduleDraftSave();
+    _focusFreshEntryLine();
+  }
+
+  void _rememberAddedProduct(SearchProductLookupItem product) {
+    final key = _productKey(
+      stockCode: product.stockCode,
+      barcode: product.barcode,
+    );
+    if (key.isNotEmpty) {
+      _lastAddedProductKey = key;
+    }
   }
 
   String _productKey({required String stockCode, required String barcode}) {
@@ -952,19 +1015,6 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
     _scheduleDraftSave();
   }
 
-  void _showFeedback(String message) {
-    final messenger = ScaffoldMessenger.maybeOf(context);
-    messenger?.hideCurrentSnackBar();
-    messenger?.showSnackBar(
-      SnackBar(
-        content: Text(message),
-        duration: const Duration(seconds: 2),
-        behavior: SnackBarBehavior.floating,
-        margin: const EdgeInsets.all(16),
-      ),
-    );
-  }
-
   void _refocusLine(FocusNode focusNode) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
@@ -1070,6 +1120,24 @@ class _MovementLineDraft {
       );
     }
     unitPriceController.text = product.price.toString();
+  }
+
+  void clear() {
+    lookupFocusNode.unfocus();
+    lookupController.clear();
+    quantityController.clear();
+    unitPriceController.text = '0';
+    unitPointerController.text = '1';
+    descriptionController.clear();
+    partyCodeController.clear();
+    lotNoController.text = '0';
+    projectCodeController.clear();
+    customerRcController.clear();
+    productRcController.clear();
+    selectedProduct = null;
+    lookupStatusMessage = null;
+    isLookupStatusLoading = false;
+    isLookupStatusError = false;
   }
 
   void setLookupStatus(
