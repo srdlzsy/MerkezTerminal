@@ -503,6 +503,8 @@ class CompanyLookupToolPage extends StatefulWidget {
     required this.repository,
     required this.accessToken,
     required this.defaultWarehouseNo,
+    required this.customerCatalogRepository,
+    required this.customerCatalogSyncService,
     required this.title,
     required this.subtitle,
     required this.emptyMessage,
@@ -511,6 +513,8 @@ class CompanyLookupToolPage extends StatefulWidget {
   final LegacyToolsRepository repository;
   final String accessToken;
   final String defaultWarehouseNo;
+  final MobileCustomerCatalogLocalRepository customerCatalogRepository;
+  final MobileCustomerCatalogSyncService customerCatalogSyncService;
   final String title;
   final String subtitle;
   final String emptyMessage;
@@ -522,14 +526,19 @@ class CompanyLookupToolPage extends StatefulWidget {
 class _CompanyLookupToolPageState extends State<CompanyLookupToolPage> {
   final TextEditingController _queryController = TextEditingController();
   bool _isLoading = false;
+  bool _isSyncingCatalog = false;
   bool _hasQuery = false;
+  bool _isUsingOfflineCatalog = false;
   String? _errorMessage;
+  String? _catalogStatusMessage;
+  MobileCustomerCatalogMetadata? _customerCatalogMetadata;
   List<CustomerLookupItem> _customers = const <CustomerLookupItem>[];
 
   @override
   void initState() {
     super.initState();
     _queryController.addListener(_handleQueryChanged);
+    unawaited(_loadCatalogMetadata());
   }
 
   @override
@@ -555,7 +564,20 @@ class _CompanyLookupToolPageState extends State<CompanyLookupToolPage> {
     setState(() {
       _customers = const <CustomerLookupItem>[];
       _errorMessage = null;
+      _catalogStatusMessage = null;
+      _isUsingOfflineCatalog = false;
       _isLoading = false;
+    });
+  }
+
+  Future<void> _loadCatalogMetadata() async {
+    final metadata = await widget.customerCatalogRepository.fetchMetadata();
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _customerCatalogMetadata = metadata;
     });
   }
 
@@ -587,7 +609,36 @@ class _CompanyLookupToolPageState extends State<CompanyLookupToolPage> {
 
       setState(() {
         _customers = customers;
+        _isUsingOfflineCatalog = false;
+        _catalogStatusMessage = null;
         _isLoading = false;
+      });
+    } on ApiException catch (error) {
+      final catalogCustomers = await widget.customerCatalogRepository
+          .searchCustomers(query: query);
+
+      if (!mounted) {
+        return;
+      }
+
+      if (catalogCustomers.isNotEmpty) {
+        setState(() {
+          _customers = catalogCustomers
+              .map((item) => item.toCustomerLookupItem())
+              .toList(growable: false);
+          _isUsingOfflineCatalog = true;
+          _catalogStatusMessage =
+              'API erisilemedi; son basarili cari katalog sync verisi gosteriliyor.';
+          _isLoading = false;
+          _errorMessage = null;
+        });
+        return;
+      }
+
+      setState(() {
+        _isLoading = false;
+        _isUsingOfflineCatalog = false;
+        _errorMessage = error.toString().replaceFirst('Exception: ', '');
       });
     } catch (error) {
       if (!mounted) {
@@ -596,6 +647,46 @@ class _CompanyLookupToolPageState extends State<CompanyLookupToolPage> {
 
       setState(() {
         _isLoading = false;
+        _isUsingOfflineCatalog = false;
+        _errorMessage = error.toString().replaceFirst('Exception: ', '');
+      });
+    }
+  }
+
+  Future<void> _syncCatalog() async {
+    if (_isSyncingCatalog) {
+      return;
+    }
+
+    setState(() {
+      _isSyncingCatalog = true;
+      _errorMessage = null;
+      _catalogStatusMessage = 'Cari katalog sync ediliyor...';
+    });
+
+    try {
+      final result = await widget.customerCatalogSyncService.syncCatalog(
+        accessToken: widget.accessToken,
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _customerCatalogMetadata = result.metadata;
+        _isSyncingCatalog = false;
+        _catalogStatusMessage =
+            'Cari katalog tamamlandi: ${result.pagesFetched} sayfa / ${result.upsertedCount} kayit / ${result.deletedCount} silinen.';
+      });
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _isSyncingCatalog = false;
+        _catalogStatusMessage = null;
         _errorMessage = error.toString().replaceFirst('Exception: ', '');
       });
     }
@@ -639,37 +730,62 @@ class _CompanyLookupToolPageState extends State<CompanyLookupToolPage> {
           SectionCard(
             title: widget.title,
             subtitle: widget.subtitle,
-            child: TerminalResponsiveLookupRow(
-              breakpoint: 340,
-              field: ProductLookupField(
-                controller: _queryController,
-                enabled: !_isLoading,
-                onSubmit: _search,
-                labelText: 'Arama veya barkod',
-                suffixIcon: _hasQuery
-                    ? IconButton(
-                        onPressed: _isLoading ? null : _clearSearch,
-                        tooltip: 'Temizle',
-                        icon: const Icon(Icons.close_rounded),
-                      )
-                    : null,
-              ),
-              action: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: <Widget>[
-                  FilledButton.icon(
-                    onPressed: _isLoading ? null : _search,
-                    icon: const Icon(Icons.search_rounded),
-                    label: const Text('Urun'),
+            child: Column(
+              children: <Widget>[
+                TerminalResponsiveLookupRow(
+                  breakpoint: 340,
+                  field: ProductLookupField(
+                    controller: _queryController,
+                    enabled: !_isLoading,
+                    onSubmit: _search,
+                    labelText: 'Arama veya barkod',
+                    suffixIcon: _hasQuery
+                        ? IconButton(
+                            onPressed: _isLoading ? null : _clearSearch,
+                            tooltip: 'Temizle',
+                            icon: const Icon(Icons.close_rounded),
+                          )
+                        : null,
                   ),
-                  const SizedBox(width: 8),
-                  IconButton.filledTonal(
-                    onPressed: _isLoading ? null : _scanWithCamera,
-                    tooltip: 'Kamera ile oku',
-                    icon: const Icon(Icons.photo_camera_back_rounded),
+                  action: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: <Widget>[
+                      FilledButton.icon(
+                        onPressed: _isLoading ? null : _search,
+                        icon: const Icon(Icons.search_rounded),
+                        label: const Text('Cari'),
+                      ),
+                      const SizedBox(width: 8),
+                      IconButton.filledTonal(
+                        onPressed: _isLoading ? null : _scanWithCamera,
+                        tooltip: 'Kamera ile oku',
+                        icon: const Icon(Icons.photo_camera_back_rounded),
+                      ),
+                    ],
                   ),
-                ],
-              ),
+                ),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: <Widget>[
+                    FilledButton.tonalIcon(
+                      onPressed: _isSyncingCatalog ? null : _syncCatalog,
+                      icon: _isSyncingCatalog
+                          ? const SizedBox.square(
+                              dimension: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.sync_rounded),
+                      label: Text(
+                        _isSyncingCatalog ? 'Sync...' : 'Cari Katalog Sync',
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                _buildCustomerCatalogStatusBlock(),
+              ],
             ),
           ),
           const SizedBox(height: 16),
@@ -677,6 +793,8 @@ class _CompanyLookupToolPageState extends State<CompanyLookupToolPage> {
             title: 'Firmalar',
             subtitle: _isLoading
                 ? 'Araniyor...'
+                : _isUsingOfflineCatalog
+                ? '${_customers.length} firma local katalogdan bulundu.'
                 : '${_customers.length} firma bulundu.',
             child: Column(
               children: <Widget>[
@@ -750,6 +868,29 @@ class _CompanyLookupToolPageState extends State<CompanyLookupToolPage> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildCustomerCatalogStatusBlock() {
+    final message = _catalogStatusMessage;
+    if (_isSyncingCatalog && message != null) {
+      return TerminalMessageBlock.loading(message: message);
+    }
+    if (message != null) {
+      return TerminalMessageBlock.info(message: message);
+    }
+
+    final metadata = _customerCatalogMetadata;
+    if (metadata == null || metadata.syncToken.trim().isEmpty) {
+      return const TerminalMessageBlock.info(
+        message:
+            'Cari katalogu henuz indirilmedi. Onlineken Cari Katalog Sync ile ilk tam indirmeyi yapin.',
+      );
+    }
+
+    return TerminalMessageBlock.info(
+      message:
+          'Cari katalogu: ${AppFormatters.dateTimeOrDash(metadata.lastCompletedAt)} | ${metadata.itemCount} cari',
     );
   }
 }

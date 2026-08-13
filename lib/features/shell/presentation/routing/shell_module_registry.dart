@@ -619,6 +619,8 @@ class ShellModuleRegistry {
           repository: legacyToolsRepository,
           accessToken: context.accessToken,
           defaultWarehouseNo: context.user.warehouseNo,
+          customerCatalogRepository: mobileCustomerCatalogLocalRepository,
+          customerCatalogSyncService: mobileCustomerCatalogSyncService,
           title: 'Cari Bul',
           subtitle: 'Cari sorgusu.',
           emptyMessage: 'Bu barkod icin cari onerisi bulunamadi.',

@@ -9,7 +9,7 @@ import 'package:furpa_merkez_terminal/features/stock_operations/offline_inventor
 import 'package:furpa_merkez_terminal/features/stock_operations/offline_inventory_counts/data/offline_inventory_counts_repository.dart';
 import 'package:furpa_merkez_terminal/shared/offline/offline_record_status.dart';
 
-enum OfflineSubmissionStatus { synced, recovered, queued }
+enum OfflineSubmissionStatus { synced, recovered, queued, processing }
 
 class InventoryCountSubmissionResult {
   const InventoryCountSubmissionResult({
@@ -76,14 +76,29 @@ class OfflineSyncService {
       );
     } on ApiException catch (error) {
       if (_shouldTryCreateRecovery(error)) {
-        final recovered = await _recoverInventoryRequest(
+        final recovery = await _recoverInventoryRequest(
           accessToken: accessToken,
           clientRequestId: request.clientRequestId ?? '',
         );
-        if (recovered != null) {
+        if (recovery.status == _CreateRecoveryStatus.completed) {
           return InventoryCountSubmissionResult(
             status: OfflineSubmissionStatus.recovered,
-            onlineResult: recovered,
+            onlineResult: recovery.result,
+          );
+        }
+        if (recovery.status == _CreateRecoveryStatus.processing) {
+          await _offlineInventoryRepository.saveDraft(
+            OfflineInventoryCountDraft.fromCreateRequest(
+              request,
+              userId: userId,
+              warehouseNo: warehouseNo,
+              status: OfflineRecordStatus.syncing,
+              lastSyncAttemptAt: DateTime.now(),
+              lastError: recovery.message ?? 'Kayit sunucuda isleniyor.',
+            ),
+          );
+          return const InventoryCountSubmissionResult(
+            status: OfflineSubmissionStatus.processing,
           );
         }
       }
@@ -127,14 +142,31 @@ class OfflineSyncService {
       );
     } on ApiException catch (error) {
       if (_shouldTryCreateRecovery(error)) {
-        final recovered = await _recoverCompanyAcceptanceRequest(
+        final recovery = await _recoverCompanyAcceptanceRequest(
           accessToken: accessToken,
           clientRequestId: request.clientRequestId ?? '',
         );
-        if (recovered != null) {
+        if (recovery.status == _CreateRecoveryStatus.completed) {
           return CompanyAcceptanceSubmissionResult(
             status: OfflineSubmissionStatus.recovered,
-            onlineResult: recovered,
+            onlineResult: recovery.result,
+          );
+        }
+        if (recovery.status == _CreateRecoveryStatus.processing) {
+          await _offlineCompanyAcceptanceRepository.saveDraft(
+            OfflineCompanyAcceptanceDraft.fromCreateRequest(
+              request,
+              userId: userId,
+              warehouseNo: warehouseNo,
+              customerDisplayName: customerDisplayName ?? '',
+              createdAt: createdAt ?? DateTime.now(),
+              status: OfflineRecordStatus.syncing,
+              lastSyncAttemptAt: DateTime.now(),
+              lastError: recovery.message ?? 'Kayit sunucuda isleniyor.',
+            ),
+          );
+          return const CompanyAcceptanceSubmissionResult(
+            status: OfflineSubmissionStatus.processing,
           );
         }
       }
@@ -182,14 +214,38 @@ class OfflineSyncService {
         status: OfflineDraftSyncResultStatus.synced,
       );
     } on ApiException catch (error) {
-      final recovered = await _recoverInventoryRequest(
+      final recovery = await _recoverInventoryRequest(
         accessToken: accessToken,
         clientRequestId: syncingDraft.clientRequestId,
       );
-      if (recovered != null) {
+      if (recovery.status == _CreateRecoveryStatus.completed) {
         await _offlineInventoryRepository.deleteDraft(syncingDraft.id);
         return const OfflineDraftSyncResult(
           status: OfflineDraftSyncResultStatus.synced,
+        );
+      }
+      if (recovery.status == _CreateRecoveryStatus.processing) {
+        await _offlineInventoryRepository.saveDraft(
+          syncingDraft.copyWith(
+            status: OfflineRecordStatus.syncing,
+            lastError: recovery.message ?? 'Kayit sunucuda isleniyor.',
+          ),
+        );
+        return OfflineDraftSyncResult(
+          status: OfflineDraftSyncResultStatus.processing,
+          message: recovery.message ?? 'Kayit sunucuda isleniyor.',
+        );
+      }
+      if (recovery.status == _CreateRecoveryStatus.failed) {
+        await _offlineInventoryRepository.saveDraft(
+          syncingDraft.copyWith(
+            status: OfflineRecordStatus.failed,
+            lastError: recovery.message,
+          ),
+        );
+        return OfflineDraftSyncResult(
+          status: OfflineDraftSyncResultStatus.failed,
+          message: recovery.message,
         );
       }
 
@@ -240,14 +296,38 @@ class OfflineSyncService {
         status: OfflineDraftSyncResultStatus.synced,
       );
     } on ApiException catch (error) {
-      final recovered = await _recoverCompanyAcceptanceRequest(
+      final recovery = await _recoverCompanyAcceptanceRequest(
         accessToken: accessToken,
         clientRequestId: syncingDraft.clientRequestId,
       );
-      if (recovered != null) {
+      if (recovery.status == _CreateRecoveryStatus.completed) {
         await _offlineCompanyAcceptanceRepository.deleteDraft(syncingDraft.id);
         return const OfflineDraftSyncResult(
           status: OfflineDraftSyncResultStatus.synced,
+        );
+      }
+      if (recovery.status == _CreateRecoveryStatus.processing) {
+        await _offlineCompanyAcceptanceRepository.saveDraft(
+          syncingDraft.copyWith(
+            status: OfflineRecordStatus.syncing,
+            lastError: recovery.message ?? 'Kayit sunucuda isleniyor.',
+          ),
+        );
+        return OfflineDraftSyncResult(
+          status: OfflineDraftSyncResultStatus.processing,
+          message: recovery.message ?? 'Kayit sunucuda isleniyor.',
+        );
+      }
+      if (recovery.status == _CreateRecoveryStatus.failed) {
+        await _offlineCompanyAcceptanceRepository.saveDraft(
+          syncingDraft.copyWith(
+            status: OfflineRecordStatus.failed,
+            lastError: recovery.message,
+          ),
+        );
+        return OfflineDraftSyncResult(
+          status: OfflineDraftSyncResultStatus.failed,
+          message: recovery.message,
         );
       }
 
@@ -298,7 +378,8 @@ class OfflineSyncService {
           accessToken: accessToken,
           draft: draft,
         );
-        if (result.status == OfflineDraftSyncResultStatus.deferred) {
+        if (result.status == OfflineDraftSyncResultStatus.deferred ||
+            result.status == OfflineDraftSyncResultStatus.processing) {
           break;
         }
       }
@@ -311,7 +392,8 @@ class OfflineSyncService {
           accessToken: accessToken,
           draft: draft,
         );
-        if (result.status == OfflineDraftSyncResultStatus.deferred) {
+        if (result.status == OfflineDraftSyncResultStatus.deferred ||
+            result.status == OfflineDraftSyncResultStatus.processing) {
           break;
         }
       }
@@ -345,12 +427,12 @@ class OfflineSyncService {
         title.contains('network');
   }
 
-  Future<InventoryCountCreateResult?> _recoverInventoryRequest({
+  Future<_CreateRecovery<InventoryCountCreateResult>> _recoverInventoryRequest({
     required String accessToken,
     required String clientRequestId,
   }) async {
     if (clientRequestId.trim().isEmpty) {
-      return null;
+      return const _CreateRecovery(status: _CreateRecoveryStatus.unknown);
     }
 
     try {
@@ -359,21 +441,37 @@ class OfflineSyncService {
         clientRequestId: clientRequestId,
       );
       if (status.isCompleted) {
-        return status.result;
+        return _CreateRecovery(
+          status: _CreateRecoveryStatus.completed,
+          result: status.result,
+        );
+      }
+      if (status.isProcessing) {
+        return _CreateRecovery(
+          status: _CreateRecoveryStatus.processing,
+          message: status.errorMessage,
+        );
+      }
+      if (status.isFailed) {
+        return _CreateRecovery(
+          status: _CreateRecoveryStatus.failed,
+          message: status.errorMessage,
+        );
       }
     } on ApiException {
-      return null;
+      return const _CreateRecovery(status: _CreateRecoveryStatus.unknown);
     }
 
-    return null;
+    return const _CreateRecovery(status: _CreateRecoveryStatus.unknown);
   }
 
-  Future<CompanyAcceptanceCreateResult?> _recoverCompanyAcceptanceRequest({
+  Future<_CreateRecovery<CompanyAcceptanceCreateResult>>
+  _recoverCompanyAcceptanceRequest({
     required String accessToken,
     required String clientRequestId,
   }) async {
     if (clientRequestId.trim().isEmpty) {
-      return null;
+      return const _CreateRecovery(status: _CreateRecoveryStatus.unknown);
     }
 
     try {
@@ -382,12 +480,37 @@ class OfflineSyncService {
         clientRequestId: clientRequestId,
       );
       if (status.isCompleted) {
-        return status.result;
+        return _CreateRecovery(
+          status: _CreateRecoveryStatus.completed,
+          result: status.result,
+        );
+      }
+      if (status.isProcessing) {
+        return _CreateRecovery(
+          status: _CreateRecoveryStatus.processing,
+          message: status.errorMessage,
+        );
+      }
+      if (status.isFailed) {
+        return _CreateRecovery(
+          status: _CreateRecoveryStatus.failed,
+          message: status.errorMessage,
+        );
       }
     } on ApiException {
-      return null;
+      return const _CreateRecovery(status: _CreateRecoveryStatus.unknown);
     }
 
-    return null;
+    return const _CreateRecovery(status: _CreateRecoveryStatus.unknown);
   }
+}
+
+enum _CreateRecoveryStatus { completed, processing, failed, unknown }
+
+class _CreateRecovery<T> {
+  const _CreateRecovery({required this.status, this.result, this.message});
+
+  final _CreateRecoveryStatus status;
+  final T? result;
+  final String? message;
 }

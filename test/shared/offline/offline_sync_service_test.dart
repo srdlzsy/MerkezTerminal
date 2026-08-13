@@ -57,6 +57,40 @@ void main() {
     );
   });
 
+  test(
+    'submitInventoryCount keeps processing draft when backend is busy',
+    () async {
+      inventoryRepository
+        ..createError = const ApiException(
+          statusCode: 0,
+          title: 'Baglanti Hatasi',
+          detail: 'No network',
+        )
+        ..offlineSyncStatus = InventoryCountOfflineSyncStatus(
+          clientRequestId: 'request-processing',
+          operationCode: 'inventory-count-create',
+          status: 'processing',
+          createdAtUtc: DateTime.utc(2026, 4, 23, 8),
+          completedAtUtc: null,
+          errorMessage: null,
+          result: null,
+        );
+
+      final result = await service.submitInventoryCount(
+        accessToken: 'token',
+        userId: 'user-1',
+        warehouseNo: '110',
+        request: _buildRequest(clientRequestId: 'request-processing'),
+      );
+
+      expect(result.status, OfflineSubmissionStatus.processing);
+      expect(
+        offlineInventoryRepository.savedDrafts.single.status,
+        OfflineRecordStatus.syncing,
+      );
+    },
+  );
+
   test('submitInventoryCount does not queue backend errors', () async {
     inventoryRepository.createError = const ApiException(
       statusCode: 400,
@@ -237,6 +271,51 @@ void main() {
       expect(
         offlineCompanyAcceptanceRepository.savedDrafts.single.lastError,
         'Baglanti Hatasi: No network',
+      );
+      final savedRequest = offlineCompanyAcceptanceRepository.savedDrafts.single
+          .toCreateRequest();
+      expect(savedRequest.officialDocumentKind, 'e-despatch');
+      expect(savedRequest.officialDocumentNo, 'ST12026000002395');
+      expect(savedRequest.officialDocumentDate, DateTime(2026, 4, 20));
+      expect(
+        savedRequest.officialDocumentEttn,
+        '550e8400-e29b-41d4-a716-446655440000',
+      );
+    },
+  );
+
+  test(
+    'submitCompanyAcceptance keeps processing draft when backend is busy',
+    () async {
+      companyAcceptanceRepository
+        ..createError = const ApiException(
+          statusCode: 0,
+          title: 'Baglanti Hatasi',
+          detail: 'No network',
+        )
+        ..offlineSyncStatus = CompanyAcceptanceOfflineSyncStatus(
+          clientRequestId: 'acceptance-processing',
+          operationCode: 'company-acceptance-create',
+          status: 'processing',
+          createdAtUtc: DateTime.utc(2026, 4, 23, 8),
+          completedAtUtc: null,
+          errorMessage: null,
+          result: null,
+        );
+
+      final result = await service.submitCompanyAcceptance(
+        accessToken: 'token',
+        userId: 'user-1',
+        warehouseNo: '110',
+        request: _buildCompanyAcceptanceRequest(
+          clientRequestId: 'acceptance-processing',
+        ),
+      );
+
+      expect(result.status, OfflineSubmissionStatus.processing);
+      expect(
+        offlineCompanyAcceptanceRepository.savedDrafts.single.status,
+        OfflineRecordStatus.syncing,
       );
     },
   );
@@ -450,6 +529,10 @@ CompanyAcceptanceCreateRequest _buildCompanyAcceptanceRequest({
     movementDate: DateTime(2026, 4, 23),
     documentDate: DateTime(2026, 4, 23),
     documentNo: 'IRS-1',
+    officialDocumentKind: 'e-despatch',
+    officialDocumentNo: 'ST12026000002395',
+    officialDocumentDate: DateTime(2026, 4, 20),
+    officialDocumentEttn: '550e8400-e29b-41d4-a716-446655440000',
     deliverer: 'Teslim Eden',
     receiver: 'Teslim Alan',
     description: 'Firma mal kabul',
@@ -554,7 +637,7 @@ class _FakeInventoryCountsRepository implements InventoryCountsRepository {
         InventoryCountOfflineSyncStatus(
           clientRequestId: clientRequestId,
           operationCode: 'inventory-count-create',
-          status: 'processing',
+          status: 'unknown',
           createdAtUtc: DateTime.utc(2026, 4, 23, 8),
           completedAtUtc: null,
           errorMessage: null,
@@ -660,7 +743,7 @@ class _FakeCompanyAcceptancesRepository
         CompanyAcceptanceOfflineSyncStatus(
           clientRequestId: clientRequestId,
           operationCode: 'company-acceptance-create',
-          status: 'processing',
+          status: 'unknown',
           createdAtUtc: DateTime.utc(2026, 4, 23, 8),
           completedAtUtc: null,
           errorMessage: null,

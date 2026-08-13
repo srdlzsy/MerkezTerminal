@@ -13,6 +13,10 @@ class OfflineCompanyAcceptanceDraft {
     required this.movementDate,
     required this.documentDate,
     required this.documentNo,
+    required this.officialDocumentKind,
+    required this.officialDocumentNo,
+    required this.officialDocumentDate,
+    required this.officialDocumentEttn,
     required this.deliverer,
     required this.receiver,
     required this.description,
@@ -33,6 +37,10 @@ class OfflineCompanyAcceptanceDraft {
   final DateTime movementDate;
   final DateTime documentDate;
   final String documentNo;
+  final String? officialDocumentKind;
+  final String? officialDocumentNo;
+  final DateTime? officialDocumentDate;
+  final String? officialDocumentEttn;
   final String deliverer;
   final String receiver;
   final String description;
@@ -56,6 +64,10 @@ class OfflineCompanyAcceptanceDraft {
       movementDate: movementDate,
       documentDate: documentDate,
       documentNo: documentNo,
+      officialDocumentKind: officialDocumentKind,
+      officialDocumentNo: officialDocumentNo,
+      officialDocumentDate: officialDocumentDate,
+      officialDocumentEttn: officialDocumentEttn,
       deliverer: deliverer,
       receiver: receiver,
       description: description,
@@ -99,6 +111,10 @@ class OfflineCompanyAcceptanceDraft {
       movementDate: movementDate,
       documentDate: documentDate,
       documentNo: documentNo,
+      officialDocumentKind: officialDocumentKind,
+      officialDocumentNo: officialDocumentNo,
+      officialDocumentDate: officialDocumentDate,
+      officialDocumentEttn: officialDocumentEttn,
       deliverer: deliverer,
       receiver: receiver,
       description: description,
@@ -123,6 +139,10 @@ class OfflineCompanyAcceptanceDraft {
       'movementDate': movementDate.toIso8601String(),
       'documentDate': documentDate.toIso8601String(),
       'documentNo': documentNo,
+      'officialDocumentKind': officialDocumentKind,
+      'officialDocumentNo': officialDocumentNo,
+      'officialDocumentDate': officialDocumentDate?.toIso8601String(),
+      'officialDocumentEttn': officialDocumentEttn,
       'deliverer': deliverer,
       'receiver': receiver,
       'description': description,
@@ -151,6 +171,12 @@ class OfflineCompanyAcceptanceDraft {
           DateTime.tryParse(json['documentDate']?.toString() ?? '') ??
           DateTime.now(),
       documentNo: json['documentNo']?.toString() ?? '',
+      officialDocumentKind: _readNullableString(json['officialDocumentKind']),
+      officialDocumentNo: _readNullableString(json['officialDocumentNo']),
+      officialDocumentDate: DateTime.tryParse(
+        json['officialDocumentDate']?.toString() ?? '',
+      ),
+      officialDocumentEttn: _readNullableString(json['officialDocumentEttn']),
       deliverer: json['deliverer']?.toString() ?? '',
       receiver: json['receiver']?.toString() ?? '',
       description: json['description']?.toString() ?? '',
@@ -200,6 +226,10 @@ class OfflineCompanyAcceptanceDraft {
       movementDate: request.movementDate,
       documentDate: request.documentDate,
       documentNo: request.documentNo,
+      officialDocumentKind: request.officialDocumentKind,
+      officialDocumentNo: request.officialDocumentNo,
+      officialDocumentDate: request.officialDocumentDate,
+      officialDocumentEttn: request.officialDocumentEttn,
       deliverer: request.deliverer,
       receiver: request.receiver,
       description: request.description,
@@ -347,6 +377,15 @@ double? _readNullableDouble(Object? value) {
   }
 
   return double.tryParse(raw);
+}
+
+String? _readNullableString(Object? value) {
+  final raw = value?.toString().trim();
+  if (raw == null || raw.isEmpty) {
+    return null;
+  }
+
+  return raw;
 }
 
 String encodeOfflineCompanyAcceptanceDrafts(

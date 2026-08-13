@@ -221,6 +221,17 @@ class _InventoryCountsPageState extends State<InventoryCountsPage> {
               ),
             ),
           );
+        case OfflineSubmissionStatus.processing:
+          if (draft != null) {
+            await widget.draftRepository?.deleteDraft(draft.id);
+          }
+          messenger.showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Sayim sunucuda isleniyor. Offline taslaklardan durumunu takip edebilirsiniz.',
+              ),
+            ),
+          );
       }
     } catch (error) {
       if (!mounted) {

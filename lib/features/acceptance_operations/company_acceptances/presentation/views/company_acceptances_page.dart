@@ -291,6 +291,17 @@ class _CompanyAcceptancesPageState extends State<CompanyAcceptancesPage> {
               ),
             ),
           );
+        case OfflineSubmissionStatus.processing:
+          if (draft != null) {
+            await widget.draftRepository?.deleteDraft(draft.id);
+          }
+          messenger.showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Mal kabul sunucuda isleniyor. Offline taslaklardan durumunu takip edebilirsiniz.',
+              ),
+            ),
+          );
       }
     } catch (error) {
       if (!mounted) {

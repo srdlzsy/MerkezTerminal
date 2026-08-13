@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:furpa_merkez_terminal/core/network/api_client.dart';
+import 'package:furpa_merkez_terminal/core/network/api_exception.dart';
 import 'package:furpa_merkez_terminal/core/storage/local_database.dart';
 import 'package:furpa_merkez_terminal/features/legacy_tools/data/legacy_tools_repository.dart';
 import 'package:furpa_merkez_terminal/features/legacy_tools/presentation/views/legacy_tool_pages.dart';
@@ -49,6 +50,8 @@ void main() {
             repository: _FakeLegacyToolsRepository(),
             accessToken: 'token',
             defaultWarehouseNo: '110',
+            customerCatalogRepository: _customerCatalogRepository(),
+            customerCatalogSyncService: _customerCatalogSyncService(),
             title: 'Cari Bul',
             subtitle: 'Test',
             emptyMessage: 'Bos',
@@ -57,9 +60,68 @@ void main() {
       ),
     );
 
-    expect(find.widgetWithText(FilledButton, 'Urun'), findsOneWidget);
+    expect(find.widgetWithText(FilledButton, 'Cari'), findsOneWidget);
     expect(find.byIcon(Icons.photo_camera_back_rounded), findsOneWidget);
     expect(find.widgetWithText(FilledButton, 'Ara'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('cari bul falls back to local customer catalog', (tester) async {
+    final customerCatalogRepository = _customerCatalogRepository();
+    await customerCatalogRepository.replaceCatalog(
+      items: <MobileCustomerCatalogItem>[
+        MobileCustomerCatalogItem(
+          customerCode: '120.01.001',
+          customerName: 'Yerel Musteri',
+          customerTitle: 'Yerel Musteri A.S.',
+          customerDisplayName: 'Yerel Musteri',
+          taxNumber: '1234567890',
+          representativeCode: 'S01',
+          representativeName: 'Temsilci',
+          invoiceAddressNo: 1,
+          shippingAddressNo: 1,
+          isLocked: false,
+          isClosed: false,
+          isDeleted: false,
+        ),
+      ],
+      deletedCustomerCodes: const <String>[],
+      metadata: MobileCustomerCatalogMetadata(
+        syncToken: 'token-1',
+        generatedAt: DateTime(2026, 4, 23),
+        lastCompletedAt: DateTime(2026, 4, 23, 9),
+        itemCount: 1,
+      ),
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: CompanyLookupToolPage(
+            repository: _FakeLegacyToolsRepository(
+              searchCustomersByBarcodeError: const ApiException(
+                statusCode: 0,
+                title: 'Baglanti Hatasi',
+              ),
+            ),
+            accessToken: 'token',
+            defaultWarehouseNo: '110',
+            customerCatalogRepository: customerCatalogRepository,
+            customerCatalogSyncService: _customerCatalogSyncService(),
+            title: 'Cari Bul',
+            subtitle: 'Test',
+            emptyMessage: 'Bos',
+          ),
+        ),
+      ),
+    );
+
+    await tester.enterText(find.byType(TextField), 'yerel');
+    await tester.tap(find.widgetWithText(FilledButton, 'Cari'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Yerel Musteri'), findsWidgets);
+    expect(find.textContaining('local katalogdan'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 }
@@ -103,6 +165,10 @@ MobileWarehouseCatalogSyncService _warehouseCatalogSyncService() {
 }
 
 class _FakeLegacyToolsRepository implements LegacyToolsRepository {
+  _FakeLegacyToolsRepository({this.searchCustomersByBarcodeError});
+
+  final ApiException? searchCustomersByBarcodeError;
+
   @override
   Future<List<SearchProductLookupItem>> searchProducts({
     required String accessToken,
@@ -126,6 +192,11 @@ class _FakeLegacyToolsRepository implements LegacyToolsRepository {
     required String barcode,
     int? warehouseNo,
   }) async {
+    final error = searchCustomersByBarcodeError;
+    if (error != null) {
+      throw error;
+    }
+
     return const <CustomerLookupItem>[];
   }
 
