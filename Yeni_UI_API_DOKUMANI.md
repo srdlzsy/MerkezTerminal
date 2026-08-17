@@ -69,7 +69,7 @@ Controller'da acik olan pratik alias/canonical route'lar:
 - `GET /api/stok-islemleri/masraf-fisleri/{documentSerie}/{documentOrderNo}`
 - `GET /api/stok-islemleri/virmanlar/{documentSerie}/{documentOrderNo}`
 - `GET /api/kasa-islemleri/kasa-sayimlari/{documentSerie}/{documentOrderNo}`, `GET /api/kasa-islemleri/kasa-sayimlari/{documentSerie}/{documentOrderNo}/detaylar`, `GET /api/kasa-islemleri/kasa-sayimlari/{documentSerie}/{documentOrderNo}/banknot-hareketleri`, `GET /api/kasa-islemleri/kasa-sayimlari/{documentSerie}/{documentOrderNo}/hediye-ceki-hareketleri`
-- `PUT /api/kasa-islemleri/kasa-sayimlari/{documentSerie}/{documentOrderNo}/detaylar`, `PUT /api/kasa-islemleri/kasa-sayimlari/{documentSerie}/{documentOrderNo}/banknot-hareketleri` ve `DELETE /api/kasa-islemleri/kasa-sayimlari/{documentSerie}/{documentOrderNo}`
+- `PUT /api/kasa-islemleri/kasa-sayimlari/{documentSerie}/{documentOrderNo}/detaylar`, `PUT /api/kasa-islemleri/kasa-sayimlari/{documentSerie}/{documentOrderNo}/banknot-hareketleri`, `PUT /api/kasa-islemleri/kasa-sayimlari/{documentSerie}/{documentOrderNo}/hediye-ceki-hareketleri` ve `DELETE /api/kasa-islemleri/kasa-sayimlari/{documentSerie}/{documentOrderNo}`
 
 ### Tum Depo Yetki Modeli
 
@@ -145,7 +145,7 @@ Bu tablo UI icin ana permission referansidir. Kaynak kod tarafi `PermissionCatal
 | `kasa-islemleri` | `kasa-ciro-aktarimi` | `kasa-islemleri.kasa-ciro-aktarimi.page` | `kasa-islemleri.kasa-ciro-aktarimi.list`<br>`kasa-islemleri.kasa-ciro-aktarimi.detail`<br>`kasa-islemleri.kasa-ciro-aktarimi.create` | `kasa-islemleri.kasa-ciro-aktarimi.all-warehouses` |
 | `kasa-islemleri` | `kasa-hareket-aktarimi` | `kasa-islemleri.kasa-hareket-aktarimi.page` | `kasa-islemleri.kasa-hareket-aktarimi.list`<br>`kasa-islemleri.kasa-hareket-aktarimi.detail`<br>`kasa-islemleri.kasa-hareket-aktarimi.create`<br>`kasa-islemleri.kasa-hareket-aktarimi.update` | `kasa-islemleri.kasa-hareket-aktarimi.all-warehouses` |
 | `kasa-islemleri` | `etiket-belgeleri` | `kasa-islemleri.etiket-belgeleri.page` | `kasa-islemleri.etiket-belgeleri.list`<br>`kasa-islemleri.etiket-belgeleri.detail`<br>`kasa-islemleri.etiket-belgeleri.create`<br>`kasa-islemleri.etiket-belgeleri.update` | `kasa-islemleri.etiket-belgeleri.all-warehouses` |
-| `kasa-islemleri` | `etiket-basim` | `kasa-islemleri.etiket-basim.page` | `kasa-islemleri.etiket-basim.list`<br>`kasa-islemleri.etiket-basim.detail`<br>`kasa-islemleri.etiket-basim.create`<br>`kasa-islemleri.etiket-basim.update`<br>`kasa-islemleri.etiket-basim.delete`<br>`kasa-islemleri.etiket-basim.transfer` | `kasa-islemleri.etiket-basim.all-warehouses` |
+| `kasa-islemleri` | `manav-mal-kabul-etiket` (`ManavMalKabulVeEtiket`) | `kasa-islemleri.manav-mal-kabul-etiket.page` | `kasa-islemleri.manav-mal-kabul-etiket.list`<br>`kasa-islemleri.manav-mal-kabul-etiket.detail`<br>`kasa-islemleri.manav-mal-kabul-etiket.create`<br>`kasa-islemleri.manav-mal-kabul-etiket.update`<br>`kasa-islemleri.manav-mal-kabul-etiket.delete`<br>`kasa-islemleri.manav-mal-kabul-etiket.transfer` | `kasa-islemleri.manav-mal-kabul-etiket.all-warehouses` |
 | `kasa-islemleri` | `kunye-etiket-yazdirma` | `kasa-islemleri.kunye-etiket-yazdirma.page` | `kasa-islemleri.kunye-etiket-yazdirma.list`<br>`kasa-islemleri.kunye-etiket-yazdirma.detail`<br>`kasa-islemleri.kunye-etiket-yazdirma.create`<br>`kasa-islemleri.kunye-etiket-yazdirma.update` | `kasa-islemleri.kunye-etiket-yazdirma.all-warehouses` |
 | `kasa-islemleri` | `manav-kunye-etiket-yazdirma` | `kasa-islemleri.manav-kunye-etiket-yazdirma.page` | `kasa-islemleri.manav-kunye-etiket-yazdirma.list` | `kasa-islemleri.manav-kunye-etiket-yazdirma.all-warehouses` |
 | `kasa-islemleri` | `banknot-takipleri` | `kasa-islemleri.banknot-takipleri.page` | `kasa-islemleri.banknot-takipleri.list`<br>`kasa-islemleri.banknot-takipleri.detail`<br>`kasa-islemleri.banknot-takipleri.create` | `kasa-islemleri.banknot-takipleri.all-warehouses` |
@@ -4831,6 +4831,7 @@ Not:
 - sadece `sth_evraktip = 17` olan depolar arasi sevk hareketleri okunur
 - giden sevklerde filtre `sth_cikis_depo_no = WarehouseNo` olarak uygulanir
 - hedef depo nakliye durumuna gore `sth_giris_depo_no` veya `sth_nakliyedeposu` olarak cozulur
+- performans icin liste sorgusu sadece `STOK_HAREKETLERI` belge basliklarini gruplayarak doner; depo siparisi baglantisi gibi satir bazli ek bilgiler detay endpointinden okunur
 - bu endpoint Mikro veritabaninda sadece SELECT yapar; insert/update/delete yoktur
 
 Geriye uyum icin su route da giden sevk listesi gibi calisir:
@@ -4869,7 +4870,7 @@ Liste satiri modeli:
   "driverNameSurname": "Ad Soyad",
   "driverTckn": "11111111111",
   "descriptionEttn": "",
-  "warehouseOrderNo": "D110.1915",
+  "warehouseOrderNo": "",
   "lineCount": 8,
   "totalQuantity": 250
 }
@@ -4879,7 +4880,7 @@ UI kullanim notlari:
 
 - Liste ekraninda `documentSerie`, `documentOrderNo`, `sourceWarehouse`, `targetWarehouse`, `shippingState`, `plaque`, `driverNameSurname`, `lineCount`, `totalQuantity` yeterlidir
 - `shippingState = 1` ise sevk hedef depoya ulasmis kabul edilebilir; diger durumlar icin operasyonel isimlendirme UI tarafinda netlestirilebilir
-- `warehouseOrderNo` varsa sevkin hangi depo siparisine bagli oldugunu gostermek icin kullanilabilir
+- `warehouseOrderNo` liste response'unda performans nedeniyle bos gelebilir. Sevkin bagli oldugu depo siparisi gerekiyorsa detay endpointindeki `header.warehouseOrderNo`, `header.warehouseOrderNos` veya `items[].warehouseOrderNo` alanlari kullanilmalidir.
 - Mal kabul satir eslestirmesi icin detay response icindeki `items[].movementGuid` kullanilmalidir; sadece stok kodu ile eslestirme ayni stoktan birden fazla satir oldugunda hatali olabilir
 - Plaka, sofor adi ve sofor TCKN create ekraninda sorulmaz; kullanici bu bilgileri e-irsaliye gonderirken elle girer veya kayitli sofor listesinden secer.
 
@@ -8367,26 +8368,28 @@ Response:
 ]
 ```
 
-### Etiket Basim
+### Manav Mal Kabul ve Etiket
 
-Eski WinForms `Etiket Basim` uygulamasindaki manav/depo mal kabul etiketi akisi icin yeni API moduludur. Bu modul, mevcut `etiket-belgeleri` modulunden farklidir; `Furpa.dbo.Manav_Depo_Mal_Kabul_Etiket` kabul kayitlarini yonetir, kasa/net kilo hesaplar ve UI'nin yazdirabilecegi etiket datasini dondurur.
+Eski WinForms `Manav Mal Kabul ve Etiket` uygulamasindaki manav/depo mal kabul etiketi akisi icin yeni API moduludur. Bu modul, mevcut `etiket-belgeleri` modulunden farklidir; `Furpa.dbo.Manav_Depo_Mal_Kabul_Etiket` kabul kayitlarini yonetir, kasa/net kilo hesaplar, UI'nin yazdirabilecegi etiket datasini dondurur, canli Mikro manav mal kabul belgelerini okur ve etiket-Mikro farklarini gosterir.
 
 Bu bolum UI tarafinin baska bir dokumana gitmeden kullanabilmesi icin tum endpoint, request, response, status ve yazdirma notlarini icerir.
 
 Root route:
 
-`/api/kasa-islemleri/etiket-basim`
+`/api/kasa-islemleri/manav-mal-kabul-etiket`
+
+Yeni UI ve backend icin tek route budur.
 
 Yetkiler:
 
-- `kasa-islemleri.etiket-basim.page`
-- `kasa-islemleri.etiket-basim.list`
-- `kasa-islemleri.etiket-basim.detail`
-- `kasa-islemleri.etiket-basim.create`
-- `kasa-islemleri.etiket-basim.update`
-- `kasa-islemleri.etiket-basim.delete`
-- `kasa-islemleri.etiket-basim.transfer`
-- `kasa-islemleri.etiket-basim.all-warehouses`
+- `kasa-islemleri.manav-mal-kabul-etiket.page`
+- `kasa-islemleri.manav-mal-kabul-etiket.list`
+- `kasa-islemleri.manav-mal-kabul-etiket.detail`
+- `kasa-islemleri.manav-mal-kabul-etiket.create`
+- `kasa-islemleri.manav-mal-kabul-etiket.update`
+- `kasa-islemleri.manav-mal-kabul-etiket.delete`
+- `kasa-islemleri.manav-mal-kabul-etiket.transfer`
+- `kasa-islemleri.manav-mal-kabul-etiket.all-warehouses`
 
 Genel HTTP notlari:
 
@@ -8400,26 +8403,28 @@ Endpoint ozeti:
 
 | Method | Endpoint | Request | Response | Yetki |
 |---|---|---|---|---|
-| `GET` | `/suppliers` | query: `query`, `take` | `EtiketBasimSupplierSuggestionDto[]` | `list` |
-| `GET` | `/suppliers/by-name` | query: `name` | `EtiketBasimSupplierSuggestionDto` | `list` |
-| `GET` | `/stocks` | query: `query`, `prefix`, `take` | `EtiketBasimStockSuggestionDto[]` | `list` |
-| `GET` | `/stocks/by-name` | query: `name` | `EtiketBasimStockSuggestionDto` | `list` |
-| `GET` | `/stocks/{stockCode}` | path: `stockCode` | `EtiketBasimStockSuggestionDto` | `list` |
-| `POST` | `/acceptance-records/calculate` | body: `EtiketBasimCalculationHttpRequest` | `EtiketBasimCalculationDto` | `create` |
-| `GET` | `/acceptance-records` | query: `date` | `EtiketBasimAcceptanceRecordDto[]` | `list` |
-| `GET` | `/acceptance-records/{id}` | path: `id` | `EtiketBasimAcceptanceRecordDto` | `detail` |
-| `POST` | `/acceptance-records` | body: `SaveEtiketBasimAcceptanceRecordHttpRequest` | `EtiketBasimAcceptanceRecordDto` | `create` |
-| `PUT` | `/acceptance-records/{id}` | path: `id`, body: `SaveEtiketBasimAcceptanceRecordHttpRequest` | `EtiketBasimAcceptanceRecordDto` | `update` |
+| `GET` | `/suppliers` | query: `query`, `take` | `ManavMalKabulVeEtiketSupplierSuggestionDto[]` | `list` |
+| `GET` | `/suppliers/by-name` | query: `name` | `ManavMalKabulVeEtiketSupplierSuggestionDto` | `list` |
+| `GET` | `/stocks` | query: `query`, `prefix`, `take` | `ManavMalKabulVeEtiketStockSuggestionDto[]` | `list` |
+| `GET` | `/stocks/by-name` | query: `name` | `ManavMalKabulVeEtiketStockSuggestionDto` | `list` |
+| `GET` | `/stocks/{stockCode}` | path: `stockCode` | `ManavMalKabulVeEtiketStockSuggestionDto` | `list` |
+| `POST` | `/acceptance-records/calculate` | body: `ManavMalKabulVeEtiketCalculationHttpRequest` | `ManavMalKabulVeEtiketCalculationDto` | `create` |
+| `GET` | `/acceptance-records` | query: `date` | `ManavMalKabulVeEtiketAcceptanceRecordDto[]` | `list` |
+| `GET` | `/acceptance-records/{id}` | path: `id` | `ManavMalKabulVeEtiketAcceptanceRecordDto` | `detail` |
+| `POST` | `/acceptance-records` | body: `SaveManavMalKabulVeEtiketAcceptanceRecordHttpRequest` | `ManavMalKabulVeEtiketAcceptanceRecordDto` | `create` |
+| `PUT` | `/acceptance-records/{id}` | path: `id`, body: `SaveManavMalKabulVeEtiketAcceptanceRecordHttpRequest` | `ManavMalKabulVeEtiketAcceptanceRecordDto` | `update` |
 | `DELETE` | `/acceptance-records/{id}` | path: `id` | `204 No Content` | `delete` |
-| `GET` | `/acceptance-records/{id}/label` | path: `id` | `EtiketBasimLabelDto` | `detail` |
-| `POST` | `/labels/preview` | body: `SaveEtiketBasimAcceptanceRecordHttpRequest` | `EtiketBasimLabelDto` | `create` |
-| `GET` | `/reports/received-products` | query: `date` | `EtiketBasimReceivedProductReportItemDto[]` | `list` |
-| `GET` | `/reports/depot-stock` | query: `warehouseNo`, `date` | `EtiketBasimDepotStockReportItemDto[]` | `list` |
-| `POST` | `/micro/goods-receipts` | body: `EtiketBasimMicroTransferHttpRequest` | `501 EtiketBasimMicroTransferUnavailableDto` | `transfer` |
+| `GET` | `/acceptance-records/{id}/label` | path: `id` | `ManavMalKabulVeEtiketLabelDto` | `detail` |
+| `POST` | `/labels/preview` | body: `SaveManavMalKabulVeEtiketAcceptanceRecordHttpRequest` | `ManavMalKabulVeEtiketLabelDto` | `create` |
+| `GET` | `/reports/received-products` | query: `date` | `ManavMalKabulVeEtiketReceivedProductReportItemDto[]` | `list` |
+| `GET` | `/reports/depot-stock` | query: `warehouseNo`, `date` | `ManavMalKabulVeEtiketDepotStockReportItemDto[]` | `list` |
+| `GET` | `/micro/goods-receipts` | query: `date`, `supplierCode` opsiyonel | `ManavMalKabulVeEtiketMicroGoodsReceiptDocumentDto[]` | `list` |
+| `GET` | `/micro/goods-receipts/comparison` | query: `date`, `supplierCode` opsiyonel | `ManavMalKabulVeEtiketGoodsReceiptComparisonItemDto[]` | `list` |
+| `POST` | `/micro/goods-receipts` | body: `ManavMalKabulVeEtiketCreateMicroGoodsReceiptHttpRequest` | `ManavMalKabulVeEtiketCreateMicroGoodsReceiptResultDto` | `transfer` |
 
 Referans arama endpointleri:
 
-`GET /api/kasa-islemleri/etiket-basim/suppliers?query=ABC&take=20`
+`GET /api/kasa-islemleri/manav-mal-kabul-etiket/suppliers?query=ABC&take=20`
 
 Query:
 
@@ -8441,7 +8446,7 @@ Response:
 ]
 ```
 
-`GET /api/kasa-islemleri/etiket-basim/suppliers/by-name?name=TEDARIKCI%20A`
+`GET /api/kasa-islemleri/manav-mal-kabul-etiket/suppliers/by-name?name=TEDARIKCI%20A`
 
 Query:
 
@@ -8456,7 +8461,7 @@ Response:
 }
 ```
 
-`GET /api/kasa-islemleri/etiket-basim/stocks?query=DOMATES&prefix=MNV&take=20`
+`GET /api/kasa-islemleri/manav-mal-kabul-etiket/stocks?query=DOMATES&prefix=MNV&take=20`
 
 Query:
 
@@ -8481,7 +8486,7 @@ Response:
 ]
 ```
 
-`GET /api/kasa-islemleri/etiket-basim/stocks/by-name?name=MNV%20DOMATES`
+`GET /api/kasa-islemleri/manav-mal-kabul-etiket/stocks/by-name?name=MNV%20DOMATES`
 
 Query:
 
@@ -8497,7 +8502,7 @@ Response:
 }
 ```
 
-`GET /api/kasa-islemleri/etiket-basim/stocks/MNV001`
+`GET /api/kasa-islemleri/manav-mal-kabul-etiket/stocks/MNV001`
 
 Path:
 
@@ -8523,7 +8528,7 @@ Referans arama notlari:
 
 Hesaplama:
 
-`POST /api/kasa-islemleri/etiket-basim/acceptance-records/calculate`
+`POST /api/kasa-islemleri/manav-mal-kabul-etiket/acceptance-records/calculate`
 
 Request:
 
@@ -8569,11 +8574,11 @@ Hesap kurali:
 
 Kabul kayitlari:
 
-- `GET /api/kasa-islemleri/etiket-basim/acceptance-records?date=2026-07-30`
-- `GET /api/kasa-islemleri/etiket-basim/acceptance-records/{id}`
-- `POST /api/kasa-islemleri/etiket-basim/acceptance-records`
-- `PUT /api/kasa-islemleri/etiket-basim/acceptance-records/{id}`
-- `DELETE /api/kasa-islemleri/etiket-basim/acceptance-records/{id}`
+- `GET /api/kasa-islemleri/manav-mal-kabul-etiket/acceptance-records?date=2026-07-30`
+- `GET /api/kasa-islemleri/manav-mal-kabul-etiket/acceptance-records/{id}`
+- `POST /api/kasa-islemleri/manav-mal-kabul-etiket/acceptance-records`
+- `PUT /api/kasa-islemleri/manav-mal-kabul-etiket/acceptance-records/{id}`
+- `DELETE /api/kasa-islemleri/manav-mal-kabul-etiket/acceptance-records/{id}`
 
 Liste request:
 
@@ -8621,7 +8626,7 @@ Tek kayit request:
 id  zorunlu path parametresi
 ```
 
-Tek kayit response, create response ve update response ayni `EtiketBasimAcceptanceRecordDto` modelini doner.
+Tek kayit response, create response ve update response ayni `ManavMalKabulVeEtiketAcceptanceRecordDto` modelini doner.
 
 Kayit request:
 
@@ -8693,8 +8698,8 @@ Kayit response:
 
 Create/update/delete statuslari:
 
-- `POST /acceptance-records` basariliysa `201 Created` ve yukaridaki `EtiketBasimAcceptanceRecordDto` response'unu doner
-- `PUT /acceptance-records/{id}` basariliysa `200 OK` ve guncellenmis `EtiketBasimAcceptanceRecordDto` response'unu doner
+- `POST /acceptance-records` basariliysa `201 Created` ve yukaridaki `ManavMalKabulVeEtiketAcceptanceRecordDto` response'unu doner
+- `PUT /acceptance-records/{id}` basariliysa `200 OK` ve guncellenmis `ManavMalKabulVeEtiketAcceptanceRecordDto` response'unu doner
 - `PUT /acceptance-records/{id}` icin kayit yoksa `404`, kayit Mikro'ya aktarilmissa `409` doner
 - `DELETE /acceptance-records/{id}` basariliysa `204 No Content` doner
 - `DELETE /acceptance-records/{id}` icin kayit yoksa `404`, kayit Mikro'ya aktarilmissa `409` doner
@@ -8708,8 +8713,8 @@ Kayit notlari:
 
 Etiket datasini alma:
 
-- kaydedilmis satir icin `GET /api/kasa-islemleri/etiket-basim/acceptance-records/{id}/label`
-- kaydetmeden onizleme icin `POST /api/kasa-islemleri/etiket-basim/labels/preview`
+- kaydedilmis satir icin `GET /api/kasa-islemleri/manav-mal-kabul-etiket/acceptance-records/{id}/label`
+- kaydetmeden onizleme icin `POST /api/kasa-islemleri/manav-mal-kabul-etiket/labels/preview`
 
 Kaydedilmis etiket request:
 
@@ -8792,8 +8797,8 @@ Eski etiket tasarim alani:
 
 Raporlar:
 
-- `GET /api/kasa-islemleri/etiket-basim/reports/received-products?date=2026-07-30`
-- `GET /api/kasa-islemleri/etiket-basim/reports/depot-stock?warehouseNo=56&date=2026-07-30`
+- `GET /api/kasa-islemleri/manav-mal-kabul-etiket/reports/received-products?date=2026-07-30`
+- `GET /api/kasa-islemleri/manav-mal-kabul-etiket/reports/depot-stock?warehouseNo=56&date=2026-07-30`
 
 Alinan urunler raporu request:
 
@@ -8847,32 +8852,163 @@ Rapor notlari:
 
 - depo stok raporunda `warehouseNo` verilmezse eski akisla uyumlu varsayilan depo `56` olur
 - kullanici kendi deposu disinda depo isterse ilgili tum depo yetkisi gerekir
-- alinan urunler raporu Furpa kabul kayitlarini Mikro fatura miktarlariyla karsilastirmak icindir
+- alinan urunler raporu Furpa kabul kayitlarini canli Mikro manav mal kabul miktarlariyla karsilastirmak icindir
+- `invoiceQuantity` genel stok hareketlerinden degil, canli 2026 manav formatindan okunur: `sth_tip=0`, `sth_cins=16`, `sth_evraktip=3`, `sth_normal_iade=0`, `sth_giris_depo_no=56`, `sth_cikis_depo_no=1`, `sto_isim LIKE 'MNV%'`
 
-Mikro aktarim:
+Canli Mikro manav mal kabul belgeleri:
 
-`POST /api/kasa-islemleri/etiket-basim/micro/goods-receipts`
+`GET /api/kasa-islemleri/manav-mal-kabul-etiket/micro/goods-receipts?date=2026-08-13`
+
+Opsiyonel cari filtresi:
+
+`GET /api/kasa-islemleri/manav-mal-kabul-etiket/micro/goods-receipts?date=2026-08-13&supplierCode=32000297`
+
+Response belge bazlidir:
+
+```json
+[
+  {
+    "date": "2026-08-13T00:00:00",
+    "documentSeries": "EFT261",
+    "documentOrderNo": 2014,
+    "seriesAndNumber": "EFT261/2014",
+    "supplierCode": "32000297",
+    "supplierName": "TEDARIKCI A",
+    "createUserNo": 15,
+    "lineCount": 2,
+    "totalQuantity": 1427.0,
+    "totalAmount": 49945.0,
+    "totalTax": 0.0,
+    "firstCreatedAt": "2026-08-13T11:52:56.557",
+    "lastCreatedAt": "2026-08-13T11:52:56.557",
+    "lines": [
+      {
+        "lineNo": 0,
+        "stockCode": "001082",
+        "stockName": "MNV URUN",
+        "quantity": 714.0,
+        "unitPrice": 35.0,
+        "amount": 24990.0,
+        "taxAmount": 0.0,
+        "taxPointer": 0,
+        "inWarehouseNo": 56,
+        "outWarehouseNo": 1
+      }
+    ]
+  }
+]
+```
+
+Etiket - Mikro mal kabul karsilastirma:
+
+`GET /api/kasa-islemleri/manav-mal-kabul-etiket/micro/goods-receipts/comparison?date=2026-08-13`
+
+Response:
+
+```json
+[
+  {
+    "date": "2026-08-13T00:00:00",
+    "supplierCode": "32000297",
+    "supplierName": "TEDARIKCI A",
+    "stockCode": "001082",
+    "stockName": "MNV URUN",
+    "labelRowCount": 1,
+    "labelNetWeight": 714.4,
+    "microRowCount": 2,
+    "microQuantity": 1427.0,
+    "difference": 712.6,
+    "microAmount": 49945.0,
+    "microDocument": "EFT261/2014, EFT261/2014",
+    "status": "FARKLI"
+  }
+]
+```
+
+Karsilastirma status degerleri:
+
+- `ESLESTI`: fark 0.01 veya altinda
+- `YAKIN`: fark 2 birim veya altinda
+- `FARKLI`: iki tarafta da kayit var ama fark buyuk
+- `SADECE_ETIKET`: tartim/etiket var, Mikro mal kabul yok
+- `SADECE_MIKRO`: Mikro mal kabul var, etiket kaydi yok
+
+Mikro mal kabul olusturma:
+
+`POST /api/kasa-islemleri/manav-mal-kabul-etiket/micro/goods-receipts`
 
 Request:
 
 ```json
 {
-  "date": "2026-07-30",
-  "supplierCode": "120.001"
+  "date": "2026-08-13",
+  "supplierCode": "32000297",
+  "documentSeries": "MNV26",
+  "documentOrderNo": null,
+  "documentNo": null,
+  "mikroUserNo": 15,
+  "description": "Manav mal kabul",
+  "markAcceptanceRecordsTransferred": true,
+  "lines": [
+    {
+      "acceptanceRecordId": 12345,
+      "stockCode": "001082",
+      "quantity": 714.4,
+      "unitPrice": 35.0,
+      "unitPointer": 1,
+      "taxPointer": 3,
+      "taxRatePercent": 1,
+      "taxAmount": null,
+      "description": "Domates"
+    }
+  ]
 }
 ```
 
-Response: `501 Not Implemented`
+Response:
 
 ```json
 {
-  "isAvailable": false,
-  "message": "Mikro aktarim henuz guvenli sekilde aktif degil.",
-  "requiredRule": "Sadece bekleyen kayitlar, transaction, duplicate korumasi ve evrak no stratejisi netlestikten sonra acilmalidir."
+  "date": "2026-08-13T00:00:00",
+  "documentSeries": "MNV26",
+  "documentOrderNo": 10,
+  "seriesAndNumber": "MNV26/10",
+  "supplierCode": "32000297",
+  "createUserNo": 15,
+  "lineCount": 1,
+  "totalQuantity": 714.4,
+  "totalAmount": 25004.0,
+  "totalTax": 250.04,
+  "updatedAcceptanceRecordCount": 1,
+  "offlineTraceKey": "FURPA-MNV-20260813-32000297-MNV26",
+  "lines": [
+    {
+      "lineNo": 0,
+      "stockCode": "001082",
+      "stockName": "MNV URUN",
+      "quantity": 714.4,
+      "unitPrice": 35.0,
+      "amount": 25004.0,
+      "taxAmount": 250.04,
+      "taxPointer": 3,
+      "inWarehouseNo": 56,
+      "outWarehouseNo": 1
+    }
+  ]
 }
 ```
 
-Bu route sozlesme olarak vardir fakat su an `501 Not Implemented` doner. UI bu butonu canli aktarim gibi calistirmamalidir. Eski sistem Mikro `STOK_HAREKETLERI` tablosuna dogrudan insert attigi, duplicate/idempotency ve evrak sira uretimi netlesmedigi icin aktarim bilincli olarak kapali tutulmustur.
+Yazma kurallari:
+
+- `lines[]` zorunludur; fiyat bilinmeden Mikro belgesi olusturulmaz.
+- `documentSeries` bos gelirse `MNV`, `documentOrderNo` bos gelirse ayni seri icin sonraki sira kullanilir.
+- `documentNo` bos gelirse `documentOrderNo` metni kullanilir.
+- `mikroUserNo` bos gelirse backend default'u `39` kullanilir.
+- `acceptanceRecordId` verilirse basarili yazmadan sonra ilgili Furpa etiket kaydi `Mikro_Aktarildi=1` olur.
+- `taxAmount` verilirse aynen yazilir; yoksa `taxRatePercent` varsa hesaplanir; ikisi de yoksa `0` yazilir.
+- `taxPointer` verilmezse stok kartinin `sto_toptan_vergi` degeri kullanilir.
+- Mikro format canli 2026 manav formatidir: `sth_tip=0`, `sth_cins=16`, `sth_evraktip=3`, `sth_giris_depo_no=56`, `sth_cikis_depo_no=1`, `sth_fiyat_liste_no=-1`.
+- Ayni `date + documentSeries + documentOrderNo` icin manav mal kabul belgesi varsa API `409 Conflict` doner.
 
 ### Fiyati Degisen Etiket Urunleri
 
@@ -11551,6 +11687,11 @@ Not:
 - belge bulunmazsa `404 Not Found` doner
 - odeme satirlari ve store expense satirlari ayni listede gelir
 - `PaymentTypeID = 500` nakit toplam satiri bu endpointte donmez; backend bu satiri banknot hareketlerinden garanti eder
+- UI kullaniciya gosterecegi odeme adini `typeName` veya `paymentName` alanindan basmalidir; `paymentTypeId`, `accountCode` veya `terminalId` uzerinden banka/yemek karti adi tahmin edilmemelidir
+- `paymentTypeKey`, UI dropdown eslestirmesi icin guvenli anahtardir; format `paymentTypeNo|ACCOUNT_CODE|TERMINAL_ID` seklindedir
+- `paymentTypeNo`, `paymentTypeId`, `accountCode`, `terminalId` ve `paymentTypeKey` birlikte kullanilirsa eski terminal/hesap degisimlerinde satir yanlis secenege dusmez
+- `source` satirin makine dostu grubudur: `card`, `foodCheck`, `expenseVoucher`, `storeExpense`, `onlineSale`, `cash`, `other`
+- `category` UI grup basligi icin kullanilabilir
 
 Response:
 
@@ -11558,12 +11699,17 @@ Response:
 [
   {
     "typeName": "Akbank POS",
+    "paymentName": "Akbank POS",
     "paymentTypeId": 1,
+    "paymentTypeNo": 1,
     "accountCode": "POS-AKBANK",
+    "terminalId": "TERM-01",
+    "source": "card",
+    "category": "Kredi Kartlari",
     "slipNumber": 45612,
     "amount": 2500,
-    "terminalId": "TERM-01",
-    "description": ""
+    "description": "",
+    "paymentTypeKey": "1|POS-AKBANK|TERM-01"
   }
 ]
 ```
@@ -11588,6 +11734,7 @@ Response ornekleri:
   {
     "value": 200,
     "banknoteType": 1,
+    "banknoteTypeName": "200 TL",
     "quantity": 20,
     "total": 4000
   }
@@ -11599,11 +11746,17 @@ Response ornekleri:
   {
     "value": 100,
     "giftCheckType": 1,
+    "giftCheckTypeName": "Hediye Çeki 100 TL",
     "quantity": 3,
     "total": 300
   }
 ]
 ```
+
+Not:
+
+- UI banknot satirinda gorunen adi `banknoteTypeName` alanindan basmalidir; `value` ve `banknoteType` ile kendisi metin uretmek zorunda degildir
+- UI hediye ceki satirinda gorunen adi `giftCheckTypeName` alanindan basmalidir
 
 ### Banknot Takipleri
 
@@ -11770,37 +11923,66 @@ Kisa response ornekleri:
 ```json
 [
   {
-    "value": 1,
+    "value": 100,
     "quantity": 0,
     "total": 0,
-    "giftCheckType": 11
+    "banknoteType": 2,
+    "banknoteTypeName": "100 TL"
   },
+  {
+    "value": 200,
+    "quantity": 0,
+    "total": 0,
+    "banknoteType": 1,
+    "banknoteTypeName": "200 TL"
+  }
+]
+```
+
+`hediye-ceki-tipleri` response ornegi:
+
+```json
+[
   {
     "value": 25,
     "quantity": 0,
     "total": 0,
-    "giftCheckType": 1
+    "giftCheckType": 1,
+    "giftCheckTypeName": "Hediye Çeki 25 TL"
+  },
+  {
+    "value": 100,
+    "quantity": 0,
+    "total": 0,
+    "giftCheckType": 2,
+    "giftCheckTypeName": "Hediye Çeki 100 TL"
   }
 ]
 ```
+
+`odeme-tipleri/banka` response ornegi:
 
 ```json
 [
   {
     "paymentName": "Akbank",
+    "paymentTypeId": 1,
     "paymentTypeNo": 1,
     "terminalId": "TERM-01",
     "accountCode": "108.01.001",
     "slipNumber": 0,
-    "amountValue": 0
+    "amountValue": 0,
+    "paymentTypeKey": "1|108.01.001|TERM-01"
   },
   {
     "paymentName": "Halkbank",
+    "paymentTypeId": 2,
     "paymentTypeNo": 2,
     "terminalId": "TERM-02",
     "accountCode": "108.01.002",
     "slipNumber": 0,
-    "amountValue": 0
+    "amountValue": 0,
+    "paymentTypeKey": "2|108.01.002|TERM-02"
   }
 ]
 ```
@@ -11811,22 +11993,49 @@ Kisa response ornekleri:
 [
   {
     "paymentName": "Sodexo POS",
+    "paymentTypeId": 50,
     "paymentTypeNo": 50,
     "terminalId": "",
     "accountCode": "108.02.001",
     "slipNumber": 0,
-    "amountValue": 0
+    "amountValue": 0,
+    "paymentTypeKey": "50|108.02.001|"
   },
   {
     "paymentName": "Ticket POS",
+    "paymentTypeId": 52,
     "paymentTypeNo": 52,
     "terminalId": "",
     "accountCode": "108.02.002",
     "slipNumber": 0,
-    "amountValue": 0
+    "amountValue": 0,
+    "paymentTypeKey": "52|108.02.002|"
   }
 ]
 ```
+
+`odeme-tipleri/masraf-pusulasi` response ornegi:
+
+```json
+[
+  {
+    "paymentName": "Gider Pusulası",
+    "paymentTypeId": 100,
+    "paymentTypeNo": 100,
+    "terminalId": "",
+    "accountCode": "",
+    "slipNumber": 0,
+    "amountValue": 0,
+    "paymentTypeKey": "100||"
+  }
+]
+```
+
+Not:
+
+- `paymentName`, kullaniciya basilacak gercek addir; UI `paymentTypeNo` araligindan isim tahmin etmemelidir
+- `paymentTypeKey`, dropdown secili satirini guvenli bulmak icindir; ayni odeme tipinin farkli terminal/hesap kodu varsa tek secenege dusurulmemelidir
+- `odeme-tipleri/masraf-pusulasi`, Mikro tarafinda tanim yoksa bile fallback olarak `Gider Pusulası / 100` dondurur
 
 ### Z Rapor Toplami
 
@@ -11865,7 +12074,8 @@ Onemli not:
 - `documentSerie` backend tarafinda legacy kasa icmal formatinda `F{islemDepoNo}.{cashNo}` olarak uretilir
 - `documentOrderNo` ayni seri icin mevcut maksimum degerin bir fazlasi olarak uretilir
 - `zReportNo` Z rapor numarasidir; `zTotalValue` Z rapor tutaridir
-- `zTotalValue` eski sistemle uyumlu sekilde `Summaries` satiri olarak saklanmaz; `CARI_HESAP_HAREKETLERI` tarafinda `400 = Z Rapor Toplami`, `300 = total - zTotalValue fark` satirlari olarak yazilir
+- `zTotalValue` eski sistemle uyumlu sekilde `Summaries` satiri olarak saklanmaz; `CARI_HESAP_HAREKETLERI` tarafinda canli/eski uyumlu `X / sira` evraklari olarak tutulur, gercek kasa sayimi belgesi `cha_aciklama = "{documentSerie}.{documentOrderNo}"` icinden izlenir
+- CARI tarafinda odeme tipleri, nakit toplam, `300 = total - zTotalValue fark` ve `400 = Z Rapor Toplami` satirlari ayri hareketler olarak yazilir
 - nakit toplam `paymentTypes` icinde manuel gonderilmez; backend banknot hareketlerinden `PaymentTypeID = 500`, `description = "Nakit Toplam"` satirini garanti eder
 - UI yanlislikla `paymentTypes` icinde `Nakit` veya `paymentTypeNo = 500` gonderirse backend bunu ayri odeme satiri olarak yazmaz, 500 satirini banknot toplamindan uretir
 
@@ -11922,38 +12132,57 @@ Response:
 
 Bu akis Kasa Sayimlari liste ekranindan secilen kayit icindir. Icmal Kaydi Girisi sadece yeni kayit olusturma ekranidir.
 
-Belge uzerindeki satirlari ve fiziksel para detaylarini guncellemek icin ayri endpointler kullanilir.
+Belge uzerindeki odeme/masraf satirlari, fiziksel para detaylari ve hediye ceki detaylarini guncellemek icin ayri endpointler kullanilir.
 
 Route'lar:
 
 - `PUT /api/kasa-islemleri/kasa-sayimlari/F110.1/12/detaylar`
 - `PUT /api/kasa-islemleri/kasa-sayimlari/F110.1/12/banknot-hareketleri`
+- `PUT /api/kasa-islemleri/kasa-sayimlari/F110.1/12/hediye-ceki-hareketleri`
 - `DELETE /api/kasa-islemleri/kasa-sayimlari/F110.1/12`
 
 Legacy uyumluluk route'lari:
 
 - `POST /api/kasa-islemleri/kasa-sayimlari/UpdateSummaryDetails`
 - `POST /api/kasa-islemleri/kasa-sayimlari/UpdateBanknoteMovements`
+- `POST /api/kasa-islemleri/kasa-sayimlari/UpdateGiftCheckMovements`
 - `POST /api/kasa-islemleri/kasa-sayimlari/DeleteSummary`
 
 Yetki:
 
-- detay ve banknot update icin `kasa-islemleri.kasa-sayimlari.update`
+- detay, banknot ve hediye ceki update icin `kasa-islemleri.kasa-sayimlari.update`
 - silme icin `kasa-islemleri.kasa-sayimlari.delete`
 
 Not:
 
 - detay update request'inde `details` listesi zorunludur
 - detay update patch degildir; UI belgede kalmasini istedigi tum odeme/masraf detay satirlarini `details` icinde gondermelidir
+- banka POS, yemek ceki/karti, online odeme, masraf pusulasi ve magaza gideri satirlari ayni `details` listesinde yonetilir
+- yemek ceki/karti odemeleri `GiftCheckMovements` degildir; Multinet, Metropol, Sodexo, Ticket, Setcard gibi odemeler `PUT /detaylar` icindeki `details` listesine eklenir
 - detay listesinde eski satir yeni degerleriyle gelirse guncellenir; yeni satir gelirse olusur; eski satir gonderilmezse kaldirilir
 - UI sadece degisen tek satiri gondermemelidir; aksi halde diger detay satirlari kaldirilmis kabul edilir
 - nakit/500 satiri UI tarafindan normal detay gibi yonetilmez; backend mevcut banknot/nakit toplamindan 500 satirini yeniden uretir
 - banknot update de patch degildir; `banknoteMovements` son durumda kalacak tum banknotlari icermelidir
 - banknot update request'inde `banknoteMovements` bos gonderilirse mevcut banknot satirlari temizlenebilir
 - banknot update sonrasi backend `PaymentTypeID = 500` nakit toplam satirini ve ilgili cari hareket toplamlarini yeni belge toplamiyla gunceller
+- hediye ceki update de patch degildir; `giftCheckMovements` son durumda kalacak tum hediye ceki satirlarini icermelidir
+- hediye ceki update request'inde `giftCheckMovements` bos gonderilirse mevcut hediye ceki satirlari temizlenebilir
+- update sonrasi backend ilgili CARI hareketlerini canli/eski uyumlu `X + aciklama` formatinda yeniden olusturur; odeme tipleri, nakit, Z fark ve Z toplam CARI'de ayri satirlar olarak gorunur
 - update belge yoksa yeni belge olusturmaz; yeni kasa sayimi/icmal kaydi icin create endpointi kullanilir
 - modern `DELETE` cagrisinda sube icin query `warehouseNo` veya JWT deposu kullanilir
 - legacy `POST DeleteSummary` cagrisinda `warehouseNo` yoksa backend `documentSerie` icinden subeyi cozer, ornek `F110.1` -> `110`
+
+UI bloklarinin update karsiligi:
+
+| UI blogu | Endpoint | Request listesi | Davranis |
+| --- | --- | --- | --- |
+| Nakit Hareketleri | `PUT /api/kasa-islemleri/kasa-sayimlari/{documentSerie}/{documentOrderNo}/banknot-hareketleri` | `banknoteMovements` | Son banknot listesi gonderilir; yeni deger eklenir, olmayan silinir |
+| Kredi Kartlari | `PUT /api/kasa-islemleri/kasa-sayimlari/{documentSerie}/{documentOrderNo}/detaylar` | `details` | POS/banka satirlari son liste olarak gonderilir |
+| Yemek Cekleri/Kartlari | `PUT /api/kasa-islemleri/kasa-sayimlari/{documentSerie}/{documentOrderNo}/detaylar` | `details` | Multinet, Metropol, Sodexo, Ticket, Setcard gibi satirlar eklenir/guncellenir |
+| Hediye Cekleri | `PUT /api/kasa-islemleri/kasa-sayimlari/{documentSerie}/{documentOrderNo}/hediye-ceki-hareketleri` | `giftCheckMovements` | Fiziksel hediye ceki deger/adet listesi gonderilir |
+| Online Satislar | `PUT /api/kasa-islemleri/kasa-sayimlari/{documentSerie}/{documentOrderNo}/detaylar` | `details` | Kayit yokken yeni online odeme satiri eklenebilir |
+| Gider Pusulalari | `PUT /api/kasa-islemleri/kasa-sayimlari/{documentSerie}/{documentOrderNo}/detaylar` | `details` | Gider pusulasi fis/adet/tutar satiri eklenir/guncellenir |
+| Magaza Giderleri | `PUT /api/kasa-islemleri/kasa-sayimlari/{documentSerie}/{documentOrderNo}/detaylar` | `details` | Ayni tipten birden fazla aciklamali gider satiri eklenebilir |
 
 Detay update request:
 
@@ -11967,6 +12196,15 @@ Detay update request:
       "slipNumber": 12,
       "amount": 2500,
       "terminalId": "TERM-01",
+      "description": ""
+    },
+    {
+      "typeName": "Multinet",
+      "paymentTypeId": 54,
+      "accountCode": "K.0002",
+      "slipNumber": 8,
+      "amount": 1250,
+      "terminalId": "",
       "description": ""
     }
   ]
@@ -12006,6 +12244,28 @@ Banknot update response modeli:
 - `updatedLineCount`
 - `totalAmount`
 
+Hediye ceki update request:
+
+```json
+{
+  "giftCheckMovements": [
+    {
+      "giftCheckType": 1,
+      "quantity": 2,
+      "total": 200,
+      "value": 100
+    }
+  ]
+}
+```
+
+Hediye ceki update response modeli:
+
+- `documentSerie`
+- `documentOrderNo`
+- `updatedLineCount`
+- `totalAmount`
+
 Legacy detay update request:
 
 ```json
@@ -12038,6 +12298,23 @@ Legacy banknot update request:
       "banknoteTypeID": 1,
       "quantity": 25,
       "total": 5000
+    }
+  ]
+}
+```
+
+Legacy hediye ceki update request:
+
+```json
+{
+  "documentSerie": "F110.1",
+  "documentOrderNo": 12,
+  "giftCheckMovements": [
+    {
+      "giftCheckTypeID": 1,
+      "quantity": 2,
+      "total": 200,
+      "value": 100
     }
   ]
 }
@@ -12349,19 +12626,20 @@ Kasa Islemleri / Manav Kunye Etiket Yazdirma
   -> zengin liste satirlarini KunyeLabelTagDto ile goster
   -> endpoint token istemez
 
-Kasa Islemleri / Etiket Basim
-  -> ekran acilisinda gunluk liste icin GET /api/kasa-islemleri/etiket-basim/acceptance-records?date=...
-  -> tedarikci secimi icin GET /api/kasa-islemleri/etiket-basim/suppliers?query=...
-  -> stok secimi icin GET /api/kasa-islemleri/etiket-basim/stocks?query=...&prefix=MNV
-  -> brut kilo, kasa darasi, kasa sayisi ve palet darasi girildikce POST /api/kasa-islemleri/etiket-basim/acceptance-records/calculate
-  -> kaydetmek icin POST /api/kasa-islemleri/etiket-basim/acceptance-records
-  -> duzenlemek icin PUT /api/kasa-islemleri/etiket-basim/acceptance-records/{id}
-  -> silmek icin DELETE /api/kasa-islemleri/etiket-basim/acceptance-records/{id}
-  -> kayitli satirdan yazdirmak icin GET /api/kasa-islemleri/etiket-basim/acceptance-records/{id}/label
-  -> kaydetmeden onizleme/yazdirma icin POST /api/kasa-islemleri/etiket-basim/labels/preview
+Kasa Islemleri / Manav Mal Kabul ve Etiket
+  -> ekran acilisinda gunluk liste icin GET /api/kasa-islemleri/manav-mal-kabul-etiket/acceptance-records?date=...
+  -> tedarikci secimi icin GET /api/kasa-islemleri/manav-mal-kabul-etiket/suppliers?query=...
+  -> stok secimi icin GET /api/kasa-islemleri/manav-mal-kabul-etiket/stocks?query=...&prefix=MNV
+  -> brut kilo, kasa darasi, kasa sayisi ve palet darasi girildikce POST /api/kasa-islemleri/manav-mal-kabul-etiket/acceptance-records/calculate
+  -> kaydetmek icin POST /api/kasa-islemleri/manav-mal-kabul-etiket/acceptance-records
+  -> duzenlemek icin PUT /api/kasa-islemleri/manav-mal-kabul-etiket/acceptance-records/{id}
+  -> silmek icin DELETE /api/kasa-islemleri/manav-mal-kabul-etiket/acceptance-records/{id}
+  -> kayitli satirdan yazdirmak icin GET /api/kasa-islemleri/manav-mal-kabul-etiket/acceptance-records/{id}/label
+  -> kaydetmeden onizleme/yazdirma icin POST /api/kasa-islemleri/manav-mal-kabul-etiket/labels/preview
   -> UI labelBarcodeRaw, labelBarcode, barcodeSymbology ve labelCount alanlariyla yazici entegrasyonunu kendisi calistirir
-  -> raporlar icin GET /api/kasa-islemleri/etiket-basim/reports/received-products ve /reports/depot-stock
-  -> Mikro aktarim endpoint'i 501 dondugu icin UI'da kapali veya "hazir degil" olarak gosterilmelidir
+  -> raporlar icin GET /api/kasa-islemleri/manav-mal-kabul-etiket/reports/received-products ve /reports/depot-stock
+  -> Mikro mal kabul icin POST /api/kasa-islemleri/manav-mal-kabul-etiket/micro/goods-receipts kullanilir
+  -> UI fiyatli/onayli satirlari gondermeden Mikro belgesi olusturulmaz
 
 Manav / Manav Operasyon Paneli
   -> menu/route permission'i: green-grocer.operations.page
@@ -12421,6 +12699,7 @@ Kasa Islemleri / Kasa Sayimlari
   -> kullanicida kasa-islemleri.kasa-sayimlari.update varsa 'Duzenle' aksiyonu gosterilir
   -> detay duzenleme icin PUT /api/kasa-islemleri/kasa-sayimlari/{seri}/{sira}/detaylar
   -> banknot duzenleme icin PUT /api/kasa-islemleri/kasa-sayimlari/{seri}/{sira}/banknot-hareketleri
+  -> hediye ceki duzenleme icin PUT /api/kasa-islemleri/kasa-sayimlari/{seri}/{sira}/hediye-ceki-hareketleri
   -> kullanicida kasa-islemleri.kasa-sayimlari.delete varsa 'Sil' aksiyonu gosterilir
   -> silme icin DELETE /api/kasa-islemleri/kasa-sayimlari/{seri}/{sira}
 
@@ -13871,7 +14150,7 @@ Liste ekranlarinda onerilen kolonlar:
 - Zayiat ve masraf fisleri icin: belge tarihi, seri, sira, creator, acceptor, depo, satir sayisi, toplam miktar
 - Sayim sonuclari icin: belge tarihi, belge no, sayim adi, depo, satir sayisi, toplam miktar
 - Etiket belgeleri icin: olusturma tarihi, documentId, depo
-- Etiket basim icin: olusturma tarihi, cari, evrak seri/sira, stok kodu, stok adi, brut kilo, net kilo, kasa sayisi, ortalama kasa kilosu, durum, Mikro aktarildi
+- Manav mal kabul ve etiket icin: olusturma tarihi, cari, evrak seri/sira, stok kodu, stok adi, brut kilo, net kilo, kasa sayisi, ortalama kasa kilosu, durum, Mikro aktarildi
 - Kasa sayimlari icin: tarih, seri, sira, kasa no, z no, kasiyer, yonetici, toplam
 - Kasa cirolari icin: is tarihi, sube, vardiya, kasiyer kodu, kasiyer adi, satis tutari, tahsilat tutari, komisyon, net tahsilat
 - Depo iadeleri icin: belge tarihi, seri, sira, kaynak depo, hedef depo, satir sayisi, toplam miktar
@@ -18950,18 +19229,28 @@ public sealed record CashSummaryListItemDto(
 
 public sealed record CashSummaryDetailItemDto(
     string TypeName,
+    string PaymentName,
     int PaymentTypeId,
+    int PaymentTypeNo,
     string AccountCode,
+    string TerminalId,
+    string Source,
+    string Category,
     int SlipNumber,
     double Amount,
-    string TerminalId,
-    string Description);
+    string Description)
+{
+    public string PaymentTypeKey => "{PaymentTypeNo}|{ACCOUNT_CODE}|{TERMINAL_ID}";
+}
 
 public sealed record BanknoteMovementItemDto(
     double Value,
     int BanknoteType,
     int Quantity,
-    double Total);
+    double Total)
+{
+    public string BanknoteTypeName => "200 TL";
+}
 
 public sealed record BanknoteTrackDto(
     Guid BanknoteTrackId,
@@ -18984,19 +19273,28 @@ public sealed record BanknoteTypeItemDto(
     double Value,
     double Quantity,
     double Total,
-    int BanknoteType);
+    int BanknoteType)
+{
+    public string BanknoteTypeName => "200 TL";
+}
 
 public sealed record GiftCheckMovementItemDto(
     double Value,
     int GiftCheckType,
     int Quantity,
-    double Total);
+    double Total)
+{
+    public string GiftCheckTypeName => "Hediye Çeki 100 TL";
+}
 
 public sealed record GiftCheckTypeItemDto(
     double Value,
     double Quantity,
     double Total,
-    int GiftCheckType);
+    int GiftCheckType)
+{
+    public string GiftCheckTypeName => "Hediye Çeki 100 TL";
+}
 
 public sealed record PaymentTypeItemDto(
     string PaymentName,
@@ -19004,7 +19302,11 @@ public sealed record PaymentTypeItemDto(
     string TerminalId,
     string AccountCode,
     int SlipNumber,
-    double AmountValue);
+    double AmountValue)
+{
+    public int PaymentTypeId => PaymentTypeNo;
+    public string PaymentTypeKey => "{PaymentTypeNo}|{ACCOUNT_CODE}|{TERMINAL_ID}";
+}
 
 public sealed record CashierItemDto(
     int CashierId,
@@ -20290,13 +20592,15 @@ Bu bolumde yalnizca endpointlerin dogrudan baglandigi HTTP request modelleri yer
 - `LabelPriceChangedProductListHttpRequest`: `WarehouseNo`, `DateTimeFilter`
 - `CreateLabelDocumentHttpRequest`: `WarehouseNo`, `Lines`
 - `CreateLabelDocumentLineHttpRequest`: `ProductCode`
-- `EtiketBasimReferenceSearchHttpRequest`: `Query`, `Take`
-- `EtiketBasimStockSearchHttpRequest`: `Query`, `Prefix`, `Take`
-- `EtiketBasimDateHttpRequest`: `Date`
-- `EtiketBasimCalculationHttpRequest`: `GrossWeight`, `CaseTare`, `CaseCount`, `PalletTare`, `StockBarcode`
-- `SaveEtiketBasimAcceptanceRecordHttpRequest`: `SupplierCode`, `SupplierName`, `DocumentSeries`, `DocumentNo`, `StockCode`, `StockName`, `StockBarcode`, `GrossWeight`, `CaseTare`, `CaseCount`, `PalletTare`, `ReceivedBy`, `CaseType`
-- `EtiketBasimDepotStockReportHttpRequest`: `WarehouseNo`, `Date`
-- `EtiketBasimMicroTransferHttpRequest`: `Date`, `SupplierCode`
+- `ManavMalKabulVeEtiketReferenceSearchHttpRequest`: `Query`, `Take`
+- `ManavMalKabulVeEtiketStockSearchHttpRequest`: `Query`, `Prefix`, `Take`
+- `ManavMalKabulVeEtiketDateHttpRequest`: `Date`
+- `ManavMalKabulVeEtiketCalculationHttpRequest`: `GrossWeight`, `CaseTare`, `CaseCount`, `PalletTare`, `StockBarcode`
+- `SaveManavMalKabulVeEtiketAcceptanceRecordHttpRequest`: `SupplierCode`, `SupplierName`, `DocumentSeries`, `DocumentNo`, `StockCode`, `StockName`, `StockBarcode`, `GrossWeight`, `CaseTare`, `CaseCount`, `PalletTare`, `ReceivedBy`, `CaseType`
+- `ManavMalKabulVeEtiketDepotStockReportHttpRequest`: `WarehouseNo`, `Date`
+- `ManavMalKabulVeEtiketCreateMicroGoodsReceiptHttpRequest`: `Date`, `SupplierCode`, `DocumentSeries`, `DocumentOrderNo`, `DocumentNo`, `MikroUserNo`, `Description`, `MarkAcceptanceRecordsTransferred`, `Lines`
+- `ManavMalKabulVeEtiketCreateMicroGoodsReceiptLineHttpRequest`: `AcceptanceRecordId`, `StockCode`, `Quantity`, `UnitPrice`, `UnitPointer`, `TaxPointer`, `TaxRatePercent`, `TaxAmount`, `Description`
+- `ManavMalKabulVeEtiketMicroGoodsReceiptQueryHttpRequest`: `Date`, `SupplierCode` opsiyonel
 
 ### Rapor Request Modelleri
 
@@ -20383,6 +20687,8 @@ Bu bolumde yalnizca endpointlerin dogrudan baglandigi HTTP request modelleri yer
 - `UpdateCashSummaryDetailLineHttpRequest`: `TypeName`, `PaymentTypeId`, `AccountCode`, `SlipNumber`, `Amount`, `TerminalId`, `Description`
 - `UpdateCashSummaryBanknotesHttpRequest`: `WarehouseNo`, `BanknoteMovements`
 - `UpdateCashSummaryBanknoteLineHttpRequest`: `Value`, `BanknoteType`, `Quantity`, `Total`
+- `UpdateCashSummaryGiftChecksHttpRequest`: `WarehouseNo`, `GiftCheckMovements`
+- `UpdateCashSummaryGiftCheckLineHttpRequest`: `GiftCheckType`, `Quantity`, `Total`, `Value`
 - `KasaCiroImportHttpRequest`: `StartDate`, `EndDate`, `Branches`, `MovementRootPath`, `DryRun`
 - `KasaHareketImportHttpRequest`: `StartDate`, `EndDate`, `Branches`, `CashRegisters`, `FileRootPath`, `SkipExisting`, `DryRun`
 - `KasaHareketScheduledImportHttpRequest`: `Date`, `AddDay`, `FileRootPath`, `SkipExisting`, `DryRun`
