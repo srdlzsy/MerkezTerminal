@@ -31,6 +31,7 @@ class MainActivity : FlutterActivity() {
         updateChannel.setMethodCallHandler { call, result ->
             when (call.method) {
                 "getAppVersion" -> result.success(appVersionName())
+                "getSupportedAbis" -> result.success(Build.SUPPORTED_ABIS.toList())
                 "downloadAndInstallApk" -> {
                     val url = call.argument<String>("url")
                     val fileName = call.argument<String>("fileName")

@@ -11,11 +11,13 @@ class AppUpdateInfo {
     required this.currentVersion,
     required this.version,
     required this.apkUri,
+    this.apkAbi,
   });
 
   final String currentVersion;
   final String version;
   final Uri apkUri;
+  final String? apkAbi;
 }
 
 typedef AppUpdateProgressCallback =
@@ -90,16 +92,12 @@ class AppUpdateService {
     }
 
     final remoteVersion = decoded['version'];
-    final apk = decoded['apk'];
-    if (remoteVersion is! String ||
-        remoteVersion.trim().isEmpty ||
-        apk is! String ||
-        apk.trim().isEmpty) {
+    if (remoteVersion is! String || remoteVersion.trim().isEmpty) {
       throw const AppUpdateException('Guncelleme bilgisi eksik.');
     }
 
-    final apkUri = Uri.tryParse(apk.trim());
-    if (apkUri == null || !_isAbsoluteHttpUri(apkUri)) {
+    final apkSelection = await _selectApk(decoded);
+    if (apkSelection == null || !_isAbsoluteHttpUri(apkSelection.uri)) {
       throw const AppUpdateException('APK adresi gecersiz.');
     }
 
@@ -110,7 +108,8 @@ class AppUpdateService {
     return AppUpdateInfo(
       currentVersion: currentVersion,
       version: remoteVersion.trim(),
-      apkUri: apkUri,
+      apkUri: apkSelection.uri,
+      apkAbi: apkSelection.abi,
     );
   }
 
@@ -127,7 +126,7 @@ class AppUpdateService {
     final openedInstaller = await _channel
         .invokeMethod<bool>('downloadAndInstallApk', <String, Object?>{
           'url': updateInfo.apkUri.toString(),
-          'fileName': _updateFileName(updateInfo.version),
+          'fileName': _updateFileName(updateInfo.version, updateInfo.apkAbi),
           'requestId': requestId,
         })
         .whenComplete(() {
@@ -175,6 +174,104 @@ class AppUpdateService {
     }
   }
 
+  Future<List<String>> _supportedAbis() async {
+    try {
+      final abis = await _channel.invokeListMethod<String>('getSupportedAbis');
+      return abis
+              ?.map((abi) => abi.trim())
+              .where((abi) => abi.isNotEmpty)
+              .toList(growable: false) ??
+          const <String>[];
+    } on MissingPluginException {
+      return const <String>[];
+    } on PlatformException {
+      return const <String>[];
+    }
+  }
+
+  Future<_SelectedUpdateApk?> _selectApk(Map<String, Object?> manifest) async {
+    final supportedAbis = await _supportedAbis();
+    final abiApks = _readAbiApkMap(manifest);
+    for (final abi in supportedAbis) {
+      final uri = _readHttpUri(abiApks[abi]);
+      if (uri != null) {
+        return _SelectedUpdateApk(uri: uri, abi: abi);
+      }
+    }
+
+    final fallbackUri = _readHttpUri(_readFallbackApk(manifest));
+    if (fallbackUri != null) {
+      return _SelectedUpdateApk(uri: fallbackUri);
+    }
+
+    return null;
+  }
+
+  static Map<String, Object?> _readAbiApkMap(Map<String, Object?> manifest) {
+    final android = manifest['android'];
+    final candidates = <Object?>[
+      if (android is Map) android['apks'],
+      if (android is Map) android['apkByAbi'],
+      if (android is Map) android['apksByAbi'],
+    ];
+
+    for (final candidate in candidates) {
+      if (candidate is Map) {
+        return candidate.map(
+          (key, value) => MapEntry(key.toString().trim(), value),
+        )..removeWhere((key, _) => key.isEmpty);
+      }
+    }
+
+    if (android is Map) {
+      return android.map((key, value) => MapEntry(key.toString().trim(), value))
+        ..removeWhere(
+          (key, value) =>
+              key.isEmpty ||
+              key == 'apk' ||
+              key == 'universal' ||
+              key == 'universalUrl',
+        );
+    }
+
+    return const <String, Object?>{};
+  }
+
+  static Object? _readFallbackApk(Map<String, Object?> manifest) {
+    final android = manifest['android'];
+    if (android is Map) {
+      final apk = android['apk'];
+      if (apk is String && apk.trim().isNotEmpty) {
+        return apk;
+      }
+
+      final universalUrl = android['universalUrl'];
+      if (universalUrl is String && universalUrl.trim().isNotEmpty) {
+        return universalUrl;
+      }
+
+      final universal = android['universal'];
+      if (universal is String && universal.trim().isNotEmpty) {
+        return universal;
+      }
+    }
+
+    return manifest['apk'];
+  }
+
+  static Uri? _readHttpUri(Object? value) {
+    if (value is! String || value.trim().isEmpty) {
+      return null;
+    }
+
+    final uri = Uri.tryParse(value.trim());
+    if (uri == null || !_isAbsoluteHttpUri(uri)) {
+      return null;
+    }
+
+    return uri;
+  }
+
   static int _compareVersions(String left, String right) {
     final leftParts = _parseVersionParts(left);
     final rightParts = _parseVersionParts(right);
@@ -209,14 +306,22 @@ class AppUpdateService {
         uri.host.trim().isNotEmpty;
   }
 
-  static String _updateFileName(String version) {
+  static String _updateFileName(String version, String? apkAbi) {
     final safeVersion = version
         .trim()
         .replaceAll(RegExp(r'[^A-Za-z0-9._-]'), '_')
         .replaceFirst(RegExp(r'^_+'), '')
         .replaceFirst(RegExp(r'_+$'), '');
     final suffix = safeVersion.isEmpty ? 'update' : safeVersion;
-    return 'furpa-terminal-$suffix.apk';
+    final safeAbi =
+        apkAbi
+            ?.trim()
+            .replaceAll(RegExp(r'[^A-Za-z0-9._-]'), '_')
+            .replaceFirst(RegExp(r'^_+'), '')
+            .replaceFirst(RegExp(r'_+$'), '') ??
+        '';
+    final abiSuffix = safeAbi.isEmpty ? '' : '-$safeAbi';
+    return 'furpa-terminal-$suffix$abiSuffix.apk';
   }
 
   static int _readInt(Object? value) {
@@ -230,6 +335,13 @@ class AppUpdateService {
 
     return int.tryParse(value?.toString() ?? '') ?? 0;
   }
+}
+
+class _SelectedUpdateApk {
+  const _SelectedUpdateApk({required this.uri, this.abi});
+
+  final Uri uri;
+  final String? abi;
 }
 
 class AppUpdateException implements Exception {
