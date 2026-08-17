@@ -1049,6 +1049,8 @@ class TerminalCompactProductLineCard extends StatelessWidget {
     this.onMinimumReached,
     this.quantityStep = 1,
     this.maximumQuantity,
+    this.quantityInputFormatters = const <TextInputFormatter>[],
+    this.quantityValidator,
   });
 
   final int lineNo;
@@ -1064,6 +1066,8 @@ class TerminalCompactProductLineCard extends StatelessWidget {
   final VoidCallback? onMinimumReached;
   final double quantityStep;
   final double? maximumQuantity;
+  final List<TextInputFormatter> quantityInputFormatters;
+  final FormFieldValidator<String>? quantityValidator;
 
   @override
   Widget build(BuildContext context) {
@@ -1102,6 +1106,8 @@ class TerminalCompactProductLineCard extends StatelessWidget {
                     controller: quantityController,
                     step: quantityStep,
                     maximum: maximumQuantity,
+                    inputFormatters: quantityInputFormatters,
+                    validator: quantityValidator,
                     onMinimumReached: onMinimumReached,
                   ),
                 )
@@ -1112,6 +1118,8 @@ class TerminalCompactProductLineCard extends StatelessWidget {
                     controller: quantityController,
                     step: quantityStep,
                     maximum: maximumQuantity,
+                    inputFormatters: quantityInputFormatters,
+                    validator: quantityValidator,
                     onMinimumReached: onMinimumReached,
                   ),
                 ),
@@ -1347,12 +1355,16 @@ class _TerminalCompactQuantityControl extends StatelessWidget {
     required this.controller,
     required this.step,
     this.maximum,
+    this.inputFormatters = const <TextInputFormatter>[],
+    this.validator,
     required this.onMinimumReached,
   });
 
   final TextEditingController controller;
   final double step;
   final double? maximum;
+  final List<TextInputFormatter> inputFormatters;
+  final FormFieldValidator<String>? validator;
   final VoidCallback? onMinimumReached;
 
   @override
@@ -1376,6 +1388,7 @@ class _TerminalCompactQuantityControl extends StatelessWidget {
               ),
               inputFormatters: <TextInputFormatter>[
                 FilteringTextInputFormatter.allow(RegExp(r'[0-9,\.]')),
+                ...inputFormatters,
               ],
               decoration: const InputDecoration(
                 isDense: true,
@@ -1388,17 +1401,19 @@ class _TerminalCompactQuantityControl extends StatelessWidget {
                 height: 1,
                 fontWeight: FontWeight.w900,
               ),
-              validator: (value) {
-                if (_readQuantity(value ?? '') <= 0) {
-                  return '';
-                }
-                final max = maximum;
-                if (max != null && _readQuantity(value ?? '') > max) {
-                  return '';
-                }
+              validator:
+                  validator ??
+                  (value) {
+                    if (_readQuantity(value ?? '') <= 0) {
+                      return '';
+                    }
+                    final max = maximum;
+                    if (max != null && _readQuantity(value ?? '') > max) {
+                      return '';
+                    }
 
-                return null;
-              },
+                    return null;
+                  },
             ),
           ),
         ),
@@ -1535,6 +1550,7 @@ class TerminalQuantityStepper extends StatelessWidget {
     this.validator,
     this.onChanged,
     this.onMinimumReached,
+    this.inputFormatters = const <TextInputFormatter>[],
   });
 
   final TextEditingController controller;
@@ -1546,6 +1562,7 @@ class TerminalQuantityStepper extends StatelessWidget {
   final FormFieldValidator<String>? validator;
   final ValueChanged<String>? onChanged;
   final VoidCallback? onMinimumReached;
+  final List<TextInputFormatter> inputFormatters;
 
   @override
   Widget build(BuildContext context) {
@@ -1573,6 +1590,7 @@ class TerminalQuantityStepper extends StatelessWidget {
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
             inputFormatters: <TextInputFormatter>[
               FilteringTextInputFormatter.allow(RegExp(r'[0-9,\.]')),
+              ...inputFormatters,
             ],
             decoration: InputDecoration(
               labelText: label,

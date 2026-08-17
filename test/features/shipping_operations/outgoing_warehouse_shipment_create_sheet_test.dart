@@ -9,6 +9,7 @@ import 'package:furpa_merkez_terminal/features/shipping_operations/outgoing_ware
 import 'package:furpa_merkez_terminal/features/shipping_operations/outgoing_warehouse_shipments/data/outgoing_warehouse_shipments_repository.dart';
 import 'package:furpa_merkez_terminal/features/shipping_operations/outgoing_warehouse_shipments/presentation/widgets/outgoing_warehouse_shipment_create_sheet.dart';
 import 'package:furpa_merkez_terminal/shared/data/barcode_resolution_models.dart';
+import 'package:furpa_merkez_terminal/shared/drafts/create_draft.dart';
 import 'package:furpa_merkez_terminal/shared/offline/mobile_warehouse_catalog_repository.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/terminal_ui_parts.dart';
 
@@ -139,6 +140,68 @@ void main() {
     expect(find.text('4'), findsOneWidget);
   });
 
+  testWidgets('blocks barcode-like quantity before creating shipment request', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 1000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    WarehouseShipmentCreateRequest? request;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Builder(
+            builder: (context) {
+              return FilledButton(
+                onPressed: () async {
+                  request =
+                      await showModalBottomSheet<
+                        WarehouseShipmentCreateRequest
+                      >(
+                        context: context,
+                        isScrollControlled: true,
+                        builder: (_) => OutgoingWarehouseShipmentCreateSheet(
+                          repository:
+                              _FakeOutgoingWarehouseShipmentsRepository(),
+                          receivedWarehouseOrdersRepository:
+                              _FakeReceivedWarehouseOrdersRepository(),
+                          accessToken: 'token',
+                          defaultWarehouseNo: '110',
+                          mobileWarehouseCatalogRepository:
+                              _emptyWarehouseCatalogRepository(),
+                          draft: _suspiciousQuantityShipmentDraft(),
+                        ),
+                      );
+                },
+                child: const Text('Ac'),
+              );
+            },
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Ac'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Test Urun'), findsOneWidget);
+
+    await tester.scrollUntilVisible(
+      find.text('Sevki Hazirla'),
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.tap(find.widgetWithText(FilledButton, 'Sevki Hazirla'));
+    await tester.pumpAndSettle();
+
+    expect(request, isNull);
+    expect(find.text('Barkod miktar alaninda'), findsOneWidget);
+    expect(find.text('Yeni Giden Depolar Arasi Sevk'), findsOneWidget);
+  });
+
   testWidgets('asks before increasing non-consecutive duplicate scans', (
     tester,
   ) async {
@@ -157,7 +220,9 @@ void main() {
               return FilledButton(
                 onPressed: () async {
                   request =
-                      await showModalBottomSheet<WarehouseShipmentCreateRequest>(
+                      await showModalBottomSheet<
+                        WarehouseShipmentCreateRequest
+                      >(
                         context: context,
                         isScrollControlled: true,
                         builder: (_) => OutgoingWarehouseShipmentCreateSheet(
@@ -673,6 +738,53 @@ Future<void> _enterShipmentBarcode(
 Future<void> _dragShipmentCreateScroll(WidgetTester tester) async {
   await tester.drag(find.byType(CustomScrollView).first, const Offset(0, -260));
   await tester.pumpAndSettle();
+}
+
+CreateDraft _suspiciousQuantityShipmentDraft() {
+  final now = DateTime(2026, 8, 14);
+  return CreateDraft(
+    id: 'draft-suspicious-shipment-quantity',
+    moduleKey: 'outgoing-warehouse-shipments',
+    userId: '56.magazaci',
+    warehouseNo: '56',
+    title: 'Depo Sevk - MERKEZ DEPO',
+    createdAt: now,
+    updatedAt: now,
+    payload: <String, dynamic>{
+      'targetWarehouseNo': '50',
+      'transitWarehouseNo': '60',
+      'documentNo': '',
+      'description': '',
+      'movementDate': now.toIso8601String(),
+      'documentDate': now.toIso8601String(),
+      'mode': 'manual',
+      'selectedTargetWarehouse': <String, dynamic>{
+        'warehouseNo': 50,
+        'warehouseName': 'MERKEZ DEPO',
+        'address': '',
+        'district': '',
+        'province': '',
+      },
+      'manualLines': <Map<String, dynamic>>[
+        <String, dynamic>{
+          'stockCode': '015792',
+          'barcode': '8690000000012',
+          'quantity': '252700186160007',
+          'quantityStep': 1,
+          'selectedProduct': <String, dynamic>{
+            'warehouseNo': 56,
+            'barcode': '8690000000012',
+            'stockCode': '015792',
+            'stockName': 'Test Urun',
+            'price': 0,
+            'unitName': 'KG',
+            'unitMultiplier': 1,
+            'isOrderBlocked': false,
+          },
+        },
+      ],
+    },
+  );
 }
 
 MobileWarehouseCatalogLocalRepository _emptyWarehouseCatalogRepository() {

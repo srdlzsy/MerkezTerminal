@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:furpa_merkez_terminal/core/config/app_config.dart';
 import 'package:furpa_merkez_terminal/core/network/api_exception.dart';
 import 'package:furpa_merkez_terminal/features/order_operations/received_warehouse_orders/data/received_warehouse_orders_repository.dart';
@@ -23,6 +24,11 @@ import 'package:furpa_merkez_terminal/shared/widgets/section_card.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/terminal_ui_parts.dart';
 
 enum _ShipmentCreateMode { manual, orderLinked }
+
+const double _maxShipmentLineQuantity = 10000;
+const List<TextInputFormatter> _shipmentQuantityInputFormatters =
+    <TextInputFormatter>[_ShipmentQuantityInputFormatter()];
+final RegExp _barcodeLikeQuantityPattern = RegExp(r'^\d{8,}$');
 
 class OutgoingWarehouseShipmentCreateSheet extends StatefulWidget {
   const OutgoingWarehouseShipmentCreateSheet({
@@ -608,6 +614,13 @@ class _OutgoingWarehouseShipmentCreateSheetState
     final product = ProductLookupItem.fromBarcodeResolution(resolution);
     final addedQuantity = resolution.suggestedQuantity;
     final quantityStep = _quantityStepForResolution(resolution);
+    if (!_validateResolvedShipmentQuantity(
+      addedQuantity,
+      line.setLookupStatus,
+      line.barcodeFocusNode,
+    )) {
+      return true;
+    }
     if (!await _confirmManualDuplicateIncrease(line, product)) {
       _cancelManualDuplicateCandidate(line);
       return true;
@@ -654,6 +667,13 @@ class _OutgoingWarehouseShipmentCreateSheetState
     final product = ProductLookupItem.fromBarcodeResolution(resolution);
     final addedQuantity = resolution.suggestedQuantity;
     final quantityStep = _quantityStepForResolution(resolution);
+    if (!_validateResolvedShipmentQuantity(
+      addedQuantity,
+      line.setLookupStatus,
+      line.barcodeFocusNode,
+    )) {
+      return true;
+    }
     if (!await _confirmLinkedDuplicateIncrease(line, product)) {
       _cancelLinkedDuplicateCandidate(line);
       return true;
@@ -690,6 +710,29 @@ class _OutgoingWarehouseShipmentCreateSheetState
 
   double _quantityStepForResolution(BarcodeResolutionResult resolution) {
     return resolution.suggestedQuantity > 0 ? resolution.suggestedQuantity : 1;
+  }
+
+  bool _validateResolvedShipmentQuantity(
+    double quantity,
+    void Function(String message, {bool isLoading, bool isError})
+    setLookupStatus,
+    FocusNode focusNode,
+  ) {
+    if (quantity > 0 && quantity <= _maxShipmentLineQuantity) {
+      return true;
+    }
+
+    final message = quantity <= 0
+        ? 'Okunan miktar sifirdan buyuk olmali.'
+        : 'Okunan miktar ${AppFormatters.quantity(_maxShipmentLineQuantity)} ustunde. Barkodu yeniden okutun.';
+    setState(() {
+      setLookupStatus(message, isError: true);
+      _validationMessage = message;
+    });
+    _showFeedback(message);
+    unawaited(TerminalFeedback.error());
+    _refocusLine(focusNode);
+    return false;
   }
 
   bool _isResolutionUsable(
@@ -1462,9 +1505,9 @@ class _OutgoingWarehouseShipmentCreateSheetState
     for (var index = 0; index < activeLines.length; index += 1) {
       final line = activeLines[index];
       final stockCode = line.stockCodeController.text.trim();
-      final quantity = productEntryController.readQuantity(
-        line.quantityController.text,
-        fallback: 0,
+      final quantity = _readValidShipmentQuantity(
+        text: line.quantityController.text,
+        lineLabel: '${index + 1}. satir',
       );
 
       if (stockCode.isEmpty) {
@@ -1474,11 +1517,7 @@ class _OutgoingWarehouseShipmentCreateSheetState
         return null;
       }
 
-      if (quantity <= 0) {
-        setState(() {
-          _validationMessage =
-              '${index + 1}. satir icin miktar sifirdan buyuk olmali.';
-        });
+      if (quantity == null) {
         return null;
       }
 
@@ -1517,9 +1556,13 @@ class _OutgoingWarehouseShipmentCreateSheetState
     for (var index = 0; index < activeLines.length; index += 1) {
       final line = activeLines[index];
       final stockCode = line.stockCode.trim();
-      final quantity = productEntryController.readQuantity(
-        line.quantityController.text,
-        fallback: 0,
+      final lineLabel = '${index + 1}. siparis satiri';
+      final quantity = _readValidShipmentQuantity(
+        text: line.quantityController.text,
+        lineLabel: lineLabel,
+        maximum: _isLinkedLineQuantityLimited(line) ? line.maxQuantity : null,
+        maximumMessage:
+            '$lineLabel icin miktar kalan siparis miktarini asamaz.',
       );
 
       if (stockCode.isEmpty) {
@@ -1529,11 +1572,7 @@ class _OutgoingWarehouseShipmentCreateSheetState
         return null;
       }
 
-      if (quantity <= 0) {
-        setState(() {
-          _validationMessage =
-              '${index + 1}. siparis satiri icin miktar sifirdan buyuk olmali.';
-        });
+      if (quantity == null) {
         return null;
       }
 
@@ -1572,6 +1611,28 @@ class _OutgoingWarehouseShipmentCreateSheetState
     }
 
     return lines;
+  }
+
+  double? _readValidShipmentQuantity({
+    required String text,
+    required String lineLabel,
+    double? maximum,
+    String? maximumMessage,
+  }) {
+    final errorMessage = _shipmentQuantitySubmitError(
+      text,
+      lineLabel: lineLabel,
+      maximum: maximum,
+      maximumMessage: maximumMessage,
+    );
+    if (errorMessage != null) {
+      setState(() {
+        _validationMessage = errorMessage;
+      });
+      return null;
+    }
+
+    return productEntryController.readQuantity(text, fallback: 0);
   }
 
   @override
@@ -2066,6 +2127,9 @@ class _ManualShipmentLineCard extends StatelessWidget {
         unitLabel: product.unitName,
         barcode: product.barcode,
         quantityStep: line.quantityStep,
+        maximumQuantity: _maxShipmentLineQuantity,
+        quantityInputFormatters: _shipmentQuantityInputFormatters,
+        quantityValidator: _shipmentQuantityFieldError,
         canDelete: canRemove,
         onDelete: onRemove,
         onMinimumReached: canRemove ? onRemove : null,
@@ -2157,16 +2221,10 @@ class _ManualShipmentLineCard extends StatelessWidget {
               controller: line.quantityController,
               label: 'Miktar',
               step: line.quantityStep,
+              maximum: _maxShipmentLineQuantity,
+              inputFormatters: _shipmentQuantityInputFormatters,
               onMinimumReached: canRemove ? onRemove : null,
-              validator: (value) {
-                final parsed = double.tryParse(
-                  (value ?? '').trim().replaceAll(',', '.'),
-                );
-                if (parsed == null || parsed <= 0) {
-                  return 'Miktar > 0';
-                }
-                return null;
-              },
+              validator: _shipmentQuantityFieldError,
             ),
           ],
         ],
@@ -2221,7 +2279,15 @@ class _LinkedShipmentLineCard extends StatelessWidget {
                   ? 'Siparisli'
                   : 'Manav'
             : null,
-        maximumQuantity: isQuantityLimited ? line.maxQuantity : null,
+        maximumQuantity: _effectiveShipmentMaximumQuantity(
+          isQuantityLimited ? line.maxQuantity : null,
+        ),
+        quantityInputFormatters: _shipmentQuantityInputFormatters,
+        quantityValidator: (value) => _shipmentQuantityFieldError(
+          value,
+          maximum: isQuantityLimited ? line.maxQuantity : null,
+          maximumMessage: 'Kalan asildi',
+        ),
         canDelete: canRemove,
         onDelete: onRemove,
         onMinimumReached: canRemove ? onRemove : null,
@@ -2307,20 +2373,16 @@ class _LinkedShipmentLineCard extends StatelessWidget {
                     controller: line.quantityController,
                     label: 'Sevk miktari',
                     step: line.quantityStep,
-                    maximum: isQuantityLimited ? line.maxQuantity : null,
+                    maximum: _effectiveShipmentMaximumQuantity(
+                      isQuantityLimited ? line.maxQuantity : null,
+                    ),
+                    inputFormatters: _shipmentQuantityInputFormatters,
                     onMinimumReached: canRemove ? onRemove : null,
-                    validator: (value) {
-                      final parsed = double.tryParse(
-                        (value ?? '').trim().replaceAll(',', '.'),
-                      );
-                      if (parsed == null || parsed <= 0) {
-                        return 'Miktar > 0';
-                      }
-                      if (isQuantityLimited && parsed > line.maxQuantity) {
-                        return 'Kalan asildi';
-                      }
-                      return null;
-                    },
+                    validator: (value) => _shipmentQuantityFieldError(
+                      value,
+                      maximum: isQuantityLimited ? line.maxQuantity : null,
+                      maximumMessage: 'Kalan asildi',
+                    ),
                   ),
                 ),
               ],
@@ -3376,6 +3438,116 @@ class _SelectedWarehouseOrder {
       'item': _warehouseOrderItemJson(item),
       'detail': _warehouseOrderDetailJson(detail),
     };
+  }
+}
+
+double _effectiveShipmentMaximumQuantity(double? maximum) {
+  if (maximum == null || maximum <= 0) {
+    return _maxShipmentLineQuantity;
+  }
+
+  return maximum < _maxShipmentLineQuantity
+      ? maximum
+      : _maxShipmentLineQuantity;
+}
+
+String? _shipmentQuantityFieldError(
+  String? value, {
+  double? maximum,
+  String? maximumMessage,
+}) {
+  final rawText = (value ?? '').trim();
+  if (_looksLikeBarcodeQuantityInput(rawText)) {
+    return 'Barkod miktar alaninda';
+  }
+
+  final quantity = productEntryController.readQuantity(
+    rawText,
+    fallback: double.nan,
+  );
+  if (quantity.isNaN || quantity <= 0) {
+    return 'Miktar > 0';
+  }
+
+  if (quantity > _maxShipmentLineQuantity) {
+    return 'Maks. ${AppFormatters.quantity(_maxShipmentLineQuantity)}';
+  }
+
+  final effectiveMaximum = maximum;
+  if (effectiveMaximum != null &&
+      effectiveMaximum > 0 &&
+      quantity > effectiveMaximum) {
+    return maximumMessage ??
+        'Maks. ${AppFormatters.quantity(effectiveMaximum)}';
+  }
+
+  return null;
+}
+
+String? _shipmentQuantitySubmitError(
+  String value, {
+  required String lineLabel,
+  double? maximum,
+  String? maximumMessage,
+}) {
+  final rawText = value.trim();
+  if (_looksLikeBarcodeQuantityInput(rawText)) {
+    return '$lineLabel miktar alaninda barkod/uzun okutma degeri var. Barkodu urun alanina okutun.';
+  }
+
+  final quantity = productEntryController.readQuantity(
+    rawText,
+    fallback: double.nan,
+  );
+  if (quantity.isNaN || quantity <= 0) {
+    return '$lineLabel icin miktar sifirdan buyuk olmali.';
+  }
+
+  if (quantity > _maxShipmentLineQuantity) {
+    return '$lineLabel icin miktar ${AppFormatters.quantity(_maxShipmentLineQuantity)} ustunde olamaz.';
+  }
+
+  final effectiveMaximum = maximum;
+  if (effectiveMaximum != null &&
+      effectiveMaximum > 0 &&
+      quantity > effectiveMaximum) {
+    return maximumMessage ??
+        '$lineLabel icin miktar ${AppFormatters.quantity(effectiveMaximum)} ustunde olamaz.';
+  }
+
+  return null;
+}
+
+bool _looksLikeBarcodeQuantityInput(String value) {
+  return _barcodeLikeQuantityPattern.hasMatch(value.trim());
+}
+
+class _ShipmentQuantityInputFormatter extends TextInputFormatter {
+  const _ShipmentQuantityInputFormatter();
+
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    final rawText = newValue.text.trim();
+    if (rawText.isEmpty) {
+      return newValue;
+    }
+
+    if (_looksLikeBarcodeQuantityInput(rawText)) {
+      return oldValue;
+    }
+
+    final quantity = productEntryController.readQuantity(
+      rawText,
+      fallback: double.nan,
+    );
+    if (!quantity.isNaN && quantity > _maxShipmentLineQuantity) {
+      return oldValue;
+    }
+
+    return newValue;
   }
 }
 
