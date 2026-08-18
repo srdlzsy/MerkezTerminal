@@ -4337,6 +4337,48 @@ UI akisi:
 - Kullanici satirlari secer, `quantity` alanini varsayilan olarak `suggestedOrderQuantity` ile doldurur.
 - Kullanici miktari degistirebilir; `recommendedQuantity` alanina orijinal `suggestedOrderQuantity` yazilmasi onerilir.
 
+### Onerilen Depo Siparisleri / Manav Urun Secimi
+
+`GET /api/siparis-islemleri/onerilen-depo-siparisleri/manav`
+
+Yetki:
+
+- `siparis-islemleri.onerilen-depo-siparisleri.list`
+
+Amac:
+
+- Onerilen depo siparisi ekraninda kaynak depo `56 MANAV DEPO` secildiginde klasik stok ihtiyac algoritmasi yerine manav urun listesini getirir.
+- Bu endpoint read-only calisir, Mikro'ya veri yazmaz.
+- Sadece Mikro `STOKLAR` icindeki aktif manav urunleri doner; model kodlari `10` meyve, `11` sebze, `12` yesillik ve `23` manav sarf kabul edilir.
+- Response satirlari siparis satirina donusturulmeye hazirdir; `quantity` ve `recommendedQuantity` bilerek `0` gelir. UI satiri ekrana miktar `0` ile koymali, kullanici miktari elle girmelidir.
+- Manavda otomatik oneri miktari uretilmez; kullanici kasa/koli/adet/kg kararini ekranda verir.
+
+Response:
+
+```json
+[
+  {
+    "stockCode": "016167",
+    "stockName": "MNV MAYDANOZ ADET",
+    "modelCode": "12",
+    "modelName": "Yesillik",
+    "unitName": "ADET",
+    "quantity": 0,
+    "recommendedQuantity": 0,
+    "unitPrice": 0,
+    "unitPointer": 1
+  }
+]
+```
+
+UI akisi:
+
+- Kaynak depo manav ise `GET /api/siparis-islemleri/onerilen-depo-siparisleri/manav` cagrilir.
+- Donen satirlar grid/form satirina `quantity=0` ile basilir.
+- Kullanici miktari kendisi girer; `quantity > 0` olmayan satirlar siparise cevrilmemelidir.
+- Siparise cevirirken yine `POST /api/siparis-islemleri/onerilen-depo-siparisleri/convert-to-order` kullanilir.
+- Request icinde `sourceWarehouseNo=56` gonderilir ve secilen satirlar `lines[]` altina yazilir.
+
 ### Onerilen Depo Siparislerini Siparise Cevir
 
 `POST /api/siparis-islemleri/onerilen-depo-siparisleri/convert-to-order`
@@ -12609,8 +12651,10 @@ Siparis Islemleri / Verilen Firma Siparisleri
 
 Siparis Islemleri / Onerilen Depo Siparisleri
   -> kullanici kaynak depo secer
-  -> GET /api/siparis-islemleri/onerilen-depo-siparisleri?SourceWarehouseNo=...
-  -> liste satirlarini SuggestedWarehouseOrderListItemDto ile goster
+  -> kaynak depo normal depo ise GET /api/siparis-islemleri/onerilen-depo-siparisleri?SourceWarehouseNo=...
+  -> normal depo satirlarini SuggestedWarehouseOrderListItemDto ile goster
+  -> kaynak depo 56 MANAV DEPO ise GET /api/siparis-islemleri/onerilen-depo-siparisleri/manav
+  -> manav satirlarini GreenGrocerSuggestedProductDto ile quantity=0 olarak goster
   -> kullanici satirlari secer ve miktarlari duzenler
   -> POST /api/siparis-islemleri/onerilen-depo-siparisleri/convert-to-order
 
@@ -18473,6 +18517,17 @@ public sealed record SuggestedWarehouseOrderListItemDto(
     double RecommendedStockQuantity,
     double NeedQuantity,
     double SuggestedOrderQuantity);
+
+public sealed record GreenGrocerSuggestedProductDto(
+    string StockCode,
+    string StockName,
+    string ModelCode,
+    string ModelName,
+    string UnitName,
+    double Quantity,
+    double RecommendedQuantity,
+    double UnitPrice,
+    int UnitPointer);
 
 public sealed record SuggestedCompanyOrderListItemDto(
     string SupplierCode,

@@ -140,7 +140,7 @@ class SuggestedWarehouseOrdersController extends ChangeNotifier
 
   void selectAllSuggested() {
     _selectedKeys = _items
-        .where((item) => item.canBeSelected)
+        .where((item) => item.canBeAutoSelected)
         .map((item) => item.identity)
         .toSet();
     for (final item in _items) {
@@ -179,8 +179,7 @@ class SuggestedWarehouseOrdersController extends ChangeNotifier
       return null;
     }
 
-    final lines = _buildSelectedLines();
-    if (lines.isEmpty) {
+    if (_selectedKeys.isEmpty) {
       _convertError = 'Siparise cevirmek icin en az bir satir secin.';
       notifySafely();
       return null;
@@ -189,6 +188,13 @@ class SuggestedWarehouseOrdersController extends ChangeNotifier
     final quantityError = _validateSelectedQuantities();
     if (quantityError != null) {
       _convertError = quantityError;
+      notifySafely();
+      return null;
+    }
+
+    final lines = _buildSelectedLines();
+    if (lines.isEmpty) {
+      _convertError = 'Siparise cevirmek icin en az bir gecerli satir secin.';
       notifySafely();
       return null;
     }
@@ -243,9 +249,11 @@ class SuggestedWarehouseOrdersController extends ChangeNotifier
         SuggestedWarehouseOrderConvertLine(
           stockCode: item.stockCode,
           quantity: quantity,
-          recommendedQuantity: item.suggestedOrderQuantity,
-          unitPrice: 0,
-          unitPointer: 1,
+          recommendedQuantity: item.recommendedQuantity > 0
+              ? item.recommendedQuantity
+              : item.suggestedOrderQuantity,
+          unitPrice: item.unitPrice,
+          unitPointer: item.unitPointer,
           description: '',
           packageCode: '',
           projectCode: '',
@@ -264,6 +272,9 @@ class SuggestedWarehouseOrdersController extends ChangeNotifier
       }
 
       final quantity = _quantityByKey[key] ?? 0;
+      if (quantity <= 0) {
+        return '${item.stockCode} icin siparis miktari sifirdan buyuk olmali.';
+      }
       if (item.sourceOnHand > 0 && quantity > item.sourceOnHand) {
         return '${item.stockCode} icin siparis miktari kaynak stoktan buyuk olamaz.';
       }

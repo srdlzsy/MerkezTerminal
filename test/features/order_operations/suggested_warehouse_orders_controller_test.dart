@@ -83,6 +83,48 @@ void main() {
     expect(result, isNull);
     expect(controller.convertError, contains('kaynak stoktan buyuk'));
   });
+
+  test(
+    'converts green grocer suggestions only after manual quantity',
+    () async {
+      final repository = _FakeSuggestedWarehouseOrdersRepository();
+      final controller = SuggestedWarehouseOrdersController(
+        repository: repository,
+        accessToken: 'token',
+      );
+      addTearDown(controller.dispose);
+
+      await controller.loadSuggestions(sourceWarehouseNo: 56);
+
+      final item = controller.items.single;
+      expect(item.needsManualQuantity, isTrue);
+      expect(item.defaultOrderQuantity, 0);
+
+      controller.toggleItem(item);
+      var result = await controller.convertSelected(
+        orderDate: DateTime(2026, 7, 1),
+        deliveryDate: DateTime(2026, 7, 2),
+        description: '',
+      );
+
+      expect(result, isNull);
+      expect(controller.convertError, contains('sifirdan buyuk'));
+
+      controller.updateQuantity(item, '15');
+      result = await controller.convertSelected(
+        orderDate: DateTime(2026, 7, 1),
+        deliveryDate: DateTime(2026, 7, 2),
+        description: 'Manav',
+      );
+
+      expect(result?.documentNoLabel, 'D50.91');
+      expect(repository.lastRequest?.sourceWarehouseNo, 56);
+      expect(repository.lastRequest?.lines.single.stockCode, '016167');
+      expect(repository.lastRequest?.lines.single.quantity, 15);
+      expect(repository.lastRequest?.lines.single.recommendedQuantity, 0);
+      expect(repository.lastRequest?.lines.single.unitPointer, 1);
+    },
+  );
 }
 
 class _FakeSuggestedWarehouseOrdersRepository
@@ -96,6 +138,33 @@ class _FakeSuggestedWarehouseOrdersRepository
     required SuggestedWarehouseOrderFilter filter,
   }) async {
     lastFilter = filter;
+    if (filter.sourceWarehouseNo == 56) {
+      return const <SuggestedWarehouseOrderListItem>[
+        SuggestedWarehouseOrderListItem(
+          stockCode: '016167',
+          stockName: 'MNV MAYDANOZ ADET',
+          modelCode: '12',
+          modelName: 'Yesillik',
+          barcode: '',
+          unitName: 'ADET',
+          quantity: 0,
+          recommendedQuantity: 0,
+          unitPrice: 0,
+          unitPointer: 1,
+          targetOnHand: 0,
+          sourceOnHand: 0,
+          salesQuantity: 0,
+          openIncomingOrderQuantity: 0,
+          packageFactor: 0,
+          minDay: 0,
+          recommendedDay: 0,
+          maxDay: 0,
+          recommendedStockQuantity: 0,
+          needQuantity: 0,
+          suggestedOrderQuantity: 0,
+        ),
+      ];
+    }
     return const <SuggestedWarehouseOrderListItem>[
       SuggestedWarehouseOrderListItem(
         stockCode: '010001',

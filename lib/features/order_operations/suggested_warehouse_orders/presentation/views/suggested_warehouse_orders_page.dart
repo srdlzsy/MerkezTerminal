@@ -461,8 +461,14 @@ class _SuggestedWarehouseOrderCard extends StatelessWidget {
     final subtitle = <String>[
       item.stockCode,
       if (item.barcode.trim().isNotEmpty) item.barcode,
-      if (item.modelCode.trim().isNotEmpty) 'Model ${item.modelCode}',
+      if (item.modelName.trim().isNotEmpty) item.modelName,
+      if (item.modelName.trim().isEmpty && item.modelCode.trim().isNotEmpty)
+        'Model ${item.modelCode}',
+      if (item.unitName.trim().isNotEmpty) item.unitName,
     ].where((part) => part.trim().isNotEmpty).join(' | ');
+    final badgeLabel = item.needsManualQuantity
+        ? 'Miktar gir'
+        : 'Oneri ${AppFormatters.quantity(item.defaultOrderQuantity)}';
 
     return TerminalPdaRecordCard(
       isSelected: isSelected,
@@ -483,8 +489,7 @@ class _SuggestedWarehouseOrderCard extends StatelessWidget {
                   visualDensity: VisualDensity.compact,
                 ),
                 TerminalBadge(
-                  label:
-                      'Oneri ${AppFormatters.quantity(item.suggestedOrderQuantity)}',
+                  label: badgeLabel,
                   backgroundColor: item.canBeSelected
                       ? theme.colorScheme.primary.withAlpha(18)
                       : theme.colorScheme.errorContainer,
@@ -498,30 +503,44 @@ class _SuggestedWarehouseOrderCard extends StatelessWidget {
           const SizedBox(height: 8),
           TerminalPdaInfoGrid(
             items: <TerminalPdaInfo>[
-              TerminalPdaInfo(
-                label: 'Hedef',
-                value: AppFormatters.quantity(item.targetOnHand),
-              ),
-              TerminalPdaInfo(
-                label: 'Kaynak',
-                value: AppFormatters.quantity(item.sourceOnHand),
-              ),
-              TerminalPdaInfo(
-                label: 'Satis',
-                value: AppFormatters.quantity(item.salesQuantity),
-              ),
-              TerminalPdaInfo(
-                label: 'Acik',
-                value: AppFormatters.quantity(item.openIncomingOrderQuantity),
-              ),
-              TerminalPdaInfo(
-                label: 'Ihtiyac',
-                value: AppFormatters.quantity(item.needQuantity),
-              ),
-              TerminalPdaInfo(
-                label: 'Gun',
-                value: AppFormatters.quantity(item.recommendedDay),
-              ),
+              if (item.needsManualQuantity) ...<TerminalPdaInfo>[
+                TerminalPdaInfo(
+                  label: 'Tur',
+                  value: item.modelName.trim().isEmpty
+                      ? 'Manav'
+                      : item.modelName,
+                ),
+                TerminalPdaInfo(
+                  label: 'Birim',
+                  value: item.unitName.trim().isEmpty ? '-' : item.unitName,
+                ),
+                const TerminalPdaInfo(label: 'Oneri', value: 'Elle girilecek'),
+              ] else ...<TerminalPdaInfo>[
+                TerminalPdaInfo(
+                  label: 'Hedef',
+                  value: AppFormatters.quantity(item.targetOnHand),
+                ),
+                TerminalPdaInfo(
+                  label: 'Kaynak',
+                  value: AppFormatters.quantity(item.sourceOnHand),
+                ),
+                TerminalPdaInfo(
+                  label: 'Satis',
+                  value: AppFormatters.quantity(item.salesQuantity),
+                ),
+                TerminalPdaInfo(
+                  label: 'Acik',
+                  value: AppFormatters.quantity(item.openIncomingOrderQuantity),
+                ),
+                TerminalPdaInfo(
+                  label: 'Ihtiyac',
+                  value: AppFormatters.quantity(item.needQuantity),
+                ),
+                TerminalPdaInfo(
+                  label: 'Gun',
+                  value: AppFormatters.quantity(item.recommendedDay),
+                ),
+              ],
             ],
           ),
           if (isSelected) ...<Widget>[
@@ -539,7 +558,9 @@ class _SuggestedWarehouseOrderCard extends StatelessWidget {
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    'Orijinal oneri ${AppFormatters.quantity(item.suggestedOrderQuantity)} | Hedef stok ${AppFormatters.quantity(item.recommendedStockQuantity)}',
+                    item.needsManualQuantity
+                        ? 'Manav urunlerinde miktari kullanici belirler; 0 miktarli satir siparise cevrilmez.'
+                        : 'Orijinal oneri ${AppFormatters.quantity(item.suggestedOrderQuantity)} | Hedef stok ${AppFormatters.quantity(item.recommendedStockQuantity)}',
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: theme.textTheme.bodySmall?.copyWith(

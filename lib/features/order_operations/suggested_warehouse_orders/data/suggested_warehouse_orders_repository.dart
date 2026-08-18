@@ -31,10 +31,15 @@ class ApiSuggestedWarehouseOrdersRepository
     required String accessToken,
     required SuggestedWarehouseOrderFilter filter,
   }) async {
+    final isGreenGrocerSource = filter.sourceWarehouseNo == 56;
     final response = await _apiClient.getJsonList(
-      '/api/siparis-islemleri/onerilen-depo-siparisleri',
+      isGreenGrocerSource
+          ? '/api/siparis-islemleri/onerilen-depo-siparisleri/manav'
+          : '/api/siparis-islemleri/onerilen-depo-siparisleri',
       accessToken: accessToken,
-      queryParameters: filter.toQueryParameters(),
+      queryParameters: isGreenGrocerSource
+          ? const <String, String>{}
+          : filter.toQueryParameters(),
     );
 
     return response

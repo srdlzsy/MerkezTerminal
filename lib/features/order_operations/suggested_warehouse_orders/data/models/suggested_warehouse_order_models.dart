@@ -31,6 +31,12 @@ class SuggestedWarehouseOrderListItem {
     required this.stockName,
     required this.modelCode,
     required this.barcode,
+    this.modelName = '',
+    this.unitName = '',
+    this.quantity = 0,
+    this.recommendedQuantity = 0,
+    this.unitPrice = 0,
+    this.unitPointer = 1,
     required this.targetOnHand,
     required this.sourceOnHand,
     required this.salesQuantity,
@@ -48,6 +54,12 @@ class SuggestedWarehouseOrderListItem {
   final String stockName;
   final String modelCode;
   final String barcode;
+  final String modelName;
+  final String unitName;
+  final double quantity;
+  final double recommendedQuantity;
+  final double unitPrice;
+  final int unitPointer;
   final double targetOnHand;
   final double sourceOnHand;
   final double salesQuantity;
@@ -67,8 +79,14 @@ class SuggestedWarehouseOrderListItem {
       : stockName.trim();
 
   double get defaultOrderQuantity {
+    if (quantity > 0) {
+      return quantity;
+    }
     if (suggestedOrderQuantity > 0) {
       return suggestedOrderQuantity;
+    }
+    if (recommendedQuantity > 0) {
+      return recommendedQuantity;
     }
     if (needQuantity > 0) {
       return needQuantity;
@@ -76,7 +94,15 @@ class SuggestedWarehouseOrderListItem {
     return 0;
   }
 
-  bool get canBeSelected =>
+  bool get needsManualQuantity =>
+      defaultOrderQuantity <= 0 &&
+      sourceOnHand <= 0 &&
+      salesQuantity <= 0 &&
+      needQuantity <= 0;
+
+  bool get canBeSelected => stockCode.trim().isNotEmpty;
+
+  bool get canBeAutoSelected =>
       stockCode.trim().isNotEmpty && defaultOrderQuantity > 0;
 
   factory SuggestedWarehouseOrderListItem.fromJson(JsonMap json) {
@@ -85,6 +111,12 @@ class SuggestedWarehouseOrderListItem {
       stockName: _readString(json['stockName']),
       modelCode: _readString(json['modelCode']),
       barcode: _readString(json['barcode']),
+      modelName: _readString(json['modelName']),
+      unitName: _readString(json['unitName']),
+      quantity: _readDouble(json['quantity']),
+      recommendedQuantity: _readDouble(json['recommendedQuantity']),
+      unitPrice: _readDouble(json['unitPrice']),
+      unitPointer: _readPositiveInt(json['unitPointer'], fallback: 1),
       targetOnHand: _readDouble(json['targetOnHand']),
       sourceOnHand: _readDouble(json['sourceOnHand']),
       salesQuantity: _readDouble(json['salesQuantity']),
@@ -183,4 +215,11 @@ double _readDouble(Object? value) {
     return value.toDouble();
   }
   return double.tryParse(value?.toString().replaceAll(',', '.') ?? '') ?? 0;
+}
+
+int _readPositiveInt(Object? value, {required int fallback}) {
+  final parsed = value is num
+      ? value.toInt()
+      : int.tryParse(value?.toString() ?? '') ?? fallback;
+  return parsed > 0 ? parsed : fallback;
 }
