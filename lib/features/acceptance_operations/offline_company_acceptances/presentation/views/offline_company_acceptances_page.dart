@@ -629,14 +629,15 @@ class _OfflineCompanyAcceptanceCreateSheetState
                   horizontal: 12,
                   vertical: 2,
                 ),
+                isThreeLine: item.lookupDetailParts.length > 3,
                 title: Text(
-                  item.customerDisplayName,
+                  item.lookupTitle,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
                 subtitle: Text(
-                  item.customerCode,
-                  maxLines: 1,
+                  item.lookupDetailLabel,
+                  maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
                 onTap: () => Navigator.of(context).pop(item),

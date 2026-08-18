@@ -43,7 +43,17 @@ void main() {
         lines: const <VirmanCreateLine>[
           VirmanCreateLine(
             stockCode: '015792',
-            movementType: 2,
+            movementType: 1,
+            quantity: 8,
+            unitPointer: 1,
+            description: '',
+            partyCode: '',
+            lotNo: 0,
+            projectCode: '',
+          ),
+          VirmanCreateLine(
+            stockCode: '015793',
+            movementType: 0,
             quantity: 8,
             unitPointer: 1,
             description: '',
@@ -232,6 +242,10 @@ class _FakeVirmanRepository implements VirmanRepository {
       lineCount: 2,
       totalQuantity: 16,
       totalAmount: 800,
+      incomingLineCount: 1,
+      outgoingLineCount: 1,
+      incomingQuantity: 8,
+      outgoingQuantity: 8,
     );
 
     _items.insert(0, createdItem);
@@ -248,6 +262,10 @@ class _FakeVirmanRepository implements VirmanRepository {
       totalQuantity: 16,
       totalAmount: 800,
       writeConnectionName: 'testMikroConnection',
+      incomingLineCount: 1,
+      outgoingLineCount: 1,
+      incomingQuantity: 8,
+      outgoingQuantity: 8,
     );
   }
 }

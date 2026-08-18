@@ -177,7 +177,7 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
   }
 
   String get _draftTitle {
-    final customer = _selectedCustomer?.customerDisplayName.trim() ?? '';
+    final customer = _selectedCustomer?.displayName.trim() ?? '';
     if (customer.isEmpty) {
       return widget.title;
     }
@@ -285,14 +285,15 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
                   horizontal: 12,
                   vertical: 2,
                 ),
+                isThreeLine: item.lookupDetailParts.length > 3,
                 title: Text(
-                  item.customerDisplayName,
+                  item.lookupTitle,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
                 subtitle: Text(
-                  '${item.customerCode} | ${item.representativeName.isEmpty ? '-' : item.representativeName}',
-                  maxLines: 1,
+                  item.lookupDetailLabel,
+                  maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
                 onTap: () => Navigator.of(context).pop(item),
@@ -1218,6 +1219,19 @@ Map<String, dynamic> _customerToJson(CustomerLookupItem customer) {
     'shippingAddressNo': customer.shippingAddressNo,
     'isLocked': customer.isLocked,
     'isClosed': customer.isClosed,
+    'taxIdentityNo': customer.taxIdentityNo,
+    'taxOfficeNo': customer.taxOfficeNo,
+    'taxOfficeName': customer.taxOfficeName,
+    'mainCustomerCode': customer.mainCustomerCode,
+    'regionCode': customer.regionCode,
+    'groupCode': customer.groupCode,
+    'sectorCode': customer.sectorCode,
+    'mobilePhone': customer.mobilePhone,
+    'email': customer.email,
+    'isEInvoiceCustomer': customer.isEInvoiceCustomer,
+    'isEDespatchCustomer': customer.isEDespatchCustomer,
+    'sameTaxCustomerCount': customer.sameTaxCustomerCount,
+    'selectionLabel': customer.selectionLabel,
   };
 }
 

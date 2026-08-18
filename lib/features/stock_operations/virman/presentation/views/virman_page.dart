@@ -248,7 +248,7 @@ class _VirmanPageState extends State<VirmanPage> {
     messenger.showSnackBar(
       SnackBar(
         content: Text(
-          '${result.documentNoLabel} kaydedildi. ${result.lineCount} Mikro hareketi, toplam ${AppFormatters.quantity(result.totalQuantity)} miktar.',
+          '${result.documentNoLabel} kaydedildi. ${_formatVirmanFlowSummary(incomingLineCount: result.incomingLineCount, outgoingLineCount: result.outgoingLineCount, incomingQuantity: result.incomingQuantity, outgoingQuantity: result.outgoingQuantity, lineCount: result.lineCount, totalQuantity: result.totalQuantity)}.',
         ),
       ),
     );
@@ -436,18 +436,36 @@ class _VirmanPageState extends State<VirmanPage> {
                                     item.movementDate,
                                   ),
                                 ),
-                                TerminalPdaInfo(
-                                  label: 'Tipler',
-                                  value: _formatMovementTypes(
-                                    item.movementTypes,
+                                if (_hasVirmanFlowSummary(
+                                  incomingLineCount: item.incomingLineCount,
+                                  outgoingLineCount: item.outgoingLineCount,
+                                  incomingQuantity: item.incomingQuantity,
+                                  outgoingQuantity: item.outgoingQuantity,
+                                )) ...<TerminalPdaInfo>[
+                                  TerminalPdaInfo(
+                                    label: 'Cikis',
+                                    value:
+                                        '${item.outgoingLineCount} / ${AppFormatters.quantity(item.outgoingQuantity)}',
                                   ),
-                                ),
-                                TerminalPdaInfo(
-                                  label: 'Toplam',
-                                  value: AppFormatters.quantity(
-                                    item.totalQuantity,
+                                  TerminalPdaInfo(
+                                    label: 'Giris',
+                                    value:
+                                        '${item.incomingLineCount} / ${AppFormatters.quantity(item.incomingQuantity)}',
                                   ),
-                                ),
+                                ] else ...<TerminalPdaInfo>[
+                                  TerminalPdaInfo(
+                                    label: 'Tipler',
+                                    value: _formatMovementTypes(
+                                      item.movementTypes,
+                                    ),
+                                  ),
+                                  TerminalPdaInfo(
+                                    label: 'Toplam',
+                                    value: AppFormatters.quantity(
+                                      item.totalQuantity,
+                                    ),
+                                  ),
+                                ],
                               ],
                             ),
                             if (isExpanded &&
@@ -485,70 +503,94 @@ class _VirmanDetailSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final outgoingLines = detail.items
+        .where((line) => line.movementType == 1)
+        .toList(growable: false);
+    final incomingLines = detail.items
+        .where((line) => line.movementType == 0)
+        .toList(growable: false);
+    final otherLines = detail.items
+        .where((line) => line.movementType != 0 && line.movementType != 1)
+        .toList(growable: false);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
         if (detail.items.isEmpty)
           const TerminalEmptyState(message: 'Bu virmanda satir bulunamadi.')
-        else
-          Column(
-            children: detail.items
-                .map((line) {
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
-                    child: TerminalPdaDetailPanel(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: <Widget>[
-                          Row(
-                            children: <Widget>[
-                              Expanded(
-                                child: Text(
-                                  line.stockName,
-                                  style: Theme.of(context).textTheme.titleSmall
-                                      ?.copyWith(fontWeight: FontWeight.w800),
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              TerminalBadge(label: 'Tip ${line.movementType}'),
-                            ],
-                          ),
-                          const SizedBox(height: 6),
-                          TerminalPdaInfoGrid(
-                            items: <TerminalPdaInfo>[
-                              TerminalPdaInfo(
-                                label: 'Kod',
-                                value: line.stockCode,
-                              ),
-                              TerminalPdaInfo(
-                                label: 'Miktar',
-                                value: AppFormatters.quantity(line.quantity),
-                              ),
-                              TerminalPdaInfo(
-                                label: 'Birim',
-                                value: line.unitName,
-                              ),
-                            ],
-                          ),
-                          if (line.description.isNotEmpty) ...<Widget>[
-                            const SizedBox(height: 4),
-                            Text(
-                              [
-                                if (line.description.isNotEmpty)
-                                  'Aciklama ${line.description}',
-                              ].join(' | '),
-                              style: Theme.of(context).textTheme.bodySmall,
-                            ),
-                          ],
-                        ],
-                      ),
-                    ),
-                  );
-                })
-                .toList(growable: false),
-          ),
+        else ...<Widget>[
+          ..._buildLineGroup(context, 'Cikis Satirlari', outgoingLines),
+          ..._buildLineGroup(context, 'Giris Satirlari', incomingLines),
+          ..._buildLineGroup(context, 'Diger Satirlar', otherLines),
+        ],
       ],
     );
+  }
+
+  List<Widget> _buildLineGroup(
+    BuildContext context,
+    String title,
+    List<VirmanLineItem> lines,
+  ) {
+    if (lines.isEmpty) {
+      return const <Widget>[];
+    }
+
+    return <Widget>[
+      Padding(
+        padding: const EdgeInsets.only(bottom: 6),
+        child: Text(
+          title,
+          style: Theme.of(
+            context,
+          ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900),
+        ),
+      ),
+      ...lines.map((line) {
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: TerminalPdaDetailPanel(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Row(
+                  children: <Widget>[
+                    Expanded(
+                      child: Text(
+                        line.stockName,
+                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    TerminalBadge(label: _movementTypeLabel(line.movementType)),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                TerminalPdaInfoGrid(
+                  items: <TerminalPdaInfo>[
+                    TerminalPdaInfo(label: 'Kod', value: line.stockCode),
+                    TerminalPdaInfo(
+                      label: 'Miktar',
+                      value: AppFormatters.quantity(line.quantity),
+                    ),
+                    TerminalPdaInfo(label: 'Birim', value: line.unitName),
+                  ],
+                ),
+                if (line.description.isNotEmpty) ...<Widget>[
+                  const SizedBox(height: 4),
+                  Text(
+                    'Aciklama ${line.description}',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ],
+              ],
+            ),
+          ),
+        );
+      }),
+    ];
   }
 }
 
@@ -581,6 +623,23 @@ class _VirmanSummaryCard extends StatelessWidget {
                 value: AppFormatters.quantity(item.totalQuantity),
               ),
               TerminalPdaInfo(label: 'Satir', value: '${item.lineCount}'),
+              if (_hasVirmanFlowSummary(
+                incomingLineCount: item.incomingLineCount,
+                outgoingLineCount: item.outgoingLineCount,
+                incomingQuantity: item.incomingQuantity,
+                outgoingQuantity: item.outgoingQuantity,
+              )) ...<TerminalPdaInfo>[
+                TerminalPdaInfo(
+                  label: 'Cikis',
+                  value:
+                      '${item.outgoingLineCount} / ${AppFormatters.quantity(item.outgoingQuantity)}',
+                ),
+                TerminalPdaInfo(
+                  label: 'Giris',
+                  value:
+                      '${item.incomingLineCount} / ${AppFormatters.quantity(item.incomingQuantity)}',
+                ),
+              ],
             ],
           ),
           if (item.description.isNotEmpty) ...<Widget>[
@@ -650,7 +709,7 @@ class _VirmanCreateSheetState extends State<_VirmanCreateSheet>
         ? rawLines
               .map(_virmanDraftMap)
               .whereType<Map<String, dynamic>>()
-              .map(_createLine)
+              .map((draft) => _createLine(draft))
               .toList(growable: true)
         : <_VirmanDraftLine>[];
     _ensureFreshEntryLine();
@@ -667,9 +726,13 @@ class _VirmanCreateSheetState extends State<_VirmanCreateSheet>
     super.dispose();
   }
 
-  _VirmanDraftLine _createLine([Map<String, dynamic>? draft]) {
+  _VirmanDraftLine _createLine([
+    Map<String, dynamic>? draft,
+    int initialMovementType = 1,
+  ]) {
     return _VirmanDraftLine(
       draft: draft,
+      initialMovementType: initialMovementType,
       onChanged: _draftSession.scheduleSave,
     );
   }
@@ -810,9 +873,10 @@ class _VirmanCreateSheetState extends State<_VirmanCreateSheet>
     final pickedProduct = selected;
 
     var mergedIntoExisting = false;
+    final nextMovementType = line.movementType;
     setState(() {
       mergedIntoExisting = _applyProductToLine(line, pickedProduct);
-      _ensureFreshEntryLine();
+      _ensureFreshEntryLine(initialMovementType: nextMovementType);
       _errorMessage = null;
     });
     _draftSession.scheduleSave();
@@ -860,7 +924,11 @@ class _VirmanCreateSheetState extends State<_VirmanCreateSheet>
         currentLine: line,
         targetBarcode: product.barcode,
         targetStockCode: product.stockCode,
-        lines: _lines,
+        lines: _lines
+            .where(
+              (item) => item == line || item.movementType == line.movementType,
+            )
+            .toList(growable: false),
         lineBarcode: (line) => line.barcode,
         lineStockCode: (line) => line.stockCodeController.text,
       ),
@@ -891,16 +959,16 @@ class _VirmanCreateSheetState extends State<_VirmanCreateSheet>
     line.dispose();
 
     if (lineIndex == 0) {
-      _lines[lineIndex] = _createLine();
+      _lines[lineIndex] = _createLine(null, line.movementType);
       return;
     }
 
     _lines.removeAt(lineIndex);
   }
 
-  void _ensureFreshEntryLine() {
+  void _ensureFreshEntryLine({int initialMovementType = 1}) {
     if (_lines.isEmpty || !_isBlankLine(_lines.first)) {
-      _lines.insert(0, _createLine());
+      _lines.insert(0, _createLine(null, initialMovementType));
     }
   }
 
@@ -965,9 +1033,7 @@ class _VirmanCreateSheetState extends State<_VirmanCreateSheet>
 
     for (final line in activeLines) {
       final stockCode = line.stockCodeController.text.trim();
-      final movementType = int.tryParse(
-        line.movementTypeController.text.trim(),
-      );
+      final movementType = line.movementType;
       final quantity = double.tryParse(
         line.quantityController.text.trim().replaceAll(',', '.'),
       );
@@ -981,9 +1047,9 @@ class _VirmanCreateSheetState extends State<_VirmanCreateSheet>
         return;
       }
 
-      if (movementType == null || movementType < 0) {
+      if (movementType != 0 && movementType != 1) {
         setState(() {
-          _errorMessage = 'Her satirda gecerli bir movementType girilmeli.';
+          _errorMessage = 'Her satir tipi Cikis veya Giris olmali.';
         });
         return;
       }
@@ -1014,6 +1080,16 @@ class _VirmanCreateSheetState extends State<_VirmanCreateSheet>
           projectCode: line.projectCodeController.text.trim(),
         ),
       );
+    }
+
+    final hasOutgoingLine = requestLines.any((line) => line.movementType == 1);
+    final hasIncomingLine = requestLines.any((line) => line.movementType == 0);
+    if (!hasOutgoingLine || !hasIncomingLine) {
+      setState(() {
+        _errorMessage =
+            'Virman icin en az bir Cikis ve bir Giris satiri ekleyin.';
+      });
+      return;
     }
 
     setState(() {
@@ -1051,7 +1127,7 @@ class _VirmanCreateSheetState extends State<_VirmanCreateSheet>
             TerminalSheetHeader(
               title: 'Yeni Virman',
               subtitle:
-                  'Satirlar movementType=2 ile gonderilir; backend cikis ve giris hareketlerini birlikte olusturur.',
+                  'Cikis ve giris satirlarini ayri ekleyin; her satir kendi yonuyle kaydedilir.',
               badges: <Widget>[
                 TerminalLineCountBadge(count: _filledLineIndexes().length),
               ],
@@ -1181,6 +1257,10 @@ class _VirmanCreateSheetState extends State<_VirmanCreateSheet>
         onPickProduct: () => _searchProduct(line),
         onScanWithCamera: () => _scanProductWithCamera(line),
         onRemove: () => _removeLine(line),
+        onMovementTypeChanged: () {
+          setState(() {});
+          _draftSession.scheduleSave();
+        },
       ),
     );
   }
@@ -1195,6 +1275,7 @@ class _VirmanDraftLineCard extends StatelessWidget {
     required this.onPickProduct,
     required this.onScanWithCamera,
     required this.onRemove,
+    required this.onMovementTypeChanged,
   });
 
   final int lineNumber;
@@ -1204,22 +1285,30 @@ class _VirmanDraftLineCard extends StatelessWidget {
   final VoidCallback onPickProduct;
   final VoidCallback onScanWithCamera;
   final VoidCallback onRemove;
+  final VoidCallback onMovementTypeChanged;
 
   @override
   Widget build(BuildContext context) {
     final product = line.selectedProduct;
 
     if (!isFreshEntry && product != null) {
-      return TerminalCompactProductLineCard(
-        lineNo: lineNumber,
-        stockCode: product.stockCode,
-        stockName: product.stockName,
-        quantityController: line.quantityController,
-        unitLabel: product.unitName,
-        barcode: product.barcode,
-        canDelete: canRemove,
-        onDelete: onRemove,
-        onMinimumReached: canRemove ? onRemove : null,
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          TerminalCompactProductLineCard(
+            lineNo: lineNumber,
+            stockCode: product.stockCode,
+            stockName: product.stockName,
+            quantityController: line.quantityController,
+            unitLabel:
+                '${product.unitName} | ${_movementTypeLabel(line.movementType)}',
+            barcode: product.barcode,
+            canDelete: canRemove,
+            onDelete: onRemove,
+            onMinimumReached: canRemove ? onRemove : null,
+          ),
+          _buildMovementTypeSelector(context),
+        ],
       );
     }
 
@@ -1237,6 +1326,8 @@ class _VirmanDraftLineCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
+          _buildMovementTypeSelector(context),
+          const SizedBox(height: 8),
           if (isFreshEntry)
             TerminalResponsiveLookupRow(
               field: ProductLookupField(
@@ -1302,23 +1393,64 @@ class _VirmanDraftLineCard extends StatelessWidget {
       ),
     );
   }
+
+  Widget _buildMovementTypeSelector(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Wrap(
+      spacing: 6,
+      runSpacing: 4,
+      children: <Widget>[
+        ChoiceChip(
+          label: const Text('Cikis'),
+          avatar: const Icon(Icons.north_east_rounded, size: 16),
+          selected: line.movementType == 1,
+          selectedColor: colorScheme.primaryContainer,
+          onSelected: (_) => _setMovementType(1),
+        ),
+        ChoiceChip(
+          label: const Text('Giris'),
+          avatar: const Icon(Icons.south_west_rounded, size: 16),
+          selected: line.movementType == 0,
+          selectedColor: colorScheme.secondaryContainer,
+          onSelected: (_) => _setMovementType(0),
+        ),
+      ],
+    );
+  }
+
+  void _setMovementType(int movementType) {
+    if (line.movementType == movementType) {
+      return;
+    }
+
+    line.movementTypeController.text = movementType.toString();
+    onMovementTypeChanged();
+  }
 }
 
 class _VirmanDraftLine {
-  _VirmanDraftLine({Map<String, dynamic>? draft, this.onChanged})
-    : lookupController = TextEditingController(),
-      stockCodeController = TextEditingController(),
-      movementTypeController = TextEditingController(text: '2'),
-      quantityController = TextEditingController(),
-      unitPointerController = TextEditingController(text: '1'),
-      descriptionController = TextEditingController(),
-      partyCodeController = TextEditingController(),
-      lotNoController = TextEditingController(text: '0'),
-      projectCodeController = TextEditingController() {
+  _VirmanDraftLine({
+    Map<String, dynamic>? draft,
+    int initialMovementType = 1,
+    this.onChanged,
+  }) : lookupController = TextEditingController(),
+       stockCodeController = TextEditingController(),
+       movementTypeController = TextEditingController(
+         text: initialMovementType == 0 ? '0' : '1',
+       ),
+       quantityController = TextEditingController(),
+       unitPointerController = TextEditingController(text: '1'),
+       descriptionController = TextEditingController(),
+       partyCodeController = TextEditingController(),
+       lotNoController = TextEditingController(text: '0'),
+       projectCodeController = TextEditingController() {
     if (draft != null) {
       lookupController.text = draft['lookup']?.toString() ?? '';
       stockCodeController.text = draft['stockCode']?.toString() ?? '';
-      movementTypeController.text = draft['movementType']?.toString() ?? '2';
+      movementTypeController.text = draft['movementType']?.toString() == '0'
+          ? '0'
+          : '1';
       quantityController.text = draft['quantity']?.toString() ?? '';
       unitPointerController.text = draft['unitPointer']?.toString() ?? '1';
       descriptionController.text = draft['description']?.toString() ?? '';
@@ -1350,6 +1482,8 @@ class _VirmanDraftLine {
 
   String get barcode => selectedProduct?.barcode ?? '';
 
+  int get movementType => movementTypeController.text.trim() == '0' ? 0 : 1;
+
   List<TextEditingController> get _controllers => <TextEditingController>[
     lookupController,
     stockCodeController,
@@ -1366,7 +1500,7 @@ class _VirmanDraftLine {
       selectedProduct != null ||
       lookupController.text.trim().isNotEmpty ||
       stockCodeController.text.trim().isNotEmpty ||
-      movementTypeController.text.trim() != '2' ||
+      movementTypeController.text.trim() != '1' ||
       quantityController.text.trim().isNotEmpty ||
       unitPointerController.text.trim() != '1' ||
       descriptionController.text.trim().isNotEmpty ||
@@ -1464,5 +1598,47 @@ String _formatMovementTypes(List<int> movementTypes) {
     return '-';
   }
 
-  return movementTypes.map((item) => item.toString()).join(', ');
+  return movementTypes.map(_movementTypeLabel).join(', ');
+}
+
+String _movementTypeLabel(int movementType) {
+  return switch (movementType) {
+    1 => 'Cikis',
+    0 => 'Giris',
+    2 => 'Teknik',
+    _ => 'Tip $movementType',
+  };
+}
+
+bool _hasVirmanFlowSummary({
+  required int incomingLineCount,
+  required int outgoingLineCount,
+  required double incomingQuantity,
+  required double outgoingQuantity,
+}) {
+  return incomingLineCount > 0 ||
+      outgoingLineCount > 0 ||
+      incomingQuantity > 0 ||
+      outgoingQuantity > 0;
+}
+
+String _formatVirmanFlowSummary({
+  required int incomingLineCount,
+  required int outgoingLineCount,
+  required double incomingQuantity,
+  required double outgoingQuantity,
+  required int lineCount,
+  required double totalQuantity,
+}) {
+  if (!_hasVirmanFlowSummary(
+    incomingLineCount: incomingLineCount,
+    outgoingLineCount: outgoingLineCount,
+    incomingQuantity: incomingQuantity,
+    outgoingQuantity: outgoingQuantity,
+  )) {
+    return '$lineCount Mikro hareketi, toplam ${AppFormatters.quantity(totalQuantity)} miktar';
+  }
+
+  return 'Cikis $outgoingLineCount satir / ${AppFormatters.quantity(outgoingQuantity)}, '
+      'Giris $incomingLineCount satir / ${AppFormatters.quantity(incomingQuantity)}';
 }

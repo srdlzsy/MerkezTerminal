@@ -182,6 +182,7 @@ class LabelPriceChangedProduct {
     required this.pluNo,
     required this.alternativeUnitName,
     required this.barcode,
+    required this.barcodes,
     required this.isDomestic,
     required this.oldPrice,
     required this.origin,
@@ -196,6 +197,7 @@ class LabelPriceChangedProduct {
   final int pluNo;
   final String alternativeUnitName;
   final String barcode;
+  final List<String> barcodes;
   final int isDomestic;
   final double oldPrice;
   final String origin;
@@ -211,6 +213,7 @@ class LabelPriceChangedProduct {
       pluNo: _readInt(json['pluNo']),
       alternativeUnitName: _readString(json['alternativeUnitName']),
       barcode: _readString(json['barcode']),
+      barcodes: _readStringList(json['barcodes']),
       isDomestic: _readInt(json['isDomestic']),
       oldPrice: _readDouble(json['oldPrice']),
       origin: _readString(json['origin']),
@@ -316,4 +319,12 @@ int _readInt(Object? value) {
 
 String _readString(Object? value) {
   return value?.toString() ?? '';
+}
+
+List<String> _readStringList(Object? value) {
+  final items = value as List<dynamic>? ?? const <dynamic>[];
+  return items
+      .map((item) => _readString(item).trim())
+      .where((item) => item.isNotEmpty)
+      .toList(growable: false);
 }

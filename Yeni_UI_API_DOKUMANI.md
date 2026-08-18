@@ -3652,6 +3652,9 @@ Kural:
 
 - `barcode`, `stockCode`, `stockName`, `companyCode` veya `supplierCode` alanlarindan en az biri verilmelidir.
 - Bos arama engellenir; cunku Mikro procedure genis fiyat/stok seti dondurebilir.
+- Barkod okutulduysa UI mumkunse degeri `barcode` alaninda gondermelidir. Genel arama kutusunda kullanici sadece numerik metin yazarsa ve ilk arama sonuc donmezse backend bu metni once barkod, sonra stok kodu gibi tekrar dener.
+- Ornek: `stockName=2900729` gibi yanlis/genel arama seklinde gelirse backend sonuc bulamazsa `barcode=2900729` gibi tekrar deneyip `015806` stokunu dondurebilir. En temiz UI yolu yine `barcode=2900729` veya `GET /api/arama-islemleri/barkodlar/2900729/cozumle` kullanmaktir.
+- UI barkodu yanlislikla `stockCode` alaninda gonderirse de backend ilk stok kodu aramasindan sonuc alamazsa ayni numerik degeri barkod gibi tekrar dener. Ornek: `stockCode=2900728&companyCode=8880325699` sonuc bulamazsa backend `barcode=2900728&companyCode=8880325699` gibi tekrar arar ve stok `015805` donebilir.
 - Firma icin urun ararken UI `companyCode` gondermelidir; backend bunu Mikro procedure tarafinda `@tedarikci` filtresine baglar.
 - Bu filtre Mikro'da `SATINALMA_SARTLARI.sas_cari_kod` iliskisi uzerinden calisir; yani firma ile iliskili urunler listelenir.
 
@@ -4034,11 +4037,34 @@ UI kullanim notu:
 
 `GET /api/arama-islemleri/cariler?searchText=market&take=20`
 
+TCKN/VKN, unvan veya kodla cok sayida benzer cari donebildigi icin bu endpoint secim ekranlarinda
+detayli bilgi dondurur. UI sadece `customerName` alanini gostermemeli; mumkunse
+`selectionLabel` alanini veya `customerCode + customerDisplayName + taxNumber + groupCode`
+kombinasyonunu kullanmalidir.
+
 Query:
 
 ```text
 searchText   zorunlu, en az 2 karakter
 take         opsiyonel; default 20, max 100
+```
+
+Arama alanlari:
+
+```text
+cari_kod
+cari_unvan1
+cari_unvan2
+cari_VergiKimlikNo
+cari_vdaire_no
+cari_vdaire_adi
+cari_Ana_cari_kodu
+cari_bolge_kodu
+cari_grup_kodu
+cari_sektor_kodu
+cari_temsilci_kodu
+cari_EMail
+cari_CepTel
 ```
 
 Response:
@@ -4051,15 +4077,35 @@ Response:
     "customerTitle": "SUBE",
     "customerDisplayName": "ORNEK MUSTERI SUBE",
     "taxNumber": "1234567890",
+    "taxIdentityNo": "1234567890",
+    "taxOfficeNo": "",
+    "taxOfficeName": "BURSA",
+    "mainCustomerCode": "",
+    "regionCode": "1",
+    "groupCode": "MAGAZA",
+    "sectorCode": "GIDA",
     "representativeCode": "TEM001",
     "representativeName": "Ad Soyad",
+    "mobilePhone": "05xxxxxxxxx",
+    "email": "ornek@example.local",
     "invoiceAddressNo": 1,
     "shippingAddressNo": 1,
     "isLocked": false,
-    "isClosed": false
+    "isClosed": false,
+    "isEInvoiceCustomer": true,
+    "isEDespatchCustomer": true,
+    "sameTaxCustomerCount": 3,
+    "selectionLabel": "120.01.03106 ORNEK MUSTERI SUBE | VKN/TCKN: 1234567890 | Grup: MAGAZA | Temsilci: Ad Soyad | Ayni vergi no: 3"
   }
 ]
 ```
+
+UI notu:
+
+- `sameTaxCustomerCount > 1` ise ayni vergi/TCKN numarasina bagli birden fazla cari vardir; secim satirinda mutlaka `customerCode`, `customerTitle`, `groupCode`, `representativeName` ve gerekirse adres no gosterilmelidir.
+- `customerName` Mikro `cari_unvan1`, `customerTitle` Mikro `cari_unvan2` karsiligidir. Farkli cari ayrimi cogu zaman `customerTitle` uzerinden yapilir.
+- `taxNumber` geriye uyumlu tek alan olarak kalir; once `taxIdentityNo`, bos ise `taxOfficeNo` degeri kullanilir.
+- `selectionLabel` backend tarafinda hazirlanan pratik gorunum etiketidir; UI kendi tasarimina gore parcalari ayri kolon olarak da gosterebilir.
 
 ### Depo Ara
 
@@ -9026,27 +9072,41 @@ Yetki:
 
 Not:
 
-- `warehouseNo` query ile alinmaz; dogrudan JWT icindeki kullanici deposu kullanilir
+- `kasa-islemleri.etiket-belgeleri.all-warehouses` yoksa `warehouseNo` sorulmaz; backend JWT icindeki kullanici deposunu kullanir.
+- Bu yetki varsa UI belirli depo icin `warehouseNo` gonderebilir; bos gonderirse endpointin destekledigi kapsamda kullanici depo kurali uygulanir.
 - `dateTimeFilter` formati `dd.MM.yyyy HH:mm:ss` olmalidir
 - response modeli `LabelPriceChangedProductDto` doner
 - veri Mikro tarafindaki urun, fiyat degisikligi, fiyat listesi ve barkod tablolarindan okunur
+- Fiyat degisikligi filtresi eski API ile ayni mantiktadir: `STOK_FIYAT_DEGISIKLIKLERI.fid_lastup_date > dateTimeFilter`, `fid_yapildi_fl = 1`, `fid_depo_no = warehouseNo`.
+- Satisi durdurulmus urunler gelmez: `STOKLAR.sto_satis_dursun = 0`.
+- Response urun/stok basina tek satir dondurur. Bir urunun birden fazla barkodu varsa backend aktif barkodlar icinden once `bar_master`, sonra en yeni `bar_create_date`, sonra `bar_birimpntr` onceligiyle tek barkod secer.
+- Bir urunun birim/koli/alternatif barkodlari farkli olabilir. Ornek: `046460` stok kodunda birim barkodlari ile 14 haneli koli/ikinci birim barkodu birlikte tanimlidir; bu urunde en guncel aktif barkod `08690637712128` oldugu icin etiket barkodu olarak bu donebilir.
+- `barcode` UI'in varsayilan basacagi barkoddur. `barcodes` ayni urunun tum aktif barkod seceneklerini oncelik sirasiyla dondurur; UI isterse detay/dropdown olarak gosterebilir ama liste satir sayisini bu diziye gore cogaltmamalidir.
+- `priceChangeDate` kullaniciya gosterilecek son fiyat degisikligi zamanidir ve `dd.MM.yyyy HH:mm` formatindadir.
+- `alternativeUnitName` ve `unitPriceFactor` eski etiket mantigiyla Mikro `sto_birim4_ad` / `sto_birim4_katsayi` uzerinden hesaplanir. Ornek 1440 ml urunde fiyat `199.50`, katsayi `1.44` ise birim fiyat `138.54 TL/LITRE` olur.
+- UI bu endpointi "son kontrol zamanindan sonra degisen urunler" icin kullanmali; kullanici belgeye eklemeden once gerekirse etiket belgesi detayinda urunu tekrar okutabilir.
 
 Response:
 
 ```json
 [
   {
-    "productCode": "015550",
-    "productName": "URUN ADI",
-    "pluNo": 15550,
-    "alternativeUnitName": "KOLI",
-    "barcode": "8690000000012",
+    "productCode": "046460",
+    "productName": "YUMOS EXTRA 1440ML LILYUM",
+    "pluNo": 0,
+    "alternativeUnitName": "LITRE",
+    "barcode": "08690637712128",
+    "barcodes": [
+      "08690637712128",
+      "8690637563348",
+      "8690637712111"
+    ],
     "isDomestic": 1,
-    "oldPrice": 119.9,
-    "origin": "TR",
-    "price": 125.5,
-    "priceChangeDate": "24.04.2026 08:15",
-    "unitPriceFactor": 12.55,
+    "oldPrice": 229,
+    "origin": "TURKIYE",
+    "price": 199.5,
+    "priceChangeDate": "11.08.2026 16:27",
+    "unitPriceFactor": 138.54,
     "unitName": "ADET"
   }
 ]
@@ -9116,6 +9176,9 @@ Not:
 - tarih filtresi Mikro tarafinda `STOK_HAREKETLERI.sth_belge_tarih` uzerinden uygulanir
 - filtre karsiligi: `sth_evraktip = 6`, `sth_normal_iade = 0`, `sth_cins = 3`, `sth_cikis_depo_no = WarehouseNo`
 - `movementTypes` alani ayni evraktaki satirlardan gelen farkli `sth_tip` degerlerini dizi olarak doner
+- Canli Mikro verisinde 2026 virmanlari eski sistem mantigiyla ayni depo icinde stok donusumu gibi durur: `sth_tip = 1` cikis satiri, `sth_tip = 0` giris satiridir; `sth_giris_depo_no` ve `sth_cikis_depo_no` genelde ayni subedir.
+- UI liste kartinda tek `totalQuantity` alanini "net miktar" gibi yorumlamamalidir. Virmanda bir koli urun cikis, bunun icindeki tekil urunler giris olabilir; bu yuzden cikis ve giris miktarlari farkli birim/anlam tasiyabilir.
+- Liste ve detay response'unda `incomingLineCount`, `outgoingLineCount`, `incomingQuantity`, `outgoingQuantity` alanlari vardir. UI ozet icin bunlari ayri gostermelidir.
 - bu endpoint Mikro veritabaninda sadece SELECT yapar; insert/update/delete yoktur
 
 ### Virman Detay
@@ -9133,11 +9196,14 @@ Not:
 - response modeli `VirmanDetailDto` doner
 - filtre karsiligi: `sth_evraktip = 6`, `sth_normal_iade = 0`, `sth_cins = 3`, `sth_cikis_depo_no = warehouseNo`
 - `items[].movementType` alani her satirin `sth_tip` degerini verir
+- `items[].movementType = 1` cikis satiridir; stoktan dusen/kaynak urun gibi gosterilmelidir.
+- `items[].movementType = 0` giris satiridir; stoga giren/hedef urun gibi gosterilmelidir.
+- Canli ornek mantik: `6'li soda` cikis satiri, `tekil soda` giris satiri. Bu nedenle detay UI'i satirlari tek gridde renk/etiketle ayirabilir veya "Cikislar" ve "Girisler" olarak iki bolumde gosterebilir.
 - bu endpoint Mikro veritabaninda sadece SELECT yapar; insert/update/delete yoktur
 
 ### Virman Olustur
 
-Secili kullanici deposu icin yeni virman evragi yazar.
+Secili kullanici deposu icin yeni virman evragi yazar. Virman, canli eski sistemdeki gibi ayni depo icinde stok donusumu/duzeltmesi mantigiyla calisir.
 
 `POST /api/stok-islemleri/virmanlar`
 
@@ -9154,7 +9220,27 @@ Onemli not:
 - eski yapiya uygun olarak `sth_fiyat_liste_no = -1` ve `sth_teslim_tarihi = 1900-01-01` degerleri kullanilir
 - `documentSerie` backend tarafinda `F{islemDepoNo}` olarak uretilir
 - `documentOrderNo` ayni seri ve virman turu icin write DB'deki mevcut maksimum sira okunarak uretilir
+- Eski canli kayitlarda pratik desen: belge icinde cikis ve giris satirlari birlikte bulunur. UI kullaniciya en net akista cikis urunlerini ve giris urunlerini ayri satirlar olarak hazirlatmalidir.
+- `movementType = 2` kisa yolu sadece ayni stok/miktar icin hem cikis hem giris hareketi acmak icindir. Koli bozma gibi "6'li urun cik, 6 adet tekil urun gir" senaryolarinda UI iki ayri satir gondermelidir: cikis satiri `movementType=1`, giris satiri `movementType=0`.
 - `totalAmount` su an satir tutarlari `0` yazildigi icin `0` doner
+
+Eski Angular virman karsiligi:
+
+Eski ekranda `POST ProductMovements/AddVirman` endpointine header olmadan dogrudan `CartLine[]` gonderiliyordu. Satirin giris mi cikis mi oldugu `product.barcodeContent` alanindan anlasiliyordu. Yeni API ayni isi daha acik sekilde `lines[].movementType` ile yapar.
+
+| Eski alan | Eski anlam | Yeni alan | Yeni anlam |
+|---|---|---|---|
+| `product.barcodeContent = "1"` | Stoktan cikan/parcalanan urun | `movementType = 1` | Cikis satiri, `sth_tip = 1` |
+| `product.barcodeContent = "0"` | Stoga giren/olusan urun | `movementType = 0` | Giris satiri, `sth_tip = 0` |
+
+UI akisi:
+
+- Kullanicinin sectigi/parcaladigi kaynak urun `movementType=1` olarak gonderilir.
+- Kullanicinin olusturdugu/hedef urun `movementType=0` olarak gonderilir.
+- Miktarlar birbirinden bagimsiz olabilir; ornek `1 adet 6'li soda cikis`, `6 adet tekil soda giris`.
+- UI liste ve detayda satirlari "Cikislar" ve "Girisler" olarak iki bolumde gosterebilir. Tek `totalQuantity` net stok etkisi gibi yorumlanmamalidir.
+- Koli bozma, urun donusturme veya reyon duzeltme ekraninda en guvenli model iki acik satirdir: bir cikis, bir giris.
+- `movementType=2` UI'in ana akisi olmamalidir; sadece ayni stok ve ayni miktar icin teknik kisa yol gerekiyorsa kullanilmalidir.
 
 Request:
 
@@ -9167,11 +9253,21 @@ Request:
   "description": "Reyon duzenleme virmani",
   "lines": [
     {
-      "stockCode": "015792",
-      "movementType": 2,
-      "quantity": 3,
+      "stockCode": "015550",
+      "movementType": 1,
+      "quantity": 1,
       "unitPointer": 1,
-      "description": "",
+      "description": "6'li soda cikis",
+      "partyCode": "",
+      "lotNo": 0,
+      "projectCode": ""
+    },
+    {
+      "stockCode": "015733",
+      "movementType": 0,
+      "quantity": 6,
+      "unitPointer": 1,
+      "description": "Tekil soda giris",
       "partyCode": "",
       "lotNo": 0,
       "projectCode": ""
@@ -9192,7 +9288,11 @@ Response:
   "warehouseNo": 110,
   "movementTypes": [0, 1],
   "lineCount": 2,
-  "totalQuantity": 6,
+  "incomingLineCount": 1,
+  "outgoingLineCount": 1,
+  "incomingQuantity": 6,
+  "outgoingQuantity": 1,
+  "totalQuantity": 7,
   "totalAmount": 0,
   "writeConnectionName": "testMikroConnection"
 }
@@ -9213,21 +9313,41 @@ Response:
     "warehouseName": "KESTEL 1",
     "documentType": 6,
     "movementGenre": 3,
-    "movementTypes": [2],
+    "movementTypes": [0, 1],
     "description": "Reyon duzenleme virmani",
-    "lineCount": 1,
-    "totalQuantity": 3,
+    "lineCount": 2,
+    "incomingLineCount": 1,
+    "outgoingLineCount": 1,
+    "incomingQuantity": 6,
+    "outgoingQuantity": 1,
+    "totalQuantity": 7,
     "totalAmount": 0
   },
   "items": [
     {
       "rowNo": 0,
-      "stockCode": "015792",
-      "stockName": "URUN ADI",
+      "stockCode": "015550",
+      "stockName": "KINIK SADE SODA 200ML*6 LI",
       "unitName": "ADET",
       "unitPointer": 1,
-      "movementType": 2,
-      "quantity": 3,
+      "movementType": 1,
+      "quantity": 1,
+      "quantity2": 0,
+      "unitPrice": 0,
+      "lineAmount": 0,
+      "description": "Reyon duzenleme virmani",
+      "partyCode": "",
+      "lotNo": 0,
+      "projectCode": ""
+    },
+    {
+      "rowNo": 1,
+      "stockCode": "015733",
+      "stockName": "KINIK SADE SODA 200ML",
+      "unitName": "ADET",
+      "unitPointer": 1,
+      "movementType": 0,
+      "quantity": 6,
       "quantity2": 0,
       "unitPrice": 0,
       "lineAmount": 0,
@@ -18145,12 +18265,25 @@ public sealed record CustomerLookupItemDto(
     string CustomerTitle,
     string CustomerDisplayName,
     string TaxNumber,
+    string TaxIdentityNo,
+    string TaxOfficeNo,
+    string TaxOfficeName,
+    string MainCustomerCode,
+    string RegionCode,
+    string GroupCode,
+    string SectorCode,
     string RepresentativeCode,
     string RepresentativeName,
+    string MobilePhone,
+    string Email,
     int? InvoiceAddressNo,
     int? ShippingAddressNo,
     bool IsLocked,
-    bool IsClosed);
+    bool IsClosed,
+    bool IsEInvoiceCustomer,
+    bool IsEDespatchCustomer,
+    int SameTaxCustomerCount,
+    string SelectionLabel);
 
 public sealed record WarehouseLookupItemDto(
     int WarehouseNo,
@@ -18824,6 +18957,7 @@ public sealed record LabelPriceChangedProductDto
     public int PluNo { get; init; }
     public string AlternativeUnitName { get; init; } = string.Empty;
     public string Barcode { get; init; } = string.Empty;
+    public IReadOnlyCollection<string> Barcodes { get; init; } = Array.Empty<string>();
     public byte IsDomestic { get; init; }
     public double OldPrice { get; init; }
     public string Origin { get; init; } = string.Empty;
@@ -18860,6 +18994,10 @@ public sealed record CreateVirmanResponse(
     int WarehouseNo,
     IReadOnlyCollection<byte> MovementTypes,
     int LineCount,
+    int IncomingLineCount,
+    int OutgoingLineCount,
+    double IncomingQuantity,
+    double OutgoingQuantity,
     double TotalQuantity,
     double TotalAmount,
     string WriteConnectionName);
@@ -18878,6 +19016,10 @@ public sealed record VirmanListItemDto(
     IReadOnlyCollection<byte> MovementTypes,
     string Description,
     int LineCount,
+    int IncomingLineCount,
+    int OutgoingLineCount,
+    double IncomingQuantity,
+    double OutgoingQuantity,
     double TotalQuantity,
     double TotalAmount);
 
@@ -18895,6 +19037,10 @@ public sealed record VirmanHeaderDto(
     IReadOnlyCollection<byte> MovementTypes,
     string Description,
     int LineCount,
+    int IncomingLineCount,
+    int OutgoingLineCount,
+    double IncomingQuantity,
+    double OutgoingQuantity,
     double TotalQuantity,
     double TotalAmount);
 

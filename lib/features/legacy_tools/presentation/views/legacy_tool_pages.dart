@@ -819,10 +819,19 @@ class _CompanyLookupToolPageState extends State<CompanyLookupToolPage> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: <Widget>[
                             Text(
-                              item.customerDisplayName,
+                              item.lookupTitle,
                               style: Theme.of(context).textTheme.titleSmall
                                   ?.copyWith(fontWeight: FontWeight.w800),
                             ),
+                            if (item.selectionLabel.trim().isNotEmpty) ...[
+                              const SizedBox(height: 3),
+                              Text(
+                                item.selectionLabel,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: Theme.of(context).textTheme.bodySmall,
+                              ),
+                            ],
                             const SizedBox(height: 6),
                             TerminalPdaInfoGrid(
                               items: <TerminalPdaInfo>[
@@ -832,15 +841,41 @@ class _CompanyLookupToolPageState extends State<CompanyLookupToolPage> {
                                 ),
                                 TerminalPdaInfo(
                                   label: 'Vergi',
-                                  value: item.taxNumber.isEmpty
+                                  value: item.displayTaxNumber.isEmpty
                                       ? '-'
-                                      : item.taxNumber,
+                                      : item.displayTaxNumber,
                                 ),
                                 TerminalPdaInfo(
-                                  label: 'Musteri',
-                                  value: item.customerName.isEmpty
+                                  label: 'Unvan',
+                                  value: item.customerTitle.isEmpty
                                       ? '-'
-                                      : item.customerName,
+                                      : item.customerTitle,
+                                ),
+                                if (item.groupCode.isNotEmpty)
+                                  TerminalPdaInfo(
+                                    label: 'Grup',
+                                    value: item.groupCode,
+                                  ),
+                                if (item.regionCode.isNotEmpty)
+                                  TerminalPdaInfo(
+                                    label: 'Bolge',
+                                    value: item.regionCode,
+                                  ),
+                                if (item.sameTaxCustomerCount > 1)
+                                  TerminalPdaInfo(
+                                    label: 'Ayni Vergi',
+                                    value: '${item.sameTaxCustomerCount}',
+                                  ),
+                                if (item.taxOfficeName.isNotEmpty)
+                                  TerminalPdaInfo(
+                                    label: 'Vergi D.',
+                                    value: item.taxOfficeName,
+                                  ),
+                                TerminalPdaInfo(
+                                  label: 'E-Irs.',
+                                  value: item.isEDespatchCustomer
+                                      ? 'evet'
+                                      : 'hayir',
                                 ),
                                 TerminalPdaInfo(
                                   label: 'Temsilci',

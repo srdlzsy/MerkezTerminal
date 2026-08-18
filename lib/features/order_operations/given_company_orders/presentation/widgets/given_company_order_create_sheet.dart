@@ -672,7 +672,7 @@ class _GivenCompanyOrderCreateSheetState
                   const SizedBox(height: 4),
                   Text(
                     'Temsilci: ${_selectedCustomer!.representativeCode.isEmpty ? '-' : _selectedCustomer!.representativeCode}'
-                    ' | Vergi No: ${_selectedCustomer!.taxNumber.isEmpty ? '-' : _selectedCustomer!.taxNumber}',
+                    ' | Vergi No: ${_selectedCustomer!.displayTaxNumber.isEmpty ? '-' : _selectedCustomer!.displayTaxNumber}',
                     style: theme.textTheme.bodySmall,
                   ),
                 ],
@@ -1038,6 +1038,19 @@ Map<String, dynamic> _companyOrderCustomerJson(CustomerLookupItem item) {
     'shippingAddressNo': item.shippingAddressNo,
     'isLocked': item.isLocked,
     'isClosed': item.isClosed,
+    'taxIdentityNo': item.taxIdentityNo,
+    'taxOfficeNo': item.taxOfficeNo,
+    'taxOfficeName': item.taxOfficeName,
+    'mainCustomerCode': item.mainCustomerCode,
+    'regionCode': item.regionCode,
+    'groupCode': item.groupCode,
+    'sectorCode': item.sectorCode,
+    'mobilePhone': item.mobilePhone,
+    'email': item.email,
+    'isEInvoiceCustomer': item.isEInvoiceCustomer,
+    'isEDespatchCustomer': item.isEDespatchCustomer,
+    'sameTaxCustomerCount': item.sameTaxCustomerCount,
+    'selectionLabel': item.selectionLabel,
   };
 }
 
@@ -1181,18 +1194,17 @@ class _CustomerLookupSheetState extends State<_CustomerLookupSheet> {
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(10),
             ),
+            isThreeLine: item.lookupDetailParts.length > 3,
             title: Text(
-              item.displayLabel,
+              item.lookupTitle,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(fontWeight: FontWeight.w600),
             ),
             subtitle: Text(
-              [
-                if (item.representativeCode.isNotEmpty)
-                  'Temsilci ${item.representativeCode}',
-                if (item.taxNumber.isNotEmpty) 'Vergi ${item.taxNumber}',
-              ].join(' | '),
+              item.lookupDetailLabel,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
             ),
             trailing: item.isClosed ? const Icon(Icons.block_rounded) : null,
             onTap: () => Navigator.of(context).pop(item),

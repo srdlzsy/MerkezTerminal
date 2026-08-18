@@ -747,7 +747,7 @@ class _SupplierLookupSheetState extends State<_SupplierLookupSheet> {
                                 borderRadius: BorderRadius.circular(8),
                               ),
                               title: Text(
-                                item.displayLabel,
+                                item.lookupTitle,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: const TextStyle(
@@ -755,10 +755,11 @@ class _SupplierLookupSheetState extends State<_SupplierLookupSheet> {
                                 ),
                               ),
                               subtitle: Text(
-                                item.taxNumber,
-                                maxLines: 1,
+                                item.lookupDetailLabel,
+                                maxLines: 2,
                                 overflow: TextOverflow.ellipsis,
                               ),
+                              isThreeLine: item.lookupDetailParts.length > 3,
                               enabled: !item.isLocked && !item.isClosed,
                               onTap: item.isLocked || item.isClosed
                                   ? null

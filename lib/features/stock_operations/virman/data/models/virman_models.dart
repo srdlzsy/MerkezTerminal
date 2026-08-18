@@ -38,6 +38,10 @@ class VirmanListItem {
     required this.lineCount,
     required this.totalQuantity,
     required this.totalAmount,
+    this.incomingLineCount = 0,
+    this.outgoingLineCount = 0,
+    this.incomingQuantity = 0,
+    this.outgoingQuantity = 0,
   });
 
   final DateTime? documentDate;
@@ -55,6 +59,10 @@ class VirmanListItem {
   final int lineCount;
   final double totalQuantity;
   final double totalAmount;
+  final int incomingLineCount;
+  final int outgoingLineCount;
+  final double incomingQuantity;
+  final double outgoingQuantity;
 
   String get documentNoLabel => '$documentSerie.$documentOrderNo';
 
@@ -75,6 +83,10 @@ class VirmanListItem {
       lineCount: _readInt(json['lineCount']),
       totalQuantity: _readDouble(json['totalQuantity']),
       totalAmount: _readDouble(json['totalAmount']),
+      incomingLineCount: _readInt(json['incomingLineCount']),
+      outgoingLineCount: _readInt(json['outgoingLineCount']),
+      incomingQuantity: _readDouble(json['incomingQuantity']),
+      outgoingQuantity: _readDouble(json['outgoingQuantity']),
     );
   }
 }
@@ -118,6 +130,10 @@ class VirmanHeader {
     required this.lineCount,
     required this.totalQuantity,
     required this.totalAmount,
+    this.incomingLineCount = 0,
+    this.outgoingLineCount = 0,
+    this.incomingQuantity = 0,
+    this.outgoingQuantity = 0,
   });
 
   final DateTime? documentDate;
@@ -135,6 +151,10 @@ class VirmanHeader {
   final int lineCount;
   final double totalQuantity;
   final double totalAmount;
+  final int incomingLineCount;
+  final int outgoingLineCount;
+  final double incomingQuantity;
+  final double outgoingQuantity;
 
   String get documentNoLabel => '$documentSerie.$documentOrderNo';
 
@@ -155,6 +175,10 @@ class VirmanHeader {
       lineCount: _readInt(json['lineCount']),
       totalQuantity: _readDouble(json['totalQuantity']),
       totalAmount: _readDouble(json['totalAmount']),
+      incomingLineCount: _readInt(json['incomingLineCount']),
+      outgoingLineCount: _readInt(json['outgoingLineCount']),
+      incomingQuantity: _readDouble(json['incomingQuantity']),
+      outgoingQuantity: _readDouble(json['outgoingQuantity']),
     );
   }
 }
@@ -290,6 +314,10 @@ class VirmanCreateResult {
     required this.totalQuantity,
     required this.totalAmount,
     required this.writeConnectionName,
+    this.incomingLineCount = 0,
+    this.outgoingLineCount = 0,
+    this.incomingQuantity = 0,
+    this.outgoingQuantity = 0,
   });
 
   final String documentSerie;
@@ -303,6 +331,10 @@ class VirmanCreateResult {
   final double totalQuantity;
   final double totalAmount;
   final String writeConnectionName;
+  final int incomingLineCount;
+  final int outgoingLineCount;
+  final double incomingQuantity;
+  final double outgoingQuantity;
 
   String get documentNoLabel => '$documentSerie.$documentOrderNo';
 
@@ -319,6 +351,10 @@ class VirmanCreateResult {
       totalQuantity: _readDouble(json['totalQuantity']),
       totalAmount: _readDouble(json['totalAmount']),
       writeConnectionName: _readString(json['writeConnectionName']),
+      incomingLineCount: _readInt(json['incomingLineCount']),
+      outgoingLineCount: _readInt(json['outgoingLineCount']),
+      incomingQuantity: _readDouble(json['incomingQuantity']),
+      outgoingQuantity: _readDouble(json['outgoingQuantity']),
     );
   }
 }

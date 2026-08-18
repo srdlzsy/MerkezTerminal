@@ -74,7 +74,8 @@ class ApiGivenWarehouseOrdersRepository
     final normalizedQuery = query?.trim() ?? '';
     final queryParameters = <String, String>{
       'take': '100',
-      if (normalizedQuery.isNotEmpty && RegExp(r'^\d+$').hasMatch(normalizedQuery))
+      if (normalizedQuery.isNotEmpty &&
+          RegExp(r'^\d+$').hasMatch(normalizedQuery))
         'warehouseNo': normalizedQuery
       else if (normalizedQuery.isNotEmpty)
         'searchText': normalizedQuery,
@@ -101,8 +102,7 @@ class ApiGivenWarehouseOrdersRepository
     required String query,
   }) async {
     final normalizedQuery = query.trim();
-    final isBarcodeQuery =
-        RegExp(r'^\d{8,}$').hasMatch(normalizedQuery);
+    final isBarcodeQuery = RegExp(r'^\d{7,}$').hasMatch(normalizedQuery);
     final isStockCodeQuery =
         !isBarcodeQuery &&
         normalizedQuery.contains(RegExp(r'\d')) &&

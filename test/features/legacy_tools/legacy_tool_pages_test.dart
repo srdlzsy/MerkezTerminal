@@ -120,7 +120,7 @@ void main() {
     await tester.tap(find.widgetWithText(FilledButton, 'Cari'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Yerel Musteri'), findsWidgets);
+    expect(find.text('120.01.001 - Yerel Musteri'), findsOneWidget);
     expect(find.textContaining('local katalogdan'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });

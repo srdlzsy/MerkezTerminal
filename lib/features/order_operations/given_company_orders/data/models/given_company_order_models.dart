@@ -163,6 +163,19 @@ class CustomerLookupItem {
     required this.shippingAddressNo,
     required this.isLocked,
     required this.isClosed,
+    this.taxIdentityNo = '',
+    this.taxOfficeNo = '',
+    this.taxOfficeName = '',
+    this.mainCustomerCode = '',
+    this.regionCode = '',
+    this.groupCode = '',
+    this.sectorCode = '',
+    this.mobilePhone = '',
+    this.email = '',
+    this.isEInvoiceCustomer = false,
+    this.isEDespatchCustomer = false,
+    this.sameTaxCustomerCount = 0,
+    this.selectionLabel = '',
   });
 
   final String customerCode;
@@ -176,8 +189,65 @@ class CustomerLookupItem {
   final int shippingAddressNo;
   final bool isLocked;
   final bool isClosed;
+  final String taxIdentityNo;
+  final String taxOfficeNo;
+  final String taxOfficeName;
+  final String mainCustomerCode;
+  final String regionCode;
+  final String groupCode;
+  final String sectorCode;
+  final String mobilePhone;
+  final String email;
+  final bool isEInvoiceCustomer;
+  final bool isEDespatchCustomer;
+  final int sameTaxCustomerCount;
+  final String selectionLabel;
 
-  String get displayLabel => '$customerCode - $customerDisplayName';
+  String get displayName => customerDisplayName.trim().isNotEmpty
+      ? customerDisplayName
+      : customerName;
+
+  String get displayTaxNumber => taxIdentityNo.trim().isNotEmpty
+      ? taxIdentityNo
+      : taxNumber.trim().isNotEmpty
+      ? taxNumber
+      : taxOfficeNo;
+
+  String get displayLabel {
+    final preferred = selectionLabel.trim();
+    if (preferred.isNotEmpty) {
+      return preferred;
+    }
+
+    final name = displayName.trim();
+    return name.isEmpty ? customerCode : '$customerCode - $name';
+  }
+
+  String get lookupTitle {
+    final name = displayName.trim();
+    return name.isEmpty ? customerCode : '$customerCode - $name';
+  }
+
+  List<String> get lookupDetailParts {
+    return <String>[
+      if (customerTitle.trim().isNotEmpty && customerTitle != displayName)
+        customerTitle,
+      if (displayTaxNumber.trim().isNotEmpty) 'Vergi $displayTaxNumber',
+      if (taxOfficeName.trim().isNotEmpty) taxOfficeName,
+      if (groupCode.trim().isNotEmpty) 'Grup $groupCode',
+      if (regionCode.trim().isNotEmpty) 'Bolge $regionCode',
+      if (representativeName.trim().isNotEmpty)
+        'Temsilci $representativeName'
+      else if (representativeCode.trim().isNotEmpty)
+        'Temsilci $representativeCode',
+      if (sameTaxCustomerCount > 1) 'Ayni vergi no: $sameTaxCustomerCount cari',
+    ];
+  }
+
+  String get lookupDetailLabel {
+    final detail = lookupDetailParts.join(' | ');
+    return detail.isEmpty ? '-' : detail;
+  }
 
   factory CustomerLookupItem.fromJson(JsonMap json) {
     return CustomerLookupItem(
@@ -192,6 +262,19 @@ class CustomerLookupItem {
       shippingAddressNo: _readInt(json['shippingAddressNo']),
       isLocked: _readBool(json['isLocked']),
       isClosed: _readBool(json['isClosed']),
+      taxIdentityNo: _readString(json['taxIdentityNo']),
+      taxOfficeNo: _readString(json['taxOfficeNo']),
+      taxOfficeName: _readString(json['taxOfficeName']),
+      mainCustomerCode: _readString(json['mainCustomerCode']),
+      regionCode: _readString(json['regionCode']),
+      groupCode: _readString(json['groupCode']),
+      sectorCode: _readString(json['sectorCode']),
+      mobilePhone: _readString(json['mobilePhone']),
+      email: _readString(json['email']),
+      isEInvoiceCustomer: _readBool(json['isEInvoiceCustomer']),
+      isEDespatchCustomer: _readBool(json['isEDespatchCustomer']),
+      sameTaxCustomerCount: _readInt(json['sameTaxCustomerCount']),
+      selectionLabel: _readString(json['selectionLabel']),
     );
   }
 }

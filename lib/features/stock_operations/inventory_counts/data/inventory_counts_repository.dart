@@ -120,7 +120,7 @@ class ApiInventoryCountsRepository implements InventoryCountsRepository {
     required String query,
   }) async {
     final normalizedQuery = query.trim();
-    final isBarcodeQuery = RegExp(r'^\d{8,}$').hasMatch(normalizedQuery);
+    final isBarcodeQuery = RegExp(r'^\d{7,}$').hasMatch(normalizedQuery);
     final isStockCodeQuery =
         !isBarcodeQuery &&
         normalizedQuery.contains(RegExp(r'\d')) &&
