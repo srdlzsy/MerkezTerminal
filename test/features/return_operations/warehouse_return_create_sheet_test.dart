@@ -81,6 +81,15 @@ Future<void> _pickProduct(WidgetTester tester) async {
   );
   await tester.tap(productTile);
   await tester.pumpAndSettle();
+  await _confirmPendingProduct(tester);
+}
+
+Future<void> _confirmPendingProduct(WidgetTester tester) async {
+  final addButton = find.widgetWithText(FilledButton, 'Kaleme Ekle').first;
+  await tester.ensureVisible(addButton);
+  await tester.pumpAndSettle();
+  await tester.tap(addButton);
+  await tester.pumpAndSettle();
 }
 
 class _FakeWarehouseReturnsRepository implements WarehouseReturnsRepository {

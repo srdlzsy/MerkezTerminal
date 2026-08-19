@@ -86,6 +86,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Urun Ara'), findsNothing);
+    await _confirmPendingProduct(tester);
     expect(find.text('1 kalem'), findsOneWidget);
     expect(find.text('Giris satiri'), findsOneWidget);
     expect(find.text('Satir 1'), findsOneWidget);
@@ -130,6 +131,14 @@ void main() {
       findsOneWidget,
     );
   });
+}
+
+Future<void> _confirmPendingProduct(WidgetTester tester) async {
+  final addButton = find.widgetWithText(FilledButton, 'Kaleme Ekle').first;
+  await tester.ensureVisible(addButton);
+  await tester.pumpAndSettle();
+  await tester.tap(addButton);
+  await tester.pumpAndSettle();
 }
 
 class _FakeStockReceiptsRepository implements StockReceiptsRepository {

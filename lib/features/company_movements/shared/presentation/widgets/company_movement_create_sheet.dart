@@ -436,28 +436,26 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
     }
     final pickedProduct = selected;
 
-    if (!await _confirmDuplicateIncrease(line, pickedProduct)) {
-      _cancelDuplicateCandidate(line);
+    if (_increasePendingQuantityIfSameProduct(line, pickedProduct)) {
+      _scheduleDraftSave();
+      _refocusLine(line.lookupFocusNode);
       return;
     }
 
-    var mergedIntoExisting = false;
+    final entryLine = await _commitPendingEntryBeforeNextProduct(line);
+    if (entryLine == null) {
+      return;
+    }
+
     setState(() {
-      mergedIntoExisting = _applyProductToLine(line, pickedProduct);
-      if (!mergedIntoExisting) {
-        line.setLookupStatus(
-          'Secildi: ${pickedProduct.stockCode} | ${pickedProduct.stockName}',
-        );
-      }
-      _ensureFreshEntryLine();
+      entryLine.applyProduct(pickedProduct);
+      entryLine.setLookupStatus(
+        'Secildi: ${pickedProduct.stockCode} | ${pickedProduct.stockName}',
+      );
       _lookupError = null;
     });
-    _focusFreshEntryLine();
-
-    _notifySuccessfulProductAdd(
-      product: pickedProduct,
-      mergedIntoExisting: mergedIntoExisting,
-    );
+    _scheduleDraftSave();
+    _refocusLine(entryLine.lookupFocusNode);
   }
 
   Future<void> _scanProductWithCamera(_MovementLineDraft line) async {
@@ -600,24 +598,6 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
     return confirmed == true;
   }
 
-  void _cancelDuplicateCandidate(_MovementLineDraft line) {
-    if (!mounted) {
-      return;
-    }
-
-    setState(() {
-      if (line.selectedProduct == null) {
-        line.clear();
-      } else {
-        line.clearLookupStatus();
-      }
-      _ensureFreshEntryLine();
-      _lookupError = null;
-    });
-    _scheduleDraftSave();
-    _focusFreshEntryLine();
-  }
-
   void _rememberAddedProduct(SearchProductLookupItem product) {
     final key = _productKey(
       stockCode: product.stockCode,
@@ -663,6 +643,111 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
     }
   }
 
+  bool _increasePendingQuantityIfSameProduct(
+    _MovementLineDraft line,
+    SearchProductLookupItem product,
+  ) {
+    final selectedProduct = line.selectedProduct;
+    if (selectedProduct == null || !_isSameProduct(selectedProduct, product)) {
+      return false;
+    }
+
+    final addedQuantity = productEntryController.unitMultiplierQuantity(
+      product.unitMultiplier,
+    );
+    setState(() {
+      line.quantityController.text = productEntryController.formatQuantity(
+        line.quantity + addedQuantity,
+      );
+      line.lookupController.text = product.displayLabel;
+      line.setLookupStatus(
+        'Ayni barkod okutuldu. +${AppFormatters.quantity(addedQuantity)} eklendi.',
+      );
+      _lookupError = null;
+    });
+    unawaited(TerminalFeedback.success());
+    return true;
+  }
+
+  Future<_MovementLineDraft?> _commitPendingEntryBeforeNextProduct(
+    _MovementLineDraft line,
+  ) async {
+    if (line.selectedProduct == null) {
+      return line;
+    }
+
+    await _commitEntryLine(line);
+    if (!mounted || _lines.isEmpty) {
+      return null;
+    }
+
+    final entryLine = _lines.first;
+    if (identical(entryLine, line) && !_isBlankLine(entryLine)) {
+      return null;
+    }
+
+    return entryLine;
+  }
+
+  bool _isSameProduct(
+    SearchProductLookupItem first,
+    SearchProductLookupItem second,
+  ) {
+    final firstStockCode = first.stockCode.trim().toUpperCase();
+    final secondStockCode = second.stockCode.trim().toUpperCase();
+    if (firstStockCode.isNotEmpty && firstStockCode == secondStockCode) {
+      return true;
+    }
+
+    final firstBarcode = first.barcode.trim().toUpperCase();
+    final secondBarcode = second.barcode.trim().toUpperCase();
+    return firstBarcode.isNotEmpty && firstBarcode == secondBarcode;
+  }
+
+  bool get _hasPendingEntryLine =>
+      _lines.isNotEmpty && !_isBlankLine(_lines.first);
+
+  Future<void> _commitEntryLine(_MovementLineDraft line) async {
+    final product = line.selectedProduct;
+    if (product == null) {
+      _refocusLine(line.lookupFocusNode);
+      return;
+    }
+
+    if (line.quantity <= 0) {
+      setState(() {
+        line.setLookupStatus('Miktar sifirdan buyuk olmali.', isError: true);
+      });
+      return;
+    }
+
+    if (!await _confirmDuplicateIncrease(line, product)) {
+      return;
+    }
+
+    var mergedIntoExisting = false;
+    setState(() {
+      mergedIntoExisting = _applyProductToLine(line, product);
+      _ensureFreshEntryLine();
+      _lookupError = null;
+    });
+    _scheduleDraftSave();
+    _focusFreshEntryLine();
+    _notifySuccessfulProductAdd(
+      product: product,
+      mergedIntoExisting: mergedIntoExisting,
+    );
+  }
+
+  void _cancelPendingEntryLine(_MovementLineDraft line) {
+    setState(() {
+      line.clear();
+      _lookupError = null;
+    });
+    _scheduleDraftSave();
+    _refocusLine(line.lookupFocusNode);
+  }
+
   void _focusFreshEntryLine() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || _lines.isEmpty) {
@@ -694,9 +779,14 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
       return;
     }
 
-    final activeLines = _lines
-        .where((line) => !_isBlankLine(line))
-        .toList(growable: false);
+    if (_hasPendingEntryLine) {
+      setState(() {
+        _lookupError = 'Secilen urunu once Kaleme Ekle ile listeye alin.';
+      });
+      return;
+    }
+
+    final activeLines = _committedLines();
 
     if (activeLines.isEmpty) {
       setState(() {
@@ -844,9 +934,7 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
       return const SizedBox.shrink();
     }
 
-    final entryIndex = _lines.indexWhere(_isBlankLine);
-    final index = entryIndex == -1 ? 0 : entryIndex;
-    return _buildLineCard(index);
+    return _buildLineCard(0);
   }
 
   Widget _buildLazyLineSliver() {
@@ -866,18 +954,73 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
   List<int> _filledLineIndexes() {
     return <int>[
       for (var index = 0; index < _lines.length; index++)
-        if (!_isBlankLine(_lines[index])) index,
+        if (index != 0 && !_isBlankLine(_lines[index])) index,
+    ];
+  }
+
+  List<_MovementLineDraft> _committedLines() {
+    return <_MovementLineDraft>[
+      for (var index = 0; index < _lines.length; index++)
+        if (index != 0 && !_isBlankLine(_lines[index])) _lines[index],
     ];
   }
 
   Widget _buildLineCard(int index) {
     final line = _lines[index];
-    final isFreshEntry = index == 0 && _isBlankLine(line);
+    final isEntrySlot = index == 0;
+    final isFreshEntry = isEntrySlot && _isBlankLine(line);
+    final isPendingEntry = isEntrySlot && !_isBlankLine(line);
     final displayLineNo = _lines
         .take(index + 1)
-        .where((item) => !_isBlankLine(item))
+        .where((item) => _lines.indexOf(item) != 0 && !_isBlankLine(item))
         .length;
     final product = line.selectedProduct;
+
+    if (isPendingEntry && product != null) {
+      return ProductDraftEntryPanel(
+        stockCode: product.stockCode,
+        stockName: product.stockName,
+        quantityController: line.quantityController,
+        unitLabel: product.unitName,
+        barcode: product.barcode,
+        packageLabel: product.unitMultiplier > 1
+            ? AppFormatters.quantity(product.unitMultiplier)
+            : null,
+        priceLabel: AppFormatters.currency(product.price),
+        onConfirm: () => _commitEntryLine(line),
+        onCancel: () => _cancelPendingEntryLine(line),
+        scanRow: TerminalResponsiveLookupRow(
+          field: ProductLookupField(
+            controller: line.lookupController,
+            focusNode: line.lookupFocusNode,
+            enabled: !line.isLookupStatusLoading,
+            labelText: 'Barkod okut / urun degistir',
+            onSubmit: () => _searchProduct(line),
+          ),
+          action: FilledButton.icon(
+            onPressed: line.isLookupStatusLoading
+                ? null
+                : () => _searchProduct(line),
+            icon: const Icon(Icons.search_rounded),
+            label: const Text('Urun'),
+          ),
+          trailingAction: IconButton.filledTonal(
+            onPressed: line.isLookupStatusLoading
+                ? null
+                : () => _scanProductWithCamera(line),
+            tooltip: 'Kamera ile oku',
+            icon: const Icon(Icons.photo_camera_back_rounded),
+          ),
+        ),
+        quantityValidator: (_) {
+          if (line.quantity <= 0) {
+            return 'Miktar > 0 olmali.';
+          }
+
+          return null;
+        },
+      );
+    }
 
     if (!isFreshEntry && product != null) {
       return TerminalCompactProductLineCard(

@@ -50,6 +50,7 @@ class _InventoryCountCreateSheetState extends State<InventoryCountCreateSheet>
   late List<_InventoryLineDraft> _lines;
   String? _validationMessage;
   late final CreateDraftSession _draftSession;
+  String? _lastAddedProductKey;
 
   @override
   void initState() {
@@ -178,21 +179,23 @@ class _InventoryCountCreateSheetState extends State<InventoryCountCreateSheet>
     }
     final pickedProduct = product;
 
-    var mergedIntoExisting = false;
+    if (_increasePendingQuantityIfSameProduct(line, pickedProduct)) {
+      _draftSession.scheduleSave();
+      _refocusLine(line.barcodeFocusNode);
+      return;
+    }
+
+    final entryLine = await _commitPendingEntryBeforeNextProduct(line);
+    if (entryLine == null) {
+      return;
+    }
+
     setState(() {
-      mergedIntoExisting = _applyProductToLine(line, pickedProduct);
-      _ensureFreshEntryLine();
+      entryLine.applyProduct(pickedProduct);
       _validationMessage = null;
     });
     _draftSession.scheduleSave();
-    _focusFreshEntryLine();
-
-    if (mergedIntoExisting) {
-      unawaited(TerminalFeedback.success());
-      _showFeedback('Ayni barkod mevcut satira eklendi; miktar artirildi.');
-    } else {
-      unawaited(TerminalFeedback.success());
-    }
+    _refocusLine(entryLine.barcodeFocusNode);
   }
 
   Future<bool> _tryResolveBarcode(
@@ -247,24 +250,36 @@ class _InventoryCountCreateSheetState extends State<InventoryCountCreateSheet>
       resolution,
     );
     final addedQuantity = resolution.suggestedQuantity;
-    var mergedIntoExisting = false;
+    if (_increasePendingQuantityIfSameProduct(
+      line,
+      product,
+      addedQuantity: addedQuantity,
+    )) {
+      _draftSession.scheduleSave();
+      _refocusLine(line.barcodeFocusNode);
+      return true;
+    }
+
+    final entryLine = await _commitPendingEntryBeforeNextProduct(line);
+    if (entryLine == null) {
+      return true;
+    }
+
     setState(() {
-      line.quantityController.text = productEntryController.formatQuantity(
+      entryLine.quantityController.text = productEntryController.formatQuantity(
         addedQuantity,
       );
-      mergedIntoExisting = _applyProductToLine(line, product);
-      _ensureFreshEntryLine();
+      entryLine.applyProduct(product);
       _validationMessage = null;
     });
     _draftSession.scheduleSave();
-    _focusFreshEntryLine();
-    _notifyResolvedBarcodeResult(
-      product: product,
-      resolution: resolution,
-      addedQuantity: addedQuantity,
-      mergedIntoExisting: mergedIntoExisting,
-      totalQuantity: _lineQuantityFor(product),
-    );
+    _refocusLine(entryLine.barcodeFocusNode);
+    if (resolution.quickWarningMessage.isNotEmpty) {
+      unawaited(TerminalFeedback.warning());
+      _showFeedback(resolution.quickWarningMessage);
+    } else {
+      unawaited(TerminalFeedback.success());
+    }
     return true;
   }
 
@@ -372,6 +387,200 @@ class _InventoryCountCreateSheetState extends State<InventoryCountCreateSheet>
     }
   }
 
+  bool _increasePendingQuantityIfSameProduct(
+    _InventoryLineDraft line,
+    InventoryCountProductLookupItem product, {
+    double? addedQuantity,
+  }) {
+    final selectedProduct = line.selectedProduct;
+    if (selectedProduct == null || !_isSameProduct(selectedProduct, product)) {
+      return false;
+    }
+
+    final increment =
+        addedQuantity ??
+        productEntryController.unitMultiplierQuantity(product.unitMultiplier);
+    setState(() {
+      line.quantityController.text = productEntryController.formatQuantity(
+        productEntryController.readQuantity(
+              line.quantityController.text,
+              fallback: 0,
+            ) +
+            increment,
+      );
+      line.barcodeController.text = product.barcode.isEmpty
+          ? product.displayLabel
+          : product.barcode;
+      _validationMessage = null;
+    });
+    unawaited(TerminalFeedback.success());
+    return true;
+  }
+
+  Future<_InventoryLineDraft?> _commitPendingEntryBeforeNextProduct(
+    _InventoryLineDraft line,
+  ) async {
+    if (line.selectedProduct == null) {
+      return line;
+    }
+
+    await _commitEntryLine(line);
+    if (!mounted || _lines.isEmpty) {
+      return null;
+    }
+
+    final entryLine = _lines.first;
+    if (identical(entryLine, line) && !_isBlankLine(entryLine)) {
+      return null;
+    }
+
+    return entryLine;
+  }
+
+  bool _isSameProduct(
+    InventoryCountProductLookupItem first,
+    InventoryCountProductLookupItem second,
+  ) {
+    final firstStockCode = first.stockCode.trim().toUpperCase();
+    final secondStockCode = second.stockCode.trim().toUpperCase();
+    if (firstStockCode.isNotEmpty && firstStockCode == secondStockCode) {
+      return true;
+    }
+
+    final firstBarcode = first.barcode.trim().toUpperCase();
+    final secondBarcode = second.barcode.trim().toUpperCase();
+    return firstBarcode.isNotEmpty && firstBarcode == secondBarcode;
+  }
+
+  Future<bool> _confirmDuplicateIncrease(
+    _InventoryLineDraft line,
+    InventoryCountProductLookupItem product,
+  ) async {
+    final existingLine = productEntryController.findDuplicateLine(
+      ProductEntryDuplicateMergePolicy<_InventoryLineDraft>(
+        currentLine: line,
+        targetBarcode: product.barcode,
+        targetStockCode: product.stockCode,
+        lines: _lines,
+        lineBarcode: (line) => line.selectedProduct?.barcode ?? '',
+        lineStockCode: (line) => line.selectedProduct?.stockCode ?? '',
+        canMergeLine: (line) => line.selectedProduct != null,
+      ),
+    );
+    final key = _productKey(
+      stockCode: product.stockCode,
+      barcode: product.barcode,
+    );
+    if (existingLine == null ||
+        productEntryController.readQuantity(
+              existingLine.quantityController.text,
+              fallback: 0,
+            ) <=
+            0 ||
+        key.isEmpty ||
+        _lastAddedProductKey == key) {
+      return true;
+    }
+
+    unawaited(TerminalFeedback.warning());
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Urun listede var'),
+          content: Text(
+            '${product.stockName} daha once eklenmis. Miktar artirilsin mi?',
+          ),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Vazgec'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('Artir'),
+            ),
+          ],
+        );
+      },
+    );
+
+    return confirmed == true;
+  }
+
+  void _rememberAddedProduct(InventoryCountProductLookupItem product) {
+    final key = _productKey(
+      stockCode: product.stockCode,
+      barcode: product.barcode,
+    );
+    if (key.isNotEmpty) {
+      _lastAddedProductKey = key;
+    }
+  }
+
+  String _productKey({required String stockCode, required String barcode}) {
+    final normalizedStockCode = stockCode.trim().toUpperCase();
+    if (normalizedStockCode.isNotEmpty) {
+      return 'S:$normalizedStockCode';
+    }
+
+    final normalizedBarcode = barcode.trim().toUpperCase();
+    if (normalizedBarcode.isNotEmpty) {
+      return 'B:$normalizedBarcode';
+    }
+
+    return '';
+  }
+
+  bool get _hasPendingEntryLine =>
+      _lines.isNotEmpty && !_isBlankLine(_lines.first);
+
+  Future<void> _commitEntryLine(_InventoryLineDraft line) async {
+    final product = line.selectedProduct;
+    if (product == null) {
+      _refocusLine(line.barcodeFocusNode);
+      return;
+    }
+
+    final quantity = productEntryController.readQuantity(
+      line.quantityController.text,
+      fallback: 0,
+    );
+    if (quantity <= 0) {
+      setState(() {
+        _validationMessage = 'Miktar sifirdan buyuk olmali.';
+      });
+      return;
+    }
+
+    if (!await _confirmDuplicateIncrease(line, product)) {
+      return;
+    }
+
+    var mergedIntoExisting = false;
+    setState(() {
+      mergedIntoExisting = _applyProductToLine(line, product);
+      _ensureFreshEntryLine();
+      _validationMessage = null;
+    });
+    _draftSession.scheduleSave();
+    _focusFreshEntryLine();
+    _rememberAddedProduct(product);
+    unawaited(TerminalFeedback.success());
+    if (mergedIntoExisting) {
+      _showFeedback('Ayni barkod mevcut satira eklendi; miktar artirildi.');
+    }
+  }
+
+  void _cancelPendingEntryLine(_InventoryLineDraft line) {
+    setState(() {
+      line.clear();
+      _validationMessage = null;
+    });
+    _draftSession.scheduleSave();
+    _refocusLine(line.barcodeFocusNode);
+  }
+
   void _focusFreshEntryLine() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || _lines.isEmpty) {
@@ -419,9 +628,14 @@ class _InventoryCountCreateSheetState extends State<InventoryCountCreateSheet>
       return;
     }
 
-    final activeLines = _lines
-        .where((line) => !_isBlankLine(line))
-        .toList(growable: false);
+    if (_hasPendingEntryLine) {
+      setState(() {
+        _validationMessage = 'Secilen urunu once Kaleme Ekle ile listeye alin.';
+      });
+      return;
+    }
+
+    final activeLines = _committedLines();
 
     if (activeLines.isEmpty) {
       setState(() {
@@ -609,11 +823,62 @@ class _InventoryCountCreateSheetState extends State<InventoryCountCreateSheet>
     required _InventoryLineDraft line,
   }) {
     final product = line.selectedProduct;
-    final isFreshEntry = index == 0 && _isBlankLine(line);
+    final isEntrySlot = index == 0;
+    final isFreshEntry = isEntrySlot && _isBlankLine(line);
+    final isPendingEntry = isEntrySlot && !_isBlankLine(line);
     final displayLineNo = _lines
         .take(index + 1)
-        .where((item) => !_isBlankLine(item))
+        .where((item) => _lines.indexOf(item) != 0 && !_isBlankLine(item))
         .length;
+
+    if (isPendingEntry && product != null) {
+      return ProductDraftEntryPanel(
+        stockCode: product.stockCode,
+        stockName: product.stockName,
+        quantityController: line.quantityController,
+        unitLabel: product.unitName,
+        barcode: product.barcode,
+        packageLabel: product.unitMultiplier > 1
+            ? AppFormatters.quantity(product.unitMultiplier)
+            : null,
+        warningLabel: product.isGoodsAcceptanceBlocked ? 'Bayrak var' : null,
+        onConfirm: () => _commitEntryLine(line),
+        onCancel: () => _cancelPendingEntryLine(line),
+        scanRow: TerminalResponsiveLookupRow(
+          breakpoint: 340,
+          field: ProductLookupField(
+            controller: line.barcodeController,
+            focusNode: line.barcodeFocusNode,
+            labelText: 'Barkod okut / urun degistir',
+            onSubmit: () => _searchProduct(line),
+          ),
+          action: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              FilledButton.icon(
+                onPressed: () => _searchProduct(line),
+                icon: const Icon(Icons.search_rounded),
+                label: const Text('Urun'),
+              ),
+              const SizedBox(width: 8),
+              IconButton.filledTonal(
+                onPressed: () => _scanProductWithCamera(line),
+                tooltip: 'Kamera ile oku',
+                icon: const Icon(Icons.photo_camera_back_rounded),
+              ),
+            ],
+          ),
+        ),
+        quantityValidator: (value) {
+          if (productEntryController.readQuantity(value ?? '', fallback: 0) <=
+              0) {
+            return 'Zorunlu';
+          }
+
+          return null;
+        },
+      );
+    }
 
     if (!isFreshEntry && product != null) {
       return TerminalCompactProductLineCard(
@@ -724,9 +989,7 @@ class _InventoryCountCreateSheetState extends State<InventoryCountCreateSheet>
   }
 
   Widget _buildEntryLineCard(ThemeData theme) {
-    final entryIndex = _lines.indexWhere(_isBlankLine);
-    final index = entryIndex == -1 ? 0 : entryIndex;
-    return _buildLineCard(theme: theme, index: index, line: _lines[index]);
+    return _buildLineCard(theme: theme, index: 0, line: _lines.first);
   }
 
   Widget _buildLazyLineSliver(ThemeData theme) {
@@ -753,7 +1016,14 @@ class _InventoryCountCreateSheetState extends State<InventoryCountCreateSheet>
   List<int> _filledLineIndexes() {
     return <int>[
       for (var index = 0; index < _lines.length; index++)
-        if (!_isBlankLine(_lines[index])) index,
+        if (index != 0 && !_isBlankLine(_lines[index])) index,
+    ];
+  }
+
+  List<_InventoryLineDraft> _committedLines() {
+    return <_InventoryLineDraft>[
+      for (var index = 0; index < _lines.length; index++)
+        if (index != 0 && !_isBlankLine(_lines[index])) _lines[index],
     ];
   }
 
@@ -768,66 +1038,6 @@ class _InventoryCountCreateSheetState extends State<InventoryCountCreateSheet>
         margin: const EdgeInsets.all(16),
       ),
     );
-  }
-
-  void _notifyResolvedBarcodeResult({
-    required InventoryCountProductLookupItem product,
-    required BarcodeResolutionResult resolution,
-    required double addedQuantity,
-    required bool mergedIntoExisting,
-    required double totalQuantity,
-  }) {
-    final warning = resolution.quickWarningMessage;
-    if (warning.isNotEmpty) {
-      unawaited(TerminalFeedback.warning());
-      _showFeedback(warning);
-      return;
-    }
-
-    unawaited(TerminalFeedback.success());
-    final unitName = product.unitName.trim();
-    final quantityLabel =
-        '${AppFormatters.quantity(addedQuantity)}${unitName.isEmpty ? '' : ' $unitName'}';
-    final resolvedMessage = _resolvedBarcodeMessage(resolution);
-    if (mergedIntoExisting) {
-      _showFeedback(
-        'Urun zaten sepetteydi. +${AppFormatters.quantity(addedQuantity)} '
-        'eklendi. Toplam: ${AppFormatters.quantity(totalQuantity)} '
-        '${product.unitName}.',
-      );
-    } else {
-      final detailLabel =
-          resolution.isCaseBarcode || resolution.isVariableWeightBarcode
-          ? resolvedMessage
-          : 'Miktar: $quantityLabel';
-      _showFeedback('Eklendi: ${product.stockName}. $detailLabel.');
-    }
-  }
-
-  String _resolvedBarcodeMessage(BarcodeResolutionResult resolution) {
-    if (resolution.isVariableWeightBarcode) {
-      return 'Terazi ${AppFormatters.quantity(resolution.suggestedQuantity)} ${resolution.embeddedQuantityUnit}';
-    }
-    if (resolution.isCaseBarcode) {
-      return 'Koli ici ${AppFormatters.quantity(resolution.suggestedQuantity)}';
-    }
-    return 'Miktar ${AppFormatters.quantity(resolution.suggestedQuantity)}';
-  }
-
-  double _lineQuantityFor(InventoryCountProductLookupItem product) {
-    for (final line in _lines) {
-      final selected = line.selectedProduct;
-      if (selected == null || selected.stockCode != product.stockCode) {
-        continue;
-      }
-
-      return productEntryController.readQuantity(
-        line.quantityController.text,
-        fallback: 0,
-      );
-    }
-
-    return 0;
   }
 }
 
@@ -878,6 +1088,14 @@ class _InventoryLineDraft {
         productEntryController.unitMultiplierQuantity(product.unitMultiplier),
       );
     }
+  }
+
+  void clear() {
+    selectedProduct = null;
+    barcodeController.clear();
+    stockCodeController.clear();
+    quantityController.clear();
+    onChanged?.call();
   }
 
   void dispose() {

@@ -10,6 +10,7 @@ import 'package:furpa_merkez_terminal/shared/formatters/app_formatters.dart';
 import 'package:furpa_merkez_terminal/shared/offline/mobile_product_catalog_repository.dart';
 import 'package:furpa_merkez_terminal/shared/offline/offline_record_status.dart';
 import 'package:furpa_merkez_terminal/shared/offline/offline_sync_service.dart';
+import 'package:furpa_merkez_terminal/shared/product_entry/product_entry_widgets.dart';
 import 'package:furpa_merkez_terminal/shared/utils/client_request_id.dart';
 import 'package:furpa_merkez_terminal/shared/utils/create_form_validation.dart';
 import 'package:furpa_merkez_terminal/shared/utils/terminal_feedback.dart';
@@ -435,6 +436,7 @@ class _OfflineInventoryCountCreateSheetState
   final List<_OfflineLineDraft> _lines = <_OfflineLineDraft>[];
   DateTime _documentDate = DateTime.now();
   String? _errorMessage;
+  String? _lastAddedProductKey;
 
   @override
   void initState() {
@@ -545,20 +547,22 @@ class _OfflineInventoryCountCreateSheetState
     }
     final pickedProduct = selected;
 
-    var mergedIntoExisting = false;
+    if (_increasePendingQuantityIfSameProduct(line, pickedProduct)) {
+      _refocusLine(line.lookupFocusNode);
+      return;
+    }
+
+    final entryLine = await _commitPendingEntryBeforeNextProduct(line);
+    if (entryLine == null) {
+      return;
+    }
+
     setState(() {
-      mergedIntoExisting = _applyProductToLine(line, pickedProduct);
-      _ensureFreshEntryLine();
+      entryLine.applyLookup(pickedProduct);
       _errorMessage = null;
     });
-    _focusFreshEntryLine();
-
-    if (mergedIntoExisting) {
-      unawaited(TerminalFeedback.success());
-      _showFeedback('Ayni barkod mevcut satira eklendi; miktar artirildi.');
-    } else {
-      unawaited(TerminalFeedback.success());
-    }
+    unawaited(TerminalFeedback.success());
+    _refocusLine(entryLine.lookupFocusNode);
   }
 
   Future<List<InventoryCountProductLookupItem>>
@@ -710,6 +714,179 @@ class _OfflineInventoryCountCreateSheetState
     return line.stockCodeController.text.trim().isEmpty;
   }
 
+  bool _increasePendingQuantityIfSameProduct(
+    _OfflineLineDraft line,
+    InventoryCountProductLookupItem product,
+  ) {
+    if (!_isSameProduct(line, product)) {
+      return false;
+    }
+
+    final increment = _unitMultiplierQuantity(product.unitMultiplier);
+    setState(() {
+      line.quantityController.text = _formatQuantity(line.quantity + increment);
+      line.lookupController.text = product.displayLabel;
+      _errorMessage = null;
+    });
+    unawaited(TerminalFeedback.success());
+    return true;
+  }
+
+  Future<_OfflineLineDraft?> _commitPendingEntryBeforeNextProduct(
+    _OfflineLineDraft line,
+  ) async {
+    if (_isBlankLine(line)) {
+      return line;
+    }
+
+    await _commitEntryLine(line);
+    if (!mounted || _lines.isEmpty) {
+      return null;
+    }
+
+    final entryLine = _lines.first;
+    if (identical(entryLine, line) && !_isBlankLine(entryLine)) {
+      return null;
+    }
+
+    return entryLine;
+  }
+
+  bool _isSameProduct(
+    _OfflineLineDraft line,
+    InventoryCountProductLookupItem product,
+  ) {
+    final lineStockCode = line.stockCodeController.text.trim().toUpperCase();
+    final productStockCode = product.stockCode.trim().toUpperCase();
+    if (lineStockCode.isNotEmpty && lineStockCode == productStockCode) {
+      return true;
+    }
+
+    final lineBarcode = line.barcodeController.text.trim().toUpperCase();
+    final productBarcode = product.barcode.trim().toUpperCase();
+    return lineBarcode.isNotEmpty && lineBarcode == productBarcode;
+  }
+
+  Future<bool> _confirmDuplicateIncrease(
+    _OfflineLineDraft line,
+    InventoryCountProductLookupItem product,
+  ) async {
+    final existingLine = _findDuplicateLine(
+      currentLine: line,
+      barcode: product.barcode,
+      stockCode: product.stockCode,
+    );
+    final key = _productIdentity(
+      barcode: product.barcode,
+      stockCode: product.stockCode,
+    );
+    if (existingLine == null ||
+        _readDouble(existingLine.quantityController.text, fallback: 0) <= 0 ||
+        key == null ||
+        _lastAddedProductKey == key) {
+      return true;
+    }
+
+    unawaited(TerminalFeedback.warning());
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Urun listede var'),
+          content: Text(
+            '${product.stockName} daha once eklenmis. Miktar artirilsin mi?',
+          ),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Vazgec'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('Artir'),
+            ),
+          ],
+        );
+      },
+    );
+
+    return confirmed == true;
+  }
+
+  void _rememberAddedProduct(InventoryCountProductLookupItem product) {
+    final key = _productIdentity(
+      barcode: product.barcode,
+      stockCode: product.stockCode,
+    );
+    if (key != null) {
+      _lastAddedProductKey = key;
+    }
+  }
+
+  bool get _hasPendingEntryLine =>
+      _lines.isNotEmpty && !_isBlankLine(_lines.first);
+
+  Future<void> _commitEntryLine(_OfflineLineDraft line) async {
+    if (_isBlankLine(line)) {
+      _refocusLine(line.lookupFocusNode);
+      return;
+    }
+
+    if (line.quantity <= 0) {
+      unawaited(TerminalFeedback.warning());
+      setState(() {
+        _errorMessage = 'Miktar sifirdan buyuk olmali.';
+      });
+      return;
+    }
+
+    final product = _productFromLine(line);
+    if (!await _confirmDuplicateIncrease(line, product)) {
+      return;
+    }
+
+    var mergedIntoExisting = false;
+    setState(() {
+      mergedIntoExisting = _applyProductToLine(line, product);
+      _ensureFreshEntryLine();
+      _errorMessage = null;
+    });
+    _focusFreshEntryLine();
+    _rememberAddedProduct(product);
+    unawaited(TerminalFeedback.success());
+    if (mergedIntoExisting) {
+      _showFeedback('Ayni barkod mevcut satira eklendi; miktar artirildi.');
+    }
+  }
+
+  void _cancelPendingEntryLine(_OfflineLineDraft line) {
+    setState(() {
+      line.clear();
+      _errorMessage = null;
+    });
+    _refocusLine(line.lookupFocusNode);
+  }
+
+  List<_OfflineLineDraft> _committedLines() {
+    return <_OfflineLineDraft>[
+      for (var index = 0; index < _lines.length; index++)
+        if (index != 0 && !_isBlankLine(_lines[index])) _lines[index],
+    ];
+  }
+
+  InventoryCountProductLookupItem _productFromLine(_OfflineLineDraft line) {
+    return InventoryCountProductLookupItem(
+      stockCode: line.stockCodeController.text.trim(),
+      stockName: line.stockNameController.text.trim(),
+      barcode: line.barcodeController.text.trim(),
+      unitName: 'Birim ${line.unitPointer}',
+      unitMultiplier: 1,
+      warehouseNo: int.tryParse(widget.defaultWarehouseNo) ?? 0,
+      price: 0,
+      isGoodsAcceptanceBlocked: false,
+    );
+  }
+
   void _showFeedback(String message) {
     final messenger = ScaffoldMessenger.maybeOf(context);
     messenger?.hideCurrentSnackBar();
@@ -730,9 +907,15 @@ class _OfflineInventoryCountCreateSheetState
       return;
     }
 
-    final activeLines = _lines
-        .where((line) => !_isBlankLine(line))
-        .toList(growable: false);
+    if (_hasPendingEntryLine) {
+      unawaited(TerminalFeedback.warning());
+      setState(() {
+        _errorMessage = 'Secilen urunu once Kaleme Ekle ile listeye alin.';
+      });
+      return;
+    }
+
+    final activeLines = _committedLines();
 
     if (activeLines.isEmpty) {
       unawaited(TerminalFeedback.warning());
@@ -866,12 +1049,7 @@ class _OfflineInventoryCountCreateSheetState
   }
 
   Widget _buildEntryLineCard() {
-    final entryIndex = _lines.indexWhere(_isBlankLine);
-    if (entryIndex == -1) {
-      return const SizedBox.shrink();
-    }
-
-    return _buildLineCard(entryIndex);
+    return _buildLineCard(0);
   }
 
   Widget _buildLazyLineSliver() {
@@ -891,17 +1069,63 @@ class _OfflineInventoryCountCreateSheetState
   List<int> _filledLineIndexes() {
     return <int>[
       for (var index = 0; index < _lines.length; index++)
-        if (!_isBlankLine(_lines[index])) index,
+        if (index != 0 && !_isBlankLine(_lines[index])) index,
     ];
   }
 
   Widget _buildLineCard(int index) {
     final line = _lines[index];
-    final isFreshEntry = index == 0 && _isBlankLine(line);
+    final isEntrySlot = index == 0;
+    final isFreshEntry = isEntrySlot && _isBlankLine(line);
+    final isPendingEntry = isEntrySlot && !_isBlankLine(line);
     final displayLineNo = _lines
         .take(index + 1)
-        .where((item) => !_isBlankLine(item))
+        .where((item) => _lines.indexOf(item) != 0 && !_isBlankLine(item))
         .length;
+
+    if (isPendingEntry) {
+      return ProductDraftEntryPanel(
+        stockCode: line.stockCodeController.text.trim(),
+        stockName: line.stockNameController.text.trim().isEmpty
+            ? 'Urun secilmedi'
+            : line.stockNameController.text.trim(),
+        quantityController: line.quantityController,
+        unitLabel: 'Birim ${line.unitPointer}',
+        barcode: line.barcodeController.text.trim(),
+        onConfirm: () => _commitEntryLine(line),
+        onCancel: () => _cancelPendingEntryLine(line),
+        scanRow: TerminalResponsiveLookupRow(
+          field: TerminalSubmitOnTab(
+            onSubmit: () => _searchProduct(line),
+            child: TextField(
+              controller: line.lookupController,
+              focusNode: line.lookupFocusNode,
+              textInputAction: TextInputAction.search,
+              onSubmitted: (_) => _searchProduct(line),
+              decoration: const InputDecoration(
+                labelText: 'Barkod okut / urun degistir',
+              ),
+            ),
+          ),
+          action: FilledButton.icon(
+            onPressed: () => _searchProduct(line),
+            icon: const Icon(Icons.search_rounded),
+            label: const Text('Bul'),
+          ),
+          trailingAction: IconButton.filledTonal(
+            onPressed: () => _scanProductWithCamera(line),
+            tooltip: 'Kamera ile oku',
+            icon: const Icon(Icons.photo_camera_back_rounded),
+          ),
+        ),
+        quantityValidator: (_) {
+          if (line.quantity <= 0) {
+            return 'Miktar > 0';
+          }
+          return null;
+        },
+      );
+    }
 
     if (!isFreshEntry) {
       return TerminalCompactProductLineCard(
@@ -999,6 +1223,15 @@ class _OfflineLineDraft {
         _unitMultiplierQuantity(product.unitMultiplier),
       );
     }
+  }
+
+  void clear() {
+    lookupController.clear();
+    stockCodeController.clear();
+    stockNameController.clear();
+    barcodeController.clear();
+    quantityController.clear();
+    unitPointerController.text = '1';
   }
 
   void dispose() {

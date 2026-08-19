@@ -36,6 +36,210 @@ class ProductLookupField extends StatefulWidget {
   State<ProductLookupField> createState() => _ProductLookupFieldState();
 }
 
+class ProductDraftEntryPanel extends StatelessWidget {
+  const ProductDraftEntryPanel({
+    super.key,
+    required this.stockCode,
+    required this.stockName,
+    required this.quantityController,
+    required this.onConfirm,
+    required this.onCancel,
+    this.title = 'Secilen urun',
+    this.unitLabel,
+    this.barcode,
+    this.packageLabel,
+    this.priceLabel,
+    this.warningLabel,
+    this.confirmLabel = 'Kaleme Ekle',
+    this.quantityLabel = 'Miktar',
+    this.quantityStep = 1,
+    this.maximumQuantity,
+    this.quantityInputFormatters = const <TextInputFormatter>[],
+    this.quantityValidator,
+    this.onQuantityChanged,
+    this.secondaryQuantityController,
+    this.secondaryQuantityLabel = 'Fiili Miktar',
+    this.secondaryQuantityStep = 1,
+    this.secondaryMaximumQuantity,
+    this.secondaryQuantityInputFormatters = const <TextInputFormatter>[],
+    this.secondaryQuantityValidator,
+    this.onSecondaryQuantityChanged,
+    this.extraInfo = const <TerminalPdaInfo>[],
+    this.scanRow,
+  });
+
+  final String title;
+  final String stockCode;
+  final String stockName;
+  final String? unitLabel;
+  final String? barcode;
+  final String? packageLabel;
+  final String? priceLabel;
+  final String? warningLabel;
+  final TextEditingController quantityController;
+  final String confirmLabel;
+  final String quantityLabel;
+  final double quantityStep;
+  final double? maximumQuantity;
+  final List<TextInputFormatter> quantityInputFormatters;
+  final FormFieldValidator<String>? quantityValidator;
+  final ValueChanged<String>? onQuantityChanged;
+  final TextEditingController? secondaryQuantityController;
+  final String secondaryQuantityLabel;
+  final double secondaryQuantityStep;
+  final double? secondaryMaximumQuantity;
+  final List<TextInputFormatter> secondaryQuantityInputFormatters;
+  final FormFieldValidator<String>? secondaryQuantityValidator;
+  final ValueChanged<String>? onSecondaryQuantityChanged;
+  final List<TerminalPdaInfo> extraInfo;
+  final Widget? scanRow;
+  final VoidCallback onConfirm;
+  final VoidCallback onCancel;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return TerminalPdaLineCard(
+      title: title,
+      subtitle: stockName,
+      isEntryLine: true,
+      leading: const Icon(Icons.inventory_2_rounded),
+      trailing: IconButton(
+        onPressed: onCancel,
+        icon: const Icon(Icons.close_rounded),
+        tooltip: 'Secimi temizle',
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          if (scanRow != null) ...<Widget>[
+            scanRow!,
+            const SizedBox(height: 10),
+          ],
+          TerminalPdaInfoGrid(
+            minTileWidth: 92,
+            items: <TerminalPdaInfo>[
+              TerminalPdaInfo(label: 'Kod', value: stockCode),
+              if ((unitLabel ?? '').trim().isNotEmpty)
+                TerminalPdaInfo(label: 'Birim', value: unitLabel!),
+              if ((barcode ?? '').trim().isNotEmpty)
+                TerminalPdaInfo(label: 'Barkod', value: barcode!),
+              if ((packageLabel ?? '').trim().isNotEmpty)
+                TerminalPdaInfo(label: 'Koli', value: packageLabel!),
+              if ((priceLabel ?? '').trim().isNotEmpty)
+                TerminalPdaInfo(label: 'Fiyat', value: priceLabel!),
+              ...extraInfo,
+            ],
+          ),
+          if ((warningLabel ?? '').trim().isNotEmpty) ...<Widget>[
+            const SizedBox(height: 8),
+            Text(
+              warningLabel!,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.error,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ],
+          const SizedBox(height: 10),
+          _buildQuantityInputs(),
+          const SizedBox(height: 10),
+          _buildActionButtons(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildActionButtons() {
+    final cancelButton = OutlinedButton.icon(
+      onPressed: onCancel,
+      icon: const Icon(Icons.clear_rounded),
+      label: const Text('Vazgec'),
+    );
+    final confirmButton = FilledButton.icon(
+      onPressed: onConfirm,
+      icon: const Icon(Icons.playlist_add_rounded),
+      label: Text(confirmLabel),
+    );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < 330) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: <Widget>[
+              confirmButton,
+              const SizedBox(height: 8),
+              cancelButton,
+            ],
+          );
+        }
+
+        return Row(
+          children: <Widget>[
+            Expanded(child: cancelButton),
+            const SizedBox(width: 8),
+            Expanded(child: confirmButton),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildQuantityInputs() {
+    final primaryQuantity = TerminalQuantityStepper(
+      controller: quantityController,
+      label: quantityLabel,
+      step: quantityStep,
+      maximum: maximumQuantity,
+      inputFormatters: quantityInputFormatters,
+      validator: quantityValidator,
+      onChanged: onQuantityChanged,
+      onSubmitted: onConfirm,
+    );
+    final secondaryController = secondaryQuantityController;
+    if (secondaryController == null) {
+      return primaryQuantity;
+    }
+
+    final secondaryQuantity = TerminalQuantityStepper(
+      controller: secondaryController,
+      label: secondaryQuantityLabel,
+      step: secondaryQuantityStep,
+      maximum: secondaryMaximumQuantity,
+      inputFormatters: secondaryQuantityInputFormatters,
+      validator: secondaryQuantityValidator,
+      onChanged: onSecondaryQuantityChanged,
+      onSubmitted: onConfirm,
+    );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < 560) {
+          return Column(
+            children: <Widget>[
+              primaryQuantity,
+              const SizedBox(height: 8),
+              secondaryQuantity,
+            ],
+          );
+        }
+
+        return Row(
+          children: <Widget>[
+            Expanded(child: primaryQuantity),
+            const SizedBox(width: 10),
+            Expanded(child: secondaryQuantity),
+          ],
+        );
+      },
+    );
+  }
+}
+
 class _ProductLookupFieldState extends State<ProductLookupField> {
   FocusNode? _ownedFocusNode;
   bool _softKeyboardEnabledByTap = false;
@@ -123,7 +327,7 @@ class _ProductLookupFieldState extends State<ProductLookupField> {
         return;
       }
 
-      _selectAll();
+      _applyFocusSelection();
       if (widget.suppressSoftKeyboard && !_softKeyboardEnabledByTap) {
         SystemChannels.textInput.invokeMethod<void>('TextInput.hide');
       }
@@ -140,15 +344,24 @@ class _ProductLookupFieldState extends State<ProductLookupField> {
 
         _effectiveFocusNode.requestFocus();
         SystemChannels.textInput.invokeMethod<void>('TextInput.show');
-        _selectAll();
+        _applyFocusSelection();
       });
     }
 
-    _selectAll();
+    _applyFocusSelection();
+  }
+
+  void _applyFocusSelection() {
+    if (widget.selectTextOnFocus) {
+      _selectAll();
+      return;
+    }
+
+    _moveCursorToEnd();
   }
 
   void _selectAll() {
-    if (!mounted || !widget.selectTextOnFocus) {
+    if (!mounted) {
       return;
     }
 
@@ -161,5 +374,14 @@ class _ProductLookupFieldState extends State<ProductLookupField> {
       baseOffset: 0,
       extentOffset: text.length,
     );
+  }
+
+  void _moveCursorToEnd() {
+    if (!mounted) {
+      return;
+    }
+
+    final text = widget.controller.text;
+    widget.controller.selection = TextSelection.collapsed(offset: text.length);
   }
 }

@@ -243,6 +243,15 @@ Future<void> _pickWarehouseOrderProduct(WidgetTester tester) async {
   await tester.pumpAndSettle();
 
   expect(find.text('Urun Ara'), findsNothing);
+  await _confirmPendingProduct(tester);
+}
+
+Future<void> _confirmPendingProduct(WidgetTester tester) async {
+  final addButton = find.widgetWithText(FilledButton, 'Kaleme Ekle').first;
+  await tester.ensureVisible(addButton);
+  await tester.pumpAndSettle();
+  await tester.tap(addButton);
+  await tester.pumpAndSettle();
 }
 
 class _FakeWarehouseOrdersRepository implements WarehouseOrdersRepository {

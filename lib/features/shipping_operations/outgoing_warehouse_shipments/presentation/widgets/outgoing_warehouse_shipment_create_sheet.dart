@@ -394,29 +394,26 @@ class _OutgoingWarehouseShipmentCreateSheetState
     }
     final pickedProduct = product;
 
-    if (!await _confirmManualDuplicateIncrease(line, pickedProduct)) {
-      _cancelManualDuplicateCandidate(line);
+    if (_increasePendingManualQuantityIfSameProduct(line, pickedProduct)) {
+      _draftSession.scheduleSave();
+      _refocusLine(line.barcodeFocusNode);
       return;
     }
 
-    var mergedIntoExisting = false;
+    final entryLine = await _commitPendingManualEntryBeforeNextProduct(line);
+    if (entryLine == null) {
+      return;
+    }
+
     setState(() {
-      mergedIntoExisting = _applyProductToManualLine(line, pickedProduct);
-      if (!mergedIntoExisting) {
-        line.setLookupStatus(
-          'Secildi: ${pickedProduct.stockCode} | ${pickedProduct.stockName}',
-        );
-      }
-      _ensureFreshManualEntryLine();
+      entryLine.applyProduct(pickedProduct);
+      entryLine.setLookupStatus(
+        'Secildi: ${pickedProduct.stockCode} | ${pickedProduct.stockName}',
+      );
       _validationMessage = null;
     });
     _draftSession.scheduleSave();
-    _focusFreshManualEntryLine();
-
-    _notifySuccessfulProductAdd(
-      product: pickedProduct,
-      mergedIntoExisting: mergedIntoExisting,
-    );
+    _refocusLine(entryLine.barcodeFocusNode);
   }
 
   Future<void> _pickLinkedProduct(_LinkedShipmentLineDraft line) async {
@@ -487,29 +484,26 @@ class _OutgoingWarehouseShipmentCreateSheetState
     }
     final pickedProduct = product;
 
-    if (!await _confirmLinkedDuplicateIncrease(line, pickedProduct)) {
-      _cancelLinkedDuplicateCandidate(line);
+    if (_increasePendingLinkedQuantityIfSameProduct(line, pickedProduct)) {
+      _draftSession.scheduleSave();
+      _refocusLine(line.barcodeFocusNode);
       return;
     }
 
-    var mergedIntoExisting = false;
+    final entryLine = await _commitPendingLinkedEntryBeforeNextProduct(line);
+    if (entryLine == null) {
+      return;
+    }
+
     setState(() {
-      mergedIntoExisting = _applyProductToLinkedLine(line, pickedProduct);
-      if (!mergedIntoExisting) {
-        line.setLookupStatus(
-          'Secildi: ${pickedProduct.stockCode} | ${pickedProduct.stockName}',
-        );
-      }
-      _ensureFreshLinkedEntryLine();
+      entryLine.applyProduct(pickedProduct);
+      entryLine.setLookupStatus(
+        'Secildi: ${pickedProduct.stockCode} | ${pickedProduct.stockName}',
+      );
       _validationMessage = null;
     });
     _draftSession.scheduleSave();
-    _focusFreshLinkedEntryLine();
-
-    _notifySuccessfulProductAdd(
-      product: pickedProduct,
-      mergedIntoExisting: mergedIntoExisting,
-    );
+    _refocusLine(entryLine.barcodeFocusNode);
   }
 
   Future<bool> _tryResolveManualBarcode(
@@ -621,37 +615,34 @@ class _OutgoingWarehouseShipmentCreateSheetState
     )) {
       return true;
     }
-    if (!await _confirmManualDuplicateIncrease(line, product)) {
-      _cancelManualDuplicateCandidate(line);
+    if (_increasePendingManualQuantityIfSameProduct(
+      line,
+      product,
+      addedQuantity: addedQuantity,
+      quantityStep: quantityStep,
+    )) {
+      _draftSession.scheduleSave();
+      _refocusLine(line.barcodeFocusNode);
       return true;
     }
 
-    var mergedIntoExisting = false;
+    final entryLine = await _commitPendingManualEntryBeforeNextProduct(line);
+    if (entryLine == null) {
+      return true;
+    }
+
     setState(() {
-      line.quantityController.text = productEntryController.formatQuantity(
+      entryLine.quantityController.text = productEntryController.formatQuantity(
         addedQuantity,
       );
-      line.quantityStep = quantityStep;
-      mergedIntoExisting = _applyProductToManualLine(
-        line,
-        product,
-        syncQuantityStep: true,
-      );
-      if (!mergedIntoExisting) {
-        line.setLookupStatus(_resolvedBarcodeMessage(resolution));
-      }
-      _ensureFreshManualEntryLine();
+      entryLine.quantityStep = quantityStep;
+      entryLine.applyProduct(product);
+      entryLine.setLookupStatus(_resolvedBarcodeMessage(resolution));
       _validationMessage = null;
     });
     _draftSession.scheduleSave();
-    _focusFreshManualEntryLine();
-    _notifyResolvedBarcodeResult(
-      product: product,
-      resolution: resolution,
-      addedQuantity: addedQuantity,
-      mergedIntoExisting: mergedIntoExisting,
-      totalQuantity: _manualLineQuantityFor(product),
-    );
+    _refocusLine(entryLine.barcodeFocusNode);
+    _notifyPendingBarcodeResolution(resolution);
     return true;
   }
 
@@ -674,37 +665,34 @@ class _OutgoingWarehouseShipmentCreateSheetState
     )) {
       return true;
     }
-    if (!await _confirmLinkedDuplicateIncrease(line, product)) {
-      _cancelLinkedDuplicateCandidate(line);
+    if (_increasePendingLinkedQuantityIfSameProduct(
+      line,
+      product,
+      addedQuantity: addedQuantity,
+      quantityStep: quantityStep,
+    )) {
+      _draftSession.scheduleSave();
+      _refocusLine(line.barcodeFocusNode);
       return true;
     }
 
-    var mergedIntoExisting = false;
+    final entryLine = await _commitPendingLinkedEntryBeforeNextProduct(line);
+    if (entryLine == null) {
+      return true;
+    }
+
     setState(() {
-      line.quantityController.text = productEntryController.formatQuantity(
+      entryLine.quantityController.text = productEntryController.formatQuantity(
         addedQuantity,
       );
-      line.quantityStep = quantityStep;
-      mergedIntoExisting = _applyProductToLinkedLine(
-        line,
-        product,
-        syncQuantityStep: true,
-      );
-      if (!mergedIntoExisting) {
-        line.setLookupStatus(_resolvedBarcodeMessage(resolution));
-      }
-      _ensureFreshLinkedEntryLine();
+      entryLine.quantityStep = quantityStep;
+      entryLine.applyProduct(product);
+      entryLine.setLookupStatus(_resolvedBarcodeMessage(resolution));
       _validationMessage = null;
     });
     _draftSession.scheduleSave();
-    _focusFreshLinkedEntryLine();
-    _notifyResolvedBarcodeResult(
-      product: product,
-      resolution: resolution,
-      addedQuantity: addedQuantity,
-      mergedIntoExisting: mergedIntoExisting,
-      totalQuantity: _linkedLineQuantityFor(product),
-    );
+    _refocusLine(entryLine.barcodeFocusNode);
+    _notifyPendingBarcodeResolution(resolution);
     return true;
   }
 
@@ -755,25 +743,15 @@ class _OutgoingWarehouseShipmentCreateSheetState
     return true;
   }
 
-  void _notifyResolvedBarcodeResult({
-    required ProductLookupItem product,
-    required BarcodeResolutionResult resolution,
-    required double addedQuantity,
-    required bool mergedIntoExisting,
-    required double totalQuantity,
-  }) {
+  void _notifyPendingBarcodeResolution(BarcodeResolutionResult resolution) {
     final warning = _actionableShipmentWarning(resolution);
     if (warning.isNotEmpty) {
-      _rememberAddedProduct(product);
       unawaited(TerminalFeedback.warning());
       _showFeedback(warning);
       return;
     }
 
-    _notifySuccessfulProductAdd(
-      product: product,
-      mergedIntoExisting: mergedIntoExisting,
-    );
+    unawaited(TerminalFeedback.success());
   }
 
   void _notifySuccessfulProductAdd({
@@ -856,40 +834,220 @@ class _OutgoingWarehouseShipmentCreateSheetState
     return confirmed == true;
   }
 
-  void _cancelManualDuplicateCandidate(_ManualShipmentLineDraft line) {
-    if (!mounted) {
+  bool _increasePendingManualQuantityIfSameProduct(
+    _ManualShipmentLineDraft line,
+    ProductLookupItem product, {
+    double? addedQuantity,
+    double? quantityStep,
+  }) {
+    final selectedProduct = line.selectedProduct;
+    if (selectedProduct == null || !_isSameProduct(selectedProduct, product)) {
+      return false;
+    }
+
+    final increment =
+        addedQuantity ??
+        productEntryController.unitMultiplierQuantity(product.unitMultiplier);
+    setState(() {
+      line.quantityController.text = productEntryController.formatQuantity(
+        productEntryController.readQuantity(
+              line.quantityController.text,
+              fallback: 0,
+            ) +
+            increment,
+      );
+      line.barcodeController.text = product.barcode.isEmpty
+          ? product.displayLabel
+          : product.barcode;
+      line.quantityStep = quantityStep ?? line.quantityStep;
+      line.setLookupStatus(
+        'Ayni barkod okutuldu. +${AppFormatters.quantity(increment)} eklendi.',
+      );
+      _validationMessage = null;
+    });
+    unawaited(TerminalFeedback.success());
+    return true;
+  }
+
+  bool _increasePendingLinkedQuantityIfSameProduct(
+    _LinkedShipmentLineDraft line,
+    ProductLookupItem product, {
+    double? addedQuantity,
+    double? quantityStep,
+  }) {
+    final selectedProduct = line.selectedProduct;
+    if (selectedProduct == null || !_isSameProduct(selectedProduct, product)) {
+      return false;
+    }
+
+    final increment =
+        addedQuantity ??
+        productEntryController.unitMultiplierQuantity(product.unitMultiplier);
+    setState(() {
+      line.quantityController.text = productEntryController.formatQuantity(
+        productEntryController.readQuantity(
+              line.quantityController.text,
+              fallback: 0,
+            ) +
+            increment,
+      );
+      line.barcodeController.text = product.barcode.isEmpty
+          ? product.displayLabel
+          : product.barcode;
+      line.quantityStep = quantityStep ?? line.quantityStep;
+      line.setLookupStatus(
+        'Ayni barkod okutuldu. +${AppFormatters.quantity(increment)} eklendi.',
+      );
+      _validationMessage = null;
+    });
+    unawaited(TerminalFeedback.success());
+    return true;
+  }
+
+  bool _isSameProduct(ProductLookupItem first, ProductLookupItem second) {
+    final firstStockCode = first.stockCode.trim().toUpperCase();
+    final secondStockCode = second.stockCode.trim().toUpperCase();
+    if (firstStockCode.isNotEmpty && firstStockCode == secondStockCode) {
+      return true;
+    }
+
+    final firstBarcode = first.barcode.trim().toUpperCase();
+    final secondBarcode = second.barcode.trim().toUpperCase();
+    return firstBarcode.isNotEmpty && firstBarcode == secondBarcode;
+  }
+
+  Future<_ManualShipmentLineDraft?> _commitPendingManualEntryBeforeNextProduct(
+    _ManualShipmentLineDraft line,
+  ) async {
+    if (line.selectedProduct == null) {
+      return line;
+    }
+
+    await _commitManualEntryLine(line);
+    if (!mounted || _manualLines.isEmpty) {
+      return null;
+    }
+
+    final entryLine = _manualLines.first;
+    if (identical(entryLine, line) && !_isBlankManualLine(entryLine)) {
+      return null;
+    }
+
+    return entryLine;
+  }
+
+  Future<_LinkedShipmentLineDraft?> _commitPendingLinkedEntryBeforeNextProduct(
+    _LinkedShipmentLineDraft line,
+  ) async {
+    if (line.selectedProduct == null) {
+      return line;
+    }
+
+    await _commitLinkedEntryLine(line);
+    if (!mounted || _linkedLines.isEmpty) {
+      return null;
+    }
+
+    final entryLine = _linkedLines.first;
+    if (identical(entryLine, line) && !_isBlankLinkedLine(entryLine)) {
+      return null;
+    }
+
+    return entryLine;
+  }
+
+  Future<void> _commitManualEntryLine(_ManualShipmentLineDraft line) async {
+    final product = line.selectedProduct;
+    if (product == null) {
+      _refocusLine(line.barcodeFocusNode);
       return;
     }
 
+    final quantity = _readValidShipmentQuantity(
+      text: line.quantityController.text,
+      lineLabel: 'Giris satiri',
+    );
+    if (quantity == null) {
+      return;
+    }
+
+    if (!await _confirmManualDuplicateIncrease(line, product)) {
+      return;
+    }
+
+    var mergedIntoExisting = false;
     setState(() {
-      if (line.selectedProduct == null) {
-        line.clear();
-      } else {
-        line.clearLookupStatus();
-      }
+      mergedIntoExisting = _applyProductToManualLine(
+        line,
+        product,
+        syncQuantityStep: true,
+      );
       _ensureFreshManualEntryLine();
       _validationMessage = null;
     });
     _draftSession.scheduleSave();
     _focusFreshManualEntryLine();
+    _notifySuccessfulProductAdd(
+      product: product,
+      mergedIntoExisting: mergedIntoExisting,
+    );
   }
 
-  void _cancelLinkedDuplicateCandidate(_LinkedShipmentLineDraft line) {
-    if (!mounted) {
+  Future<void> _commitLinkedEntryLine(_LinkedShipmentLineDraft line) async {
+    final product = line.selectedProduct;
+    if (product == null) {
+      _refocusLine(line.barcodeFocusNode);
       return;
     }
 
+    final quantity = _readValidShipmentQuantity(
+      text: line.quantityController.text,
+      lineLabel: 'Giris satiri',
+      maximum: _isLinkedLineQuantityLimited(line) ? line.maxQuantity : null,
+      maximumMessage: 'Giris satiri icin miktar kalan siparisi asamaz.',
+    );
+    if (quantity == null) {
+      return;
+    }
+
+    if (!await _confirmLinkedDuplicateIncrease(line, product)) {
+      return;
+    }
+
+    var mergedIntoExisting = false;
     setState(() {
-      if (line.selectedProduct == null && !line.isOrderLinked) {
-        line.clear();
-      } else {
-        line.clearLookupStatus();
-      }
+      mergedIntoExisting = _applyProductToLinkedLine(
+        line,
+        product,
+        syncQuantityStep: true,
+      );
       _ensureFreshLinkedEntryLine();
       _validationMessage = null;
     });
     _draftSession.scheduleSave();
     _focusFreshLinkedEntryLine();
+    _notifySuccessfulProductAdd(
+      product: product,
+      mergedIntoExisting: mergedIntoExisting,
+    );
+  }
+
+  void _cancelPendingManualEntryLine(_ManualShipmentLineDraft line) {
+    setState(() {
+      line.clear();
+      _validationMessage = null;
+    });
+    _draftSession.scheduleSave();
+    _refocusLine(line.barcodeFocusNode);
+  }
+
+  void _cancelPendingLinkedEntryLine(_LinkedShipmentLineDraft line) {
+    setState(() {
+      line.clear();
+      _validationMessage = null;
+    });
+    _draftSession.scheduleSave();
+    _refocusLine(line.barcodeFocusNode);
   }
 
   void _rememberAddedProduct(ProductLookupItem product) {
@@ -1013,37 +1171,6 @@ class _OutgoingWarehouseShipmentCreateSheetState
         .replaceAll('\u015f', 's')
         .replaceAll('\u00fc', 'u')
         .replaceAll('\u0307', '');
-  }
-
-  double _manualLineQuantityFor(ProductLookupItem product) {
-    for (final line in _manualLines) {
-      final selected = line.selectedProduct;
-      if (selected == null || selected.stockCode != product.stockCode) {
-        continue;
-      }
-
-      return productEntryController.readQuantity(
-        line.quantityController.text,
-        fallback: 0,
-      );
-    }
-
-    return 0;
-  }
-
-  double _linkedLineQuantityFor(ProductLookupItem product) {
-    for (final line in _linkedLines) {
-      if (line.stockCode != product.stockCode) {
-        continue;
-      }
-
-      return productEntryController.readQuantity(
-        line.quantityController.text,
-        fallback: 0,
-      );
-    }
-
-    return 0;
   }
 
   Future<void> _scanProductWithCamera(_ManualShipmentLineDraft line) async {
@@ -1382,12 +1509,32 @@ class _OutgoingWarehouseShipmentCreateSheetState
         line.stockCodeController.text.trim().isEmpty;
   }
 
+  bool get _hasPendingManualEntryLine =>
+      _manualLines.isNotEmpty && !_isBlankManualLine(_manualLines.first);
+
+  bool get _hasPendingLinkedEntryLine =>
+      _linkedLines.isNotEmpty && !_isBlankLinkedLine(_linkedLines.first);
+
+  List<_ManualShipmentLineDraft> _committedManualLines() {
+    return <_ManualShipmentLineDraft>[
+      for (var index = 0; index < _manualLines.length; index++)
+        if (index != 0 && !_isBlankManualLine(_manualLines[index]))
+          _manualLines[index],
+    ];
+  }
+
+  List<_LinkedShipmentLineDraft> _committedLinkedLines() {
+    return <_LinkedShipmentLineDraft>[
+      for (var index = 0; index < _linkedLines.length; index++)
+        if (index != 0 && !_isBlankLinkedLine(_linkedLines[index]))
+          _linkedLines[index],
+    ];
+  }
+
   int _activeShipmentLineCount() {
     return switch (_mode) {
-      _ShipmentCreateMode.manual =>
-        _manualLines.where((line) => !_isBlankManualLine(line)).length,
-      _ShipmentCreateMode.orderLinked =>
-        _linkedLines.where((line) => !_isBlankLinkedLine(line)).length,
+      _ShipmentCreateMode.manual => _committedManualLines().length,
+      _ShipmentCreateMode.orderLinked => _committedLinkedLines().length,
     };
   }
 
@@ -1491,9 +1638,14 @@ class _OutgoingWarehouseShipmentCreateSheetState
   List<WarehouseShipmentCreateLine>? _buildManualRequestLines() {
     final lines = <WarehouseShipmentCreateLine>[];
 
-    final activeLines = _manualLines
-        .where((line) => !_isBlankManualLine(line))
-        .toList(growable: false);
+    if (_hasPendingManualEntryLine) {
+      setState(() {
+        _validationMessage = 'Secilen urunu once Kaleme Ekle ile listeye alin.';
+      });
+      return null;
+    }
+
+    final activeLines = _committedManualLines();
 
     if (activeLines.isEmpty) {
       setState(() {
@@ -1549,9 +1701,14 @@ class _OutgoingWarehouseShipmentCreateSheetState
 
     final lines = <WarehouseShipmentCreateLine>[];
 
-    final activeLines = _linkedLines
-        .where((line) => !_isBlankLinkedLine(line))
-        .toList(growable: false);
+    if (_hasPendingLinkedEntryLine) {
+      setState(() {
+        _validationMessage = 'Secilen urunu once Kaleme Ekle ile listeye alin.';
+      });
+      return null;
+    }
+
+    final activeLines = _committedLinkedLines();
 
     for (var index = 0; index < activeLines.length; index += 1) {
       final line = activeLines[index];
@@ -1919,12 +2076,15 @@ class _OutgoingWarehouseShipmentCreateSheetState
             ),
             child: _ManualShipmentLineCard(
               lineNumber: visibleIndex + 1,
+              isEntrySlot: false,
               isFreshEntry: false,
               line: line,
               isReadyForScanning: _hasTargetWarehouseSelection,
               canRemove: _manualLines.length > 1,
               onPickProduct: () => _pickProduct(line),
               onScanWithCamera: () => _scanProductWithCamera(line),
+              onConfirmPending: () => _commitManualEntryLine(line),
+              onCancelPending: () => _cancelPendingManualEntryLine(line),
               onRemove: () => _removeManualLine(line),
             ),
           );
@@ -1951,6 +2111,7 @@ class _OutgoingWarehouseShipmentCreateSheetState
             ),
             child: _LinkedShipmentLineCard(
               lineNumber: visibleIndex + 1,
+              isEntrySlot: false,
               isFreshEntry: false,
               line: line,
               isReadyForScanning: _hasTargetWarehouseSelection,
@@ -1958,6 +2119,8 @@ class _OutgoingWarehouseShipmentCreateSheetState
               canRemove: true,
               onPickProduct: () => _pickLinkedProduct(line),
               onScanWithCamera: () => _scanLinkedProductWithCamera(line),
+              onConfirmPending: () => _commitLinkedEntryLine(line),
+              onCancelPending: () => _cancelPendingLinkedEntryLine(line),
               onRemove: () => _removeLinkedLine(line),
             ),
           );
@@ -1967,54 +2130,55 @@ class _OutgoingWarehouseShipmentCreateSheetState
   }
 
   Widget _buildManualEntryLine() {
-    final entryIndex = _manualLines.indexWhere(_isBlankManualLine);
-    if (entryIndex == -1) {
-      return const SizedBox.shrink();
-    }
+    final entryIndex = 0;
+    final line = _manualLines[entryIndex];
 
     return _ManualShipmentLineCard(
       lineNumber: 0,
-      isFreshEntry: true,
-      line: _manualLines[entryIndex],
+      isEntrySlot: true,
+      isFreshEntry: _isBlankManualLine(line),
+      line: line,
       isReadyForScanning: _hasTargetWarehouseSelection,
       canRemove: false,
-      onPickProduct: () => _pickProduct(_manualLines[entryIndex]),
-      onScanWithCamera: () => _scanProductWithCamera(_manualLines[entryIndex]),
-      onRemove: () => _removeManualLine(_manualLines[entryIndex]),
+      onPickProduct: () => _pickProduct(line),
+      onScanWithCamera: () => _scanProductWithCamera(line),
+      onConfirmPending: () => _commitManualEntryLine(line),
+      onCancelPending: () => _cancelPendingManualEntryLine(line),
+      onRemove: () => _removeManualLine(line),
     );
   }
 
   List<int> _manualFilledLineIndexes() {
     return <int>[
       for (var index = 0; index < _manualLines.length; index++)
-        if (!_isBlankManualLine(_manualLines[index])) index,
+        if (index != 0 && !_isBlankManualLine(_manualLines[index])) index,
     ];
   }
 
   Widget _buildLinkedEntryLine() {
-    final entryIndex = _linkedLines.indexWhere(_isBlankLinkedLine);
-    if (entryIndex == -1) {
-      return const SizedBox.shrink();
-    }
+    final entryIndex = 0;
+    final line = _linkedLines[entryIndex];
 
     return _LinkedShipmentLineCard(
       lineNumber: 0,
-      isFreshEntry: true,
-      line: _linkedLines[entryIndex],
+      isEntrySlot: true,
+      isFreshEntry: _isBlankLinkedLine(line),
+      line: line,
       isReadyForScanning: _hasTargetWarehouseSelection,
-      isQuantityLimited: _isLinkedLineQuantityLimited(_linkedLines[entryIndex]),
+      isQuantityLimited: _isLinkedLineQuantityLimited(line),
       canRemove: false,
-      onPickProduct: () => _pickLinkedProduct(_linkedLines[entryIndex]),
-      onScanWithCamera: () =>
-          _scanLinkedProductWithCamera(_linkedLines[entryIndex]),
-      onRemove: () => _removeLinkedLine(_linkedLines[entryIndex]),
+      onPickProduct: () => _pickLinkedProduct(line),
+      onScanWithCamera: () => _scanLinkedProductWithCamera(line),
+      onConfirmPending: () => _commitLinkedEntryLine(line),
+      onCancelPending: () => _cancelPendingLinkedEntryLine(line),
+      onRemove: () => _removeLinkedLine(line),
     );
   }
 
   List<int> _linkedFilledLineIndexes() {
     return <int>[
       for (var index = 0; index < _linkedLines.length; index++)
-        if (!_isBlankLinkedLine(_linkedLines[index])) index,
+        if (index != 0 && !_isBlankLinkedLine(_linkedLines[index])) index,
     ];
   }
 
@@ -2095,28 +2259,85 @@ class _OutgoingWarehouseShipmentCreateSheetState
 class _ManualShipmentLineCard extends StatelessWidget {
   const _ManualShipmentLineCard({
     required this.lineNumber,
+    required this.isEntrySlot,
     required this.isFreshEntry,
     required this.line,
     required this.isReadyForScanning,
     required this.canRemove,
     required this.onPickProduct,
     required this.onScanWithCamera,
+    required this.onConfirmPending,
+    required this.onCancelPending,
     required this.onRemove,
   });
 
   final int lineNumber;
+  final bool isEntrySlot;
   final bool isFreshEntry;
   final _ManualShipmentLineDraft line;
   final bool isReadyForScanning;
   final bool canRemove;
   final VoidCallback onPickProduct;
   final VoidCallback onScanWithCamera;
+  final VoidCallback onConfirmPending;
+  final VoidCallback onCancelPending;
   final VoidCallback onRemove;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final product = line.selectedProduct;
+
+    if (isEntrySlot && !isFreshEntry && product != null) {
+      return ProductDraftEntryPanel(
+        stockCode: product.stockCode,
+        stockName: product.stockName,
+        quantityController: line.quantityController,
+        unitLabel: product.unitName,
+        barcode: product.barcode,
+        packageLabel: product.unitMultiplier > 1
+            ? AppFormatters.quantity(product.unitMultiplier)
+            : null,
+        priceLabel: product.price > 0
+            ? AppFormatters.currency(product.price)
+            : null,
+        quantityStep: line.quantityStep,
+        maximumQuantity: _maxShipmentLineQuantity,
+        quantityInputFormatters: _shipmentQuantityInputFormatters,
+        quantityValidator: _shipmentQuantityFieldError,
+        onConfirm: onConfirmPending,
+        onCancel: onCancelPending,
+        scanRow: TerminalResponsiveLookupRow(
+          field: ProductLookupField(
+            controller: line.barcodeController,
+            focusNode: line.barcodeFocusNode,
+            enabled: isReadyForScanning && !line.isLookupStatusLoading,
+            labelText: 'Barkod okut / urun degistir',
+            onSubmit: onPickProduct,
+          ),
+          action: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              FilledButton.icon(
+                onPressed: isReadyForScanning && !line.isLookupStatusLoading
+                    ? onPickProduct
+                    : null,
+                icon: const Icon(Icons.search_rounded),
+                label: const Text('Urun'),
+              ),
+              const SizedBox(width: 8),
+              IconButton.filledTonal(
+                onPressed: isReadyForScanning && !line.isLookupStatusLoading
+                    ? onScanWithCamera
+                    : null,
+                tooltip: 'Kamera ile oku',
+                icon: const Icon(Icons.photo_camera_back_rounded),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
 
     if (!isFreshEntry && product != null) {
       return TerminalCompactProductLineCard(
@@ -2236,6 +2457,7 @@ class _ManualShipmentLineCard extends StatelessWidget {
 class _LinkedShipmentLineCard extends StatelessWidget {
   const _LinkedShipmentLineCard({
     required this.lineNumber,
+    required this.isEntrySlot,
     required this.isFreshEntry,
     required this.line,
     required this.isReadyForScanning,
@@ -2243,10 +2465,13 @@ class _LinkedShipmentLineCard extends StatelessWidget {
     required this.canRemove,
     required this.onPickProduct,
     required this.onScanWithCamera,
+    required this.onConfirmPending,
+    required this.onCancelPending,
     required this.onRemove,
   });
 
   final int lineNumber;
+  final bool isEntrySlot;
   final bool isFreshEntry;
   final _LinkedShipmentLineDraft line;
   final bool isReadyForScanning;
@@ -2254,11 +2479,73 @@ class _LinkedShipmentLineCard extends StatelessWidget {
   final bool canRemove;
   final VoidCallback onPickProduct;
   final VoidCallback onScanWithCamera;
+  final VoidCallback onConfirmPending;
+  final VoidCallback onCancelPending;
   final VoidCallback onRemove;
 
   @override
   Widget build(BuildContext context) {
     final product = line.selectedProduct;
+
+    if (isEntrySlot && !isFreshEntry && product != null) {
+      return ProductDraftEntryPanel(
+        stockCode: line.stockCode,
+        stockName: line.stockName,
+        quantityController: line.quantityController,
+        unitLabel: line.unitName,
+        barcode: product.barcode,
+        packageLabel: product.unitMultiplier > 1
+            ? AppFormatters.quantity(product.unitMultiplier)
+            : null,
+        priceLabel: isQuantityLimited
+            ? 'Kalan ${AppFormatters.quantity(line.maxQuantity)}'
+            : product.price > 0
+            ? AppFormatters.currency(product.price)
+            : null,
+        warningLabel: isQuantityLimited ? 'Siparisli' : null,
+        quantityStep: line.quantityStep,
+        maximumQuantity: _effectiveShipmentMaximumQuantity(
+          isQuantityLimited ? line.maxQuantity : null,
+        ),
+        quantityInputFormatters: _shipmentQuantityInputFormatters,
+        quantityValidator: (value) => _shipmentQuantityFieldError(
+          value,
+          maximum: isQuantityLimited ? line.maxQuantity : null,
+          maximumMessage: 'Kalan asildi',
+        ),
+        onConfirm: onConfirmPending,
+        onCancel: onCancelPending,
+        scanRow: TerminalResponsiveLookupRow(
+          field: ProductLookupField(
+            controller: line.barcodeController,
+            focusNode: line.barcodeFocusNode,
+            enabled: isReadyForScanning && !line.isLookupStatusLoading,
+            labelText: 'Barkod okut / urun degistir',
+            onSubmit: onPickProduct,
+          ),
+          action: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              FilledButton.icon(
+                onPressed: isReadyForScanning && !line.isLookupStatusLoading
+                    ? onPickProduct
+                    : null,
+                icon: const Icon(Icons.search_rounded),
+                label: const Text('Urun'),
+              ),
+              const SizedBox(width: 8),
+              IconButton.filledTonal(
+                onPressed: isReadyForScanning && !line.isLookupStatusLoading
+                    ? onScanWithCamera
+                    : null,
+                tooltip: 'Kamera ile oku',
+                icon: const Icon(Icons.photo_camera_back_rounded),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
 
     if (!isFreshEntry) {
       return TerminalCompactProductLineCard(

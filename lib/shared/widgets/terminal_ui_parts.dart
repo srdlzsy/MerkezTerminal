@@ -1549,6 +1549,7 @@ class TerminalQuantityStepper extends StatelessWidget {
     this.enabled = true,
     this.validator,
     this.onChanged,
+    this.onSubmitted,
     this.onMinimumReached,
     this.inputFormatters = const <TextInputFormatter>[],
   });
@@ -1561,6 +1562,7 @@ class TerminalQuantityStepper extends StatelessWidget {
   final bool enabled;
   final FormFieldValidator<String>? validator;
   final ValueChanged<String>? onChanged;
+  final VoidCallback? onSubmitted;
   final VoidCallback? onMinimumReached;
   final List<TextInputFormatter> inputFormatters;
 
@@ -1583,27 +1585,45 @@ class TerminalQuantityStepper extends StatelessWidget {
         ),
         const SizedBox(width: 6),
         Expanded(
-          child: TextFormField(
-            controller: controller,
-            enabled: enabled,
-            textAlign: TextAlign.center,
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            inputFormatters: <TextInputFormatter>[
-              FilteringTextInputFormatter.allow(RegExp(r'[0-9,\.]')),
-              ...inputFormatters,
-            ],
-            decoration: InputDecoration(
-              labelText: label,
-              isDense: true,
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: 8,
-                vertical: 8,
-              ),
-              filled: true,
-              fillColor: theme.colorScheme.surface,
-            ),
-            validator: validator,
-            onChanged: onChanged,
+          child: Builder(
+            builder: (fieldContext) {
+              return TextFormField(
+                controller: controller,
+                enabled: enabled,
+                textAlign: TextAlign.center,
+                textInputAction: TextInputAction.done,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
+                scrollPadding: EdgeInsets.only(
+                  left: 24,
+                  top: 24,
+                  right: 24,
+                  bottom: MediaQuery.viewInsetsOf(context).bottom + 180,
+                ),
+                inputFormatters: <TextInputFormatter>[
+                  FilteringTextInputFormatter.allow(RegExp(r'[0-9,\.]')),
+                  ...inputFormatters,
+                ],
+                decoration: InputDecoration(
+                  labelText: label,
+                  isDense: true,
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 8,
+                  ),
+                  filled: true,
+                  fillColor: theme.colorScheme.surface,
+                ),
+                validator: validator,
+                onTap: () => _keepQuantityFieldVisible(fieldContext),
+                onChanged: (value) {
+                  _keepQuantityFieldVisible(fieldContext);
+                  onChanged?.call(value);
+                },
+                onFieldSubmitted: (_) => onSubmitted?.call(),
+              );
+            },
           ),
         ),
         const SizedBox(width: 6),
@@ -1619,6 +1639,24 @@ class TerminalQuantityStepper extends StatelessWidget {
         ),
       ],
     );
+  }
+
+  void _keepQuantityFieldVisible(BuildContext context) {
+    void ensureVisible() {
+      if (!context.mounted) {
+        return;
+      }
+
+      Scrollable.ensureVisible(
+        context,
+        duration: const Duration(milliseconds: 180),
+        curve: Curves.easeOutCubic,
+        alignment: 0.28,
+      );
+    }
+
+    WidgetsBinding.instance.addPostFrameCallback((_) => ensureVisible());
+    Future<void>.delayed(const Duration(milliseconds: 320), ensureVisible);
   }
 
   Future<void> _changeBy(BuildContext context, double delta) async {

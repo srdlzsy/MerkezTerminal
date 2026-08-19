@@ -200,6 +200,8 @@ class _VirmanPageState extends State<VirmanPage> {
       title: 'Yeni Virman',
       builder: (context) {
         return _VirmanCreateSheet(
+          repository: widget.repository,
+          accessToken: widget.accessToken,
           defaultWarehouseNo: widget.defaultWarehouseNo,
           mobileProductCatalogRepository: widget.mobileProductCatalogRepository,
           draft: draft,
@@ -657,12 +659,16 @@ class _VirmanSummaryCard extends StatelessWidget {
 
 class _VirmanCreateSheet extends StatefulWidget {
   const _VirmanCreateSheet({
+    required this.repository,
+    required this.accessToken,
     required this.defaultWarehouseNo,
     required this.mobileProductCatalogRepository,
     this.draft,
     this.draftRepository,
   });
 
+  final VirmanRepository repository;
+  final String accessToken;
   final String defaultWarehouseNo;
   final MobileProductCatalogLocalRepository mobileProductCatalogRepository;
   final CreateDraft? draft;
@@ -681,6 +687,7 @@ class _VirmanCreateSheetState extends State<_VirmanCreateSheet>
   late DateTime _documentDate;
   String? _errorMessage;
   late final CreateDraftSession _draftSession;
+  String? _lastAddedProductKey;
 
   @override
   void initState() {
@@ -802,24 +809,32 @@ class _VirmanCreateSheetState extends State<_VirmanCreateSheet>
       return;
     }
 
-    final catalogItems = await widget.mobileProductCatalogRepository
-        .searchProducts(warehouseNo: widget.defaultWarehouseNo, query: query);
+    List<SearchProductLookupItem> products;
+    try {
+      products = await widget.repository.searchProducts(
+        accessToken: widget.accessToken,
+        warehouseNo: widget.defaultWarehouseNo,
+        query: query,
+      );
+    } catch (_) {
+      final catalogItems = await widget.mobileProductCatalogRepository
+          .searchProducts(warehouseNo: widget.defaultWarehouseNo, query: query);
+      products = catalogItems
+          .map((item) => item.toSearchProductLookupItem())
+          .toList(growable: false);
+    }
 
     if (!mounted) {
       return;
     }
 
-    if (catalogItems.isEmpty) {
+    if (products.isEmpty) {
       setState(() {
-        _errorMessage = 'Bu aramaya uygun urun katalogda bulunamadi.';
+        _errorMessage = 'Bu aramaya uygun urun bulunamadi.';
       });
       _refocusLine(line.lookupFocusNode);
       return;
     }
-
-    final products = catalogItems
-        .map((item) => item.toSearchProductLookupItem())
-        .toList(growable: false);
 
     SearchProductLookupItem? selected;
     if (products.length == 1) {
@@ -872,19 +887,23 @@ class _VirmanCreateSheetState extends State<_VirmanCreateSheet>
     }
     final pickedProduct = selected;
 
-    var mergedIntoExisting = false;
-    final nextMovementType = line.movementType;
+    if (_increasePendingQuantityIfSameProduct(line, pickedProduct)) {
+      _draftSession.scheduleSave();
+      _refocusLine(line.lookupFocusNode);
+      return;
+    }
+
+    final entryLine = await _commitPendingEntryBeforeNextProduct(line);
+    if (entryLine == null) {
+      return;
+    }
+
     setState(() {
-      mergedIntoExisting = _applyProductToLine(line, pickedProduct);
-      _ensureFreshEntryLine(initialMovementType: nextMovementType);
+      entryLine.applyProduct(pickedProduct);
       _errorMessage = null;
     });
     _draftSession.scheduleSave();
-    _focusFreshEntryLine();
-
-    if (mergedIntoExisting) {
-      _showFeedback('Ayni barkod mevcut satira eklendi; miktar artirildi.');
-    }
+    _refocusLine(entryLine.lookupFocusNode);
   }
 
   Future<void> _scanProductWithCamera(_VirmanDraftLine line) async {
@@ -997,6 +1016,216 @@ class _VirmanCreateSheetState extends State<_VirmanCreateSheet>
     return line.stockCodeController.text.trim().isEmpty;
   }
 
+  bool _increasePendingQuantityIfSameProduct(
+    _VirmanDraftLine line,
+    SearchProductLookupItem product,
+  ) {
+    final selectedProduct = line.selectedProduct;
+    if (selectedProduct == null || !_isSameProduct(selectedProduct, product)) {
+      return false;
+    }
+
+    final increment = productEntryController.unitMultiplierQuantity(
+      product.unitMultiplier,
+    );
+    setState(() {
+      line.quantityController.text = productEntryController.formatQuantity(
+        productEntryController.readQuantity(
+              line.quantityController.text,
+              fallback: 0,
+            ) +
+            increment,
+      );
+      line.lookupController.text = product.displayLabel;
+      _errorMessage = null;
+    });
+    return true;
+  }
+
+  Future<_VirmanDraftLine?> _commitPendingEntryBeforeNextProduct(
+    _VirmanDraftLine line,
+  ) async {
+    if (line.selectedProduct == null) {
+      return line;
+    }
+
+    await _commitEntryLine(line);
+    if (!mounted || _lines.isEmpty) {
+      return null;
+    }
+
+    final entryLine = _lines.first;
+    if (identical(entryLine, line) && !_isBlankLine(entryLine)) {
+      return null;
+    }
+
+    return entryLine;
+  }
+
+  bool _isSameProduct(
+    SearchProductLookupItem first,
+    SearchProductLookupItem second,
+  ) {
+    final firstStockCode = first.stockCode.trim().toUpperCase();
+    final secondStockCode = second.stockCode.trim().toUpperCase();
+    if (firstStockCode.isNotEmpty && firstStockCode == secondStockCode) {
+      return true;
+    }
+
+    final firstBarcode = first.barcode.trim().toUpperCase();
+    final secondBarcode = second.barcode.trim().toUpperCase();
+    return firstBarcode.isNotEmpty && firstBarcode == secondBarcode;
+  }
+
+  bool get _hasPendingEntryLine =>
+      _lines.isNotEmpty && !_isBlankLine(_lines.first);
+
+  Future<void> _commitEntryLine(_VirmanDraftLine line) async {
+    final product = line.selectedProduct;
+    if (product == null) {
+      _refocusLine(line.lookupFocusNode);
+      return;
+    }
+
+    if (productEntryController.readQuantity(
+          line.quantityController.text,
+          fallback: 0,
+        ) <=
+        0) {
+      setState(() {
+        _errorMessage = 'Miktar sifirdan buyuk olmali.';
+      });
+      return;
+    }
+
+    if (!await _confirmDuplicateIncrease(line, product)) {
+      return;
+    }
+
+    var mergedIntoExisting = false;
+    final nextMovementType = line.movementType;
+    setState(() {
+      mergedIntoExisting = _applyProductToLine(line, product);
+      _ensureFreshEntryLine(initialMovementType: nextMovementType);
+      _errorMessage = null;
+    });
+    _draftSession.scheduleSave();
+    _focusFreshEntryLine();
+    _rememberAddedProduct(product, movementType: nextMovementType);
+
+    if (mergedIntoExisting) {
+      _showFeedback('Ayni barkod mevcut satira eklendi; miktar artirildi.');
+    }
+  }
+
+  void _cancelPendingEntryLine(_VirmanDraftLine line) {
+    setState(() {
+      line.clear();
+      _errorMessage = null;
+    });
+    _draftSession.scheduleSave();
+    _refocusLine(line.lookupFocusNode);
+  }
+
+  List<_VirmanDraftLine> _committedLines() {
+    return <_VirmanDraftLine>[
+      for (var index = 0; index < _lines.length; index++)
+        if (index != 0 && !_isBlankLine(_lines[index])) _lines[index],
+    ];
+  }
+
+  Future<bool> _confirmDuplicateIncrease(
+    _VirmanDraftLine line,
+    SearchProductLookupItem product,
+  ) async {
+    final existingLine = productEntryController.findDuplicateLine(
+      ProductEntryDuplicateMergePolicy<_VirmanDraftLine>(
+        currentLine: line,
+        targetBarcode: product.barcode,
+        targetStockCode: product.stockCode,
+        lines: _lines
+            .where(
+              (item) => item == line || item.movementType == line.movementType,
+            )
+            .toList(growable: false),
+        lineBarcode: (line) => line.barcode,
+        lineStockCode: (line) => line.stockCodeController.text,
+      ),
+    );
+    final key = _productKey(
+      stockCode: product.stockCode,
+      barcode: product.barcode,
+      movementType: line.movementType,
+    );
+
+    if (existingLine == null ||
+        productEntryController.readQuantity(
+              existingLine.quantityController.text,
+              fallback: 0,
+            ) <=
+            0 ||
+        key.isEmpty ||
+        _lastAddedProductKey == key) {
+      return true;
+    }
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Urun listede var'),
+          content: Text(
+            '${product.stockName} daha once eklenmis. Miktar artirilsin mi?',
+          ),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Vazgec'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('Artir'),
+            ),
+          ],
+        );
+      },
+    );
+
+    return confirmed == true;
+  }
+
+  void _rememberAddedProduct(
+    SearchProductLookupItem product, {
+    required int movementType,
+  }) {
+    final key = _productKey(
+      stockCode: product.stockCode,
+      barcode: product.barcode,
+      movementType: movementType,
+    );
+    if (key.isNotEmpty) {
+      _lastAddedProductKey = key;
+    }
+  }
+
+  String _productKey({
+    required String stockCode,
+    required String barcode,
+    required int movementType,
+  }) {
+    final normalizedStockCode = stockCode.trim().toUpperCase();
+    if (normalizedStockCode.isNotEmpty) {
+      return 'M:$movementType:S:$normalizedStockCode';
+    }
+
+    final normalizedBarcode = barcode.trim().toUpperCase();
+    if (normalizedBarcode.isNotEmpty) {
+      return 'M:$movementType:B:$normalizedBarcode';
+    }
+
+    return '';
+  }
+
   void _showFeedback(String message) {
     final messenger = ScaffoldMessenger.maybeOf(context);
     messenger?.hideCurrentSnackBar();
@@ -1020,9 +1249,14 @@ class _VirmanCreateSheetState extends State<_VirmanCreateSheet>
 
     final requestLines = <VirmanCreateLine>[];
 
-    final activeLines = _lines
-        .where((line) => !_isBlankLine(line))
-        .toList(growable: false);
+    if (_hasPendingEntryLine) {
+      setState(() {
+        _errorMessage = 'Secilen urunu once Kaleme Ekle ile listeye alin.';
+      });
+      return;
+    }
+
+    final activeLines = _committedLines();
 
     if (activeLines.isEmpty) {
       setState(() {
@@ -1210,12 +1444,7 @@ class _VirmanCreateSheetState extends State<_VirmanCreateSheet>
   }
 
   Widget _buildEntryLineCard() {
-    final entryIndex = _lines.indexWhere(_isBlankLine);
-    if (entryIndex == -1) {
-      return const SizedBox.shrink();
-    }
-
-    return _buildLineCard(entryIndex);
+    return _buildLineCard(0);
   }
 
   Widget _buildLazyLineSliver() {
@@ -1235,27 +1464,31 @@ class _VirmanCreateSheetState extends State<_VirmanCreateSheet>
   List<int> _filledLineIndexes() {
     return <int>[
       for (var index = 0; index < _lines.length; index++)
-        if (!_isBlankLine(_lines[index])) index,
+        if (index != 0 && !_isBlankLine(_lines[index])) index,
     ];
   }
 
   Widget _buildLineCard(int index) {
     final line = _lines[index];
-    final isFreshEntry = index == 0 && _isBlankLine(line);
+    final isEntrySlot = index == 0;
+    final isFreshEntry = isEntrySlot && _isBlankLine(line);
     final displayLineNo = _lines
         .take(index + 1)
-        .where((item) => !_isBlankLine(item))
+        .where((item) => _lines.indexOf(item) != 0 && !_isBlankLine(item))
         .length;
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: _VirmanDraftLineCard(
         lineNumber: displayLineNo,
+        isEntrySlot: isEntrySlot,
         isFreshEntry: isFreshEntry,
         line: line,
         canRemove: !isFreshEntry && _lines.length > 1,
         onPickProduct: () => _searchProduct(line),
         onScanWithCamera: () => _scanProductWithCamera(line),
+        onConfirmPending: () => _commitEntryLine(line),
+        onCancelPending: () => _cancelPendingEntryLine(line),
         onRemove: () => _removeLine(line),
         onMovementTypeChanged: () {
           setState(() {});
@@ -1269,27 +1502,92 @@ class _VirmanCreateSheetState extends State<_VirmanCreateSheet>
 class _VirmanDraftLineCard extends StatelessWidget {
   const _VirmanDraftLineCard({
     required this.lineNumber,
+    required this.isEntrySlot,
     required this.isFreshEntry,
     required this.line,
     required this.canRemove,
     required this.onPickProduct,
     required this.onScanWithCamera,
+    required this.onConfirmPending,
+    required this.onCancelPending,
     required this.onRemove,
     required this.onMovementTypeChanged,
   });
 
   final int lineNumber;
+  final bool isEntrySlot;
   final bool isFreshEntry;
   final _VirmanDraftLine line;
   final bool canRemove;
   final VoidCallback onPickProduct;
   final VoidCallback onScanWithCamera;
+  final VoidCallback onConfirmPending;
+  final VoidCallback onCancelPending;
   final VoidCallback onRemove;
   final VoidCallback onMovementTypeChanged;
 
   @override
   Widget build(BuildContext context) {
     final product = line.selectedProduct;
+
+    if (isEntrySlot && !isFreshEntry && product != null) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          ProductDraftEntryPanel(
+            stockCode: product.stockCode,
+            stockName: product.stockName,
+            quantityController: line.quantityController,
+            unitLabel:
+                '${product.unitName} | ${_movementTypeLabel(line.movementType)}',
+            barcode: product.barcode,
+            packageLabel: product.unitMultiplier > 1
+                ? AppFormatters.quantity(product.unitMultiplier)
+                : null,
+            priceLabel: product.price > 0
+                ? AppFormatters.currency(product.price)
+                : null,
+            onConfirm: onConfirmPending,
+            onCancel: onCancelPending,
+            scanRow: TerminalResponsiveLookupRow(
+              field: ProductLookupField(
+                controller: line.lookupController,
+                focusNode: line.lookupFocusNode,
+                labelText: 'Barkod okut / urun degistir',
+                onSubmit: onPickProduct,
+              ),
+              action: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  FilledButton.icon(
+                    onPressed: onPickProduct,
+                    icon: const Icon(Icons.search_rounded),
+                    label: const Text('Urun'),
+                  ),
+                  const SizedBox(width: 8),
+                  IconButton.filledTonal(
+                    onPressed: onScanWithCamera,
+                    tooltip: 'Kamera ile oku',
+                    icon: const Icon(Icons.photo_camera_back_rounded),
+                  ),
+                ],
+              ),
+            ),
+            quantityValidator: (value) {
+              final quantity = double.tryParse(
+                (value ?? '').trim().replaceAll(',', '.'),
+              );
+              if (quantity == null || quantity <= 0) {
+                return 'Miktar > 0';
+              }
+              return null;
+            },
+          ),
+          const SizedBox(height: 6),
+          _buildMovementTypeSelector(context),
+        ],
+      );
+    }
 
     if (!isFreshEntry && product != null) {
       return Column(
@@ -1518,6 +1816,19 @@ class _VirmanDraftLine {
         productEntryController.unitMultiplierQuantity(product.unitMultiplier),
       );
     }
+  }
+
+  void clear() {
+    lookupController.clear();
+    stockCodeController.clear();
+    movementTypeController.text = '1';
+    quantityController.clear();
+    unitPointerController.text = '1';
+    descriptionController.clear();
+    partyCodeController.clear();
+    lotNoController.text = '0';
+    projectCodeController.clear();
+    selectedProduct = null;
   }
 
   void dispose() {

@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:furpa_merkez_terminal/features/stock_operations/virman/data/models/virman_models.dart';
 import 'package:furpa_merkez_terminal/features/stock_operations/virman/data/virman_repository.dart';
 import 'package:furpa_merkez_terminal/features/stock_operations/virman/presentation/view_models/virman_controller.dart';
+import 'package:furpa_merkez_terminal/shared/data/search_lookup_models.dart';
 
 void main() {
   test('loadVirmans keeps detail closed until a record is selected', () async {
@@ -267,6 +268,15 @@ class _FakeVirmanRepository implements VirmanRepository {
       incomingQuantity: 8,
       outgoingQuantity: 8,
     );
+  }
+
+  @override
+  Future<List<SearchProductLookupItem>> searchProducts({
+    required String accessToken,
+    required String warehouseNo,
+    required String query,
+  }) async {
+    return const <SearchProductLookupItem>[];
   }
 }
 

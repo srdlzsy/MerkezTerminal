@@ -101,6 +101,49 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('shows editable dispatch and actual quantities before add', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 1000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: CompanyAcceptanceCreateSheet(
+            repository: _FakeCompanyAcceptancesRepository(),
+            ordersRepository: _FakeGivenCompanyOrdersRepository(),
+            accessToken: 'token',
+            defaultWarehouseNo: '110',
+            mobileCustomerCatalogRepository:
+                MobileCustomerCatalogLocalRepository(
+                  database: MemoryLocalDatabase(),
+                ),
+            mobileProductCatalogRepository: MobileProductCatalogLocalRepository(
+              database: MemoryLocalDatabase(),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await _selectProductWithoutConfirm(tester);
+
+    expect(
+      find.widgetWithText(TextFormField, 'Irsaliye Miktari*'),
+      findsOneWidget,
+    );
+    expect(find.widgetWithText(TextFormField, 'Fiili Kabul*'), findsOneWidget);
+
+    final lookupField = tester.widget<TextFormField>(
+      find.widgetWithText(TextFormField, 'Barkod / stok kodu / urun adi').first,
+    );
+    expect(lookupField.controller?.text, isEmpty);
+    expect(lookupField.controller?.selection.isCollapsed, isTrue);
+  });
+
   testWidgets(
     'keeps e-document lookup compact when focused on terminal width',
     (tester) async {
@@ -383,6 +426,11 @@ void main() {
 }
 
 Future<void> _pickProduct(WidgetTester tester) async {
+  await _selectProductWithoutConfirm(tester);
+  await _confirmPendingProduct(tester);
+}
+
+Future<void> _selectProductWithoutConfirm(WidgetTester tester) async {
   await _goToLineStepIfNeeded(tester);
 
   final lookupFinder = find.widgetWithText(
@@ -399,6 +447,14 @@ Future<void> _pickProduct(WidgetTester tester) async {
   await tester.pumpAndSettle();
 
   expect(find.text('Urun Ara'), findsNothing);
+}
+
+Future<void> _confirmPendingProduct(WidgetTester tester) async {
+  final addButton = find.widgetWithText(FilledButton, 'Kaleme Ekle').first;
+  await tester.ensureVisible(addButton);
+  await tester.pumpAndSettle();
+  await tester.tap(addButton);
+  await tester.pumpAndSettle();
 }
 
 Future<void> _goToLineStepIfNeeded(WidgetTester tester) async {

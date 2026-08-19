@@ -296,14 +296,11 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('A Urun'), findsOneWidget);
+    expect(find.text('A Urun'), findsWidgets);
 
-    await _enterShipmentBarcode(
-      tester,
-      barcode: '1111111111111',
-      settleAfterSubmit: false,
-    );
-
+    await tester.tap(find.widgetWithText(FilledButton, 'Kaleme Ekle').first);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 350));
     expect(find.text('Urun listede var'), findsOneWidget);
     await tester.tap(
       find.descendant(
@@ -715,9 +712,7 @@ Future<void> _enterShipmentBarcode(
   String barcode = '8690000000012',
   bool settleAfterSubmit = true,
 }) async {
-  final productField = find
-      .widgetWithText(TextFormField, 'Barkod / stok kodu / urun adi')
-      .first;
+  final productField = await _findShipmentLookupField(tester);
   await tester.ensureVisible(productField);
   await tester.pumpAndSettle();
 
@@ -733,11 +728,67 @@ Future<void> _enterShipmentBarcode(
   if (settleAfterSubmit) {
     expect(find.text('Urun Ara'), findsNothing);
   }
+  await _confirmPendingShipmentLine(
+    tester,
+    settleAfterSubmit: settleAfterSubmit,
+  );
 }
 
 Future<void> _dragShipmentCreateScroll(WidgetTester tester) async {
   await tester.drag(find.byType(CustomScrollView).first, const Offset(0, -260));
   await tester.pumpAndSettle();
+}
+
+Future<Finder> _findShipmentLookupField(WidgetTester tester) async {
+  Finder fields = _shipmentLookupFields();
+  if (fields.evaluate().isNotEmpty) {
+    return fields.first;
+  }
+
+  await tester.drag(find.byType(CustomScrollView).first, const Offset(0, 520));
+  await tester.pumpAndSettle();
+
+  fields = _shipmentLookupFields();
+  if (fields.evaluate().isNotEmpty) {
+    return fields.first;
+  }
+
+  await tester.scrollUntilVisible(
+    find.text('Giris satiri').first,
+    -200,
+    scrollable: find.byType(Scrollable).first,
+  );
+  await tester.pumpAndSettle();
+
+  return _shipmentLookupFields().first;
+}
+
+Finder _shipmentLookupFields() {
+  final defaultField = find.widgetWithText(
+    TextFormField,
+    'Barkod / stok kodu / urun adi',
+  );
+  if (defaultField.evaluate().isNotEmpty) {
+    return defaultField;
+  }
+
+  return find.widgetWithText(TextFormField, 'Barkod okut / urun degistir');
+}
+
+Future<void> _confirmPendingShipmentLine(
+  WidgetTester tester, {
+  required bool settleAfterSubmit,
+}) async {
+  final addButton = find.widgetWithText(FilledButton, 'Kaleme Ekle').first;
+  await tester.ensureVisible(addButton);
+  await tester.pumpAndSettle();
+  await tester.tap(addButton);
+  if (settleAfterSubmit) {
+    await tester.pumpAndSettle();
+  } else {
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 350));
+  }
 }
 
 CreateDraft _suspiciousQuantityShipmentDraft() {

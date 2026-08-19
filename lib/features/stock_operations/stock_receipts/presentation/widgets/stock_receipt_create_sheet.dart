@@ -53,6 +53,7 @@ class _StockReceiptCreateSheetState extends State<StockReceiptCreateSheet>
   late DateTime _documentDate;
   String? _lookupError;
   late final CreateDraftSession _draftSession;
+  String? _lastAddedProductKey;
 
   bool get _showDocumentNoField => widget.kind != StockReceiptKind.expense;
 
@@ -273,26 +274,26 @@ class _StockReceiptCreateSheetState extends State<StockReceiptCreateSheet>
     }
     final pickedProduct = selected;
 
-    var mergedIntoExisting = false;
+    if (_increasePendingQuantityIfSameProduct(line, pickedProduct)) {
+      _draftSession.scheduleSave();
+      _refocusLine(line.lookupFocusNode);
+      return;
+    }
+
+    final entryLine = await _commitPendingEntryBeforeNextProduct(line);
+    if (entryLine == null) {
+      return;
+    }
+
     setState(() {
-      mergedIntoExisting = _applyProductToLine(line, pickedProduct);
-      if (!mergedIntoExisting) {
-        line.setLookupStatus(
-          'Secildi: ${pickedProduct.stockCode} | ${pickedProduct.stockName}',
-        );
-      }
-      _ensureFreshEntryLine();
+      entryLine.applyProduct(pickedProduct);
+      entryLine.setLookupStatus(
+        'Secildi: ${pickedProduct.stockCode} | ${pickedProduct.stockName}',
+      );
       _lookupError = null;
     });
     _draftSession.scheduleSave();
-    _focusFreshEntryLine();
-
-    if (mergedIntoExisting) {
-      unawaited(TerminalFeedback.success());
-      _showFeedback('Ayni barkod mevcut satira eklendi; miktar artirildi.');
-    } else {
-      unawaited(TerminalFeedback.success());
-    }
+    _refocusLine(entryLine.lookupFocusNode);
   }
 
   Future<bool> _tryResolveBarcode(
@@ -362,27 +363,37 @@ class _StockReceiptCreateSheetState extends State<StockReceiptCreateSheet>
 
     final product = SearchProductLookupItem.fromBarcodeResolution(resolution);
     final addedQuantity = resolution.suggestedQuantity;
-    var mergedIntoExisting = false;
+    if (_increasePendingQuantityIfSameProduct(
+      line,
+      product,
+      addedQuantity: addedQuantity,
+    )) {
+      _draftSession.scheduleSave();
+      _refocusLine(line.lookupFocusNode);
+      return true;
+    }
+
+    final entryLine = await _commitPendingEntryBeforeNextProduct(line);
+    if (entryLine == null) {
+      return true;
+    }
+
     setState(() {
-      line.quantityController.text = productEntryController.formatQuantity(
+      entryLine.quantityController.text = productEntryController.formatQuantity(
         addedQuantity,
       );
-      mergedIntoExisting = _applyProductToLine(line, product);
-      if (!mergedIntoExisting) {
-        line.setLookupStatus(_resolvedBarcodeMessage(resolution));
-      }
-      _ensureFreshEntryLine();
+      entryLine.applyProduct(product);
+      entryLine.setLookupStatus(_resolvedBarcodeMessage(resolution));
       _lookupError = null;
     });
     _draftSession.scheduleSave();
-    _focusFreshEntryLine();
-    _notifyResolvedBarcodeResult(
-      product: product,
-      resolution: resolution,
-      addedQuantity: addedQuantity,
-      mergedIntoExisting: mergedIntoExisting,
-      totalQuantity: _lineQuantityFor(product),
-    );
+    _refocusLine(entryLine.lookupFocusNode);
+    if (resolution.quickWarningMessage.isNotEmpty) {
+      unawaited(TerminalFeedback.warning());
+      _showFeedback(resolution.quickWarningMessage);
+    } else {
+      unawaited(TerminalFeedback.success());
+    }
     return true;
   }
 
@@ -478,6 +489,195 @@ class _StockReceiptCreateSheetState extends State<StockReceiptCreateSheet>
     }
   }
 
+  bool _increasePendingQuantityIfSameProduct(
+    _StockReceiptLineDraft line,
+    SearchProductLookupItem product, {
+    double? addedQuantity,
+  }) {
+    final selectedProduct = line.selectedProduct;
+    if (selectedProduct == null || !_isSameProduct(selectedProduct, product)) {
+      return false;
+    }
+
+    final increment =
+        addedQuantity ??
+        productEntryController.unitMultiplierQuantity(product.unitMultiplier);
+    setState(() {
+      line.quantityController.text = productEntryController.formatQuantity(
+        line.quantity + increment,
+      );
+      line.lookupController.text = product.displayLabel;
+      line.setLookupStatus(
+        'Ayni barkod okutuldu. +${AppFormatters.quantity(increment)} eklendi.',
+      );
+      _lookupError = null;
+    });
+    unawaited(TerminalFeedback.success());
+    return true;
+  }
+
+  Future<_StockReceiptLineDraft?> _commitPendingEntryBeforeNextProduct(
+    _StockReceiptLineDraft line,
+  ) async {
+    if (line.selectedProduct == null) {
+      return line;
+    }
+
+    await _commitEntryLine(line);
+    if (!mounted || _lines.isEmpty) {
+      return null;
+    }
+
+    final entryLine = _lines.first;
+    if (identical(entryLine, line) && !_isBlankLine(entryLine)) {
+      return null;
+    }
+
+    return entryLine;
+  }
+
+  bool _isSameProduct(
+    SearchProductLookupItem first,
+    SearchProductLookupItem second,
+  ) {
+    final firstStockCode = first.stockCode.trim().toUpperCase();
+    final secondStockCode = second.stockCode.trim().toUpperCase();
+    if (firstStockCode.isNotEmpty && firstStockCode == secondStockCode) {
+      return true;
+    }
+
+    final firstBarcode = first.barcode.trim().toUpperCase();
+    final secondBarcode = second.barcode.trim().toUpperCase();
+    return firstBarcode.isNotEmpty && firstBarcode == secondBarcode;
+  }
+
+  Future<bool> _confirmDuplicateIncrease(
+    _StockReceiptLineDraft line,
+    SearchProductLookupItem product,
+  ) async {
+    final existingLine = productEntryController.findDuplicateLine(
+      ProductEntryDuplicateMergePolicy<_StockReceiptLineDraft>(
+        currentLine: line,
+        targetBarcode: product.barcode,
+        targetStockCode: product.stockCode,
+        lines: _lines,
+        lineBarcode: (line) => line.selectedProduct?.barcode ?? '',
+        lineStockCode: (line) => line.selectedProduct?.stockCode ?? '',
+        canMergeLine: (line) => line.selectedProduct != null,
+      ),
+    );
+    final key = _productKey(
+      stockCode: product.stockCode,
+      barcode: product.barcode,
+    );
+    if (existingLine == null ||
+        productEntryController.readQuantity(
+              existingLine.quantityController.text,
+              fallback: 0,
+            ) <=
+            0 ||
+        key.isEmpty ||
+        _lastAddedProductKey == key) {
+      return true;
+    }
+
+    unawaited(TerminalFeedback.warning());
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Urun listede var'),
+          content: Text(
+            '${product.stockName} daha once eklenmis. Miktar artirilsin mi?',
+          ),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Vazgec'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('Artir'),
+            ),
+          ],
+        );
+      },
+    );
+
+    return confirmed == true;
+  }
+
+  void _rememberAddedProduct(SearchProductLookupItem product) {
+    final key = _productKey(
+      stockCode: product.stockCode,
+      barcode: product.barcode,
+    );
+    if (key.isNotEmpty) {
+      _lastAddedProductKey = key;
+    }
+  }
+
+  String _productKey({required String stockCode, required String barcode}) {
+    final normalizedStockCode = stockCode.trim().toUpperCase();
+    if (normalizedStockCode.isNotEmpty) {
+      return 'S:$normalizedStockCode';
+    }
+
+    final normalizedBarcode = barcode.trim().toUpperCase();
+    if (normalizedBarcode.isNotEmpty) {
+      return 'B:$normalizedBarcode';
+    }
+
+    return '';
+  }
+
+  bool get _hasPendingEntryLine =>
+      _lines.isNotEmpty && !_isBlankLine(_lines.first);
+
+  Future<void> _commitEntryLine(_StockReceiptLineDraft line) async {
+    final product = line.selectedProduct;
+    if (product == null) {
+      _refocusLine(line.lookupFocusNode);
+      return;
+    }
+
+    if (line.quantity <= 0) {
+      setState(() {
+        line.setLookupStatus('Miktar sifirdan buyuk olmali.', isError: true);
+      });
+      return;
+    }
+
+    if (!await _confirmDuplicateIncrease(line, product)) {
+      return;
+    }
+
+    var mergedIntoExisting = false;
+    setState(() {
+      mergedIntoExisting = _applyProductToLine(line, product);
+      _ensureFreshEntryLine();
+      _lookupError = null;
+    });
+    _draftSession.scheduleSave();
+    _focusFreshEntryLine();
+    _rememberAddedProduct(product);
+    unawaited(TerminalFeedback.success());
+    _showFeedback(
+      mergedIntoExisting
+          ? 'Ayni barkod mevcut satira eklendi; miktar artirildi.'
+          : 'Kaleme eklendi: ${product.stockName}.',
+    );
+  }
+
+  void _cancelPendingEntryLine(_StockReceiptLineDraft line) {
+    setState(() {
+      line.clear();
+      _lookupError = null;
+    });
+    _draftSession.scheduleSave();
+    _refocusLine(line.lookupFocusNode);
+  }
+
   void _focusFreshEntryLine() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || _lines.isEmpty) {
@@ -502,9 +702,14 @@ class _StockReceiptCreateSheetState extends State<StockReceiptCreateSheet>
       return;
     }
 
-    final activeLines = _lines
-        .where((line) => !_isBlankLine(line))
-        .toList(growable: false);
+    if (_hasPendingEntryLine) {
+      setState(() {
+        _lookupError = 'Secilen urunu once Kaleme Ekle ile listeye alin.';
+      });
+      return;
+    }
+
+    final activeLines = _committedLines();
 
     if (activeLines.isEmpty) {
       setState(() {
@@ -681,8 +886,7 @@ class _StockReceiptCreateSheetState extends State<StockReceiptCreateSheet>
   }
 
   Widget _buildEntryLineCard() {
-    final entryIndex = _lines.indexWhere(_isBlankLine);
-    return _buildLineCard(entryIndex == -1 ? 0 : entryIndex);
+    return _buildLineCard(0);
   }
 
   Widget _buildLazyLineSliver() {
@@ -702,18 +906,77 @@ class _StockReceiptCreateSheetState extends State<StockReceiptCreateSheet>
   List<int> _filledLineIndexes() {
     return <int>[
       for (var index = 0; index < _lines.length; index++)
-        if (!_isBlankLine(_lines[index])) index,
+        if (index != 0 && !_isBlankLine(_lines[index])) index,
+    ];
+  }
+
+  List<_StockReceiptLineDraft> _committedLines() {
+    return <_StockReceiptLineDraft>[
+      for (var index = 0; index < _lines.length; index++)
+        if (index != 0 && !_isBlankLine(_lines[index])) _lines[index],
     ];
   }
 
   Widget _buildLineCard(int index) {
     final line = _lines[index];
-    final isFreshEntry = index == 0 && _isBlankLine(line);
+    final isEntrySlot = index == 0;
+    final isFreshEntry = isEntrySlot && _isBlankLine(line);
+    final isPendingEntry = isEntrySlot && !_isBlankLine(line);
     final displayLineNo = _lines
         .take(index + 1)
-        .where((item) => !_isBlankLine(item))
+        .where((item) => _lines.indexOf(item) != 0 && !_isBlankLine(item))
         .length;
     final product = line.selectedProduct;
+
+    if (isPendingEntry && product != null) {
+      return ProductDraftEntryPanel(
+        stockCode: product.stockCode,
+        stockName: product.stockName,
+        quantityController: line.quantityController,
+        unitLabel: product.unitName,
+        barcode: product.barcode,
+        packageLabel: product.unitMultiplier > 1
+            ? AppFormatters.quantity(product.unitMultiplier)
+            : null,
+        onConfirm: () => _commitEntryLine(line),
+        onCancel: () => _cancelPendingEntryLine(line),
+        scanRow: TerminalResponsiveLookupRow(
+          field: ProductLookupField(
+            controller: line.lookupController,
+            focusNode: line.lookupFocusNode,
+            enabled: !line.isLookupStatusLoading,
+            labelText: 'Barkod okut / urun degistir',
+            onSubmit: () => _searchProduct(line),
+          ),
+          action: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              FilledButton.icon(
+                onPressed: line.isLookupStatusLoading
+                    ? null
+                    : () => _searchProduct(line),
+                icon: const Icon(Icons.search_rounded),
+                label: const Text('Urun'),
+              ),
+              const SizedBox(width: 8),
+              IconButton.filledTonal(
+                onPressed: line.isLookupStatusLoading
+                    ? null
+                    : () => _scanProductWithCamera(line),
+                tooltip: 'Kamera ile oku',
+                icon: const Icon(Icons.photo_camera_back_rounded),
+              ),
+            ],
+          ),
+        ),
+        quantityValidator: (_) {
+          if (line.quantity <= 0) {
+            return 'Miktar > 0';
+          }
+          return null;
+        },
+      );
+    }
 
     if (!isFreshEntry && product != null) {
       return TerminalCompactProductLineCard(
@@ -860,35 +1123,6 @@ class _StockReceiptCreateSheetState extends State<StockReceiptCreateSheet>
     );
   }
 
-  void _notifyResolvedBarcodeResult({
-    required SearchProductLookupItem product,
-    required BarcodeResolutionResult resolution,
-    required double addedQuantity,
-    required bool mergedIntoExisting,
-    required double totalQuantity,
-  }) {
-    final warning = resolution.quickWarningMessage;
-    if (warning.isNotEmpty) {
-      unawaited(TerminalFeedback.warning());
-      _showFeedback(warning);
-      return;
-    }
-
-    unawaited(TerminalFeedback.success());
-    final unitName = product.unitName.trim();
-    final quantityLabel =
-        '${AppFormatters.quantity(addedQuantity)}${unitName.isEmpty ? '' : ' $unitName'}';
-    if (mergedIntoExisting) {
-      _showFeedback(
-        'Urun zaten sepetteydi. +${AppFormatters.quantity(addedQuantity)} '
-        'eklendi. Toplam: ${AppFormatters.quantity(totalQuantity)} '
-        '${product.unitName}.',
-      );
-    } else {
-      _showFeedback('Eklendi: ${product.stockName}. Miktar: $quantityLabel.');
-    }
-  }
-
   String _resolvedBarcodeMessage(BarcodeResolutionResult resolution) {
     if (resolution.isVariableWeightBarcode) {
       return 'Terazi ${AppFormatters.quantity(resolution.suggestedQuantity)} ${resolution.embeddedQuantityUnit}';
@@ -897,22 +1131,6 @@ class _StockReceiptCreateSheetState extends State<StockReceiptCreateSheet>
       return 'Koli ici ${AppFormatters.quantity(resolution.suggestedQuantity)}';
     }
     return 'Miktar ${AppFormatters.quantity(resolution.suggestedQuantity)}';
-  }
-
-  double _lineQuantityFor(SearchProductLookupItem product) {
-    for (final line in _lines) {
-      final selected = line.selectedProduct;
-      if (selected == null || selected.stockCode != product.stockCode) {
-        continue;
-      }
-
-      return productEntryController.readQuantity(
-        line.quantityController.text,
-        fallback: 0,
-      );
-    }
-
-    return 0;
   }
 
   void _refocusLine(FocusNode focusNode) {
@@ -1017,6 +1235,18 @@ class _StockReceiptLineDraft {
     lookupStatusMessage = null;
     isLookupStatusLoading = false;
     isLookupStatusError = false;
+  }
+
+  void clear() {
+    selectedProduct = null;
+    lookupController.clear();
+    quantityController.clear();
+    unitPointerController.text = '1';
+    descriptionController.clear();
+    partyCodeController.clear();
+    lotNoController.text = '0';
+    projectCodeController.clear();
+    clearLookupStatus();
   }
 
   void dispose() {

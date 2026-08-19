@@ -1,5 +1,6 @@
 import 'package:furpa_merkez_terminal/core/network/api_client.dart';
 import 'package:furpa_merkez_terminal/features/stock_operations/virman/data/models/virman_models.dart';
+import 'package:furpa_merkez_terminal/shared/data/search_lookup_models.dart';
 
 abstract class VirmanRepository {
   Future<List<VirmanListItem>> fetchVirmans({
@@ -17,6 +18,12 @@ abstract class VirmanRepository {
   Future<VirmanCreateResult> createVirman({
     required String accessToken,
     required VirmanCreateRequest request,
+  });
+
+  Future<List<SearchProductLookupItem>> searchProducts({
+    required String accessToken,
+    required String warehouseNo,
+    required String query,
   });
 }
 
@@ -73,5 +80,42 @@ class ApiVirmanRepository implements VirmanRepository {
     );
 
     return VirmanCreateResult.fromJson(response);
+  }
+
+  @override
+  Future<List<SearchProductLookupItem>> searchProducts({
+    required String accessToken,
+    required String warehouseNo,
+    required String query,
+  }) async {
+    final normalizedQuery = query.trim();
+    final isBarcodeQuery = RegExp(r'^\d{7,}$').hasMatch(normalizedQuery);
+    final isStockCodeQuery =
+        !isBarcodeQuery &&
+        normalizedQuery.contains(RegExp(r'\d')) &&
+        !normalizedQuery.contains(' ');
+
+    final response = await _apiClient.getJsonList(
+      '/api/arama-islemleri/urunler',
+      accessToken: accessToken,
+      queryParameters: <String, String>{
+        'warehouseNo': warehouseNo,
+        'take': '20',
+        if (isBarcodeQuery)
+          'barcode': normalizedQuery
+        else if (isStockCodeQuery)
+          'stockCode': normalizedQuery
+        else
+          'stockName': normalizedQuery,
+      },
+    );
+
+    return response
+        .map(
+          (item) => SearchProductLookupItem.fromJson(
+            item as JsonMap? ?? <String, dynamic>{},
+          ),
+        )
+        .toList(growable: false);
   }
 }

@@ -16,6 +16,7 @@ import 'package:furpa_merkez_terminal/shared/offline/offline_sync_service.dart';
 import 'package:furpa_merkez_terminal/shared/product_entry/product_entry_widgets.dart';
 import 'package:furpa_merkez_terminal/shared/utils/client_request_id.dart';
 import 'package:furpa_merkez_terminal/shared/utils/create_form_validation.dart';
+import 'package:furpa_merkez_terminal/shared/utils/terminal_feedback.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/barcode_camera_scan_page.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/section_card.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/terminal_create_page.dart';
@@ -525,6 +526,7 @@ class _OfflineCompanyAcceptanceCreateSheetState
   bool _autoCreateReturnForPartialAcceptance = true;
   CustomerLookupItem? _selectedCustomer;
   String? _validationMessage;
+  String? _lastAddedProductKey;
 
   @override
   void initState() {
@@ -737,17 +739,23 @@ class _OfflineCompanyAcceptanceCreateSheetState
     }
     final pickedProduct = selected;
 
-    var mergedIntoExisting = false;
+    if (_increasePendingQuantityIfSameProduct(line, pickedProduct)) {
+      _refocusLine(line.lookupFocusNode);
+      return;
+    }
+
+    final entryLine = await _commitPendingEntryBeforeNextProduct(line);
+    if (entryLine == null) {
+      return;
+    }
+
     setState(() {
-      mergedIntoExisting = _applyProductToLine(line, pickedProduct);
-      _ensureFreshEntryLine();
+      entryLine.applyProduct(pickedProduct);
+      entryLine.lookupController.clear();
       _validationMessage = null;
     });
-    _focusFreshEntryLine();
-
-    if (mergedIntoExisting) {
-      _showFeedback('Ayni barkod mevcut satira eklendi; miktar artirildi.');
-    }
+    unawaited(TerminalFeedback.success());
+    _refocusLine(entryLine.lookupFocusNode);
   }
 
   Future<List<SearchProductLookupItem>> _searchProductsWithCatalogFallback(
@@ -806,6 +814,177 @@ class _OfflineCompanyAcceptanceCreateSheetState
     });
 
     await _searchProduct(line);
+  }
+
+  bool _increasePendingQuantityIfSameProduct(
+    _OfflineCompanyAcceptanceLineDraft line,
+    SearchProductLookupItem product,
+  ) {
+    final selectedProduct = line.selectedProduct;
+    if (selectedProduct == null || !_isSameProduct(selectedProduct, product)) {
+      return false;
+    }
+
+    final increment = _unitMultiplierQuantity(product.unitMultiplier);
+    setState(() {
+      line.dispatchQuantityController.text = _formatQuantity(
+        line.dispatchQuantity + increment,
+      );
+      line.acceptedQuantityController.text = _formatQuantity(
+        line.acceptedQuantity + increment,
+      );
+      line.lookupController.clear();
+      _validationMessage = null;
+    });
+    unawaited(TerminalFeedback.success());
+    return true;
+  }
+
+  Future<_OfflineCompanyAcceptanceLineDraft?>
+  _commitPendingEntryBeforeNextProduct(
+    _OfflineCompanyAcceptanceLineDraft line,
+  ) async {
+    if (line.selectedProduct == null) {
+      return line;
+    }
+
+    await _commitEntryLine(line);
+    if (!mounted || _lines.isEmpty) {
+      return null;
+    }
+
+    final entryLine = _lines.first;
+    if (identical(entryLine, line) && !_isBlankLine(entryLine)) {
+      return null;
+    }
+
+    return entryLine;
+  }
+
+  bool _isSameProduct(
+    SearchProductLookupItem first,
+    SearchProductLookupItem second,
+  ) {
+    final firstStockCode = first.stockCode.trim().toUpperCase();
+    final secondStockCode = second.stockCode.trim().toUpperCase();
+    if (firstStockCode.isNotEmpty && firstStockCode == secondStockCode) {
+      return true;
+    }
+
+    final firstBarcode = first.barcode.trim().toUpperCase();
+    final secondBarcode = second.barcode.trim().toUpperCase();
+    return firstBarcode.isNotEmpty && firstBarcode == secondBarcode;
+  }
+
+  Future<bool> _confirmDuplicateIncrease(
+    _OfflineCompanyAcceptanceLineDraft line,
+    SearchProductLookupItem product,
+  ) async {
+    final existingLine = _findDuplicateLine(
+      currentLine: line,
+      barcode: product.barcode,
+      stockCode: product.stockCode,
+    );
+    final key = _productIdentity(
+      barcode: product.barcode,
+      stockCode: product.stockCode,
+    );
+    if (existingLine == null ||
+        _readDouble(
+              existingLine.acceptedQuantityController.text,
+              fallback: 0,
+            ) <=
+            0 ||
+        key == null ||
+        _lastAddedProductKey == key) {
+      return true;
+    }
+
+    unawaited(TerminalFeedback.warning());
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Urun listede var'),
+          content: Text(
+            '${product.stockName} daha once eklenmis. Miktar artirilsin mi?',
+          ),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Vazgec'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('Artir'),
+            ),
+          ],
+        );
+      },
+    );
+
+    return confirmed == true;
+  }
+
+  void _rememberAddedProduct(SearchProductLookupItem product) {
+    final key = _productIdentity(
+      barcode: product.barcode,
+      stockCode: product.stockCode,
+    );
+    if (key != null) {
+      _lastAddedProductKey = key;
+    }
+  }
+
+  bool get _hasPendingEntryLine =>
+      _lines.isNotEmpty && !_isBlankLine(_lines.first);
+
+  Future<void> _commitEntryLine(_OfflineCompanyAcceptanceLineDraft line) async {
+    final product = line.selectedProduct;
+    if (product == null) {
+      _refocusLine(line.lookupFocusNode);
+      return;
+    }
+
+    if (line.dispatchQuantity <= 0 || line.acceptedQuantity < 0) {
+      setState(() {
+        _validationMessage =
+            'Irsaliye miktari sifirdan buyuk, sayilan miktar negatif olmamali.';
+      });
+      return;
+    }
+
+    if (!await _confirmDuplicateIncrease(line, product)) {
+      return;
+    }
+
+    var mergedIntoExisting = false;
+    setState(() {
+      mergedIntoExisting = _applyProductToLine(line, product);
+      _ensureFreshEntryLine();
+      _validationMessage = null;
+    });
+    _focusFreshEntryLine();
+    _rememberAddedProduct(product);
+    unawaited(TerminalFeedback.success());
+    if (mergedIntoExisting) {
+      _showFeedback('Ayni barkod mevcut satira eklendi; miktar artirildi.');
+    }
+  }
+
+  void _cancelPendingEntryLine(_OfflineCompanyAcceptanceLineDraft line) {
+    setState(() {
+      line.clear();
+      _validationMessage = null;
+    });
+    _refocusLine(line.lookupFocusNode);
+  }
+
+  List<_OfflineCompanyAcceptanceLineDraft> _committedLines() {
+    return <_OfflineCompanyAcceptanceLineDraft>[
+      for (var index = 0; index < _lines.length; index++)
+        if (index != 0 && !_isBlankLine(_lines[index])) _lines[index],
+    ];
   }
 
   bool _applyProductToLine(
@@ -1070,9 +1249,14 @@ class _OfflineCompanyAcceptanceCreateSheetState
       return;
     }
 
-    final activeLines = _lines
-        .where((line) => !_isBlankLine(line))
-        .toList(growable: false);
+    if (_hasPendingEntryLine) {
+      setState(() {
+        _validationMessage = 'Secilen urunu once Kaleme Ekle ile listeye alin.';
+      });
+      return;
+    }
+
+    final activeLines = _committedLines();
 
     if (activeLines.isEmpty) {
       setState(() {
@@ -1283,12 +1467,7 @@ class _OfflineCompanyAcceptanceCreateSheetState
   }
 
   Widget _buildEntryLineCard() {
-    final entryIndex = _lines.indexWhere(_isBlankLine);
-    if (entryIndex == -1) {
-      return const SizedBox.shrink();
-    }
-
-    return _buildLineCard(entryIndex);
+    return _buildLineCard(0);
   }
 
   Widget _buildLazyLineSliver() {
@@ -1308,17 +1487,61 @@ class _OfflineCompanyAcceptanceCreateSheetState
   List<int> _filledLineIndexes() {
     return <int>[
       for (var index = 0; index < _lines.length; index++)
-        if (!_isBlankLine(_lines[index])) index,
+        if (index != 0 && !_isBlankLine(_lines[index])) index,
     ];
   }
 
   Widget _buildLineCard(int index) {
     final line = _lines[index];
-    final isFreshEntry = index == 0 && _isBlankLine(line);
+    final isEntrySlot = index == 0;
+    final isFreshEntry = isEntrySlot && _isBlankLine(line);
+    final isPendingEntry = isEntrySlot && !_isBlankLine(line);
     final displayLineNo = _lines
         .take(index + 1)
-        .where((item) => !_isBlankLine(item))
+        .where((item) => _lines.indexOf(item) != 0 && !_isBlankLine(item))
         .length;
+    final selectedProduct = line.selectedProduct;
+
+    if (isPendingEntry && selectedProduct != null) {
+      return ProductDraftEntryPanel(
+        stockCode: selectedProduct.stockCode,
+        stockName: selectedProduct.stockName,
+        quantityController: line.dispatchQuantityController,
+        title: 'Secilen urun',
+        quantityLabel: 'Irsaliye Miktari*',
+        unitLabel: selectedProduct.unitName,
+        barcode: line.barcodeController.text.trim(),
+        packageLabel: selectedProduct.unitMultiplier > 1
+            ? AppFormatters.quantity(selectedProduct.unitMultiplier)
+            : null,
+        priceLabel: line.unitPrice > 0
+            ? AppFormatters.currency(line.unitPrice)
+            : null,
+        onConfirm: () => _commitEntryLine(line),
+        onCancel: () => _cancelPendingEntryLine(line),
+        scanRow: _buildProductLookupRow(line),
+        quantityValidator: (_) {
+          if (line.dispatchQuantity <= 0) {
+            return 'Miktar > 0';
+          }
+          return null;
+        },
+        onQuantityChanged: (_) => setState(() {}),
+        secondaryQuantityController: line.acceptedQuantityController,
+        secondaryQuantityLabel: 'Fiili Kabul*',
+        secondaryMaximumQuantity: line.dispatchQuantity,
+        onSecondaryQuantityChanged: (_) => setState(() {}),
+        secondaryQuantityValidator: (_) {
+          if (line.acceptedQuantity < 0) {
+            return 'Negatif olamaz';
+          }
+          if (line.acceptedQuantity > line.dispatchQuantity) {
+            return 'Irsaliyeyi gecemez';
+          }
+          return null;
+        },
+      );
+    }
 
     return TerminalPdaLineCard(
       title: isFreshEntry ? 'Giris satiri' : 'Satir $displayLineNo',
@@ -1618,6 +1841,7 @@ class _OfflineCompanyAcceptanceCreateSheetState
     final lookupField = ProductLookupField(
       controller: line.lookupController,
       focusNode: line.lookupFocusNode,
+      selectTextOnFocus: line.selectedProduct == null,
       onSubmit: () => _searchProduct(line),
     );
 
@@ -1825,6 +2049,24 @@ class _OfflineCompanyAcceptanceLineDraft {
       );
     }
     unitPriceController.text = product.price.toString();
+  }
+
+  void clear() {
+    lookupController.clear();
+    stockCodeController.clear();
+    stockNameController.clear();
+    barcodeController.clear();
+    dispatchQuantityController.clear();
+    acceptedQuantityController.clear();
+    unitPriceController.text = '0';
+    unitPointerController.text = '1';
+    descriptionController.clear();
+    partyCodeController.clear();
+    lotNoController.text = '0';
+    projectCodeController.clear();
+    lastConsumingDateController.clear();
+    selectedProduct = null;
+    orderGuid = null;
   }
 
   void dispose() {
