@@ -31,13 +31,13 @@ class TerminalListHeaderCard extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final isCompact = constraints.maxWidth < 420;
-        final spacing = isCompact ? 6.0 : 8.0;
-        final buttonHeight = isCompact ? 40.0 : 44.0;
-        final buttonHorizontalPadding = isCompact ? 9.0 : 11.0;
+        final spacing = isCompact ? 5.0 : 7.0;
+        final buttonHeight = isCompact ? 38.0 : 42.0;
+        final buttonHorizontalPadding = isCompact ? 8.0 : 10.0;
         final visibleInfoChips = showInfoChips ? infoChips : const <Widget>[];
 
         return Container(
-          padding: EdgeInsets.all(isCompact ? 8 : 10),
+          padding: EdgeInsets.all(isCompact ? 7 : 9),
           decoration: BoxDecoration(
             color: theme.colorScheme.surface,
             borderRadius: BorderRadius.circular(8),
@@ -59,7 +59,7 @@ class TerminalListHeaderCard extends StatelessWidget {
                   minimumSize: Size(0, buttonHeight),
                   padding: EdgeInsets.symmetric(
                     horizontal: buttonHorizontalPadding,
-                    vertical: isCompact ? 7 : 9,
+                    vertical: isCompact ? 6 : 8,
                   ),
                   iconSize: isCompact ? 18 : 20,
                   tapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -75,7 +75,7 @@ class TerminalListHeaderCard extends StatelessWidget {
                   minimumSize: Size(0, buttonHeight),
                   padding: EdgeInsets.symmetric(
                     horizontal: buttonHorizontalPadding,
-                    vertical: isCompact ? 7 : 9,
+                    vertical: isCompact ? 6 : 8,
                   ),
                   iconSize: isCompact ? 18 : 20,
                   tapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -99,6 +99,7 @@ class TerminalListHeaderCard extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: theme.textTheme.titleMedium?.copyWith(
+                    height: 1.08,
                     fontWeight: FontWeight.w800,
                   ),
                 ),
@@ -109,7 +110,7 @@ class TerminalListHeaderCard extends StatelessWidget {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: theme.textTheme.bodySmall?.copyWith(
-                      height: 1.2,
+                      height: 1.12,
                       color: theme.colorScheme.onSurface.withAlpha(168),
                     ),
                   ),
@@ -813,7 +814,7 @@ class TerminalPdaRecordCard extends StatelessWidget {
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 140),
           width: double.infinity,
-          constraints: const BoxConstraints(minHeight: 72),
+          constraints: const BoxConstraints(minHeight: 66),
           decoration: BoxDecoration(
             color: backgroundColor,
             borderRadius: BorderRadius.circular(8),
@@ -842,7 +843,7 @@ class TerminalPdaRecordCard extends StatelessWidget {
                 ),
               ),
               Padding(
-                padding: const EdgeInsets.fromLTRB(15, 10, 10, 10),
+                padding: const EdgeInsets.fromLTRB(13, 8, 8, 8),
                 child: child,
               ),
             ],
@@ -881,20 +882,20 @@ class TerminalPdaCardHeader extends StatelessWidget {
                 title,
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
-                style: theme.textTheme.titleMedium?.copyWith(
-                  height: 1.12,
+                style: theme.textTheme.titleSmall?.copyWith(
+                  height: 1.08,
                   color: const Color(0xFF182230),
                   fontWeight: FontWeight.w900,
                 ),
               ),
               if (subtitle != null) ...<Widget>[
-                const SizedBox(height: 4),
+                const SizedBox(height: 2),
                 Text(
                   subtitle!,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: theme.textTheme.bodySmall?.copyWith(
-                    height: 1.25,
+                    height: 1.15,
                     color: const Color(0xFF536171),
                     fontWeight: FontWeight.w700,
                   ),
@@ -903,7 +904,7 @@ class TerminalPdaCardHeader extends StatelessWidget {
             ],
           ),
         ),
-        if (trailing != null) ...<Widget>[const SizedBox(width: 8), trailing!],
+        if (trailing != null) ...<Widget>[const SizedBox(width: 6), trailing!],
       ],
     );
   }
@@ -920,7 +921,7 @@ class TerminalPdaDetailPanel extends StatelessWidget {
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(10),
+      padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
         color: theme.colorScheme.surfaceContainerHighest.withAlpha(56),
         borderRadius: BorderRadius.circular(8),

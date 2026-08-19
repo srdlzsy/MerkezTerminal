@@ -759,10 +759,8 @@ class _StockReceiptCreateSheetState extends State<StockReceiptCreateSheet>
 
   @override
   Widget build(BuildContext context) {
-    final viewInsets = MediaQuery.viewInsetsOf(context);
-
     return Padding(
-      padding: EdgeInsets.fromLTRB(12, 6, 12, 12 + viewInsets.bottom),
+      padding: const EdgeInsets.fromLTRB(10, 4, 10, 10),
       child: Form(
         key: _formKey,
         autovalidateMode: createFormAutovalidateMode,

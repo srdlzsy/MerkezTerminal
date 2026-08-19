@@ -695,11 +695,10 @@ class _InventoryCountCreateSheetState extends State<InventoryCountCreateSheet>
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final viewInsets = MediaQuery.viewInsetsOf(context);
 
     return SafeArea(
       child: Padding(
-        padding: EdgeInsets.only(bottom: viewInsets.bottom),
+        padding: EdgeInsets.zero,
         child: FractionallySizedBox(
           heightFactor: 0.97,
           child: Material(
@@ -720,33 +719,56 @@ class _InventoryCountCreateSheetState extends State<InventoryCountCreateSheet>
                   ),
                   TerminalCreateInputDock(
                     children: <Widget>[
-                      TextFormField(
-                        controller: _nameController,
-                        decoration: const InputDecoration(
-                          labelText: 'Sayim Adi*',
-                          hintText: 'Nisan 2026 Genel Sayim',
-                          isDense: true,
-                          contentPadding: EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 8,
-                          ),
-                        ),
-                        validator: (value) {
-                          if ((value ?? '').trim().isEmpty) {
-                            return 'Zorunlu';
+                      LayoutBuilder(
+                        builder: (context, constraints) {
+                          final nameField = TextFormField(
+                            controller: _nameController,
+                            decoration: const InputDecoration(
+                              labelText: 'Sayim Adi*',
+                              hintText: 'Nisan 2026 Genel Sayim',
+                              isDense: true,
+                              contentPadding: EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 8,
+                              ),
+                            ),
+                            validator: (value) {
+                              if ((value ?? '').trim().isEmpty) {
+                                return 'Zorunlu';
+                              }
+
+                              return null;
+                            },
+                          );
+                          final dateButton = TerminalFilterButton(
+                            label: 'Belge Tarihi',
+                            value: AppFormatters.date(_documentDate),
+                            onPressed: _pickDate,
+                          );
+
+                          if (constraints.maxWidth < 300) {
+                            return Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: <Widget>[
+                                nameField,
+                                const SizedBox(height: 4),
+                                Align(
+                                  alignment: Alignment.centerLeft,
+                                  child: dateButton,
+                                ),
+                              ],
+                            );
                           }
 
-                          return null;
+                          return Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: <Widget>[
+                              Expanded(child: nameField),
+                              const SizedBox(width: 6),
+                              dateButton,
+                            ],
+                          );
                         },
-                      ),
-                      const SizedBox(height: 5),
-                      Align(
-                        alignment: Alignment.centerLeft,
-                        child: TerminalFilterButton(
-                          label: 'Belge Tarihi',
-                          value: AppFormatters.date(_documentDate),
-                          onPressed: _pickDate,
-                        ),
                       ),
                       const SizedBox(height: 5),
                       TerminalSectionToolbar(

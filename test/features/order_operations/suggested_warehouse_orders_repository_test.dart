@@ -82,7 +82,7 @@ void main() {
                   'sourceOnHand': 120,
                   'salesQuantity': 86,
                   'openIncomingOrderQuantity': 3,
-                  'packageFactor': 1,
+                  'unitsPerCase': 5,
                   'minDay': 0,
                   'recommendedDay': 7,
                   'maxDay': 0,
@@ -109,6 +109,7 @@ void main() {
       );
       expect(requestedUri?.queryParameters['SourceWarehouseNo'], '50');
       expect(items.single.stockCode, '010001');
+      expect(items.single.packageFactor, 5);
       expect(items.single.needsManualQuantity, isFalse);
     },
   );

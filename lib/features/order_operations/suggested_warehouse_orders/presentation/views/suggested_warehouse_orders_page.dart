@@ -463,10 +463,12 @@ class _SuggestedWarehouseOrderCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final packageLabel = item.packageFactor > 0
+        ? AppFormatters.quantity(item.packageFactor)
+        : '-';
     final subtitle = <String>[
       if (item.stockCode.trim().isNotEmpty) 'Kod ${item.stockCode}',
-      if (item.packageFactor > 0)
-        'Koli ${AppFormatters.quantity(item.packageFactor)}',
+      'Koli $packageLabel',
       if (item.barcode.trim().isNotEmpty) item.barcode,
       if (item.modelName.trim().isNotEmpty) item.modelName,
       if (item.modelName.trim().isEmpty && item.modelCode.trim().isNotEmpty)
@@ -519,12 +521,7 @@ class _SuggestedWarehouseOrderCard extends StatelessWidget {
                   label: 'Birim',
                   value: item.unitName.trim().isEmpty ? '-' : item.unitName,
                 ),
-                TerminalPdaInfo(
-                  label: 'Koli',
-                  value: item.packageFactor > 0
-                      ? AppFormatters.quantity(item.packageFactor)
-                      : '-',
-                ),
+                TerminalPdaInfo(label: 'Koli', value: packageLabel),
                 const TerminalPdaInfo(label: 'Oneri', value: 'Elle girilecek'),
               ] else ...<TerminalPdaInfo>[
                 TerminalPdaInfo(
@@ -551,12 +548,7 @@ class _SuggestedWarehouseOrderCard extends StatelessWidget {
                   label: 'Gun',
                   value: AppFormatters.quantity(item.recommendedDay),
                 ),
-                TerminalPdaInfo(
-                  label: 'Koli',
-                  value: item.packageFactor > 0
-                      ? AppFormatters.quantity(item.packageFactor)
-                      : '-',
-                ),
+                TerminalPdaInfo(label: 'Koli', value: packageLabel),
               ],
             ],
           ),

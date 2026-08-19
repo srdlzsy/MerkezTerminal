@@ -717,11 +717,10 @@ class _GivenCompanyOrderCreateSheetState
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final viewInsets = MediaQuery.viewInsetsOf(context);
 
     return SafeArea(
       child: Padding(
-        padding: EdgeInsets.only(bottom: viewInsets.bottom),
+        padding: EdgeInsets.zero,
         child: FractionallySizedBox(
           heightFactor: 0.97,
           child: Material(

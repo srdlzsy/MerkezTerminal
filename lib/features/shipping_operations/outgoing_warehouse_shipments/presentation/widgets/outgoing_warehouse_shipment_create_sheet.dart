@@ -1790,12 +1790,11 @@ class _OutgoingWarehouseShipmentCreateSheetState
 
   @override
   Widget build(BuildContext context) {
-    final viewInsets = MediaQuery.viewInsetsOf(context);
     final theme = Theme.of(context);
 
     return SafeArea(
       child: Padding(
-        padding: EdgeInsets.only(bottom: viewInsets.bottom),
+        padding: EdgeInsets.zero,
         child: FractionallySizedBox(
           heightFactor: 0.97,
           child: Material(

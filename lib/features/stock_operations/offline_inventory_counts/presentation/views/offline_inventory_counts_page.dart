@@ -955,12 +955,10 @@ class _OfflineInventoryCountCreateSheetState
 
   @override
   Widget build(BuildContext context) {
-    final viewInsets = MediaQuery.viewInsetsOf(context);
-
     return Material(
       color: Theme.of(context).scaffoldBackgroundColor,
       child: Padding(
-        padding: EdgeInsets.fromLTRB(12, 6, 12, 12 + viewInsets.bottom),
+        padding: const EdgeInsets.fromLTRB(10, 4, 10, 10),
         child: Form(
           key: _formKey,
           autovalidateMode: createFormAutovalidateMode,
@@ -978,28 +976,54 @@ class _OfflineInventoryCountCreateSheetState
               TerminalCreateInputDock(
                 padding: EdgeInsets.zero,
                 children: <Widget>[
-                  TextFormField(
-                    controller: _nameController,
-                    decoration: const InputDecoration(
-                      labelText: 'Sayim Adi',
-                      isDense: true,
-                      contentPadding: EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 8,
-                      ),
-                    ),
-                    validator: (value) {
-                      if ((value ?? '').trim().isEmpty) {
-                        return 'Sayim adi zorunludur.';
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      final nameField = TextFormField(
+                        controller: _nameController,
+                        decoration: const InputDecoration(
+                          labelText: 'Sayim Adi',
+                          isDense: true,
+                          contentPadding: EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 8,
+                          ),
+                        ),
+                        validator: (value) {
+                          if ((value ?? '').trim().isEmpty) {
+                            return 'Sayim adi zorunludur.';
+                          }
+                          return null;
+                        },
+                      );
+                      final dateButton = TerminalFilterButton(
+                        label: 'Belge Tarihi',
+                        value: AppFormatters.date(_documentDate),
+                        onPressed: _pickDate,
+                      );
+
+                      if (constraints.maxWidth < 300) {
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: <Widget>[
+                            nameField,
+                            const SizedBox(height: 4),
+                            Align(
+                              alignment: Alignment.centerLeft,
+                              child: dateButton,
+                            ),
+                          ],
+                        );
                       }
-                      return null;
+
+                      return Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          Expanded(child: nameField),
+                          const SizedBox(width: 6),
+                          dateButton,
+                        ],
+                      );
                     },
-                  ),
-                  const SizedBox(height: 4),
-                  TerminalFilterButton(
-                    label: 'Belge Tarihi',
-                    value: AppFormatters.date(_documentDate),
-                    onPressed: _pickDate,
                   ),
                   const SizedBox(height: 4),
                   TerminalSectionToolbar(

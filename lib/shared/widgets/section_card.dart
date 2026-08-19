@@ -22,7 +22,7 @@ class SectionCard extends StatelessWidget {
 
         return Container(
           width: double.infinity,
-          padding: EdgeInsets.all(isCompact ? 10 : 12),
+          padding: EdgeInsets.all(isCompact ? 8 : 10),
           decoration: BoxDecoration(
             color: theme.colorScheme.surface,
             borderRadius: BorderRadius.circular(8),
@@ -45,22 +45,23 @@ class SectionCard extends StatelessWidget {
                 maxLines: isCompact ? 2 : 1,
                 overflow: TextOverflow.ellipsis,
                 style: theme.textTheme.titleMedium?.copyWith(
+                  height: 1.08,
                   fontWeight: FontWeight.w800,
                 ),
               ),
               if (subtitle != null) ...<Widget>[
-                const SizedBox(height: 4),
+                const SizedBox(height: 2),
                 Text(
                   subtitle!,
                   maxLines: isCompact ? 2 : 1,
                   overflow: TextOverflow.ellipsis,
                   style: theme.textTheme.bodySmall?.copyWith(
-                    height: 1.35,
+                    height: 1.16,
                     color: theme.colorScheme.onSurface.withAlpha(168),
                   ),
                 ),
               ],
-              SizedBox(height: isCompact ? 8 : 10),
+              SizedBox(height: isCompact ? 6 : 8),
               child,
             ],
           ),

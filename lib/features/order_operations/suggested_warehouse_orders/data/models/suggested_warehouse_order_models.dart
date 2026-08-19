@@ -168,7 +168,7 @@ class SuggestedWarehouseOrderListItem {
       sourceOnHand: _readDouble(json['sourceOnHand']),
       salesQuantity: _readDouble(json['salesQuantity']),
       openIncomingOrderQuantity: _readDouble(json['openIncomingOrderQuantity']),
-      packageFactor: _readDouble(json['packageFactor']),
+      packageFactor: _readPackageFactor(json),
       minDay: _readDouble(json['minDay']),
       recommendedDay: _readDouble(json['recommendedDay']),
       maxDay: _readDouble(json['maxDay']),
@@ -262,6 +262,28 @@ double _readDouble(Object? value) {
     return value.toDouble();
   }
   return double.tryParse(value?.toString().replaceAll(',', '.') ?? '') ?? 0;
+}
+
+double _readPackageFactor(JsonMap json) {
+  for (final key in const <String>[
+    'packageFactor',
+    'unitsPerCase',
+    'matchedUnitsPerCase',
+    'packageQuantity',
+    'packageQty',
+    'unitPerPackage',
+    'unitsInPackage',
+    'koliIciAdet',
+    'koliIciMiktar',
+    'koliMiktari',
+  ]) {
+    final value = _readDouble(json[key]);
+    if (value > 0) {
+      return value;
+    }
+  }
+
+  return 0;
 }
 
 int _readPositiveInt(Object? value, {required int fallback}) {

@@ -13,6 +13,7 @@ Future<TResult?> openTerminalCreatePage<TResult>({
         final theme = Theme.of(context);
 
         return Scaffold(
+          resizeToAvoidBottomInset: true,
           backgroundColor: theme.colorScheme.surfaceContainerLowest,
           body: Theme(
             data: theme.copyWith(
