@@ -1,5 +1,18 @@
 import 'package:furpa_merkez_terminal/core/network/api_client.dart';
 
+const Set<int> suggestedWarehouseOrderSourceProductWarehouseNos = <int>{
+  53,
+  55,
+  56,
+  58,
+};
+
+bool usesSuggestedWarehouseOrderSourceProducts(int sourceWarehouseNo) {
+  return suggestedWarehouseOrderSourceProductWarehouseNos.contains(
+    sourceWarehouseNo,
+  );
+}
+
 class SuggestedWarehouseOrderFilter {
   const SuggestedWarehouseOrderFilter({
     required this.sourceWarehouseNo,

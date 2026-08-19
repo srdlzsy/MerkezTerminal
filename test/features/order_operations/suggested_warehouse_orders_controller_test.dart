@@ -127,6 +127,36 @@ void main() {
       expect(repository.lastRequest?.lines.single.unitPointer, 1);
     },
   );
+
+  test(
+    'uses source product flow only for model-coded special warehouses',
+    () async {
+      final repository = _FakeSuggestedWarehouseOrdersRepository();
+      final controller = SuggestedWarehouseOrdersController(
+        repository: repository,
+        accessToken: 'token',
+      );
+      addTearDown(controller.dispose);
+
+      await controller.loadSuggestions(sourceWarehouseNo: 53);
+      expect(repository.lastFilter?.useSourceProducts, isTrue);
+
+      await controller.loadSuggestions(sourceWarehouseNo: 55);
+      expect(repository.lastFilter?.useSourceProducts, isTrue);
+
+      await controller.loadSuggestions(sourceWarehouseNo: 58);
+      expect(repository.lastFilter?.useSourceProducts, isTrue);
+
+      await controller.loadSuggestions(sourceWarehouseNo: 50);
+      expect(repository.lastFilter?.useSourceProducts, isFalse);
+
+      await controller.loadSuggestions(sourceWarehouseNo: 59);
+      expect(repository.lastFilter?.useSourceProducts, isFalse);
+
+      await controller.loadSuggestions(sourceWarehouseNo: 62);
+      expect(repository.lastFilter?.useSourceProducts, isFalse);
+    },
+  );
 }
 
 class _FakeSuggestedWarehouseOrdersRepository
@@ -140,9 +170,11 @@ class _FakeSuggestedWarehouseOrdersRepository
     required SuggestedWarehouseOrderFilter filter,
   }) async {
     lastFilter = filter;
-    if (filter.sourceWarehouseNo == 56) {
+    if (filter.useSourceProducts) {
       return const <SuggestedWarehouseOrderListItem>[
         SuggestedWarehouseOrderListItem(
+          sourceWarehouseNo: 56,
+          sourceWarehouseName: 'MANAV DEPO',
           stockCode: '016167',
           stockName: 'MNV MAYDANOZ ADET',
           modelCode: '12',

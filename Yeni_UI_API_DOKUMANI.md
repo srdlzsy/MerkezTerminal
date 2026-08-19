@@ -4360,17 +4360,23 @@ Amac:
 - Bu akista otomatik oneri miktari uretilmez; kullanici kasa/koli/adet/kg kararini ekranda verir.
 - `/manav` alias'i sadece `sourceWarehouseNo=56` icin kisa yoldur. Yeni UI genel kullanimda `kaynak-depo-urunleri?sourceWarehouseNo={secilenKaynakDepo}` endpointini tercih etmelidir.
 
-Mevcut ozel kaynak depolar:
+Canli DB'de model kodu tanimli kaynak depolar:
 
 ```text
-53, 55, 56, 58, 59, 62
+50  MERKEZ DEPO             01,02,03,04,20
+53  ET-SARKUTERI DEPO       15,21
+55  UNLU URETIM             30,31,32,33,22
+56  MANAV DEPO              10,11,12,23
+58  UNLU URETIM - OZLUCE    40
 ```
 
 UI karar kurali:
 
-- Kaynak depo bu listede ise klasik otomatik oneri endpointi yerine `kaynak-depo-urunleri` endpointi cagrilir.
-- Kaynak depo bu listede degilse klasik otomatik oneri endpointi kullanilir.
-- Backend tarafinda endpoint sadece bu listeye kilitli degildir; ilgili kaynak deponun `DEPOLAR.dep_barkod_yazici_yolu` model kodlari tanimliysa calisir. Bu liste UI'nin bugunku is kuralina gore hangi depolarda manuel miktarli urun secimi acacagini belirtir.
+- Kaynak depo `53`, `55`, `56` veya `58` gibi ozel uretim/urun ailesi deposuysa klasik otomatik oneri endpointi yerine `kaynak-depo-urunleri` endpointi cagrilir.
+- Kaynak depo `50 MERKEZ DEPO` ise mevcut klasik otomatik oneri endpointi normal ana akis olarak kalabilir; istenirse ayni kaynak urun secimi endpointi de model kodlari tanimli oldugu icin teknik olarak calisir.
+- Kaynak depo bu tabloda yoksa klasik otomatik oneri endpointi kullanilir veya UI kaynak urun secimi aksiyonunu pasif gosterir.
+- Backend tarafinda endpoint sadece bu listeye kilitli degildir; ilgili kaynak deponun `DEPOLAR.dep_barkod_yazici_yolu` model kodlari tanimliysa calisir. Bu tablo canli DB'de su an tanimli olan depolari gosterir.
+- `59 UNLU URETIM - HASANAGA` ve `62 UNLU URETIM - ALEMDAR` su an canli DB'de model kodu bos oldugu icin bu endpointte aktif kaynak depo gibi kullanilmamalidir. Bu depolar icin `DEPOLAR.dep_barkod_yazici_yolu` doldurulursa endpoint calisir hale gelir.
 
 Response:
 
@@ -4396,7 +4402,8 @@ Response:
 UI akisi:
 
 - Kaynak depo normal merkez/depo siparisi ise klasik `GET /api/siparis-islemleri/onerilen-depo-siparisleri?sourceWarehouseNo=...` kullanilir.
-- Kaynak depo `53`, `55`, `56`, `58`, `59` veya `62` ise `GET /api/siparis-islemleri/onerilen-depo-siparisleri/kaynak-depo-urunleri?sourceWarehouseNo={sourceWarehouseNo}` cagrilir.
+- Kaynak depo `53`, `55`, `56` veya `58` ise `GET /api/siparis-islemleri/onerilen-depo-siparisleri/kaynak-depo-urunleri?sourceWarehouseNo={sourceWarehouseNo}` cagrilir.
+- Kaynak depo `59` veya `62` secilecekse once DB'de ilgili model kodlari tanimlanmalidir; aksi halde backend `400 ProblemDetails` ile "Secilen kaynak depo icin model kodlari tanimli degil." doner.
 - Donen satirlar grid/form satirina `quantity=0` ile basilir.
 - Kullanici miktari kendisi girer; `quantity > 0` olmayan satirlar siparise cevrilmemelidir.
 - Siparise cevirirken yine `POST /api/siparis-islemleri/onerilen-depo-siparisleri/convert-to-order` kullanilir.

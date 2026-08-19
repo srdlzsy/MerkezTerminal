@@ -85,7 +85,9 @@ class SuggestedWarehouseOrdersController extends ChangeNotifier
           targetWarehouseNo: targetWarehouseNo,
           lookbackDays: lookbackDays,
           fallbackRecommendedDay: fallbackRecommendedDay,
-          useSourceProducts: useSourceProducts ?? sourceWarehouseNo == 56,
+          useSourceProducts:
+              useSourceProducts ??
+              usesSuggestedWarehouseOrderSourceProducts(sourceWarehouseNo),
         ),
       );
       if (!_listEpoch.isCurrent(listRequestId)) {

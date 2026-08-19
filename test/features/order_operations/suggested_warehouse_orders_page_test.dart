@@ -82,10 +82,10 @@ void main() {
 
     await tester.tap(find.byTooltip('Kaynak depo ara'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('70 - SARKUTERI DEPO'));
+    await tester.tap(find.text('53 - ET-SARKUTERI DEPO'));
     await tester.pumpAndSettle();
 
-    expect(repository.lastFilter?.sourceWarehouseNo, 70);
+    expect(repository.lastFilter?.sourceWarehouseNo, 53);
     expect(repository.lastFilter?.useSourceProducts, isTrue);
     expect(find.text('Sarkuteri Test Urun'), findsOneWidget);
   });
@@ -104,13 +104,13 @@ class _FakeSuggestedWarehouseOrdersRepository
     if (filter.useSourceProducts) {
       return const <SuggestedWarehouseOrderListItem>[
         SuggestedWarehouseOrderListItem(
-          sourceWarehouseNo: 70,
-          sourceWarehouseName: 'SARKUTERI DEPO',
+          sourceWarehouseNo: 53,
+          sourceWarehouseName: 'ET-SARKUTERI DEPO',
           stockCode: 'SRK001',
           stockName: 'Sarkuteri Test Urun',
-          modelCode: '70',
+          modelCode: '15',
           modelName: 'Sarkuteri',
-          barcode: '7000001',
+          barcode: '5300001',
           unitName: 'KG',
           targetOnHand: 0,
           sourceOnHand: 0,
@@ -176,8 +176,15 @@ class _FakeSuggestedWarehouseOrdersRepository
   }) async {
     return const <WarehouseLookupItem>[
       WarehouseLookupItem(
-        warehouseNo: 70,
-        warehouseName: 'SARKUTERI DEPO',
+        warehouseNo: 53,
+        warehouseName: 'ET-SARKUTERI DEPO',
+        address: '',
+        district: '',
+        province: '',
+      ),
+      WarehouseLookupItem(
+        warehouseNo: 59,
+        warehouseName: 'UNLU URETIM - HASANAGA',
         address: '',
         district: '',
         province: '',
