@@ -1807,7 +1807,6 @@ class _OutgoingWarehouseShipmentCreateSheetState
                 children: <Widget>[
                   TerminalSheetHeader(
                     title: 'Yeni Giden Depolar Arasi Sevk',
-                    subtitle: 'Kaynak depo: ${widget.defaultWarehouseNo}',
                     badges: <Widget>[
                       TerminalLineCountBadge(count: _activeShipmentLineCount()),
                     ],
@@ -1816,7 +1815,7 @@ class _OutgoingWarehouseShipmentCreateSheetState
                   TerminalCreateInputDock(
                     children: <Widget>[
                       _buildShipmentSetupSection(theme),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 5),
                       if (_mode == _ShipmentCreateMode.manual)
                         _buildManualEntrySection(theme)
                       else
@@ -1930,12 +1929,12 @@ class _OutgoingWarehouseShipmentCreateSheetState
             },
           );
 
-          if (constraints.maxWidth < 300) {
+          if (constraints.maxWidth < 280) {
             return Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: <Widget>[
                 modeSelector,
-                const SizedBox(height: 6),
+                const SizedBox(height: 5),
                 targetWarehouseField,
               ],
             );

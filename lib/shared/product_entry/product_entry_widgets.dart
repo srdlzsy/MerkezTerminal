@@ -130,18 +130,9 @@ class ProductDraftEntryPanel extends StatelessWidget {
           );
         }
 
-        final baseHeight = constraints.hasBoundedHeight
-            ? constraints.maxHeight
-            : usableHeight;
-        final maxPanelHeight = (baseHeight * (keyboardHeight > 0 ? 0.48 : 0.58))
-            .clamp(keyboardHeight > 0 ? 156.0 : 196.0, 360.0)
-            .toDouble();
-
-        return _ScrollableDraftEntryCard(
-          title: title,
-          subtitle: stockName,
-          maxHeight: maxPanelHeight,
-          onCancel: onCancel,
+        return _CompactDraftEntryCard(
+          title: stockName,
+          subtitle: _compactMetaSummary,
           actions: _buildActionButtons(isCompact: true),
           child: body,
         );
@@ -156,19 +147,17 @@ class ProductDraftEntryPanel extends StatelessWidget {
   }) {
     final theme = Theme.of(context);
     final warning = warningLabel?.trim() ?? '';
+    final effectiveScanRow = _scanRowFor(isCompact: isCompact);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
-        if (scanRow != null) ...<Widget>[
-          scanRow!,
-          SizedBox(height: isCompact ? 6 : 10),
+        if (effectiveScanRow != null) ...<Widget>[
+          effectiveScanRow,
+          SizedBox(height: isCompact ? 4 : 10),
         ],
-        TerminalPdaInfoGrid(
-          minTileWidth: isCompact ? 74 : 92,
-          spacing: isCompact ? 4 : 6,
-          items: _infoItems,
-        ),
+        if (!isCompact)
+          TerminalPdaInfoGrid(minTileWidth: 92, spacing: 6, items: _infoItems),
         if (warning.isNotEmpty) ...<Widget>[
           SizedBox(height: isCompact ? 5 : 8),
           Text(
@@ -181,12 +170,31 @@ class ProductDraftEntryPanel extends StatelessWidget {
             ),
           ),
         ],
-        SizedBox(height: isCompact ? 7 : 10),
+        SizedBox(height: isCompact ? 3 : 10),
         _buildQuantityInputs(isCompact: isCompact),
-        SizedBox(height: isCompact ? 7 : 10),
+        SizedBox(height: isCompact ? 3 : 10),
         if (includeActions) _buildActionButtons(isCompact: isCompact),
       ],
     );
+  }
+
+  Widget? _scanRowFor({required bool isCompact}) {
+    final row = scanRow;
+    if (row == null || !isCompact) {
+      return row;
+    }
+
+    if (row is TerminalResponsiveLookupRow) {
+      return TerminalResponsiveLookupRow(
+        field: row.field,
+        action: row.action,
+        trailingAction: row.trailingAction,
+        breakpoint: 0,
+        spacing: 4,
+      );
+    }
+
+    return row;
   }
 
   List<TerminalPdaInfo> get _infoItems {
@@ -204,18 +212,26 @@ class ProductDraftEntryPanel extends StatelessWidget {
     ];
   }
 
+  String get _compactMetaSummary {
+    return <String>[
+      stockCode,
+      if ((unitLabel ?? '').trim().isNotEmpty) unitLabel!,
+      if ((packageLabel ?? '').trim().isNotEmpty) 'Koli $packageLabel',
+    ].where((part) => part.trim().isNotEmpty).join(' | ');
+  }
+
   Widget _buildActionButtons({required bool isCompact}) {
     if (isCompact) {
       return Row(
         children: <Widget>[
           SizedBox(
-            width: 44,
-            height: 40,
+            width: 40,
+            height: 38,
             child: OutlinedButton(
               onPressed: onCancel,
               style: OutlinedButton.styleFrom(
                 padding: EdgeInsets.zero,
-                minimumSize: const Size(44, 40),
+                minimumSize: const Size(40, 38),
                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
               ),
               child: const Icon(Icons.clear_rounded, size: 20),
@@ -232,7 +248,7 @@ class ProductDraftEntryPanel extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
               ),
               style: FilledButton.styleFrom(
-                minimumSize: const Size.fromHeight(40),
+                minimumSize: const Size.fromHeight(38),
                 padding: const EdgeInsets.symmetric(horizontal: 8),
                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
               ),
@@ -330,20 +346,16 @@ class ProductDraftEntryPanel extends StatelessWidget {
   }
 }
 
-class _ScrollableDraftEntryCard extends StatelessWidget {
-  const _ScrollableDraftEntryCard({
+class _CompactDraftEntryCard extends StatelessWidget {
+  const _CompactDraftEntryCard({
     required this.title,
     required this.subtitle,
-    required this.maxHeight,
-    required this.onCancel,
     required this.actions,
     required this.child,
   });
 
   final String title;
   final String subtitle;
-  final double maxHeight;
-  final VoidCallback onCancel;
   final Widget actions;
   final Widget child;
 
@@ -351,90 +363,65 @@ class _ScrollableDraftEntryCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return ConstrainedBox(
-      constraints: BoxConstraints(maxHeight: maxHeight),
-      child: Container(
-        width: double.infinity,
-        margin: const EdgeInsets.only(bottom: 6),
-        decoration: BoxDecoration(
-          color: theme.colorScheme.primaryContainer.withAlpha(42),
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: theme.colorScheme.primary.withAlpha(102)),
-          boxShadow: <BoxShadow>[
-            BoxShadow(
-              color: Colors.black.withAlpha(4),
-              blurRadius: 5,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Column(
-          children: <Widget>[
-            Padding(
-              padding: const EdgeInsets.fromLTRB(8, 4, 6, 3),
-              child: Row(
-                children: <Widget>[
-                  const Icon(Icons.inventory_2_rounded, size: 18),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: Row(
-                      children: <Widget>[
-                        Flexible(
-                          child: Text(
-                            title,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: theme.textTheme.titleSmall?.copyWith(
-                              height: 1.05,
-                              fontWeight: FontWeight.w900,
-                            ),
-                          ),
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 6),
+      padding: const EdgeInsets.fromLTRB(6, 4, 6, 5),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.primaryContainer.withAlpha(42),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: theme.colorScheme.primary.withAlpha(102)),
+        boxShadow: <BoxShadow>[
+          BoxShadow(
+            color: Colors.black.withAlpha(4),
+            blurRadius: 5,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          Row(
+            children: <Widget>[
+              const Icon(Icons.inventory_2_rounded, size: 18),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    Text(
+                      title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        height: 1.05,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    if (subtitle.trim().isNotEmpty)
+                      Text(
+                        subtitle,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.labelMedium?.copyWith(
+                          height: 1,
+                          color: theme.colorScheme.onSurface.withAlpha(150),
+                          fontWeight: FontWeight.w700,
                         ),
-                        const SizedBox(width: 4),
-                        Expanded(
-                          child: Text(
-                            subtitle,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: theme.textTheme.labelMedium?.copyWith(
-                              height: 1.05,
-                              color: theme.colorScheme.onSurface.withAlpha(150),
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  IconButton(
-                    onPressed: onCancel,
-                    icon: const Icon(Icons.close_rounded, size: 20),
-                    tooltip: 'Secimi temizle',
-                    constraints: const BoxConstraints.tightFor(
-                      width: 36,
-                      height: 36,
-                    ),
-                    padding: EdgeInsets.zero,
-                    style: IconButton.styleFrom(
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    ),
-                  ),
-                ],
+                      ),
+                  ],
+                ),
               ),
-            ),
-            const Divider(height: 1),
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(6),
-                keyboardDismissBehavior:
-                    ScrollViewKeyboardDismissBehavior.onDrag,
-                child: child,
-              ),
-            ),
-            const Divider(height: 1),
-            Padding(padding: const EdgeInsets.all(6), child: actions),
-          ],
-        ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          child,
+          const SizedBox(height: 5),
+          actions,
+        ],
       ),
     );
   }
@@ -495,8 +482,8 @@ class _ProductLookupFieldState extends State<ProductLookupField> {
           hintText: widget.hintText,
           isDense: true,
           contentPadding: const EdgeInsets.symmetric(
-            horizontal: 12,
-            vertical: 10,
+            horizontal: 10,
+            vertical: 8,
           ),
           suffixIcon: widget.suffixIcon,
         ),

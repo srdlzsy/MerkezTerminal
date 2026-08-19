@@ -355,7 +355,7 @@ class TerminalResponsiveLookupRow extends StatelessWidget {
     required this.field,
     required this.action,
     this.trailingAction,
-    this.breakpoint = 360,
+    this.breakpoint = 280,
     this.spacing = 8,
   });
 
@@ -980,7 +980,7 @@ class TerminalPdaLineCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
           Padding(
-            padding: const EdgeInsets.fromLTRB(8, 5, 8, 4),
+            padding: const EdgeInsets.fromLTRB(8, 4, 6, 3),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: <Widget>[
@@ -1028,8 +1028,8 @@ class TerminalPdaLineCard extends StatelessWidget {
                   IconButtonTheme(
                     data: IconButtonThemeData(
                       style: IconButton.styleFrom(
-                        minimumSize: const Size(44, 44),
-                        tapTargetSize: MaterialTapTargetSize.padded,
+                        minimumSize: const Size(38, 38),
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                         padding: EdgeInsets.zero,
                       ),
                     ),
@@ -1040,7 +1040,7 @@ class TerminalPdaLineCard extends StatelessWidget {
             ),
           ),
           const Divider(height: 1),
-          Padding(padding: const EdgeInsets.all(6), child: child),
+          Padding(padding: const EdgeInsets.all(5), child: child),
         ],
       ),
     );
@@ -1577,10 +1577,10 @@ class TerminalQuantityStepper extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final buttonSize = dense ? 38.0 : 44.0;
+    final buttonSize = dense ? 36.0 : 44.0;
     final iconSize = dense ? 18.0 : 20.0;
-    final gap = dense ? 4.0 : 6.0;
-    final verticalPadding = dense ? 6.0 : 8.0;
+    final gap = dense ? 3.0 : 6.0;
+    final verticalPadding = dense ? 5.0 : 8.0;
 
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1595,7 +1595,7 @@ class TerminalQuantityStepper extends StatelessWidget {
           ),
           padding: EdgeInsets.zero,
           style: IconButton.styleFrom(
-            tapTargetSize: MaterialTapTargetSize.padded,
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
           ),
         ),
         SizedBox(width: gap),
@@ -1652,7 +1652,7 @@ class TerminalQuantityStepper extends StatelessWidget {
           ),
           padding: EdgeInsets.zero,
           style: IconButton.styleFrom(
-            tapTargetSize: MaterialTapTargetSize.padded,
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
           ),
         ),
       ],
@@ -1793,7 +1793,7 @@ class TerminalCreateInputDock extends StatelessWidget {
     super.key,
     required this.children,
     this.preferBottomVisible = true,
-    this.padding = const EdgeInsets.fromLTRB(12, 6, 12, 6),
+    this.padding = const EdgeInsets.fromLTRB(10, 4, 10, 4),
     this.compactHeightFactor = 0.42,
     this.regularHeightFactor = 0.46,
     this.compactMaxHeight = 380,
@@ -1810,30 +1810,12 @@ class TerminalCreateInputDock extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final mediaQuery = MediaQuery.of(context);
-    final keyboardHeight = mediaQuery.viewInsets.bottom;
-    final usableHeight = mediaQuery.size.height - keyboardHeight;
-    final isCompact =
-        mediaQuery.size.width < 390 || usableHeight < 720 || keyboardHeight > 0;
-    final maxHeight =
-        (usableHeight * (isCompact ? compactHeightFactor : regularHeightFactor))
-            .clamp(
-              isCompact ? 168.0 : 220.0,
-              isCompact ? compactMaxHeight : regularMaxHeight,
-            )
-            .toDouble();
-
-    return ConstrainedBox(
-      constraints: BoxConstraints(maxHeight: maxHeight),
-      child: SingleChildScrollView(
-        reverse: isCompact && preferBottomVisible,
-        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-        padding: padding,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          mainAxisSize: MainAxisSize.min,
-          children: children,
-        ),
+    return Padding(
+      padding: padding,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
+        children: children,
       ),
     );
   }
@@ -1899,7 +1881,7 @@ class TerminalSheetHeader extends StatelessWidget {
     required this.title,
     this.subtitle,
     this.badges = const <Widget>[],
-    this.padding = const EdgeInsets.fromLTRB(12, 8, 8, 8),
+    this.padding = const EdgeInsets.fromLTRB(10, 4, 6, 4),
     this.elevated = false,
   });
 
@@ -1942,7 +1924,7 @@ class TerminalSheetHeader extends StatelessWidget {
                         title,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.titleMedium?.copyWith(
+                        style: theme.textTheme.titleSmall?.copyWith(
                           height: 1.05,
                           fontWeight: FontWeight.w900,
                         ),
@@ -1975,10 +1957,10 @@ class TerminalSheetHeader extends StatelessWidget {
           const SizedBox(width: 6),
           IconButton(
             onPressed: () => Navigator.of(context).pop(),
-            icon: const Icon(Icons.close_rounded, size: 22),
+            icon: const Icon(Icons.close_rounded, size: 20),
             tooltip: 'Kapat',
             padding: EdgeInsets.zero,
-            constraints: const BoxConstraints.tightFor(width: 36, height: 36),
+            constraints: const BoxConstraints.tightFor(width: 32, height: 32),
           ),
         ],
       ),
@@ -1996,7 +1978,7 @@ class TerminalLineCountBadge extends StatelessWidget {
     final theme = Theme.of(context);
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
         color: theme.colorScheme.primary.withAlpha(16),
         borderRadius: BorderRadius.circular(999),
@@ -2121,17 +2103,17 @@ class TerminalFilterButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      width: 128,
+      width: 120,
       child: OutlinedButton.icon(
         onPressed: onPressed,
         style: OutlinedButton.styleFrom(
-          minimumSize: const Size(128, 42),
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+          minimumSize: const Size(120, 38),
+          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
           visualDensity: VisualDensity.compact,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         ),
-        icon: const Icon(Icons.calendar_month_rounded, size: 18),
+        icon: const Icon(Icons.calendar_month_rounded, size: 16),
         label: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
@@ -2147,7 +2129,7 @@ class TerminalFilterButton extends StatelessWidget {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(
-                fontSize: 14,
+                fontSize: 13,
                 height: 1.12,
                 fontWeight: FontWeight.w800,
               ),

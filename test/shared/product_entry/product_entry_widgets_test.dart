@@ -113,9 +113,20 @@ void main() {
               barcode: '8690000000012',
               packageLabel: '12',
               priceLabel: '10,00',
-              scanRow: ProductLookupField(
-                controller: lookupController,
-                onSubmit: () {},
+              scanRow: TerminalResponsiveLookupRow(
+                field: ProductLookupField(
+                  controller: lookupController,
+                  onSubmit: () {},
+                ),
+                action: FilledButton.icon(
+                  onPressed: () {},
+                  icon: const Icon(Icons.search_rounded),
+                  label: const Text('Urun'),
+                ),
+                trailingAction: IconButton.filledTonal(
+                  onPressed: () {},
+                  icon: const Icon(Icons.photo_camera_back_rounded),
+                ),
               ),
               onConfirm: () {},
               onCancel: () {},
@@ -126,6 +137,7 @@ void main() {
     );
 
     expect(tester.takeException(), isNull);
+    expect(find.text('Barkod / stok kodu / urun adi'), findsOneWidget);
     expect(find.text('Kaleme Ekle'), findsOneWidget);
     expect(
       tester
@@ -135,7 +147,7 @@ void main() {
     );
   });
 
-  testWidgets('terminal create input dock keeps action visible with keyboard', (
+  testWidgets('terminal create input dock stays fixed without nested scroll', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(320, 460);
@@ -156,7 +168,7 @@ void main() {
               child: TerminalCreateInputDock(
                 padding: EdgeInsets.zero,
                 children: <Widget>[
-                  const SizedBox(height: 140),
+                  const SizedBox(height: 54),
                   TextFormField(
                     decoration: const InputDecoration(labelText: 'Miktar'),
                   ),
@@ -174,6 +186,7 @@ void main() {
     );
 
     expect(tester.takeException(), isNull);
+    expect(find.byType(SingleChildScrollView), findsNothing);
     expect(find.text('Kaleme Ekle'), findsOneWidget);
     expect(
       tester

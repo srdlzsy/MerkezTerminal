@@ -1386,27 +1386,25 @@ class _OfflineCompanyAcceptanceCreateSheetState
             children: <Widget>[
               TerminalSheetHeader(
                 title: 'Yeni Offline Firma Mal Kabul',
-                subtitle:
-                    'Taslak ilk kayitta clientRequestId ile saklanir. Online arama ve siparis baglama yardimcidir; gerekirse cari kodu ve stok kodu manuel de girilebilir.',
                 badges: <Widget>[
                   TerminalLineCountBadge(count: _filledLineIndexes().length),
                 ],
                 padding: EdgeInsets.zero,
               ),
-              const SizedBox(height: 6),
+              const SizedBox(height: 4),
               TerminalCreateInputDock(
                 padding: EdgeInsets.zero,
                 children: <Widget>[
                   _buildCustomerLookupRow(),
-                  const SizedBox(height: 6),
+                  const SizedBox(height: 4),
                   TextFormField(
                     controller: _customerCodeController,
                     decoration: const InputDecoration(
                       labelText: 'Cari Kodu*',
                       isDense: true,
                       contentPadding: EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 10,
+                        horizontal: 10,
+                        vertical: 8,
                       ),
                     ),
                     onChanged: (_) => setState(() {}),
@@ -1417,15 +1415,15 @@ class _OfflineCompanyAcceptanceCreateSheetState
                       return null;
                     },
                   ),
-                  const SizedBox(height: 6),
+                  const SizedBox(height: 4),
                   _buildDocumentDetailsSection(),
-                  const SizedBox(height: 6),
+                  const SizedBox(height: 4),
                   _buildLinesToolbar(),
-                  const SizedBox(height: 6),
+                  const SizedBox(height: 4),
                   _buildEntryLineCard(),
                 ],
               ),
-              const SizedBox(height: 6),
+              const SizedBox(height: 4),
               Expanded(
                 child: CustomScrollView(
                   slivers: <Widget>[
@@ -1633,7 +1631,7 @@ class _OfflineCompanyAcceptanceCreateSheetState
             labelText: 'Belge No / Seri',
             hintText: 'Bos birakilabilir veya ULK gibi seri girilebilir',
             isDense: true,
-            contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
           ),
         ),
         const SizedBox(height: 6),
@@ -1687,7 +1685,7 @@ class _OfflineCompanyAcceptanceCreateSheetState
           decoration: const InputDecoration(
             labelText: 'Aciklama',
             isDense: true,
-            contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
           ),
         ),
         const SizedBox(height: 6),

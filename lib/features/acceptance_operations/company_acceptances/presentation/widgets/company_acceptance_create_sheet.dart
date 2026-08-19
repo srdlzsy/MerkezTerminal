@@ -1404,17 +1404,14 @@ class _CompanyAcceptanceCreateSheetState
           children: <Widget>[
             TerminalSheetHeader(
               title: 'Yeni Firma Mal Kabul',
-              subtitle: isDocumentStep
-                  ? 'Belge ve cari bilgisini hazirla, sonra kalemlere gec.'
-                  : 'Barkod okut, miktari kontrol et ve kalemleri kaydet.',
               badges: <Widget>[
                 TerminalLineCountBadge(count: _filledLineIndexes().length),
               ],
               padding: EdgeInsets.zero,
             ),
-            const SizedBox(height: 6),
+            const SizedBox(height: 4),
             _buildStepSelector(),
-            const SizedBox(height: 8),
+            const SizedBox(height: 5),
             Expanded(
               child: isDocumentStep ? _buildDocumentStep() : _buildLinesStep(),
             ),
@@ -1469,28 +1466,28 @@ class _CompanyAcceptanceCreateSheetState
   Widget _buildDocumentStep() {
     return SingleChildScrollView(
       keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-      padding: const EdgeInsets.only(top: 2, bottom: 12),
+      padding: const EdgeInsets.only(bottom: 8),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: <Widget>[
           if (_lookupError != null) ...<Widget>[
             TerminalMessageBlock.error(message: _lookupError!),
-            const SizedBox(height: 8),
+            const SizedBox(height: 6),
           ],
           _buildEDespatchLookupRow(),
           if (_lastEDespatchPrefill != null) ...<Widget>[
-            const SizedBox(height: 6),
+            const SizedBox(height: 4),
             TerminalMessageBlock.info(
               message: _eDespatchSummaryMessage(_lastEDespatchPrefill!),
             ),
           ],
-          const SizedBox(height: 6),
+          const SizedBox(height: 4),
           _buildCustomerLookupRow(),
-          const SizedBox(height: 6),
+          const SizedBox(height: 4),
           _buildCustomerCodeField(),
-          const SizedBox(height: 6),
+          const SizedBox(height: 4),
           _buildDocumentDetailsSection(),
-          const SizedBox(height: 12),
+          const SizedBox(height: 8),
           _buildDocumentStepActions(),
         ],
       ),
@@ -1502,18 +1499,18 @@ class _CompanyAcceptanceCreateSheetState
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
         TerminalCreateInputDock(
-          padding: const EdgeInsets.only(top: 2, bottom: 6),
+          padding: const EdgeInsets.only(bottom: 4),
           children: <Widget>[
             _buildLineStepSummary(),
             if (_lookupError != null) ...<Widget>[
-              const SizedBox(height: 6),
+              const SizedBox(height: 4),
               TerminalMessageBlock.error(message: _lookupError!),
             ],
-            const SizedBox(height: 6),
+            const SizedBox(height: 4),
             _buildEntryLineCard(),
           ],
         ),
-        const SizedBox(height: 6),
+        const SizedBox(height: 4),
         Expanded(
           child: CustomScrollView(
             slivers: <Widget>[
@@ -1541,7 +1538,7 @@ class _CompanyAcceptanceCreateSheetState
         labelText: 'Cari Kodu*',
         hintText: 'Internet yoksa elle girin',
         isDense: true,
-        contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       ),
       onChanged: (_) {
         setState(() {});
@@ -2067,7 +2064,7 @@ class _CompanyAcceptanceCreateSheetState
         labelText: 'Cari Arama',
         hintText: 'Cari adi veya kodu',
         isDense: true,
-        contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       ),
     );
 

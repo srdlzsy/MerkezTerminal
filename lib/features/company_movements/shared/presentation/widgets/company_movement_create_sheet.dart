@@ -854,13 +854,12 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
           children: <Widget>[
             TerminalSheetHeader(
               title: widget.title,
-              subtitle: widget.helperText,
               badges: <Widget>[
                 TerminalLineCountBadge(count: _filledLineIndexes().length),
               ],
               padding: EdgeInsets.zero,
             ),
-            const SizedBox(height: 6),
+            const SizedBox(height: 4),
             TerminalCreateInputDock(
               padding: EdgeInsets.zero,
               children: <Widget>[
@@ -872,8 +871,8 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
                       hintText: 'Cari adi veya kodu',
                       isDense: true,
                       contentPadding: EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 10,
+                        horizontal: 10,
+                        vertical: 8,
                       ),
                     ),
                     validator: (_) {
@@ -890,16 +889,16 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
                     label: const Text('Bul'),
                   ),
                 ),
-                const SizedBox(height: 6),
+                const SizedBox(height: 4),
                 TerminalSectionToolbar(
                   title: 'Satirlar',
                   actions: const <Widget>[],
                 ),
-                const SizedBox(height: 6),
+                const SizedBox(height: 4),
                 _buildEntryLineCard(),
               ],
             ),
-            const SizedBox(height: 6),
+            const SizedBox(height: 4),
             Expanded(
               child: CustomScrollView(
                 slivers: <Widget>[

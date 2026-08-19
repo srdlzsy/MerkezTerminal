@@ -992,7 +992,6 @@ class _GivenWarehouseOrderCreateSheetState
                 children: [
                   TerminalSheetHeader(
                     title: 'Yeni Verilen Depo Siparisi',
-                    subtitle: 'Kaynak depo: ${widget.defaultWarehouseNo}',
                     badges: <Widget>[
                       TerminalLineCountBadge(
                         count: _filledLineIndexes().length,
@@ -1004,12 +1003,12 @@ class _GivenWarehouseOrderCreateSheetState
                   TerminalCreateInputDock(
                     children: <Widget>[
                       _buildWarehouseSection(theme),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 5),
                       TerminalSectionToolbar(
                         title: 'Satirlar',
                         actions: const [],
                       ),
-                      const SizedBox(height: 6),
+                      const SizedBox(height: 4),
                       _buildEntryLineCard(theme),
                     ],
                   ),
@@ -1124,7 +1123,7 @@ class _GivenWarehouseOrderCreateSheetState
       child: Column(
         children: <Widget>[
           Padding(
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.all(8),
             child: LayoutBuilder(
               builder: (context, constraints) {
                 final warehouseField = TextFormField(
@@ -1138,7 +1137,7 @@ class _GivenWarehouseOrderCreateSheetState
                     isDense: true,
                     contentPadding: EdgeInsets.symmetric(
                       horizontal: 12,
-                      vertical: 12,
+                      vertical: 8,
                     ),
                   ),
                   validator: (value) {
@@ -1155,12 +1154,12 @@ class _GivenWarehouseOrderCreateSheetState
                   label: const Text('Sec'),
                 );
 
-                if (constraints.maxWidth < 360) {
+                if (constraints.maxWidth < 280) {
                   return Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: <Widget>[
                       warehouseField,
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 5),
                       warehouseButton,
                     ],
                   );
@@ -1169,7 +1168,7 @@ class _GivenWarehouseOrderCreateSheetState
                 return Row(
                   children: <Widget>[
                     Expanded(child: warehouseField),
-                    const SizedBox(width: 12),
+                    const SizedBox(width: 8),
                     warehouseButton,
                   ],
                 );
@@ -1179,7 +1178,7 @@ class _GivenWarehouseOrderCreateSheetState
           if (_selectedWarehouse != null)
             Container(
               width: double.infinity,
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
                 color: theme.colorScheme.primaryContainer.withAlpha(50),
                 borderRadius: const BorderRadius.only(

@@ -771,28 +771,26 @@ class _StockReceiptCreateSheetState extends State<StockReceiptCreateSheet>
           children: <Widget>[
             TerminalSheetHeader(
               title: widget.kind.createTitle,
-              subtitle:
-                  'Creator ve acceptor alanlari evrak notu gibi calisir. Satirlar yalnizca secilen kullanici deposu icin cikis hareketine doner.',
               badges: <Widget>[
                 TerminalLineCountBadge(count: _filledLineIndexes().length),
               ],
               padding: EdgeInsets.zero,
             ),
-            const SizedBox(height: 6),
+            const SizedBox(height: 4),
             TerminalCreateInputDock(
               padding: EdgeInsets.zero,
               children: <Widget>[
                 _buildReceiptSetupSection(),
-                const SizedBox(height: 6),
+                const SizedBox(height: 4),
                 TerminalSectionToolbar(
                   title: 'Satirlar',
                   actions: const <Widget>[],
                 ),
-                const SizedBox(height: 6),
+                const SizedBox(height: 4),
                 _buildEntryLineCard(),
               ],
             ),
-            const SizedBox(height: 6),
+            const SizedBox(height: 4),
             Expanded(
               child: CustomScrollView(
                 slivers: <Widget>[
@@ -850,8 +848,8 @@ class _StockReceiptCreateSheetState extends State<StockReceiptCreateSheet>
                       labelText: 'Creator',
                       isDense: true,
                       contentPadding: EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 10,
+                        horizontal: 10,
+                        vertical: 8,
                       ),
                     ),
                   ),
@@ -864,15 +862,15 @@ class _StockReceiptCreateSheetState extends State<StockReceiptCreateSheet>
                       labelText: 'Acceptor',
                       isDense: true,
                       contentPadding: EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 10,
+                        horizontal: 10,
+                        vertical: 8,
                       ),
                     ),
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 6),
+            const SizedBox(height: 4),
             TextFormField(
               controller: _descriptionController,
               minLines: 1,
@@ -881,8 +879,8 @@ class _StockReceiptCreateSheetState extends State<StockReceiptCreateSheet>
                 labelText: 'Aciklama',
                 isDense: true,
                 contentPadding: EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 10,
+                  horizontal: 10,
+                  vertical: 8,
                 ),
               ),
             ),

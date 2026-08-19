@@ -711,7 +711,6 @@ class _InventoryCountCreateSheetState extends State<InventoryCountCreateSheet>
                 children: <Widget>[
                   TerminalSheetHeader(
                     title: 'Yeni Sayim Sonucu',
-                    subtitle: 'Depo: ${widget.defaultWarehouseNo}',
                     badges: <Widget>[
                       TerminalLineCountBadge(
                         count: _filledLineIndexes().length,
@@ -728,8 +727,8 @@ class _InventoryCountCreateSheetState extends State<InventoryCountCreateSheet>
                           hintText: 'Nisan 2026 Genel Sayim',
                           isDense: true,
                           contentPadding: EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 10,
+                            horizontal: 10,
+                            vertical: 8,
                           ),
                         ),
                         validator: (value) {
@@ -740,29 +739,21 @@ class _InventoryCountCreateSheetState extends State<InventoryCountCreateSheet>
                           return null;
                         },
                       ),
-                      const SizedBox(height: 8),
-                      OutlinedButton.icon(
-                        onPressed: _pickDate,
-                        icon: const Icon(Icons.calendar_month_rounded),
-                        label: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: <Widget>[
-                            const Text('Belge Tarihi'),
-                            Text(
-                              AppFormatters.date(_documentDate),
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          ],
+                      const SizedBox(height: 5),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: TerminalFilterButton(
+                          label: 'Belge Tarihi',
+                          value: AppFormatters.date(_documentDate),
+                          onPressed: _pickDate,
                         ),
                       ),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 5),
                       TerminalSectionToolbar(
                         title: 'Satirlar',
                         actions: const <Widget>[],
                       ),
-                      const SizedBox(height: 6),
+                      const SizedBox(height: 4),
                       _buildEntryLineCard(theme),
                     ],
                   ),

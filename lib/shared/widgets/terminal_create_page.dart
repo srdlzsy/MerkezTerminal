@@ -19,10 +19,10 @@ Future<TResult?> openTerminalCreatePage<TResult>({
               inputDecorationTheme: theme.inputDecorationTheme.copyWith(
                 filled: true,
                 fillColor: theme.colorScheme.surface,
-                isDense: false,
+                isDense: true,
                 contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 14,
+                  horizontal: 10,
+                  vertical: 9,
                 ),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
@@ -36,10 +36,10 @@ Future<TResult?> openTerminalCreatePage<TResult>({
               ),
               filledButtonTheme: FilledButtonThemeData(
                 style: FilledButton.styleFrom(
-                  minimumSize: const Size(0, 48),
+                  minimumSize: const Size(0, 42),
                   padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 12,
+                    horizontal: 12,
+                    vertical: 9,
                   ),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),
@@ -51,10 +51,10 @@ Future<TResult?> openTerminalCreatePage<TResult>({
               ),
               outlinedButtonTheme: OutlinedButtonThemeData(
                 style: OutlinedButton.styleFrom(
-                  minimumSize: const Size(0, 48),
+                  minimumSize: const Size(0, 42),
                   padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 12,
+                    horizontal: 12,
+                    vertical: 9,
                   ),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),
@@ -66,7 +66,7 @@ Future<TResult?> openTerminalCreatePage<TResult>({
               ),
               iconButtonTheme: IconButtonThemeData(
                 style: IconButton.styleFrom(
-                  minimumSize: const Size(44, 44),
+                  minimumSize: const Size(40, 40),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),
                   ),

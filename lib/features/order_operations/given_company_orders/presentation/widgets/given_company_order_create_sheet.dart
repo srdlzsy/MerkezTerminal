@@ -733,7 +733,6 @@ class _GivenCompanyOrderCreateSheetState
                 children: <Widget>[
                   TerminalSheetHeader(
                     title: 'Yeni Verilen Firma Siparisi',
-                    subtitle: 'Depo: ${widget.defaultWarehouseNo}',
                     badges: <Widget>[
                       TerminalLineCountBadge(count: _activeLineCount()),
                     ],
@@ -742,12 +741,12 @@ class _GivenCompanyOrderCreateSheetState
                   TerminalCreateInputDock(
                     children: <Widget>[
                       _buildCustomerSection(theme),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 5),
                       TerminalSectionToolbar(
                         title: 'Satirlar (${_activeLineCount()})',
                         actions: const <Widget>[],
                       ),
-                      const SizedBox(height: 6),
+                      const SizedBox(height: 4),
                       _buildEntryLineCard(theme),
                     ],
                   ),
@@ -815,7 +814,7 @@ class _GivenCompanyOrderCreateSheetState
       child: Column(
         children: <Widget>[
           Padding(
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.all(8),
             child: Row(
               children: <Widget>[
                 Expanded(
@@ -836,7 +835,7 @@ class _GivenCompanyOrderCreateSheetState
                     },
                   ),
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: 8),
                 FilledButton.tonal(
                   onPressed: _searchCustomer,
                   child: const Row(
@@ -854,7 +853,7 @@ class _GivenCompanyOrderCreateSheetState
           if (_selectedCustomer != null)
             Container(
               width: double.infinity,
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
                 color: theme.colorScheme.primaryContainer.withAlpha(55),
                 borderRadius: const BorderRadius.only(

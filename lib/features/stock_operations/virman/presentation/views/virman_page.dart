@@ -1361,14 +1361,12 @@ class _VirmanCreateSheetState extends State<_VirmanCreateSheet>
           children: <Widget>[
             TerminalSheetHeader(
               title: 'Yeni Virman',
-              subtitle:
-                  'Cikis ve giris satirlarini ayri ekleyin; her satir kendi yonuyle kaydedilir.',
               badges: <Widget>[
                 TerminalLineCountBadge(count: _filledLineIndexes().length),
               ],
               padding: EdgeInsets.zero,
             ),
-            const SizedBox(height: 6),
+            const SizedBox(height: 4),
             TerminalCreateInputDock(
               padding: EdgeInsets.zero,
               children: <Widget>[
@@ -1388,7 +1386,7 @@ class _VirmanCreateSheetState extends State<_VirmanCreateSheet>
                     ),
                   ],
                 ),
-                const SizedBox(height: 6),
+                const SizedBox(height: 4),
                 TextFormField(
                   controller: _descriptionController,
                   maxLines: 1,
@@ -1396,21 +1394,21 @@ class _VirmanCreateSheetState extends State<_VirmanCreateSheet>
                     labelText: 'Aciklama',
                     isDense: true,
                     contentPadding: EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 10,
+                      horizontal: 10,
+                      vertical: 8,
                     ),
                   ),
                 ),
-                const SizedBox(height: 6),
+                const SizedBox(height: 4),
                 TerminalSectionToolbar(
                   title: 'Satirlar',
                   actions: const <Widget>[],
                 ),
-                const SizedBox(height: 6),
+                const SizedBox(height: 4),
                 _buildEntryLineCard(),
               ],
             ),
-            const SizedBox(height: 6),
+            const SizedBox(height: 4),
             Expanded(
               child: CustomScrollView(
                 slivers: <Widget>[

@@ -164,7 +164,7 @@ void main() {
       MaterialApp(
         home: Scaffold(
           body: SizedBox(
-            width: 320,
+            width: 240,
             child: TerminalFormActionRow(
               cancel: OutlinedButton(
                 onPressed: () {},
@@ -188,7 +188,9 @@ void main() {
     );
   });
 
-  testWidgets('stacks lookup rows on tiny terminal width', (tester) async {
+  testWidgets('keeps lookup actions inline on pda terminal width', (
+    tester,
+  ) async {
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
@@ -216,7 +218,7 @@ void main() {
     expect(tester.takeException(), isNull);
     expect(
       _buttonTop(tester, 'Bul'),
-      greaterThan(tester.getBottomLeft(find.text('Barkod')).dy),
+      lessThan(tester.getBottomLeft(find.text('Barkod')).dy),
     );
   });
 }

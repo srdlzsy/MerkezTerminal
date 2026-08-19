@@ -888,14 +888,12 @@ class _LabelDocumentCreateSheetState extends State<_LabelDocumentCreateSheet> {
         children: <Widget>[
           TerminalSheetHeader(
             title: 'Yeni Etiket Belgesi',
-            subtitle:
-                'Belgeye eklenecek urunleri barkodla veya urun aramayla secin.',
             badges: <Widget>[
               TerminalLineCountBadge(count: _filledLineIndexes().length),
             ],
             padding: EdgeInsets.zero,
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 4),
           TerminalCreateInputDock(
             padding: EdgeInsets.zero,
             compactHeightFactor: 0.34,
@@ -904,7 +902,7 @@ class _LabelDocumentCreateSheetState extends State<_LabelDocumentCreateSheet> {
             regularMaxHeight: 320,
             children: <Widget>[_buildEntryLineCard()],
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 4),
           Expanded(
             child: CustomScrollView(
               slivers: <Widget>[

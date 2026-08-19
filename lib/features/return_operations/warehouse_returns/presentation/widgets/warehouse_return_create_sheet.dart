@@ -791,7 +791,6 @@ class _WarehouseReturnCreateSheetState extends State<WarehouseReturnCreateSheet>
                 children: <Widget>[
                   TerminalSheetHeader(
                     title: 'Yeni Giden Depo Iadesi',
-                    subtitle: 'Kaynak depo: ${widget.defaultWarehouseNo}',
                     badges: <Widget>[
                       TerminalLineCountBadge(
                         count: _filledLineIndexes().length,
@@ -802,12 +801,12 @@ class _WarehouseReturnCreateSheetState extends State<WarehouseReturnCreateSheet>
                   TerminalCreateInputDock(
                     children: <Widget>[
                       _buildHeaderSection(theme),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 5),
                       TerminalSectionToolbar(
                         title: 'Satirlar',
                         actions: const <Widget>[],
                       ),
-                      const SizedBox(height: 6),
+                      const SizedBox(height: 4),
                       _buildEntryLineCard(theme),
                     ],
                   ),
@@ -859,7 +858,7 @@ class _WarehouseReturnCreateSheetState extends State<WarehouseReturnCreateSheet>
 
   Widget _buildHeaderSection(ThemeData theme) {
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
         color: theme.colorScheme.surfaceContainerHighest.withAlpha(30),
         borderRadius: BorderRadius.circular(12),
@@ -889,14 +888,13 @@ class _WarehouseReturnCreateSheetState extends State<WarehouseReturnCreateSheet>
                   },
                 ),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 8),
               FilledButton.tonal(
                 onPressed: _searchWarehouse,
                 child: const Text('Sec'),
               ),
             ],
           ),
-          const SizedBox(height: 12),
         ],
       ),
     );

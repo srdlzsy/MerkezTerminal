@@ -969,14 +969,12 @@ class _OfflineInventoryCountCreateSheetState
             children: <Widget>[
               TerminalSheetHeader(
                 title: 'Yeni Offline Sayim',
-                subtitle:
-                    'Bu ekran internet olmadan da calisir. Taslaklar GUID tabanli clientRequestId ile senkronize edilir; online urun arama ve kamera ile barkod okutma istege baglidir.',
                 badges: <Widget>[
                   TerminalLineCountBadge(count: _filledLineIndexes().length),
                 ],
                 padding: EdgeInsets.zero,
               ),
-              const SizedBox(height: 6),
+              const SizedBox(height: 4),
               TerminalCreateInputDock(
                 padding: EdgeInsets.zero,
                 children: <Widget>[
@@ -986,8 +984,8 @@ class _OfflineInventoryCountCreateSheetState
                       labelText: 'Sayim Adi',
                       isDense: true,
                       contentPadding: EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 10,
+                        horizontal: 10,
+                        vertical: 8,
                       ),
                     ),
                     validator: (value) {
@@ -997,22 +995,22 @@ class _OfflineInventoryCountCreateSheetState
                       return null;
                     },
                   ),
-                  const SizedBox(height: 6),
+                  const SizedBox(height: 4),
                   TerminalFilterButton(
                     label: 'Belge Tarihi',
                     value: AppFormatters.date(_documentDate),
                     onPressed: _pickDate,
                   ),
-                  const SizedBox(height: 6),
+                  const SizedBox(height: 4),
                   TerminalSectionToolbar(
                     title: 'Satirlar',
                     actions: const <Widget>[],
                   ),
-                  const SizedBox(height: 6),
+                  const SizedBox(height: 4),
                   _buildEntryLineCard(),
                 ],
               ),
-              const SizedBox(height: 6),
+              const SizedBox(height: 4),
               Expanded(
                 child: CustomScrollView(
                   slivers: <Widget>[
