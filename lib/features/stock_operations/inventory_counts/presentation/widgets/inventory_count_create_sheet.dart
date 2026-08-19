@@ -719,51 +719,52 @@ class _InventoryCountCreateSheetState extends State<InventoryCountCreateSheet>
                     ],
                     elevated: true,
                   ),
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(12, 8, 12, 6),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: <Widget>[
-                        TextFormField(
-                          controller: _nameController,
-                          decoration: const InputDecoration(
-                            labelText: 'Sayim Adi*',
-                            hintText: 'Nisan 2026 Genel Sayim',
+                  TerminalCreateInputDock(
+                    children: <Widget>[
+                      TextFormField(
+                        controller: _nameController,
+                        decoration: const InputDecoration(
+                          labelText: 'Sayim Adi*',
+                          hintText: 'Nisan 2026 Genel Sayim',
+                          isDense: true,
+                          contentPadding: EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 10,
                           ),
-                          validator: (value) {
-                            if ((value ?? '').trim().isEmpty) {
-                              return 'Zorunlu';
-                            }
+                        ),
+                        validator: (value) {
+                          if ((value ?? '').trim().isEmpty) {
+                            return 'Zorunlu';
+                          }
 
-                            return null;
-                          },
-                        ),
-                        const SizedBox(height: 12),
-                        OutlinedButton.icon(
-                          onPressed: _pickDate,
-                          icon: const Icon(Icons.calendar_month_rounded),
-                          label: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: <Widget>[
-                              const Text('Belge Tarihi'),
-                              Text(
-                                AppFormatters.date(_documentDate),
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w700,
-                                ),
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 8),
+                      OutlinedButton.icon(
+                        onPressed: _pickDate,
+                        icon: const Icon(Icons.calendar_month_rounded),
+                        label: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: <Widget>[
+                            const Text('Belge Tarihi'),
+                            Text(
+                              AppFormatters.date(_documentDate),
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w700,
                               ),
-                            ],
-                          ),
+                            ),
+                          ],
                         ),
-                        const SizedBox(height: 12),
-                        TerminalSectionToolbar(
-                          title: 'Satirlar',
-                          actions: const <Widget>[],
-                        ),
-                        const SizedBox(height: 8),
-                        _buildEntryLineCard(theme),
-                      ],
-                    ),
+                      ),
+                      const SizedBox(height: 8),
+                      TerminalSectionToolbar(
+                        title: 'Satirlar',
+                        actions: const <Widget>[],
+                      ),
+                      const SizedBox(height: 6),
+                      _buildEntryLineCard(theme),
+                    ],
                   ),
 
                   Expanded(
@@ -837,10 +838,10 @@ class _InventoryCountCreateSheetState extends State<InventoryCountCreateSheet>
         stockName: product.stockName,
         quantityController: line.quantityController,
         unitLabel: product.unitName,
-        barcode: product.barcode,
         packageLabel: product.unitMultiplier > 1
             ? AppFormatters.quantity(product.unitMultiplier)
             : null,
+        barcode: product.barcode,
         warningLabel: product.isGoodsAcceptanceBlocked ? 'Bayrak var' : null,
         onConfirm: () => _commitEntryLine(line),
         onCancel: () => _cancelPendingEntryLine(line),
@@ -887,6 +888,9 @@ class _InventoryCountCreateSheetState extends State<InventoryCountCreateSheet>
         stockName: product.stockName,
         quantityController: line.quantityController,
         unitLabel: product.unitName,
+        packageLabel: product.unitMultiplier > 1
+            ? AppFormatters.quantity(product.unitMultiplier)
+            : null,
         barcode: product.barcode,
         warningLabel: product.isGoodsAcceptanceBlocked ? 'Bayrak var' : null,
         canDelete: _lines.length > 1,

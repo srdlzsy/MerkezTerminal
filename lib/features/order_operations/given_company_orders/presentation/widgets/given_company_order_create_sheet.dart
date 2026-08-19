@@ -739,21 +739,17 @@ class _GivenCompanyOrderCreateSheetState
                     ],
                     elevated: true,
                   ),
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(12, 8, 12, 6),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: <Widget>[
-                        _buildCustomerSection(theme),
-                        const SizedBox(height: 12),
-                        TerminalSectionToolbar(
-                          title: 'Satirlar (${_activeLineCount()})',
-                          actions: const <Widget>[],
-                        ),
-                        const SizedBox(height: 8),
-                        _buildEntryLineCard(theme),
-                      ],
-                    ),
+                  TerminalCreateInputDock(
+                    children: <Widget>[
+                      _buildCustomerSection(theme),
+                      const SizedBox(height: 8),
+                      TerminalSectionToolbar(
+                        title: 'Satirlar (${_activeLineCount()})',
+                        actions: const <Widget>[],
+                      ),
+                      const SizedBox(height: 6),
+                      _buildEntryLineCard(theme),
+                    ],
                   ),
 
                   Expanded(
@@ -1002,6 +998,9 @@ class _GivenCompanyOrderCreateSheetState
         stockName: product.stockName,
         quantityController: line.quantityController,
         unitLabel: product.unitName,
+        packageLabel: product.unitMultiplier > 1
+            ? AppFormatters.quantity(product.unitMultiplier)
+            : null,
         priceLabel: AppFormatters.currency(
           productEntryController.readQuantity(
             line.unitPriceController.text,

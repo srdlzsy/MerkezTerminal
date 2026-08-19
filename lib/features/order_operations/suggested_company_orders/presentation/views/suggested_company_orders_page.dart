@@ -447,7 +447,9 @@ class _SuggestedCompanyOrderCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final subtitle = <String>[
-      item.stockCode,
+      if (item.stockCode.trim().isNotEmpty) 'Kod ${item.stockCode}',
+      if (item.packageFactor > 0)
+        'Koli ${AppFormatters.quantity(item.packageFactor)}',
       if (item.barcode.trim().isNotEmpty) item.barcode,
       if (item.modelCode.trim().isNotEmpty) 'Model ${item.modelCode}',
     ].where((part) => part.trim().isNotEmpty).join(' | ');

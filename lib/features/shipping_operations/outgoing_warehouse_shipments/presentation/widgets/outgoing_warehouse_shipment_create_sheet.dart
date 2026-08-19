@@ -1813,19 +1813,15 @@ class _OutgoingWarehouseShipmentCreateSheetState
                     ],
                     elevated: true,
                   ),
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(12, 8, 12, 6),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: <Widget>[
-                        _buildShipmentSetupSection(theme),
-                        const SizedBox(height: 10),
-                        if (_mode == _ShipmentCreateMode.manual)
-                          _buildManualEntrySection(theme)
-                        else
-                          _buildOrderLinkedEntrySection(theme),
-                      ],
-                    ),
+                  TerminalCreateInputDock(
+                    children: <Widget>[
+                      _buildShipmentSetupSection(theme),
+                      const SizedBox(height: 8),
+                      if (_mode == _ShipmentCreateMode.manual)
+                        _buildManualEntrySection(theme)
+                      else
+                        _buildOrderLinkedEntrySection(theme),
+                    ],
                   ),
                   Expanded(
                     child: CustomScrollView(
@@ -2290,10 +2286,10 @@ class _ManualShipmentLineCard extends StatelessWidget {
         stockName: product.stockName,
         quantityController: line.quantityController,
         unitLabel: product.unitName,
-        barcode: product.barcode,
         packageLabel: product.unitMultiplier > 1
             ? AppFormatters.quantity(product.unitMultiplier)
             : null,
+        barcode: product.barcode,
         priceLabel: product.price > 0
             ? AppFormatters.currency(product.price)
             : null,
@@ -2342,6 +2338,9 @@ class _ManualShipmentLineCard extends StatelessWidget {
         stockName: product.stockName,
         quantityController: line.quantityController,
         unitLabel: product.unitName,
+        packageLabel: product.unitMultiplier > 1
+            ? AppFormatters.quantity(product.unitMultiplier)
+            : null,
         barcode: product.barcode,
         quantityStep: line.quantityStep,
         maximumQuantity: _maxShipmentLineQuantity,
@@ -2550,6 +2549,9 @@ class _LinkedShipmentLineCard extends StatelessWidget {
         stockName: line.stockName,
         quantityController: line.quantityController,
         unitLabel: line.unitName,
+        packageLabel: product != null && product.unitMultiplier > 1
+            ? AppFormatters.quantity(product.unitMultiplier)
+            : null,
         barcode: product?.barcode,
         quantityStep: line.quantityStep,
         priceLabel: isQuantityLimited

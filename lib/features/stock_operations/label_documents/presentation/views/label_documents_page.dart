@@ -895,9 +895,16 @@ class _LabelDocumentCreateSheetState extends State<_LabelDocumentCreateSheet> {
             ],
             padding: EdgeInsets.zero,
           ),
-          const SizedBox(height: 8),
-          _buildEntryLineCard(),
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
+          TerminalCreateInputDock(
+            padding: EdgeInsets.zero,
+            compactHeightFactor: 0.34,
+            regularHeightFactor: 0.36,
+            compactMaxHeight: 260,
+            regularMaxHeight: 320,
+            children: <Widget>[_buildEntryLineCard()],
+          ),
+          const SizedBox(height: 6),
           Expanded(
             child: CustomScrollView(
               slivers: <Widget>[
@@ -1035,6 +1042,11 @@ class _LabelDocumentCreateSheetState extends State<_LabelDocumentCreateSheet> {
               items: <TerminalPdaInfo>[
                 TerminalPdaInfo(label: 'Kod', value: product.stockCode),
                 TerminalPdaInfo(label: 'Birim', value: product.unitName),
+                if (product.unitMultiplier > 1)
+                  TerminalPdaInfo(
+                    label: 'Koli',
+                    value: AppFormatters.quantity(product.unitMultiplier),
+                  ),
                 if (product.barcode.trim().isNotEmpty)
                   TerminalPdaInfo(label: 'Barkod', value: product.barcode),
               ],

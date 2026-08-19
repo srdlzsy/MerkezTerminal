@@ -1501,14 +1501,19 @@ class _CompanyAcceptanceCreateSheetState
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
-        _buildLineStepSummary(),
-        if (_lookupError != null) ...<Widget>[
-          const SizedBox(height: 6),
-          TerminalMessageBlock.error(message: _lookupError!),
-        ],
+        TerminalCreateInputDock(
+          padding: const EdgeInsets.only(top: 2, bottom: 6),
+          children: <Widget>[
+            _buildLineStepSummary(),
+            if (_lookupError != null) ...<Widget>[
+              const SizedBox(height: 6),
+              TerminalMessageBlock.error(message: _lookupError!),
+            ],
+            const SizedBox(height: 6),
+            _buildEntryLineCard(),
+          ],
+        ),
         const SizedBox(height: 6),
-        _buildEntryLineCard(),
-        const SizedBox(height: 8),
         Expanded(
           child: CustomScrollView(
             slivers: <Widget>[
@@ -1814,6 +1819,13 @@ class _CompanyAcceptanceCreateSheetState
                     line.selectedProduct?.stockName ??
                     line.lookupController.text.trim(),
                 unitLabel: line.selectedProduct?.unitName,
+                packageLabel:
+                    line.selectedProduct != null &&
+                        line.selectedProduct!.unitMultiplier > 1
+                    ? AppFormatters.quantity(
+                        line.selectedProduct!.unitMultiplier,
+                      )
+                    : null,
                 barcode: line.selectedProduct?.barcode,
                 priceLabel: line.unitPrice > 0
                     ? AppFormatters.currency(line.unitPrice)

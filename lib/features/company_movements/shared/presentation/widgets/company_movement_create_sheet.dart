@@ -860,41 +860,46 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
               ],
               padding: EdgeInsets.zero,
             ),
-            const SizedBox(height: 8),
-            TerminalResponsiveLookupRow(
-              field: TextFormField(
-                controller: _customerController,
-                decoration: const InputDecoration(
-                  labelText: 'Cari',
-                  hintText: 'Cari adi veya kodu',
-                  isDense: true,
-                  contentPadding: EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 10,
+            const SizedBox(height: 6),
+            TerminalCreateInputDock(
+              padding: EdgeInsets.zero,
+              children: <Widget>[
+                TerminalResponsiveLookupRow(
+                  field: TextFormField(
+                    controller: _customerController,
+                    decoration: const InputDecoration(
+                      labelText: 'Cari',
+                      hintText: 'Cari adi veya kodu',
+                      isDense: true,
+                      contentPadding: EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 10,
+                      ),
+                    ),
+                    validator: (_) {
+                      if (_selectedCustomer == null) {
+                        return 'Cari secimi zorunludur.';
+                      }
+
+                      return null;
+                    },
+                  ),
+                  action: FilledButton.icon(
+                    onPressed: _searchCustomer,
+                    icon: const Icon(Icons.search_rounded),
+                    label: const Text('Bul'),
                   ),
                 ),
-                validator: (_) {
-                  if (_selectedCustomer == null) {
-                    return 'Cari secimi zorunludur.';
-                  }
-
-                  return null;
-                },
-              ),
-              action: FilledButton.icon(
-                onPressed: _searchCustomer,
-                icon: const Icon(Icons.search_rounded),
-                label: const Text('Bul'),
-              ),
-            ),
-            const SizedBox(height: 8),
-            TerminalSectionToolbar(
-              title: 'Satirlar',
-              actions: const <Widget>[],
+                const SizedBox(height: 6),
+                TerminalSectionToolbar(
+                  title: 'Satirlar',
+                  actions: const <Widget>[],
+                ),
+                const SizedBox(height: 6),
+                _buildEntryLineCard(),
+              ],
             ),
             const SizedBox(height: 6),
-            _buildEntryLineCard(),
-            const SizedBox(height: 8),
             Expanded(
               child: CustomScrollView(
                 slivers: <Widget>[
@@ -1030,6 +1035,9 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
         stockName: product.stockName,
         quantityController: line.quantityController,
         unitLabel: product.unitName,
+        packageLabel: product.unitMultiplier > 1
+            ? AppFormatters.quantity(product.unitMultiplier)
+            : null,
         priceLabel: AppFormatters.currency(product.price),
         barcode: product.barcode,
         canDelete: _lines.length > 1,

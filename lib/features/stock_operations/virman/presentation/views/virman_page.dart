@@ -1368,46 +1368,49 @@ class _VirmanCreateSheetState extends State<_VirmanCreateSheet>
               ],
               padding: EdgeInsets.zero,
             ),
-            const SizedBox(height: 8),
-            Flexible(
-              child: SingleChildScrollView(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
+            const SizedBox(height: 6),
+            TerminalCreateInputDock(
+              padding: EdgeInsets.zero,
+              children: <Widget>[
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 6,
                   children: <Widget>[
-                    Wrap(
-                      spacing: 12,
-                      runSpacing: 8,
-                      children: <Widget>[
-                        TerminalFilterButton(
-                          label: 'Hareket Tarihi',
-                          value: AppFormatters.date(_movementDate),
-                          onPressed: () => _pickDate(isMovementDate: true),
-                        ),
-                        TerminalFilterButton(
-                          label: 'Belge Tarihi',
-                          value: AppFormatters.date(_documentDate),
-                          onPressed: () => _pickDate(isMovementDate: false),
-                        ),
-                      ],
+                    TerminalFilterButton(
+                      label: 'Hareket Tarihi',
+                      value: AppFormatters.date(_movementDate),
+                      onPressed: () => _pickDate(isMovementDate: true),
                     ),
-                    const SizedBox(height: 8),
-                    TextFormField(
-                      controller: _descriptionController,
-                      maxLines: 2,
-                      decoration: const InputDecoration(labelText: 'Aciklama'),
+                    TerminalFilterButton(
+                      label: 'Belge Tarihi',
+                      value: AppFormatters.date(_documentDate),
+                      onPressed: () => _pickDate(isMovementDate: false),
                     ),
-                    const SizedBox(height: 8),
                   ],
                 ),
-              ),
-            ),
-            TerminalSectionToolbar(
-              title: 'Satirlar',
-              actions: const <Widget>[],
+                const SizedBox(height: 6),
+                TextFormField(
+                  controller: _descriptionController,
+                  maxLines: 1,
+                  decoration: const InputDecoration(
+                    labelText: 'Aciklama',
+                    isDense: true,
+                    contentPadding: EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 10,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 6),
+                TerminalSectionToolbar(
+                  title: 'Satirlar',
+                  actions: const <Widget>[],
+                ),
+                const SizedBox(height: 6),
+                _buildEntryLineCard(),
+              ],
             ),
             const SizedBox(height: 6),
-            _buildEntryLineCard(),
-            const SizedBox(height: 8),
             Expanded(
               child: CustomScrollView(
                 slivers: <Widget>[
@@ -1541,10 +1544,10 @@ class _VirmanDraftLineCard extends StatelessWidget {
             quantityController: line.quantityController,
             unitLabel:
                 '${product.unitName} | ${_movementTypeLabel(line.movementType)}',
-            barcode: product.barcode,
             packageLabel: product.unitMultiplier > 1
                 ? AppFormatters.quantity(product.unitMultiplier)
                 : null,
+            barcode: product.barcode,
             priceLabel: product.price > 0
                 ? AppFormatters.currency(product.price)
                 : null,
@@ -1601,6 +1604,9 @@ class _VirmanDraftLineCard extends StatelessWidget {
             quantityController: line.quantityController,
             unitLabel:
                 '${product.unitName} | ${_movementTypeLabel(line.movementType)}',
+            packageLabel: product.unitMultiplier > 1
+                ? AppFormatters.quantity(product.unitMultiplier)
+                : null,
             barcode: product.barcode,
             canDelete: canRemove,
             onDelete: onRemove,

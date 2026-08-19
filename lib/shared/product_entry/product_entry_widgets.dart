@@ -98,62 +98,150 @@ class ProductDraftEntryPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    final mediaQuery = MediaQuery.of(context);
 
-    return TerminalPdaLineCard(
-      title: title,
-      subtitle: stockName,
-      isEntryLine: true,
-      leading: const Icon(Icons.inventory_2_rounded),
-      trailing: IconButton(
-        onPressed: onCancel,
-        icon: const Icon(Icons.close_rounded),
-        tooltip: 'Secimi temizle',
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: <Widget>[
-          if (scanRow != null) ...<Widget>[
-            scanRow!,
-            const SizedBox(height: 10),
-          ],
-          TerminalPdaInfoGrid(
-            minTileWidth: 92,
-            items: <TerminalPdaInfo>[
-              TerminalPdaInfo(label: 'Kod', value: stockCode),
-              if ((unitLabel ?? '').trim().isNotEmpty)
-                TerminalPdaInfo(label: 'Birim', value: unitLabel!),
-              if ((barcode ?? '').trim().isNotEmpty)
-                TerminalPdaInfo(label: 'Barkod', value: barcode!),
-              if ((packageLabel ?? '').trim().isNotEmpty)
-                TerminalPdaInfo(label: 'Koli', value: packageLabel!),
-              if ((priceLabel ?? '').trim().isNotEmpty)
-                TerminalPdaInfo(label: 'Fiyat', value: priceLabel!),
-              ...extraInfo,
-            ],
-          ),
-          if ((warningLabel ?? '').trim().isNotEmpty) ...<Widget>[
-            const SizedBox(height: 8),
-            Text(
-              warningLabel!,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.error,
-                fontWeight: FontWeight.w800,
-              ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final keyboardHeight = mediaQuery.viewInsets.bottom;
+        final usableHeight = mediaQuery.size.height - keyboardHeight;
+        final isCompact =
+            mediaQuery.size.width < 380 ||
+            usableHeight < 700 ||
+            keyboardHeight > 0 ||
+            (constraints.hasBoundedHeight && constraints.maxHeight < 360);
+        final body = _buildBody(
+          context,
+          isCompact: isCompact,
+          includeActions: !isCompact,
+        );
+
+        if (!isCompact) {
+          return TerminalPdaLineCard(
+            title: title,
+            subtitle: stockName,
+            isEntryLine: true,
+            leading: const Icon(Icons.inventory_2_rounded),
+            trailing: IconButton(
+              onPressed: onCancel,
+              icon: const Icon(Icons.close_rounded),
+              tooltip: 'Secimi temizle',
             ),
-          ],
-          const SizedBox(height: 10),
-          _buildQuantityInputs(),
-          const SizedBox(height: 10),
-          _buildActionButtons(),
-        ],
-      ),
+            child: body,
+          );
+        }
+
+        final baseHeight = constraints.hasBoundedHeight
+            ? constraints.maxHeight
+            : usableHeight;
+        final maxPanelHeight = (baseHeight * (keyboardHeight > 0 ? 0.48 : 0.58))
+            .clamp(keyboardHeight > 0 ? 156.0 : 196.0, 360.0)
+            .toDouble();
+
+        return _ScrollableDraftEntryCard(
+          title: title,
+          subtitle: stockName,
+          maxHeight: maxPanelHeight,
+          onCancel: onCancel,
+          actions: _buildActionButtons(isCompact: true),
+          child: body,
+        );
+      },
     );
   }
 
-  Widget _buildActionButtons() {
+  Widget _buildBody(
+    BuildContext context, {
+    required bool isCompact,
+    required bool includeActions,
+  }) {
+    final theme = Theme.of(context);
+    final warning = warningLabel?.trim() ?? '';
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        if (scanRow != null) ...<Widget>[
+          scanRow!,
+          SizedBox(height: isCompact ? 6 : 10),
+        ],
+        TerminalPdaInfoGrid(
+          minTileWidth: isCompact ? 74 : 92,
+          spacing: isCompact ? 4 : 6,
+          items: _infoItems,
+        ),
+        if (warning.isNotEmpty) ...<Widget>[
+          SizedBox(height: isCompact ? 5 : 8),
+          Text(
+            warning,
+            maxLines: isCompact ? 1 : 2,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.error,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
+        SizedBox(height: isCompact ? 7 : 10),
+        _buildQuantityInputs(isCompact: isCompact),
+        SizedBox(height: isCompact ? 7 : 10),
+        if (includeActions) _buildActionButtons(isCompact: isCompact),
+      ],
+    );
+  }
+
+  List<TerminalPdaInfo> get _infoItems {
+    return <TerminalPdaInfo>[
+      TerminalPdaInfo(label: 'Kod', value: stockCode),
+      if ((unitLabel ?? '').trim().isNotEmpty)
+        TerminalPdaInfo(label: 'Birim', value: unitLabel!),
+      if ((barcode ?? '').trim().isNotEmpty)
+        TerminalPdaInfo(label: 'Barkod', value: barcode!),
+      if ((packageLabel ?? '').trim().isNotEmpty)
+        TerminalPdaInfo(label: 'Koli', value: packageLabel!),
+      if ((priceLabel ?? '').trim().isNotEmpty)
+        TerminalPdaInfo(label: 'Fiyat', value: priceLabel!),
+      ...extraInfo,
+    ];
+  }
+
+  Widget _buildActionButtons({required bool isCompact}) {
+    if (isCompact) {
+      return Row(
+        children: <Widget>[
+          SizedBox(
+            width: 44,
+            height: 40,
+            child: OutlinedButton(
+              onPressed: onCancel,
+              style: OutlinedButton.styleFrom(
+                padding: EdgeInsets.zero,
+                minimumSize: const Size(44, 40),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              child: const Icon(Icons.clear_rounded, size: 20),
+            ),
+          ),
+          const SizedBox(width: 6),
+          Expanded(
+            child: FilledButton.icon(
+              onPressed: onConfirm,
+              icon: const Icon(Icons.playlist_add_rounded, size: 18),
+              label: Text(
+                confirmLabel,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              style: FilledButton.styleFrom(
+                minimumSize: const Size.fromHeight(40),
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+
     final cancelButton = OutlinedButton.icon(
       onPressed: onCancel,
       icon: const Icon(Icons.clear_rounded),
@@ -189,7 +277,7 @@ class ProductDraftEntryPanel extends StatelessWidget {
     );
   }
 
-  Widget _buildQuantityInputs() {
+  Widget _buildQuantityInputs({required bool isCompact}) {
     final primaryQuantity = TerminalQuantityStepper(
       controller: quantityController,
       label: quantityLabel,
@@ -199,6 +287,7 @@ class ProductDraftEntryPanel extends StatelessWidget {
       validator: quantityValidator,
       onChanged: onQuantityChanged,
       onSubmitted: onConfirm,
+      dense: isCompact,
     );
     final secondaryController = secondaryQuantityController;
     if (secondaryController == null) {
@@ -214,6 +303,7 @@ class ProductDraftEntryPanel extends StatelessWidget {
       validator: secondaryQuantityValidator,
       onChanged: onSecondaryQuantityChanged,
       onSubmitted: onConfirm,
+      dense: isCompact,
     );
 
     return LayoutBuilder(
@@ -222,7 +312,7 @@ class ProductDraftEntryPanel extends StatelessWidget {
           return Column(
             children: <Widget>[
               primaryQuantity,
-              const SizedBox(height: 8),
+              SizedBox(height: isCompact ? 6 : 8),
               secondaryQuantity,
             ],
           );
@@ -236,6 +326,116 @@ class ProductDraftEntryPanel extends StatelessWidget {
           ],
         );
       },
+    );
+  }
+}
+
+class _ScrollableDraftEntryCard extends StatelessWidget {
+  const _ScrollableDraftEntryCard({
+    required this.title,
+    required this.subtitle,
+    required this.maxHeight,
+    required this.onCancel,
+    required this.actions,
+    required this.child,
+  });
+
+  final String title;
+  final String subtitle;
+  final double maxHeight;
+  final VoidCallback onCancel;
+  final Widget actions;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return ConstrainedBox(
+      constraints: BoxConstraints(maxHeight: maxHeight),
+      child: Container(
+        width: double.infinity,
+        margin: const EdgeInsets.only(bottom: 6),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.primaryContainer.withAlpha(42),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: theme.colorScheme.primary.withAlpha(102)),
+          boxShadow: <BoxShadow>[
+            BoxShadow(
+              color: Colors.black.withAlpha(4),
+              blurRadius: 5,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Column(
+          children: <Widget>[
+            Padding(
+              padding: const EdgeInsets.fromLTRB(8, 4, 6, 3),
+              child: Row(
+                children: <Widget>[
+                  const Icon(Icons.inventory_2_rounded, size: 18),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Row(
+                      children: <Widget>[
+                        Flexible(
+                          child: Text(
+                            title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.titleSmall?.copyWith(
+                              height: 1.05,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: Text(
+                            subtitle,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.labelMedium?.copyWith(
+                              height: 1.05,
+                              color: theme.colorScheme.onSurface.withAlpha(150),
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: onCancel,
+                    icon: const Icon(Icons.close_rounded, size: 20),
+                    tooltip: 'Secimi temizle',
+                    constraints: const BoxConstraints.tightFor(
+                      width: 36,
+                      height: 36,
+                    ),
+                    padding: EdgeInsets.zero,
+                    style: IconButton.styleFrom(
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(height: 1),
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(6),
+                keyboardDismissBehavior:
+                    ScrollViewKeyboardDismissBehavior.onDrag,
+                child: child,
+              ),
+            ),
+            const Divider(height: 1),
+            Padding(padding: const EdgeInsets.all(6), child: actions),
+          ],
+        ),
+      ),
     );
   }
 }

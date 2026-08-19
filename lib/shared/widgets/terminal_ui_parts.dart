@@ -1057,6 +1057,7 @@ class TerminalCompactProductLineCard extends StatelessWidget {
     this.unitLabel,
     this.priceLabel,
     this.barcode,
+    this.packageLabel,
     this.warningLabel,
     this.canDelete = true,
     this.onDelete,
@@ -1074,6 +1075,7 @@ class TerminalCompactProductLineCard extends StatelessWidget {
   final String? unitLabel;
   final String? priceLabel;
   final String? barcode;
+  final String? packageLabel;
   final String? warningLabel;
   final bool canDelete;
   final VoidCallback? onDelete;
@@ -1108,6 +1110,7 @@ class TerminalCompactProductLineCard extends StatelessWidget {
             unitLabel: unitLabel,
             priceLabel: priceLabel,
             barcode: barcode,
+            packageLabel: packageLabel,
             warningLabel: warningLabel,
             showLineLabel: true,
           );
@@ -1184,6 +1187,7 @@ class TerminalCompactProductLineSummary extends StatelessWidget {
     this.unitLabel,
     this.priceLabel,
     this.barcode,
+    this.packageLabel,
     this.warningLabel,
     this.trailing,
   });
@@ -1194,6 +1198,7 @@ class TerminalCompactProductLineSummary extends StatelessWidget {
   final String? unitLabel;
   final String? priceLabel;
   final String? barcode;
+  final String? packageLabel;
   final String? warningLabel;
   final Widget? trailing;
 
@@ -1220,6 +1225,7 @@ class TerminalCompactProductLineSummary extends StatelessWidget {
               unitLabel: unitLabel,
               priceLabel: priceLabel,
               barcode: barcode,
+              packageLabel: packageLabel,
               warningLabel: warningLabel,
               showLineLabel: false,
             ),
@@ -1242,6 +1248,7 @@ class _TerminalCompactProductLineDetails extends StatelessWidget {
     required this.unitLabel,
     required this.priceLabel,
     required this.barcode,
+    required this.packageLabel,
     required this.warningLabel,
     required this.showLineLabel,
   });
@@ -1252,6 +1259,7 @@ class _TerminalCompactProductLineDetails extends StatelessWidget {
   final String? unitLabel;
   final String? priceLabel;
   final String? barcode;
+  final String? packageLabel;
   final String? warningLabel;
   final bool showLineLabel;
 
@@ -1285,35 +1293,15 @@ class _TerminalCompactProductLineDetails extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: <Widget>[
-              Row(
-                children: <Widget>[
-                  ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 92),
-                    child: Text(
-                      stockCode,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.labelLarge?.copyWith(
-                        height: 1.05,
-                        color: const Color(0xFF22356A),
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 5),
-                  Expanded(
-                    child: Text(
-                      stockName,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        height: 1.05,
-                        color: const Color(0xFF2E3946),
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-                ],
+              Text(
+                stockName,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  height: 1.08,
+                  color: const Color(0xFF1F2937),
+                  fontWeight: FontWeight.w800,
+                ),
               ),
               const SizedBox(height: 4),
               Wrap(
@@ -1322,8 +1310,12 @@ class _TerminalCompactProductLineDetails extends StatelessWidget {
                 children: <Widget>[
                   if (showLineLabel)
                     _TerminalMiniLineMeta(text: 'Satir $lineNo'),
+                  if (stockCode.trim().isNotEmpty)
+                    _TerminalMiniLineMeta(text: stockCode),
                   if ((unitLabel ?? '').trim().isNotEmpty)
                     _TerminalMiniLineMeta(text: unitLabel!),
+                  if ((packageLabel ?? '').trim().isNotEmpty)
+                    _TerminalMiniLineMeta(text: 'Koli $packageLabel'),
                   if ((priceLabel ?? '').trim().isNotEmpty)
                     _TerminalMiniLineMeta(text: priceLabel!),
                   if ((barcode ?? '').trim().isNotEmpty)
@@ -1566,6 +1558,7 @@ class TerminalQuantityStepper extends StatelessWidget {
     this.onSubmitted,
     this.onMinimumReached,
     this.inputFormatters = const <TextInputFormatter>[],
+    this.dense = false,
   });
 
   final TextEditingController controller;
@@ -1579,25 +1572,33 @@ class TerminalQuantityStepper extends StatelessWidget {
   final VoidCallback? onSubmitted;
   final VoidCallback? onMinimumReached;
   final List<TextInputFormatter> inputFormatters;
+  final bool dense;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final buttonSize = dense ? 38.0 : 44.0;
+    final iconSize = dense ? 18.0 : 20.0;
+    final gap = dense ? 4.0 : 6.0;
+    final verticalPadding = dense ? 6.0 : 8.0;
 
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
         IconButton.filledTonal(
           onPressed: enabled ? () => _changeBy(context, -step) : null,
-          icon: const Icon(Icons.remove_rounded, size: 20),
+          icon: Icon(Icons.remove_rounded, size: iconSize),
           tooltip: 'Azalt',
-          constraints: const BoxConstraints.tightFor(width: 44, height: 44),
+          constraints: BoxConstraints.tightFor(
+            width: buttonSize,
+            height: buttonSize,
+          ),
           padding: EdgeInsets.zero,
           style: IconButton.styleFrom(
             tapTargetSize: MaterialTapTargetSize.padded,
           ),
         ),
-        const SizedBox(width: 6),
+        SizedBox(width: gap),
         Expanded(
           child: Builder(
             builder: (fieldContext) {
@@ -1622,9 +1623,9 @@ class TerminalQuantityStepper extends StatelessWidget {
                 decoration: InputDecoration(
                   labelText: label,
                   isDense: true,
-                  contentPadding: const EdgeInsets.symmetric(
+                  contentPadding: EdgeInsets.symmetric(
                     horizontal: 8,
-                    vertical: 8,
+                    vertical: verticalPadding,
                   ),
                   filled: true,
                   fillColor: theme.colorScheme.surface,
@@ -1640,12 +1641,15 @@ class TerminalQuantityStepper extends StatelessWidget {
             },
           ),
         ),
-        const SizedBox(width: 6),
+        SizedBox(width: gap),
         IconButton.filled(
           onPressed: enabled ? () => _changeBy(context, step) : null,
-          icon: const Icon(Icons.add_rounded, size: 20),
+          icon: Icon(Icons.add_rounded, size: iconSize),
           tooltip: 'Artir',
-          constraints: const BoxConstraints.tightFor(width: 44, height: 44),
+          constraints: BoxConstraints.tightFor(
+            width: buttonSize,
+            height: buttonSize,
+          ),
           padding: EdgeInsets.zero,
           style: IconButton.styleFrom(
             tapTargetSize: MaterialTapTargetSize.padded,
@@ -1780,6 +1784,57 @@ class TerminalFormActionRow extends StatelessWidget {
           ],
         );
       },
+    );
+  }
+}
+
+class TerminalCreateInputDock extends StatelessWidget {
+  const TerminalCreateInputDock({
+    super.key,
+    required this.children,
+    this.preferBottomVisible = true,
+    this.padding = const EdgeInsets.fromLTRB(12, 6, 12, 6),
+    this.compactHeightFactor = 0.42,
+    this.regularHeightFactor = 0.46,
+    this.compactMaxHeight = 380,
+    this.regularMaxHeight = 460,
+  });
+
+  final List<Widget> children;
+  final bool preferBottomVisible;
+  final EdgeInsetsGeometry padding;
+  final double compactHeightFactor;
+  final double regularHeightFactor;
+  final double compactMaxHeight;
+  final double regularMaxHeight;
+
+  @override
+  Widget build(BuildContext context) {
+    final mediaQuery = MediaQuery.of(context);
+    final keyboardHeight = mediaQuery.viewInsets.bottom;
+    final usableHeight = mediaQuery.size.height - keyboardHeight;
+    final isCompact =
+        mediaQuery.size.width < 390 || usableHeight < 720 || keyboardHeight > 0;
+    final maxHeight =
+        (usableHeight * (isCompact ? compactHeightFactor : regularHeightFactor))
+            .clamp(
+              isCompact ? 168.0 : 220.0,
+              isCompact ? compactMaxHeight : regularMaxHeight,
+            )
+            .toDouble();
+
+    return ConstrainedBox(
+      constraints: BoxConstraints(maxHeight: maxHeight),
+      child: SingleChildScrollView(
+        reverse: isCompact && preferBottomVisible,
+        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+        padding: padding,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          mainAxisSize: MainAxisSize.min,
+          children: children,
+        ),
+      ),
     );
   }
 }

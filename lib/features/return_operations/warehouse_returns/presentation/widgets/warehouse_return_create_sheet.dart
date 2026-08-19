@@ -799,21 +799,17 @@ class _WarehouseReturnCreateSheetState extends State<WarehouseReturnCreateSheet>
                     ],
                     elevated: true,
                   ),
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(12, 8, 12, 6),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: <Widget>[
-                        _buildHeaderSection(theme),
-                        const SizedBox(height: 12),
-                        TerminalSectionToolbar(
-                          title: 'Satirlar',
-                          actions: const <Widget>[],
-                        ),
-                        const SizedBox(height: 8),
-                        _buildEntryLineCard(theme),
-                      ],
-                    ),
+                  TerminalCreateInputDock(
+                    children: <Widget>[
+                      _buildHeaderSection(theme),
+                      const SizedBox(height: 8),
+                      TerminalSectionToolbar(
+                        title: 'Satirlar',
+                        actions: const <Widget>[],
+                      ),
+                      const SizedBox(height: 6),
+                      _buildEntryLineCard(theme),
+                    ],
                   ),
 
                   Expanded(
@@ -958,10 +954,10 @@ class _WarehouseReturnCreateSheetState extends State<WarehouseReturnCreateSheet>
         stockName: product.stockName,
         quantityController: line.quantityController,
         unitLabel: product.unitName,
-        barcode: product.barcode,
         packageLabel: product.unitMultiplier > 1
             ? AppFormatters.quantity(product.unitMultiplier)
             : null,
+        barcode: product.barcode,
         priceLabel: product.price > 0
             ? AppFormatters.currency(product.price)
             : null,
@@ -1012,6 +1008,9 @@ class _WarehouseReturnCreateSheetState extends State<WarehouseReturnCreateSheet>
         stockName: product.stockName,
         quantityController: line.quantityController,
         unitLabel: product.unitName,
+        packageLabel: product.unitMultiplier > 1
+            ? AppFormatters.quantity(product.unitMultiplier)
+            : null,
         barcode: product.barcode,
         canDelete: _lines.length > 1,
         onDelete: () => _removeLine(line),

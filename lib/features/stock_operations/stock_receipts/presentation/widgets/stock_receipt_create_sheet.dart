@@ -778,16 +778,21 @@ class _StockReceiptCreateSheetState extends State<StockReceiptCreateSheet>
               ],
               padding: EdgeInsets.zero,
             ),
-            const SizedBox(height: 8),
-            _buildReceiptSetupSection(),
             const SizedBox(height: 6),
-            TerminalSectionToolbar(
-              title: 'Satirlar',
-              actions: const <Widget>[],
+            TerminalCreateInputDock(
+              padding: EdgeInsets.zero,
+              children: <Widget>[
+                _buildReceiptSetupSection(),
+                const SizedBox(height: 6),
+                TerminalSectionToolbar(
+                  title: 'Satirlar',
+                  actions: const <Widget>[],
+                ),
+                const SizedBox(height: 6),
+                _buildEntryLineCard(),
+              ],
             ),
             const SizedBox(height: 6),
-            _buildEntryLineCard(),
-            const SizedBox(height: 8),
             Expanded(
               child: CustomScrollView(
                 slivers: <Widget>[
@@ -936,10 +941,10 @@ class _StockReceiptCreateSheetState extends State<StockReceiptCreateSheet>
         stockName: product.stockName,
         quantityController: line.quantityController,
         unitLabel: product.unitName,
-        barcode: product.barcode,
         packageLabel: product.unitMultiplier > 1
             ? AppFormatters.quantity(product.unitMultiplier)
             : null,
+        barcode: product.barcode,
         onConfirm: () => _commitEntryLine(line),
         onCancel: () => _cancelPendingEntryLine(line),
         scanRow: TerminalResponsiveLookupRow(
@@ -987,6 +992,9 @@ class _StockReceiptCreateSheetState extends State<StockReceiptCreateSheet>
         stockName: product.stockName,
         quantityController: line.quantityController,
         unitLabel: product.unitName,
+        packageLabel: product.unitMultiplier > 1
+            ? AppFormatters.quantity(product.unitMultiplier)
+            : null,
         barcode: product.barcode,
         canDelete: _lines.length > 1,
         onDelete: () => _removeLineAt(index),

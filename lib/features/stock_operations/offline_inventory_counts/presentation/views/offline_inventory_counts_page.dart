@@ -881,7 +881,7 @@ class _OfflineInventoryCountCreateSheetState
       stockName: line.stockNameController.text.trim(),
       barcode: line.barcodeController.text.trim(),
       unitName: 'Birim ${line.unitPointer}',
-      unitMultiplier: 1,
+      unitMultiplier: line.unitMultiplier,
       warehouseNo: int.tryParse(widget.defaultWarehouseNo) ?? 0,
       price: 0,
       isGoodsAcceptanceBlocked: false,
@@ -976,42 +976,43 @@ class _OfflineInventoryCountCreateSheetState
                 ],
                 padding: EdgeInsets.zero,
               ),
-              const SizedBox(height: 8),
-              Flexible(
-                child: SingleChildScrollView(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: <Widget>[
-                      TextFormField(
-                        controller: _nameController,
-                        decoration: const InputDecoration(
-                          labelText: 'Sayim Adi',
-                        ),
-                        validator: (value) {
-                          if ((value ?? '').trim().isEmpty) {
-                            return 'Sayim adi zorunludur.';
-                          }
-                          return null;
-                        },
+              const SizedBox(height: 6),
+              TerminalCreateInputDock(
+                padding: EdgeInsets.zero,
+                children: <Widget>[
+                  TextFormField(
+                    controller: _nameController,
+                    decoration: const InputDecoration(
+                      labelText: 'Sayim Adi',
+                      isDense: true,
+                      contentPadding: EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 10,
                       ),
-                      const SizedBox(height: 8),
-                      TerminalFilterButton(
-                        label: 'Belge Tarihi',
-                        value: AppFormatters.date(_documentDate),
-                        onPressed: _pickDate,
-                      ),
-                      const SizedBox(height: 8),
-                    ],
+                    ),
+                    validator: (value) {
+                      if ((value ?? '').trim().isEmpty) {
+                        return 'Sayim adi zorunludur.';
+                      }
+                      return null;
+                    },
                   ),
-                ),
-              ),
-              TerminalSectionToolbar(
-                title: 'Satirlar',
-                actions: const <Widget>[],
+                  const SizedBox(height: 6),
+                  TerminalFilterButton(
+                    label: 'Belge Tarihi',
+                    value: AppFormatters.date(_documentDate),
+                    onPressed: _pickDate,
+                  ),
+                  const SizedBox(height: 6),
+                  TerminalSectionToolbar(
+                    title: 'Satirlar',
+                    actions: const <Widget>[],
+                  ),
+                  const SizedBox(height: 6),
+                  _buildEntryLineCard(),
+                ],
               ),
               const SizedBox(height: 6),
-              _buildEntryLineCard(),
-              const SizedBox(height: 8),
               Expanded(
                 child: CustomScrollView(
                   slivers: <Widget>[
@@ -1092,6 +1093,9 @@ class _OfflineInventoryCountCreateSheetState
             : line.stockNameController.text.trim(),
         quantityController: line.quantityController,
         unitLabel: 'Birim ${line.unitPointer}',
+        packageLabel: line.unitMultiplier > 1
+            ? AppFormatters.quantity(line.unitMultiplier)
+            : null,
         barcode: line.barcodeController.text.trim(),
         onConfirm: () => _commitEntryLine(line),
         onCancel: () => _cancelPendingEntryLine(line),
@@ -1137,6 +1141,9 @@ class _OfflineInventoryCountCreateSheetState
             : line.stockNameController.text.trim(),
         quantityController: line.quantityController,
         unitLabel: 'Birim ${line.unitPointer}',
+        packageLabel: line.unitMultiplier > 1
+            ? AppFormatters.quantity(line.unitMultiplier)
+            : null,
         barcode: line.barcodeController.text.trim(),
         canDelete: _lines.length > 1,
         onDelete: _lines.length > 1 ? () => _removeLineAt(index) : null,
@@ -1200,7 +1207,8 @@ class _OfflineLineDraft {
       stockNameController = TextEditingController(),
       barcodeController = TextEditingController(),
       quantityController = TextEditingController(),
-      unitPointerController = TextEditingController(text: '1');
+      unitPointerController = TextEditingController(text: '1'),
+      unitMultiplierController = TextEditingController(text: '1');
 
   final TextEditingController lookupController;
   final TextEditingController stockCodeController;
@@ -1208,16 +1216,22 @@ class _OfflineLineDraft {
   final TextEditingController barcodeController;
   final TextEditingController quantityController;
   final TextEditingController unitPointerController;
+  final TextEditingController unitMultiplierController;
   final FocusNode lookupFocusNode = FocusNode();
 
   double get quantity => _readDouble(quantityController.text, fallback: 0);
   int get unitPointer => _readInt(unitPointerController.text, fallback: 1);
+  double get unitMultiplier =>
+      _readDouble(unitMultiplierController.text, fallback: 1);
 
   void applyLookup(InventoryCountProductLookupItem product) {
     stockCodeController.text = product.stockCode;
     stockNameController.text = product.stockName;
     barcodeController.text = product.barcode;
     unitPointerController.text = '1';
+    unitMultiplierController.text = _formatQuantity(
+      _unitMultiplierQuantity(product.unitMultiplier),
+    );
     lookupController.clear();
     if (quantityController.text.trim().isEmpty) {
       quantityController.text = _formatQuantity(
@@ -1233,6 +1247,7 @@ class _OfflineLineDraft {
     barcodeController.clear();
     quantityController.clear();
     unitPointerController.text = '1';
+    unitMultiplierController.text = '1';
   }
 
   void dispose() {
@@ -1243,6 +1258,7 @@ class _OfflineLineDraft {
     barcodeController.dispose();
     quantityController.dispose();
     unitPointerController.dispose();
+    unitMultiplierController.dispose();
   }
 }
 

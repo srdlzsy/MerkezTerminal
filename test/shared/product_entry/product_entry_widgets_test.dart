@@ -86,4 +86,134 @@ void main() {
       TextInputType.text,
     );
   });
+
+  testWidgets('product draft entry panel fits compact terminal height', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(320, 460);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final quantityController = TextEditingController(text: '1');
+    final lookupController = TextEditingController();
+    addTearDown(quantityController.dispose);
+    addTearDown(lookupController.dispose);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            height: 220,
+            child: ProductDraftEntryPanel(
+              stockCode: 'STK-001',
+              stockName: 'Cok Uzun Test Urunu PDA Panel Denemesi',
+              quantityController: quantityController,
+              unitLabel: 'ADET',
+              barcode: '8690000000012',
+              packageLabel: '12',
+              priceLabel: '10,00',
+              scanRow: ProductLookupField(
+                controller: lookupController,
+                onSubmit: () {},
+              ),
+              onConfirm: () {},
+              onCancel: () {},
+            ),
+          ),
+        ),
+      ),
+    );
+
+    expect(tester.takeException(), isNull);
+    expect(find.text('Kaleme Ekle'), findsOneWidget);
+    expect(
+      tester
+          .getBottomRight(find.widgetWithText(FilledButton, 'Kaleme Ekle'))
+          .dy,
+      lessThanOrEqualTo(220),
+    );
+  });
+
+  testWidgets('terminal create input dock keeps action visible with keyboard', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(320, 460);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MediaQuery(
+          data: const MediaQueryData(
+            size: Size(320, 460),
+            viewInsets: EdgeInsets.only(bottom: 200),
+          ),
+          child: Scaffold(
+            body: SizedBox(
+              height: 220,
+              child: TerminalCreateInputDock(
+                padding: EdgeInsets.zero,
+                children: <Widget>[
+                  const SizedBox(height: 140),
+                  TextFormField(
+                    decoration: const InputDecoration(labelText: 'Miktar'),
+                  ),
+                  const SizedBox(height: 8),
+                  FilledButton(
+                    onPressed: () {},
+                    child: const Text('Kaleme Ekle'),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    expect(tester.takeException(), isNull);
+    expect(find.text('Kaleme Ekle'), findsOneWidget);
+    expect(
+      tester
+          .getBottomRight(find.widgetWithText(FilledButton, 'Kaleme Ekle'))
+          .dy,
+      lessThanOrEqualTo(220),
+    );
+  });
+
+  testWidgets('compact product line shows product identity and package info', (
+    tester,
+  ) async {
+    final quantityController = TextEditingController(text: '12');
+    addTearDown(quantityController.dispose);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 320,
+            child: TerminalCompactProductLineCard(
+              lineNo: 1,
+              stockCode: '015792',
+              stockName: 'Cok Uzun Test Urunu Manav Koli Denemesi',
+              quantityController: quantityController,
+              unitLabel: 'ADET',
+              packageLabel: '12',
+              barcode: '8690000000012',
+            ),
+          ),
+        ),
+      ),
+    );
+
+    expect(tester.takeException(), isNull);
+    expect(
+      find.text('Cok Uzun Test Urunu Manav Koli Denemesi'),
+      findsOneWidget,
+    );
+    expect(find.text('015792'), findsOneWidget);
+    expect(find.text('Koli 12'), findsOneWidget);
+  });
 }

@@ -1001,21 +1001,17 @@ class _GivenWarehouseOrderCreateSheetState
                     elevated: true,
                   ),
 
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(12, 8, 12, 6),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: <Widget>[
-                        _buildWarehouseSection(theme),
-                        const SizedBox(height: 12),
-                        TerminalSectionToolbar(
-                          title: 'Satirlar',
-                          actions: const [],
-                        ),
-                        const SizedBox(height: 8),
-                        _buildEntryLineCard(theme),
-                      ],
-                    ),
+                  TerminalCreateInputDock(
+                    children: <Widget>[
+                      _buildWarehouseSection(theme),
+                      const SizedBox(height: 8),
+                      TerminalSectionToolbar(
+                        title: 'Satirlar',
+                        actions: const [],
+                      ),
+                      const SizedBox(height: 6),
+                      _buildEntryLineCard(theme),
+                    ],
                   ),
 
                   Expanded(
@@ -1276,10 +1272,10 @@ class _GivenWarehouseOrderCreateSheetState
         stockName: product.stockName,
         quantityController: line.quantityController,
         unitLabel: _greenGrocerUnitLabel(line, product),
-        barcode: product.barcode,
         packageLabel: product.unitMultiplier > 1
             ? AppFormatters.quantity(product.unitMultiplier)
             : null,
+        barcode: product.barcode,
         priceLabel: _greenGrocerMetaLabel(line),
         warningLabel: _greenGrocerWarningLabel(line, product),
         onConfirm: () => _commitEntryLine(line),
@@ -1326,6 +1322,9 @@ class _GivenWarehouseOrderCreateSheetState
         stockName: product.stockName,
         quantityController: line.quantityController,
         unitLabel: _greenGrocerUnitLabel(line, product),
+        packageLabel: product.unitMultiplier > 1
+            ? AppFormatters.quantity(product.unitMultiplier)
+            : null,
         barcode: product.barcode,
         priceLabel: _greenGrocerMetaLabel(line),
         warningLabel: _greenGrocerWarningLabel(line, product),

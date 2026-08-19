@@ -1393,46 +1393,39 @@ class _OfflineCompanyAcceptanceCreateSheetState
                 ],
                 padding: EdgeInsets.zero,
               ),
-              const SizedBox(height: 8),
-              ConstrainedBox(
-                constraints: BoxConstraints(
-                  maxHeight: _setupMaxHeight(context, maxHeight: 220),
-                ),
-                child: SingleChildScrollView(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: <Widget>[
-                      _buildCustomerLookupRow(),
-                      const SizedBox(height: 6),
-                      TextFormField(
-                        controller: _customerCodeController,
-                        decoration: const InputDecoration(
-                          labelText: 'Cari Kodu*',
-                          isDense: true,
-                          contentPadding: EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 10,
-                          ),
-                        ),
-                        onChanged: (_) => setState(() {}),
-                        validator: (value) {
-                          if ((value ?? '').trim().isEmpty) {
-                            return 'Cari kodu zorunlu.';
-                          }
-                          return null;
-                        },
+              const SizedBox(height: 6),
+              TerminalCreateInputDock(
+                padding: EdgeInsets.zero,
+                children: <Widget>[
+                  _buildCustomerLookupRow(),
+                  const SizedBox(height: 6),
+                  TextFormField(
+                    controller: _customerCodeController,
+                    decoration: const InputDecoration(
+                      labelText: 'Cari Kodu*',
+                      isDense: true,
+                      contentPadding: EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 10,
                       ),
-                      const SizedBox(height: 6),
-                      _buildDocumentDetailsSection(),
-                    ],
+                    ),
+                    onChanged: (_) => setState(() {}),
+                    validator: (value) {
+                      if ((value ?? '').trim().isEmpty) {
+                        return 'Cari kodu zorunlu.';
+                      }
+                      return null;
+                    },
                   ),
-                ),
+                  const SizedBox(height: 6),
+                  _buildDocumentDetailsSection(),
+                  const SizedBox(height: 6),
+                  _buildLinesToolbar(),
+                  const SizedBox(height: 6),
+                  _buildEntryLineCard(),
+                ],
               ),
               const SizedBox(height: 6),
-              _buildLinesToolbar(),
-              const SizedBox(height: 6),
-              _buildEntryLineCard(),
-              const SizedBox(height: 8),
               Expanded(
                 child: CustomScrollView(
                   slivers: <Widget>[
@@ -1459,11 +1452,6 @@ class _OfflineCompanyAcceptanceCreateSheetState
         ),
       ),
     );
-  }
-
-  double _setupMaxHeight(BuildContext context, {required double maxHeight}) {
-    final screenHeight = MediaQuery.sizeOf(context).height;
-    return (screenHeight * 0.26).clamp(124.0, maxHeight);
   }
 
   Widget _buildEntryLineCard() {
@@ -1579,6 +1567,11 @@ class _OfflineCompanyAcceptanceCreateSheetState
               stockCode: line.stockCodeController.text.trim(),
               stockName: line.stockNameController.text.trim(),
               unitLabel: line.selectedProduct?.unitName,
+              packageLabel:
+                  line.selectedProduct != null &&
+                      line.selectedProduct!.unitMultiplier > 1
+                  ? AppFormatters.quantity(line.selectedProduct!.unitMultiplier)
+                  : null,
               barcode: line.barcodeController.text.trim(),
               priceLabel: line.unitPrice > 0
                   ? AppFormatters.currency(line.unitPrice)
