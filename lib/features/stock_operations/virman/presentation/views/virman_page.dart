@@ -900,6 +900,7 @@ class _VirmanCreateSheetState extends State<_VirmanCreateSheet>
 
     setState(() {
       entryLine.applyProduct(pickedProduct);
+      entryLine.lookupController.clear();
       _errorMessage = null;
     });
     _draftSession.scheduleSave();
@@ -1036,7 +1037,7 @@ class _VirmanCreateSheetState extends State<_VirmanCreateSheet>
             ) +
             increment,
       );
-      line.lookupController.text = product.displayLabel;
+      line.lookupController.clear();
       _errorMessage = null;
     });
     return true;
@@ -1758,6 +1759,7 @@ class _VirmanDraftLine {
       final productJson = _virmanDraftMap(draft['selectedProduct']);
       if (productJson != null) {
         selectedProduct = SearchProductLookupItem.fromJson(productJson);
+        lookupController.clear();
       }
     }
     for (final controller in _controllers) {
@@ -1809,7 +1811,7 @@ class _VirmanDraftLine {
 
   void applyProduct(SearchProductLookupItem product) {
     selectedProduct = product;
-    lookupController.text = product.displayLabel;
+    lookupController.clear();
     stockCodeController.text = product.stockCode;
     if (quantityController.text.trim().isEmpty) {
       quantityController.text = productEntryController.formatQuantity(

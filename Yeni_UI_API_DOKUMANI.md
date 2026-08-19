@@ -4337,7 +4337,11 @@ UI akisi:
 - Kullanici satirlari secer, `quantity` alanini varsayilan olarak `suggestedOrderQuantity` ile doldurur.
 - Kullanici miktari degistirebilir; `recommendedQuantity` alanina orijinal `suggestedOrderQuantity` yazilmasi onerilir.
 
-### Onerilen Depo Siparisleri / Manav Urun Secimi
+### Onerilen Depo Siparisleri / Kaynak Depo Urun Secimi
+
+`GET /api/siparis-islemleri/onerilen-depo-siparisleri/kaynak-depo-urunleri?sourceWarehouseNo=56`
+
+Geriye uyumlu manav alias:
 
 `GET /api/siparis-islemleri/onerilen-depo-siparisleri/manav`
 
@@ -4347,22 +4351,40 @@ Yetki:
 
 Amac:
 
-- Onerilen depo siparisi ekraninda kaynak depo `56 MANAV DEPO` secildiginde klasik stok ihtiyac algoritmasi yerine manav urun listesini getirir.
+- Onerilen depo siparisi ekraninda kaynak depo Manav, Sarkuteri, Unlu Mamul gibi ozel urun ailesi deposuysa klasik stok ihtiyac algoritmasi yerine kaynak deponun urun listesini getirir.
 - Bu endpoint read-only calisir, Mikro'ya veri yazmaz.
-- Sadece Mikro `STOKLAR` icindeki aktif manav urunleri doner; model kodlari `10` meyve, `11` sebze, `12` yesillik ve `23` manav sarf kabul edilir.
+- Kaynak depo urun ailesini Mikro `DEPOLAR.dep_barkod_yazici_yolu` alanindaki model kodlarindan cozer. Bu alan `10,11,12,23` gibi virgullu, `;` veya `|` ayrimli olabilir.
+- Sadece bu model kodlarina uyan, aktif, siparise kapali olmayan ve secili kaynak depoda `STOK_DEPO_DETAYLARI` kaydi bulunan stoklar doner.
+- Kaynak depo model kodlari bos ise backend `400 ProblemDetails` doner.
 - Response satirlari siparis satirina donusturulmeye hazirdir; `quantity` ve `recommendedQuantity` bilerek `0` gelir. UI satiri ekrana miktar `0` ile koymali, kullanici miktari elle girmelidir.
-- Manavda otomatik oneri miktari uretilmez; kullanici kasa/koli/adet/kg kararini ekranda verir.
+- Bu akista otomatik oneri miktari uretilmez; kullanici kasa/koli/adet/kg kararini ekranda verir.
+- `/manav` alias'i sadece `sourceWarehouseNo=56` icin kisa yoldur. Yeni UI genel kullanimda `kaynak-depo-urunleri?sourceWarehouseNo={secilenKaynakDepo}` endpointini tercih etmelidir.
+
+Mevcut ozel kaynak depolar:
+
+```text
+53, 55, 56, 58, 59, 62
+```
+
+UI karar kurali:
+
+- Kaynak depo bu listede ise klasik otomatik oneri endpointi yerine `kaynak-depo-urunleri` endpointi cagrilir.
+- Kaynak depo bu listede degilse klasik otomatik oneri endpointi kullanilir.
+- Backend tarafinda endpoint sadece bu listeye kilitli degildir; ilgili kaynak deponun `DEPOLAR.dep_barkod_yazici_yolu` model kodlari tanimliysa calisir. Bu liste UI'nin bugunku is kuralina gore hangi depolarda manuel miktarli urun secimi acacagini belirtir.
 
 Response:
 
 ```json
 [
   {
+    "sourceWarehouseNo": 56,
+    "sourceWarehouseName": "MANAV DEPO",
     "stockCode": "016167",
     "stockName": "MNV MAYDANOZ ADET",
     "modelCode": "12",
     "modelName": "Yesillik",
     "unitName": "ADET",
+    "barcode": "2900729",
     "quantity": 0,
     "recommendedQuantity": 0,
     "unitPrice": 0,
@@ -4373,11 +4395,12 @@ Response:
 
 UI akisi:
 
-- Kaynak depo manav ise `GET /api/siparis-islemleri/onerilen-depo-siparisleri/manav` cagrilir.
+- Kaynak depo normal merkez/depo siparisi ise klasik `GET /api/siparis-islemleri/onerilen-depo-siparisleri?sourceWarehouseNo=...` kullanilir.
+- Kaynak depo `53`, `55`, `56`, `58`, `59` veya `62` ise `GET /api/siparis-islemleri/onerilen-depo-siparisleri/kaynak-depo-urunleri?sourceWarehouseNo={sourceWarehouseNo}` cagrilir.
 - Donen satirlar grid/form satirina `quantity=0` ile basilir.
 - Kullanici miktari kendisi girer; `quantity > 0` olmayan satirlar siparise cevrilmemelidir.
 - Siparise cevirirken yine `POST /api/siparis-islemleri/onerilen-depo-siparisleri/convert-to-order` kullanilir.
-- Request icinde `sourceWarehouseNo=56` gonderilir ve secilen satirlar `lines[]` altina yazilir.
+- Request icinde secilen kaynak depo `sourceWarehouseNo` olarak gonderilir ve secilen satirlar `lines[]` altina yazilir.
 
 ### Onerilen Depo Siparislerini Siparise Cevir
 
@@ -12653,8 +12676,8 @@ Siparis Islemleri / Onerilen Depo Siparisleri
   -> kullanici kaynak depo secer
   -> kaynak depo normal depo ise GET /api/siparis-islemleri/onerilen-depo-siparisleri?SourceWarehouseNo=...
   -> normal depo satirlarini SuggestedWarehouseOrderListItemDto ile goster
-  -> kaynak depo 56 MANAV DEPO ise GET /api/siparis-islemleri/onerilen-depo-siparisleri/manav
-  -> manav satirlarini GreenGrocerSuggestedProductDto ile quantity=0 olarak goster
+  -> kaynak depo Manav/Sarkuteri/Unlu Mamul gibi ozel depo ise GET /api/siparis-islemleri/onerilen-depo-siparisleri/kaynak-depo-urunleri?sourceWarehouseNo=...
+  -> kaynak depo urunlerini SuggestedWarehouseSourceProductDto ile quantity=0 olarak goster
   -> kullanici satirlari secer ve miktarlari duzenler
   -> POST /api/siparis-islemleri/onerilen-depo-siparisleri/convert-to-order
 
@@ -18518,12 +18541,15 @@ public sealed record SuggestedWarehouseOrderListItemDto(
     double NeedQuantity,
     double SuggestedOrderQuantity);
 
-public sealed record GreenGrocerSuggestedProductDto(
+public sealed record SuggestedWarehouseSourceProductDto(
+    int SourceWarehouseNo,
+    string SourceWarehouseName,
     string StockCode,
     string StockName,
     string ModelCode,
     string ModelName,
     string UnitName,
+    string Barcode,
     double Quantity,
     double RecommendedQuantity,
     double UnitPrice,

@@ -316,9 +316,7 @@ class _GivenWarehouseOrderCreateSheetState
             ) +
             addedQuantity,
       );
-      line.barcodeController.text = product.barcode.isEmpty
-          ? product.displayLabel
-          : product.barcode;
+      line.barcodeController.clear();
       _validationMessage = null;
     });
     unawaited(TerminalFeedback.success());
@@ -1850,6 +1848,7 @@ class _CreateLineDraft {
       final productJson = _warehouseOrderDraftMap(draft['selectedProduct']);
       if (productJson != null) {
         selectedProduct = ProductLookupItem.fromJson(productJson);
+        barcodeController.clear();
       }
     }
     for (final controller in _controllers) {
@@ -1884,7 +1883,7 @@ class _CreateLineDraft {
   void applyProduct(ProductLookupItem product) {
     selectedProduct = product;
     stockCodeController.text = product.stockCode;
-    barcodeController.text = product.barcode;
+    barcodeController.clear();
     clearProductCaseStatus(notify: false);
     if (quantityController.text.trim().isEmpty) {
       quantityController.text = productEntryController.formatQuantity(

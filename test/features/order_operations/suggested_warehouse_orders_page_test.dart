@@ -51,15 +51,82 @@ void main() {
     expect(find.text('Siparis Miktari*'), findsWidgets);
     expect(find.byTooltip('Siparise Cevir'), findsOneWidget);
   });
+
+  testWidgets('uses source product flow for selected special warehouse', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final repository = _FakeSuggestedWarehouseOrdersRepository();
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SuggestedWarehouseOrdersPage(
+            repository: repository,
+            accessToken: 'token',
+            canCreate: true,
+            defaultWarehouseNo: '110',
+            userWarehouseName: 'KESTEL 1',
+            mobileWarehouseCatalogRepository:
+                MobileWarehouseCatalogLocalRepository(
+                  database: MemoryLocalDatabase(),
+                ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.byTooltip('Kaynak depo ara'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('70 - SARKUTERI DEPO'));
+    await tester.pumpAndSettle();
+
+    expect(repository.lastFilter?.sourceWarehouseNo, 70);
+    expect(repository.lastFilter?.useSourceProducts, isTrue);
+    expect(find.text('Sarkuteri Test Urun'), findsOneWidget);
+  });
 }
 
 class _FakeSuggestedWarehouseOrdersRepository
     implements SuggestedWarehouseOrdersRepository {
+  SuggestedWarehouseOrderFilter? lastFilter;
+
   @override
   Future<List<SuggestedWarehouseOrderListItem>> fetchSuggestions({
     required String accessToken,
     required SuggestedWarehouseOrderFilter filter,
   }) async {
+    lastFilter = filter;
+    if (filter.useSourceProducts) {
+      return const <SuggestedWarehouseOrderListItem>[
+        SuggestedWarehouseOrderListItem(
+          sourceWarehouseNo: 70,
+          sourceWarehouseName: 'SARKUTERI DEPO',
+          stockCode: 'SRK001',
+          stockName: 'Sarkuteri Test Urun',
+          modelCode: '70',
+          modelName: 'Sarkuteri',
+          barcode: '7000001',
+          unitName: 'KG',
+          targetOnHand: 0,
+          sourceOnHand: 0,
+          salesQuantity: 0,
+          openIncomingOrderQuantity: 0,
+          packageFactor: 0,
+          minDay: 0,
+          recommendedDay: 0,
+          maxDay: 0,
+          recommendedStockQuantity: 0,
+          needQuantity: 0,
+          suggestedOrderQuantity: 0,
+        ),
+      ];
+    }
+
     return const <SuggestedWarehouseOrderListItem>[
       SuggestedWarehouseOrderListItem(
         stockCode: '010001',
@@ -108,6 +175,13 @@ class _FakeSuggestedWarehouseOrdersRepository
     String? query,
   }) async {
     return const <WarehouseLookupItem>[
+      WarehouseLookupItem(
+        warehouseNo: 70,
+        warehouseName: 'SARKUTERI DEPO',
+        address: '',
+        district: '',
+        province: '',
+      ),
       WarehouseLookupItem(
         warehouseNo: 50,
         warehouseName: 'MERKEZ',

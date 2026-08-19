@@ -2480,6 +2480,7 @@ class _AcceptanceLineDraft {
       final productJson = _acceptanceDraftMap(draft['selectedProduct']);
       if (productJson != null) {
         selectedProduct = SearchProductLookupItem.fromJson(productJson);
+        lookupController.clear();
       }
     }
     for (final controller in _controllers) {
@@ -2611,7 +2612,7 @@ class _AcceptanceLineDraft {
 
   void applyProduct(SearchProductLookupItem product) {
     selectedProduct = product;
-    lookupController.text = product.displayLabel;
+    lookupController.clear();
     stockCodeController.text = product.stockCode;
     if (dispatchQuantityController.text.trim().isEmpty) {
       dispatchQuantityController.text = _formatDraftQuantity(

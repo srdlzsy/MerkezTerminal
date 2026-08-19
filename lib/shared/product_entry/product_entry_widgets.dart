@@ -344,11 +344,16 @@ class _ProductLookupFieldState extends State<ProductLookupField> {
 
         _effectiveFocusNode.requestFocus();
         SystemChannels.textInput.invokeMethod<void>('TextInput.show');
-        _applyFocusSelection();
+        _moveCursorToEnd();
       });
     }
 
-    _applyFocusSelection();
+    _moveCursorToEnd();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _moveCursorToEnd();
+      }
+    });
   }
 
   void _applyFocusSelection() {

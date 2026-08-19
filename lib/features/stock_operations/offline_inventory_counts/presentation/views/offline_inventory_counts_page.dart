@@ -559,6 +559,7 @@ class _OfflineInventoryCountCreateSheetState
 
     setState(() {
       entryLine.applyLookup(pickedProduct);
+      entryLine.lookupController.clear();
       _errorMessage = null;
     });
     unawaited(TerminalFeedback.success());
@@ -725,7 +726,7 @@ class _OfflineInventoryCountCreateSheetState
     final increment = _unitMultiplierQuantity(product.unitMultiplier);
     setState(() {
       line.quantityController.text = _formatQuantity(line.quantity + increment);
-      line.lookupController.text = product.displayLabel;
+      line.lookupController.clear();
       _errorMessage = null;
     });
     unawaited(TerminalFeedback.success());
@@ -1217,7 +1218,7 @@ class _OfflineLineDraft {
     stockNameController.text = product.stockName;
     barcodeController.text = product.barcode;
     unitPointerController.text = '1';
-    lookupController.text = product.displayLabel;
+    lookupController.clear();
     if (quantityController.text.trim().isEmpty) {
       quantityController.text = _formatQuantity(
         _unitMultiplierQuantity(product.unitMultiplier),

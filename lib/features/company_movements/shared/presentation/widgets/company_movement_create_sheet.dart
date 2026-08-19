@@ -449,6 +449,7 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
 
     setState(() {
       entryLine.applyProduct(pickedProduct);
+      entryLine.lookupController.clear();
       entryLine.setLookupStatus(
         'Secildi: ${pickedProduct.stockCode} | ${pickedProduct.stockName}',
       );
@@ -659,7 +660,7 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
       line.quantityController.text = productEntryController.formatQuantity(
         line.quantity + addedQuantity,
       );
-      line.lookupController.text = product.displayLabel;
+      line.lookupController.clear();
       line.setLookupStatus(
         'Ayni barkod okutuldu. +${AppFormatters.quantity(addedQuantity)} eklendi.',
       );
@@ -1194,6 +1195,7 @@ class _MovementLineDraft {
       final productJson = _asJsonMap(draft['selectedProduct']);
       if (productJson != null) {
         selectedProduct = SearchProductLookupItem.fromJson(productJson);
+        lookupController.clear();
       }
     }
 
@@ -1257,7 +1259,7 @@ class _MovementLineDraft {
 
   void applyProduct(SearchProductLookupItem product) {
     selectedProduct = product;
-    lookupController.text = product.displayLabel;
+    lookupController.clear();
     if (quantityController.text.trim().isEmpty) {
       quantityController.text = productEntryController.formatQuantity(
         productEntryController.unitMultiplierQuantity(product.unitMultiplier),

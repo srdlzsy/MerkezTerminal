@@ -416,9 +416,7 @@ class _GivenCompanyOrderCreateSheetState
             ) +
             addedQuantity,
       );
-      line.barcodeController.text = product.barcode.isEmpty
-          ? product.displayLabel
-          : product.barcode;
+      line.barcodeController.clear();
       line.setLookupStatus(
         'Ayni barkod okutuldu. +${AppFormatters.quantity(addedQuantity)} eklendi.',
       );
@@ -1171,6 +1169,7 @@ class _CompanyOrderLineDraft {
       final productJson = _draftMap(draft['selectedProduct']);
       if (productJson != null) {
         selectedProduct = CompanyOrderProductLookupItem.fromJson(productJson);
+        barcodeController.clear();
       }
     }
     for (final controller in _controllers) {
@@ -1205,7 +1204,7 @@ class _CompanyOrderLineDraft {
 
   void applyProduct(CompanyOrderProductLookupItem product) {
     selectedProduct = product;
-    barcodeController.text = product.barcode;
+    barcodeController.clear();
     stockCodeController.text = product.stockCode;
     if (quantityController.text.trim().isEmpty) {
       quantityController.text = productEntryController.formatQuantity(

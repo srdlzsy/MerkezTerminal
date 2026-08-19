@@ -156,7 +156,13 @@ class _SuggestedWarehouseOrdersPageState
       setState(() => _selectedSourceWarehouse = null);
     }
 
-    await _controller.loadSuggestions(sourceWarehouseNo: sourceWarehouseNo);
+    await _controller.loadSuggestions(
+      sourceWarehouseNo: sourceWarehouseNo,
+      useSourceProducts: _usesSourceProductSuggestions(
+        sourceWarehouseNo: sourceWarehouseNo,
+        sourceWarehouse: selectedSourceWarehouse,
+      ),
+    );
   }
 
   Future<void> _openWarehouseLookup() async {
@@ -429,6 +435,34 @@ class _SuggestedWarehouseOrdersPageState
     return DateTime(value.year, value.month, value.day);
   }
 
+  static bool _usesSourceProductSuggestions({
+    required int sourceWarehouseNo,
+    WarehouseLookupItem? sourceWarehouse,
+  }) {
+    if (sourceWarehouseNo == 56) {
+      return true;
+    }
+
+    final warehouseName = sourceWarehouse?.warehouseName ?? '';
+    final normalizedName = _normalizeWarehouseName(warehouseName);
+    return normalizedName.contains('manav') ||
+        normalizedName.contains('sarkuteri') ||
+        (normalizedName.contains('unlu') && normalizedName.contains('mamul'));
+  }
+
+  static String _normalizeWarehouseName(String value) {
+    return value
+        .trim()
+        .toLowerCase()
+        .replaceAll('\u0131', 'i')
+        .replaceAll('\u00e7', 'c')
+        .replaceAll('\u011f', 'g')
+        .replaceAll('\u00f6', 'o')
+        .replaceAll('\u015f', 's')
+        .replaceAll('\u00fc', 'u')
+        .replaceAll('\u0307', '');
+  }
+
   static String _formatQuantity(double value) {
     if (value == value.roundToDouble()) {
       return value.toInt().toString();
@@ -506,9 +540,7 @@ class _SuggestedWarehouseOrderCard extends StatelessWidget {
               if (item.needsManualQuantity) ...<TerminalPdaInfo>[
                 TerminalPdaInfo(
                   label: 'Tur',
-                  value: item.modelName.trim().isEmpty
-                      ? 'Manav'
-                      : item.modelName,
+                  value: item.sourceProductGroupLabel,
                 ),
                 TerminalPdaInfo(
                   label: 'Birim',

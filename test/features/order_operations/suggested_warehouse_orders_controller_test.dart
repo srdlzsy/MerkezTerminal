@@ -18,6 +18,7 @@ void main() {
       await controller.loadSuggestions(sourceWarehouseNo: 50);
 
       expect(repository.lastFilter?.sourceWarehouseNo, 50);
+      expect(repository.lastFilter?.useSourceProducts, isFalse);
       expect(controller.items, hasLength(2));
       expect(controller.selectedCount, 0);
 
@@ -96,6 +97,7 @@ void main() {
 
       await controller.loadSuggestions(sourceWarehouseNo: 56);
 
+      expect(repository.lastFilter?.useSourceProducts, isTrue);
       final item = controller.items.single;
       expect(item.needsManualQuantity, isTrue);
       expect(item.defaultOrderQuantity, 0);

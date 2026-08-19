@@ -287,6 +287,7 @@ class _StockReceiptCreateSheetState extends State<StockReceiptCreateSheet>
 
     setState(() {
       entryLine.applyProduct(pickedProduct);
+      entryLine.lookupController.clear();
       entryLine.setLookupStatus(
         'Secildi: ${pickedProduct.stockCode} | ${pickedProduct.stockName}',
       );
@@ -383,6 +384,7 @@ class _StockReceiptCreateSheetState extends State<StockReceiptCreateSheet>
         addedQuantity,
       );
       entryLine.applyProduct(product);
+      entryLine.lookupController.clear();
       entryLine.setLookupStatus(_resolvedBarcodeMessage(resolution));
       _lookupError = null;
     });
@@ -506,7 +508,7 @@ class _StockReceiptCreateSheetState extends State<StockReceiptCreateSheet>
       line.quantityController.text = productEntryController.formatQuantity(
         line.quantity + increment,
       );
-      line.lookupController.text = product.displayLabel;
+      line.lookupController.clear();
       line.setLookupStatus(
         'Ayni barkod okutuldu. +${AppFormatters.quantity(increment)} eklendi.',
       );
@@ -1163,6 +1165,7 @@ class _StockReceiptLineDraft {
       final productJson = _stockReceiptDraftMap(draft['selectedProduct']);
       if (productJson != null) {
         selectedProduct = SearchProductLookupItem.fromJson(productJson);
+        lookupController.clear();
       }
     }
     for (final controller in _controllers) {
@@ -1213,7 +1216,7 @@ class _StockReceiptLineDraft {
 
   void applyProduct(SearchProductLookupItem product) {
     selectedProduct = product;
-    lookupController.text = product.displayLabel;
+    lookupController.clear();
     if (quantityController.text.trim().isEmpty) {
       quantityController.text = productEntryController.formatQuantity(
         productEntryController.unitMultiplierQuantity(product.unitMultiplier),

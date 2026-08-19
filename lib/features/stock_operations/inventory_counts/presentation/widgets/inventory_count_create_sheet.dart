@@ -408,9 +408,7 @@ class _InventoryCountCreateSheetState extends State<InventoryCountCreateSheet>
             ) +
             increment,
       );
-      line.barcodeController.text = product.barcode.isEmpty
-          ? product.displayLabel
-          : product.barcode;
+      line.barcodeController.clear();
       _validationMessage = null;
     });
     unawaited(TerminalFeedback.success());
@@ -672,7 +670,9 @@ class _InventoryCountCreateSheetState extends State<InventoryCountCreateSheet>
         InventoryCountCreateLine(
           stockCode: stockCode,
           quantity: quantity,
-          barcode: line.barcodeController.text.trim(),
+          barcode:
+              line.selectedProduct?.barcode ??
+              line.barcodeController.text.trim(),
           unitPointer: 1,
         ),
       );
@@ -1053,6 +1053,7 @@ class _InventoryLineDraft {
       final productJson = _inventoryDraftMap(draft['selectedProduct']);
       if (productJson != null) {
         selectedProduct = InventoryCountProductLookupItem.fromJson(productJson);
+        barcodeController.clear();
       }
     }
     for (final controller in _controllers) {
@@ -1081,7 +1082,7 @@ class _InventoryLineDraft {
 
   void applyProduct(InventoryCountProductLookupItem product) {
     selectedProduct = product;
-    barcodeController.text = product.barcode;
+    barcodeController.clear();
     stockCodeController.text = product.stockCode;
     if (quantityController.text.trim().isEmpty) {
       quantityController.text = productEntryController.formatQuantity(

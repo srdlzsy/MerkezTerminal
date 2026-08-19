@@ -58,6 +58,7 @@ class SuggestedWarehouseOrdersController extends ChangeNotifier
     int? targetWarehouseNo,
     int? lookbackDays,
     int? fallbackRecommendedDay,
+    bool? useSourceProducts,
   }) async {
     if (sourceWarehouseNo <= 0) {
       _sourceWarehouseNo = null;
@@ -84,6 +85,7 @@ class SuggestedWarehouseOrdersController extends ChangeNotifier
           targetWarehouseNo: targetWarehouseNo,
           lookbackDays: lookbackDays,
           fallbackRecommendedDay: fallbackRecommendedDay,
+          useSourceProducts: useSourceProducts ?? sourceWarehouseNo == 56,
         ),
       );
       if (!_listEpoch.isCurrent(listRequestId)) {

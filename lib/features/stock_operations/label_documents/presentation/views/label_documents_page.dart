@@ -1085,6 +1085,7 @@ class _LabelDocumentLineDraft {
       final productJson = _labelDraftMap(draft['selectedProduct']);
       if (productJson != null) {
         selectedProduct = SearchProductLookupItem.fromJson(productJson);
+        lookupController.clear();
       }
       lookupStatusMessage = draft['lookupStatusMessage']?.toString();
     }
@@ -1104,7 +1105,7 @@ class _LabelDocumentLineDraft {
 
   void applyProduct(SearchProductLookupItem product) {
     selectedProduct = product;
-    lookupController.text = product.displayLabel;
+    lookupController.clear();
   }
 
   void setLookupStatus(

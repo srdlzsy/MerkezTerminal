@@ -2034,7 +2034,7 @@ class _OfflineCompanyAcceptanceLineDraft {
 
   void applyProduct(SearchProductLookupItem product) {
     selectedProduct = product;
-    lookupController.text = product.displayLabel;
+    lookupController.clear();
     stockCodeController.text = product.stockCode;
     stockNameController.text = product.stockName;
     barcodeController.text = product.barcode;

@@ -247,6 +247,7 @@ class _WarehouseReturnCreateSheetState extends State<WarehouseReturnCreateSheet>
 
     setState(() {
       entryLine.applyProduct(pickedProduct);
+      entryLine.lookupController.clear();
       entryLine.setLookupStatus(
         'Secildi: ${pickedProduct.stockCode} | ${pickedProduct.stockName}',
       );
@@ -336,6 +337,7 @@ class _WarehouseReturnCreateSheetState extends State<WarehouseReturnCreateSheet>
         addedQuantity,
       );
       entryLine.applyProduct(product);
+      entryLine.lookupController.clear();
       entryLine.setLookupStatus(_resolvedBarcodeMessage(resolution));
       _validationMessage = null;
     });
@@ -520,7 +522,7 @@ class _WarehouseReturnCreateSheetState extends State<WarehouseReturnCreateSheet>
       line.quantityController.text = productEntryController.formatQuantity(
         line.quantity + increment,
       );
-      line.lookupController.text = product.displayLabel;
+      line.lookupController.clear();
       line.setLookupStatus(
         'Ayni barkod okutuldu. +${AppFormatters.quantity(increment)} eklendi.',
       );
@@ -1142,6 +1144,7 @@ class _ReturnLineDraft {
       final productJson = _returnDraftMap(draft['selectedProduct']);
       if (productJson != null) {
         selectedProduct = ProductLookupItem.fromJson(productJson);
+        lookupController.clear();
       }
     }
     for (final controller in _controllers) {
@@ -1201,7 +1204,7 @@ class _ReturnLineDraft {
 
   void applyProduct(ProductLookupItem product) {
     selectedProduct = product;
-    lookupController.text = product.displayLabel;
+    lookupController.clear();
     stockCodeController.text = product.stockCode;
     if (quantityController.text.trim().isEmpty) {
       quantityController.text = productEntryController.formatQuantity(

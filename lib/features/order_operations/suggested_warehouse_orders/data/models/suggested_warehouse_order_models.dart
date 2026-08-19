@@ -6,12 +6,14 @@ class SuggestedWarehouseOrderFilter {
     this.targetWarehouseNo,
     this.lookbackDays,
     this.fallbackRecommendedDay,
+    this.useSourceProducts = false,
   });
 
   final int sourceWarehouseNo;
   final int? targetWarehouseNo;
   final int? lookbackDays;
   final int? fallbackRecommendedDay;
+  final bool useSourceProducts;
 
   Map<String, String> toQueryParameters() {
     return <String, String>{
@@ -23,10 +25,16 @@ class SuggestedWarehouseOrderFilter {
         'FallbackRecommendedDay': fallbackRecommendedDay.toString(),
     };
   }
+
+  Map<String, String> toSourceProductQueryParameters() {
+    return <String, String>{'sourceWarehouseNo': sourceWarehouseNo.toString()};
+  }
 }
 
 class SuggestedWarehouseOrderListItem {
   const SuggestedWarehouseOrderListItem({
+    this.sourceWarehouseNo = 0,
+    this.sourceWarehouseName = '',
     required this.stockCode,
     required this.stockName,
     required this.modelCode,
@@ -50,6 +58,8 @@ class SuggestedWarehouseOrderListItem {
     required this.suggestedOrderQuantity,
   });
 
+  final int sourceWarehouseNo;
+  final String sourceWarehouseName;
   final String stockCode;
   final String stockName;
   final String modelCode;
@@ -105,8 +115,32 @@ class SuggestedWarehouseOrderListItem {
   bool get canBeAutoSelected =>
       stockCode.trim().isNotEmpty && defaultOrderQuantity > 0;
 
+  String get sourceProductGroupLabel {
+    final normalizedModelName = modelName.trim();
+    if (normalizedModelName.isNotEmpty) {
+      return normalizedModelName;
+    }
+
+    final normalizedSourceWarehouseName = sourceWarehouseName.trim();
+    if (normalizedSourceWarehouseName.isNotEmpty) {
+      return normalizedSourceWarehouseName;
+    }
+
+    final normalizedModelCode = modelCode.trim();
+    if (normalizedModelCode.isNotEmpty) {
+      return 'Model $normalizedModelCode';
+    }
+
+    return 'Kaynak urun';
+  }
+
   factory SuggestedWarehouseOrderListItem.fromJson(JsonMap json) {
     return SuggestedWarehouseOrderListItem(
+      sourceWarehouseNo: _readPositiveInt(
+        json['sourceWarehouseNo'],
+        fallback: 0,
+      ),
+      sourceWarehouseName: _readString(json['sourceWarehouseName']),
       stockCode: _readString(json['stockCode']),
       stockName: _readString(json['stockName']),
       modelCode: _readString(json['modelCode']),

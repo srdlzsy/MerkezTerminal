@@ -856,9 +856,7 @@ class _OutgoingWarehouseShipmentCreateSheetState
             ) +
             increment,
       );
-      line.barcodeController.text = product.barcode.isEmpty
-          ? product.displayLabel
-          : product.barcode;
+      line.barcodeController.clear();
       line.quantityStep = quantityStep ?? line.quantityStep;
       line.setLookupStatus(
         'Ayni barkod okutuldu. +${AppFormatters.quantity(increment)} eklendi.',
@@ -891,9 +889,7 @@ class _OutgoingWarehouseShipmentCreateSheetState
             ) +
             increment,
       );
-      line.barcodeController.text = product.barcode.isEmpty
-          ? product.displayLabel
-          : product.barcode;
+      line.barcodeController.clear();
       line.quantityStep = quantityStep ?? line.quantityStep;
       line.setLookupStatus(
         'Ayni barkod okutuldu. +${AppFormatters.quantity(increment)} eklendi.',
@@ -3370,6 +3366,7 @@ class _ManualShipmentLineDraft {
       final productJson = _shipmentDraftMap(draft['selectedProduct']);
       if (productJson != null) {
         selectedProduct = ProductLookupItem.fromJson(productJson);
+        barcodeController.clear();
       }
     }
     for (final controller in _controllers) {
@@ -3403,7 +3400,7 @@ class _ManualShipmentLineDraft {
   void applyProduct(ProductLookupItem product) {
     selectedProduct = product;
     stockCodeController.text = product.stockCode;
-    barcodeController.text = product.barcode;
+    barcodeController.clear();
     if (quantityController.text.trim().isEmpty) {
       quantityController.text = productEntryController.formatQuantity(
         productEntryController.unitMultiplierQuantity(product.unitMultiplier),
@@ -3481,9 +3478,7 @@ class _LinkedShipmentLineDraft {
     this.selectedProduct,
     this.onChanged,
   }) : stockCodeController = TextEditingController(text: stockCode),
-       barcodeController = TextEditingController(
-         text: selectedProduct?.barcode ?? '',
-       ),
+       barcodeController = TextEditingController(),
        stockNameController = TextEditingController(text: stockName),
        unitNameController = TextEditingController(text: unitName),
        quantityController = TextEditingController(
@@ -3612,7 +3607,9 @@ class _LinkedShipmentLineDraft {
       selectedProduct: selectedProduct,
       onChanged: onChanged,
     );
-    draft.barcodeController.text = json['barcode']?.toString() ?? '';
+    draft.barcodeController.text = selectedProduct == null
+        ? json['barcode']?.toString() ?? ''
+        : '';
     draft.quantityController.text = json['quantity']?.toString() ?? '';
     return draft;
   }
@@ -3629,7 +3626,7 @@ class _LinkedShipmentLineDraft {
   void applyScannedProduct(ProductLookupItem product) {
     selectedProduct = product;
     stockCodeController.text = product.stockCode;
-    barcodeController.text = product.barcode;
+    barcodeController.clear();
     stockNameController.text = product.stockName;
     unitNameController.text = product.unitName;
   }

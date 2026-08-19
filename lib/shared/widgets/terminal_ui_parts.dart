@@ -519,11 +519,16 @@ class _TerminalLookupSearchFieldState extends State<TerminalLookupSearchField> {
 
         _focusNode.requestFocus();
         SystemChannels.textInput.invokeMethod<void>('TextInput.show');
-        _selectAll();
+        _moveCursorToEnd();
       });
     }
 
-    _selectAll();
+    _moveCursorToEnd();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _moveCursorToEnd();
+      }
+    });
   }
 
   void _selectAll() {
@@ -540,6 +545,15 @@ class _TerminalLookupSearchFieldState extends State<TerminalLookupSearchField> {
       baseOffset: 0,
       extentOffset: text.length,
     );
+  }
+
+  void _moveCursorToEnd() {
+    if (!mounted) {
+      return;
+    }
+
+    final text = widget.controller.text;
+    widget.controller.selection = TextSelection.collapsed(offset: text.length);
   }
 }
 
