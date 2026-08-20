@@ -182,6 +182,7 @@ class _GivenWarehouseOrderCreateSheetState
   }
 
   Future<void> _searchWarehouse() async {
+    final previousWarehouseNo = _selectedSourceWarehouseNo;
     final warehouse = await showModalBottomSheet<WarehouseLookupItem>(
       context: context,
       isScrollControlled: true,
@@ -199,12 +200,66 @@ class _GivenWarehouseOrderCreateSheetState
       return;
     }
 
+    final shouldClearLines =
+        previousWarehouseNo != null &&
+        previousWarehouseNo > 0 &&
+        previousWarehouseNo != warehouse.warehouseNo &&
+        _lines.any((line) => line.hasContent);
+    if (shouldClearLines) {
+      final confirmed = await _confirmWarehouseChangeClearsLines(warehouse);
+      if (!confirmed || !mounted) {
+        return;
+      }
+    }
+
     setState(() {
+      if (shouldClearLines) {
+        _replaceLinesWithFreshEntry();
+        _lastAddedProductKey = null;
+        _isGreenGrocerPreviewEnabled = true;
+      }
       _selectedWarehouse = warehouse;
       _outWarehouseNoController.text = warehouse.warehouseNo.toString();
+      _validationMessage = null;
     });
     _draftSession.scheduleSave();
     _focusFreshEntryLine();
+  }
+
+  Future<bool> _confirmWarehouseChangeClearsLines(
+    WarehouseLookupItem warehouse,
+  ) async {
+    unawaited(TerminalFeedback.warning());
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Depo degissin mi?'),
+          content: Text(
+            'Mevcut kalemler temizlenecek. Yeni depo: ${warehouse.displayLabel}',
+          ),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Vazgec'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('Depoyu Degistir'),
+            ),
+          ],
+        );
+      },
+    );
+
+    return confirmed == true;
+  }
+
+  void _replaceLinesWithFreshEntry() {
+    for (final line in _lines) {
+      line.dispose();
+    }
+    _lines = <_CreateLineDraft>[_createLine()];
   }
 
   Future<void> _loadSourceWarehouseProducts() async {

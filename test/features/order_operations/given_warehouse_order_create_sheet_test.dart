@@ -207,6 +207,98 @@ void main() {
     expect(find.text('Giris satiri'), findsOneWidget);
   });
 
+  testWidgets('clears source product lines when selected warehouse changes', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 1000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final repository = _FakeWarehouseOrdersRepository(
+      warehouses: const <WarehouseLookupItem>[
+        WarehouseLookupItem(
+          warehouseNo: 56,
+          warehouseName: 'MANAV DEPO',
+          address: '',
+          district: 'Osmangazi',
+          province: 'Bursa',
+        ),
+        WarehouseLookupItem(
+          warehouseNo: 55,
+          warehouseName: 'ET DEPO',
+          address: '',
+          district: 'Osmangazi',
+          province: 'Bursa',
+        ),
+      ],
+      sourceProductsByWarehouse: const <int, List<ProductLookupItem>>{
+        56: <ProductLookupItem>[
+          ProductLookupItem(
+            warehouseNo: 56,
+            barcode: '2900729',
+            stockCode: '016167',
+            stockName: 'MNV MAYDANOZ ADET',
+            price: 0,
+            unitName: 'ADET',
+            isOrderBlocked: false,
+          ),
+        ],
+        55: <ProductLookupItem>[
+          ProductLookupItem(
+            warehouseNo: 55,
+            barcode: '8690550000001',
+            stockCode: '055001',
+            stockName: 'ET TEST URUN',
+            price: 0,
+            unitName: 'KG',
+            isOrderBlocked: false,
+          ),
+        ],
+      },
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: GivenWarehouseOrderCreateSheet(
+            repository: repository,
+            accessToken: 'token',
+            defaultWarehouseNo: '110',
+            mobileWarehouseCatalogRepository:
+                MobileWarehouseCatalogLocalRepository(
+                  database: MemoryLocalDatabase(),
+                ),
+          ),
+        ),
+      ),
+    );
+
+    await _pickWarehouse(tester, label: '56 - MANAV DEPO');
+    await tester.tap(find.widgetWithText(FilledButton, 'Depo urunleri'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('1 kalem'), findsOneWidget);
+    expect(find.text('MNV MAYDANOZ ADET'), findsOneWidget);
+    expect(repository.lastSourceWarehouseNo, 56);
+
+    await _pickWarehouse(tester, label: '55 - ET DEPO');
+    expect(find.text('Depo degissin mi?'), findsOneWidget);
+    await tester.tap(find.widgetWithText(FilledButton, 'Depoyu Degistir'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('0 kalem'), findsOneWidget);
+    expect(find.text('MNV MAYDANOZ ADET'), findsNothing);
+
+    await tester.tap(find.widgetWithText(FilledButton, 'Depo urunleri'));
+    await tester.pumpAndSettle();
+
+    expect(repository.lastSourceWarehouseNo, 55);
+    expect(find.text('1 kalem'), findsOneWidget);
+    expect(find.text('ET TEST URUN'), findsOneWidget);
+    expect(find.text('MNV MAYDANOZ ADET'), findsNothing);
+  });
+
   testWidgets('resolves manav case quantity before returning create request', (
     tester,
   ) async {
@@ -357,6 +449,7 @@ class _FakeWarehouseOrdersRepository
       ),
     ],
     this.sourceProducts = const <ProductLookupItem>[],
+    this.sourceProductsByWarehouse = const <int, List<ProductLookupItem>>{},
   }) : product =
            product ??
            const ProductLookupItem(
@@ -372,6 +465,7 @@ class _FakeWarehouseOrdersRepository
   final ProductLookupItem product;
   final List<WarehouseLookupItem> warehouses;
   final List<ProductLookupItem> sourceProducts;
+  final Map<int, List<ProductLookupItem>> sourceProductsByWarehouse;
   int? lastSourceWarehouseNo;
   String? lastSearchWarehouseNo;
 
@@ -420,7 +514,7 @@ class _FakeWarehouseOrdersRepository
     required int sourceWarehouseNo,
   }) async {
     lastSourceWarehouseNo = sourceWarehouseNo;
-    return sourceProducts;
+    return sourceProductsByWarehouse[sourceWarehouseNo] ?? sourceProducts;
   }
 
   @override
