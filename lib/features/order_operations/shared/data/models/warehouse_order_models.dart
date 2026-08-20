@@ -240,6 +240,8 @@ class ProductLookupItem {
     required this.price,
     required this.unitName,
     this.unitMultiplier = 1,
+    this.secondaryUnitName = '',
+    this.caseBarcode = '',
     this.modelCode = '',
     required this.isOrderBlocked,
   });
@@ -251,6 +253,8 @@ class ProductLookupItem {
   final double price;
   final String unitName;
   final double unitMultiplier;
+  final String secondaryUnitName;
+  final String caseBarcode;
   final String modelCode;
   final bool isOrderBlocked;
 
@@ -264,7 +268,13 @@ class ProductLookupItem {
       stockName: _readString(json['stockName']),
       price: _readDouble(json['price']),
       unitName: _readString(json['unitName']),
-      unitMultiplier: _readPositiveDouble(json['unitMultiplier']),
+      unitMultiplier: _readProductUnitMultiplier(json),
+      secondaryUnitName: _readString(json['secondaryUnitName']),
+      caseBarcode: _readFirstString(json, const <String>[
+        'caseBarcode',
+        'packageBarcode',
+        'masterBarcode',
+      ]),
       modelCode: _readFirstString(json, const <String>[
         'modelCode',
         'productModelCode',
@@ -285,6 +295,7 @@ class ProductLookupItem {
       price: resolution.salesPrice,
       unitName: resolution.matchedUnitName,
       unitMultiplier: resolution.matchedUnitMultiplier,
+      caseBarcode: resolution.caseBarcode,
       modelCode: resolution.productModelCode,
       isOrderBlocked: resolution.isOrderBlocked,
     );
@@ -589,9 +600,27 @@ double _readDouble(Object? value) {
   return double.tryParse(value?.toString() ?? '') ?? 0;
 }
 
-double _readPositiveDouble(Object? value, {double fallback = 1}) {
-  final parsed = _readDouble(value);
-  return parsed > 0 ? parsed : fallback;
+double _readProductUnitMultiplier(JsonMap json) {
+  for (final key in const <String>[
+    'unitMultiplier',
+    'packageFactor',
+    'unitsPerCase',
+    'matchedUnitsPerCase',
+    'packageQuantity',
+    'packageQty',
+    'unitPerPackage',
+    'unitsInPackage',
+    'koliIciAdet',
+    'koliIciMiktar',
+    'koliMiktari',
+  ]) {
+    final value = _readDouble(json[key]);
+    if (value > 0) {
+      return value;
+    }
+  }
+
+  return 1;
 }
 
 double? _readNullableDouble(Object? value) {

@@ -131,6 +131,73 @@ void main() {
       greaterThan(tester.getTopLeft(find.text('Giris satiri')).dy),
     );
   });
+
+  testWidgets('loads source warehouse products into manual quantity lines', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 1000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final repository = _FakeWarehouseOrdersRepository(
+      sourceProducts: const <ProductLookupItem>[
+        ProductLookupItem(
+          warehouseNo: 56,
+          barcode: '2900729',
+          stockCode: '016167',
+          stockName: 'MNV MAYDANOZ ADET',
+          price: 0,
+          unitName: 'ADET',
+          unitMultiplier: 12,
+          secondaryUnitName: 'KOLI',
+          caseBarcode: '1290072900000',
+          isOrderBlocked: false,
+        ),
+        ProductLookupItem(
+          warehouseNo: 56,
+          barcode: '2900730',
+          stockCode: '016168',
+          stockName: 'MNV DEREOTU ADET',
+          price: 0,
+          unitName: 'ADET',
+          unitMultiplier: 10,
+          secondaryUnitName: 'KOLI',
+          isOrderBlocked: false,
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: GivenWarehouseOrderCreateSheet(
+            repository: repository,
+            accessToken: 'token',
+            defaultWarehouseNo: '56',
+            mobileWarehouseCatalogRepository:
+                MobileWarehouseCatalogLocalRepository(
+                  database: MemoryLocalDatabase(),
+                ),
+          ),
+        ),
+      ),
+    );
+
+    await _pickWarehouse(tester);
+    expect(find.widgetWithText(FilledButton, 'Depo urunleri'), findsOneWidget);
+
+    await tester.tap(find.widgetWithText(FilledButton, 'Depo urunleri'));
+    await tester.pumpAndSettle();
+
+    expect(repository.lastSourceWarehouseNo, 56);
+    expect(find.text('2 kalem'), findsOneWidget);
+    expect(find.text('MNV MAYDANOZ ADET'), findsOneWidget);
+    expect(find.text('MNV DEREOTU ADET'), findsOneWidget);
+    expect(find.textContaining('Koli 12 KOLI'), findsWidgets);
+    expect(find.text('Giris satiri'), findsOneWidget);
+  });
+
   testWidgets('resolves manav case quantity before returning create request', (
     tester,
   ) async {
@@ -254,21 +321,26 @@ Future<void> _confirmPendingProduct(WidgetTester tester) async {
   await tester.pumpAndSettle();
 }
 
-class _FakeWarehouseOrdersRepository implements WarehouseOrdersRepository {
-  _FakeWarehouseOrdersRepository({ProductLookupItem? product})
-    : product =
-          product ??
-          const ProductLookupItem(
-            warehouseNo: 110,
-            barcode: '8690000000012',
-            stockCode: '015792',
-            stockName: 'Test Urun',
-            price: 125,
-            unitName: 'AD',
-            isOrderBlocked: false,
-          );
+class _FakeWarehouseOrdersRepository
+    implements WarehouseOrdersRepository, SourceWarehouseProductsRepository {
+  _FakeWarehouseOrdersRepository({
+    ProductLookupItem? product,
+    this.sourceProducts = const <ProductLookupItem>[],
+  }) : product =
+           product ??
+           const ProductLookupItem(
+             warehouseNo: 110,
+             barcode: '8690000000012',
+             stockCode: '015792',
+             stockName: 'Test Urun',
+             price: 125,
+             unitName: 'AD',
+             isOrderBlocked: false,
+           );
 
   final ProductLookupItem product;
+  final List<ProductLookupItem> sourceProducts;
+  int? lastSourceWarehouseNo;
 
   @override
   bool get supportsCreate => true;
@@ -306,6 +378,15 @@ class _FakeWarehouseOrdersRepository implements WarehouseOrdersRepository {
     required String query,
   }) async {
     return <ProductLookupItem>[product];
+  }
+
+  @override
+  Future<List<ProductLookupItem>> fetchSourceWarehouseProducts({
+    required String accessToken,
+    required int sourceWarehouseNo,
+  }) async {
+    lastSourceWarehouseNo = sourceWarehouseNo;
+    return sourceProducts;
   }
 
   @override

@@ -54,6 +54,8 @@ class SuggestedWarehouseOrderListItem {
     required this.barcode,
     this.modelName = '',
     this.unitName = '',
+    this.secondaryUnitName = '',
+    this.caseBarcode = '',
     this.quantity = 0,
     this.recommendedQuantity = 0,
     this.unitPrice = 0,
@@ -79,6 +81,8 @@ class SuggestedWarehouseOrderListItem {
   final String barcode;
   final String modelName;
   final String unitName;
+  final String secondaryUnitName;
+  final String caseBarcode;
   final double quantity;
   final double recommendedQuantity;
   final double unitPrice;
@@ -160,6 +164,8 @@ class SuggestedWarehouseOrderListItem {
       barcode: _readString(json['barcode']),
       modelName: _readString(json['modelName']),
       unitName: _readString(json['unitName']),
+      secondaryUnitName: _readString(json['secondaryUnitName']),
+      caseBarcode: _readString(json['caseBarcode']),
       quantity: _readDouble(json['quantity']),
       recommendedQuantity: _readDouble(json['recommendedQuantity']),
       unitPrice: _readDouble(json['unitPrice']),

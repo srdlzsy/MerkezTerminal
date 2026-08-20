@@ -466,9 +466,14 @@ class _SuggestedWarehouseOrderCard extends StatelessWidget {
     final packageLabel = item.packageFactor > 0
         ? AppFormatters.quantity(item.packageFactor)
         : '-';
+    final secondaryUnitName = item.secondaryUnitName.trim();
+    final packageDisplayLabel =
+        secondaryUnitName.isNotEmpty && packageLabel != '-'
+        ? '$packageLabel $secondaryUnitName'
+        : packageLabel;
     final subtitle = <String>[
       if (item.stockCode.trim().isNotEmpty) 'Kod ${item.stockCode}',
-      'Koli $packageLabel',
+      'Koli $packageDisplayLabel',
       if (item.barcode.trim().isNotEmpty) item.barcode,
       if (item.modelName.trim().isNotEmpty) item.modelName,
       if (item.modelName.trim().isEmpty && item.modelCode.trim().isNotEmpty)
@@ -521,7 +526,12 @@ class _SuggestedWarehouseOrderCard extends StatelessWidget {
                   label: 'Birim',
                   value: item.unitName.trim().isEmpty ? '-' : item.unitName,
                 ),
-                TerminalPdaInfo(label: 'Koli', value: packageLabel),
+                TerminalPdaInfo(label: 'Koli', value: packageDisplayLabel),
+                if (item.caseBarcode.trim().isNotEmpty)
+                  TerminalPdaInfo(
+                    label: 'Koli Barkod',
+                    value: item.caseBarcode,
+                  ),
                 const TerminalPdaInfo(label: 'Oneri', value: 'Elle girilecek'),
               ] else ...<TerminalPdaInfo>[
                 TerminalPdaInfo(
@@ -548,7 +558,12 @@ class _SuggestedWarehouseOrderCard extends StatelessWidget {
                   label: 'Gun',
                   value: AppFormatters.quantity(item.recommendedDay),
                 ),
-                TerminalPdaInfo(label: 'Koli', value: packageLabel),
+                TerminalPdaInfo(label: 'Koli', value: packageDisplayLabel),
+                if (item.caseBarcode.trim().isNotEmpty)
+                  TerminalPdaInfo(
+                    label: 'Koli Barkod',
+                    value: item.caseBarcode,
+                  ),
               ],
             ],
           ),

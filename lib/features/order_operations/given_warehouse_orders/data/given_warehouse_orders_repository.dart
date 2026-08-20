@@ -6,7 +6,9 @@ abstract class GivenWarehouseOrdersRepository
     implements WarehouseOrdersRepository {}
 
 class ApiGivenWarehouseOrdersRepository
-    implements GivenWarehouseOrdersRepository {
+    implements
+        GivenWarehouseOrdersRepository,
+        SourceWarehouseProductsRepository {
   const ApiGivenWarehouseOrdersRepository({required ApiClient apiClient})
     : _apiClient = apiClient;
 
@@ -121,6 +123,28 @@ class ApiGivenWarehouseOrdersRepository
       '/api/arama-islemleri/urunler',
       accessToken: accessToken,
       queryParameters: queryParameters,
+    );
+
+    return response
+        .map(
+          (item) => ProductLookupItem.fromJson(
+            item as JsonMap? ?? <String, dynamic>{},
+          ),
+        )
+        .toList(growable: false);
+  }
+
+  @override
+  Future<List<ProductLookupItem>> fetchSourceWarehouseProducts({
+    required String accessToken,
+    required int sourceWarehouseNo,
+  }) async {
+    final response = await _apiClient.getJsonList(
+      '/api/siparis-islemleri/onerilen-depo-siparisleri/kaynak-depo-urunleri',
+      accessToken: accessToken,
+      queryParameters: <String, String>{
+        'sourceWarehouseNo': sourceWarehouseNo.toString(),
+      },
     );
 
     return response

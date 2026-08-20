@@ -27,7 +27,9 @@ void main() {
                   'modelCode': '12',
                   'modelName': 'Yesillik',
                   'unitName': 'ADET',
+                  'secondaryUnitName': 'KOLI',
                   'barcode': '2900729',
+                  'caseBarcode': '1290072900000',
                   'quantity': 0,
                   'recommendedQuantity': 0,
                   'unitPrice': 0,
@@ -58,6 +60,8 @@ void main() {
       expect(items.single.sourceWarehouseName, 'MANAV DEPO');
       expect(items.single.stockCode, '016167');
       expect(items.single.barcode, '2900729');
+      expect(items.single.secondaryUnitName, 'KOLI');
+      expect(items.single.caseBarcode, '1290072900000');
       expect(items.single.needsManualQuantity, isTrue);
     },
   );

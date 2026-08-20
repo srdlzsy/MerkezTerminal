@@ -31,3 +31,10 @@ abstract class WarehouseOrdersRepository {
     required String query,
   });
 }
+
+abstract class SourceWarehouseProductsRepository {
+  Future<List<ProductLookupItem>> fetchSourceWarehouseProducts({
+    required String accessToken,
+    required int sourceWarehouseNo,
+  });
+}

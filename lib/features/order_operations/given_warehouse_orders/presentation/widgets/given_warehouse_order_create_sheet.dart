@@ -6,6 +6,7 @@ import 'package:furpa_merkez_terminal/core/network/api_exception.dart';
 import 'package:furpa_merkez_terminal/features/green_grocer/product_cases/data/green_grocer_product_cases_repository.dart';
 import 'package:furpa_merkez_terminal/features/order_operations/shared/data/models/warehouse_order_models.dart';
 import 'package:furpa_merkez_terminal/features/order_operations/shared/data/warehouse_orders_repository.dart';
+import 'package:furpa_merkez_terminal/features/order_operations/suggested_warehouse_orders/data/models/suggested_warehouse_order_models.dart';
 import 'package:furpa_merkez_terminal/shared/drafts/create_draft.dart';
 import 'package:furpa_merkez_terminal/shared/drafts/create_draft_repository.dart';
 import 'package:furpa_merkez_terminal/shared/drafts/create_draft_session.dart';
@@ -58,6 +59,7 @@ class _GivenWarehouseOrderCreateSheetState
   String? _validationMessage;
   bool _isPreparingSubmit = false;
   bool _isGreenGrocerPreviewEnabled = true;
+  bool _isLoadingSourceProducts = false;
   final ScrollController _scrollController = ScrollController();
   late final CreateDraftSession _draftSession;
   String? _lastAddedProductKey;
@@ -68,6 +70,20 @@ class _GivenWarehouseOrderCreateSheetState
   }
 
   int? get _sourceWarehouseNo => int.tryParse(widget.defaultWarehouseNo.trim());
+
+  SourceWarehouseProductsRepository? get _sourceProductsRepository {
+    final repository = widget.repository;
+    return repository is SourceWarehouseProductsRepository
+        ? repository as SourceWarehouseProductsRepository
+        : null;
+  }
+
+  bool get _canLoadSourceWarehouseProducts {
+    final sourceWarehouseNo = _sourceWarehouseNo;
+    return sourceWarehouseNo != null &&
+        usesSuggestedWarehouseOrderSourceProducts(sourceWarehouseNo) &&
+        _sourceProductsRepository != null;
+  }
 
   bool get _isGreenGrocerOrderFlow {
     return _sourceWarehouseNo == 56 &&
@@ -177,6 +193,111 @@ class _GivenWarehouseOrderCreateSheetState
     });
     _draftSession.scheduleSave();
     _focusFreshEntryLine();
+  }
+
+  Future<void> _loadSourceWarehouseProducts() async {
+    if (_isLoadingSourceProducts) {
+      return;
+    }
+
+    if (!_hasWarehouseSelection) {
+      _showFeedback('Once karsi depo secin, sonra depo urunlerini getirin.');
+      return;
+    }
+
+    if (_hasPendingEntryLine) {
+      _showFeedback(
+        'Once giris satirindaki urunu Kaleme Ekle ile listeye alin.',
+      );
+      _focusFreshEntryLine();
+      return;
+    }
+
+    final sourceWarehouseNo = _sourceWarehouseNo;
+    final repository = _sourceProductsRepository;
+    if (sourceWarehouseNo == null || repository == null) {
+      return;
+    }
+
+    setState(() {
+      _isLoadingSourceProducts = true;
+      _validationMessage = null;
+    });
+
+    try {
+      final products = await repository.fetchSourceWarehouseProducts(
+        accessToken: widget.accessToken,
+        sourceWarehouseNo: sourceWarehouseNo,
+      );
+      if (!mounted) {
+        return;
+      }
+
+      if (products.isEmpty) {
+        setState(() => _isLoadingSourceProducts = false);
+        _showFeedback('Bu depo icin urun bulunamadi.');
+        return;
+      }
+
+      final existingKeys = <String>{
+        for (final line in _lines)
+          if (line.selectedProduct != null)
+            _productKey(
+              stockCode: line.selectedProduct!.stockCode,
+              barcode: line.selectedProduct!.barcode,
+            ),
+      }..remove('');
+
+      final addedLines = <_CreateLineDraft>[];
+      var skippedCount = 0;
+      for (final product in products) {
+        final key = _productKey(
+          stockCode: product.stockCode,
+          barcode: product.barcode,
+        );
+        if (key.isEmpty || existingKeys.contains(key)) {
+          skippedCount += 1;
+          continue;
+        }
+
+        final line = _createLine();
+        line.applyProduct(product);
+        line.quantityController.clear();
+        addedLines.add(line);
+        existingKeys.add(key);
+      }
+
+      setState(() {
+        _lines = <_CreateLineDraft>[
+          _lines.first,
+          ...addedLines,
+          ..._lines.skip(1),
+        ];
+        _isLoadingSourceProducts = false;
+      });
+      _draftSession.scheduleSave();
+      _focusFreshEntryLine();
+
+      if (addedLines.isEmpty) {
+        _showFeedback('Depodaki urunlerin tamami zaten listede.');
+      } else {
+        final skippedLabel = skippedCount > 0
+            ? ' $skippedCount urun zaten vardi.'
+            : '';
+        _showFeedback(
+          '${addedLines.length} urun listeye eklendi.$skippedLabel',
+        );
+      }
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _isLoadingSourceProducts = false;
+        _validationMessage = error.toString();
+      });
+    }
   }
 
   Future<void> _searchProduct(_CreateLineDraft line) async {
@@ -937,6 +1058,20 @@ class _GivenWarehouseOrderCreateSheetState
     return 'kasa/koli';
   }
 
+  String? _productPackageLabel(ProductLookupItem product) {
+    if (product.unitMultiplier <= 1) {
+      return null;
+    }
+
+    final quantity = AppFormatters.quantity(product.unitMultiplier);
+    final secondaryUnitName = product.secondaryUnitName.trim();
+    if (secondaryUnitName.isEmpty) {
+      return quantity;
+    }
+
+    return '$quantity $secondaryUnitName';
+  }
+
   String? _greenGrocerMetaLabel(_CreateLineDraft line) {
     if (!_shouldResolveGreenGrocerLine(line)) {
       return null;
@@ -1005,7 +1140,33 @@ class _GivenWarehouseOrderCreateSheetState
                       const SizedBox(height: 5),
                       TerminalSectionToolbar(
                         title: 'Satirlar',
-                        actions: const [],
+                        actions: <Widget>[
+                          if (_canLoadSourceWarehouseProducts)
+                            FilledButton.tonalIcon(
+                              onPressed:
+                                  _isLoadingSourceProducts ||
+                                      !_hasWarehouseSelection
+                                  ? null
+                                  : _loadSourceWarehouseProducts,
+                              icon: _isLoadingSourceProducts
+                                  ? const SizedBox(
+                                      width: 16,
+                                      height: 16,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                      ),
+                                    )
+                                  : const Icon(
+                                      Icons.playlist_add_rounded,
+                                      size: 18,
+                                    ),
+                              label: Text(
+                                _isLoadingSourceProducts
+                                    ? 'Yukleniyor'
+                                    : 'Depo urunleri',
+                              ),
+                            ),
+                        ],
                       ),
                       const SizedBox(height: 4),
                       _buildEntryLineCard(theme),
@@ -1270,9 +1431,7 @@ class _GivenWarehouseOrderCreateSheetState
         stockName: product.stockName,
         quantityController: line.quantityController,
         unitLabel: _greenGrocerUnitLabel(line, product),
-        packageLabel: product.unitMultiplier > 1
-            ? AppFormatters.quantity(product.unitMultiplier)
-            : null,
+        packageLabel: _productPackageLabel(product),
         barcode: product.barcode,
         priceLabel: _greenGrocerMetaLabel(line),
         warningLabel: _greenGrocerWarningLabel(line, product),
@@ -1320,9 +1479,7 @@ class _GivenWarehouseOrderCreateSheetState
         stockName: product.stockName,
         quantityController: line.quantityController,
         unitLabel: _greenGrocerUnitLabel(line, product),
-        packageLabel: product.unitMultiplier > 1
-            ? AppFormatters.quantity(product.unitMultiplier)
-            : null,
+        packageLabel: _productPackageLabel(product),
         barcode: product.barcode,
         priceLabel: _greenGrocerMetaLabel(line),
         warningLabel: _greenGrocerWarningLabel(line, product),
@@ -1986,6 +2143,8 @@ Map<String, dynamic> _warehouseOrderProductJson(ProductLookupItem item) {
     'price': item.price,
     'unitName': item.unitName,
     'unitMultiplier': item.unitMultiplier,
+    'secondaryUnitName': item.secondaryUnitName,
+    'caseBarcode': item.caseBarcode,
     'modelCode': item.modelCode,
     'isOrderBlocked': item.isOrderBlocked,
   };

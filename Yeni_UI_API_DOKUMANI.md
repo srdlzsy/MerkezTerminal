@@ -102,6 +102,7 @@ Bu tablo UI icin ana permission referansidir. Kaynak kod tarafi `PermissionCatal
 | `ayar-islemleri` | `kasa-pos-terminalleri` | `ayar-islemleri.kasa-pos-terminalleri.manage` | `ayar-islemleri.kasa-pos-terminalleri.list`<br>`ayar-islemleri.kasa-pos-terminalleri.detail`<br>`ayar-islemleri.kasa-pos-terminalleri.create`<br>`ayar-islemleri.kasa-pos-terminalleri.update` | `ayar-islemleri.kasa-pos-terminalleri.all-warehouses` |
 | `ayar-islemleri` | `kasiyerler` | `ayar-islemleri.kasiyerler.manage` | `ayar-islemleri.kasiyerler.list`<br>`ayar-islemleri.kasiyerler.detail`<br>`ayar-islemleri.kasiyerler.create`<br>`ayar-islemleri.kasiyerler.update` | `ayar-islemleri.kasiyerler.all-warehouses` |
 | `ayar-islemleri` | `soforler` | `ayar-islemleri.soforler.manage` | `ayar-islemleri.soforler.list`<br>`ayar-islemleri.soforler.detail`<br>`ayar-islemleri.soforler.create`<br>`ayar-islemleri.soforler.update`<br>`ayar-islemleri.soforler.delete` | `ayar-islemleri.soforler.all-warehouses` |
+| `ayar-islemleri` | `b2b-ayarlari` | `ayar-islemleri.b2b-ayarlari.manage` | `ayar-islemleri.b2b-ayarlari.list`<br>`ayar-islemleri.b2b-ayarlari.detail`<br>`ayar-islemleri.b2b-ayarlari.create`<br>`ayar-islemleri.b2b-ayarlari.update`<br>`ayar-islemleri.b2b-ayarlari.delete` | `ayar-islemleri.b2b-ayarlari.all-warehouses` |
 | `siparis-islemleri` | `alinan-depo-siparisleri` | `siparis-islemleri.alinan-depo-siparisleri.page` | `siparis-islemleri.alinan-depo-siparisleri.list`<br>`siparis-islemleri.alinan-depo-siparisleri.detail`<br>`siparis-islemleri.alinan-depo-siparisleri.create`<br>`siparis-islemleri.alinan-depo-siparisleri.update` | `siparis-islemleri.alinan-depo-siparisleri.all-warehouses` |
 | `siparis-islemleri` | `verilen-depo-siparisleri` | `siparis-islemleri.verilen-depo-siparisleri.page` | `siparis-islemleri.verilen-depo-siparisleri.list`<br>`siparis-islemleri.verilen-depo-siparisleri.detail`<br>`siparis-islemleri.verilen-depo-siparisleri.create`<br>`siparis-islemleri.verilen-depo-siparisleri.update` | `siparis-islemleri.verilen-depo-siparisleri.all-warehouses` |
 | `siparis-islemleri` | `alinan-firma-siparisleri` | `siparis-islemleri.alinan-firma-siparisleri.page` | `siparis-islemleri.alinan-firma-siparisleri.list`<br>`siparis-islemleri.alinan-firma-siparisleri.detail`<br>`siparis-islemleri.alinan-firma-siparisleri.create`<br>`siparis-islemleri.alinan-firma-siparisleri.update` | `siparis-islemleri.alinan-firma-siparisleri.all-warehouses` |
@@ -1902,25 +1903,37 @@ Response modeli:
 
 ## Ayar Islemleri
 
-Bu modul eski `SettingsController` islevlerini yeni API mimarisine uygun olarak 4 ayri menu altinda toplar:
+Bu modul eski `SettingsController` islevlerini yeni API mimarisine uygun olarak ayri menu altinda toplar:
 
 - `AyarIslemleri > Cihazlar`
 - `AyarIslemleri > SubeAyarlari`
 - `AyarIslemleri > KasaPosTerminalleri`
 - `AyarIslemleri > Kasiyerler`
 - `AyarIslemleri > Soforler`
+- `AyarIslemleri > B2BAyarlari`
 
 Veri kaynaklari:
 
 - Furpa DB: `DeviceDetails`, `DeviceTypes`, `BranchDetails`, `CashRegistryDetails`, `Cashiers`
+- FurpaB2B DB: `Bultens`, `Users`, `UserAccounts`
 - Mikro write DB: `CashRegisterDetails`, `CashRegisterBranches`
 - Auth DB: `despatch_drivers`
 
 Onemli alan ayrimi:
 
-- `cashNo`: integer kasa no, eski `CashRegistryDetail.CashRegisterNo` karsiligi
-- `terminalNo`: string POS terminal no, eski `CashRegisterDetail.CashRegisterNo` karsiligi
+- `cashNo`: integer sube icindeki fiziksel/operasyonel kasa no. Ornek: `130`.
+- `cashRegisterNo`: geriye uyumluluk icin bazi kasa response'larinda `cashNo` ile ayni integer kasa no olarak donebilir.
+- `cashFinanceNumber`: kasanin banka/POS/Z raporu tarafindaki finans/terminal grup numarasi. Ornek: `PAV210010584`.
+- `terminalNo`: POS terminal grup numarasi; ayar terminal response'unda `CashRegisterDetails.CashRegisterNo` karsiligi olarak gelir. Yeni UI'da gorunen/anahtar isim icin `cashRegisterNo` alias'i da vardir.
 - `branchNo`: sube/depo no
+
+Kasa ve terminal kaynagi:
+
+- Sube kasa listesi `GET /api/ayar-islemleri/sube-ayarlari/{branchNo}/kasalar` tarafinda Furpa `CashRegistryDetails` kaydindan kasa no'yu okur.
+- Ayni response'taki `cashFinanceNumber`, once Furpa `CashRegisterDetails` icindeki `CashNo -> CashRegisterNo` eslesmesinden cozulur; Furpa'da yoksa Mikro `CashRegisterDetails` fallback olarak kullanilir.
+- Kasa/POS terminal listesi `GET /api/ayar-islemleri/kasa-pos-terminalleri/kasalar/{cashNo}/terminaller` tarafinda once Furpa `CashRegisterDetails` kayitlarini dondurur. Furpa'da ilgili `cashNo` icin terminal yoksa Mikro `CashRegisterDetails` fallback olarak kullanilir.
+- Icmal/kasa sayim banka odeme tipi seciminde UI `cashNo` yerine mumkunse `cashFinanceNumber` gondermelidir. Ornek: kasa `130`, finans no `PAV210010584` ise banka odeme tipi endpointi `cashRegisterNo=PAV210010584` ile cagrilir.
+- `cashNo` sadece subedeki kasa numarasidir; banka/POS eslesmesinin guvenilir anahtari `cashFinanceNumber`/terminal `cashRegisterNo` degeridir.
 
 Kasiyer listelerinde sifre donmez. Yeni kasiyer olusturma ve sifre sifirlama response'lari uretilen sifreyi tek seferlik `generatedPassword` alaninda dondurur.
 
@@ -1965,9 +1978,19 @@ ayar-islemleri.soforler.create
 ayar-islemleri.soforler.update
 ayar-islemleri.soforler.delete
 ayar-islemleri.soforler.all-warehouses
+
+ayar-islemleri.b2b-ayarlari.manage
+ayar-islemleri.b2b-ayarlari.list
+ayar-islemleri.b2b-ayarlari.detail
+ayar-islemleri.b2b-ayarlari.create
+ayar-islemleri.b2b-ayarlari.update
+ayar-islemleri.b2b-ayarlari.delete
+ayar-islemleri.b2b-ayarlari.all-warehouses
 ```
 
 Not: `Soforler` ekrani tanim/yonetim ekranidir. UI menu/route acilisinda `ayar-islemleri.soforler.manage` yetkisine bakmali; liste ve butonlarda ilgili `list/detail/create/update/delete` yetkilerini kullanmalidir.
+
+Not: `B2BAyarlari` ekrani tanim/yonetim ekranidir. UI menu/route acilisinda `ayar-islemleri.b2b-ayarlari.manage` yetkisine bakmali; bulten ve kullanici aksiyonlarinda ilgili `list/detail/create/update/delete` yetkilerini kullanmalidir. B2B kullanici sifre hash/salt alanlari API response'unda donmez ve bu ekrandan sifre degistirilmez.
 
 Endpoint ozeti:
 
@@ -2001,6 +2024,13 @@ Endpoint ozeti:
 | `POST /api/ayar-islemleri/soforler` | body | `SaveDespatchDriverHttpRequest` | `DespatchDriverDto` | `soforler.create` |
 | `PUT /api/ayar-islemleri/soforler/{id}` | body + path | `SaveDespatchDriverHttpRequest` | `DespatchDriverDto` | `soforler.update` |
 | `DELETE /api/ayar-islemleri/soforler/{id}` | path | `id: guid` | - | `soforler.delete` |
+| `GET /api/ayar-islemleri/b2b-ayarlari/bultenler?search=&take=100` | query | `B2BBulletinListHttpRequest` | `B2BBulletinDto[]` | `b2b-ayarlari.list` |
+| `POST /api/ayar-islemleri/b2b-ayarlari/bultenler` | body | `SaveB2BBulletinHttpRequest` | `B2BBulletinDto` | `b2b-ayarlari.create` |
+| `PUT /api/ayar-islemleri/b2b-ayarlari/bultenler/{id}` | body + path | `SaveB2BBulletinHttpRequest` | `B2BBulletinDto` | `b2b-ayarlari.update` |
+| `DELETE /api/ayar-islemleri/b2b-ayarlari/bultenler/{id}` | path | `id: int` | - | `b2b-ayarlari.delete` |
+| `GET /api/ayar-islemleri/b2b-ayarlari/kullanicilar?search=&includeInactive=false&take=100` | query | `B2BUserListHttpRequest` | `B2BUserDto[]` | `b2b-ayarlari.list` |
+| `GET /api/ayar-islemleri/b2b-ayarlari/kullanicilar/{userId}` | path | `userId: guid` | `B2BUserDetailDto` | `b2b-ayarlari.detail` |
+| `PUT /api/ayar-islemleri/b2b-ayarlari/kullanicilar/{userId}` | body + path | `UpdateB2BUserHttpRequest` | `B2BUserDetailDto` | `b2b-ayarlari.update` |
 
 ### Cihazlar
 
@@ -2163,12 +2193,23 @@ Response:
     "detailId": 1,
     "branchNo": 110,
     "cashNo": 1,
+    "cashRegisterNo": 1,
     "cashType": 1,
+    "cashRegisterType": 1,
     "cashTypeName": "Ek POS Kasasi",
-    "cashTypeDescription": "Subede standart kasa disinda tanimli ek POS kasasi; POSKON/MESAJ ve kasa hareket islemlerinde kasa no ile takip edilir."
+    "cashRegisterTypeName": "Ek POS Kasasi",
+    "cashTypeDescription": "Subede standart kasa disinda tanimli ek POS kasasi; POSKON/MESAJ ve kasa hareket islemlerinde kasa no ile takip edilir.",
+    "cashRegisterTypeDescription": "Subede standart kasa disinda tanimli ek POS kasasi; POSKON/MESAJ ve kasa hareket islemlerinde kasa no ile takip edilir.",
+    "cashFinanceNumber": "PAV210010584"
   }
 ]
 ```
+
+Not:
+
+- `cashNo` / `cashRegisterNo` bu endpointte sube icindeki kasa numarasidir.
+- `cashFinanceNumber` bankalar, Z raporu ve kasa sayim banka odeme tipi lookup'inda kullanilacak asil anahtardir.
+- UI kasa seciminde kullaniciya `Kasa 130 - PAV210010584` gibi gosterebilir; banka odeme tiplerini getirirken `cashFinanceNumber` degerini `cashRegisterNo` query alanina yazmalidir.
 
 `POST /api/ayar-islemleri/sube-ayarlari`
 
@@ -2284,6 +2325,7 @@ Response `201 Created`:
     {
       "id": 15,
       "terminalNo": "POS001",
+      "cashRegisterNo": "POS001",
       "bank": "Akbank",
       "terminalId": "T123456",
       "merchantNo": "M123456",
@@ -2301,7 +2343,36 @@ Notlar:
 
 `GET /api/ayar-islemleri/kasa-pos-terminalleri/kasalar/{cashNo}/terminaller`
 
-Kasa no'ya bagli terminal detaylarini listeler.
+Kasa no'ya bagli terminal detaylarini listeler. Backend once Furpa `CashRegisterDetails` kayitlarini okur; Furpa'da ilgili kasa icin kayit yoksa Mikro `CashRegisterDetails` fallback olarak kullanilir.
+
+Ornek:
+
+`GET /api/ayar-islemleri/kasa-pos-terminalleri/kasalar/130/terminaller`
+
+```json
+[
+  {
+    "id": 3503,
+    "terminalNo": "PAV210010584",
+    "cashRegisterNo": "PAV210010584",
+    "bank": "İş Bankası",
+    "terminalId": "PAV210010584-3",
+    "merchantNo": "PAV210010584-3",
+    "cashNo": 130
+  },
+  {
+    "id": 3566,
+    "terminalNo": "PAV210010584",
+    "cashRegisterNo": "PAV210010584",
+    "bank": "TEB",
+    "terminalId": "PSB25681",
+    "merchantNo": "670522",
+    "cashNo": 130
+  }
+]
+```
+
+Bu response'ta `terminalNo` ve `cashRegisterNo` ayni terminal/finans grup numarasidir. UI eski ad icin `terminalNo`, yeni net ad icin `cashRegisterNo` kullanabilir.
 
 `DELETE /api/ayar-islemleri/kasa-pos-terminalleri/subeler/{branchNo}/kasalar/{cashNo}`
 
@@ -2533,6 +2604,190 @@ E-irsaliye modal entegrasyonu:
 3. Gonderimde body'ye sadece `driverId` gonderilebilir; backend aktif sofor kaydindan plaka/ad soyad/TCKN alanlarini doldurur.
 4. Kullanici secilen sofor bilgisini formda degistirdiyse `driverId` ile birlikte manuel alanlar da gonderilebilir. Manuel dolu alanlar, secili sofor kaydinin ustune yazilir.
 5. Kullanici listeden secmeden eski akisi kullanacaksa `driverId` gondermez; bu durumda `plaque`, `driverNameSurname`, `driverTckn` zorunludur.
+
+### B2B Ayarlari
+
+Bu ekran eski B2B sistemindeki bulten ve B2B kullanici kayitlarini yeni ayar modulu altinda yonetmek icindir.
+
+Veri kaynagi:
+
+- FurpaB2B DB: `Bultens`, `Users`, `UserAccounts`
+
+Guvenlik notu:
+
+- `Users.UserPasswordSalt` ve `Users.UserPasswordHash` API response'unda hic donmez.
+- Bu ekrandan B2B kullanici sifresi olusturma veya sifre degistirme yapilmaz.
+- Kullanici guncelleme sadece ad-soyad, e-posta, aktiflik, menu metni ve bitis tarihi alanlarini degistirir.
+
+UI onerisi:
+
+- Ekrani iki tab olarak tasarla: `Bultenler` ve `Kullanicilar`.
+- Bultenler tabinda baslik/aciklama, link ve olusturma tarihi kolonlari yeterlidir.
+- Kullanicilar tabinda ad-soyad, e-posta, aktif/pasif, bitis tarihi, hesap sayisi ve kategori kolonlari yeterlidir.
+- Kullanici detayinda `accounts` listesi gosterilebilir; `accountId` ve `category` alanlari B2B cari/hesap baglantisini anlatir.
+- Sifre alanlari UI'da hic gosterilmemeli ve body'ye yazilmamalidir.
+
+#### B2B Bulten Liste
+
+`GET /api/ayar-islemleri/b2b-ayarlari/bultenler?search=kampanya&take=100`
+
+Yetki:
+
+- `ayar-islemleri.b2b-ayarlari.list`
+
+Query:
+
+```text
+search  opsiyonel; bulten aciklamasi veya link icinde arar
+take    opsiyonel; default 100, max 500
+```
+
+Response:
+
+```json
+[
+  {
+    "id": 1,
+    "definition": "Haftalik B2B bulteni",
+    "link": "https://ornek.local/bulten.pdf",
+    "createDate": "2026-08-20T09:00:00"
+  }
+]
+```
+
+#### B2B Bulten Olustur / Guncelle
+
+Olustur:
+
+`POST /api/ayar-islemleri/b2b-ayarlari/bultenler`
+
+Guncelle:
+
+`PUT /api/ayar-islemleri/b2b-ayarlari/bultenler/{id}`
+
+Yetki:
+
+- Olusturma: `ayar-islemleri.b2b-ayarlari.create`
+- Guncelleme: `ayar-islemleri.b2b-ayarlari.update`
+
+Body:
+
+```json
+{
+  "definition": "Haftalik B2B bulteni",
+  "link": "https://ornek.local/bulten.pdf",
+  "createDate": "2026-08-20T09:00:00"
+}
+```
+
+Not:
+
+- `createDate` bos gonderilirse yeni kayitta backend su anki tarihi yazar.
+- Guncellemede `createDate` bos gonderilirse mevcut tarih korunur.
+
+#### B2B Bulten Sil
+
+`DELETE /api/ayar-islemleri/b2b-ayarlari/bultenler/{id}`
+
+Yetki:
+
+- `ayar-islemleri.b2b-ayarlari.delete`
+
+Basarili response:
+
+```text
+204 No Content
+```
+
+#### B2B Kullanici Liste
+
+`GET /api/ayar-islemleri/b2b-ayarlari/kullanicilar?search=ali&includeInactive=false&take=100`
+
+Yetki:
+
+- `ayar-islemleri.b2b-ayarlari.list`
+
+Query:
+
+```text
+search           opsiyonel; ad-soyad, e-posta veya menus alaninda arar
+includeInactive  opsiyonel; default false. false ise sadece aktif kullanicilar gelir.
+take             opsiyonel; default 100, max 500
+```
+
+Response:
+
+```json
+[
+  {
+    "userId": "58ac6266-8c7a-4ff5-a16e-2229ef31a111",
+    "userFullName": "Ali Veli",
+    "userMail": "ali.veli@example.local",
+    "status": true,
+    "createDate": "2026-08-20T09:00:00",
+    "menus": "Orders,Reports",
+    "userEndDate": "2026-12-31T23:59:00",
+    "accountCount": 2,
+    "categories": ["Bayi", "Market"]
+  }
+]
+```
+
+#### B2B Kullanici Detay
+
+`GET /api/ayar-islemleri/b2b-ayarlari/kullanicilar/{userId}`
+
+Yetki:
+
+- `ayar-islemleri.b2b-ayarlari.detail`
+
+Response:
+
+```json
+{
+  "userId": "58ac6266-8c7a-4ff5-a16e-2229ef31a111",
+  "userFullName": "Ali Veli",
+  "userMail": "ali.veli@example.local",
+  "status": true,
+  "createDate": "2026-08-20T09:00:00",
+  "menus": "Orders,Reports",
+  "userEndDate": "2026-12-31T23:59:00",
+  "accounts": [
+    {
+      "id": 1,
+      "accountId": "aa59c64c-8798-49f9-b4f0-0b640d2eab7d",
+      "category": "Bayi"
+    }
+  ]
+}
+```
+
+#### B2B Kullanici Guncelle
+
+`PUT /api/ayar-islemleri/b2b-ayarlari/kullanicilar/{userId}`
+
+Yetki:
+
+- `ayar-islemleri.b2b-ayarlari.update`
+
+Body:
+
+```json
+{
+  "userFullName": "Ali Veli",
+  "userMail": "ali.veli@example.local",
+  "status": true,
+  "menus": "Orders,Reports",
+  "userEndDate": "2026-12-31T23:59:00"
+}
+```
+
+Not:
+
+- `userFullName` max 70 karakterdir.
+- `userMail` max 150 karakterdir ve e-posta formatinda olmalidir.
+- `menus` bos gonderilebilir; bos gonderilirse DB'de null saklanir.
+- Sifre hash/salt, hesap eslestirme ve cari baglantilari bu endpointle degismez.
 
 ## Manav / Manav Raporlari
 
@@ -4357,6 +4612,7 @@ Amac:
 - Sadece bu model kodlarina uyan, aktif, siparise kapali olmayan ve secili kaynak depoda `STOK_DEPO_DETAYLARI` kaydi bulunan stoklar doner.
 - Kaynak depo model kodlari bos ise backend `400 ProblemDetails` doner.
 - Response satirlari siparis satirina donusturulmeye hazirdir; `quantity` ve `recommendedQuantity` bilerek `0` gelir. UI satiri ekrana miktar `0` ile koymali, kullanici miktari elle girmelidir.
+- Koli/ikinci birim bilgisi icin `secondaryUnitName`, `packageFactor` ve varsa `caseBarcode` alanlari doner. Ornek `secondaryUnitName=KOLI`, `packageFactor=12` ise 1 koli 12 ana birim olarak okunur.
 - Bu akista otomatik oneri miktari uretilmez; kullanici kasa/koli/adet/kg kararini ekranda verir.
 - `/manav` alias'i sadece `sourceWarehouseNo=56` icin kisa yoldur. Yeni UI genel kullanimda `kaynak-depo-urunleri?sourceWarehouseNo={secilenKaynakDepo}` endpointini tercih etmelidir.
 
@@ -4390,7 +4646,10 @@ Response:
     "modelCode": "12",
     "modelName": "Yesillik",
     "unitName": "ADET",
+    "secondaryUnitName": "KOLI",
+    "packageFactor": 25,
     "barcode": "2900729",
+    "caseBarcode": "1290072900000",
     "quantity": 0,
     "recommendedQuantity": 0,
     "unitPrice": 0,
@@ -4405,6 +4664,7 @@ UI akisi:
 - Kaynak depo `53`, `55`, `56` veya `58` ise `GET /api/siparis-islemleri/onerilen-depo-siparisleri/kaynak-depo-urunleri?sourceWarehouseNo={sourceWarehouseNo}` cagrilir.
 - Kaynak depo `59` veya `62` secilecekse once DB'de ilgili model kodlari tanimlanmalidir; aksi halde backend `400 ProblemDetails` ile "Secilen kaynak depo icin model kodlari tanimli degil." doner.
 - Donen satirlar grid/form satirina `quantity=0` ile basilir.
+- `packageFactor > 1` ise UI koli miktari girisine izin verebilir; ana miktar `koliAdedi * packageFactor` olarak hesaplanabilir. `caseBarcode` doluysa koli barkodu olarak gosterilebilir veya okutma eslestirmesinde kullanilabilir.
 - Kullanici miktari kendisi girer; `quantity > 0` olmayan satirlar siparise cevrilmemelidir.
 - Siparise cevirirken yine `POST /api/siparis-islemleri/onerilen-depo-siparisleri/convert-to-order` kullanilir.
 - Request icinde secilen kaynak depo `sourceWarehouseNo` olarak gonderilir ve secilen satirlar `lines[]` altina yazilir.
@@ -6355,6 +6615,7 @@ Firma mal kabul UI akisi:
 Bu modul Mikro tarafinda var olan kayitlari kontrollu sekilde duzeltmek icin eklendi. Ilk kapsam:
 
 - `STOK_HAREKETLERI` belgeleri
+- `SAYIM_SONUCLARI` sayim sonucu fisleri
 - `CARI_HESAP_HAREKETLERI` belgeleri
 - `STOKLAR` stok kartlari
 - `STOK_DEPO_DETAYLARI` depo bazli stok karti ayarlari
@@ -6383,6 +6644,8 @@ Genel kurallar:
 - Stok ve cari hareket belgelerinde `documentSerie` ve `documentOrderNo` zorunludur.
 - `documentType`, `movementType`, `movementKind`, `normalReturn` filtreleri opsiyoneldir. Seri-sira birden fazla evrak tipi/cins/iade kombinasyonuna denk gelirse backend `409 Conflict` doner; UI kullaniciya "evrak tipi/cins/iade filtresi ile daraltin" mesaji gostermelidir.
 - Satir guncellemeleri `movementGuid` ile yapilir. UI detay response'undaki `lines[].movementGuid` degerini satir modelinde saklamalidir.
+- Sayim sonucu fisleri `warehouseNo + documentNo + documentDate` ile bulunur. Sayim satiri guncellemeleri `countGuid` ile yapilir; UI detay response'undaki `lines[].countGuid` degerini gizli anahtar olarak saklamalidir.
+- Sayim sonucunda `sym_kilitli = true` olan satir varsa update reddedilir. Sayim duzeltmede yeni fis/satir olusturma ve silme yoktur; mevcut satirlarin miktar, stok, barkod, birim ve yardimci kodlari duzeltilir.
 - Firma siparislerinde `documentSerie` ve `documentOrderNo` zorunludur; `orderType` (`SIPARISLER.sip_tip`), `orderKind` (`sip_cins`), `warehouseNo` ve `customerCode` opsiyonel daraltma filtreleridir.
 - Depo siparislerinde `documentSerie` ve `documentOrderNo` zorunludur; `warehouseNo`, `inWarehouseNo` ve `outWarehouseNo` opsiyonel daraltma filtreleridir.
 - Siparis satir guncellemeleri `orderGuid` ile yapilir. UI detay response'undaki `lines[].orderGuid` degerini satir modelinde gizli anahtar olarak saklamalidir.
@@ -6429,6 +6692,8 @@ Endpoint ozeti:
 | `GET /api/duzeltme-islemleri/mikro-evrak-duzenleme/stok-hareketleri` | query | `StockMovementDocumentLookupHttpRequest` | `StockMovementDocumentDto` | `detail` |
 | `PUT /api/duzeltme-islemleri/mikro-evrak-duzenleme/stok-hareketleri` | body | `UpdateStockMovementDocumentHttpRequest` | `StockMovementDocumentUpdateResponse` | `update` |
 | `DELETE /api/duzeltme-islemleri/mikro-evrak-duzenleme/stok-hareketleri` | query | `StockMovementDocumentLookupHttpRequest` | `MikroDocumentDeleteResponse` | `delete` |
+| `GET /api/duzeltme-islemleri/mikro-evrak-duzenleme/sayim-sonuclari` | query | `InventoryCountDocumentLookupHttpRequest` | `InventoryCountDocumentDto` | `detail` |
+| `PUT /api/duzeltme-islemleri/mikro-evrak-duzenleme/sayim-sonuclari` | body | `UpdateInventoryCountDocumentHttpRequest` | `InventoryCountDocumentUpdateResponse` | `update` |
 | `GET /api/duzeltme-islemleri/mikro-evrak-duzenleme/cari-hareketleri` | query | `CustomerMovementDocumentLookupHttpRequest` | `CustomerMovementDocumentDto` | `detail` |
 | `PUT /api/duzeltme-islemleri/mikro-evrak-duzenleme/cari-hareketleri` | body | `UpdateCustomerMovementDocumentHttpRequest` | `CustomerMovementDocumentUpdateResponse` | `update` |
 | `DELETE /api/duzeltme-islemleri/mikro-evrak-duzenleme/cari-hareketleri` | query | `CustomerMovementDocumentLookupHttpRequest` | `MikroDocumentDeleteResponse` | `delete` |
@@ -6501,6 +6766,12 @@ Kritik alan karsiliklari:
 | Stok hareket satiri | `expenseTaxAmount` | Masraf vergi tutari | `STOK_HAREKETLERI.sth_masraf_vergi` | Yeni guncellenebilir alan |
 | Stok hareket satiri | `special1/2/3` | Ozel kod 1/2/3 | `STOK_HAREKETLERI.sth_special1/2/3` | Yeni guncellenebilir alanlar, 4 karakter |
 | Stok hareket satiri | `unitPrice` | Birim fiyat | - | Read-only; `amount / quantity` hesaplanir |
+| Sayim header | `documentDate` | Sayim tarihi | `SAYIM_SONUCLARI.sym_tarihi` | Tum sayim satirlarina uygulanir |
+| Sayim header | `warehouseNo` | Depo | `SAYIM_SONUCLARI.sym_depono` | Tum sayim satirlarina uygulanir |
+| Sayim header | `name` | Sayim adi/notu | `SAYIM_SONUCLARI.sym_parti_kodu` | Tum sayim satirlarina uygulanir |
+| Sayim satiri | `countGuid` | Sayim satir GUID | `SAYIM_SONUCLARI.sym_Guid` | Read-only; satir eslestirme anahtari |
+| Sayim satiri | `quantity1..5` | Sayim miktarlari | `SAYIM_SONUCLARI.sym_miktar1..5` | En kritik duzeltme alani genelde `quantity1` |
+| Sayim satiri | `stockCode`, `barcode`, `unitPointer` | Stok/barkod/birim | `sym_Stokkodu`, `sym_barkod`, `sym_birim_pntr` | Stok degisirse stok karti varligi kontrol edilir |
 | Cari hareket satiri | `special1/2/3` | Ozel kod 1/2/3 | `CARI_HESAP_HAREKETLERI.cha_special1/2/3` | Yeni guncellenebilir alanlar, 4 karakter |
 | Firma siparis satiri | `priceListNo` | Fiyat liste no | `SIPARISLER.sip_fiyat_liste_no` | Yeni guncellenebilir alan |
 | Firma siparis satiri | `validUntil` | Gecerlilik tarihi | `SIPARISLER.sip_gecerlilik_tarihi` | Yeni guncellenebilir alan |
@@ -7318,6 +7589,133 @@ Response:
 ```
 
 Hard delete response'unda `deletionMode` alani `hard-delete` gelir.
+
+### Sayim Sonucu Fisi Getir
+
+`GET /api/duzeltme-islemleri/mikro-evrak-duzenleme/sayim-sonuclari?warehouseNo=110&documentNo=25&documentDate=2026-04-21`
+
+Query:
+
+- `warehouseNo`: zorunlu, Mikro `SAYIM_SONUCLARI.sym_depono`
+- `documentNo`: zorunlu, Mikro `SAYIM_SONUCLARI.sym_evrakno`
+- `documentDate`: zorunlu, Mikro `SAYIM_SONUCLARI.sym_tarihi`
+
+Response modeli `InventoryCountDocumentDto`:
+
+```json
+{
+  "header": {
+    "documentDate": "2026-04-21T00:00:00",
+    "createdAt": "2026-04-21T10:30:00",
+    "documentNo": 25,
+    "warehouseNo": 110,
+    "warehouseName": "KESTEL 1",
+    "name": "REYON SAYIM",
+    "lineCount": 2,
+    "totalQuantity": 18,
+    "lastUpdatedAt": null
+  },
+  "lines": [
+    {
+      "countGuid": "d7f6a8ec-9c2b-4e1e-bb1c-6da6cb4a5f67",
+      "rowNo": 0,
+      "stockCode": "015792",
+      "stockName": "URUN ADI",
+      "barcode": "8690000000000",
+      "unitPointer": 1,
+      "unitName": "AD",
+      "quantity1": 10,
+      "quantity2": 0,
+      "quantity3": 0,
+      "quantity4": 0,
+      "quantity5": 0,
+      "rayonCode": "",
+      "corridorCode": "",
+      "shelfCode": "",
+      "partyCode": "REYON SAYIM",
+      "lotNo": 0,
+      "serialNo": "",
+      "special1": "",
+      "special2": "",
+      "special3": "",
+      "lastUpdatedAt": null
+    }
+  ]
+}
+```
+
+UI notlari:
+
+- Satir secimi/guncellemesi kesin olarak `lines[].countGuid` ile yapilir.
+- Ekranda ana sayim miktari genelde `quantity1` olarak gosterilmelidir; `quantity2..5` Mikro'nun ek miktar kolonlaridir.
+- `stockCode`, `barcode`, `unitPointer`, `quantity1..5`, reyon/raf/parti/seri ve `special1..3` alanlari satir duzeltme icindir.
+
+### Sayim Sonucu Fisi Guncelle
+
+`PUT /api/duzeltme-islemleri/mikro-evrak-duzenleme/sayim-sonuclari`
+
+Body:
+
+```json
+{
+  "lookup": {
+    "warehouseNo": 110,
+    "documentNo": 25,
+    "documentDate": "2026-04-21"
+  },
+  "header": {
+    "name": "REYON SAYIM DUZELTILDI"
+  },
+  "lines": [
+    {
+      "countGuid": "d7f6a8ec-9c2b-4e1e-bb1c-6da6cb4a5f67",
+      "quantity1": 12,
+      "barcode": "8690000000000",
+      "unitPointer": 1
+    }
+  ]
+}
+```
+
+Kurallar:
+
+- Endpoint yeni sayim fisi veya yeni satir olusturmaz; sadece mevcut satirlari gunceller.
+- Silme endpoint'i yoktur. Yanlis satiri sifirlamak istenirse `quantity1=0` gibi miktar duzeltmesi UI kararina gore kullanilabilir.
+- `header.documentDate`, `header.warehouseNo`, `header.name` gonderilirse tum sayim satirlarina uygulanir.
+- Satir alanlari sadece ilgili `countGuid` satirina uygulanir.
+- `stockCode` degisirse backend stok kartinin varligini kontrol eder.
+- `sym_kilitli=true` olan sayim fislerinde update reddedilir.
+- Request body'de `null` alanlar degismez; bos string metin alanini bosaltir.
+
+Response `InventoryCountDocumentUpdateResponse` doner:
+
+```json
+{
+  "summary": {
+    "target": "sayim-sonuclari",
+    "updatedRowCount": 2,
+    "updatedAt": "2026-08-19T14:30:00",
+    "updateUser": 110
+  },
+  "document": {
+    "header": {
+      "documentNo": 25,
+      "warehouseNo": 110,
+      "name": "REYON SAYIM DUZELTILDI",
+      "lineCount": 2,
+      "totalQuantity": 20
+    },
+    "lines": [
+      {
+        "countGuid": "d7f6a8ec-9c2b-4e1e-bb1c-6da6cb4a5f67",
+        "stockCode": "015792",
+        "quantity1": 12,
+        "unitPointer": 1
+      }
+    ]
+  }
+}
+```
 
 ### Cari Hareket Evraki Getir
 
@@ -8492,6 +8890,124 @@ Eski WinForms `Manav Mal Kabul ve Etiket` uygulamasindaki manav/depo mal kabul e
 
 Bu bolum UI tarafinin baska bir dokumana gitmeden kullanabilmesi icin tum endpoint, request, response, status ve yazdirma notlarini icerir.
 
+Canli akis ayrimi:
+
+- Bu ekranda operasyonun ana kaynagi halden gelen resmi faturadir. UI mumkun oldugunca manuel bos evrakla baslamamali; once gelen fatura listesinden ilgili hal faturasini buldurmali, sonra tartim/etiket ve Mikro mal kabul adimlarini bu faturanin ustune kurmalidir.
+- Gelen hal faturasi `GET /incoming-invoices` ile Auth DB'deki Uyumsoft gelen fatura cache'inden listelenir. Kullanici faturayi secince UI `GET /incoming-invoices/{invoiceLookupId}/detail` veya dogrudan ETTN ile `GET /incoming-invoices/ettn/{ettn}` cagirip fatura kalemlerini alir.
+- Etiket/tartim kaydi `Furpa.dbo.Manav_Depo_Mal_Kabul_Etiket` tablosuna yazilir; bu kayit tek basina Mikro fatura/mal kabul belgesi degildir.
+- Mikro mal kabul olusturma ayrica `POST /micro/goods-receipts` ile yapilir.
+- Mikro aktariminda canli formata uygun olarak `CARI_HESAP_HAREKETLERI` tarafinda fatura/cari hareket basligi acilir ve `STOK_HAREKETLERI` satirlari bu basliga `sth_fat_uid = cha_Guid` ile baglanir.
+- UI fiyat ve KDV bilgisi netlesmeden Mikro aktarimi yaptirmamalidir; sadece etiket basmak istiyorsa `acceptance-records` ve `label` endpointleri yeterlidir.
+- Fatura bulunamazsa UI manuel kabul acabilir ama bunu istisna akisi gibi gostermelidir; normal hal kabul akisinda kullanici gelen fatura uzerinden ilerlemelidir.
+
+Hal faturasi odakli en saglikli senaryo:
+
+1. Ekran acilisinda UI tarih araligini bugun veya son 7 gun olarak ayarlar.
+2. Kullanici hal tedarikcisini secer veya arar; UI `GET /suppliers?query=...` ile Mikro carisini bulur.
+3. UI secili tarih/tedarikci icin `GET /incoming-invoices?startDate=...&endDate=...&supplierCode=...` cagirir.
+4. Kullanici listeden hal faturasini secer veya ETTN girer. UI `GET /incoming-invoices/{invoiceLookupId}/detail` ya da `GET /incoming-invoices/ettn/{ettn}` cagirir.
+5. UI ust baslikta `invoiceId`, `documentId`, `supplierTitle`, `supplierTaxNo`, `issueDate`, `payableAmount`, `taxExclusiveAmount`, `taxTotal`, `documentCurrencyCode` alanlarini gosterir.
+6. UI orta gridde `lines[]` kalemlerini acar. `matchedStockCode` doluysa satir otomatik Mikro stokuyla eslesmistir; bos ise kullanicidan `/stocks` ile stok secimi istenir.
+7. UI fatura secilmeden Mikro aktarim butonunu acmaz. Fatura secili degilse sadece tartim/etiket taslagi yapilabilir.
+8. Kullanici her urun icin fatura miktari/fiyati/KDV bilgisini kontrol eder; eslesmeyen urunlerde `GET /stocks?query=...&prefix=MNV` ile MNV stokunu secer.
+9. Tartim geldikce `POST /acceptance-records/calculate` ile net kg ve kasa ortalamasi hesaplanir.
+10. Onaylanan her tartim satiri `POST /acceptance-records` ile Furpa etiket kaydina yazilir. Bu satirda `documentSeries/documentNo` alanlari secili hal faturasinin gorunen belge bilgisiyle doldurulmalidir.
+11. Etiket basimi `GET /acceptance-records/{id}/label` ile yapilir. Etiket basmak Mikro'ya aktarim anlamina gelmez.
+12. Fatura satirlari ve tartim satirlari kontrol edildikten sonra UI `POST /micro/goods-receipts` ile Mikro alis/mal kabul belgesini olusturur.
+13. Aktarimdan sonra UI `GET /micro/goods-receipts?date=...&supplierCode=...` ve `GET /micro/goods-receipts/comparison?date=...&supplierCode=...` cagirip ekrani yeniler.
+14. Gun sonu kontrolunde `GET /reports/received-products?date=...` ana mutabakat raporu, `GET /reports/depot-stock?warehouseNo=56&date=...` Manav Depo stok raporu olarak kullanilir.
+
+UI icin sade ekran kurgusu:
+
+- Ust bant: tarih, tedarikci, gelen fatura secimi, fatura toplam tutari ve durum.
+- Sol/ust liste: gelen hal faturalari. Kaynak endpoint `incoming-invoices`.
+- Orta grid: fatura/kabul satirlari. Stok, fatura miktari, fiyat, KDV, tartilan net miktar, fark, etiket durumu, Mikro aktarim durumu.
+- Sag panel veya modal: tartim girisi. Brut, kasa darasi, kasa sayisi, palet darasi, kasa tipi, teslim alan.
+- Alt sekmeler: `Etiketler`, `Mikro Belgeleri`, `Fark Kontrolu`, `Rapor`.
+
+UI karar kurallari:
+
+- `CanStartAcceptance=false` gelen fatura satirinda kabul baslatma butonu pasif olmalidir; mesaj/durum kullaniciya gosterilir.
+- `MatchedSupplierCode` doluysa UI tedarikciyi otomatik eslestirebilir; bos ise kullanici Mikro carisini secmelidir.
+- `IsArchived=true` faturalar varsayilan listede gizlenmelidir; gerekiyorsa `includeArchived=true` ile arsivli fatura aranabilir.
+- Mikro aktarimda satir `quantity`, `unitPrice`, `taxPointer/taxRatePercent` netlesmeden buton acilmamalidir.
+- `acceptance-records` satiri Mikro'ya aktarildiktan sonra update/delete kapali olmalidir; backend zaten `409 Conflict` doner.
+- `comparison.status = SADECE_ETIKET` ise tartim var ama Mikro aktarim yok demektir; kullaniciya "Mikro'ya aktar" aksiyonu onerilir.
+- `comparison.status = SADECE_MIKRO` ise Mikro'da belge var ama Furpa etiket/tartim kaydi yok demektir; kullaniciya "etiket/tartim kaydi eksik" uyarisi verilir.
+- `comparison.status = FARKLI` ise etiket net kg ile Mikro miktari farklidir; satir kirmizi/uyari olarak gosterilir.
+- `comparison.status = ESLESTI` veya `YAKIN` ise satir operasyonel olarak tamamlanmis kabul edilebilir.
+
+Mikro aktarim ne zaman kullanilir:
+
+- `POST /micro/goods-receipts`, hal faturasinin Manav Depo'ya Mikro alis/mal kabul belgesi olarak yazilacagi son onay adimidir.
+- Bu endpoint etiket basma endpointi degildir. Sadece etiket veya tartim kaydi gerekiyorsa `acceptance-records` ve `label` endpointleri kullanilir.
+- Fatura kalemleri grid'e alindi, stok eslesmeleri tamamlandi, tartim/net kg kontrol edildi, fiyat ve KDV netlesti ise kullanilir.
+- Fatura secilmeden normal akista Mikro aktarim acilmamalidir. Manuel belge akisi sadece fatura bulunamadigi istisna durumda kullanilmalidir.
+- Bir satir sadece tartildi ama fiyat/KDV bilinmiyorsa Mikro aktarim yerine `Etiket Kaydi` durumunda bekletilmelidir.
+- Bir satir Mikro'ya aktarildiktan sonra ayni satir tekrar aktarilabilir gibi gosterilmemelidir. UI `microTransferred=true`, `comparison` veya Mikro belge listesiyle bunu kontrol etmelidir.
+- `comparison.status = SADECE_ETIKET` olan satirlar Mikro aktarim adayidir.
+- `comparison.status = SADECE_MIKRO` olan satirlar tekrar aktarim adayi degildir; bu durumda Furpa etiket/tartim kaydi eksigi arastirilir.
+- `comparison.status = FARKLI` olan satirda once miktar/fiyat/eslestirme farki cozulmeli, sonra gerekiyorsa duzeltme veya yeni aktarim karari verilmelidir.
+
+Mikro aktarim butonu acilma kosullari:
+
+- Tedarikci secili olmali veya fatura detayinda `matchedSupplierCode` dolu olmalidir.
+- Aktarilacak en az bir satir secili olmalidir.
+- Her secili satirda `stockCode` dolu olmalidir. `matchedStockCode` bos gelen fatura kalemlerinde kullanici stok secimi yapmadan aktarim acilmaz.
+- Her secili satirda `quantity > 0` olmalidir. Manavda kesin miktar genelde tartim/etiket net kg toplamidir.
+- Her secili satirda `unitPrice` bilinmelidir. Fiyat fatura kaleminden gelmiyorsa kullanici elle girip onaylamalidir.
+- Her secili satirda `taxPointer` veya `taxRatePercent` bilinmelidir.
+- Etiket kaydiyla bagli aktarim yapiliyorsa `acceptanceRecordId` dolu olmalidir.
+- Request gonderilirken buton loading/disabled olmali; timeout olursa ayni belgeyi tekrar yazmadan once `GET /micro/goods-receipts` ve `comparison` yenilenmelidir.
+
+UI hedef tasarimi:
+
+- Bu ekran tek basina `Etiket Basim` gibi dusunulmemelidir; `Gelen Fatura -> Manav Mal Kabul -> Tartim/Etiket -> Mikro Kontrol -> Rapor` akislarini ayni modulde toparlayan operasyon ekranidir.
+- Ilk ekranda tarih, tedarikci, belge/fatura bilgisi ve gunluk durum ozetleri birlikte gorunmelidir.
+- Kullanici gelen fatura satirlarini gorup miktar/fiyat/KDV kontrolu yapabilmeli; tartilan urunleri ayni satirlarla eslestirebilmeli; gerekirse tartimdan yeni etiket satiri ekleyebilmelidir.
+- Mikro'ya aktarim butonu sadece fiyatli/onayli satirlarda acilmalidir. Fiyat veya cari belirsizse UI Mikro aktarimi yaptirmadan once kullanicidan duzeltme istemelidir.
+- Etiket basma, Mikro aktarimindan bagimsiz kalmalidir. Kullanici once etiket basabilir, sonra fiyat/kabul onayi tamamlaninca Mikro aktarimi yapabilir.
+- Karsilastirma sekmesi `SADECE_ETIKET`, `SADECE_MIKRO`, `FARKLI`, `YAKIN`, `ESLESTI` durumlarini operasyonel is listesi gibi gostermelidir.
+- Rapor sekmesi alinan urunler/fatura farki ve 56 Manav Depo stok durumunu gostermelidir.
+
+Onerilen ekran bolumleri:
+
+| Bolum | Amac | Kullanilacak endpointler |
+|---|---|---|
+| `Fatura/Mal Kabul` | Tedarikci, tarih, belge no, fatura kalemleri, fiyatli satirlar ve Mikro aktarim onayi | `/suppliers`, `/incoming-invoices`, `/incoming-invoices/{invoiceLookupId}/detail`, `/incoming-invoices/ettn/{ettn}`, `/stocks`, `POST /micro/goods-receipts`, `GET /micro/goods-receipts` |
+| `Tartim ve Etiket` | Brut, kasa darasi, kasa sayisi, net kg, ortalama kg hesaplama ve etiket basma | `POST /acceptance-records/calculate`, `/acceptance-records`, `/labels/preview`, `/acceptance-records/{id}/label` |
+| `Kontrol` | Furpa etiket kaydi ile Mikro mal kabul miktarlarini karsilastirma | `GET /micro/goods-receipts/comparison` |
+| `Raporlar` | Alinan urun/fatura farki ve Manav Depo stok/fiyat gorunumu | `/reports/received-products`, `/reports/depot-stock` |
+
+Onerilen gunluk akis:
+
+1. UI tarih ve tedarikci secimiyle acilir.
+2. UI once gelen fatura listesini getirir; kullanici faturayi secer veya ETTN ile faturayi bulur.
+3. UI fatura detayindan gelen kalemleri grid'e basar; stok eslesmeyen satirlarda kullaniciya MNV stok secimi yaptirir.
+4. Kullanici tartim yaptikca `calculate` ile net kg/ortalama kg hesaplanir.
+5. Onaylanan tartim satiri `POST /acceptance-records` ile Furpa etiket kaydi olur.
+6. Etiket icin `GET /acceptance-records/{id}/label` veya kaydetmeden once `POST /labels/preview` kullanilir.
+7. Fatura kalemi, tartim net kg, fiyat ve KDV kontrolu tamamlaninca secili satirlar `POST /micro/goods-receipts` ile Mikro'ya aktarilir.
+8. Basarili aktarimdan sonra UI `GET /micro/goods-receipts` ve `GET /micro/goods-receipts/comparison` ile ekrani yeniler.
+9. Gun sonunda `reports/received-products` ile fatura/etiket farklari, `reports/depot-stock` ile 56 depo stok durumu kontrol edilir.
+
+UI durum modeli onerisi:
+
+- `Taslak`: satir UI'da hazirlaniyor, henuz Furpa etiket kaydi yok.
+- `Etiket Kaydi`: `acceptance-records` satiri var, `microTransferred=false`.
+- `Etiket Basildi`: UI lokal baski islemini tamamlamis; API'de ayri baski log'u yoksa bu durum UI tarafinda tutulabilir.
+- `Mikro Aktarildi`: `microTransferred=true` veya Mikro belge listesinde ilgili satir gorunuyor.
+- `Fark Var`: comparison status `FARKLI`, `SADECE_ETIKET` veya `SADECE_MIKRO`.
+- `Tamam`: comparison status `ESLESTI` veya kabul edilebilir toleransta `YAKIN`.
+
+Kullanici deneyimi notlari:
+
+- Ekran pazaryeri/hal operasyonu gibi hizli veri girisine uygun olmalidir; form alanlari kisa, tablo satirlari yogun ve klavye/barkod okutmaya uygun tasarlanmalidir.
+- Aynı stoktan birden fazla tartim olabilir; UI satirlari sadece stok koduyla birlestirmemeli, satir/kayit bazinda gostermelidir.
+- `acceptanceRecordId` Mikro aktarim satirina tasinirse aktarimdan sonra ilgili Furpa kaydi otomatik `Mikro_Aktarildi=1` olur.
+- Mikro aktarim request'i pending iken buton kilitlenmelidir. Timeout veya belirsiz durumda UI yeni seri/sira uretip tekrar basmamalidir; once Mikro belge listesi ve karsilastirma yenilenmelidir.
+- UI, `documentSeries/documentOrderNo` degerlerini kullaniciya gosterebilir ama bos birakilirsa backend seri/sira uretir. Manuel seri/sira girilirse duplicate kontrolu devrededir.
+
 Root route:
 
 `/api/kasa-islemleri/manav-mal-kabul-etiket`
@@ -8526,6 +9042,9 @@ Endpoint ozeti:
 | `GET` | `/stocks` | query: `query`, `prefix`, `take` | `ManavMalKabulVeEtiketStockSuggestionDto[]` | `list` |
 | `GET` | `/stocks/by-name` | query: `name` | `ManavMalKabulVeEtiketStockSuggestionDto` | `list` |
 | `GET` | `/stocks/{stockCode}` | path: `stockCode` | `ManavMalKabulVeEtiketStockSuggestionDto` | `list` |
+| `GET` | `/incoming-invoices` | query: `startDate`, `endDate`, `supplierCode`, `searchText`, `includeArchived`, `take` | `ManavMalKabulVeEtiketIncomingInvoiceDto[]` | `list` |
+| `GET` | `/incoming-invoices/{invoiceLookupId}/detail` | path: `invoiceLookupId`, query: `supplierCode` opsiyonel | `ManavMalKabulVeEtiketInvoiceDetailDto` | `detail` |
+| `GET` | `/incoming-invoices/ettn/{ettn}` | path: `ettn`, query: `supplierCode` opsiyonel | `ManavMalKabulVeEtiketInvoiceDetailDto` | `detail` |
 | `POST` | `/acceptance-records/calculate` | body: `ManavMalKabulVeEtiketCalculationHttpRequest` | `ManavMalKabulVeEtiketCalculationDto` | `create` |
 | `GET` | `/acceptance-records` | query: `date` | `ManavMalKabulVeEtiketAcceptanceRecordDto[]` | `list` |
 | `GET` | `/acceptance-records/{id}` | path: `id` | `ManavMalKabulVeEtiketAcceptanceRecordDto` | `detail` |
@@ -8555,11 +9074,15 @@ Response:
 [
   {
     "supplierCode": "120.001",
-    "supplierName": "TEDARIKCI A"
+    "supplierName": "TEDARIKCI A",
+    "supplierTitle2": "LTD STI",
+    "supplierTaxNo": "1234567890"
   },
   {
     "supplierCode": "120.002",
-    "supplierName": "TEDARIKCI B"
+    "supplierName": "TEDARIKCI B",
+    "supplierTitle2": "",
+    "supplierTaxNo": "1111111111"
   }
 ]
 ```
@@ -8575,7 +9098,9 @@ Response:
 ```json
 {
   "supplierCode": "120.001",
-  "supplierName": "TEDARIKCI A"
+  "supplierName": "TEDARIKCI A",
+  "supplierTitle2": "LTD STI",
+  "supplierTaxNo": "1234567890"
 }
 ```
 
@@ -8594,12 +9119,18 @@ Response:
   {
     "stockCode": "MNV001",
     "stockName": "MNV DOMATES",
-    "barcode": "1234567"
+    "barcode": "1234567",
+    "unitName": "KG",
+    "modelCode": "10",
+    "wholesaleTaxPointer": 3
   },
   {
     "stockCode": "MNV002",
     "stockName": "MNV BIBER",
-    "barcode": "7654321"
+    "barcode": "7654321",
+    "unitName": "KG",
+    "modelCode": "11",
+    "wholesaleTaxPointer": 3
   }
 ]
 ```
@@ -8616,7 +9147,10 @@ Response:
 {
   "stockCode": "MNV001",
   "stockName": "MNV DOMATES",
-  "barcode": "1234567"
+  "barcode": "1234567",
+  "unitName": "KG",
+  "modelCode": "10",
+  "wholesaleTaxPointer": 3
 }
 ```
 
@@ -8632,7 +9166,10 @@ Response:
 {
   "stockCode": "MNV001",
   "stockName": "MNV DOMATES",
-  "barcode": "1234567"
+  "barcode": "1234567",
+  "unitName": "KG",
+  "modelCode": "10",
+  "wholesaleTaxPointer": 3
 }
 ```
 
@@ -8643,6 +9180,143 @@ Referans arama notlari:
 - `query` stok adi, stok kodu veya barkod icinde aranir
 - `*` karakteri SQL wildcard gibi `%` davranisina cevrilir
 - `suppliers/by-name`, `stocks/by-name` ve `stocks/{stockCode}` sonuc bulamazsa `404` doner
+
+### Gelen Fatura Cache
+
+Manav mal kabul ekrani gelen fatura listesini Auth DB'deki Uyumsoft inbox cache'inden okuyabilir.
+
+`GET /api/kasa-islemleri/manav-mal-kabul-etiket/incoming-invoices?startDate=2026-08-13&endDate=2026-08-13&supplierCode=32000297&take=100`
+
+Query:
+
+```text
+startDate        opsiyonel; bos ise endDate - 7 gun
+endDate          opsiyonel; bos ise bugun
+supplierCode     opsiyonel; verilirse Mikro cari kartinin VKN/TCKN veya unvaniyla gelen faturalar daraltilir
+searchText       opsiyonel; fatura no, documentId, tedarikci unvani, VKN/TCKN, irsaliye no veya siparis belge no icinde arar
+includeArchived  opsiyonel; default false
+take             opsiyonel; default 100, max 500
+```
+
+Response:
+
+```json
+[
+  {
+    "documentId": "9f4c0c1a-...",
+    "invoiceId": "GIB2026000012345",
+    "supplierTitle": "HAL TEDARIKCI A",
+    "supplierTaxNo": "1234567890",
+    "createDate": "2026-08-13T08:10:00",
+    "invoiceDate": "2026-08-13T00:00:00",
+    "invoiceType": "SATIS",
+    "invoiceTotal": 25004.0,
+    "taxExclusiveAmount": 24753.96,
+    "taxTotal": 250.04,
+    "despatchId": "IRS2026000099",
+    "isProcessed": false,
+    "isPrinted": false,
+    "isStandard": true,
+    "statusCode": "ACCEPTED",
+    "status": "Kabul edildi",
+    "message": "",
+    "documentCurrencyCode": "TRY",
+    "exchangeRate": 1.0,
+    "orderDocumentId": "",
+    "isArchived": false,
+    "invoiceTipType": "Temel Fatura",
+    "invoiceTipTypeCode": 0,
+    "isSeen": true,
+    "lastSynchronizedAtUtc": "2026-08-13T05:15:00Z",
+    "matchedSupplierCode": "32000297",
+    "matchedSupplierName": "HAL TEDARIKCI A",
+    "canStartAcceptance": true
+  }
+]
+```
+
+Not:
+
+- Bu endpoint fatura baslik/ozet bilgisini dondurur; fatura kalemleri icin detay endpointi kullanilmalidir.
+- `matchedSupplierCode` VKN/TCKN eslesmesiyle dolarsa UI tedarikci alanini otomatik onerebilir.
+- `canStartAcceptance=false` ise UI yine manuel tedarikci secimine izin verebilir; fatura cache'i operasyonu bloke etmez.
+
+### Gelen Fatura Detayi ve Kalemleri
+
+Fatura secildikten sonra UI kalemleri almak icin bu endpointlerden birini cagirir:
+
+```text
+GET /api/kasa-islemleri/manav-mal-kabul-etiket/incoming-invoices/{invoiceLookupId}/detail?supplierCode=32000297
+GET /api/kasa-islemleri/manav-mal-kabul-etiket/incoming-invoices/ettn/{ettn}?supplierCode=32000297
+```
+
+Kural:
+
+- `invoiceLookupId` veya `ettn` Uyumsoft `invoiceId`, `documentId`, cache `serviceDocumentId` veya `localDocumentId` olabilir.
+- Backend once Auth DB Uyumsoft inbox cache'inde eslesen basligi arar, sonra Uyumsoft `GetInboxInvoice` ve gerekirse `GetInboxInvoiceData` ile fatura XML'ini ceker.
+- Response fatura basligi ile birlikte `lines[]` kalemlerini dondurur.
+- Her kalemde backend fatura XML'indeki stok/barkod adaylarini Mikro `STOKLAR` ve `BARKOD_TANIMLARI` ile eslestirmeye calisir.
+- `matchedStockCode` doluysa UI bu stokla satiri otomatik hazirlayabilir.
+- `matchedStockCode` bos ise satir yine gosterilir; UI kullanicidan `/stocks` ile MNV stok secimi istemelidir.
+- `canCreateAcceptance=false` satirda otomatik stok eslesmesi yoktur; Mikro aktarim veya etiket satiri olusturmadan once kullanici eslestirme yapmalidir.
+- Bu endpoint Mikro'ya veya Furpa etiket tablosuna yazmaz; sadece fatura kalemlerini okur ve UI'a hazirlar.
+
+Response:
+
+```json
+{
+  "invoiceLookupId": "9f4c0c1a-...",
+  "invoiceId": "9f4c0c1a-...",
+  "documentId": "GIB2026000012345",
+  "supplierTitle": "HAL TEDARIKCI A",
+  "supplierTaxNo": "1234567890",
+  "issueDate": "2026-08-13T00:00:00",
+  "invoiceTypeCode": "SATIS",
+  "documentCurrencyCode": "TRY",
+  "taxExclusiveAmount": 24753.96,
+  "taxTotal": 250.04,
+  "payableAmount": 25004.0,
+  "despatchId": "IRS2026000099",
+  "matchedSupplierCode": "32000297",
+  "matchedSupplierName": "HAL TEDARIKCI A",
+  "canStartAcceptance": true,
+  "lines": [
+    {
+      "lineNo": 1,
+      "lineId": "1",
+      "stockCode": "015550",
+      "stockName": "MNV DOMATES KG",
+      "barcode": "2801555000000",
+      "unitCode": "KGM",
+      "quantity": 120.5,
+      "unitPrice": 25.0,
+      "lineAmount": 3012.5,
+      "taxRatePercent": 1.0,
+      "taxAmount": 30.13,
+      "taxPointer": 3,
+      "matchedStockCode": "015550",
+      "matchedStockName": "MNV DOMATES KG",
+      "matchedBarcode": "2801555000000",
+      "canCreateAcceptance": true,
+      "warnings": []
+    }
+  ],
+  "warnings": []
+}
+```
+
+UI'da Mikro mal kabul satiri hazirlama:
+
+- `stockCode`: `matchedStockCode` doluysa bu deger; bos ise kullanicinin sectigi MNV stok kodu
+- `quantity`: fatura kalemindeki `quantity` veya tartim sonrasi onaylanan net miktar
+- `unitPrice`: fatura kalemindeki `unitPrice`
+- `taxPointer`: `taxPointer` doluysa bu deger
+- `taxRatePercent`: `taxPointer` bos ise fatura kalemindeki `taxRatePercent`
+- `taxAmount`: fatura kalemindeki `taxAmount` opsiyonel olarak tasinabilir
+- `acceptanceRecordId`: satir bir Furpa tartim/etiket kaydiyla eslestirildiyse ilgili kaydin `id` degeri
+- `description`: fatura kalem adi, satir no veya kullanici notu
+
+Mikro'ya yazma yine sadece `POST /micro/goods-receipts` ile yapilir. Fatura detayi endpointini cagirmak Mikro kaydi olusturmaz.
 
 Hesaplama:
 
@@ -8929,17 +9603,27 @@ Alinan urunler raporu response:
 ```json
 [
   {
+    "supplierCode": "32000297",
     "supplierName": "TEDARIKCI A",
     "stockCode": "MNV001",
     "barcode": "1234567",
     "stockName": "MNV DOMATES",
+    "labelRowCount": 2,
+    "documentSeries": "MNV26",
+    "documentNo": "10, 11",
+    "seriesAndNumber": "MNV26 - 10, 11",
     "grossWeight": 100.0,
     "caseTotalTare": 12.0,
     "palletTare": 5.0,
     "caseCount": 10,
     "netReceivedWeight": 83.0,
     "invoiceQuantity": 80.0,
-    "invoiceDifference": 3.0
+    "invoiceDifference": -3.0,
+    "microRowCount": 1,
+    "microAmount": 2800.0,
+    "microDocument": "EFT261/2014",
+    "status": "FARKLI",
+    "unitName": "KG"
   }
 ]
 ```
@@ -8961,7 +9645,10 @@ Depo stok raporu response:
     "responsible": "SATINALMA SORUMLUSU",
     "currentStock": 125.5,
     "purchasePriceWithVat": 18.75,
-    "salesPrice": 24.9
+    "salesPrice": 24.9,
+    "barcode": "1234567",
+    "unitName": "KG",
+    "modelCode": "10"
   }
 ]
 ```
@@ -8972,6 +9659,9 @@ Rapor notlari:
 - kullanici kendi deposu disinda depo isterse ilgili tum depo yetkisi gerekir
 - alinan urunler raporu Furpa kabul kayitlarini canli Mikro manav mal kabul miktarlariyla karsilastirmak icindir
 - `invoiceQuantity` genel stok hareketlerinden degil, canli 2026 manav formatindan okunur: `sth_tip=0`, `sth_cins=16`, `sth_evraktip=3`, `sth_normal_iade=0`, `sth_giris_depo_no=56`, `sth_cikis_depo_no=1`, `sto_isim LIKE 'MNV%'`
+- `status` degeri `ESLESTI`, `YAKIN`, `FARKLI`, `SADECE_ETIKET` veya `SADECE_MIKRO` olabilir.
+- Rapor liste sirasi farki buyuk satirlari once gosterecek sekildedir; UI ilk bakilacak sorunlari en ustte gosterebilir.
+- Depo stok raporu barkod, birim ve model kodunu da dondurur; UI stok secimi veya etiket/kabul ekranina geciste bu alanlari kullanabilir.
 
 Canli Mikro manav mal kabul belgeleri:
 
@@ -8999,6 +9689,9 @@ Response belge bazlidir:
     "totalTax": 0.0,
     "firstCreatedAt": "2026-08-13T11:52:56.557",
     "lastCreatedAt": "2026-08-13T11:52:56.557",
+    "documentNo": "2014",
+    "invoiceGuid": "0c9f474b-c9dd-4f56-91e8-1e944bb77f53",
+    "offlineTraceKey": "FRMNV260813A1B2C3D4",
     "lines": [
       {
         "lineNo": 0,
@@ -9010,7 +9703,11 @@ Response belge bazlidir:
         "taxAmount": 0.0,
         "taxPointer": 0,
         "inWarehouseNo": 56,
-        "outWarehouseNo": 1
+        "outWarehouseNo": 1,
+        "movementGuid": "49f26b26-9f37-4d64-98e7-1e2f7a5e2d41",
+        "barcode": "2700108",
+        "unitName": "KG",
+        "description": "Domates"
       }
     ]
   }
@@ -9083,6 +9780,36 @@ Request:
 }
 ```
 
+Bu endpoint ne yapar:
+
+- Canli Mikro'da cari/fatura basligi acmak icin `CARI_HESAP_HAREKETLERI` kaydi olusturur.
+- Her satir icin `STOK_HAREKETLERI` alis/mal kabul hareketi yazar.
+- Satirlari cari basliga `sth_fat_uid = cha_Guid` ile baglar.
+- `acceptanceRecordId` gonderilen Furpa etiket kayitlarini basarili yazimdan sonra `Mikro_Aktarildi=1` yapar.
+- Fatura detayini okumak, etiket kaydi olusturmak veya etiket basmak bu islemi otomatik tetiklemez.
+
+UI alan kaynagi:
+
+| Request alani | UI'da kaynagi | Not |
+|---|---|---|
+| `date` | Fatura `issueDate` veya kullanicinin mal kabul tarihi | Gunluk rapor/karsilastirma bu tarihle okunur. |
+| `supplierCode` | `matchedSupplierCode` veya kullanicinin sectigi Mikro cari | Bos gonderilmemeli. |
+| `documentSeries` | Varsayilan `MNV`/`MNV26` veya UI belge serisi | Bos gonderilirse backend `MNV` kullanir. |
+| `documentOrderNo` | Genelde `null` | Bos gonderilirse backend sonraki sirayi uretir. Manuel girilirse duplicate kontrolu calisir. |
+| `documentNo` | Fatura `invoiceId`/resmi belge no veya manuel belge no | Bos ise backend sira no metnini kullanir. |
+| `mikroUserNo` | UI/oturum eski Mikro kullanici no biliyorsa | Bos ise backend default `39` kullanir. |
+| `description` | Ekran aciklamasi | Belge aciklamasi olarak saklanir. |
+| `markAcceptanceRecordsTransferred` | Normal akista `true` | `acceptanceRecordId` gonderilen kayitlari aktarildi isaretler. |
+| `lines[].acceptanceRecordId` | Furpa etiket/kabul kaydi `id` | Etiket kaydiyla bagli aktarimda doldurulur. |
+| `lines[].stockCode` | `matchedStockCode` veya kullanicinin sectigi MNV stok | Zorunlu. |
+| `lines[].quantity` | Tartim/etiket net kg toplamı veya onayli fatura miktari | Manavda pratikte kesin kabul miktari tartim net kg olmalidir. |
+| `lines[].unitPrice` | Fatura kalemi `unitPrice` veya manuel fiyat | Fiyat bilinmeden aktarim acilmamali. |
+| `lines[].unitPointer` | Stok ana birimi icin genelde `1` | Farkli birim senaryosu yoksa UI `1` gonderir. |
+| `lines[].taxPointer` | Fatura/stok KDV pointer'i | Doluyken tercih edilir. |
+| `lines[].taxRatePercent` | Fatura kalemi KDV yuzdesi | `taxPointer` yoksa kullanilir. |
+| `lines[].taxAmount` | Fatura kalemi KDV tutari | Opsiyonel; bos ise backend oranla hesaplar. |
+| `lines[].description` | Fatura kalem adi, etiket notu veya kullanici notu | Satir aciklamasi olarak gider. |
+
 Response:
 
 ```json
@@ -9098,7 +9825,7 @@ Response:
   "totalAmount": 25004.0,
   "totalTax": 250.04,
   "updatedAcceptanceRecordCount": 1,
-  "offlineTraceKey": "FURPA-MNV-20260813-32000297-MNV26",
+  "offlineTraceKey": "FRMNV260813A1B2C3D4",
   "lines": [
     {
       "lineNo": 0,
@@ -9125,7 +9852,11 @@ Yazma kurallari:
 - `acceptanceRecordId` verilirse basarili yazmadan sonra ilgili Furpa etiket kaydi `Mikro_Aktarildi=1` olur.
 - `taxAmount` verilirse aynen yazilir; yoksa `taxRatePercent` varsa hesaplanir; ikisi de yoksa `0` yazilir.
 - `taxPointer` verilmezse stok kartinin `sto_toptan_vergi` degeri kullanilir.
-- Mikro format canli 2026 manav formatidir: `sth_tip=0`, `sth_cins=16`, `sth_evraktip=3`, `sth_giris_depo_no=56`, `sth_cikis_depo_no=1`, `sth_fiyat_liste_no=-1`.
+- Mikro format canli 2026 manav formatidir: once `CARI_HESAP_HAREKETLERI` basligi acilir, sonra `STOK_HAREKETLERI` satirlari bu basliga `sth_fat_uid = cha_Guid` ile baglanir.
+- Cari/fatura basligi canli alis faturasi formatina yakindir: `cha_fileid=51`, `cha_tip=1`, `cha_cinsi=35`, `cha_evrak_tip=0`, `cha_cari_cins=0`, `cha_kod=supplierCode`, `cha_ciro_cari_kodu=supplierCode`, `cha_srmrkkodu=56`, `cha_ebelge_turu=7`, `cha_fatura_belge_turu=0`.
+- Stok satiri formatinda `sth_tip=0`, `sth_cins=16`, `sth_evraktip=3`, `sth_giris_depo_no=56`, `sth_cikis_depo_no=1`, `sth_fiyat_liste_no=-1` kullanilir.
+- Alternatif doviz kuru Mikro `fn_KurBul(date, fn_FirmaAlternatifDovizCinsi(), 1)` fonksiyonundan okunur ve hem cari basliga hem stok satirlarina yazilir.
+- `offlineTraceKey` Mikro kolon uzunluguna uygun kisa izdir; `FRMNV{yyMMdd}{hash}` formatinda uretilir ve hem cari baslikta hem stok satirlarinda saklanir.
 - Ayni `date + documentSeries + documentOrderNo` icin manav mal kabul belgesi varsa API `409 Conflict` doner.
 
 ### Fiyati Degisen Etiket Urunleri
@@ -12082,6 +12813,8 @@ Route'lar:
 - `GET /api/kasa-islemleri/kasa-sayimlari/online-kasa-detaylari`
 
 `odeme-tipleri/banka` eski `Summaries/GetPaymentTypesByBanks` davranisi ile uyumludur. Backend `cashRegisterNo` ile `CashRegisterDetails` satirlarini bulur, bu satirlardaki `Bank` degeri ile `PaymentTypes.PaymentName` alanini eslestirir ve sadece `PaymentGenus = 1` banka odeme tiplerini dondurur. Ayni kasa numarasina bagli birden fazla banka/terminal varsa response birden fazla satir dondurur; UI bunlari tek bankaya dusurmemelidir. `terminalId` ilgili `CashRegisterDetails.TerminalId`, `accountCode` ilgili `PaymentTypes.AccountCode` degeridir. Terminal tanimlama ekranindaki banka secimi icin de `GET /api/ayar-islemleri/kasa-pos-terminalleri/secenekler` response'undaki `terminalBanks` kullanilmalidir; boylece buradaki eslestirme kayit sonrasinda dogru calisir.
+
+UI kasa seciminde `GET /api/kasa-islemleri/kasa-sayimlari/kasalar?branchNo=...` veya ayar ekranindaki `GET /api/ayar-islemleri/sube-ayarlari/{branchNo}/kasalar` response'undan gelen `cashFinanceNumber` degeri varsa, banka odeme tipi endpointine `cashRegisterNo` olarak bu deger gonderilmelidir. Ornek: kullanici `Kasa 130` secer, satirda `cashFinanceNumber=PAV210010584` varsa cagri `GET /api/kasa-islemleri/kasa-sayimlari/odeme-tipleri/banka?cashRegisterNo=PAV210010584` olmalidir. `cashNo=130` sadece sube icindeki kasa numarasidir.
 
 `odeme-tipleri/yemek-ceki` response'unda yemek ceki tipi adi `paymentName` alanindadir. Backend eski API ile uyumlu olarak `PaymentTypes.PaymentGenus = 2` olan yemek ceki odeme tiplerini listeler ve `accountCode` alanini `PaymentTypes.AccountCode` degeriyle doldurur. UI yemek ceki seciminde gorunen ad olarak `paymentName`, kayit payload'inda odeme tipi olarak `paymentTypeNo` kullanmalidir.
 
@@ -19356,7 +20089,8 @@ public sealed record CashRegistryDto(
     int CashNo,
     byte CashType,
     string CashTypeName,
-    string CashTypeDescription);
+    string CashTypeDescription,
+    string CashFinanceNumber);
 
 public sealed record CashRegisterResponse(
     int BranchNo,
@@ -19373,6 +20107,14 @@ public sealed record CashRegisterTerminalDto(
     string TerminalId,
     string MerchantNo,
     int? CashNo);
+
+// CashRegistryDto ek uyumluluk alanlari:
+// CashRegisterNo = CashNo
+// CashRegisterType = CashType
+// CashRegisterTypeName = CashTypeName
+// CashRegisterTypeDescription = CashTypeDescription
+// CashRegisterTerminalDto ek uyumluluk alani:
+// CashRegisterNo = TerminalNo
 
 public sealed record CashRegisterMessageStatusDto(
     int BranchNo,
@@ -20828,6 +21570,10 @@ Bu bolumde yalnizca endpointlerin dogrudan baglandigi HTTP request modelleri yer
 - `CreateLabelDocumentLineHttpRequest`: `ProductCode`
 - `ManavMalKabulVeEtiketReferenceSearchHttpRequest`: `Query`, `Take`
 - `ManavMalKabulVeEtiketStockSearchHttpRequest`: `Query`, `Prefix`, `Take`
+- `ManavMalKabulVeEtiketIncomingInvoiceHttpRequest`: `StartDate`, `EndDate`, `SupplierCode`, `SearchText`, `IncludeArchived`, `Take`
+- `ManavMalKabulVeEtiketInvoiceDetailQuery`: `InvoiceLookupId`, `SupplierCode`
+- `ManavMalKabulVeEtiketInvoiceDetailDto`: `InvoiceLookupId`, `InvoiceId`, `DocumentId`, `SupplierTitle`, `SupplierTaxNo`, `IssueDate`, `InvoiceTypeCode`, `DocumentCurrencyCode`, `TaxExclusiveAmount`, `TaxTotal`, `PayableAmount`, `DespatchId`, `MatchedSupplierCode`, `MatchedSupplierName`, `CanStartAcceptance`, `Lines`, `Warnings`
+- `ManavMalKabulVeEtiketInvoiceLineDto`: `LineNo`, `LineId`, `StockCode`, `StockName`, `Barcode`, `UnitCode`, `Quantity`, `UnitPrice`, `LineAmount`, `TaxRatePercent`, `TaxAmount`, `TaxPointer`, `MatchedStockCode`, `MatchedStockName`, `MatchedBarcode`, `CanCreateAcceptance`, `Warnings`
 - `ManavMalKabulVeEtiketDateHttpRequest`: `Date`
 - `ManavMalKabulVeEtiketCalculationHttpRequest`: `GrossWeight`, `CaseTare`, `CaseCount`, `PalletTare`, `StockBarcode`
 - `SaveManavMalKabulVeEtiketAcceptanceRecordHttpRequest`: `SupplierCode`, `SupplierName`, `DocumentSeries`, `DocumentNo`, `StockCode`, `StockName`, `StockBarcode`, `GrossWeight`, `CaseTare`, `CaseCount`, `PalletTare`, `ReceivedBy`, `CaseType`
@@ -20872,6 +21618,10 @@ Bu bolumde yalnizca endpointlerin dogrudan baglandigi HTTP request modelleri yer
 - `UpdateStockMovementDocumentHttpRequest`: `Lookup`, `Header`, `Lines`
 - `StockMovementHeaderPatchHttpRequest`: `MovementDate`, `DocumentDate`, `GoodsAcceptanceDate`, `DocumentNo`, `CustomerCode`, `InputWarehouseNo`, `OutputWarehouseNo`, `Description`, `MovementGroupCode1`, `MovementGroupCode2`, `MovementGroupCode3`, `CustomerResponsibilityCenter`, `StockResponsibilityCenter`, `ProjectCode`
 - `StockMovementLinePatchHttpRequest`: `MovementGuid`, `RowNo`, `GoodsAcceptanceDate`, `StockCode`, `UnitPointer`, `Quantity`, `SecondaryQuantity`, `Amount`, `Discount1..Discount6`, `Expense1..Expense4`, `ExpenseTaxPointer`, `ExpenseTaxAmount`, `TaxPointer`, `TaxAmount`, `NetWeight`, `GrossWeight`, `Description`, `Special1`, `Special2`, `Special3`, `PartyCode`, `LotNo`, `ProjectCode`, `CustomerResponsibilityCenter`, `StockResponsibilityCenter`, `InputWarehouseNo`, `OutputWarehouseNo`
+- `InventoryCountDocumentLookupHttpRequest`: `WarehouseNo`, `DocumentNo`, `DocumentDate`
+- `UpdateInventoryCountDocumentHttpRequest`: `Lookup`, `Header`, `Lines`
+- `InventoryCountHeaderPatchHttpRequest`: `DocumentDate`, `WarehouseNo`, `Name`
+- `InventoryCountLinePatchHttpRequest`: `CountGuid`, `RowNo`, `StockCode`, `Barcode`, `UnitPointer`, `Quantity1`, `Quantity2`, `Quantity3`, `Quantity4`, `Quantity5`, `RayonCode`, `CorridorCode`, `ShelfCode`, `PartyCode`, `LotNo`, `SerialNo`, `Special1`, `Special2`, `Special3`
 - `CustomerMovementDocumentLookupHttpRequest`: `DocumentSerie`, `DocumentOrderNo`, `DocumentType`, `MovementType`, `MovementKind`, `NormalReturn`, `CustomerCode`
 - `UpdateCustomerMovementDocumentHttpRequest`: `Lookup`, `Header`, `Lines`
 - `CustomerMovementHeaderPatchHttpRequest`: `MovementDate`, `DocumentDate`, `DocumentNo`, `CustomerCode`, `TurnoverCustomerCode`, `Description`, `SellerCode`, `ProjectCode`, `ResponsibilityCenter`
