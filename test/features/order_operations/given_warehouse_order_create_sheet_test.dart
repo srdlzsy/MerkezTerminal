@@ -132,7 +132,7 @@ void main() {
     );
   });
 
-  testWidgets('loads source warehouse products into manual quantity lines', (
+  testWidgets('loads selected source warehouse products into quantity lines', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(390, 1000);
@@ -141,6 +141,15 @@ void main() {
     addTearDown(tester.view.resetDevicePixelRatio);
 
     final repository = _FakeWarehouseOrdersRepository(
+      warehouses: const <WarehouseLookupItem>[
+        WarehouseLookupItem(
+          warehouseNo: 56,
+          warehouseName: 'MANAV DEPO',
+          address: '',
+          district: 'Osmangazi',
+          province: 'Bursa',
+        ),
+      ],
       sourceProducts: const <ProductLookupItem>[
         ProductLookupItem(
           warehouseNo: 56,
@@ -174,7 +183,7 @@ void main() {
           body: GivenWarehouseOrderCreateSheet(
             repository: repository,
             accessToken: 'token',
-            defaultWarehouseNo: '56',
+            defaultWarehouseNo: '110',
             mobileWarehouseCatalogRepository:
                 MobileWarehouseCatalogLocalRepository(
                   database: MemoryLocalDatabase(),
@@ -184,7 +193,7 @@ void main() {
       ),
     );
 
-    await _pickWarehouse(tester);
+    await _pickWarehouse(tester, label: '56 - MANAV DEPO');
     expect(find.widgetWithText(FilledButton, 'Depo urunleri'), findsOneWidget);
 
     await tester.tap(find.widgetWithText(FilledButton, 'Depo urunleri'));
@@ -222,6 +231,15 @@ void main() {
                         isScrollControlled: true,
                         builder: (_) => GivenWarehouseOrderCreateSheet(
                           repository: _FakeWarehouseOrdersRepository(
+                            warehouses: const <WarehouseLookupItem>[
+                              WarehouseLookupItem(
+                                warehouseNo: 56,
+                                warehouseName: 'MANAV DEPO',
+                                address: '',
+                                district: 'Osmangazi',
+                                province: 'Bursa',
+                              ),
+                            ],
                             product: const ProductLookupItem(
                               warehouseNo: 56,
                               barcode: '8690000000012',
@@ -234,7 +252,7 @@ void main() {
                             ),
                           ),
                           accessToken: 'token',
-                          defaultWarehouseNo: '56',
+                          defaultWarehouseNo: '110',
                           greenGrocerProductCasesRepository:
                               greenGrocerRepository,
                           greenGrocerProductCasesEnabled: true,
@@ -255,7 +273,7 @@ void main() {
 
     await tester.tap(find.text('Ac'));
     await tester.pumpAndSettle();
-    await _pickWarehouse(tester);
+    await _pickWarehouse(tester, label: '56 - MANAV DEPO');
     await _pickWarehouseOrderProduct(tester);
 
     final quantityField = find.byWidgetPredicate(
@@ -277,8 +295,9 @@ void main() {
     expect(greenGrocerRepository.requests.last.stockCode, '015792');
     expect(greenGrocerRepository.requests.last.inputQuantity, 3);
     expect(greenGrocerRepository.requests.last.sourceWarehouseNo, 56);
-    expect(greenGrocerRepository.requests.last.targetWarehouseNo, 50);
+    expect(greenGrocerRepository.requests.last.targetWarehouseNo, 110);
     expect(request, isNotNull);
+    expect(request!.outWarehouseNo, 56);
     expect(request!.lines.single.quantity, 11.25);
     expect(request!.lines.single.greenGrocerCase, isNotNull);
     expect(request!.lines.single.greenGrocerCase!.inputQuantity, 3);
@@ -293,10 +312,13 @@ void main() {
   });
 }
 
-Future<void> _pickWarehouse(WidgetTester tester) async {
+Future<void> _pickWarehouse(
+  WidgetTester tester, {
+  String label = '50 - MERKEZ DEPO',
+}) async {
   await tester.tap(find.widgetWithText(FilledButton, 'Sec'));
   await tester.pumpAndSettle();
-  await tester.tap(find.text('50 - MERKEZ DEPO'));
+  await tester.tap(find.text(label));
   await tester.pumpAndSettle();
 }
 
@@ -325,6 +347,15 @@ class _FakeWarehouseOrdersRepository
     implements WarehouseOrdersRepository, SourceWarehouseProductsRepository {
   _FakeWarehouseOrdersRepository({
     ProductLookupItem? product,
+    this.warehouses = const <WarehouseLookupItem>[
+      WarehouseLookupItem(
+        warehouseNo: 50,
+        warehouseName: 'MERKEZ DEPO',
+        address: '',
+        district: 'Osmangazi',
+        province: 'Bursa',
+      ),
+    ],
     this.sourceProducts = const <ProductLookupItem>[],
   }) : product =
            product ??
@@ -339,8 +370,10 @@ class _FakeWarehouseOrdersRepository
            );
 
   final ProductLookupItem product;
+  final List<WarehouseLookupItem> warehouses;
   final List<ProductLookupItem> sourceProducts;
   int? lastSourceWarehouseNo;
+  String? lastSearchWarehouseNo;
 
   @override
   bool get supportsCreate => true;
@@ -377,6 +410,7 @@ class _FakeWarehouseOrdersRepository
     required String warehouseNo,
     required String query,
   }) async {
+    lastSearchWarehouseNo = warehouseNo;
     return <ProductLookupItem>[product];
   }
 
@@ -394,15 +428,7 @@ class _FakeWarehouseOrdersRepository
     required String accessToken,
     String? query,
   }) async {
-    return const <WarehouseLookupItem>[
-      WarehouseLookupItem(
-        warehouseNo: 50,
-        warehouseName: 'MERKEZ DEPO',
-        address: '',
-        district: 'Osmangazi',
-        province: 'Bursa',
-      ),
-    ];
+    return warehouses;
   }
 }
 

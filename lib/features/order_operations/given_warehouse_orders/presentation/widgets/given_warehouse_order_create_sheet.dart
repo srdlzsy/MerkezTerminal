@@ -69,7 +69,19 @@ class _GivenWarehouseOrderCreateSheetState
         (int.tryParse(_outWarehouseNoController.text.trim()) ?? 0) > 0;
   }
 
-  int? get _sourceWarehouseNo => int.tryParse(widget.defaultWarehouseNo.trim());
+  int? get _selectedSourceWarehouseNo =>
+      int.tryParse(_outWarehouseNoController.text.trim());
+
+  int? get _targetWarehouseNo => int.tryParse(widget.defaultWarehouseNo.trim());
+
+  String get _productLookupWarehouseNo {
+    final selectedSourceWarehouseNo = _selectedSourceWarehouseNo;
+    if (selectedSourceWarehouseNo != null && selectedSourceWarehouseNo > 0) {
+      return selectedSourceWarehouseNo.toString();
+    }
+
+    return widget.defaultWarehouseNo;
+  }
 
   SourceWarehouseProductsRepository? get _sourceProductsRepository {
     final repository = widget.repository;
@@ -79,14 +91,14 @@ class _GivenWarehouseOrderCreateSheetState
   }
 
   bool get _canLoadSourceWarehouseProducts {
-    final sourceWarehouseNo = _sourceWarehouseNo;
+    final sourceWarehouseNo = _selectedSourceWarehouseNo;
     return sourceWarehouseNo != null &&
         usesSuggestedWarehouseOrderSourceProducts(sourceWarehouseNo) &&
         _sourceProductsRepository != null;
   }
 
   bool get _isGreenGrocerOrderFlow {
-    return _sourceWarehouseNo == 56 &&
+    return _selectedSourceWarehouseNo == 56 &&
         widget.greenGrocerProductCasesEnabled &&
         widget.greenGrocerProductCasesRepository != null &&
         _isGreenGrocerPreviewEnabled;
@@ -213,7 +225,7 @@ class _GivenWarehouseOrderCreateSheetState
       return;
     }
 
-    final sourceWarehouseNo = _sourceWarehouseNo;
+    final sourceWarehouseNo = _selectedSourceWarehouseNo;
     final repository = _sourceProductsRepository;
     if (sourceWarehouseNo == null || repository == null) {
       return;
@@ -309,11 +321,12 @@ class _GivenWarehouseOrderCreateSheetState
 
     ProductLookupItem? product;
     final query = line.barcodeController.text.trim();
+    final productWarehouseNo = _productLookupWarehouseNo;
     if (query.length >= 2) {
       try {
         final products = await widget.repository.searchProducts(
           accessToken: widget.accessToken,
-          warehouseNo: widget.defaultWarehouseNo,
+          warehouseNo: productWarehouseNo,
           query: query,
         );
         if (products.length == 1) {
@@ -336,7 +349,7 @@ class _GivenWarehouseOrderCreateSheetState
       builder: (context) => _ProductLookupSheet(
         repository: widget.repository,
         accessToken: widget.accessToken,
-        warehouseNo: widget.defaultWarehouseNo,
+        warehouseNo: productWarehouseNo,
         initialQuery: line.barcodeController.text,
       ),
     );
@@ -367,7 +380,7 @@ class _GivenWarehouseOrderCreateSheetState
     _draftSession.scheduleSave();
     _refocusLine(entryLine.barcodeFocusNode);
 
-    final outWarehouseNo = int.tryParse(_outWarehouseNoController.text.trim());
+    final outWarehouseNo = _selectedSourceWarehouseNo;
     if (outWarehouseNo != null && outWarehouseNo > 0) {
       unawaited(
         _resolveGreenGrocerLineResolution(
@@ -843,8 +856,9 @@ class _GivenWarehouseOrderCreateSheetState
     }
 
     final repository = widget.greenGrocerProductCasesRepository;
-    final sourceWarehouseNo = _sourceWarehouseNo;
-    if (repository == null || sourceWarehouseNo == null) {
+    final sourceWarehouseNo = outWarehouseNo;
+    final targetWarehouseNo = _targetWarehouseNo;
+    if (repository == null || sourceWarehouseNo <= 0) {
       return true;
     }
 
@@ -875,7 +889,7 @@ class _GivenWarehouseOrderCreateSheetState
           stockCode: line.stockCodeController.text.trim(),
           inputQuantity: inputQuantity,
           sourceWarehouseNo: sourceWarehouseNo,
-          targetWarehouseNo: outWarehouseNo,
+          targetWarehouseNo: targetWarehouseNo,
           orderDate: _orderDate,
         ),
       );
