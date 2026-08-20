@@ -1361,6 +1361,14 @@ class _VirmanCreateSheetState extends State<_VirmanCreateSheet>
               title: 'Yeni Virman',
               badges: <Widget>[
                 TerminalLineCountBadge(count: _filledLineIndexes().length),
+                _VirmanFlowBadge(
+                  label: 'Cikis ${_movementLineCount(1)}',
+                  movementType: 1,
+                ),
+                _VirmanFlowBadge(
+                  label: 'Giris ${_movementLineCount(0)}',
+                  movementType: 0,
+                ),
               ],
               padding: EdgeInsets.zero,
             ),
@@ -1399,7 +1407,7 @@ class _VirmanCreateSheetState extends State<_VirmanCreateSheet>
                 ),
                 const SizedBox(height: 4),
                 TerminalSectionToolbar(
-                  title: 'Satirlar',
+                  title: 'Urun Ekle',
                   actions: const <Widget>[],
                 ),
                 const SizedBox(height: 4),
@@ -1468,6 +1476,12 @@ class _VirmanCreateSheetState extends State<_VirmanCreateSheet>
     ];
   }
 
+  int _movementLineCount(int movementType) {
+    return _filledLineIndexes()
+        .where((index) => _lines[index].movementType == movementType)
+        .length;
+  }
+
   Widget _buildLineCard(int index) {
     final line = _lines[index];
     final isEntrySlot = index == 0;
@@ -1529,6 +1543,13 @@ class _VirmanDraftLineCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final product = line.selectedProduct;
+    final movementType = line.movementType;
+    final movementTitle = _movementTypeTitle(movementType);
+    final movementSubtitle = _movementTypeSubtitle(movementType);
+    final movementColor = _movementTypeForegroundColor(movementType, context);
+    final packageLabel = product != null
+        ? _packageLabelForProduct(product)
+        : null;
 
     if (isEntrySlot && !isFreshEntry && product != null) {
       return Column(
@@ -1538,13 +1559,11 @@ class _VirmanDraftLineCard extends StatelessWidget {
             stockCode: product.stockCode,
             stockName: product.stockName,
             quantityController: line.quantityController,
-            unitLabel:
-                '${product.unitName} | ${_movementTypeLabel(line.movementType)}',
-            packageLabel: product.unitMultiplier > 1
-                ? AppFormatters.quantity(product.unitMultiplier)
-                : null,
+            unitLabel: '${product.unitName} | $movementTitle',
+            packageLabel: packageLabel,
             barcode: product.barcode,
-            priceLabel: product.price > 0
+            priceLabel: movementSubtitle,
+            warningLabel: product.price > 0
                 ? AppFormatters.currency(product.price)
                 : null,
             onConfirm: onConfirmPending,
@@ -1553,7 +1572,7 @@ class _VirmanDraftLineCard extends StatelessWidget {
               field: ProductLookupField(
                 controller: line.lookupController,
                 focusNode: line.lookupFocusNode,
-                labelText: 'Barkod okut / urun degistir',
+                labelText: '$movementTitle urunu degistir',
                 onSubmit: onPickProduct,
               ),
               action: Row(
@@ -1598,12 +1617,10 @@ class _VirmanDraftLineCard extends StatelessWidget {
             stockCode: product.stockCode,
             stockName: product.stockName,
             quantityController: line.quantityController,
-            unitLabel:
-                '${product.unitName} | ${_movementTypeLabel(line.movementType)}',
-            packageLabel: product.unitMultiplier > 1
-                ? AppFormatters.quantity(product.unitMultiplier)
-                : null,
+            unitLabel: '${product.unitName} | $movementTitle',
+            packageLabel: packageLabel,
             barcode: product.barcode,
+            priceLabel: movementSubtitle,
             canDelete: canRemove,
             onDelete: onRemove,
             onMinimumReached: canRemove ? onRemove : null,
@@ -1614,8 +1631,9 @@ class _VirmanDraftLineCard extends StatelessWidget {
     }
 
     return TerminalPdaLineCard(
-      title: isFreshEntry ? 'Giris satiri' : 'Satir $lineNumber',
-      subtitle: product?.stockName,
+      title: isFreshEntry ? 'Virman urunu ekle' : 'Satir $lineNumber',
+      subtitle: isFreshEntry ? movementSubtitle : product?.stockName,
+      leading: Icon(_movementTypeIcon(movementType), color: movementColor),
       isEntryLine: isFreshEntry,
       trailing: canRemove
           ? IconButton(
@@ -1634,6 +1652,7 @@ class _VirmanDraftLineCard extends StatelessWidget {
               field: ProductLookupField(
                 controller: line.lookupController,
                 focusNode: line.lookupFocusNode,
+                labelText: '$movementTitle urunu ara',
                 onSubmit: onPickProduct,
               ),
               action: Row(
@@ -1696,27 +1715,40 @@ class _VirmanDraftLineCard extends StatelessWidget {
   }
 
   Widget _buildMovementTypeSelector(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final options = <Widget>[
+          _VirmanMovementTypeOption(
+            movementType: 1,
+            selected: line.movementType == 1,
+            onTap: () => _setMovementType(1),
+          ),
+          _VirmanMovementTypeOption(
+            movementType: 0,
+            selected: line.movementType == 0,
+            onTap: () => _setMovementType(0),
+          ),
+        ];
 
-    return Wrap(
-      spacing: 6,
-      runSpacing: 4,
-      children: <Widget>[
-        ChoiceChip(
-          label: const Text('Cikis'),
-          avatar: const Icon(Icons.north_east_rounded, size: 16),
-          selected: line.movementType == 1,
-          selectedColor: colorScheme.primaryContainer,
-          onSelected: (_) => _setMovementType(1),
-        ),
-        ChoiceChip(
-          label: const Text('Giris'),
-          avatar: const Icon(Icons.south_west_rounded, size: 16),
-          selected: line.movementType == 0,
-          selectedColor: colorScheme.secondaryContainer,
-          onSelected: (_) => _setMovementType(0),
-        ),
-      ],
+        if (constraints.maxWidth < 360) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: <Widget>[
+              options.first,
+              const SizedBox(height: 6),
+              options.last,
+            ],
+          );
+        }
+
+        return Row(
+          children: <Widget>[
+            Expanded(child: options.first),
+            const SizedBox(width: 8),
+            Expanded(child: options.last),
+          ],
+        );
+      },
     );
   }
 
@@ -1727,6 +1759,134 @@ class _VirmanDraftLineCard extends StatelessWidget {
 
     line.movementTypeController.text = movementType.toString();
     onMovementTypeChanged();
+  }
+}
+
+class _VirmanFlowBadge extends StatelessWidget {
+  const _VirmanFlowBadge({required this.label, required this.movementType});
+
+  final String label;
+  final int movementType;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final foregroundColor = _movementTypeForegroundColor(movementType, context);
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: _movementTypeBackgroundColor(movementType, context),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: foregroundColor.withAlpha(44)),
+      ),
+      child: Text(
+        label,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: theme.textTheme.labelSmall?.copyWith(
+          height: 1,
+          color: foregroundColor,
+          fontWeight: FontWeight.w900,
+        ),
+      ),
+    );
+  }
+}
+
+class _VirmanMovementTypeOption extends StatelessWidget {
+  const _VirmanMovementTypeOption({
+    required this.movementType,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final int movementType;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final foregroundColor = _movementTypeForegroundColor(movementType, context);
+    final backgroundColor = _movementTypeBackgroundColor(movementType, context);
+    final borderColor = selected
+        ? foregroundColor
+        : theme.colorScheme.outlineVariant.withAlpha(120);
+
+    return Material(
+      color: selected
+          ? backgroundColor
+          : theme.colorScheme.surfaceContainerHighest.withAlpha(38),
+      borderRadius: BorderRadius.circular(8),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(8),
+        child: Container(
+          constraints: const BoxConstraints(minHeight: 54),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: borderColor, width: selected ? 1.4 : 1),
+          ),
+          child: Row(
+            children: <Widget>[
+              Container(
+                width: 28,
+                height: 28,
+                decoration: BoxDecoration(
+                  color: foregroundColor.withAlpha(selected ? 36 : 20),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Icon(
+                  _movementTypeIcon(movementType),
+                  size: 17,
+                  color: foregroundColor,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    Text(
+                      _movementTypeTitle(movementType),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.labelLarge?.copyWith(
+                        height: 1.05,
+                        color: foregroundColor,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      _movementTypeSubtitle(movementType),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        height: 1.05,
+                        color: theme.colorScheme.onSurface.withAlpha(150),
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (selected) ...<Widget>[
+                const SizedBox(width: 4),
+                Icon(
+                  Icons.check_circle_rounded,
+                  size: 17,
+                  color: foregroundColor,
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
 
@@ -1923,6 +2083,61 @@ String _movementTypeLabel(int movementType) {
     2 => 'Teknik',
     _ => 'Tip $movementType',
   };
+}
+
+String _movementTypeTitle(int movementType) {
+  return switch (movementType) {
+    1 => 'Cikis urunu',
+    0 => 'Giris urunu',
+    _ => _movementTypeLabel(movementType),
+  };
+}
+
+String _movementTypeSubtitle(int movementType) {
+  return switch (movementType) {
+    1 => 'Parcalanacak / stoktan duser',
+    0 => 'Olusacak / stoga girer',
+    _ => 'Virman satiri',
+  };
+}
+
+IconData _movementTypeIcon(int movementType) {
+  return switch (movementType) {
+    1 => Icons.north_east_rounded,
+    0 => Icons.south_west_rounded,
+    _ => Icons.compare_arrows_rounded,
+  };
+}
+
+Color _movementTypeForegroundColor(int movementType, BuildContext context) {
+  final colorScheme = Theme.of(context).colorScheme;
+  return switch (movementType) {
+    1 => const Color(0xFF9A4D00),
+    0 => const Color(0xFF087443),
+    _ => colorScheme.primary,
+  };
+}
+
+Color _movementTypeBackgroundColor(int movementType, BuildContext context) {
+  return switch (movementType) {
+    1 => const Color(0xFFFFF4E6),
+    0 => const Color(0xFFEAF8EF),
+    _ => Theme.of(context).colorScheme.primaryContainer.withAlpha(56),
+  };
+}
+
+String? _packageLabelForProduct(SearchProductLookupItem product) {
+  if (product.unitMultiplier <= 1) {
+    return null;
+  }
+
+  final quantity = AppFormatters.quantity(product.unitMultiplier);
+  final secondaryUnitName = product.secondaryUnitName.trim();
+  if (secondaryUnitName.isEmpty) {
+    return quantity;
+  }
+
+  return '$quantity $secondaryUnitName';
 }
 
 bool _hasVirmanFlowSummary({
