@@ -32,7 +32,36 @@ void main() {
 
     expect(tester.takeException(), isNull);
     expect(find.text('Yeni Zayiat Fisi'), findsOneWidget);
-    expect(find.text('Creator'), findsOneWidget);
+    expect(find.text('Olusturan*'), findsOneWidget);
+    expect(find.text('Onaylayan*'), findsOneWidget);
+  });
+
+  testWidgets('shows required warnings for api header fields', (tester) async {
+    tester.view.physicalSize = const Size(390, 1000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: StockReceiptCreateSheet(
+            repository: _FakeStockReceiptsRepository(),
+            kind: StockReceiptKind.outage,
+            accessToken: 'token',
+            defaultWarehouseNo: '50',
+          ),
+        ),
+      ),
+    );
+
+    final saveButton = find.widgetWithText(FilledButton, 'Kaydet');
+    await tester.ensureVisible(saveButton);
+    await tester.tap(saveButton);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Olusturan zorunlu'), findsOneWidget);
+    expect(find.text('Onaylayan zorunlu'), findsOneWidget);
   });
 
   testWidgets('adds single product search result without opening picker', (

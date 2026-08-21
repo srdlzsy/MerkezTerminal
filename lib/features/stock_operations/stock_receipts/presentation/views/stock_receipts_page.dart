@@ -245,7 +245,7 @@ class _StockReceiptsPageState extends State<StockReceiptsPage> {
     messenger.showSnackBar(
       SnackBar(
         content: Text(
-          '${result.documentNoLabel} kaydedildi. ${result.lineCount} satir, toplam ${AppFormatters.quantity(result.totalQuantity)} miktar.',
+          '${result.documentNoLabel} kaydedildi. ${result.lineCount} satir, toplam ${AppFormatters.quantity(result.totalQuantity)} miktar, tutar ${AppFormatters.currency(result.totalAmount)}.',
         ),
       ),
     );
@@ -436,6 +436,12 @@ class _StockReceiptsPageState extends State<StockReceiptsPage> {
                                     item.totalQuantity,
                                   ),
                                 ),
+                                TerminalPdaInfo(
+                                  label: 'Tutar',
+                                  value: AppFormatters.currency(
+                                    item.totalAmount,
+                                  ),
+                                ),
                               ],
                             ),
                             if (isExpanded &&
@@ -494,6 +500,10 @@ class _StockReceiptSummaryCard extends StatelessWidget {
                 label: 'Toplam',
                 value: AppFormatters.quantity(item.totalQuantity),
               ),
+              TerminalPdaInfo(
+                label: 'Tutar',
+                value: AppFormatters.currency(item.totalAmount),
+              ),
               TerminalPdaInfo(label: 'Satir', value: '${item.lineCount}'),
             ],
           ),
@@ -539,6 +549,14 @@ class _StockReceiptDetailSection extends StatelessWidget {
                           value: AppFormatters.quantity(line.quantity),
                         ),
                         TerminalPdaInfo(label: 'Birim', value: line.unitName),
+                        TerminalPdaInfo(
+                          label: 'B.Fiyat',
+                          value: AppFormatters.currency(line.unitPrice),
+                        ),
+                        TerminalPdaInfo(
+                          label: 'Tutar',
+                          value: AppFormatters.currency(line.lineAmount),
+                        ),
                       ],
                     ),
                   ],

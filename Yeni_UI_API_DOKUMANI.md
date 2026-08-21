@@ -8103,7 +8103,10 @@ Onemli not:
 - `creator` ve `acceptor` alanlari sirasiyla `sth_HareketGrupKodu1` ve `sth_HareketGrupKodu2` kolonlarina yazilir
 - `documentSerie` backend tarafinda `F{islemDepoNo}` olarak uretilir
 - `documentOrderNo` ayni seri ve zayiat fis turu icin write DB'deki mevcut maksimum sira okunarak uretilir
-- `totalAmount` su an satir tutarlari `0` yazildigi icin `0` doner
+- Satir tutari eski sistemle uyumlu olacak sekilde create aninda hesaplanir ve `STOK_HAREKETLERI.sth_tutar` alanina yazilir.
+- Birim fiyat icin ilgili stogun `SATINALMA_SARTLARI` tablosundaki en guncel kaydi kullanilir: `sas_net_alis_kdvli - (sas_isk_miktar1..6 toplamı)`.
+- Ilgili stok icin satin alma sarti bulunamazsa satir tutari `0` yazilir ve backend log'a uyarı duser.
+- Response `totalAmount`, yazilan satirlarin `sth_tutar` toplamidir. Liste ve detay ekranlari da kayitli `sth_tutar` alanini okur; detay endpointi sonradan fiyat hesaplamaz.
 
 Request:
 
@@ -8203,7 +8206,10 @@ Onemli not:
 - `creator` ve `acceptor` alanlari sirasiyla `sth_HareketGrupKodu1` ve `sth_HareketGrupKodu2` kolonlarina yazilir
 - `documentSerie` backend tarafinda `F{islemDepoNo}` olarak uretilir
 - `documentOrderNo` ayni seri ve masraf fis turu icin write DB'deki mevcut maksimum sira okunarak uretilir
-- `totalAmount` su an satir tutarlari `0` yazildigi icin `0` doner
+- Satir tutari eski sistemle uyumlu olacak sekilde create aninda hesaplanir ve `STOK_HAREKETLERI.sth_tutar` alanina yazilir.
+- Birim fiyat icin ilgili stogun `SATINALMA_SARTLARI` tablosundaki en guncel kaydi kullanilir: `sas_net_alis_kdvli - (sas_isk_miktar1..6 toplami)`.
+- Ilgili stok icin satin alma sarti bulunamazsa satir tutari `0` yazilir ve backend log'a uyari duser.
+- Response `totalAmount`, yazilan satirlarin `sth_tutar` toplamidir. Liste ve detay ekranlari da kayitli `sth_tutar` alanini okur; detay endpointi sonradan fiyat hesaplamaz.
 
 Request:
 

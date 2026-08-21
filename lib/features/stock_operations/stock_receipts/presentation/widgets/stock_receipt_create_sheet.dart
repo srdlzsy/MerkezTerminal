@@ -843,13 +843,20 @@ class _StockReceiptCreateSheetState extends State<StockReceiptCreateSheet>
                   child: TextFormField(
                     controller: _creatorController,
                     decoration: const InputDecoration(
-                      labelText: 'Creator',
+                      labelText: 'Olusturan*',
+                      hintText: 'Fis olusturan kisi',
                       isDense: true,
                       contentPadding: EdgeInsets.symmetric(
                         horizontal: 10,
                         vertical: 8,
                       ),
                     ),
+                    validator: (value) {
+                      if ((value ?? '').trim().isEmpty) {
+                        return 'Olusturan zorunlu';
+                      }
+                      return null;
+                    },
                   ),
                 ),
                 SizedBox(
@@ -857,13 +864,20 @@ class _StockReceiptCreateSheetState extends State<StockReceiptCreateSheet>
                   child: TextFormField(
                     controller: _acceptorController,
                     decoration: const InputDecoration(
-                      labelText: 'Acceptor',
+                      labelText: 'Onaylayan*',
+                      hintText: 'Fis onaylayan kisi',
                       isDense: true,
                       contentPadding: EdgeInsets.symmetric(
                         horizontal: 10,
                         vertical: 8,
                       ),
                     ),
+                    validator: (value) {
+                      if ((value ?? '').trim().isEmpty) {
+                        return 'Onaylayan zorunlu';
+                      }
+                      return null;
+                    },
                   ),
                 ),
               ],
