@@ -291,6 +291,8 @@ class CompanyMovementCreateRequest {
     required this.documentDate,
     required this.documentNo,
     required this.description,
+    required this.deliverer,
+    required this.receiver,
     required this.lines,
     this.clientRequestId,
   });
@@ -301,6 +303,8 @@ class CompanyMovementCreateRequest {
   final DateTime documentDate;
   final String documentNo;
   final String description;
+  final String deliverer;
+  final String receiver;
   final List<CompanyMovementCreateLine> lines;
 
   JsonMap toJson() {
@@ -312,6 +316,8 @@ class CompanyMovementCreateRequest {
       'documentDate': _toApiDate(documentDate),
       'documentNo': documentNo,
       'description': description,
+      'deliverer': deliverer,
+      'receiver': receiver,
       'lines': lines.map((item) => item.toJson()).toList(growable: false),
     };
   }

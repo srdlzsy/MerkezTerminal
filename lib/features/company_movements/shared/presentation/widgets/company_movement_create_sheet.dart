@@ -56,6 +56,8 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
   late final TextEditingController _customerController;
   late final TextEditingController _documentNoController;
   late final TextEditingController _descriptionController;
+  late final TextEditingController _delivererController;
+  late final TextEditingController _receiverController;
   CustomerLookupItem? _selectedCustomer;
   String? _lookupError;
   Timer? _draftSaveTimer;
@@ -70,10 +72,14 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
     _customerController = TextEditingController();
     _documentNoController = TextEditingController();
     _descriptionController = TextEditingController();
+    _delivererController = TextEditingController();
+    _receiverController = TextEditingController();
     _restoreDraft();
     _customerController.addListener(_scheduleDraftSave);
     _documentNoController.addListener(_scheduleDraftSave);
     _descriptionController.addListener(_scheduleDraftSave);
+    _delivererController.addListener(_scheduleDraftSave);
+    _receiverController.addListener(_scheduleDraftSave);
     WidgetsBinding.instance.addObserver(this);
     _restoringDraft = false;
   }
@@ -88,6 +94,8 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
     _customerController.dispose();
     _documentNoController.dispose();
     _descriptionController.dispose();
+    _delivererController.dispose();
+    _receiverController.dispose();
     for (final line in _lines) {
       line.dispose();
     }
@@ -115,6 +123,8 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
     _customerController.text = payload['customerText']?.toString() ?? '';
     _documentNoController.text = payload['documentNo']?.toString() ?? '';
     _descriptionController.text = payload['description']?.toString() ?? '';
+    _delivererController.text = payload['deliverer']?.toString() ?? '';
+    _receiverController.text = payload['receiver']?.toString() ?? '';
 
     final customerJson = _asJsonMap(payload['selectedCustomer']);
     if (customerJson != null) {
@@ -189,6 +199,8 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
         _customerController.text.trim().isNotEmpty ||
         _documentNoController.text.trim().isNotEmpty ||
         _descriptionController.text.trim().isNotEmpty ||
+        _delivererController.text.trim().isNotEmpty ||
+        _receiverController.text.trim().isNotEmpty ||
         _lines.any((line) => line.hasMeaningfulContent);
   }
 
@@ -197,6 +209,8 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
       'customerText': _customerController.text,
       'documentNo': _documentNoController.text,
       'description': _descriptionController.text,
+      'deliverer': _delivererController.text,
+      'receiver': _receiverController.text,
       'selectedCustomer': _selectedCustomer == null
           ? null
           : _customerToJson(_selectedCustomer!),
@@ -812,6 +826,8 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
           ? _documentNoController.text.trim()
           : '',
       description: _descriptionController.text.trim(),
+      deliverer: _delivererController.text.trim(),
+      receiver: _receiverController.text.trim(),
       lines: activeLines
           .map(
             (line) => CompanyMovementCreateLine(
@@ -888,6 +904,8 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
                   ),
                 ),
                 const SizedBox(height: 4),
+                _buildDeliveryInfoRow(),
+                const SizedBox(height: 4),
                 TerminalSectionToolbar(
                   title: 'Satirlar',
                   actions: const <Widget>[],
@@ -929,6 +947,49 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildDeliveryInfoRow() {
+    final delivererField = TextFormField(
+      controller: _delivererController,
+      textInputAction: TextInputAction.next,
+      decoration: const InputDecoration(
+        labelText: 'Teslim Eden',
+        isDense: true,
+        contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      ),
+    );
+    final receiverField = TextFormField(
+      controller: _receiverController,
+      textInputAction: TextInputAction.done,
+      decoration: const InputDecoration(
+        labelText: 'Teslim Alan',
+        isDense: true,
+        contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      ),
+    );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < 300) {
+          return Column(
+            children: <Widget>[
+              delivererField,
+              const SizedBox(height: 4),
+              receiverField,
+            ],
+          );
+        }
+
+        return Row(
+          children: <Widget>[
+            Expanded(child: delivererField),
+            const SizedBox(width: 8),
+            Expanded(child: receiverField),
+          ],
+        );
+      },
     );
   }
 

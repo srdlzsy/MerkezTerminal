@@ -451,7 +451,7 @@ class _SuggestedCompanyOrderCard extends StatelessWidget {
         : '-';
     final subtitle = <String>[
       if (item.stockCode.trim().isNotEmpty) 'Kod ${item.stockCode}',
-      'Koli $packageLabel',
+      'Koli ici $packageLabel',
       if (item.barcode.trim().isNotEmpty) item.barcode,
       if (item.modelCode.trim().isNotEmpty) 'Model ${item.modelCode}',
     ].where((part) => part.trim().isNotEmpty).join(' | ');
@@ -506,7 +506,7 @@ class _SuggestedCompanyOrderCard extends StatelessWidget {
                 label: 'Ihtiyac',
                 value: AppFormatters.quantity(item.needQuantity),
               ),
-              TerminalPdaInfo(label: 'Koli', value: packageLabel),
+              TerminalPdaInfo(label: 'Koli ici', value: packageLabel),
               TerminalPdaInfo(
                 label: 'Asgari',
                 value: AppFormatters.quantity(item.minimumPurchaseQuantity),

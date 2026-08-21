@@ -94,6 +94,8 @@ class EDespatchSendResult {
     required this.serviceDocumentNumber,
     required this.sentAt,
     required this.endpointUrl,
+    this.localMikroMetadataUpdated = true,
+    this.warning = '',
   });
 
   final int documentType;
@@ -105,8 +107,27 @@ class EDespatchSendResult {
   final String serviceDocumentNumber;
   final DateTime? sentAt;
   final String endpointUrl;
+  final bool localMikroMetadataUpdated;
+  final String warning;
 
   String get documentNoLabel => '$documentSerie.$documentOrderNo';
+  String get serviceDocumentLabel => serviceDocumentNumber.isEmpty
+      ? eDespatchDocumentNo
+      : serviceDocumentNumber;
+  bool get hasWarning =>
+      !localMikroMetadataUpdated || warning.trim().isNotEmpty;
+  String get warningMessage {
+    final explicitWarning = warning.trim();
+    if (explicitWarning.isNotEmpty) {
+      return explicitWarning;
+    }
+
+    if (!localMikroMetadataUpdated) {
+      return 'Uyumsoft gonderimi basarili, ancak lokal Mikro metadata isareti tamamlanamadi. Evrak tekrar gonderilmemeli.';
+    }
+
+    return '';
+  }
 
   factory EDespatchSendResult.fromJson(JsonMap json) {
     return EDespatchSendResult(
@@ -119,6 +140,11 @@ class EDespatchSendResult {
       serviceDocumentNumber: _readString(json['serviceDocumentNumber']),
       sentAt: _readDate(json['sentAt']),
       endpointUrl: _readString(json['endpointUrl']),
+      localMikroMetadataUpdated: _readBool(
+        json['localMikroMetadataUpdated'],
+        fallback: true,
+      ),
+      warning: _readString(json['warning']),
     );
   }
 }
@@ -153,4 +179,25 @@ int _readInt(Object? value) {
 
 String _readString(Object? value) {
   return value?.toString() ?? '';
+}
+
+bool _readBool(Object? value, {bool fallback = false}) {
+  if (value is bool) {
+    return value;
+  }
+
+  final normalized = value?.toString().trim().toLowerCase();
+  if (normalized == null || normalized.isEmpty) {
+    return fallback;
+  }
+
+  if (normalized == 'true' || normalized == '1') {
+    return true;
+  }
+
+  if (normalized == 'false' || normalized == '0') {
+    return false;
+  }
+
+  return fallback;
 }

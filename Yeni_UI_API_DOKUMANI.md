@@ -9259,6 +9259,8 @@ Kural:
 - `matchedStockCode` doluysa UI bu stokla satiri otomatik hazirlayabilir.
 - `matchedStockCode` bos ise satir yine gosterilir; UI kullanicidan `/stocks` ile MNV stok secimi istemelidir.
 - `canCreateAcceptance=false` satirda otomatik stok eslesmesi yoktur; Mikro aktarim veya etiket satiri olusturmadan once kullanici eslestirme yapmalidir.
+- Uyumsoft UBL icinde kap/dara bilgisi standart kolon olarak degil `cbc:Note` alaninda gelebilir. Backend header notlarindan `totalCaseCount`, `totalGrossWithTareQuantity`, `totalTareQuantity`, `totalNetQuantity`; satir notundan `caseCount`, `grossWithTareQuantity`, `tareQuantity`, `netQuantity` alanlarini cozmeye calisir.
+- Satir notu ornegi `84 1.432,00 126,00` ise UI bunu `84 kap`, `1432 kg darali`, `126 kg dara` olarak gosterebilir. `netQuantity` normalde fatura `quantity` degeriyle ayni net kg bilgisidir.
 - Bu endpoint Mikro'ya veya Furpa etiket tablosuna yazmaz; sadece fatura kalemlerini okur ve UI'a hazirlar.
 
 Response:
@@ -9276,6 +9278,10 @@ Response:
   "taxExclusiveAmount": 24753.96,
   "taxTotal": 250.04,
   "payableAmount": 25004.0,
+  "totalCaseCount": 216,
+  "totalGrossWithTareQuantity": 3686.0,
+  "totalTareQuantity": 324.0,
+  "totalNetQuantity": 3362.0,
   "despatchId": "IRS2026000099",
   "matchedSupplierCode": "32000297",
   "matchedSupplierName": "HAL TEDARIKCI A",
@@ -9288,7 +9294,12 @@ Response:
       "stockName": "MNV DOMATES KG",
       "barcode": "2801555000000",
       "unitCode": "KGM",
+      "note": "84 1.432,00 126,00",
       "quantity": 120.5,
+      "caseCount": 84,
+      "grossWithTareQuantity": 1432.0,
+      "tareQuantity": 126.0,
+      "netQuantity": 1306.0,
       "unitPrice": 25.0,
       "lineAmount": 3012.5,
       "taxRatePercent": 1.0,
@@ -10501,6 +10512,7 @@ Onemli not:
 - `documentSerie` backend tarafinda `F{islemDepoNo}` olarak uretilir.
 - `documentOrderNo` ayni seri, evrak tipi ve iade tipi icin write DB'deki mevcut maksimum sira okunarak uretilir; ilk evrak `0`, sonraki evraklar `1, 2...` seklinde gider.
 - Plaka, sofor adi ve TCKN bu create request'inde gonderilmez. E-irsaliye gonderiminde manuel akista bu alanlar zorunludur; kayitli sofor secilirse `driverId` yeterlidir.
+- `deliverer` teslim eden, `receiver` teslim alan bilgisidir. Opsiyoneldir; gonderilirse Mikro `STOK_HAREKETLERI.sth_HareketGrupKodu2` ve `sth_HareketGrupKodu3` alanlarina yazilir.
 - Request/response modeli firma giden sevk create ile aynidir; tek fark kaydin `returnType = 1` olarak yazilmasidir.
 
 Request:
@@ -10513,6 +10525,8 @@ Request:
   "documentDate": "2026-04-17",
   "documentNo": "IAD-0001",
   "description": "",
+  "deliverer": "Teslim Eden",
+  "receiver": "Teslim Alan",
   "lines": [
     {
       "stockCode": "015792",
@@ -10592,6 +10606,8 @@ Notlar:
 - `driverId` doluysa kayit aktif degilse veya bulunamazsa `404 Not Found` doner.
 - `driverId` ile birlikte gelen dolu manuel alanlar secili sofor kaydinin ustune yazilir; bos manuel alanlar sofor tanimindan doldurulur.
 - Basarili gonderimden sonra cozulmus plaka ve TCKN Mikro hareket satirlarina metadata olarak yazilmaya calisilir.
+- Response icindeki `localMikroMetadataUpdated=false` gelirse Uyumsoft gonderimi basarilidir, fakat Mikro hareket satirlari FRM/ETTN metadata'si ile isaretlenememistir. UI bu durumda tekrar e-irsaliye gondermemeli; `eDespatchDocumentNo` ve `eDespatchUuid` degerleriyle lokal Mikro belge metadata onarimi yapilmalidir.
+- Ayni evrak icin belge akisinda basarili Uyumsoft gonderimi kayitliysa backend ikinci gonderimi `409 Conflict` ile engeller. Bu kural Mikro metadata isaretleme eksik kalmis olsa bile Uyumsoft'ta duplicate zarf olusmasini onlemek icindir.
 
 Response:
 
@@ -18839,7 +18855,9 @@ public sealed record SendEDespatchResponse(
     string ServiceDocumentId,
     string ServiceDocumentNumber,
     DateTime SentAt,
-    string EndpointUrl);
+    string EndpointUrl,
+    bool LocalMikroMetadataUpdated = true,
+    string? Warning = null);
 
 public enum UyumsoftConnectedServiceKind
 {
@@ -21503,7 +21521,7 @@ Bu bolumde yalnizca endpointlerin dogrudan baglandigi HTTP request modelleri yer
 - `AnnouncementManagementListHttpRequest`: `Status`, `TargetType`, `TargetWarehouseNo`, `TargetUserId`, `StartDate`, `EndDate`, `IncludeArchived`, `Take`
 - `AnnouncementTargetUserSearchHttpRequest`: `Search`, `WarehouseNo`, `Take`
 - `SaveAnnouncementHttpRequest`: `Title`, `Message`, `Priority`, `TargetType`, `TargetWarehouseNos`, `TargetUserIds`, `StartsAtUtc`, `ExpiresAtUtc`
-- `CreateCompanyMovementHttpRequest`: `WarehouseNo`, `CustomerCode`, `MovementDate`, `DocumentDate`, `DocumentNo`, `Description`, `Lines`
+- `CreateCompanyMovementHttpRequest`: `WarehouseNo`, `CustomerCode`, `MovementDate`, `DocumentDate`, `DocumentNo`, `Description`, `Deliverer`, `Receiver`, `Lines`
 - `CreateCompanyMovementLineHttpRequest`: `StockCode`, `Quantity`, `UnitPrice`, `UnitPointer`, `Description`, `PartyCode`, `LotNo`, `ProjectCode`, `CustomerResponsibilityCenter`, `ProductResponsibilityCenter`, `OrderLineGuid`
 - `CreateStockReceiptHttpRequest`: `WarehouseNo`, `Creator`, `Acceptor`, `MovementDate`, `DocumentDate`, `DocumentNo`, `Description`, `Lines`
 - `CreateStockReceiptLineHttpRequest`: `StockCode`, `Quantity`, `UnitPointer`, `Description`, `PartyCode`, `LotNo`, `ProjectCode`

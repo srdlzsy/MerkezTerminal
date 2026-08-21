@@ -1316,7 +1316,7 @@ class _TerminalCompactProductLineDetails extends StatelessWidget {
                   if ((unitLabel ?? '').trim().isNotEmpty)
                     _TerminalMiniLineMeta(text: unitLabel!),
                   if ((packageLabel ?? '').trim().isNotEmpty)
-                    _TerminalMiniLineMeta(text: 'Koli $packageLabel'),
+                    _TerminalMiniLineMeta(text: 'Koli ici $packageLabel'),
                   if ((priceLabel ?? '').trim().isNotEmpty)
                     _TerminalMiniLineMeta(text: priceLabel!),
                   if ((barcode ?? '').trim().isNotEmpty)

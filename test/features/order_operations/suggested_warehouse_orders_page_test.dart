@@ -43,7 +43,7 @@ void main() {
     expect(find.text('Onerilen Depo Siparisleri'), findsOneWidget);
     expect(find.text('Domates'), findsOneWidget);
     expect(find.textContaining('Kod 010001'), findsOneWidget);
-    expect(find.textContaining('Koli 1'), findsOneWidget);
+    expect(find.textContaining('Koli ici 1'), findsOneWidget);
     expect(find.byTooltip('Tumunu Sec'), findsOneWidget);
 
     await tester.tap(find.byTooltip('Tumunu Sec'));

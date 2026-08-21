@@ -41,6 +41,8 @@ void main() {
         documentDate: DateTime(2026, 4, 17),
         documentNo: '',
         description: '',
+        deliverer: '',
+        receiver: '',
         lines: const <CompanyMovementCreateLine>[
           CompanyMovementCreateLine(
             stockCode: '015792',

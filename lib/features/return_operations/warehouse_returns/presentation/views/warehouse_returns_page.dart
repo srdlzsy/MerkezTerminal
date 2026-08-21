@@ -226,15 +226,16 @@ class _WarehouseReturnsPageState extends State<WarehouseReturnsPage> {
       return;
     }
 
-    final serviceInfo = result.serviceDocumentNumber.isNotEmpty
-        ? result.serviceDocumentNumber
-        : result.eDespatchDocumentNo;
-
+    final message =
+        '${result.documentNoLabel} icin e-irsaliye gonderildi. '
+        'Belge: ${result.serviceDocumentLabel}'
+        '${result.hasWarning ? ' | Uyari: ${result.warningMessage}' : ''}';
     messenger.showSnackBar(
       SnackBar(
-        content: Text(
-          '${result.documentNoLabel} icin e-irsaliye gonderildi. Belge: $serviceInfo',
-        ),
+        content: Text(message),
+        duration: result.hasWarning
+            ? const Duration(seconds: 8)
+            : const Duration(seconds: 4),
       ),
     );
   }
@@ -937,6 +938,12 @@ class _EDespatchResultCard extends StatelessWidget {
               ),
             ],
           ),
+          if (result.hasWarning) ...<Widget>[
+            const SizedBox(height: 12),
+            TerminalMessageBlock.info(
+              message: 'Uyari: ${result.warningMessage}',
+            ),
+          ],
         ],
       ),
     );

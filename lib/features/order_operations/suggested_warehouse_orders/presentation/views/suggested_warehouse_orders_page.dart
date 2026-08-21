@@ -473,7 +473,7 @@ class _SuggestedWarehouseOrderCard extends StatelessWidget {
         : packageLabel;
     final subtitle = <String>[
       if (item.stockCode.trim().isNotEmpty) 'Kod ${item.stockCode}',
-      'Koli $packageDisplayLabel',
+      'Koli ici $packageDisplayLabel',
       if (item.barcode.trim().isNotEmpty) item.barcode,
       if (item.modelName.trim().isNotEmpty) item.modelName,
       if (item.modelName.trim().isEmpty && item.modelCode.trim().isNotEmpty)
@@ -526,7 +526,7 @@ class _SuggestedWarehouseOrderCard extends StatelessWidget {
                   label: 'Birim',
                   value: item.unitName.trim().isEmpty ? '-' : item.unitName,
                 ),
-                TerminalPdaInfo(label: 'Koli', value: packageDisplayLabel),
+                TerminalPdaInfo(label: 'Koli ici', value: packageDisplayLabel),
                 if (item.caseBarcode.trim().isNotEmpty)
                   TerminalPdaInfo(
                     label: 'Koli Barkod',
@@ -558,7 +558,7 @@ class _SuggestedWarehouseOrderCard extends StatelessWidget {
                   label: 'Gun',
                   value: AppFormatters.quantity(item.recommendedDay),
                 ),
-                TerminalPdaInfo(label: 'Koli', value: packageDisplayLabel),
+                TerminalPdaInfo(label: 'Koli ici', value: packageDisplayLabel),
                 if (item.caseBarcode.trim().isNotEmpty)
                   TerminalPdaInfo(
                     label: 'Koli Barkod',

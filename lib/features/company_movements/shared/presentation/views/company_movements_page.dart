@@ -331,11 +331,16 @@ class _CompanyMovementsPageState extends State<CompanyMovementsPage> {
       return;
     }
 
+    final message =
+        '${result.documentNoLabel} icin e-irsaliye gonderildi. '
+        'Belge: ${result.serviceDocumentLabel}'
+        '${result.hasWarning ? ' | Uyari: ${result.warningMessage}' : ''}';
     messenger.showSnackBar(
       SnackBar(
-        content: Text(
-          '${result.documentNoLabel} icin e-irsaliye gonderildi. Belge: ${result.serviceDocumentNumber.isEmpty ? result.eDespatchDocumentNo : result.serviceDocumentNumber}',
-        ),
+        content: Text(message),
+        duration: result.hasWarning
+            ? const Duration(seconds: 8)
+            : const Duration(seconds: 4),
       ),
     );
   }
@@ -758,7 +763,9 @@ class _MovementDetailBody extends StatelessWidget {
             const SizedBox(height: 12),
             TerminalMessageBlock.info(
               message:
-                  'Son e-irsaliye: ${lastEDespatchResult!.documentNoLabel} | ${lastEDespatchResult!.serviceDocumentNumber.isEmpty ? lastEDespatchResult!.eDespatchDocumentNo : lastEDespatchResult!.serviceDocumentNumber}',
+                  'Son e-irsaliye: ${lastEDespatchResult!.documentNoLabel} | '
+                  '${lastEDespatchResult!.serviceDocumentLabel}'
+                  '${lastEDespatchResult!.hasWarning ? '\nUyari: ${lastEDespatchResult!.warningMessage}' : ''}',
             ),
           ],
           const SizedBox(height: 14),

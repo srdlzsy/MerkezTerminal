@@ -245,6 +245,7 @@ class _CompanyAcceptanceCreateSheetState
       title: 'E-Belge QR',
       subtitle: 'Tedarikci belgesindeki QR kodu okutun.',
       qrOnly: true,
+      initialZoom: 0.2,
     );
 
     if (qrValue == null || !mounted) {

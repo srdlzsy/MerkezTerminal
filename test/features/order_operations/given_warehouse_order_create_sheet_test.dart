@@ -203,7 +203,7 @@ void main() {
     expect(find.text('2 kalem'), findsOneWidget);
     expect(find.text('MNV MAYDANOZ ADET'), findsOneWidget);
     expect(find.text('MNV DEREOTU ADET'), findsOneWidget);
-    expect(find.textContaining('Koli 12 KOLI'), findsWidgets);
+    expect(find.textContaining('Koli ici 12 KOLI'), findsWidgets);
     expect(find.text('Giris satiri'), findsOneWidget);
   });
 
