@@ -687,6 +687,7 @@ class _CompanyAcceptanceCreateSheetState
       line.acceptedQuantityController.text = _formatDraftQuantity(
         line.acceptedQuantity + increment,
       );
+      line.previousDispatchQuantity = line.dispatchQuantity;
       line.lookupController.clear();
       line.setLookupStatus(
         'Ayni barkod okutuldu. +${AppFormatters.quantity(increment)} eklendi.',
@@ -876,6 +877,7 @@ class _CompanyAcceptanceCreateSheetState
             product.unitMultiplier,
           ),
     );
+    existingLine.previousDispatchQuantity = existingLine.dispatchQuantity;
 
     if (_readDouble(existingLine.unitPriceController.text, fallback: 0) <= 0) {
       line.applyProduct(product);
@@ -1757,11 +1759,11 @@ class _CompanyAcceptanceCreateSheetState
           }
           return null;
         },
-        onQuantityChanged: (_) => setState(() {}),
+        onQuantityChanged: (_) => _handleDispatchQuantityChanged(line),
         secondaryQuantityController: line.acceptedQuantityController,
         secondaryQuantityLabel: 'Fiili Kabul*',
         secondaryMaximumQuantity: line.dispatchQuantity,
-        onSecondaryQuantityChanged: (_) => setState(() {}),
+        onSecondaryQuantityChanged: (_) => _handleAcceptedQuantityChanged(line),
         secondaryQuantityValidator: (_) {
           if (line.acceptedQuantity < 0) {
             return 'Negatif olamaz';
@@ -1862,6 +1864,34 @@ class _CompanyAcceptanceCreateSheetState
       _ensureFreshEntryLine();
     });
     _draftSession.scheduleSave();
+  }
+
+  void _handleDispatchQuantityChanged(_AcceptanceLineDraft line) {
+    final shouldSyncAccepted =
+        !line.acceptedQuantityManuallyChanged ||
+        line.acceptedQuantityController.text.trim().isEmpty ||
+        _quantitiesEqual(line.acceptedQuantity, line.previousDispatchQuantity);
+
+    final dispatchQuantity = line.dispatchQuantity;
+    if (shouldSyncAccepted) {
+      line.acceptedQuantityController.text = _formatQuantity(dispatchQuantity);
+      line.acceptedQuantityController.selection = TextSelection.collapsed(
+        offset: line.acceptedQuantityController.text.length,
+      );
+      line.acceptedQuantityManuallyChanged = false;
+    }
+    line.previousDispatchQuantity = dispatchQuantity;
+    _draftSession.scheduleSave();
+    setState(() {});
+  }
+
+  void _handleAcceptedQuantityChanged(_AcceptanceLineDraft line) {
+    line.acceptedQuantityManuallyChanged = !_quantitiesEqual(
+      line.acceptedQuantity,
+      line.dispatchQuantity,
+    );
+    _draftSession.scheduleSave();
+    setState(() {});
   }
 
   Widget _buildDocumentDetailsSection() {
@@ -2181,7 +2211,7 @@ class _CompanyAcceptanceCreateSheetState
           });
           _draftSession.scheduleSave();
         },
-        onChanged: (_) => setState(() {}),
+        onChanged: (_) => _handleDispatchQuantityChanged(line),
         validator: (_) {
           if (line.dispatchQuantity <= 0) {
             return 'Miktar > 0';
@@ -2196,7 +2226,7 @@ class _CompanyAcceptanceCreateSheetState
         controller: line.acceptedQuantityController,
         label: 'Fiili Kabul*',
         maximum: line.dispatchQuantity,
-        onChanged: (_) => setState(() {}),
+        onChanged: (_) => _handleAcceptedQuantityChanged(line),
         validator: (_) {
           if (line.acceptedQuantity < 0) {
             return 'Negatif olamaz';
@@ -2362,6 +2392,10 @@ double _unitMultiplierQuantity(double unitMultiplier) {
   return unitMultiplier > 0 ? unitMultiplier : 1;
 }
 
+bool _quantitiesEqual(double first, double second) {
+  return (first - second).abs() < 0.000001;
+}
+
 double _quantityInputOrUnitMultiplier(String raw, double unitMultiplier) {
   final normalized = raw.trim();
   if (normalized.isEmpty) {
@@ -2492,6 +2526,11 @@ class _AcceptanceLineDraft {
         selectedProduct = SearchProductLookupItem.fromJson(productJson);
         lookupController.clear();
       }
+      acceptedQuantityManuallyChanged = !_quantitiesEqual(
+        dispatchQuantity,
+        acceptedQuantity,
+      );
+      previousDispatchQuantity = dispatchQuantity;
     }
     for (final controller in _controllers) {
       controller.addListener(_notifyChanged);
@@ -2542,6 +2581,7 @@ class _AcceptanceLineDraft {
     );
     orderGuid = item.orderGuid;
     unitPointer = item.unitPointer;
+    previousDispatchQuantity = dispatchQuantity;
     for (final controller in _controllers) {
       controller.addListener(_notifyChanged);
     }
@@ -2568,6 +2608,8 @@ class _AcceptanceLineDraft {
   bool isLookupStatusError = false;
   String? orderGuid;
   int unitPointer = 1;
+  bool acceptedQuantityManuallyChanged = false;
+  double previousDispatchQuantity = 0;
 
   List<TextEditingController> get _controllers => <TextEditingController>[
     lookupController,
@@ -2624,6 +2666,7 @@ class _AcceptanceLineDraft {
     selectedProduct = product;
     lookupController.clear();
     stockCodeController.text = product.stockCode;
+    acceptedQuantityManuallyChanged = false;
     if (dispatchQuantityController.text.trim().isEmpty) {
       dispatchQuantityController.text = _formatDraftQuantity(
         _unitMultiplierQuantity(product.unitMultiplier),
@@ -2634,6 +2677,7 @@ class _AcceptanceLineDraft {
         _unitMultiplierQuantity(product.unitMultiplier),
       );
     }
+    previousDispatchQuantity = dispatchQuantity;
     unitPriceController.text = product.price.toString();
     unitPointer = 1;
   }
@@ -2670,6 +2714,8 @@ class _AcceptanceLineDraft {
     selectedProduct = null;
     orderGuid = null;
     unitPointer = 1;
+    acceptedQuantityManuallyChanged = false;
+    previousDispatchQuantity = 0;
     clearLookupStatus();
   }
 

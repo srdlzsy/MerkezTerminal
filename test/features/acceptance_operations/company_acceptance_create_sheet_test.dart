@@ -137,6 +137,24 @@ void main() {
     );
     expect(find.widgetWithText(TextFormField, 'Fiili Kabul*'), findsOneWidget);
 
+    final dispatchField = find.widgetWithText(
+      TextFormField,
+      'Irsaliye Miktari*',
+    );
+    final acceptedField = find.widgetWithText(TextFormField, 'Fiili Kabul*');
+
+    await tester.enterText(dispatchField, '7');
+    await tester.pump(const Duration(milliseconds: 400));
+
+    expect(tester.widget<TextFormField>(acceptedField).controller?.text, '7');
+
+    await tester.enterText(acceptedField, '5');
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.enterText(dispatchField, '9');
+    await tester.pump(const Duration(milliseconds: 400));
+
+    expect(tester.widget<TextFormField>(acceptedField).controller?.text, '5');
+
     final lookupField = tester.widget<TextFormField>(
       find.widgetWithText(TextFormField, 'Barkod / stok kodu / urun adi').first,
     );
