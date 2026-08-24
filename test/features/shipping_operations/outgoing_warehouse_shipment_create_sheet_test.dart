@@ -15,6 +15,7 @@ import 'package:furpa_merkez_terminal/shared/widgets/terminal_ui_parts.dart';
 
 import '../../support/barcode_resolution_test_data.dart';
 import '../../support/memory_local_database.dart';
+import '../../support/pda_create_screen_contract.dart';
 
 void main() {
   testWidgets('renders create sheet header fields without layout exceptions', (
@@ -92,6 +93,25 @@ void main() {
 
     expect(tester.takeException(), isNull);
     expect(find.text('Depo Siparisi Sec'), findsWidgets);
+  });
+
+  testWidgets('passes pda create screen contract with keyboard inset', (
+    tester,
+  ) async {
+    await expectPdaCreateScreenContract(
+      tester,
+      buildSubject: () => OutgoingWarehouseShipmentCreateSheet(
+        repository: _FakeOutgoingWarehouseShipmentsRepository(),
+        receivedWarehouseOrdersRepository:
+            _FakeReceivedWarehouseOrdersRepository(),
+        accessToken: 'token',
+        defaultWarehouseNo: '110',
+        mobileWarehouseCatalogRepository: _emptyWarehouseCatalogRepository(),
+      ),
+      prepare: _pickShipmentTargetWarehouse,
+      entryRowFinder: find.text('Giris satiri'),
+      saveButtonFinder: find.widgetWithText(FilledButton, 'Sevki Hazirla'),
+    );
   });
 
   testWidgets('keeps fresh manual shipment row and merges duplicate quantity', (
@@ -705,6 +725,16 @@ void main() {
       expect(request!.lines.single.warehouseOrderLineGuid, isNull);
     },
   );
+}
+
+Future<void> _pickShipmentTargetWarehouse(WidgetTester tester) async {
+  await tester.tap(find.widgetWithText(TextField, 'Hedef depo no*'));
+  await tester.pumpAndSettle();
+  await tester.enterText(find.widgetWithText(TextField, 'Arama'), 'merkez');
+  await tester.tap(find.text('Ara'));
+  await tester.pumpAndSettle();
+  await tester.tap(find.text('50 - MERKEZ DEPO').last);
+  await tester.pumpAndSettle();
 }
 
 Future<void> _enterShipmentBarcode(

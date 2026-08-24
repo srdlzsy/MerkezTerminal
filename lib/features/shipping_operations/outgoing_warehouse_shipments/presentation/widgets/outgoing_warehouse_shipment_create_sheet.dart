@@ -769,13 +769,7 @@ class _OutgoingWarehouseShipmentCreateSheetState
     final existingLine = _findManualMergeTarget(line, product);
     return _confirmDuplicateIncrease(
       product: product,
-      alreadyAdded:
-          existingLine != null &&
-          productEntryController.readQuantity(
-                existingLine.quantityController.text,
-                fallback: 0,
-              ) >
-              0,
+      existingQuantityText: existingLine?.quantityController.text,
     );
   }
 
@@ -786,25 +780,24 @@ class _OutgoingWarehouseShipmentCreateSheetState
     final existingLine = _findLinkedMergeTarget(line, product);
     return _confirmDuplicateIncrease(
       product: product,
-      alreadyAdded:
-          existingLine != null &&
-          productEntryController.readQuantity(
-                existingLine.quantityController.text,
-                fallback: 0,
-              ) >
-              0,
+      existingQuantityText: existingLine?.quantityController.text,
     );
   }
 
   Future<bool> _confirmDuplicateIncrease({
     required ProductLookupItem product,
-    required bool alreadyAdded,
+    required String? existingQuantityText,
   }) async {
     final key = _productKey(
       stockCode: product.stockCode,
       barcode: product.barcode,
     );
-    if (!alreadyAdded || key.isEmpty || _lastAddedProductKey == key) {
+    if (existingQuantityText == null ||
+        !productEntryController.shouldConfirmDuplicateIncrease(
+          existingQuantityText: existingQuantityText,
+          productKey: key,
+          lastAddedProductKey: _lastAddedProductKey,
+        )) {
       return true;
     }
 
@@ -901,15 +894,12 @@ class _OutgoingWarehouseShipmentCreateSheetState
   }
 
   bool _isSameProduct(ProductLookupItem first, ProductLookupItem second) {
-    final firstStockCode = first.stockCode.trim().toUpperCase();
-    final secondStockCode = second.stockCode.trim().toUpperCase();
-    if (firstStockCode.isNotEmpty && firstStockCode == secondStockCode) {
-      return true;
-    }
-
-    final firstBarcode = first.barcode.trim().toUpperCase();
-    final secondBarcode = second.barcode.trim().toUpperCase();
-    return firstBarcode.isNotEmpty && firstBarcode == secondBarcode;
+    return productEntryController.isSameProduct(
+      firstStockCode: first.stockCode,
+      firstBarcode: first.barcode,
+      secondStockCode: second.stockCode,
+      secondBarcode: second.barcode,
+    );
   }
 
   Future<_ManualShipmentLineDraft?> _commitPendingManualEntryBeforeNextProduct(
@@ -1057,17 +1047,10 @@ class _OutgoingWarehouseShipmentCreateSheetState
   }
 
   String _productKey({required String stockCode, required String barcode}) {
-    final normalizedStockCode = stockCode.trim().toUpperCase();
-    if (normalizedStockCode.isNotEmpty) {
-      return 'S:$normalizedStockCode';
-    }
-
-    final normalizedBarcode = barcode.trim().toUpperCase();
-    if (normalizedBarcode.isNotEmpty) {
-      return 'B:$normalizedBarcode';
-    }
-
-    return '';
+    return productEntryController.productKey(
+      stockCode: stockCode,
+      barcode: barcode,
+    );
   }
 
   String _resolvedBarcodeMessage(BarcodeResolutionResult resolution) {
@@ -1278,15 +1261,10 @@ class _OutgoingWarehouseShipmentCreateSheetState
     }
 
     existingLine.quantityController.text = productEntryController
-        .formatQuantity(
-          productEntryController.readQuantity(
-                existingLine.quantityController.text,
-                fallback: 0,
-              ) +
-              productEntryController.quantityInputOrUnitMultiplier(
-                line.quantityController.text,
-                product.unitMultiplier,
-              ),
+        .mergedQuantityText(
+          existingQuantityText: existingLine.quantityController.text,
+          incomingQuantityText: line.quantityController.text,
+          unitMultiplier: product.unitMultiplier,
         );
     if (syncQuantityStep) {
       existingLine.quantityStep = line.quantityStep;
@@ -1324,19 +1302,13 @@ class _OutgoingWarehouseShipmentCreateSheetState
       return false;
     }
 
-    final increment = productEntryController.quantityInputOrUnitMultiplier(
-      line.quantityController.text,
-      product.unitMultiplier,
+    final quantityText = productEntryController.mergedQuantityText(
+      existingQuantityText: existingLine.quantityController.text,
+      incomingQuantityText: line.quantityController.text,
+      unitMultiplier: product.unitMultiplier,
     );
-    final quantity =
-        productEntryController.readQuantity(
-          existingLine.quantityController.text,
-          fallback: 0,
-        ) +
-        increment;
     existingLine.applyScannedProduct(product);
-    existingLine.quantityController.text = productEntryController
-        .formatQuantity(quantity);
+    existingLine.quantityController.text = quantityText;
     if (syncQuantityStep) {
       existingLine.quantityStep = line.quantityStep;
     }

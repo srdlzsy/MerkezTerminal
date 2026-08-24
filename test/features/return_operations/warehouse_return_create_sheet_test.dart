@@ -11,8 +11,28 @@ import 'package:furpa_merkez_terminal/shared/offline/mobile_warehouse_catalog_re
 
 import '../../support/barcode_resolution_test_data.dart';
 import '../../support/memory_local_database.dart';
+import '../../support/pda_create_screen_contract.dart';
 
 void main() {
+  testWidgets('passes pda create screen contract with keyboard inset', (
+    tester,
+  ) async {
+    await expectPdaCreateScreenContract(
+      tester,
+      buildSubject: () => WarehouseReturnCreateSheet(
+        repository: _FakeWarehouseReturnsRepository(),
+        accessToken: 'token',
+        defaultWarehouseNo: '110',
+        mobileWarehouseCatalogRepository: MobileWarehouseCatalogLocalRepository(
+          database: MemoryLocalDatabase(),
+        ),
+      ),
+      prepare: _pickTargetWarehouse,
+      entryRowFinder: find.text('Giris satiri'),
+      saveButtonFinder: find.widgetWithText(FilledButton, 'Iadeyi Kaydet'),
+    );
+  });
+
   testWidgets('adds return lines at top and merges duplicate products', (
     tester,
   ) async {
@@ -65,6 +85,13 @@ void main() {
     expect(productInfo, findsOneWidget);
     expect(find.text('4'), findsOneWidget);
   });
+}
+
+Future<void> _pickTargetWarehouse(WidgetTester tester) async {
+  await tester.tap(find.widgetWithText(FilledButton, 'Sec'));
+  await tester.pumpAndSettle();
+  await tester.tap(find.text('50 - MERKEZ DEPO').last);
+  await tester.pumpAndSettle();
 }
 
 Future<void> _pickProduct(WidgetTester tester) async {

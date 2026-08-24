@@ -7,6 +7,7 @@ import 'package:furpa_merkez_terminal/features/order_operations/shared/data/ware
 import 'package:furpa_merkez_terminal/shared/offline/mobile_warehouse_catalog_repository.dart';
 
 import '../../support/memory_local_database.dart';
+import '../../support/pda_create_screen_contract.dart';
 
 void main() {
   testWidgets('renders create sheet labels without mojibake', (tester) async {
@@ -92,6 +93,25 @@ void main() {
       expect(find.byIcon(Icons.photo_camera_back_rounded), findsWidgets);
     },
   );
+
+  testWidgets('passes pda create screen contract with keyboard inset', (
+    tester,
+  ) async {
+    await expectPdaCreateScreenContract(
+      tester,
+      buildSubject: () => GivenWarehouseOrderCreateSheet(
+        repository: _FakeWarehouseOrdersRepository(),
+        accessToken: 'token',
+        defaultWarehouseNo: '110',
+        mobileWarehouseCatalogRepository: MobileWarehouseCatalogLocalRepository(
+          database: MemoryLocalDatabase(),
+        ),
+      ),
+      prepare: _pickWarehouse,
+      entryRowFinder: find.text('Giris satiri'),
+      saveButtonFinder: find.widgetWithText(FilledButton, 'Siparisi Olustur'),
+    );
+  });
 
   testWidgets('keeps a fresh barcode entry row after adding a product', (
     tester,
@@ -410,7 +430,7 @@ Future<void> _pickWarehouse(
 }) async {
   await tester.tap(find.widgetWithText(FilledButton, 'Sec'));
   await tester.pumpAndSettle();
-  await tester.tap(find.text(label));
+  await tester.tap(find.text(label).last);
   await tester.pumpAndSettle();
 }
 

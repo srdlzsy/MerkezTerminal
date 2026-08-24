@@ -10,6 +10,7 @@ import 'package:furpa_merkez_terminal/shared/formatters/app_formatters.dart';
 import 'package:furpa_merkez_terminal/shared/offline/mobile_product_catalog_repository.dart';
 import 'package:furpa_merkez_terminal/shared/offline/offline_record_status.dart';
 import 'package:furpa_merkez_terminal/shared/offline/offline_sync_service.dart';
+import 'package:furpa_merkez_terminal/shared/product_entry/product_entry_controller.dart';
 import 'package:furpa_merkez_terminal/shared/product_entry/product_entry_widgets.dart';
 import 'package:furpa_merkez_terminal/shared/utils/client_request_id.dart';
 import 'package:furpa_merkez_terminal/shared/utils/create_form_validation.dart';
@@ -634,13 +635,12 @@ class _OfflineInventoryCountCreateSheetState
       return false;
     }
 
-    existingLine.quantityController.text = _formatQuantity(
-      _readDouble(existingLine.quantityController.text, fallback: 0) +
-          _quantityInputOrUnitMultiplier(
-            line.quantityController.text,
-            product.unitMultiplier,
-          ),
-    );
+    existingLine.quantityController.text = productEntryController
+        .mergedQuantityText(
+          existingQuantityText: existingLine.quantityController.text,
+          incomingQuantityText: line.quantityController.text,
+          unitMultiplier: product.unitMultiplier,
+        );
     _recycleMergedLine(line);
     return true;
   }
@@ -757,15 +757,12 @@ class _OfflineInventoryCountCreateSheetState
     _OfflineLineDraft line,
     InventoryCountProductLookupItem product,
   ) {
-    final lineStockCode = line.stockCodeController.text.trim().toUpperCase();
-    final productStockCode = product.stockCode.trim().toUpperCase();
-    if (lineStockCode.isNotEmpty && lineStockCode == productStockCode) {
-      return true;
-    }
-
-    final lineBarcode = line.barcodeController.text.trim().toUpperCase();
-    final productBarcode = product.barcode.trim().toUpperCase();
-    return lineBarcode.isNotEmpty && lineBarcode == productBarcode;
+    return productEntryController.isSameProduct(
+      firstStockCode: line.stockCodeController.text,
+      firstBarcode: line.barcodeController.text,
+      secondStockCode: product.stockCode,
+      secondBarcode: product.barcode,
+    );
   }
 
   Future<bool> _confirmDuplicateIncrease(
@@ -782,9 +779,12 @@ class _OfflineInventoryCountCreateSheetState
       stockCode: product.stockCode,
     );
     if (existingLine == null ||
-        _readDouble(existingLine.quantityController.text, fallback: 0) <= 0 ||
         key == null ||
-        _lastAddedProductKey == key) {
+        !productEntryController.shouldConfirmDuplicateIncrease(
+          existingQuantityText: existingLine.quantityController.text,
+          productKey: key,
+          lastAddedProductKey: _lastAddedProductKey,
+        )) {
       return true;
     }
 
@@ -1285,33 +1285,14 @@ class _OfflineLineDraft {
 }
 
 String? _productIdentity({required String barcode, required String stockCode}) {
-  final normalizedBarcode = barcode.trim();
-  if (normalizedBarcode.isNotEmpty) {
-    return 'b:$normalizedBarcode';
-  }
-
-  final normalizedStockCode = stockCode.trim();
-  if (normalizedStockCode.isNotEmpty) {
-    return 's:$normalizedStockCode';
-  }
-
-  return null;
+  return productEntryController.productIdentity(
+    barcode: barcode,
+    stockCode: stockCode,
+  );
 }
 
 double _unitMultiplierQuantity(double unitMultiplier) {
-  return unitMultiplier > 0 ? unitMultiplier : 1;
-}
-
-double _quantityInputOrUnitMultiplier(String raw, double unitMultiplier) {
-  final normalized = raw.trim();
-  if (normalized.isEmpty) {
-    return _unitMultiplierQuantity(unitMultiplier);
-  }
-
-  final parsed = double.tryParse(normalized.replaceAll(',', '.'));
-  return parsed != null && parsed > 0
-      ? parsed
-      : _unitMultiplierQuantity(unitMultiplier);
+  return productEntryController.unitMultiplierQuantity(unitMultiplier);
 }
 
 String _formatQuantity(double value) {

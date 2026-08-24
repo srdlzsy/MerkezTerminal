@@ -14,6 +14,7 @@ import 'package:furpa_merkez_terminal/shared/drafts/create_draft_repository.dart
 import 'package:furpa_merkez_terminal/shared/offline/mobile_customer_catalog_repository.dart';
 
 import '../../support/memory_local_database.dart';
+import '../../support/pda_create_screen_contract.dart';
 
 void main() {
   testWidgets('opens company return create sheet from header action', (
@@ -77,6 +78,25 @@ void main() {
     expect(tester.takeException(), isNull);
     expect(find.text('Yeni Firma Iadesi'), findsOneWidget);
     expect(find.text('Cari'), findsOneWidget);
+  });
+
+  testWidgets('passes pda create screen contract with keyboard inset', (
+    tester,
+  ) async {
+    await expectPdaCreateScreenContract(
+      tester,
+      buildSubject: () => CompanyMovementCreateSheet(
+        repository: _FakeCompanyMovementsRepository(),
+        accessToken: 'token',
+        defaultWarehouseNo: '50',
+        mobileCustomerCatalogRepository: _emptyCustomerCatalogRepository(),
+        title: 'Yeni Firma Iadesi',
+        helperText: 'Cari secildikten sonra iade satirlari eklenir.',
+        submitLabel: 'Iadeyi Kaydet',
+      ),
+      entryRowFinder: find.text('Giris satiri'),
+      saveButtonFinder: find.widgetWithText(FilledButton, 'Iadeyi Kaydet'),
+    );
   });
 
   testWidgets('autosaves and restores company movement draft fields', (

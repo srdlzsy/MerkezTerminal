@@ -50,8 +50,53 @@ class ProductEntryController {
     return null;
   }
 
+  bool isSameProduct({
+    required String firstStockCode,
+    required String firstBarcode,
+    required String secondStockCode,
+    required String secondBarcode,
+  }) {
+    final normalizedFirstStockCode = firstStockCode.trim().toUpperCase();
+    final normalizedSecondStockCode = secondStockCode.trim().toUpperCase();
+    if (normalizedFirstStockCode.isNotEmpty &&
+        normalizedFirstStockCode == normalizedSecondStockCode) {
+      return true;
+    }
+
+    final normalizedFirstBarcode = firstBarcode.trim().toUpperCase();
+    final normalizedSecondBarcode = secondBarcode.trim().toUpperCase();
+    return normalizedFirstBarcode.isNotEmpty &&
+        normalizedFirstBarcode == normalizedSecondBarcode;
+  }
+
+  String productKey({
+    required String stockCode,
+    required String barcode,
+    String scope = '',
+  }) {
+    final normalizedScope = scope.trim().toUpperCase();
+    final normalizedStockCode = stockCode.trim().toUpperCase();
+    final normalizedBarcode = barcode.trim().toUpperCase();
+
+    final identity = normalizedStockCode.isNotEmpty
+        ? 'S:$normalizedStockCode'
+        : normalizedBarcode.isNotEmpty
+        ? 'B:$normalizedBarcode'
+        : '';
+
+    if (identity.isEmpty) {
+      return '';
+    }
+
+    return normalizedScope.isEmpty ? identity : '$normalizedScope|$identity';
+  }
+
   double readQuantity(String value, {required double fallback}) {
     return double.tryParse(value.trim().replaceAll(',', '.')) ?? fallback;
+  }
+
+  bool isPositiveQuantityText(String value) {
+    return readQuantity(value, fallback: 0) > 0;
   }
 
   double unitMultiplierQuantity(double unitMultiplier) {
@@ -74,6 +119,27 @@ class ProductEntryController {
     final fixed = value.toStringAsFixed(6);
     final normalized = fixed.replaceFirst(RegExp(r'\.?0+$'), '');
     return normalized.replaceAll('.', ',');
+  }
+
+  String mergedQuantityText({
+    required String existingQuantityText,
+    required String incomingQuantityText,
+    required double unitMultiplier,
+  }) {
+    return formatQuantity(
+      readQuantity(existingQuantityText, fallback: 0) +
+          quantityInputOrUnitMultiplier(incomingQuantityText, unitMultiplier),
+    );
+  }
+
+  bool shouldConfirmDuplicateIncrease({
+    required String existingQuantityText,
+    required String productKey,
+    required String? lastAddedProductKey,
+  }) {
+    return isPositiveQuantityText(existingQuantityText) &&
+        productKey.trim().isNotEmpty &&
+        lastAddedProductKey != productKey;
   }
 
   TLine? findDuplicateLine<TLine>(

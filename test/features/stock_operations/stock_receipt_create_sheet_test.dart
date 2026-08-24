@@ -7,6 +7,7 @@ import 'package:furpa_merkez_terminal/shared/data/barcode_resolution_models.dart
 import 'package:furpa_merkez_terminal/shared/data/search_lookup_models.dart';
 
 import '../../support/barcode_resolution_test_data.dart';
+import '../../support/pda_create_screen_contract.dart';
 
 void main() {
   testWidgets('renders create sheet on 320px terminal width without overflow', (
@@ -34,6 +35,22 @@ void main() {
     expect(find.text('Yeni Zayiat Fisi'), findsOneWidget);
     expect(find.text('Olusturan*'), findsOneWidget);
     expect(find.text('Onaylayan*'), findsOneWidget);
+  });
+
+  testWidgets('passes pda create screen contract with keyboard inset', (
+    tester,
+  ) async {
+    await expectPdaCreateScreenContract(
+      tester,
+      buildSubject: () => StockReceiptCreateSheet(
+        repository: _FakeStockReceiptsRepository(),
+        kind: StockReceiptKind.outage,
+        accessToken: 'token',
+        defaultWarehouseNo: '50',
+      ),
+      entryRowFinder: find.text('Giris satiri'),
+      saveButtonFinder: find.widgetWithText(FilledButton, 'Kaydet'),
+    );
   });
 
   testWidgets('shows required warnings for api header fields', (tester) async {

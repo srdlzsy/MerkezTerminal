@@ -13,6 +13,7 @@ import 'package:furpa_merkez_terminal/shared/drafts/create_draft_session.dart';
 import 'package:furpa_merkez_terminal/shared/formatters/app_formatters.dart';
 import 'package:furpa_merkez_terminal/shared/offline/mobile_customer_catalog_repository.dart';
 import 'package:furpa_merkez_terminal/shared/offline/mobile_product_catalog_repository.dart';
+import 'package:furpa_merkez_terminal/shared/product_entry/product_entry_controller.dart';
 import 'package:furpa_merkez_terminal/shared/product_entry/product_entry_widgets.dart';
 import 'package:furpa_merkez_terminal/shared/utils/client_request_id.dart';
 import 'package:furpa_merkez_terminal/shared/utils/create_form_validation.dart';
@@ -722,15 +723,12 @@ class _CompanyAcceptanceCreateSheetState
     SearchProductLookupItem first,
     SearchProductLookupItem second,
   ) {
-    final firstStockCode = first.stockCode.trim().toUpperCase();
-    final secondStockCode = second.stockCode.trim().toUpperCase();
-    if (firstStockCode.isNotEmpty && firstStockCode == secondStockCode) {
-      return true;
-    }
-
-    final firstBarcode = first.barcode.trim().toUpperCase();
-    final secondBarcode = second.barcode.trim().toUpperCase();
-    return firstBarcode.isNotEmpty && firstBarcode == secondBarcode;
+    return productEntryController.isSameProduct(
+      firstStockCode: first.stockCode,
+      firstBarcode: first.barcode,
+      secondStockCode: second.stockCode,
+      secondBarcode: second.barcode,
+    );
   }
 
   Future<bool> _confirmDuplicateIncrease(
@@ -747,13 +745,12 @@ class _CompanyAcceptanceCreateSheetState
       stockCode: product.stockCode,
     );
     if (existingLine == null ||
-        _readDouble(
-              existingLine.acceptedQuantityController.text,
-              fallback: 0,
-            ) <=
-            0 ||
         key == null ||
-        _lastAddedProductKey == key) {
+        !productEntryController.shouldConfirmDuplicateIncrease(
+          existingQuantityText: existingLine.acceptedQuantityController.text,
+          productKey: key,
+          lastAddedProductKey: _lastAddedProductKey,
+        )) {
       return true;
     }
 
@@ -2266,17 +2263,10 @@ class _CompanyAcceptanceCreateSheetState
     required String barcode,
     required String stockCode,
   }) {
-    final normalizedBarcode = barcode.trim();
-    if (normalizedBarcode.isNotEmpty) {
-      return 'b:$normalizedBarcode';
-    }
-
-    final normalizedStockCode = stockCode.trim();
-    if (normalizedStockCode.isNotEmpty) {
-      return 's:$normalizedStockCode';
-    }
-
-    return null;
+    return productEntryController.productIdentity(
+      barcode: barcode,
+      stockCode: stockCode,
+    );
   }
 
   static String _formatQuantity(double value) {
@@ -2389,7 +2379,7 @@ class _CompanyAcceptanceCreateSheetState
 }
 
 double _unitMultiplierQuantity(double unitMultiplier) {
-  return unitMultiplier > 0 ? unitMultiplier : 1;
+  return productEntryController.unitMultiplierQuantity(unitMultiplier);
 }
 
 bool _quantitiesEqual(double first, double second) {
@@ -2397,15 +2387,10 @@ bool _quantitiesEqual(double first, double second) {
 }
 
 double _quantityInputOrUnitMultiplier(String raw, double unitMultiplier) {
-  final normalized = raw.trim();
-  if (normalized.isEmpty) {
-    return _unitMultiplierQuantity(unitMultiplier);
-  }
-
-  final parsed = double.tryParse(normalized.replaceAll(',', '.'));
-  return parsed != null && parsed > 0
-      ? parsed
-      : _unitMultiplierQuantity(unitMultiplier);
+  return productEntryController.quantityInputOrUnitMultiplier(
+    raw,
+    unitMultiplier,
+  );
 }
 
 String _formatDraftQuantity(double value) {

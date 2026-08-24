@@ -13,8 +13,32 @@ import 'package:furpa_merkez_terminal/shared/offline/mobile_customer_catalog_rep
 import 'package:furpa_merkez_terminal/shared/offline/mobile_product_catalog_repository.dart';
 
 import '../../support/memory_local_database.dart';
+import '../../support/pda_create_screen_contract.dart';
 
 void main() {
+  testWidgets('passes pda create screen contract with keyboard inset', (
+    tester,
+  ) async {
+    await expectPdaCreateScreenContract(
+      tester,
+      buildSubject: () => CompanyAcceptanceCreateSheet(
+        repository: _FakeCompanyAcceptancesRepository(),
+        ordersRepository: _FakeGivenCompanyOrdersRepository(),
+        accessToken: 'token',
+        defaultWarehouseNo: '110',
+        mobileCustomerCatalogRepository: MobileCustomerCatalogLocalRepository(
+          database: MemoryLocalDatabase(),
+        ),
+        mobileProductCatalogRepository: MobileProductCatalogLocalRepository(
+          database: MemoryLocalDatabase(),
+        ),
+      ),
+      prepare: _goToLineStepIfNeeded,
+      entryRowFinder: find.text('Giris satiri'),
+      saveButtonFinder: find.widgetWithText(FilledButton, 'Mal Kabul Et'),
+    );
+  });
+
   testWidgets(
     'keeps fresh company acceptance row and merges duplicate quantity',
     (tester) async {

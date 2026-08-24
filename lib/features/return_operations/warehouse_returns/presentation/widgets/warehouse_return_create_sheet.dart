@@ -430,13 +430,11 @@ class _WarehouseReturnCreateSheetState extends State<WarehouseReturnCreateSheet>
       barcode: product.barcode,
     );
     if (existingLine == null ||
-        productEntryController.readQuantity(
-              existingLine.quantityController.text,
-              fallback: 0,
-            ) <=
-            0 ||
-        key.isEmpty ||
-        _lastAddedProductKey == key) {
+        !productEntryController.shouldConfirmDuplicateIncrease(
+          existingQuantityText: existingLine.quantityController.text,
+          productKey: key,
+          lastAddedProductKey: _lastAddedProductKey,
+        )) {
       return true;
     }
 
@@ -477,17 +475,10 @@ class _WarehouseReturnCreateSheetState extends State<WarehouseReturnCreateSheet>
   }
 
   String _productKey({required String stockCode, required String barcode}) {
-    final normalizedStockCode = stockCode.trim().toUpperCase();
-    if (normalizedStockCode.isNotEmpty) {
-      return 'S:$normalizedStockCode';
-    }
-
-    final normalizedBarcode = barcode.trim().toUpperCase();
-    if (normalizedBarcode.isNotEmpty) {
-      return 'B:$normalizedBarcode';
-    }
-
-    return '';
+    return productEntryController.productKey(
+      stockCode: stockCode,
+      barcode: barcode,
+    );
   }
 
   String _resolvedBarcodeMessage(BarcodeResolutionResult resolution) {
@@ -553,15 +544,12 @@ class _WarehouseReturnCreateSheetState extends State<WarehouseReturnCreateSheet>
   }
 
   bool _isSameProduct(ProductLookupItem first, ProductLookupItem second) {
-    final firstStockCode = first.stockCode.trim().toUpperCase();
-    final secondStockCode = second.stockCode.trim().toUpperCase();
-    if (firstStockCode.isNotEmpty && firstStockCode == secondStockCode) {
-      return true;
-    }
-
-    final firstBarcode = first.barcode.trim().toUpperCase();
-    final secondBarcode = second.barcode.trim().toUpperCase();
-    return firstBarcode.isNotEmpty && firstBarcode == secondBarcode;
+    return productEntryController.isSameProduct(
+      firstStockCode: first.stockCode,
+      firstBarcode: first.barcode,
+      secondStockCode: second.stockCode,
+      secondBarcode: second.barcode,
+    );
   }
 
   bool get _hasPendingEntryLine =>
@@ -624,15 +612,10 @@ class _WarehouseReturnCreateSheetState extends State<WarehouseReturnCreateSheet>
     }
 
     existingLine.quantityController.text = productEntryController
-        .formatQuantity(
-          productEntryController.readQuantity(
-                existingLine.quantityController.text,
-                fallback: 0,
-              ) +
-              productEntryController.quantityInputOrUnitMultiplier(
-                line.quantityController.text,
-                product.unitMultiplier,
-              ),
+        .mergedQuantityText(
+          existingQuantityText: existingLine.quantityController.text,
+          incomingQuantityText: line.quantityController.text,
+          unitMultiplier: product.unitMultiplier,
         );
     _recycleMergedLine(line, createReplacement: _createLine);
     return true;
