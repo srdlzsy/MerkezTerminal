@@ -26,7 +26,7 @@ Bu dokuman, mevcut backend durumuna gore frontend/UI tasarimi ve entegrasyonu ic
 Timeout ve tekrar deneme notu:
 
 - API tarafinda SQL command timeout degerleri `DatabaseCommandTimeouts` konfigurasyonundan okunur; varsayilan appsettings degeri `300` saniyedir.
-- `MikroReadSeconds` liste/detay/rapor okumalari, `MikroWriteSeconds` create/update/delete yazma islemleri icin kullanilir. `AuthSeconds`, `FurpaSeconds`, `AxataSeconds` ve `ShopigoCiroSeconds` ilgili DB context'leri icindir.
+- `MikroReadSeconds` liste/detay/rapor okumalari, `MikroWriteSeconds` create/update/delete yazma islemleri icin kullanilir. `AuthSeconds`, `FurpaSeconds`, `AxataSeconds`, `PuanSeconds` ve `ShopigoCiroSeconds` ilgili DB context'leri icindir.
 - Raw SQL ile yazilmis liste/arama/rapor komutlari da genel olarak `300` saniye bekleyecek sekilde ayarlanmistir.
 - `MikroApi:TimeoutSeconds` varsayilan appsettings'te `300` saniyedir. Yazma rotasi `MikroApi` ise UI bu sureyi de dikkate almalidir.
 - Terminal, mobil ve web istemcileri liste ve create isteklerinde HTTP client timeout degerini en az `300` saniye yapmalidir. Subede internet zayifsa API islemi devam ederken istemci 30-60 saniyede vazgecerse kullanici timeout gorur ve kontrolsuz tekrar basabilir.
@@ -149,6 +149,7 @@ Bu tablo UI icin ana permission referansidir. Kaynak kod tarafi `PermissionCatal
 | `kasa-islemleri` | `manav-mal-kabul-etiket` (`ManavMalKabulVeEtiket`) | `kasa-islemleri.manav-mal-kabul-etiket.page` | `kasa-islemleri.manav-mal-kabul-etiket.list`<br>`kasa-islemleri.manav-mal-kabul-etiket.detail`<br>`kasa-islemleri.manav-mal-kabul-etiket.create`<br>`kasa-islemleri.manav-mal-kabul-etiket.update`<br>`kasa-islemleri.manav-mal-kabul-etiket.delete`<br>`kasa-islemleri.manav-mal-kabul-etiket.transfer` | `kasa-islemleri.manav-mal-kabul-etiket.all-warehouses` |
 | `kasa-islemleri` | `kunye-etiket-yazdirma` | `kasa-islemleri.kunye-etiket-yazdirma.page` | `kasa-islemleri.kunye-etiket-yazdirma.list`<br>`kasa-islemleri.kunye-etiket-yazdirma.detail`<br>`kasa-islemleri.kunye-etiket-yazdirma.create`<br>`kasa-islemleri.kunye-etiket-yazdirma.update` | `kasa-islemleri.kunye-etiket-yazdirma.all-warehouses` |
 | `kasa-islemleri` | `manav-kunye-etiket-yazdirma` | `kasa-islemleri.manav-kunye-etiket-yazdirma.page` | `kasa-islemleri.manav-kunye-etiket-yazdirma.list` | `kasa-islemleri.manav-kunye-etiket-yazdirma.all-warehouses` |
+| `kasa-islemleri` | `birlik-kart-sorgulama` | `kasa-islemleri.birlik-kart-sorgulama.page` | `kasa-islemleri.birlik-kart-sorgulama.list`<br>`kasa-islemleri.birlik-kart-sorgulama.detail`<br>`kasa-islemleri.birlik-kart-sorgulama.update` | `-` |
 | `kasa-islemleri` | `banknot-takipleri` | `kasa-islemleri.banknot-takipleri.page` | `kasa-islemleri.banknot-takipleri.list`<br>`kasa-islemleri.banknot-takipleri.detail`<br>`kasa-islemleri.banknot-takipleri.create` | `kasa-islemleri.banknot-takipleri.all-warehouses` |
 
 ## AnaSayfa / Depo Oncelikleri
@@ -12703,6 +12704,195 @@ Not:
 
 - UI banknot satirinda gorunen adi `banknoteTypeName` alanindan basmalidir; `value` ve `banknoteType` ile kendisi metin uretmek zorunda degildir
 - UI hediye ceki satirinda gorunen adi `giftCheckTypeName` alanindan basmalidir
+
+### Birlik Kart Sorgulama
+
+Birlik kart / indirim ceki bilgisini Puan DB tarafindaki `INTERBONUS_INDIRIM_CEK` tablosundan `CEK_NO` ile sorgular, detayini getirir ve yetkili kullanicida ayni cek kaydini gunceller.
+
+Yetki:
+
+- menu/route icin `kasa-islemleri.birlik-kart-sorgulama.page`
+- sorgu endpoint'i icin `kasa-islemleri.birlik-kart-sorgulama.list`
+- detay endpoint'i icin `kasa-islemleri.birlik-kart-sorgulama.detail`
+- guncelle endpoint'i icin `kasa-islemleri.birlik-kart-sorgulama.update`
+
+Not:
+
+- Bu endpoint depo kapsamli degildir; `all-warehouses` yetkisi yoktur ve UI depo secici gostermemelidir.
+- `PuanConnection` doluysa backend Puan DB'yi okur.
+- `PuanConnection` bossa uygulama acilmaya devam eder; endpointler kontrollu olarak basarisiz sonuc ve aciklayici `message` dondurur.
+- Response musteri kimlik/adres bilgisi degil, indirim ceki/puan satiri bilgisidir. `cariKod` musteri/cari kodudur; ad soyad veya unvan anlami tasimaz.
+- `sorgula` request'indeki `kartNo` okutulan/girilen degerdir; backend bunu Puan DB'de `CEK_NO` alaninda arar.
+- `detay` ve `guncelle` request'lerinde asil anahtar `cekNo` alanidir.
+- Guncellemede `cariKod` mevcut kayittaki cari kodla ayni olmalidir. Farkli cari kodu gelirse backend kaydi guncellemez ve `isUpdated=false` doner. Bu kontrol yanlis cek/cari eslesmesini engellemek icindir.
+- Auth DB migration'lari: `20260824091923_AddBirlikKartSorgulamaPermissions` page/list yetkilerini, `20260824120329_AddBirlikKartDetailUpdatePermissions` detail/update yetkilerini ekler.
+- Puan DB icin migration yoktur; Puan tablolari mevcut harici veritabanidir.
+
+Endpoint ozeti:
+
+| Endpoint | Request kaynagi | Request modeli | Response | Yetki |
+|---|---|---|---|---|
+| `POST /api/kasa-islemleri/birlik-kart-sorgulama/sorgula` | body | `BirlikKartSorgulamaRequest` | `BirlikKartSorgulamaResponse` | `kasa-islemleri.birlik-kart-sorgulama.list` |
+| `POST /api/kasa-islemleri/birlik-kart-sorgulama/detay` | body | `BirlikKartDetayRequest` | `BirlikKartDetayResponse` | `kasa-islemleri.birlik-kart-sorgulama.detail` |
+| `POST /api/kasa-islemleri/birlik-kart-sorgulama/guncelle` | body | `BirlikKartSorgulamaGuncelleRequest` | `BirlikKartGuncelleResponse` | `kasa-islemleri.birlik-kart-sorgulama.update` |
+
+#### Birlik Kart Sorgula
+
+`POST /api/kasa-islemleri/birlik-kart-sorgulama/sorgula`
+
+Request:
+
+```json
+{
+  "kartNo": "123456"
+}
+```
+
+Kayit bulunursa response:
+
+```json
+{
+  "isFound": true,
+  "kartNo": "123456",
+  "cekNo": "123456",
+  "cariKod": "120.01.00001",
+  "tutar": 100,
+  "puan": 25,
+  "baslangic": "2026-08-01T00:00:00",
+  "bitis": "2026-08-31T23:59:59",
+  "flag": false,
+  "subeKodu": "110",
+  "kasaNo": 1,
+  "kartTipi": 1,
+  "message": null
+}
+```
+
+Kayit bulunamazsa response:
+
+```json
+{
+  "isFound": false,
+  "kartNo": "123456",
+  "cekNo": null,
+  "cariKod": null,
+  "tutar": null,
+  "puan": null,
+  "baslangic": null,
+  "bitis": null,
+  "flag": null,
+  "subeKodu": null,
+  "kasaNo": null,
+  "kartTipi": null,
+  "message": "Kart veya cek kaydi bulunamadi."
+}
+```
+
+#### Birlik Kart Detay
+
+`POST /api/kasa-islemleri/birlik-kart-sorgulama/detay`
+
+Request:
+
+```json
+{
+  "cekNo": "123456"
+}
+```
+
+Kayit bulunursa response:
+
+```json
+{
+  "isFound": true,
+  "kartNo": "123456",
+  "cekNo": "123456",
+  "cariKod": "120.01.00001",
+  "tutar": 100,
+  "puan": 25,
+  "baslangic": "2026-08-01T00:00:00",
+  "bitis": "2026-08-31T23:59:59",
+  "flag": false,
+  "subeKodu": "110",
+  "kasaNo": 1,
+  "kartTipi": 1,
+  "message": null
+}
+```
+
+Kayit bulunamazsa response:
+
+```json
+{
+  "isFound": false,
+  "kartNo": "123456",
+  "cekNo": "123456",
+  "message": "Kart veya cek kaydi bulunamadi."
+}
+```
+
+#### Birlik Kart Guncelle
+
+`POST /api/kasa-islemleri/birlik-kart-sorgulama/guncelle`
+
+Request:
+
+```json
+{
+  "cekNo": "123456",
+  "cariKod": "120.01.00001",
+  "tutar": 100,
+  "puan": 25,
+  "baslangic": "2026-08-01T00:00:00",
+  "bitis": "2026-08-31T23:59:59",
+  "flag": false,
+  "subeKodu": "110",
+  "kasaNo": 1,
+  "kartTipi": 1
+}
+```
+
+Validasyon ve is kurali:
+
+```text
+cekNo    zorunlu
+cariKod  zorunlu; mevcut cek kaydindaki Cari_Kod ile ayni olmalidir
+tutar    opsiyonel decimal
+puan     opsiyonel decimal
+baslangic/bitis opsiyonel tarih
+flag     opsiyonel boolean
+subeKodu opsiyonel metin
+kasaNo   opsiyonel integer
+kartTipi opsiyonel integer
+```
+
+Basarili response:
+
+```json
+{
+  "isUpdated": true,
+  "message": "Kart veya cek kaydi guncellendi."
+}
+```
+
+Kayit yoksa veya cari kodu eslesmezse HTTP basarili donebilir ama is sonucu basarisizdir:
+
+```json
+{
+  "isUpdated": false,
+  "message": "Cari kodu farkli oldugu icin kart veya cek kaydi guncellenemedi."
+}
+```
+
+UI kullanim notu:
+
+- Ekranda tek ana giris olarak kart/cek no okutma alani yeterlidir.
+- Kullanici sorgula dediginde body'de sadece `kartNo` gonderilir.
+- Sorguda kayit bulunursa UI response'taki `cekNo` degerini detay ve guncelleme isteklerinde kullanmalidir.
+- `isFound=false` ise UI teknik hata gibi degil, "kart/cek bulunamadi" sonucu gibi gostermelidir.
+- `tutar`, `puan`, `baslangic`, `bitis`, `subeKodu`, `kasaNo`, `kartTipi` alanlari bilgi karti veya detay formu olarak gosterilebilir.
+- Guncelle butonu sadece `kasa-islemleri.birlik-kart-sorgulama.update` yetkisi varsa acilmalidir.
+- Guncelleme istegi pending iken form ve buton kilitlenmelidir; response `isUpdated=false` ise kullaniciya `message` metni gosterilmelidir.
 
 ### Banknot Takipleri
 
