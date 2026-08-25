@@ -1666,14 +1666,16 @@ Alan notlari:
 - `currentWarehouseNo` / `currentWarehouseName`: request IP'sinin Furpa `BranchDetails.BranchIpAddress` ayarlarindan cozuldugu aktif depo baglamidir. Cozulemez veya ag birden fazla depoya denk gelirse `null` gelebilir.
 - `isTerminalUser`: kullanicinin terminal roluyle acilip acilmadigini belirtir.
 - `requiresRelogin`: `true` ise UI kullaniciyi oturumdan cikarmali ve tekrar login istemelidir.
-- `reason`: `Ok`, `WarehouseChanged`, `NetworkUnknown`, `NetworkAmbiguous`, `NotTerminalUser`, `UserInactive` degerlerinden biri olabilir.
+- `reason`: `Ok`, `SharedNetwork`, `WarehouseChanged`, `NetworkUnknown`, `NetworkAmbiguous`, `NotTerminalUser`, `UserInactive`, `InvalidTokenWarehouse` degerlerinden biri olabilir.
 - Backend sadece terminal kullanicilarda IP/depo degisimini relogin sebebi yapar. Admin/merkez gibi terminal olmayan kullanicilarda `requiresRelogin=false`, `reason=NotTerminalUser` doner.
+- `Auth:TerminalLogin:SharedNetworkWarehouseGroups` icinde ayni grupta olan depolar ortak ag kabul edilir. Ornek `[50, 56]` tanimliyken 56 terminal kullanicisi 50 agindan gorunurse `requiresRelogin=false`, `reason=SharedNetwork` doner.
 - `NetworkUnknown` ve `NetworkAmbiguous` durumlarinda kullanici gereksiz atilmaz; UI bu durumlari sessiz gecmelidir.
 
 UI kullanim notu:
 
 - Terminal/mobil uygulama aktifken 1 dakikada bir bu endpoint cagrilabilir.
 - `requiresRelogin=true` veya `401 Unauthorized` gelirse UI logout yapmalidir.
+- UI logout kararini `currentWarehouseNo !== tokenWarehouseNo` karsilastirmasiyla vermemelidir; 50/56 gibi ortak aglarda bu alanlar farkli olabilir ama `requiresRelogin=false` doner.
 - Ag yoksa, HTTP status `0` veya network exception durumunda UI kullaniciyi atmamalidir; offline akis devam edebilir.
 - Bu endpoint katalog, permission, rol veya menu verisi dondurmez; periyodik kontrol icin `/api/auth/me` yerine tercih edilmelidir.
 
