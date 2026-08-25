@@ -1037,6 +1037,10 @@ class _LabelDocumentCreateSheetState extends State<_LabelDocumentCreateSheet> {
               minTileWidth: 92,
               items: <TerminalPdaInfo>[
                 TerminalPdaInfo(label: 'Kod', value: product.stockCode),
+                TerminalPdaInfo(
+                  label: 'Fiyat',
+                  value: AppFormatters.currency(product.price),
+                ),
                 TerminalPdaInfo(label: 'Birim', value: product.unitName),
                 if (product.unitMultiplier > 1)
                   TerminalPdaInfo(

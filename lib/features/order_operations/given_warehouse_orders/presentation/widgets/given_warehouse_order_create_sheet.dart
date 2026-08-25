@@ -6,7 +6,6 @@ import 'package:furpa_merkez_terminal/core/network/api_exception.dart';
 import 'package:furpa_merkez_terminal/features/green_grocer/product_cases/data/green_grocer_product_cases_repository.dart';
 import 'package:furpa_merkez_terminal/features/order_operations/shared/data/models/warehouse_order_models.dart';
 import 'package:furpa_merkez_terminal/features/order_operations/shared/data/warehouse_orders_repository.dart';
-import 'package:furpa_merkez_terminal/features/order_operations/suggested_warehouse_orders/data/models/suggested_warehouse_order_models.dart';
 import 'package:furpa_merkez_terminal/shared/drafts/create_draft.dart';
 import 'package:furpa_merkez_terminal/shared/drafts/create_draft_repository.dart';
 import 'package:furpa_merkez_terminal/shared/drafts/create_draft_session.dart';
@@ -18,6 +17,14 @@ import 'package:furpa_merkez_terminal/shared/utils/create_form_validation.dart';
 import 'package:furpa_merkez_terminal/shared/utils/terminal_feedback.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/barcode_camera_scan_page.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/terminal_ui_parts.dart';
+
+const Set<int> _givenWarehouseOrderSourceProductWarehouseNos = <int>{
+  50,
+  53,
+  55,
+  56,
+  58,
+};
 
 class GivenWarehouseOrderCreateSheet extends StatefulWidget {
   const GivenWarehouseOrderCreateSheet({
@@ -93,7 +100,9 @@ class _GivenWarehouseOrderCreateSheetState
   bool get _canLoadSourceWarehouseProducts {
     final sourceWarehouseNo = _selectedSourceWarehouseNo;
     return sourceWarehouseNo != null &&
-        usesSuggestedWarehouseOrderSourceProducts(sourceWarehouseNo) &&
+        _givenWarehouseOrderSourceProductWarehouseNos.contains(
+          sourceWarehouseNo,
+        ) &&
         _sourceProductsRepository != null;
   }
 

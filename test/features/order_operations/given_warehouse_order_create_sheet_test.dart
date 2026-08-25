@@ -227,6 +227,58 @@ void main() {
     expect(find.text('Giris satiri'), findsOneWidget);
   });
 
+  testWidgets('shows source products action for central warehouse 50', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 1000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final repository = _FakeWarehouseOrdersRepository(
+      sourceProductsByWarehouse: const <int, List<ProductLookupItem>>{
+        50: <ProductLookupItem>[
+          ProductLookupItem(
+            warehouseNo: 50,
+            barcode: '8690500000001',
+            stockCode: '050001',
+            stockName: 'MERKEZ TEST URUN',
+            price: 0,
+            unitName: 'ADET',
+            unitMultiplier: 1,
+            isOrderBlocked: false,
+          ),
+        ],
+      },
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: GivenWarehouseOrderCreateSheet(
+            repository: repository,
+            accessToken: 'token',
+            defaultWarehouseNo: '110',
+            mobileWarehouseCatalogRepository:
+                MobileWarehouseCatalogLocalRepository(
+                  database: MemoryLocalDatabase(),
+                ),
+          ),
+        ),
+      ),
+    );
+
+    await _pickWarehouse(tester);
+    expect(find.widgetWithText(FilledButton, 'Depo urunleri'), findsOneWidget);
+
+    await tester.tap(find.widgetWithText(FilledButton, 'Depo urunleri'));
+    await tester.pumpAndSettle();
+
+    expect(repository.lastSourceWarehouseNo, 50);
+    expect(find.text('1 kalem'), findsOneWidget);
+    expect(find.text('MERKEZ TEST URUN'), findsOneWidget);
+  });
+
   testWidgets('removes empty quantity source product lines', (tester) async {
     tester.view.physicalSize = const Size(390, 1000);
     tester.view.devicePixelRatio = 1;
