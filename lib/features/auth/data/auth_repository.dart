@@ -150,6 +150,15 @@ class AuthRepository {
     return CurrentUser.fromJson(response);
   }
 
+  Future<WarehouseContext> fetchWarehouseContext({String? accessToken}) async {
+    final response = await _apiClient.getJsonMap(
+      '/api/auth/warehouse-context',
+      accessToken: accessToken,
+    );
+
+    return WarehouseContext.fromJson(response);
+  }
+
   Future<void> clearSession() async {
     await _logoutRefreshToken();
     await _tokenStorage.clear();

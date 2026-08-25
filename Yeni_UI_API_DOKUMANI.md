@@ -1442,8 +1442,9 @@ UI akisi:
 3. API isteklerinde sadece `accessToken` degerini `Authorization: Bearer {token}` olarak gonder
 4. `GET /api/auth/me` ile kullanici, roller, permission listesi ve module-menu-action agacini al
 5. sol menu ve butonlari bu cevapla ciz
-6. access token suresi dolmadan veya 401 alindiginda `POST /api/auth/refresh` ile yeni access/refresh token al
-7. kullanici cikis yaparsa `POST /api/auth/logout` ile refresh token'i iptal et
+6. terminal/session depo kontrolu gerekiyorsa periyodik olarak `GET /api/auth/warehouse-context` cagir
+7. access token suresi dolmadan veya 401 alindiginda `POST /api/auth/refresh` ile yeni access/refresh token al
+8. kullanici cikis yaparsa `POST /api/auth/logout` ile refresh token'i iptal et
 
 Token ve yetki notu:
 
@@ -1452,6 +1453,7 @@ Token ve yetki notu:
 - `refreshToken` header'a konmaz; sadece `/api/auth/refresh` ve `/api/auth/logout` body alaninda kullanilir.
 - Backend JWT'yi header limitlerine takilmamak icin kompakt tutar. Token icinde tum permission listesi garanti edilmez.
 - UI, JWT decode ederek menu/buton yetkisi uretmemelidir. Full yetki listesi icin `login.user.permissions` veya `GET /api/auth/me` cevabindaki `permissions` kullanilir.
+- Periyodik depo/session kontrolu icin `GET /api/auth/me` yerine `GET /api/auth/warehouse-context` kullanilmalidir. Bu endpoint permission/menu agaci dondurmez ve hafif calisir.
 - `400 Bad Request - Request Too Long` gorulurse ilk kontrol `Authorization` header'idir; `Bearer eyJ...` disinda JSON/obje veya asiri uzun header gonderiliyor olabilir.
 - Refresh token rotate edilir: `/refresh` basarili olunca eski refresh token iptal olur, response'taki yeni `refreshToken` saklanir.
 - Kullanici yonetiminde `newPassword` ile sifre degistirilirse kullanicinin aktif refresh token'lari iptal edilir. Access token suresi dolana kadar calisabilir; yeni token almak icin tekrar login gerekir.
@@ -1627,6 +1629,53 @@ UI kullanim notu:
 - Sol menu `modules` alanindan uretilmeli
 - Listele / Detay / Ekle / Guncelle butonlari `actions` uzerinden kontrol edilmeli
 - Ayrica tekil kontrol gerekiyorsa `permissions` listesi de kullanilabilir
+
+### `GET /api/auth/warehouse-context`
+
+Amac:
+
+- terminal/mobil oturumunda kullanicinin mevcut ag/depo baglaminin degisip degismedigini hafif sekilde kontrol etmek
+- `/api/auth/me` gibi rol, permission ve menu agaci dondurmeden periyodik kontrol yapmak
+
+Header:
+
+```text
+Authorization: Bearer {token}
+```
+
+Response:
+
+```json
+{
+  "userId": "8c2c3d56-3f0d-4ab3-8b2d-4f2d17d6d100",
+  "username": "160.magazaci",
+  "tokenWarehouseNo": "160",
+  "tokenWarehouseName": "160 SUBE",
+  "currentWarehouseNo": "161",
+  "currentWarehouseName": "Depo 161",
+  "isTerminalUser": true,
+  "requiresRelogin": true,
+  "reason": "WarehouseChanged",
+  "serverTimeUtc": "2026-08-25T07:25:00Z"
+}
+```
+
+Alan notlari:
+
+- `tokenWarehouseNo` / `tokenWarehouseName`: Auth DB'deki kullanici deposudur; token/session deposu gibi okunabilir.
+- `currentWarehouseNo` / `currentWarehouseName`: request IP'sinin Furpa `BranchDetails.BranchIpAddress` ayarlarindan cozuldugu aktif depo baglamidir. Cozulemez veya ag birden fazla depoya denk gelirse `null` gelebilir.
+- `isTerminalUser`: kullanicinin terminal roluyle acilip acilmadigini belirtir.
+- `requiresRelogin`: `true` ise UI kullaniciyi oturumdan cikarmali ve tekrar login istemelidir.
+- `reason`: `Ok`, `WarehouseChanged`, `NetworkUnknown`, `NetworkAmbiguous`, `NotTerminalUser`, `UserInactive` degerlerinden biri olabilir.
+- Backend sadece terminal kullanicilarda IP/depo degisimini relogin sebebi yapar. Admin/merkez gibi terminal olmayan kullanicilarda `requiresRelogin=false`, `reason=NotTerminalUser` doner.
+- `NetworkUnknown` ve `NetworkAmbiguous` durumlarinda kullanici gereksiz atilmaz; UI bu durumlari sessiz gecmelidir.
+
+UI kullanim notu:
+
+- Terminal/mobil uygulama aktifken 1 dakikada bir bu endpoint cagrilabilir.
+- `requiresRelogin=true` veya `401 Unauthorized` gelirse UI logout yapmalidir.
+- Ag yoksa, HTTP status `0` veya network exception durumunda UI kullaniciyi atmamalidir; offline akis devam edebilir.
+- Bu endpoint katalog, permission, rol veya menu verisi dondurmez; periyodik kontrol icin `/api/auth/me` yerine tercih edilmelidir.
 
 ## Yetki ve Kullanici Yonetimi
 
@@ -12707,7 +12756,7 @@ Not:
 
 ### Birlik Kart Sorgulama
 
-Birlik kart / indirim ceki bilgisini Puan DB tarafindaki `INTERBONUS_INDIRIM_CEK` tablosundan `CEK_NO` ile sorgular, detayini getirir ve yetkili kullanicida ayni cek kaydini gunceller.
+Birlik kart / indirim ceki bilgisini Puan DB tarafindaki `INTERBONUS_INDIRIMCEK` tablosundan `Cek_No` ile sorgular, detayini getirir ve yetkili kullanicida ayni cek kaydini gunceller.
 
 Yetki:
 

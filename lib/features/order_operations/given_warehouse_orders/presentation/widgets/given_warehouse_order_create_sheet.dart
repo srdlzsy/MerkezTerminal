@@ -686,6 +686,22 @@ class _GivenWarehouseOrderCreateSheetState
         line.stockCodeController.text.trim().isEmpty;
   }
 
+  bool _isEmptyQuantityLine(_CreateLineDraft line) {
+    if (_isBlankLine(line)) {
+      return false;
+    }
+
+    return productEntryController.readQuantity(
+          line.quantityController.text,
+          fallback: 0,
+        ) <=
+        0;
+  }
+
+  int get _emptyQuantityLineCount {
+    return _lines.skip(1).where(_isEmptyQuantityLine).length;
+  }
+
   bool _applyProductToLine(_CreateLineDraft line, ProductLookupItem product) {
     final existingLine = productEntryController.findDuplicateLine(
       ProductEntryDuplicateMergePolicy<_CreateLineDraft>(
@@ -739,6 +755,31 @@ class _GivenWarehouseOrderCreateSheetState
       line.dispose();
     });
     _draftSession.scheduleSave();
+  }
+
+  void _removeEmptyQuantityLines() {
+    final removableLines = _lines.skip(1).where(_isEmptyQuantityLine).toSet();
+    if (removableLines.isEmpty) {
+      _showFeedback('Kaldirilacak bos miktarli satir yok.');
+      _focusFreshEntryLine();
+      return;
+    }
+
+    setState(() {
+      _lines = <_CreateLineDraft>[
+        _lines.first,
+        for (final line in _lines.skip(1))
+          if (!removableLines.contains(line)) line,
+      ];
+      _validationMessage = null;
+    });
+
+    for (final line in removableLines) {
+      line.dispose();
+    }
+    _draftSession.scheduleSave();
+    _focusFreshEntryLine();
+    _showFeedback('${removableLines.length} bos miktarli satir kaldirildi.');
   }
 
   Future<void> _submit() async {
@@ -1192,6 +1233,7 @@ class _GivenWarehouseOrderCreateSheetState
                       const SizedBox(height: 5),
                       TerminalSectionToolbar(
                         title: 'Satirlar',
+                        breakpoint: 430,
                         actions: <Widget>[
                           if (_canLoadSourceWarehouseProducts)
                             FilledButton.tonalIcon(
@@ -1217,6 +1259,15 @@ class _GivenWarehouseOrderCreateSheetState
                                     ? 'Yukleniyor'
                                     : 'Depo urunleri',
                               ),
+                            ),
+                          if (_emptyQuantityLineCount > 0)
+                            FilledButton.tonalIcon(
+                              onPressed: _removeEmptyQuantityLines,
+                              icon: const Icon(
+                                Icons.cleaning_services_rounded,
+                                size: 18,
+                              ),
+                              label: const Text('Boslari sil'),
                             ),
                         ],
                       ),

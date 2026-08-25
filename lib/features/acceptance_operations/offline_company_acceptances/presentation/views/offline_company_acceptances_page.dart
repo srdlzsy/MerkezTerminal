@@ -509,6 +509,8 @@ class _OfflineCompanyAcceptanceCreateSheet extends StatefulWidget {
       _OfflineCompanyAcceptanceCreateSheetState();
 }
 
+enum _OfflineCompanyAcceptanceCreateStep { document, lines }
+
 class _OfflineCompanyAcceptanceCreateSheetState
     extends State<_OfflineCompanyAcceptanceCreateSheet>
     with CreateFormValidation {
@@ -528,6 +530,8 @@ class _OfflineCompanyAcceptanceCreateSheetState
   CustomerLookupItem? _selectedCustomer;
   String? _validationMessage;
   String? _lastAddedProductKey;
+  _OfflineCompanyAcceptanceCreateStep _step =
+      _OfflineCompanyAcceptanceCreateStep.document;
 
   @override
   void initState() {
@@ -1111,6 +1115,50 @@ class _OfflineCompanyAcceptanceCreateSheetState
     );
   }
 
+  void _goToLinesStep() {
+    if (!_validateDocumentStep()) {
+      return;
+    }
+
+    setState(() {
+      _step = _OfflineCompanyAcceptanceCreateStep.lines;
+      _validationMessage = null;
+    });
+    _focusFreshEntryLine();
+  }
+
+  void _goToDocumentStep() {
+    setState(() {
+      _step = _OfflineCompanyAcceptanceCreateStep.document;
+      _validationMessage = null;
+    });
+  }
+
+  bool _validateDocumentStep() {
+    final form = _formKey.currentState;
+    if (form != null && !validateCreateForm(_formKey)) {
+      return false;
+    }
+
+    if (_customerCodeController.text.trim().isEmpty) {
+      setState(() {
+        _step = _OfflineCompanyAcceptanceCreateStep.document;
+        _validationMessage = 'Cari kodu zorunludur.';
+      });
+      return false;
+    }
+
+    if (_documentDate.isAfter(_movementDate)) {
+      setState(() {
+        _step = _OfflineCompanyAcceptanceCreateStep.document;
+        _validationMessage = 'Belge tarihi hareket tarihinden sonra olamaz.';
+      });
+      return false;
+    }
+
+    return true;
+  }
+
   Future<void> _addLinesFromOpenOrders() async {
     final customerCode = _customerCodeController.text.trim();
 
@@ -1234,20 +1282,23 @@ class _OfflineCompanyAcceptanceCreateSheetState
 
     if (customerCode.isEmpty) {
       setState(() {
+        _step = _OfflineCompanyAcceptanceCreateStep.document;
         _validationMessage = 'Cari kodu zorunludur.';
       });
       return;
     }
 
-    if (_documentDate.isBefore(_movementDate)) {
+    if (_documentDate.isAfter(_movementDate)) {
       setState(() {
-        _validationMessage = 'Belge tarihi hareket tarihinden once olamaz.';
+        _step = _OfflineCompanyAcceptanceCreateStep.document;
+        _validationMessage = 'Belge tarihi hareket tarihinden sonra olamaz.';
       });
       return;
     }
 
     if (_hasPendingEntryLine) {
       setState(() {
+        _step = _OfflineCompanyAcceptanceCreateStep.lines;
         _validationMessage = 'Secilen urunu once Kaleme Ekle ile listeye alin.';
       });
       return;
@@ -1257,6 +1308,7 @@ class _OfflineCompanyAcceptanceCreateSheetState
 
     if (activeLines.isEmpty) {
       setState(() {
+        _step = _OfflineCompanyAcceptanceCreateStep.lines;
         _validationMessage = 'En az bir urun satiri ekleyin.';
       });
       return;
@@ -1267,12 +1319,14 @@ class _OfflineCompanyAcceptanceCreateSheetState
       final line = activeLines[index];
       if (line.stockCodeController.text.trim().isEmpty) {
         setState(() {
+          _step = _OfflineCompanyAcceptanceCreateStep.lines;
           _validationMessage = '${index + 1}. satir icin stok kodu zorunlu.';
         });
         return;
       }
       if (line.dispatchQuantity <= 0) {
         setState(() {
+          _step = _OfflineCompanyAcceptanceCreateStep.lines;
           _validationMessage =
               '${index + 1}. satir icin irsaliye miktari sifirdan buyuk olmali.';
         });
@@ -1280,6 +1334,7 @@ class _OfflineCompanyAcceptanceCreateSheetState
       }
       if (line.acceptedQuantity < 0) {
         setState(() {
+          _step = _OfflineCompanyAcceptanceCreateStep.lines;
           _validationMessage =
               '${index + 1}. satir icin sayilan miktar negatif olamaz.';
         });
@@ -1287,6 +1342,7 @@ class _OfflineCompanyAcceptanceCreateSheetState
       }
       if (line.acceptedQuantity > line.dispatchQuantity) {
         setState(() {
+          _step = _OfflineCompanyAcceptanceCreateStep.lines;
           _validationMessage =
               '${index + 1}. satirda sayilan miktar irsaliye miktarini gecemez.';
         });
@@ -1294,6 +1350,7 @@ class _OfflineCompanyAcceptanceCreateSheetState
       }
       if (line.unitPointer <= 0 || line.unitPointer > 255) {
         setState(() {
+          _step = _OfflineCompanyAcceptanceCreateStep.lines;
           _validationMessage =
               '${index + 1}. satir icin unitPointer 1-255 olmali.';
         });
@@ -1301,6 +1358,7 @@ class _OfflineCompanyAcceptanceCreateSheetState
       }
       if (line.lotNo < 0) {
         setState(() {
+          _step = _OfflineCompanyAcceptanceCreateStep.lines;
           _validationMessage =
               '${index + 1}. satir icin lot no negatif olamaz.';
         });
@@ -1309,6 +1367,7 @@ class _OfflineCompanyAcceptanceCreateSheetState
       final orderGuid = line.orderGuid?.trim() ?? '';
       if (orderGuid.isNotEmpty && !usedOrderGuids.add(orderGuid)) {
         setState(() {
+          _step = _OfflineCompanyAcceptanceCreateStep.lines;
           _validationMessage =
               '${index + 1}. satirda ayni siparis satiri tekrar kullanilamaz.';
         });
@@ -1369,10 +1428,13 @@ class _OfflineCompanyAcceptanceCreateSheetState
 
   @override
   Widget build(BuildContext context) {
+    final isDocumentStep =
+        _step == _OfflineCompanyAcceptanceCreateStep.document;
+
     return Material(
       color: Theme.of(context).scaffoldBackgroundColor,
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(10, 4, 10, 10),
+        padding: const EdgeInsets.fromLTRB(12, 6, 12, 12),
         child: Form(
           key: _formKey,
           autovalidateMode: createFormAutovalidateMode,
@@ -1387,63 +1449,276 @@ class _OfflineCompanyAcceptanceCreateSheetState
                 padding: EdgeInsets.zero,
               ),
               const SizedBox(height: 4),
-              TerminalCreateInputDock(
-                padding: EdgeInsets.zero,
-                children: <Widget>[
-                  _buildCustomerLookupRow(),
-                  const SizedBox(height: 4),
-                  TextFormField(
-                    controller: _customerCodeController,
-                    decoration: const InputDecoration(
-                      labelText: 'Cari Kodu*',
-                      isDense: true,
-                      contentPadding: EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 8,
-                      ),
-                    ),
-                    onChanged: (_) => setState(() {}),
-                    validator: (value) {
-                      if ((value ?? '').trim().isEmpty) {
-                        return 'Cari kodu zorunlu.';
-                      }
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 4),
-                  _buildDocumentDetailsSection(),
-                  const SizedBox(height: 4),
-                  _buildLinesToolbar(),
-                  const SizedBox(height: 4),
-                  _buildEntryLineCard(),
-                ],
-              ),
-              const SizedBox(height: 4),
+              _buildStepSelector(),
+              const SizedBox(height: 5),
               Expanded(
-                child: CustomScrollView(
-                  slivers: <Widget>[
-                    _buildLazyLineSliver(),
-                    SliverToBoxAdapter(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: <Widget>[
-                          if (_validationMessage != null) ...<Widget>[
-                            TerminalMessageBlock.error(
-                              message: _validationMessage!,
-                            ),
-                            const SizedBox(height: 12),
-                          ],
-                          _buildFormActions(),
-                        ],
-                      ),
-                    ),
+                child: isDocumentStep
+                    ? _buildDocumentStep()
+                    : _buildLinesStep(),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStepSelector() {
+    return SizedBox(
+      height: 36,
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: SegmentedButton<_OfflineCompanyAcceptanceCreateStep>(
+          showSelectedIcon: false,
+          selected: <_OfflineCompanyAcceptanceCreateStep>{_step},
+          style: const ButtonStyle(
+            minimumSize: WidgetStatePropertyAll(Size(0, 34)),
+            padding: WidgetStatePropertyAll(
+              EdgeInsets.symmetric(horizontal: 8),
+            ),
+            visualDensity: VisualDensity(horizontal: -3, vertical: -3),
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          ),
+          segments: const <ButtonSegment<_OfflineCompanyAcceptanceCreateStep>>[
+            ButtonSegment<_OfflineCompanyAcceptanceCreateStep>(
+              value: _OfflineCompanyAcceptanceCreateStep.document,
+              icon: Icon(Icons.assignment_outlined, size: 18),
+              label: Text('Belge'),
+            ),
+            ButtonSegment<_OfflineCompanyAcceptanceCreateStep>(
+              value: _OfflineCompanyAcceptanceCreateStep.lines,
+              icon: Icon(Icons.playlist_add_check_rounded, size: 18),
+              label: Text('Kalemler'),
+            ),
+          ],
+          onSelectionChanged: (selection) {
+            final nextStep = selection.first;
+            if (nextStep == _OfflineCompanyAcceptanceCreateStep.lines) {
+              _goToLinesStep();
+              return;
+            }
+
+            _goToDocumentStep();
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDocumentStep() {
+    return SingleChildScrollView(
+      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          if (_validationMessage != null) ...<Widget>[
+            TerminalMessageBlock.error(message: _validationMessage!),
+            const SizedBox(height: 6),
+          ],
+          _buildCustomerLookupRow(),
+          const SizedBox(height: 4),
+          _buildCustomerCodeField(),
+          const SizedBox(height: 4),
+          _buildDocumentDetailsSection(),
+          const SizedBox(height: 8),
+          _buildDocumentStepActions(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLinesStep() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        TerminalCreateInputDock(
+          padding: const EdgeInsets.only(bottom: 4),
+          children: <Widget>[
+            _buildLineStepSummary(),
+            if (_validationMessage != null) ...<Widget>[
+              const SizedBox(height: 4),
+              TerminalMessageBlock.error(message: _validationMessage!),
+            ],
+            const SizedBox(height: 4),
+            _buildEntryLineCard(),
+          ],
+        ),
+        const SizedBox(height: 4),
+        Expanded(
+          child: CustomScrollView(
+            slivers: <Widget>[
+              _buildLazyLineSliver(),
+              SliverToBoxAdapter(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: <Widget>[
+                    const SizedBox(height: 4),
+                    _buildLineStepActions(),
                   ],
                 ),
               ),
             ],
           ),
         ),
+      ],
+    );
+  }
+
+  Widget _buildCustomerCodeField() {
+    return TextFormField(
+      controller: _customerCodeController,
+      decoration: const InputDecoration(
+        labelText: 'Cari Kodu*',
+        hintText: 'Internet yoksa elle girin',
+        isDense: true,
+        contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       ),
+      onChanged: (_) => setState(() {}),
+      validator: (value) {
+        if ((value ?? '').trim().isEmpty) {
+          return 'Cari kodu zorunlu';
+        }
+
+        return null;
+      },
+    );
+  }
+
+  Widget _buildDocumentStepActions() {
+    final cancelButton = OutlinedButton(
+      onPressed: () => Navigator.of(context).pop(),
+      child: const Text('Vazgec'),
+    );
+
+    final nextButton = FilledButton.icon(
+      onPressed: _goToLinesStep,
+      icon: const Icon(Icons.arrow_forward_rounded),
+      label: const Text('Kalemlere Gec'),
+    );
+
+    return TerminalFormActionRow(cancel: cancelButton, submit: nextButton);
+  }
+
+  Widget _buildLineStepActions() {
+    final documentButton = OutlinedButton.icon(
+      onPressed: _goToDocumentStep,
+      icon: const Icon(Icons.assignment_outlined),
+      label: const Text('Belge'),
+    );
+
+    final submitButton = FilledButton.icon(
+      onPressed: _submit,
+      icon: const Icon(Icons.save_alt_rounded),
+      label: const Text('Taslagi Kaydet'),
+    );
+
+    return TerminalFormActionRow(cancel: documentButton, submit: submitButton);
+  }
+
+  Widget _buildLineStepSummary() {
+    final theme = Theme.of(context);
+    final customerText = _customerSearchController.text.trim();
+    final customerCode = _customerCodeController.text.trim();
+    final documentNo = _documentNoController.text.trim();
+    final lineCount = _filledLineIndexes().length;
+    final dispatchTotal = _totalDispatchQuantity();
+    final acceptedTotal = _totalAcceptedQuantity();
+    final returnTotal = _totalReturnQuantity();
+    final title = customerText.isNotEmpty
+        ? customerText
+        : customerCode.isNotEmpty
+        ? customerCode
+        : 'Cari secilmedi';
+    final totalsLabel = <String>[
+      '$lineCount kalem',
+      'Irs ${AppFormatters.quantity(dispatchTotal)}',
+      'Kabul ${AppFormatters.quantity(acceptedTotal)}',
+      if (returnTotal > 0) 'Fark ${AppFormatters.quantity(returnTotal)}',
+      if (documentNo.isNotEmpty) documentNo,
+    ].join(' | ');
+    final orderButton = IconButton.outlined(
+      visualDensity: VisualDensity.compact,
+      tooltip: 'Siparis bagla',
+      onPressed: _customerCodeController.text.trim().isEmpty
+          ? null
+          : _addLinesFromOpenOrders,
+      icon: const Icon(Icons.link_rounded),
+    );
+    final documentButton = IconButton.outlined(
+      visualDensity: VisualDensity.compact,
+      tooltip: 'Belge bilgileri',
+      onPressed: _goToDocumentStep,
+      icon: const Icon(Icons.edit_note_rounded),
+    );
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: theme.colorScheme.outlineVariant.withAlpha(88),
+        ),
+      ),
+      child: Row(
+        children: <Widget>[
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.labelLarge?.copyWith(
+                    fontWeight: FontWeight.w900,
+                    height: 1.05,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  totalsLabel,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: returnTotal > 0
+                        ? theme.colorScheme.tertiary
+                        : theme.colorScheme.onSurface.withAlpha(160),
+                    fontWeight: FontWeight.w800,
+                    height: 1.05,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 6),
+          orderButton,
+          const SizedBox(width: 4),
+          documentButton,
+        ],
+      ),
+    );
+  }
+
+  double _totalDispatchQuantity() {
+    return _committedLines().fold<double>(
+      0,
+      (total, line) => total + line.dispatchQuantity,
+    );
+  }
+
+  double _totalAcceptedQuantity() {
+    return _committedLines().fold<double>(
+      0,
+      (total, line) => total + line.acceptedQuantity,
+    );
+  }
+
+  double _totalReturnQuantity() {
+    return _committedLines().fold<double>(
+      0,
+      (total, line) => total + line.returnQuantity,
     );
   }
 
@@ -1594,14 +1869,8 @@ class _OfflineCompanyAcceptanceCreateSheetState
   }
 
   Widget _buildDocumentDetailsSection() {
-    return ExpansionTile(
-      tilePadding: EdgeInsets.zero,
-      childrenPadding: const EdgeInsets.only(top: 6),
-      dense: true,
-      title: const Text('Belge detaylari'),
-      subtitle: Text(
-        '${AppFormatters.date(_movementDate)} | ${AppFormatters.date(_documentDate)}',
-      ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
         Wrap(
           spacing: 8,
@@ -1720,6 +1989,8 @@ class _OfflineCompanyAcceptanceCreateSheetState
       decoration: const InputDecoration(
         labelText: 'Cari ara',
         hintText: 'Cari adi veya kodu',
+        isDense: true,
+        contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       ),
     );
 
@@ -1747,76 +2018,6 @@ class _OfflineCompanyAcceptanceCreateSheetState
             Expanded(child: lookupField),
             const SizedBox(width: 12),
             searchButton,
-          ],
-        );
-      },
-    );
-  }
-
-  Widget _buildLinesToolbar() {
-    final title = Text(
-      'Satirlar',
-      style: Theme.of(
-        context,
-      ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
-    );
-
-    final orderButton = OutlinedButton.icon(
-      onPressed: _customerCodeController.text.trim().isEmpty
-          ? null
-          : _addLinesFromOpenOrders,
-      icon: const Icon(Icons.link_rounded),
-      label: const Text('Siparis Bagla'),
-    );
-
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        if (constraints.maxWidth < 360) {
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              title,
-              const SizedBox(height: 8),
-              Wrap(spacing: 8, runSpacing: 8, children: <Widget>[orderButton]),
-            ],
-          );
-        }
-
-        return Row(children: <Widget>[title, const Spacer(), orderButton]);
-      },
-    );
-  }
-
-  Widget _buildFormActions() {
-    final cancelButton = OutlinedButton(
-      onPressed: () => Navigator.of(context).pop(),
-      child: const Text('Vazgec'),
-    );
-
-    final submitButton = FilledButton.icon(
-      onPressed: _submit,
-      icon: const Icon(Icons.save_alt_rounded),
-      label: const Text('Taslagi Kaydet'),
-    );
-
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        if (constraints.maxWidth < 360) {
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: <Widget>[
-              cancelButton,
-              const SizedBox(height: 10),
-              submitButton,
-            ],
-          );
-        }
-
-        return Row(
-          children: <Widget>[
-            Expanded(child: cancelButton),
-            const SizedBox(width: 12),
-            Expanded(child: submitButton),
           ],
         );
       },

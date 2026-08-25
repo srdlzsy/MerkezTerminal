@@ -12,6 +12,8 @@ class AppSessionController extends ChangeNotifier {
 
   static const String _sessionExpiredMessage =
       'Oturum suresi doldu. Lutfen tekrar giris yapin.';
+  static const String _warehouseContextChangedMessage =
+      'Depo/IP bilginiz degisti. Hatali depo kaydi olusmamasi icin lutfen tekrar giris yapin.';
 
   final AuthRepository _authRepository;
 
@@ -106,6 +108,43 @@ class AppSessionController extends ChangeNotifier {
     }
   }
 
+  Future<void> refreshWarehouseContextGuard() async {
+    if (_status != AppSessionStatus.authenticated) {
+      return;
+    }
+
+    final session = _session;
+    if (session == null) {
+      return;
+    }
+
+    try {
+      final context = await _authRepository.fetchWarehouseContext(
+        accessToken: session.accessToken,
+      );
+
+      if (!context.requiresRelogin) {
+        return;
+      }
+
+      await _setUnauthenticated(
+        clearStoredSession: true,
+        errorMessage: _warehouseContextChangedMessage,
+      );
+    } on ApiException catch (error) {
+      if (error.statusCode == 0) {
+        return;
+      }
+
+      if (error.statusCode == 401) {
+        await _setUnauthenticated(
+          clearStoredSession: true,
+          errorMessage: _sessionExpiredMessage,
+        );
+      }
+    }
+  }
+
   Future<String?> handleUnauthorized() async {
     if (_status != AppSessionStatus.authenticated) {
       return null;
@@ -128,8 +167,8 @@ class AppSessionController extends ChangeNotifier {
     }
   }
 
-  Future<void> signOut() async {
-    await _setUnauthenticated(clearStoredSession: true);
+  Future<void> signOut({String? message}) async {
+    await _setUnauthenticated(clearStoredSession: true, errorMessage: message);
   }
 
   Future<void> _performResumeRefresh() async {

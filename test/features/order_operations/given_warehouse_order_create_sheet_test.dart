@@ -227,6 +227,79 @@ void main() {
     expect(find.text('Giris satiri'), findsOneWidget);
   });
 
+  testWidgets('removes empty quantity source product lines', (tester) async {
+    tester.view.physicalSize = const Size(390, 1000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final repository = _FakeWarehouseOrdersRepository(
+      warehouses: const <WarehouseLookupItem>[
+        WarehouseLookupItem(
+          warehouseNo: 56,
+          warehouseName: 'MANAV DEPO',
+          address: '',
+          district: 'Osmangazi',
+          province: 'Bursa',
+        ),
+      ],
+      sourceProducts: const <ProductLookupItem>[
+        ProductLookupItem(
+          warehouseNo: 56,
+          barcode: '2900729',
+          stockCode: '016167',
+          stockName: 'MNV MAYDANOZ ADET',
+          price: 0,
+          unitName: 'ADET',
+          isOrderBlocked: false,
+        ),
+        ProductLookupItem(
+          warehouseNo: 56,
+          barcode: '2900730',
+          stockCode: '016168',
+          stockName: 'MNV DEREOTU ADET',
+          price: 0,
+          unitName: 'ADET',
+          isOrderBlocked: false,
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: GivenWarehouseOrderCreateSheet(
+            repository: repository,
+            accessToken: 'token',
+            defaultWarehouseNo: '110',
+            mobileWarehouseCatalogRepository:
+                MobileWarehouseCatalogLocalRepository(
+                  database: MemoryLocalDatabase(),
+                ),
+          ),
+        ),
+      ),
+    );
+
+    await _pickWarehouse(tester, label: '56 - MANAV DEPO');
+    await tester.tap(find.widgetWithText(FilledButton, 'Depo urunleri'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('2 kalem'), findsOneWidget);
+    expect(find.text('MNV MAYDANOZ ADET'), findsOneWidget);
+    expect(find.text('MNV DEREOTU ADET'), findsOneWidget);
+    expect(find.widgetWithText(FilledButton, 'Boslari sil'), findsOneWidget);
+
+    await tester.tap(find.widgetWithText(FilledButton, 'Boslari sil'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('0 kalem'), findsOneWidget);
+    expect(find.text('MNV MAYDANOZ ADET'), findsNothing);
+    expect(find.text('MNV DEREOTU ADET'), findsNothing);
+    expect(find.text('Giris satiri'), findsOneWidget);
+    expect(find.widgetWithText(FilledButton, 'Boslari sil'), findsNothing);
+  });
+
   testWidgets('clears source product lines when selected warehouse changes', (
     tester,
   ) async {

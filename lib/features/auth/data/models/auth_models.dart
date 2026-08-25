@@ -121,6 +121,47 @@ class RefreshTokenResponse {
   }
 }
 
+class WarehouseContext {
+  const WarehouseContext({
+    required this.userId,
+    required this.username,
+    required this.tokenWarehouseNo,
+    required this.tokenWarehouseName,
+    required this.currentWarehouseNo,
+    required this.currentWarehouseName,
+    required this.isTerminalUser,
+    required this.requiresRelogin,
+    required this.reason,
+    this.serverTimeUtc,
+  });
+
+  final String userId;
+  final String username;
+  final String tokenWarehouseNo;
+  final String tokenWarehouseName;
+  final String? currentWarehouseNo;
+  final String? currentWarehouseName;
+  final bool isTerminalUser;
+  final bool requiresRelogin;
+  final String reason;
+  final DateTime? serverTimeUtc;
+
+  factory WarehouseContext.fromJson(JsonMap json) {
+    return WarehouseContext(
+      userId: json['userId']?.toString() ?? '',
+      username: json['username']?.toString() ?? '',
+      tokenWarehouseNo: json['tokenWarehouseNo']?.toString() ?? '',
+      tokenWarehouseName: json['tokenWarehouseName']?.toString() ?? '',
+      currentWarehouseNo: _readNullableString(json['currentWarehouseNo']),
+      currentWarehouseName: _readNullableString(json['currentWarehouseName']),
+      isTerminalUser: json['isTerminalUser'] as bool? ?? false,
+      requiresRelogin: json['requiresRelogin'] as bool? ?? false,
+      reason: json['reason']?.toString() ?? '',
+      serverTimeUtc: _readNullableDate(json['serverTimeUtc']),
+    );
+  }
+}
+
 class CurrentUser {
   const CurrentUser({
     required this.id,

@@ -26,6 +26,8 @@ class HomeShellPage extends StatefulWidget {
 
 class _HomeShellPageState extends State<HomeShellPage>
     with WidgetsBindingObserver {
+  static const Duration _sessionContextRefreshInterval = Duration(minutes: 1);
+
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   final List<MenuEntry> _menuBackStack = <MenuEntry>[];
   MenuEntry? _selectedMenu;
@@ -33,6 +35,7 @@ class _HomeShellPageState extends State<HomeShellPage>
   _OfflineQueueSummary _offlineQueueSummary =
       const _OfflineQueueSummary.empty();
   Timer? _offlineSyncTimer;
+  Timer? _sessionContextRefreshTimer;
 
   @override
   void initState() {
@@ -42,6 +45,10 @@ class _HomeShellPageState extends State<HomeShellPage>
     _offlineSyncTimer = Timer.periodic(
       const Duration(seconds: 45),
       (_) => unawaited(_triggerOfflineSync()),
+    );
+    _sessionContextRefreshTimer = Timer.periodic(
+      _sessionContextRefreshInterval,
+      (_) => unawaited(widget.sessionController.refreshWarehouseContextGuard()),
     );
     unawaited(_triggerOfflineSync());
   }
@@ -71,6 +78,7 @@ class _HomeShellPageState extends State<HomeShellPage>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _offlineSyncTimer?.cancel();
+    _sessionContextRefreshTimer?.cancel();
     super.dispose();
   }
 
@@ -312,7 +320,7 @@ class _HomeShellPageState extends State<HomeShellPage>
   }
 
   Future<void> _handleAppResume() async {
-    await widget.sessionController.refreshSessionOnResume();
+    await widget.sessionController.refreshWarehouseContextGuard();
     await _triggerOfflineSync();
   }
 
