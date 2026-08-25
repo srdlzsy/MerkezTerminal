@@ -152,6 +152,39 @@ void main() {
     );
   });
 
+  testWidgets('uses user warehouse for product search after source selection', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 1000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final repository = _FakeWarehouseOrdersRepository();
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: GivenWarehouseOrderCreateSheet(
+            repository: repository,
+            accessToken: 'token',
+            defaultWarehouseNo: '56',
+            mobileWarehouseCatalogRepository:
+                MobileWarehouseCatalogLocalRepository(
+                  database: MemoryLocalDatabase(),
+                ),
+          ),
+        ),
+      ),
+    );
+
+    await _pickWarehouse(tester);
+    await _pickWarehouseOrderProduct(tester);
+
+    expect(repository.lastSearchWarehouseNo, '56');
+    expect(repository.lastSourceWarehouseNo, isNull);
+  });
+
   testWidgets('loads selected source warehouse products into quantity lines', (
     tester,
   ) async {

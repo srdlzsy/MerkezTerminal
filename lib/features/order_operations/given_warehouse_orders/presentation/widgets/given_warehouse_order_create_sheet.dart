@@ -81,14 +81,7 @@ class _GivenWarehouseOrderCreateSheetState
 
   int? get _targetWarehouseNo => int.tryParse(widget.defaultWarehouseNo.trim());
 
-  String get _productLookupWarehouseNo {
-    final selectedSourceWarehouseNo = _selectedSourceWarehouseNo;
-    if (selectedSourceWarehouseNo != null && selectedSourceWarehouseNo > 0) {
-      return selectedSourceWarehouseNo.toString();
-    }
-
-    return widget.defaultWarehouseNo;
-  }
+  String get _productLookupWarehouseNo => widget.defaultWarehouseNo;
 
   SourceWarehouseProductsRepository? get _sourceProductsRepository {
     final repository = widget.repository;
