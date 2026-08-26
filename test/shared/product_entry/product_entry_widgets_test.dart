@@ -229,4 +229,44 @@ void main() {
     expect(find.text('015792'), findsOneWidget);
     expect(find.text('Koli ici 12'), findsOneWidget);
   });
+
+  testWidgets('compact product line warns for non-package multiple quantity', (
+    tester,
+  ) async {
+    final quantityController = TextEditingController(text: '12');
+    addTearDown(quantityController.dispose);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 320,
+            child: TerminalCompactProductLineCard(
+              lineNo: 1,
+              stockCode: '015792',
+              stockName: 'AYTAC TEST URUN',
+              quantityController: quantityController,
+              unitLabel: 'ADET',
+              packageLabel: '12',
+              barcode: '8690000000012',
+            ),
+          ),
+        ),
+      ),
+    );
+
+    expect(
+      find.text('Koli ici 12 ADET; girilen miktar koli kati degil.'),
+      findsNothing,
+    );
+
+    await tester.enterText(find.byType(TextFormField), '5');
+    await tester.pump();
+
+    expect(
+      find.text('Koli ici 12 ADET; girilen miktar koli kati degil.'),
+      findsOneWidget,
+    );
+    expect(tester.takeException(), isNull);
+  });
 }

@@ -71,15 +71,11 @@ class ApiSuggestedWarehouseOrdersRepository
   }) async {
     final normalizedQuery = query?.trim() ?? '';
     final response = await _apiClient.getJsonList(
-      '/api/arama-islemleri/depolar',
+      '/api/arama-islemleri/depolar/kaynaklar',
       accessToken: accessToken,
       queryParameters: <String, String>{
         'take': '100',
-        if (normalizedQuery.isNotEmpty &&
-            RegExp(r'^\d+$').hasMatch(normalizedQuery))
-          'warehouseNo': normalizedQuery
-        else if (normalizedQuery.isNotEmpty)
-          'searchText': normalizedQuery,
+        if (normalizedQuery.isNotEmpty) 'searchText': normalizedQuery,
       },
     );
 

@@ -185,6 +185,65 @@ void main() {
     expect(repository.lastSourceWarehouseNo, isNull);
   });
 
+  testWidgets('warns but allows non-package-multiple quantity', (tester) async {
+    tester.view.physicalSize = const Size(390, 1000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final repository = _FakeWarehouseOrdersRepository(
+      product: const ProductLookupItem(
+        warehouseNo: 56,
+        barcode: '8690000000012',
+        stockCode: '015792',
+        stockName: 'AYTAC TEST URUN',
+        price: 125,
+        unitName: 'ADET',
+        unitMultiplier: 12,
+        isOrderBlocked: false,
+      ),
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: GivenWarehouseOrderCreateSheet(
+            repository: repository,
+            accessToken: 'token',
+            defaultWarehouseNo: '56',
+            mobileWarehouseCatalogRepository:
+                MobileWarehouseCatalogLocalRepository(
+                  database: MemoryLocalDatabase(),
+                ),
+          ),
+        ),
+      ),
+    );
+
+    await _pickWarehouse(tester);
+
+    final productField = find
+        .widgetWithText(TextFormField, 'Barkod / stok kodu / urun adi')
+        .first;
+    await tester.ensureVisible(productField);
+    await tester.enterText(productField, '8690000000012');
+    await tester.tap(find.widgetWithText(FilledButton, 'Urun').first);
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.widgetWithText(TextFormField, 'Miktar'), '5');
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('Koli ici 12 ADET; girilen miktar koli kati degil.'),
+      findsOneWidget,
+    );
+
+    await _confirmPendingProduct(tester);
+
+    expect(find.text('1 kalem'), findsOneWidget);
+    expect(find.text('AYTAC TEST URUN'), findsOneWidget);
+  });
+
   testWidgets('loads selected source warehouse products into quantity lines', (
     tester,
   ) async {

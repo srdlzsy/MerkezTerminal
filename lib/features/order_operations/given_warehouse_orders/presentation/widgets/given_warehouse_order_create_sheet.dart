@@ -2236,6 +2236,9 @@ Map<String, dynamic> _warehouseLookupJson(WarehouseLookupItem item) {
     'address': item.address,
     'district': item.district,
     'province': item.province,
+    'displayName': item.displayName,
+    'modelCodes': item.modelCodes,
+    'modelNames': item.modelNames,
   };
 }
 

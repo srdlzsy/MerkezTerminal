@@ -4455,6 +4455,58 @@ Response:
 ]
 ```
 
+### Kaynak Depo Ara
+
+Depo siparisi, onerilen depo siparisi ve kaynak depo urun secimi gibi ekranlarda kullanicinin tum depolar icinden arama yapmasi yerine sadece siparis verilebilir kaynak depolari secmesi icin kullanilir.
+
+`GET /api/arama-islemleri/depolar/kaynaklar?take=100`
+
+Metin ile aramak icin:
+
+`GET /api/arama-islemleri/depolar/kaynaklar?searchText=manav`
+
+Yetki:
+
+- Login olmak yeterlidir; ek menu/action permission istemez.
+
+Kural:
+
+- Sadece Mikro `DEPOLAR` tablosunda aktif olan ve `dep_barkod_yazici_yolu` alaninda model kodu tanimli depolar doner.
+- Kaynak depo listesi sabit kodlu degildir. Mikro'da bir depoya model kodu tanimlanirsa bu endpoint otomatik olarak o depoyu kaynak depo listesine alir.
+- UI kaynak depo secimi gereken ekranlarda genel `GET /api/arama-islemleri/depolar` yerine bu endpointi kullanmalidir.
+- UI kullaniciya elle serbest depo no yazdirmamali; bu listeden secim yaptirmalidir.
+- Bu endpointten secilen depo, depo siparisi create request'inde `outWarehouseNo`, onerilen siparise cevirme request'inde `sourceWarehouseNo` olarak gonderilmelidir.
+- Bu endpointten secilen kaynak depo, urun arama endpointlerindeki `warehouseNo` alanina yazilmamalidir. `warehouseNo` yine islemi yapan kullanicinin/token deposudur.
+
+Response:
+
+```json
+[
+  {
+    "sourceWarehouseNo": 50,
+    "sourceWarehouseName": "MERKEZ DEPO",
+    "modelCodes": ["01", "02", "03", "04", "20"],
+    "modelNames": ["Market"],
+    "displayName": "50 - MERKEZ DEPO (Market)"
+  },
+  {
+    "sourceWarehouseNo": 56,
+    "sourceWarehouseName": "MANAV DEPO",
+    "modelCodes": ["10", "11", "12", "23"],
+    "modelNames": ["Meyve", "Sebze", "Yesillik", "Manav Sarf"],
+    "displayName": "56 - MANAV DEPO (Meyve, Sebze, Yesillik, Manav Sarf)"
+  }
+]
+```
+
+UI onerisi:
+
+- Kaynak depo combobox/dropdown degeri `sourceWarehouseNo` olmalidir.
+- Kullaniciya gorunen metin icin `displayName` kullanilabilir.
+- `modelNames` kullanilarak depo altinda "Market", "Manav", "Sarkuteri", "Unlu Mamul" gibi aciklama gosterilebilir.
+- Kaynak depo secilince urun listesi getirilecekse `GET /api/siparis-islemleri/onerilen-depo-siparisleri/kaynak-depo-urunleri?sourceWarehouseNo={sourceWarehouseNo}` kullanilir.
+- Kaynak depo secilince klasik onerilen siparis hesaplanacaksa `GET /api/siparis-islemleri/onerilen-depo-siparisleri?SourceWarehouseNo={sourceWarehouseNo}` kullanilir.
+
 ## Siparis Islemleri
 
 Bu kisim UI tarafinda su anda en gercek calisan moduldur.

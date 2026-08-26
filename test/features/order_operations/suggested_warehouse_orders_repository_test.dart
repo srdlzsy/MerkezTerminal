@@ -2,12 +2,71 @@ import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:furpa_merkez_terminal/core/network/api_client.dart';
+import 'package:furpa_merkez_terminal/features/order_operations/shared/data/models/warehouse_order_models.dart';
 import 'package:furpa_merkez_terminal/features/order_operations/suggested_warehouse_orders/data/models/suggested_warehouse_order_models.dart';
 import 'package:furpa_merkez_terminal/features/order_operations/suggested_warehouse_orders/data/suggested_warehouse_orders_repository.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
 void main() {
+  test('searchWarehouses uses source warehouse lookup endpoint', () async {
+    Uri? requestedUri;
+    final repository = ApiSuggestedWarehouseOrdersRepository(
+      apiClient: ApiClient(
+        baseUrl: 'https://terminal.test',
+        httpClient: MockClient((request) async {
+          requestedUri = request.url;
+          return http.Response(
+            jsonEncode(<Map<String, Object?>>[
+              <String, Object?>{
+                'sourceWarehouseNo': 56,
+                'sourceWarehouseName': 'MANAV DEPO',
+                'modelCodes': <String>['10', '11', '12', '23'],
+                'modelNames': <String>['Meyve', 'Sebze', 'Yesillik'],
+                'displayName': '56 - MANAV DEPO (Meyve, Sebze, Yesillik)',
+              },
+            ]),
+            200,
+            headers: <String, String>{'content-type': 'application/json'},
+          );
+        }),
+      ),
+    );
+
+    final items = await repository.searchWarehouses(
+      accessToken: 'token',
+      query: 'manav',
+    );
+
+    expect(requestedUri?.path, '/api/arama-islemleri/depolar/kaynaklar');
+    expect(requestedUri?.queryParameters['take'], '100');
+    expect(requestedUri?.queryParameters['searchText'], 'manav');
+    expect(requestedUri?.queryParameters.containsKey('warehouseNo'), isFalse);
+    expect(items.single.warehouseNo, 56);
+    expect(items.single.warehouseName, 'MANAV DEPO');
+    expect(
+      items.single.displayLabel,
+      '56 - MANAV DEPO (Meyve, Sebze, Yesillik)',
+    );
+    expect(items.single.modelCodes, <String>['10', '11', '12', '23']);
+    expect(items.single.modelNames, <String>['Meyve', 'Sebze', 'Yesillik']);
+  });
+
+  test('warehouse lookup item keeps legacy response compatibility', () {
+    final item = WarehouseLookupItem.fromJson(<String, dynamic>{
+      'warehouseNo': 50,
+      'warehouseName': 'MERKEZ DEPO',
+      'address': 'Adres',
+      'district': 'Nilufer',
+      'province': 'Bursa',
+    });
+
+    expect(item.warehouseNo, 50);
+    expect(item.warehouseName, 'MERKEZ DEPO');
+    expect(item.displayLabel, '50 - MERKEZ DEPO');
+    expect(item.modelCodes, isEmpty);
+  });
+
   test(
     'fetchSuggestions uses source product endpoint for warehouse 56',
     () async {

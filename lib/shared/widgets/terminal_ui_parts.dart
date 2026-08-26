@@ -1059,6 +1059,7 @@ class TerminalCompactProductLineCard extends StatelessWidget {
     this.priceLabel,
     this.barcode,
     this.packageLabel,
+    this.packageFactor,
     this.warningLabel,
     this.canDelete = true,
     this.onDelete,
@@ -1077,6 +1078,7 @@ class TerminalCompactProductLineCard extends StatelessWidget {
   final String? priceLabel;
   final String? barcode;
   final String? packageLabel;
+  final double? packageFactor;
   final String? warningLabel;
   final bool canDelete;
   final VoidCallback? onDelete;
@@ -1158,24 +1160,103 @@ class TerminalCompactProductLineCard extends StatelessWidget {
             ],
           );
 
-          if (isTight) {
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[details, const SizedBox(height: 6), controls],
-            );
-          }
+          final content = isTight
+              ? Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    details,
+                    const SizedBox(height: 6),
+                    controls,
+                  ],
+                )
+              : Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: <Widget>[
+                    Expanded(child: details),
+                    const SizedBox(width: 8),
+                    controls,
+                  ],
+                );
 
-          return Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: <Widget>[
-              Expanded(child: details),
-              const SizedBox(width: 8),
-              controls,
-            ],
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: <Widget>[content, _buildPackageMultipleAdvisory(context)],
           );
         },
       ),
     );
+  }
+
+  Widget _buildPackageMultipleAdvisory(BuildContext context) {
+    return ValueListenableBuilder<TextEditingValue>(
+      valueListenable: quantityController,
+      builder: (context, value, _) {
+        final warning = _packageMultipleWarning(value.text);
+        if (warning == null) {
+          return const SizedBox.shrink();
+        }
+
+        return Padding(
+          padding: const EdgeInsets.only(top: 5),
+          child: Text(
+            warning,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              height: 1.05,
+              color: const Color(0xFF8A5A00),
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  String? _packageMultipleWarning(String rawQuantity) {
+    final factor = _effectivePackageFactor;
+    if (factor <= 1) {
+      return null;
+    }
+
+    final quantity = double.tryParse(rawQuantity.trim().replaceAll(',', '.'));
+    if (quantity == null || quantity <= 0) {
+      return null;
+    }
+
+    final nearestMultiple = (quantity / factor).roundToDouble() * factor;
+    if ((quantity - nearestMultiple).abs() < 0.000001) {
+      return null;
+    }
+
+    final unit = (unitLabel ?? '').trim();
+    final factorLabel = _formatQuantity(factor);
+    final unitSuffix = unit.isEmpty ? '' : ' $unit';
+    return 'Koli ici $factorLabel$unitSuffix; girilen miktar koli kati degil.';
+  }
+
+  double get _effectivePackageFactor {
+    final explicitFactor = packageFactor;
+    if (explicitFactor != null && explicitFactor > 1) {
+      return explicitFactor;
+    }
+
+    final label = packageLabel?.trim() ?? '';
+    if (label.isEmpty) {
+      return 0;
+    }
+
+    final match = RegExp(r'\d+(?:[,.]\d+)?').firstMatch(label);
+    if (match == null) {
+      return 0;
+    }
+
+    return double.tryParse(match.group(0)!.replaceAll(',', '.')) ?? 0;
+  }
+
+  static String _formatQuantity(double value) {
+    final fixed = value.toStringAsFixed(6);
+    return fixed.replaceFirst(RegExp(r'\.?0+$'), '').replaceAll('.', ',');
   }
 }
 

@@ -309,6 +309,9 @@ class WarehouseLookupItem {
     required this.address,
     required this.district,
     required this.province,
+    this.displayName = '',
+    this.modelCodes = const <String>[],
+    this.modelNames = const <String>[],
   });
 
   final int warehouseNo;
@@ -316,16 +319,30 @@ class WarehouseLookupItem {
   final String address;
   final String district;
   final String province;
+  final String displayName;
+  final List<String> modelCodes;
+  final List<String> modelNames;
 
-  String get displayLabel => '$warehouseNo - $warehouseName';
+  String get displayLabel {
+    final normalizedDisplayName = displayName.trim();
+    if (normalizedDisplayName.isNotEmpty) {
+      return normalizedDisplayName;
+    }
+    return '$warehouseNo - $warehouseName';
+  }
 
   factory WarehouseLookupItem.fromJson(JsonMap json) {
     return WarehouseLookupItem(
-      warehouseNo: _readInt(json['warehouseNo']),
-      warehouseName: _readString(json['warehouseName']),
+      warehouseNo: _readInt(json['warehouseNo'] ?? json['sourceWarehouseNo']),
+      warehouseName: _readString(
+        json['warehouseName'] ?? json['sourceWarehouseName'],
+      ),
       address: _readString(json['address']),
       district: _readString(json['district']),
       province: _readString(json['province']),
+      displayName: _readString(json['displayName']),
+      modelCodes: _readStringList(json['modelCodes']),
+      modelNames: _readStringList(json['modelNames']),
     );
   }
 }
@@ -667,6 +684,17 @@ int? _readNullableInt(Object? value) {
 
 String _readString(Object? value) {
   return value?.toString() ?? '';
+}
+
+List<String> _readStringList(Object? value) {
+  if (value is! Iterable) {
+    return const <String>[];
+  }
+
+  return value
+      .map((item) => item?.toString().trim() ?? '')
+      .where((item) => item.isNotEmpty)
+      .toList(growable: false);
 }
 
 String _readFirstString(JsonMap json, List<String> keys) {

@@ -48,6 +48,7 @@ class ProductDraftEntryPanel extends StatelessWidget {
     this.unitLabel,
     this.barcode,
     this.packageLabel,
+    this.packageFactor,
     this.priceLabel,
     this.warningLabel,
     this.confirmLabel = 'Kaleme Ekle',
@@ -74,6 +75,7 @@ class ProductDraftEntryPanel extends StatelessWidget {
   final String? unitLabel;
   final String? barcode;
   final String? packageLabel;
+  final double? packageFactor;
   final String? priceLabel;
   final String? warningLabel;
   final TextEditingController quantityController;
@@ -145,8 +147,6 @@ class ProductDraftEntryPanel extends StatelessWidget {
     required bool isCompact,
     required bool includeActions,
   }) {
-    final theme = Theme.of(context);
-    final warning = warningLabel?.trim() ?? '';
     final effectiveScanRow = _scanRowFor(isCompact: isCompact);
 
     return Column(
@@ -158,20 +158,9 @@ class ProductDraftEntryPanel extends StatelessWidget {
         ],
         if (!isCompact)
           TerminalPdaInfoGrid(minTileWidth: 92, spacing: 6, items: _infoItems),
-        if (warning.isNotEmpty) ...<Widget>[
-          SizedBox(height: isCompact ? 5 : 8),
-          Text(
-            warning,
-            maxLines: isCompact ? 1 : 2,
-            overflow: TextOverflow.ellipsis,
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.error,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-        ],
         SizedBox(height: isCompact ? 3 : 10),
         _buildQuantityInputs(isCompact: isCompact),
+        _buildQuantityAdvisory(context, isCompact: isCompact),
         SizedBox(height: isCompact ? 3 : 10),
         if (includeActions) _buildActionButtons(isCompact: isCompact),
       ],
@@ -218,6 +207,97 @@ class ProductDraftEntryPanel extends StatelessWidget {
       if ((unitLabel ?? '').trim().isNotEmpty) unitLabel!,
       if ((packageLabel ?? '').trim().isNotEmpty) 'Koli ici $packageLabel',
     ].where((part) => part.trim().isNotEmpty).join(' | ');
+  }
+
+  Widget _buildQuantityAdvisory(
+    BuildContext context, {
+    required bool isCompact,
+  }) {
+    return ValueListenableBuilder<TextEditingValue>(
+      valueListenable: quantityController,
+      builder: (context, value, _) {
+        final messages = <_ProductDraftEntryAdvisory>[
+          if ((warningLabel ?? '').trim().isNotEmpty)
+            _ProductDraftEntryAdvisory.error(warningLabel!.trim()),
+        ];
+        final packageWarning = _packageMultipleWarning(value.text);
+        if (packageWarning != null) {
+          messages.add(_ProductDraftEntryAdvisory.warning(packageWarning));
+        }
+
+        if (messages.isEmpty) {
+          return const SizedBox.shrink();
+        }
+
+        final theme = Theme.of(context);
+        return Padding(
+          padding: EdgeInsets.only(top: isCompact ? 4 : 7),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: <Widget>[
+              for (final message in messages)
+                Text(
+                  message.text,
+                  maxLines: isCompact ? 1 : 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: message.isError
+                        ? theme.colorScheme.error
+                        : const Color(0xFF8A5A00),
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  String? _packageMultipleWarning(String rawQuantity) {
+    final factor = _effectivePackageFactor;
+    if (factor <= 1) {
+      return null;
+    }
+
+    final quantity = double.tryParse(rawQuantity.trim().replaceAll(',', '.'));
+    if (quantity == null || quantity <= 0) {
+      return null;
+    }
+
+    final nearestMultiple = (quantity / factor).roundToDouble() * factor;
+    if ((quantity - nearestMultiple).abs() < 0.000001) {
+      return null;
+    }
+
+    final unit = (unitLabel ?? '').trim();
+    final factorLabel = _formatQuantity(factor);
+    final unitSuffix = unit.isEmpty ? '' : ' $unit';
+    return 'Koli ici $factorLabel$unitSuffix; girilen miktar koli kati degil.';
+  }
+
+  double get _effectivePackageFactor {
+    final explicitFactor = packageFactor;
+    if (explicitFactor != null && explicitFactor > 1) {
+      return explicitFactor;
+    }
+
+    final label = packageLabel?.trim() ?? '';
+    if (label.isEmpty) {
+      return 0;
+    }
+
+    final match = RegExp(r'\d+(?:[,.]\d+)?').firstMatch(label);
+    if (match == null) {
+      return 0;
+    }
+
+    return double.tryParse(match.group(0)!.replaceAll(',', '.')) ?? 0;
+  }
+
+  static String _formatQuantity(double value) {
+    final fixed = value.toStringAsFixed(6);
+    return fixed.replaceFirst(RegExp(r'\.?0+$'), '').replaceAll('.', ',');
   }
 
   Widget _buildActionButtons({required bool isCompact}) {
@@ -346,6 +426,22 @@ class ProductDraftEntryPanel extends StatelessWidget {
   }
 }
 
+class _ProductDraftEntryAdvisory {
+  const _ProductDraftEntryAdvisory._({
+    required this.text,
+    required this.isError,
+  });
+
+  const _ProductDraftEntryAdvisory.error(String text)
+    : this._(text: text, isError: true);
+
+  const _ProductDraftEntryAdvisory.warning(String text)
+    : this._(text: text, isError: false);
+
+  final String text;
+  final bool isError;
+}
+
 class _CompactDraftEntryCard extends StatelessWidget {
   const _CompactDraftEntryCard({
     required this.title,
@@ -394,7 +490,7 @@ class _CompactDraftEntryCard extends StatelessWidget {
                   children: <Widget>[
                     Text(
                       title,
-                      maxLines: 1,
+                      maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: theme.textTheme.titleSmall?.copyWith(
                         height: 1.05,
@@ -415,12 +511,12 @@ class _CompactDraftEntryCard extends StatelessWidget {
                   ],
                 ),
               ),
+              const SizedBox(width: 6),
+              SizedBox(width: 142, child: actions),
             ],
           ),
           const SizedBox(height: 4),
           child,
-          const SizedBox(height: 5),
-          actions,
         ],
       ),
     );
