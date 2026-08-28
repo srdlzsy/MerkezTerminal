@@ -6533,10 +6533,11 @@ Onemli not:
 - `documentNo` Mikro `STOK_HAREKETLERI.sth_belge_no` alanina basilan tedarikci belge numarasidir. ETTN/UUID bu alana basilmaz; resmi belgeyi bulmak icin Belge Akis Takibi'nde `externalUuid` olarak aranir.
 - UYARI: `documentNo` veya `description = "E-Irsaliye: ..."` gondermek resmi belge izini Belge Akis Takibi'ne yazdirmaz. `document_flows.external_document_no` icin mutlaka `officialDocumentNo` veya alias'i, `document_flows.external_uuid` icin mutlaka `officialDocumentEttn` veya `ettn` gonderilmelidir.
 - Ornek tam `documentNo` degerleri: `ST12026000002395`, `C682026000003472`, `FRM2026600059281`, `OY32026000000162`
-- Tam formatta `documentNo` gelirse `documentSerie` son 9 hane atilarak, `documentOrderNo` son 9 hane sayi olarak okunarak uretilir.
-- `documentNo` bos gelirse backend cari unvanindan seri uretir ve ayni depo/seri icin siradaki `documentOrderNo` degerini verir.
+- Tam formatta `documentNo` gelirse `documentSerie` son 9 hane atilarak, `documentOrderNo` son 9 hane sayi olarak okunarak uretilir. Son 9 hanenin sayisal degeri `0` olamaz; sira `1` ve uzeri olmalidir.
+- `documentNo` bos gelirse backend `FMK{depoNo}` serisini kullanir ve ayni depo/seri icin siradaki `documentOrderNo` degerini verir.
 - `documentNo` `ABC`, `ULK`, `FIRMA` gibi harf iceren ve tam format olmayan kisa bir deger gelirse backend bunu seri/prefix kabul eder, sadece harf-rakam karakterlerini kullanir ve siradaki sira numarasini uretir.
-- `documentNo` bos veya sadece sayisal bir degerse backend seri icin cari unvanina duser.
+- `documentNo` bos veya sadece sayisal bir degerse backend seri icin `FMK{depoNo}` degerine duser.
+- Bos/prefix modunda ilgili seri daha once hic kullanilmadiysa ilk `documentOrderNo` degeri `1` olur; `0` uretilmez.
 - Response'taki `documentNo`, uretilen nihai `documentSerie + 9 haneli documentOrderNo` degeridir.
 - Ayni depo icinde ayni `documentSerie + documentOrderNo` kombinasyonu tekrar kullanilamaz.
 - Mobil retry icin backend `clientRequestId` izini `FR` prefixli trace olarak `sth_eticaret_kanal_kodu` alanina tasir; `MikroApi` modunda bu payload ile Mikro'ya gider, tekrar istekte sonuc bu iz uzerinden toparlanabilir.
