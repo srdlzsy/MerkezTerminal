@@ -83,4 +83,17 @@ class ApiReceivedCompanyOrdersRepository
       'Alinan firma siparisleri ekraninda urun arama desteklenmiyor.',
     );
   }
+
+  @override
+  Future<List<CompanyOrderProductLookupItem>> fetchCustomerProducts({
+    required String accessToken,
+    required String warehouseNo,
+    required String customerCode,
+    String? search,
+    int take = 500,
+  }) async {
+    throw UnsupportedError(
+      'Alinan firma siparisleri ekraninda firma urunleri desteklenmiyor.',
+    );
+  }
 }

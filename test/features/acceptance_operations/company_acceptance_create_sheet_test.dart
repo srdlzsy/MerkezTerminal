@@ -779,4 +779,15 @@ class _FakeGivenCompanyOrdersRepository
   }) async {
     return const <CompanyOrderProductLookupItem>[];
   }
+
+  @override
+  Future<List<CompanyOrderProductLookupItem>> fetchCustomerProducts({
+    required String accessToken,
+    required String warehouseNo,
+    required String customerCode,
+    String? search,
+    int take = 500,
+  }) async {
+    return const <CompanyOrderProductLookupItem>[];
+  }
 }

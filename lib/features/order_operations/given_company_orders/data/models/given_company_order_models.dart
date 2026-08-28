@@ -288,6 +288,11 @@ class CompanyOrderProductLookupItem {
     required this.price,
     required this.unitName,
     this.unitMultiplier = 1,
+    this.secondaryUnitName = '',
+    this.caseBarcode = '',
+    this.minimumPurchaseQuantity = 0,
+    this.deliveryDay,
+    this.unitPointer = 1,
     required this.isOrderBlocked,
     required this.isSalesBlocked,
   });
@@ -299,6 +304,11 @@ class CompanyOrderProductLookupItem {
   final double price;
   final String unitName;
   final double unitMultiplier;
+  final String secondaryUnitName;
+  final String caseBarcode;
+  final double minimumPurchaseQuantity;
+  final int? deliveryDay;
+  final int unitPointer;
   final bool isOrderBlocked;
   final bool isSalesBlocked;
 
@@ -310,9 +320,18 @@ class CompanyOrderProductLookupItem {
       barcode: _readString(json['barcode']),
       stockCode: _readString(json['stockCode']),
       stockName: _readString(json['stockName']),
-      price: _readDouble(json['price']),
+      price: _readDouble(json['price'] ?? json['unitPrice']),
       unitName: _readString(json['unitName']),
-      unitMultiplier: _readPositiveDouble(json['unitMultiplier']),
+      unitMultiplier: _readPositiveDouble(
+        json['unitMultiplier'] ?? json['packageFactor'],
+      ),
+      secondaryUnitName: _readString(json['secondaryUnitName']),
+      caseBarcode: _readString(json['caseBarcode']),
+      minimumPurchaseQuantity: _readDouble(json['minimumPurchaseQuantity']),
+      deliveryDay: _readNullableInt(json['deliveryDay']),
+      unitPointer: _readInt(json['unitPointer']) <= 0
+          ? 1
+          : _readInt(json['unitPointer']),
       isOrderBlocked: _readBool(json['isOrderBlocked']),
       isSalesBlocked: _readBool(json['isSalesBlocked']),
     );
@@ -624,6 +643,23 @@ int _readInt(Object? value) {
   }
 
   return int.tryParse(value?.toString() ?? '') ?? 0;
+}
+
+int? _readNullableInt(Object? value) {
+  if (value == null) {
+    return null;
+  }
+
+  if (value is num) {
+    return value.toInt();
+  }
+
+  final raw = value.toString().trim();
+  if (raw.isEmpty) {
+    return null;
+  }
+
+  return int.tryParse(raw);
 }
 
 String _readString(Object? value) {

@@ -127,4 +127,33 @@ class ApiGivenCompanyOrdersRepository implements GivenCompanyOrdersRepository {
         )
         .toList(growable: false);
   }
+
+  @override
+  Future<List<CompanyOrderProductLookupItem>> fetchCustomerProducts({
+    required String accessToken,
+    required String warehouseNo,
+    required String customerCode,
+    String? search,
+    int take = 500,
+  }) async {
+    final normalizedSearch = search?.trim() ?? '';
+    final response = await _apiClient.getJsonList(
+      '/api/siparis-islemleri/verilen-firma-siparisleri/firma-urunleri',
+      accessToken: accessToken,
+      queryParameters: <String, String>{
+        'customerCode': customerCode.trim(),
+        if (warehouseNo.trim().isNotEmpty) 'warehouseNo': warehouseNo.trim(),
+        if (normalizedSearch.isNotEmpty) 'search': normalizedSearch,
+        'take': take.toString(),
+      },
+    );
+
+    return response
+        .map(
+          (item) => CompanyOrderProductLookupItem.fromJson(
+            item as JsonMap? ?? <String, dynamic>{},
+          ),
+        )
+        .toList(growable: false);
+  }
 }

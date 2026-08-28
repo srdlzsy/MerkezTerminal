@@ -4973,6 +4973,79 @@ Response:
 }
 ```
 
+### Verilen Firma Siparisi / Cari Urunleri
+
+`GET /api/siparis-islemleri/verilen-firma-siparisleri/firma-urunleri?customerCode=32000999`
+
+Arama ile daraltma:
+
+`GET /api/siparis-islemleri/verilen-firma-siparisleri/firma-urunleri?customerCode=32000999&search=sut&take=100`
+
+Yetki:
+
+- `siparis-islemleri.verilen-firma-siparisleri.create`
+
+Amac:
+
+- Verilen firma siparisi create ekraninda kullanici cari/tedarikci sectikten sonra, o carinin secili depoda siparise acik urunlerini tek seferde listelemek.
+- Bu endpoint read-only calisir, Mikro'ya veri yazmaz.
+- Bu endpoint otomatik miktar onermez; donen satirlar `quantity=0` ve `recommendedQuantity=0` ile siparis satirina basilmaya hazirdir.
+- Kullanici isterse bu listeden urun secip miktar girer, isterse klasik `GET /api/arama-islemleri/urunler?...` akisi ile urunu tek tek aramaya devam eder.
+
+Query:
+
+```text
+customerCode  zorunlu; secilen Mikro cari/tedarikci kodu
+warehouseNo   opsiyonel; verilmezse JWT icindeki depo kullanilir
+search        opsiyonel; stok kodu, stok adi veya barkod icinde arar
+take          opsiyonel; default 500, max 2000
+```
+
+Kapsam ve filtre:
+
+- `*.all-warehouses` yoksa `warehouseNo` gonderilmez; backend JWT deposunu kullanir.
+- `*.all-warehouses` olan kullanici baska depo adina firma siparisi olusturacaksa ayni depoyu burada `warehouseNo` olarak gonderebilir.
+- Cari Mikro `CARI_HESAPLAR` icinde bulunamazsa `400 Bad Request` doner.
+- Urunler `STOK_DEPO_DETAYLARI` uzerinden secili depoda tanimli olmalidir.
+- Pasif, iptal, siparise kapali ve `DLS%` stoklar donmez.
+- Cari eslesmesi once depo detay tedarikcisi, sonra stok karti tedarikcisi, sonra aktif `SATINALMA_SARTLARI` kaydi uzerinden kabul edilir.
+- Satinalma sarti depo no `0`, `null` veya secili depo olan aktif kayitlar dikkate alinir.
+
+Response:
+
+```json
+[
+  {
+    "warehouseNo": 110,
+    "customerCode": "32000999",
+    "customerName": "TEDARIKCI A.S.",
+    "stockCode": "010001",
+    "stockName": "Stok Adi",
+    "modelCode": "01",
+    "modelName": "01",
+    "unitName": "AD",
+    "secondaryUnitName": "KOLI",
+    "packageFactor": 12,
+    "barcode": "8690000000001",
+    "caseBarcode": "18690000000018",
+    "quantity": 0,
+    "recommendedQuantity": 0,
+    "unitPrice": 15.75,
+    "minimumPurchaseQuantity": 24,
+    "deliveryDay": 2,
+    "unitPointer": 1
+  }
+]
+```
+
+UI akisi:
+
+- Firma siparisi create ekraninda kullanici cari sectiginde bu endpoint cagrilir.
+- Donen satirlar grid/secim modalina basilir; `packageFactor > 1` ise UI koli ici miktari olarak gosterebilir.
+- Satir siparise eklendiginde `stockCode`, `unitPrice`, `unitPointer`, `quantity` ve gerekirse `recommendedQuantity` create body satirina tasinir.
+- `quantity=0` olan satirlar kaydetmeye gonderilmemelidir; kullanici miktar girdikten sonra gonderilmelidir.
+- Liste bos gelirse UI kullaniciyi engellememeli; kullanici klasik urun arama ile tek tek urun ekleyebilir.
+
 ### Onerilen Firma Siparisleri Liste
 
 `GET /api/siparis-islemleri/onerilen-firma-siparisleri?SupplierCode=32000999`

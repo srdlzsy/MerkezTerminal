@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:furpa_merkez_terminal/core/network/api_exception.dart';
 import 'package:furpa_merkez_terminal/features/order_operations/given_company_orders/data/models/given_company_order_models.dart';
 import 'package:furpa_merkez_terminal/features/order_operations/shared/data/company_orders_repository.dart';
@@ -15,6 +16,8 @@ import 'package:furpa_merkez_terminal/shared/utils/create_form_validation.dart';
 import 'package:furpa_merkez_terminal/shared/utils/terminal_feedback.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/barcode_camera_scan_page.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/terminal_ui_parts.dart';
+
+const int _deliveryInfoMaxLength = 25;
 
 class GivenCompanyOrderCreateSheet extends StatefulWidget {
   const GivenCompanyOrderCreateSheet({
@@ -56,6 +59,7 @@ class _GivenCompanyOrderCreateSheetState
   String? _validationMessage;
   late final CreateDraftSession _draftSession;
   String? _lastAddedProductKey;
+  bool _isLoadingCustomerProducts = false;
 
   @override
   void initState() {
@@ -192,6 +196,103 @@ class _GivenCompanyOrderCreateSheetState
     });
     _draftSession.scheduleSave();
     _focusFreshEntryLine();
+  }
+
+  Future<void> _loadCustomerProducts() async {
+    final customer = _selectedCustomer;
+    if (customer == null) {
+      _showFeedback('Once bir musteri secin.');
+      return;
+    }
+
+    if (_hasPendingEntryLine) {
+      _showFeedback(
+        'Once giris satirindaki urunu Kaleme Ekle ile listeye alin.',
+      );
+      _focusFreshEntryLine();
+      return;
+    }
+
+    setState(() {
+      _isLoadingCustomerProducts = true;
+      _validationMessage = null;
+    });
+
+    try {
+      final products = await widget.repository.fetchCustomerProducts(
+        accessToken: widget.accessToken,
+        warehouseNo: widget.defaultWarehouseNo,
+        customerCode: customer.customerCode,
+      );
+      if (!mounted) {
+        return;
+      }
+
+      if (products.isEmpty) {
+        setState(() => _isLoadingCustomerProducts = false);
+        _showFeedback('Bu cari icin urun bulunamadi.');
+        _focusFreshEntryLine();
+        return;
+      }
+
+      final existingKeys = <String>{
+        for (final line in _lines)
+          if (line.selectedProduct != null)
+            _productKey(
+              stockCode: line.selectedProduct!.stockCode,
+              barcode: line.selectedProduct!.barcode,
+            ),
+      }..remove('');
+
+      final addedLines = <_CompanyOrderLineDraft>[];
+      var skippedCount = 0;
+      for (final product in products) {
+        final key = _productKey(
+          stockCode: product.stockCode,
+          barcode: product.barcode,
+        );
+        if (key.isEmpty || existingKeys.contains(key)) {
+          skippedCount += 1;
+          continue;
+        }
+
+        final line = _createLine();
+        line.applyProduct(product, fillDefaultQuantity: false);
+        addedLines.add(line);
+        existingKeys.add(key);
+      }
+
+      setState(() {
+        _lines = <_CompanyOrderLineDraft>[
+          _lines.first,
+          ...addedLines,
+          ..._lines.skip(1),
+        ];
+        _isLoadingCustomerProducts = false;
+      });
+      _draftSession.scheduleSave();
+      _focusFreshEntryLine();
+
+      if (addedLines.isEmpty) {
+        _showFeedback('Cari urunlerinin tamami zaten listede.');
+      } else {
+        final skippedLabel = skippedCount > 0
+            ? ' $skippedCount urun zaten vardi.'
+            : '';
+        _showFeedback(
+          '${addedLines.length} cari urunu listeye eklendi.$skippedLabel',
+        );
+      }
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _isLoadingCustomerProducts = false;
+        _validationMessage = error.toString().replaceFirst('Exception: ', '');
+      });
+    }
   }
 
   Future<void> _searchProduct(_CompanyOrderLineDraft line) async {
@@ -590,6 +691,22 @@ class _GivenCompanyOrderCreateSheetState
         line.stockCodeController.text.trim().isEmpty;
   }
 
+  bool _isEmptyQuantityLine(_CompanyOrderLineDraft line) {
+    if (_isBlankLine(line)) {
+      return false;
+    }
+
+    return productEntryController.readQuantity(
+          line.quantityController.text,
+          fallback: 0,
+        ) <=
+        0;
+  }
+
+  int get _emptyQuantityLineCount {
+    return _lines.skip(1).where(_isEmptyQuantityLine).length;
+  }
+
   void _removeLine(_CompanyOrderLineDraft line) {
     if (_lines.length == 1) {
       return;
@@ -601,6 +718,31 @@ class _GivenCompanyOrderCreateSheetState
       _validationMessage = null;
     });
     _draftSession.scheduleSave();
+  }
+
+  void _removeEmptyQuantityLines() {
+    final removableLines = _lines.skip(1).where(_isEmptyQuantityLine).toSet();
+    if (removableLines.isEmpty) {
+      _showFeedback('Kaldirilacak bos miktarli satir yok.');
+      _focusFreshEntryLine();
+      return;
+    }
+
+    setState(() {
+      _lines = <_CompanyOrderLineDraft>[
+        _lines.first,
+        for (final line in _lines.skip(1))
+          if (!removableLines.contains(line)) line,
+      ];
+      _validationMessage = null;
+    });
+
+    for (final line in removableLines) {
+      line.dispose();
+    }
+    _draftSession.scheduleSave();
+    _focusFreshEntryLine();
+    _showFeedback('${removableLines.length} bos miktarli satir kaldirildi.');
   }
 
   Future<void> _submit() async {
@@ -656,11 +798,7 @@ class _GivenCompanyOrderCreateSheetState
       }
 
       if (quantity <= 0) {
-        setState(() {
-          _validationMessage =
-              '${index + 1}. satir icin miktar sifirdan buyuk olmali.';
-        });
-        return;
+        continue;
       }
 
       requestLines.add(
@@ -669,7 +807,7 @@ class _GivenCompanyOrderCreateSheetState
           quantity: quantity,
           recommendedQuantity: 0,
           unitPrice: unitPrice,
-          unitPointer: 1,
+          unitPointer: line.selectedProduct?.unitPointer ?? 1,
           description1: '',
           description2: '',
           packageCode: '',
@@ -678,6 +816,14 @@ class _GivenCompanyOrderCreateSheetState
           productResponsibilityCenter: '',
         ),
       );
+    }
+
+    if (requestLines.isEmpty) {
+      setState(() {
+        _validationMessage =
+            'Siparise gonderilecek en az bir satir icin miktar girin.';
+      });
+      return;
     }
 
     final request = CompanyOrderCreateRequest(
@@ -726,7 +872,42 @@ class _GivenCompanyOrderCreateSheetState
                       const SizedBox(height: 5),
                       TerminalSectionToolbar(
                         title: 'Satirlar (${_activeLineCount()})',
-                        actions: const <Widget>[],
+                        breakpoint: 430,
+                        actions: <Widget>[
+                          FilledButton.tonalIcon(
+                            onPressed:
+                                _isLoadingCustomerProducts ||
+                                    _selectedCustomer == null
+                                ? null
+                                : _loadCustomerProducts,
+                            icon: _isLoadingCustomerProducts
+                                ? const SizedBox(
+                                    width: 16,
+                                    height: 16,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  )
+                                : const Icon(
+                                    Icons.playlist_add_rounded,
+                                    size: 18,
+                                  ),
+                            label: Text(
+                              _isLoadingCustomerProducts
+                                  ? 'Yukleniyor'
+                                  : 'Firma urunleri',
+                            ),
+                          ),
+                          if (_emptyQuantityLineCount > 0)
+                            FilledButton.tonalIcon(
+                              onPressed: _removeEmptyQuantityLines,
+                              icon: const Icon(
+                                Icons.cleaning_services_rounded,
+                                size: 18,
+                              ),
+                              label: const Text('Boslari sil'),
+                            ),
+                        ],
                       ),
                       const SizedBox(height: 4),
                       _buildEntryLineCard(theme),
@@ -858,11 +1039,71 @@ class _GivenCompanyOrderCreateSheetState
                     ' | Vergi No: ${_selectedCustomer!.displayTaxNumber.isEmpty ? '-' : _selectedCustomer!.displayTaxNumber}',
                     style: theme.textTheme.bodySmall,
                   ),
+                  const SizedBox(height: 6),
+                  _buildDeliveryInfoRow(),
                 ],
               ),
             ),
         ],
       ),
+    );
+  }
+
+  Widget _buildDeliveryInfoRow() {
+    Widget deliveryField({
+      required TextEditingController controller,
+      required String label,
+      required TextInputAction textInputAction,
+    }) {
+      return TextFormField(
+        controller: controller,
+        textInputAction: textInputAction,
+        inputFormatters: <TextInputFormatter>[
+          LengthLimitingTextInputFormatter(_deliveryInfoMaxLength),
+        ],
+        decoration: InputDecoration(
+          labelText: label,
+          isDense: true,
+          counterText: '',
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 10,
+            vertical: 8,
+          ),
+        ),
+      );
+    }
+
+    final delivererField = deliveryField(
+      controller: _delivererController,
+      label: 'Teslim Eden',
+      textInputAction: TextInputAction.next,
+    );
+    final receiverField = deliveryField(
+      controller: _receiverController,
+      label: 'Teslim Alan',
+      textInputAction: TextInputAction.done,
+    );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < 300) {
+          return Column(
+            children: <Widget>[
+              delivererField,
+              const SizedBox(height: 4),
+              receiverField,
+            ],
+          );
+        }
+
+        return Row(
+          children: <Widget>[
+            Expanded(child: delivererField),
+            const SizedBox(width: 8),
+            Expanded(child: receiverField),
+          ],
+        );
+      },
     );
   }
 
@@ -1182,11 +1423,14 @@ class _CompanyOrderLineDraft {
       quantityController.text.trim().isNotEmpty ||
       unitPriceController.text.trim() != '0';
 
-  void applyProduct(CompanyOrderProductLookupItem product) {
+  void applyProduct(
+    CompanyOrderProductLookupItem product, {
+    bool fillDefaultQuantity = true,
+  }) {
     selectedProduct = product;
     barcodeController.clear();
     stockCodeController.text = product.stockCode;
-    if (quantityController.text.trim().isEmpty) {
+    if (fillDefaultQuantity && quantityController.text.trim().isEmpty) {
       quantityController.text = productEntryController.formatQuantity(
         productEntryController.unitMultiplierQuantity(product.unitMultiplier),
       );
@@ -1312,6 +1556,11 @@ Map<String, dynamic> _companyOrderProductJson(
     'price': item.price,
     'unitName': item.unitName,
     'unitMultiplier': item.unitMultiplier,
+    'secondaryUnitName': item.secondaryUnitName,
+    'caseBarcode': item.caseBarcode,
+    'minimumPurchaseQuantity': item.minimumPurchaseQuantity,
+    'deliveryDay': item.deliveryDay,
+    'unitPointer': item.unitPointer,
     'isOrderBlocked': item.isOrderBlocked,
     'isSalesBlocked': item.isSalesBlocked,
   };

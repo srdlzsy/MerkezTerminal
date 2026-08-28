@@ -64,7 +64,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-    await tester.tap(find.byIcon(Icons.add_task_rounded));
+      await tester.tap(find.byIcon(Icons.add_task_rounded));
       await tester.pumpAndSettle();
 
       expect(find.text('Yeni Offline Firma Mal Kabul'), findsOneWidget);
@@ -247,6 +247,17 @@ class _FakeGivenCompanyOrdersRepository
     required String warehouseNo,
     required String customerCode,
     required String query,
+  }) async {
+    return <CompanyOrderProductLookupItem>[];
+  }
+
+  @override
+  Future<List<CompanyOrderProductLookupItem>> fetchCustomerProducts({
+    required String accessToken,
+    required String warehouseNo,
+    required String customerCode,
+    String? search,
+    int take = 500,
   }) async {
     return <CompanyOrderProductLookupItem>[];
   }

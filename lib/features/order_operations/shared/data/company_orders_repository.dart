@@ -31,4 +31,12 @@ abstract class CompanyOrdersRepository {
     required String customerCode,
     required String query,
   });
+
+  Future<List<CompanyOrderProductLookupItem>> fetchCustomerProducts({
+    required String accessToken,
+    required String warehouseNo,
+    required String customerCode,
+    String? search,
+    int take = 500,
+  });
 }
