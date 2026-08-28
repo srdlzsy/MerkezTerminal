@@ -150,7 +150,7 @@ Bu tablo UI icin ana permission referansidir. Kaynak kod tarafi `PermissionCatal
 | `kasa-islemleri` | `kunye-etiket-yazdirma` | `kasa-islemleri.kunye-etiket-yazdirma.page` | `kasa-islemleri.kunye-etiket-yazdirma.list`<br>`kasa-islemleri.kunye-etiket-yazdirma.detail`<br>`kasa-islemleri.kunye-etiket-yazdirma.create`<br>`kasa-islemleri.kunye-etiket-yazdirma.update` | `kasa-islemleri.kunye-etiket-yazdirma.all-warehouses` |
 | `kasa-islemleri` | `manav-kunye-etiket-yazdirma` | `kasa-islemleri.manav-kunye-etiket-yazdirma.page` | `kasa-islemleri.manav-kunye-etiket-yazdirma.list` | `kasa-islemleri.manav-kunye-etiket-yazdirma.all-warehouses` |
 | `kasa-islemleri` | `birlik-kart-sorgulama` | `kasa-islemleri.birlik-kart-sorgulama.page` | `kasa-islemleri.birlik-kart-sorgulama.list`<br>`kasa-islemleri.birlik-kart-sorgulama.detail`<br>`kasa-islemleri.birlik-kart-sorgulama.update` | `-` |
-| `kasa-islemleri` | `banknot-takipleri` | `kasa-islemleri.banknot-takipleri.page` | `kasa-islemleri.banknot-takipleri.list`<br>`kasa-islemleri.banknot-takipleri.detail`<br>`kasa-islemleri.banknot-takipleri.create` | `kasa-islemleri.banknot-takipleri.all-warehouses` |
+| `kasa-islemleri` | `banknot-takipleri` | `kasa-islemleri.banknot-takipleri.page` | `kasa-islemleri.banknot-takipleri.list`<br>`kasa-islemleri.banknot-takipleri.detail`<br>`kasa-islemleri.banknot-takipleri.create`<br>`kasa-islemleri.banknot-takipleri.update`<br>`kasa-islemleri.banknot-takipleri.delete` | `kasa-islemleri.banknot-takipleri.all-warehouses` |
 
 ## AnaSayfa / Depo Oncelikleri
 
@@ -4350,6 +4350,10 @@ UI kullanim notu:
 
 `GET /api/arama-islemleri/cariler?searchText=market&take=20`
 
+Kisa cari kod parcasi ile:
+
+`GET /api/arama-islemleri/cariler?searchText=391&take=20`
+
 TCKN/VKN, unvan veya kodla cok sayida benzer cari donebildigi icin bu endpoint secim ekranlarinda
 detayli bilgi dondurur. UI sadece `customerName` alanini gostermemeli; mumkunse
 `selectionLabel` alanini veya `customerCode + customerDisplayName + taxNumber + groupCode`
@@ -4361,6 +4365,12 @@ Query:
 searchText   zorunlu, en az 2 karakter
 take         opsiyonel; default 20, max 100
 ```
+
+Not:
+
+- Cari kod aramasinda tam eslesme, kod baslangici, kod sonu ve kod icinde eslesme oncelikli siralanir.
+- Ornek: kullanici `391` yazarsa `32000391` gibi kod sonu eslesen cari ilk sonuclarda gelir.
+- UI cari secim kutusunda kullaniciya sadece unvan degil, `selectionLabel` veya en az `customerCode + customerDisplayName` gostermelidir.
 
 Arama alanlari:
 
@@ -7001,6 +7011,9 @@ Endpoint ozeti:
 | `DELETE /api/duzeltme-islemleri/mikro-evrak-duzenleme/stok-hareketleri` | query | `StockMovementDocumentLookupHttpRequest` | `MikroDocumentDeleteResponse` | `delete` |
 | `GET /api/duzeltme-islemleri/mikro-evrak-duzenleme/sayim-sonuclari` | query | `InventoryCountDocumentLookupHttpRequest` | `InventoryCountDocumentDto` | `detail` |
 | `PUT /api/duzeltme-islemleri/mikro-evrak-duzenleme/sayim-sonuclari` | body | `UpdateInventoryCountDocumentHttpRequest` | `InventoryCountDocumentUpdateResponse` | `update` |
+| `GET /api/duzeltme-islemleri/mikro-evrak-duzenleme/banknot-takipleri/{banknoteTrackId}` | path + query | `banknoteTrackId`, `warehouseNo?: int` | `BanknoteTrackDto` | `detail` |
+| `PUT /api/duzeltme-islemleri/mikro-evrak-duzenleme/banknot-takipleri/{banknoteTrackId}` | path + query + body | `BanknoteTrackPatchHttpRequest` | `BanknoteTrackUpdateResponse` | `update` |
+| `DELETE /api/duzeltme-islemleri/mikro-evrak-duzenleme/banknot-takipleri/{banknoteTrackId}` | path + query | `banknoteTrackId`, `warehouseNo?: int` | `MikroDocumentDeleteResponse` | `delete` |
 | `GET /api/duzeltme-islemleri/mikro-evrak-duzenleme/cari-hareketleri` | query | `CustomerMovementDocumentLookupHttpRequest` | `CustomerMovementDocumentDto` | `detail` |
 | `PUT /api/duzeltme-islemleri/mikro-evrak-duzenleme/cari-hareketleri` | body | `UpdateCustomerMovementDocumentHttpRequest` | `CustomerMovementDocumentUpdateResponse` | `update` |
 | `DELETE /api/duzeltme-islemleri/mikro-evrak-duzenleme/cari-hareketleri` | query | `CustomerMovementDocumentLookupHttpRequest` | `MikroDocumentDeleteResponse` | `delete` |
@@ -7079,6 +7092,11 @@ Kritik alan karsiliklari:
 | Sayim satiri | `countGuid` | Sayim satir GUID | `SAYIM_SONUCLARI.sym_Guid` | Read-only; satir eslestirme anahtari |
 | Sayim satiri | `quantity1..5` | Sayim miktarlari | `SAYIM_SONUCLARI.sym_miktar1..5` | En kritik duzeltme alani genelde `quantity1` |
 | Sayim satiri | `stockCode`, `barcode`, `unitPointer` | Stok/barkod/birim | `sym_Stokkodu`, `sym_barkod`, `sym_birim_pntr` | Stok degisirse stok karti varligi kontrol edilir |
+| Banknot takibi | `banknoteTrackDate` | Takip tarihi | `BanknoteTracks.BanknoteTrackDate` | Sadece mevcut takip kaydini tasir |
+| Banknot takibi | `warehouseNo` | Depo | `BanknoteTracks.WarehouseNo` | Body'de verilirse kayit baska depoya tasinir; yetki ve duplicate kontrolu yapilir |
+| Banknot takibi | `totalAmount` | Sayim toplami | `BanknoteTracks.TotalAmount` | Negatif olamaz |
+| Banknot takibi | `deliveryTotalAmount` | Teslim toplami | `BanknoteTracks.DeliveryTotalAmount` | Negatif olamaz |
+| Banknot takibi | `deliverer`, `receiver` | Teslim eden/alan | `BanknoteTracks.Deliverer/Receiver` | En fazla 100 karakter |
 | Cari hareket satiri | `special1/2/3` | Ozel kod 1/2/3 | `CARI_HESAP_HAREKETLERI.cha_special1/2/3` | Yeni guncellenebilir alanlar, 4 karakter |
 | Firma siparis satiri | `priceListNo` | Fiyat liste no | `SIPARISLER.sip_fiyat_liste_no` | Yeni guncellenebilir alan |
 | Firma siparis satiri | `validUntil` | Gecerlilik tarihi | `SIPARISLER.sip_gecerlilik_tarihi` | Yeni guncellenebilir alan |
@@ -8029,6 +8047,96 @@ Response `InventoryCountDocumentUpdateResponse` doner:
       }
     ]
   }
+}
+```
+
+### Banknot Takibi Getir / Guncelle / Sil
+
+Bu endpointler Kasa Islemleri > Banknot Takipleri ekraninda olusan `BanknoteTracks` kaydini Mikro Evrak Duzenleme modulunden duzeltmek veya silmek icindir. Normal liste/olusturma akisi yine `/api/kasa-islemleri/banknot-takipleri` altindadir.
+
+Detay:
+
+`GET /api/duzeltme-islemleri/mikro-evrak-duzenleme/banknot-takipleri/14d74fd4-1217-4056-9a0e-c45e3a25a456?warehouseNo=110`
+
+Guncelle:
+
+`PUT /api/duzeltme-islemleri/mikro-evrak-duzenleme/banknot-takipleri/14d74fd4-1217-4056-9a0e-c45e3a25a456?warehouseNo=110`
+
+Body:
+
+```json
+{
+  "banknoteTrackDate": "2026-04-24",
+  "totalAmount": 12000,
+  "deliveryTotalAmount": 11850,
+  "deliverer": "Teslim Eden",
+  "receiver": "Teslim Alan"
+}
+```
+
+Kaydi baska depoya tasima gerekiyorsa body'de `warehouseNo` da gonderilebilir:
+
+```json
+{
+  "warehouseNo": 120
+}
+```
+
+Kurallar:
+
+- Yetki `duzeltme-islemleri.mikro-evrak-duzenleme.detail/update/delete` uzerinden kontrol edilir.
+- Query'deki `warehouseNo` mevcut kaydi bulmak/kapsam kontrolu icindir. Normal sube kullanicisi bunu bos birakir veya kendi deposunu gonderir.
+- Body'deki `warehouseNo` kaydin yeni deposudur. Baska depoya tasima sadece kullanicida `duzeltme-islemleri.mikro-evrak-duzenleme.all-warehouses` varsa yapilmalidir.
+- Ayni depo ve ayni takip tarihi icin baska `BanknoteTracks` kaydi varsa guncelleme `409 Conflict` doner.
+- Body'de en az bir alan gonderilmelidir.
+- `totalAmount` ve `deliveryTotalAmount` negatif olamaz.
+- `deliverer` ve `receiver` en fazla 100 karakterdir; bos string gonderilirse alan temizlenir.
+- `differenceAmount` body'den gonderilmez; response'ta `deliveryTotalAmount - totalAmount` olarak hesaplanir.
+
+Response:
+
+```json
+{
+  "summary": {
+    "target": "banknot-takipleri",
+    "updatedRowCount": 1,
+    "updatedAt": "2026-08-28T10:40:00",
+    "updateUser": 110
+  },
+  "banknoteTrack": {
+    "banknoteTrackId": "14d74fd4-1217-4056-9a0e-c45e3a25a456",
+    "warehouseNo": 110,
+    "warehouseName": "KESTEL 1",
+    "banknoteTrackDate": "2026-04-24T00:00:00",
+    "totalAmount": 12000,
+    "deliveryTotalAmount": 11850,
+    "differenceAmount": -150,
+    "deliverer": "Teslim Eden",
+    "receiver": "Teslim Alan",
+    "createDate": "2026-04-24T20:10:00"
+  }
+}
+```
+
+Sil:
+
+`DELETE /api/duzeltme-islemleri/mikro-evrak-duzenleme/banknot-takipleri/14d74fd4-1217-4056-9a0e-c45e3a25a456?warehouseNo=110`
+
+Not:
+
+- `BanknoteTracks` tablosunda `iptal/hidden` benzeri soft delete alanlari olmadigi icin bu endpoint fiziksel siler.
+- `hardDelete` query parametresi yoktur; silme response'unda `deletionMode = hard-delete` gelir.
+- Kayit bulunamazsa `404 Not Found` doner.
+
+Response:
+
+```json
+{
+  "target": "banknot-takipleri/14d74fd4-1217-4056-9a0e-c45e3a25a456",
+  "deletedRowCount": 1,
+  "deletedAt": "2026-08-28T10:45:00",
+  "deleteUser": 110,
+  "deletionMode": "hard-delete"
 }
 ```
 
@@ -13233,6 +13341,11 @@ Gunluk banknot teslim/toplam kayitlarini Kasa Islemleri altindaki ayri menu rout
 Yetki:
 
 - `kasa-islemleri.banknot-takipleri.list`
+- `kasa-islemleri.banknot-takipleri.detail`
+- `kasa-islemleri.banknot-takipleri.create`
+- `kasa-islemleri.banknot-takipleri.update`
+- `kasa-islemleri.banknot-takipleri.delete`
+- `kasa-islemleri.banknot-takipleri.all-warehouses`
 
 Not:
 
@@ -13241,6 +13354,7 @@ Not:
 - `warehouseNo = 1` artik tum depolar anlami tasimaz; gercekten 1 no'lu depo filtresi olarak yorumlanir
 - response modeli `BanknoteTrackDto` doner ve `banknoteTrackId` alanini GUID olarak icerir
 - bu route'da `differenceAmount`, eski kodla uyumlu olarak `deliveryTotalAmount - totalAmount` hesaplanir
+- Banknot takip kaydini guncelleme/silme ihtiyaci Mikro Evrak Duzenleme modulunden yapilir: `PUT/DELETE /api/duzeltme-islemleri/mikro-evrak-duzenleme/banknot-takipleri/{banknoteTrackId}`
 
 Sayim toplami:
 
@@ -13253,7 +13367,8 @@ Yetki:
 Not:
 
 - Banknot teslim formunda `totalAmount` alanini backendden doldurmak icindir
-- toplam, eski `GetTotalAmountForBanknoteTrack` davranisina uygun olarak `BanknoteMovements.CreateDate` gunu ve depo filtresiyle `Total` toplamidir
+- toplam, kasa sayimi/icmal belge tarihine gore hesaplanir: backend once `Summaries.SummaryDate` gunu ve depo filtresiyle icmal evraklarini bulur, sonra ayni `DocumentSerie + DocumentOrderNo + BranchNo` evraklarinin `BanknoteMovements.Total` toplamlarini toplar
+- `BanknoteMovements.CreateDate` hesap tarihi olarak kullanilmaz; gecmis tarihli icmalin banknotlari sonradan duzenlense bile toplam ilgili `SummaryDate` gununde kalir
 - `kasa-islemleri.banknot-takipleri.all-warehouses` yoksa `warehouseNo` gonderilmez; backend JWT deposunu kullanir
 - all-warehouses yetkisi varsa baska depo icin `warehouseNo` gonderilebilir
 
@@ -13546,6 +13661,7 @@ Onemli not:
 - CARI tarafinda odeme tipleri, nakit toplam, `300 = total - zTotalValue fark` ve `400 = Z Rapor Toplami` satirlari ayri hareketler olarak yazilir
 - nakit toplam `paymentTypes` icinde manuel gonderilmez; backend banknot hareketlerinden `PaymentTypeID = 500`, `description = "Nakit Toplam"` satirini garanti eder
 - UI yanlislikla `paymentTypes` icinde `Nakit` veya `paymentTypeNo = 500` gonderirse backend bunu ayri odeme satiri olarak yazmaz, 500 satirini banknot toplamindan uretir
+- `BanknoteMovements.CreateDate` eski sistem uyumu icin `summaryDate` gunu olarak yazilir; `UpdateDate` teknik olusturma/guncelleme anini tasir
 
 Request:
 
@@ -13632,6 +13748,7 @@ Not:
 - nakit/500 satiri UI tarafindan normal detay gibi yonetilmez; backend mevcut banknot/nakit toplamindan 500 satirini yeniden uretir
 - banknot update de patch degildir; `banknoteMovements` son durumda kalacak tum banknotlari icermelidir
 - banknot update request'inde `banknoteMovements` bos gonderilirse mevcut banknot satirlari temizlenebilir
+- banknot update eski satirlari silip yeniden yazar, ancak yeni `BanknoteMovements.CreateDate` mevcut icmal belgesinin `Summaries.SummaryDate` gununde kalir; boylece gecmis tarihli icmal duzeltmesi baska ekranlarda bugunun banknot toplamına kaymaz
 - banknot update sonrasi backend `PaymentTypeID = 500` nakit toplam satirini ve ilgili cari hareket toplamlarini yeni belge toplamiyla gunceller
 - hediye ceki update de patch degildir; `giftCheckMovements` son durumda kalacak tum hediye ceki satirlarini icermelidir
 - hediye ceki update request'inde `giftCheckMovements` bos gonderilirse mevcut hediye ceki satirlari temizlenebilir
@@ -22174,6 +22291,7 @@ Bu bolumde yalnizca endpointlerin dogrudan baglandigi HTTP request modelleri yer
 - `UpdateInventoryCountDocumentHttpRequest`: `Lookup`, `Header`, `Lines`
 - `InventoryCountHeaderPatchHttpRequest`: `DocumentDate`, `WarehouseNo`, `Name`
 - `InventoryCountLinePatchHttpRequest`: `CountGuid`, `RowNo`, `StockCode`, `Barcode`, `UnitPointer`, `Quantity1`, `Quantity2`, `Quantity3`, `Quantity4`, `Quantity5`, `RayonCode`, `CorridorCode`, `ShelfCode`, `PartyCode`, `LotNo`, `SerialNo`, `Special1`, `Special2`, `Special3`
+- `BanknoteTrackPatchHttpRequest`: `BanknoteTrackDate`, `WarehouseNo`, `TotalAmount`, `DeliveryTotalAmount`, `Deliverer`, `Receiver`
 - `CustomerMovementDocumentLookupHttpRequest`: `DocumentSerie`, `DocumentOrderNo`, `DocumentType`, `MovementType`, `MovementKind`, `NormalReturn`, `CustomerCode`
 - `UpdateCustomerMovementDocumentHttpRequest`: `Lookup`, `Header`, `Lines`
 - `CustomerMovementHeaderPatchHttpRequest`: `MovementDate`, `DocumentDate`, `DocumentNo`, `CustomerCode`, `TurnoverCustomerCode`, `Description`, `SellerCode`, `ProjectCode`, `ResponsibilityCenter`
