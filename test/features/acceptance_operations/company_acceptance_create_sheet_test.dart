@@ -125,6 +125,65 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('shows Turkish length validation for company acceptance header', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 1000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: CompanyAcceptanceCreateSheet(
+            repository: _FakeCompanyAcceptancesRepository(),
+            ordersRepository: _FakeGivenCompanyOrdersRepository(),
+            accessToken: 'token',
+            defaultWarehouseNo: '110',
+            mobileCustomerCatalogRepository:
+                MobileCustomerCatalogLocalRepository(
+                  database: MemoryLocalDatabase(),
+                ),
+            mobileProductCatalogRepository: MobileProductCatalogLocalRepository(
+              database: MemoryLocalDatabase(),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.enterText(
+      find.widgetWithText(TextFormField, 'Cari Arama'),
+      'Test Cari',
+    );
+    await tester.enterText(
+      find.widgetWithText(TextFormField, 'Cari Kodu*'),
+      'CR001',
+    );
+    await tester.enterText(
+      find.widgetWithText(TextFormField, 'Belge No / Seri'),
+      'BELGE-NO-BU-COK-UZUN-OLAN-BIR-DEGER',
+    );
+    await tester.pump();
+
+    final nextButton = find.widgetWithText(FilledButton, 'Kalemlere Gec');
+    await tester.ensureVisible(nextButton);
+    await tester.tap(nextButton);
+    await tester.pumpAndSettle();
+
+    expect(
+      find.textContaining('Belge no / seri en fazla 29 karakter olabilir'),
+      findsOneWidget,
+    );
+    expect(
+      find
+          .widgetWithText(TextFormField, 'Barkod / stok kodu / urun adi')
+          .evaluate(),
+      isEmpty,
+    );
+  });
+
   testWidgets('shows editable dispatch and actual quantities before add', (
     tester,
   ) async {

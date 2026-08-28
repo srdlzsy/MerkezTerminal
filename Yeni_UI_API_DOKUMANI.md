@@ -6263,7 +6263,7 @@ Yetki:
 Onemli not:
 
 - Bu liste yeni create kaynagi degil, mevcut yapilmis mal kabul fislerinin gecmis listesidir.
-- Firma mal kabul liste tarih filtresi `documentDate` alanina, Mikro tarafinda `STOK_HAREKETLERI.sth_belge_tarih` kolonuna uygulanir; `movementCreateDate` filtre alani degildir.
+- Firma mal kabul liste tarih filtresi Mikro tarafinda `STOK_HAREKETLERI.sth_tarih` kolonuna uygulanir. Bu alan kabul/islem tarihidir; resmi e-belge tarihi veya Mikro `sth_belge_tarih` farkli olsa bile bugun kabul edilen evrak bugunun listesinde gorunur.
 - Response modeli `CompanyMovementListItemDto` ile aynidir.
 - UI ana ekranda gecmisi gosterip `Yeni Mal Kabul` aksiyonuyla create ekranina gecebilir.
 
@@ -6319,6 +6319,29 @@ Onemli not:
 - E-fatura satirlarinda UBL'de varsa `unitPrice` ve `lineAmount` gelir. Bunlar on dolum/gosterim bilgisidir; kaydetmede son soz yine `POST /api/mal-kabul-islemleri/firma-mal-kabulleri` body alanlaridir.
 - UI QR okutunca once bu endpoint'i cagirir. `sourceDocumentKind = e-invoice` ise ekranda "E-Fatura" etiketi, `sourceDocumentKind = e-despatch` ise "E-Irsaliye" etiketi gosterilmelidir.
 - `warnings` bos degilse UI uyari bandinda gosterebilir. E-fatura bulundu ama irsaliye referansi yoksa backend bunu uyarida belirtir; bu durumda mal kabul fatura uzerinden taslaklanir, kullanici fiili kabul miktarini yine kontrol eder.
+
+UI on dolum kurali:
+
+| Lookup alani | Create body alani | UI davranisi |
+|---|---|---|
+| `primaryCustomerSuggestion.customerCode` | `customerCode` | Cari bos ise varsayilan cari adayi olarak onerilir; kullanici degistirebilir. |
+| `sourceDocumentKind` | `officialDocumentKind` | `e-despatch` veya `e-invoice` olarak aynen tasinir. |
+| `sourceDocumentNumber` | `officialDocumentNo` | Belge Akis Takibi `externalDocumentNo` icin asil alandir. |
+| `despatchNumber` | `documentNo` ve gerekirse `officialDocumentNo` | E-irsaliye bulunduysa Mikro `sth_belge_no` icin en temiz adaydir. |
+| `invoiceNumber` | `documentNo` ve gerekirse `officialDocumentNo` | E-fatura bulunduysa Mikro `sth_belge_no` icin adaydir. |
+| `issueDate` | `documentDate` ve gerekirse `officialDocumentDate` | E-irsaliye belge tarihidir. |
+| `invoiceDate` | `documentDate` ve gerekirse `officialDocumentDate` | E-fatura belge tarihidir. |
+| `ettn` | `officialDocumentEttn` | Belge Akis Takibi `externalUuid` icin asil alandir. |
+| `lines[].internalStockCode` | `lines[].stockCode` | Sadece `isMatched=true` ve `canUseForGoodsAcceptance=true` ise otomatik satira tasinir. |
+| `lines[].quantity` | `lines[].dispatchQuantity` ve ilk oneride `acceptedQuantity` | Resmi belge miktari sevk/gelen miktar kabul edilir; kullanici fiili sayimla `acceptedQuantity` degerini degistirebilir. |
+| `lines[].unitPrice` | `lines[].unitPrice` | Varsa on dolumdur; kullanici/ekran son degeri create body'de gonderir. |
+| `lines[].description` | `lines[].description` | Max 50 karaktere kirpilerek gonderilmelidir. |
+
+Not:
+
+- `documentNo`, Mikro `STOK_HAREKETLERI.sth_belge_no` alanidir; ETTN degildir.
+- `officialDocumentEttn` gonderilmezse mal kabul fisinin Mikro kaydi olusabilir, fakat Belge Akis Takibi'nde ETTN/UUID ile izleme yapilamaz.
+- UI lookup response'unu sakliyorsa bile kaydetmede sade ve net model olarak `officialDocumentKind`, `officialDocumentNo`, `officialDocumentDate`, `officialDocumentEttn` alanlarini gondermelidir.
 
 Response:
 
@@ -6544,6 +6567,85 @@ Onemli not:
 - Ayni `clientRequestId` ile ayni payload tekrar gonderilirse backend ayni business response'u dondurmeye calisir.
 - Ayni `clientRequestId` ile farkli payload gonderilirse `409 Conflict` doner.
 - Ayni `clientRequestId` halen isleniyorsa `409 Conflict` doner.
+
+Create body validasyonlari:
+
+| Alan | Zorunlu | Kural |
+|---|---|---|
+| `warehouseNo` | Hayir | `*.all-warehouses` yetkisi yoksa UI gondermez; gonderilirse pozitif integer olmalidir. |
+| `clientRequestId` | Hayir | GUID; offline/timeout guvenli retry icin ayni mantiksal kayitte ayni kalmalidir. |
+| `customerCode` | Evet | Max 25 karakter; Mikro write DB'de `CARI_HESAPLAR.cari_kod` olarak bulunmalidir. |
+| `movementDate` | Hayir | Bos ise backend bugunu kullanir; Mikro `sth_tarih` alanina yazilir. |
+| `documentDate` | Hayir | Bos ise `movementDate` kullanilir; Mikro `sth_belge_tarih` alanina yazilir; `documentDate > movementDate` olamaz. |
+| `documentNo` | Hayir | Max 29 karakter; Mikro `sth_belge_no` alanina yazilir; ETTN buraya yazilmaz. |
+| `officialDocumentKind` | Hayir | Max 30 karakter; `e-despatch` veya `e-invoice` onerilir. |
+| `officialDocumentNo` | Hayir | Max 50 karakter; Belge Akis Takibi `externalDocumentNo` alanina yazilir. |
+| `officialDocumentDate` | Hayir | Resmi e-belge tarihidir; Belge Akis mesajinda kullanilir. |
+| `officialDocumentEttn` | Hayir | Max 50 karakter; Belge Akis Takibi `externalUuid` alanina yazilir. |
+| `sourceDocumentKind` | Hayir | Max 30; lookup response alias'i, `officialDocumentKind` bos ise kullanilir. |
+| `sourceDocumentNumber` | Hayir | Max 50; lookup response alias'i, `officialDocumentNo` bos ise kullanilir. |
+| `sourceDocumentDate` | Hayir | Lookup response alias'i, `officialDocumentDate` bos ise kullanilir. |
+| `despatchNumber` | Hayir | Max 50; `officialDocumentNo` bos ise resmi belge no adayi olarak kullanilir. |
+| `issueDate` | Hayir | `officialDocumentDate` bos ise resmi belge tarihi adayi olarak kullanilir. |
+| `invoiceNumber` | Hayir | Max 50; e-fatura icin `officialDocumentNo` bos ise resmi belge no adayi olarak kullanilir. |
+| `invoiceDate` | Hayir | e-fatura icin `officialDocumentDate` bos ise resmi belge tarihi adayi olarak kullanilir. |
+| `ettn` | Hayir | Max 50; `officialDocumentEttn` bos ise ETTN/UUID adayi olarak kullanilir. |
+| `deliverer` | Hayir | Max 25; Mikro `sth_HareketGrupKodu2` alanina yazilir. |
+| `receiver` | Hayir | Max 25; Mikro `sth_HareketGrupKodu3` alanina yazilir. |
+| `description` | Hayir | Max 50; hem ust aciklama hem satir aciklamasi icin uzun metin gonderilmemelidir. |
+| `allowOrderOverReceiving` | Hayir | Varsayilan false; true ise siparis kalanini asan miktar siparissiz satira bolunebilir. |
+| `autoCreateReturnForPartialAcceptance` | Hayir | Varsayilan true; eksik kabul farkindan otomatik firma iadesi olusturur. |
+| `lines` | Evet | En az 1 satir olmalidir. |
+
+Satir validasyonlari:
+
+| Alan | Zorunlu | Kural |
+|---|---|---|
+| `stockCode` | Evet | Max 25; bos olamaz. |
+| `quantity` | Eski uyum | Pozitif olmali; `dispatchQuantity` ve `acceptedQuantity` bos ise ikisi icin de kullanilir. |
+| `dispatchQuantity` | Onerilen | Pozitif olmali; resmi/gelen miktardir ve Mikro mal kabul hareket miktari olarak yazilir. |
+| `acceptedQuantity` | Onerilen | Sifir veya pozitif olabilir; fiili kabul miktaridir; `dispatchQuantity` degerinden buyuk olamaz. |
+| `unitPrice` | Hayir | Sifir veya pozitif olmali. |
+| `unitPointer` | Hayir | 1-255 arasi; bos ise 1 kabul edilir. |
+| `lastConsumingDate` | Hayir | SKT/son tuketim tarihi gerekiyorsa gonderilir. |
+| `orderGuid` | Hayir | Siparisli kabul icin verilen firma siparisi satir GUID'i; ayni request'te ayni GUID birden fazla satirda kullanilamaz. |
+| `description` | Hayir | Max 50. |
+| `partyCode` | Hayir | Max 25. |
+| `lotNo` | Hayir | Sifir veya pozitif integer. |
+| `projectCode` | Hayir | Max 25. |
+| `customerResponsibilityCenter` | Hayir | Max 25. |
+| `productResponsibilityCenter` | Hayir | Max 25. |
+
+Siparis baglama validasyonlari:
+
+- `orderGuid` Mikro write DB'de bulunmalidir.
+- Siparis satiri iptal veya kapali olamaz.
+- Siparis satiri verilen firma siparisi olmalidir.
+- Siparis satirinin deposu, create icin cozulmus `warehouseNo` ile ayni olmalidir.
+- Siparis satirinin carisi `customerCode` ile ayni olmalidir.
+- Siparis satirinin stok kodu `lines[].stockCode` ile ayni olmalidir.
+- Siparis kalan miktari sifir veya altindaysa kabul yapilamaz.
+- `allowOrderOverReceiving=false` iken `dispatchQuantity` siparis kalanindan buyuk olamaz.
+
+Resmi belge / Mikro alan eslesmesi:
+
+| Create alani | Yazildigi yer | Aciklama |
+|---|---|---|
+| `documentNo` | Mikro `STOK_HAREKETLERI.sth_belge_no` | Tedarikci belge numarasi veya UI'nin manuel belge no degeri. |
+| `movementDate` | Mikro `STOK_HAREKETLERI.sth_tarih` | Mal kabul/islem tarihi; liste filtresi bu tarihe bakar. |
+| `documentDate` | Mikro `STOK_HAREKETLERI.sth_belge_tarih` | Tedarikci resmi belge tarihi. |
+| `customerCode` | Mikro `STOK_HAREKETLERI.sth_cari_kodu` | Mal kabul carisi. |
+| `lines[].stockCode` | Mikro `STOK_HAREKETLERI.sth_stok_kod` | Kabul edilen ic stok kodu. |
+| `lines[].dispatchQuantity` | Mikro `STOK_HAREKETLERI.sth_miktar` | Mal kabul hareket miktari. |
+| `lines[].unitPrice` | Mikro tutar hesaplari | Satir tutari/fiyat alanlari create rotasina gore yazilir. |
+| `officialDocumentNo` | Auth DB `document_flows.external_document_no` | Belge Akis Takibi'nde resmi belge no ile izleme icindir. |
+| `officialDocumentEttn` | Auth DB `document_flows.external_uuid` | Belge Akis Takibi'nde ETTN/UUID ile izleme icindir. |
+
+UI icin kritik uyari:
+
+- Uzun aciklama gondermeyin: `description`, `lines[].description`, `deliverer`, `receiver` gibi alanlar Mikro kolon limitleri nedeniyle kisadir. Son loglarda gorulen `Description must be a string with a maximum length of 50` hatasi bu sebeptendir.
+- ETTN okutulduysa `documentNo` doldurmak tek basina yeterli degildir. Mutlaka `officialDocumentEttn` de gonderilmelidir.
+- E-fatura bulunduysa `invoiceNumber` ve `invoiceDate`, e-irsaliye bulunduysa `despatchNumber` ve `issueDate` on dolum icin kullanilir; fakat kaydetme body modelinde `officialDocument*` alanlari tercih edilmelidir.
 
 Request:
 
@@ -7255,6 +7357,7 @@ Body'de sadece degistirilecek alanlar gonderilmelidir:
   "projectCode": "",
   "city": "BURSA",
   "district": "KESTEL",
+  "postalCode": "16000",
   "phoneCountryCode": "90",
   "phoneAreaCode": "224",
   "phoneNo1": "0000000",
@@ -7271,6 +7374,13 @@ Guncellenebilir alanlar:
 - Adres: `street`, `neighborhood`, `avenue`, `quarter`, `apartmentNo`, `apartmentUnitNo`, `postalCode`, `district`, `city`, `country`, `addressCode`
 - Konum/iletisim: `latitude`, `longitude`, `authorizedEmail`, `phoneCountryCode`, `phoneAreaCode`, `phoneNo1`, `phoneNo2`, `faxNo`
 - Durum: `excludedFromInventory`, `detailTrackingType`, `outgoingEDespatchEnabled`, `incomingEDespatchEnabled`, `isPassive`, `isHidden`, `isLocked`, `lockDate`
+
+E-irsaliye notu:
+
+- Depolar arasi sevk/iade e-irsaliyesinde Uyumsoft `DeliveryAddress/PostalZone` alanini zorunlu ister.
+- Bu alan hedef teslim deposunun `postalCode` degerinden gelir.
+- Yoldaki sevklerde `girisDepo/transitWarehouseNo` 60 gibi nakliye depo olabilir; asil teslim deposu `targetWarehouseNo`/Mikro `sth_nakliyedeposu` alanidir.
+- Hedef teslim deposunun `postalCode` alani bos ise e-irsaliye gonderimi Uyumsoft'a gitmeden `400 Bad Request` ile durdurulur. UI bu durumda Duzeltme Islemleri > Mikro Evrak Duzenleme > Depo Karti ekranindan ilgili deponun posta kodunu doldurtmalidir.
 
 Response:
 

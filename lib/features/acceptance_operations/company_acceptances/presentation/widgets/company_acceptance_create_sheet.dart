@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:furpa_merkez_terminal/core/network/api_exception.dart';
 import 'package:furpa_merkez_terminal/features/acceptance_operations/company_acceptances/data/company_acceptances_repository.dart';
 import 'package:furpa_merkez_terminal/features/acceptance_operations/company_acceptances/data/models/company_acceptance_models.dart';
@@ -23,6 +24,12 @@ import 'package:furpa_merkez_terminal/shared/widgets/barcode_camera_scan_page.da
 import 'package:furpa_merkez_terminal/shared/widgets/terminal_ui_parts.dart';
 
 enum _CompanyAcceptanceCreateStep { document, lines }
+
+const int _documentNoMaxLength = 29;
+const int _shortCodeMaxLength = 25;
+const int _descriptionMaxLength = 50;
+const int _officialDocumentKindMaxLength = 30;
+const int _officialDocumentValueMaxLength = 50;
 
 class CompanyAcceptanceCreateSheet extends StatefulWidget {
   const CompanyAcceptanceCreateSheet({
@@ -1113,6 +1120,24 @@ class _CompanyAcceptanceCreateSheetState
       return;
     }
 
+    final officialDocumentKind = _officialDocumentKindForRequest();
+    final officialDocumentNo = _officialDocumentNoForRequest();
+    final officialDocumentDate = _officialDocumentDateForRequest();
+    final officialDocumentEttn = _officialDocumentEttnForRequest();
+    final headerLengthError = _validateHeaderLengthLimits(
+      customerCode: customerCode,
+      officialDocumentKind: officialDocumentKind,
+      officialDocumentNo: officialDocumentNo,
+      officialDocumentEttn: officialDocumentEttn,
+    );
+    if (headerLengthError != null) {
+      _showStepError(
+        step: _CompanyAcceptanceCreateStep.document,
+        message: headerLengthError,
+      );
+      return;
+    }
+
     if (_hasPendingEntryLine) {
       _showStepError(
         step: _CompanyAcceptanceCreateStep.lines,
@@ -1185,6 +1210,15 @@ class _CompanyAcceptanceCreateSheetState
         return;
       }
 
+      final lineLengthError = _validateLineLengthLimits(line, index);
+      if (lineLengthError != null) {
+        _showStepError(
+          step: _CompanyAcceptanceCreateStep.lines,
+          message: lineLengthError,
+        );
+        return;
+      }
+
       final orderGuid = line.orderGuid?.trim() ?? '';
       if (orderGuid.isNotEmpty && !usedOrderGuids.add(orderGuid)) {
         _showStepError(
@@ -1202,10 +1236,10 @@ class _CompanyAcceptanceCreateSheetState
       documentDate: _documentDate,
       documentNo: _documentNoController.text.trim(),
       clientRequestId: generateClientRequestId(),
-      officialDocumentKind: _officialDocumentKindForRequest(),
-      officialDocumentNo: _officialDocumentNoForRequest(),
-      officialDocumentDate: _officialDocumentDateForRequest(),
-      officialDocumentEttn: _officialDocumentEttnForRequest(),
+      officialDocumentKind: officialDocumentKind,
+      officialDocumentNo: officialDocumentNo,
+      officialDocumentDate: officialDocumentDate,
+      officialDocumentEttn: officialDocumentEttn,
       deliverer: _delivererController.text.trim(),
       receiver: _receiverController.text.trim(),
       description: _descriptionController.text.trim(),
@@ -1222,13 +1256,27 @@ class _CompanyAcceptanceCreateSheetState
               unitPointer: line.unitPointer,
               lastConsumingDate: line.lastConsumingDate,
               orderGuid: line.orderGuid,
-              description: line.descriptionController.text.trim(),
-              partyCode: line.partyCodeController.text.trim(),
+              description: _trimForApi(
+                line.descriptionController.text,
+                _descriptionMaxLength,
+              ),
+              partyCode: _trimForApi(
+                line.partyCodeController.text,
+                _shortCodeMaxLength,
+              ),
               lotNo: line.lotNo,
-              projectCode: line.projectCodeController.text.trim(),
-              customerResponsibilityCenter: line.customerRcController.text
-                  .trim(),
-              productResponsibilityCenter: line.productRcController.text.trim(),
+              projectCode: _trimForApi(
+                line.projectCodeController.text,
+                _shortCodeMaxLength,
+              ),
+              customerResponsibilityCenter: _trimForApi(
+                line.customerRcController.text,
+                _shortCodeMaxLength,
+              ),
+              productResponsibilityCenter: _trimForApi(
+                line.productRcController.text,
+                _shortCodeMaxLength,
+              ),
             ),
           )
           .toList(growable: false),
@@ -1239,6 +1287,63 @@ class _CompanyAcceptanceCreateSheetState
       return;
     }
     Navigator.of(context).pop(request);
+  }
+
+  String? _validateHeaderLengthLimits({
+    required String customerCode,
+    required String? officialDocumentKind,
+    required String? officialDocumentNo,
+    required String? officialDocumentEttn,
+  }) {
+    return _maxLengthError(
+          label: 'Cari kodu',
+          value: customerCode,
+          maxLength: _shortCodeMaxLength,
+        ) ??
+        _maxLengthError(
+          label: 'Belge no / seri',
+          value: _documentNoController.text,
+          maxLength: _documentNoMaxLength,
+        ) ??
+        _maxLengthError(
+          label: 'Teslim eden',
+          value: _delivererController.text,
+          maxLength: _shortCodeMaxLength,
+        ) ??
+        _maxLengthError(
+          label: 'Teslim alan',
+          value: _receiverController.text,
+          maxLength: _shortCodeMaxLength,
+        ) ??
+        _maxLengthError(
+          label: 'Aciklama',
+          value: _descriptionController.text,
+          maxLength: _descriptionMaxLength,
+        ) ??
+        _maxLengthError(
+          label: 'Resmi belge tipi',
+          value: officialDocumentKind ?? '',
+          maxLength: _officialDocumentKindMaxLength,
+        ) ??
+        _maxLengthError(
+          label: 'Resmi belge no',
+          value: officialDocumentNo ?? '',
+          maxLength: _officialDocumentValueMaxLength,
+        ) ??
+        _maxLengthError(
+          label: 'ETTN / UUID',
+          value: officialDocumentEttn ?? '',
+          maxLength: _officialDocumentValueMaxLength,
+        );
+  }
+
+  String? _validateLineLengthLimits(_AcceptanceLineDraft line, int index) {
+    final lineLabel = '${index + 1}. satir';
+    return _maxLengthError(
+      label: '$lineLabel stok kodu',
+      value: line.stockCodeController.text,
+      maxLength: _shortCodeMaxLength,
+    );
   }
 
   String? _officialDocumentKindForRequest() {
@@ -1534,6 +1639,8 @@ class _CompanyAcceptanceCreateSheetState
   Widget _buildCustomerCodeField() {
     return TextFormField(
       controller: _customerCodeController,
+      maxLength: _shortCodeMaxLength,
+      maxLengthEnforcement: MaxLengthEnforcement.none,
       decoration: const InputDecoration(
         labelText: 'Cari Kodu*',
         hintText: 'Internet yoksa elle girin',
@@ -1549,7 +1656,11 @@ class _CompanyAcceptanceCreateSheetState
           return 'Cari kodu zorunlu';
         }
 
-        return null;
+        return _maxLengthError(
+          label: 'Cari kodu',
+          value: value ?? '',
+          maxLength: _shortCodeMaxLength,
+        );
       },
     );
   }
@@ -1926,6 +2037,8 @@ class _CompanyAcceptanceCreateSheetState
                   width: maxWidth,
                   child: TextFormField(
                     controller: _documentNoController,
+                    maxLength: _documentNoMaxLength,
+                    maxLengthEnforcement: MaxLengthEnforcement.none,
                     decoration: const InputDecoration(
                       labelText: 'Belge No / Seri',
                       hintText: 'Bos birakilabilir',
@@ -1935,12 +2048,19 @@ class _CompanyAcceptanceCreateSheetState
                         vertical: 10,
                       ),
                     ),
+                    validator: (value) => _maxLengthError(
+                      label: 'Belge no / seri',
+                      value: value ?? '',
+                      maxLength: _documentNoMaxLength,
+                    ),
                   ),
                 ),
                 SizedBox(
                   width: halfWidth,
                   child: TextFormField(
                     controller: _delivererController,
+                    maxLength: _shortCodeMaxLength,
+                    maxLengthEnforcement: MaxLengthEnforcement.none,
                     decoration: const InputDecoration(
                       labelText: 'Teslim Eden',
                       isDense: true,
@@ -1949,12 +2069,19 @@ class _CompanyAcceptanceCreateSheetState
                         vertical: 10,
                       ),
                     ),
+                    validator: (value) => _maxLengthError(
+                      label: 'Teslim eden',
+                      value: value ?? '',
+                      maxLength: _shortCodeMaxLength,
+                    ),
                   ),
                 ),
                 SizedBox(
                   width: halfWidth,
                   child: TextFormField(
                     controller: _receiverController,
+                    maxLength: _shortCodeMaxLength,
+                    maxLengthEnforcement: MaxLengthEnforcement.none,
                     decoration: const InputDecoration(
                       labelText: 'Teslim Alan',
                       isDense: true,
@@ -1963,12 +2090,19 @@ class _CompanyAcceptanceCreateSheetState
                         vertical: 10,
                       ),
                     ),
+                    validator: (value) => _maxLengthError(
+                      label: 'Teslim alan',
+                      value: value ?? '',
+                      maxLength: _shortCodeMaxLength,
+                    ),
                   ),
                 ),
                 SizedBox(
                   width: maxWidth,
                   child: TextFormField(
                     controller: _descriptionController,
+                    maxLength: _descriptionMaxLength,
+                    maxLengthEnforcement: MaxLengthEnforcement.none,
                     minLines: 1,
                     maxLines: 2,
                     decoration: const InputDecoration(
@@ -1978,6 +2112,11 @@ class _CompanyAcceptanceCreateSheetState
                         horizontal: 12,
                         vertical: 10,
                       ),
+                    ),
+                    validator: (value) => _maxLengthError(
+                      label: 'Aciklama',
+                      value: value ?? '',
+                      maxLength: _descriptionMaxLength,
                     ),
                   ),
                 ),
@@ -2397,6 +2536,28 @@ String _formatDraftQuantity(double value) {
   final fixed = value.toStringAsFixed(6);
   final normalized = fixed.replaceFirst(RegExp(r'\.?0+$'), '');
   return normalized.replaceAll('.', ',');
+}
+
+String? _maxLengthError({
+  required String label,
+  required String value,
+  required int maxLength,
+}) {
+  final length = value.trim().length;
+  if (length <= maxLength) {
+    return null;
+  }
+
+  return '$label en fazla $maxLength karakter olabilir. Su an $length karakter.';
+}
+
+String _trimForApi(String value, int maxLength) {
+  final normalized = value.trim();
+  if (normalized.length <= maxLength) {
+    return normalized;
+  }
+
+  return normalized.substring(0, maxLength);
 }
 
 class _CompactCheckboxTile extends StatelessWidget {
