@@ -91,6 +91,7 @@ Bu tablo UI icin ana permission referansidir. Kaynak kod tarafi `PermissionCatal
 | `kullanici-islemleri` | `kullanicilar` | `kullanici-islemleri.kullanicilar.manage` | - | `-` |
 | `home` | `depo-oncelikleri` | `home.depo-oncelikleri.page` | - | `home.depo-oncelikleri.all-warehouses` |
 | `arama-islemleri` | `fiyat-gor` | `arama-islemleri.fiyat-gor.page` | `arama-islemleri.fiyat-gor.list` | `arama-islemleri.fiyat-gor.all-warehouses` |
+| `arama-islemleri` | `var-yok` | `arama-islemleri.var-yok.page` | `arama-islemleri.var-yok.list` | `arama-islemleri.var-yok.all-warehouses` |
 | `arama-islemleri` | `cari-bul` | `arama-islemleri.cari-bul.page` | `arama-islemleri.cari-bul.list` | `arama-islemleri.cari-bul.all-warehouses` |
 | `green-grocer` (`Manav`) | `reports` (`ManavRaporlari`) | `green-grocer.reports.page` | `green-grocer.reports.list`<br>`green-grocer.reports.detail`<br>`green-grocer.reports.update` | `green-grocer.reports.all-warehouses` |
 | `green-grocer` (`Manav`) | `product-case-profiles` (`ManavKasaProfilleri`) | `green-grocer.product-case-profiles.manage` | `green-grocer.product-case-profiles.list`<br>`green-grocer.product-case-profiles.detail`<br>`green-grocer.product-case-profiles.create`<br>`green-grocer.product-case-profiles.update`<br>`green-grocer.product-case-profiles.delete` | `green-grocer.product-case-profiles.all-warehouses` |
@@ -4054,6 +4055,75 @@ UI kullanim notu:
 - Terazi barkodunda response icindeki `requestedBarcode`, `lookupBarcode`, `embeddedQuantity` ve `embeddedQuantityUnit` alanlari UI'a okutulan barkod ile arama barkodunu ayirmak icin gelir.
 - El terminali offline kullanacaksa bu endpoint online anlik sorgu icin kalmali; offline veri hazirligi `Mobil Urun-Fiyat Katalog Sync` endpoint'iyle yapilmalidir.
 
+### Var Yok
+
+Arama Islemleri altinda menu olarak gosterilebilecek hizli stok durum sorgu ekranidir. Kullanici barkod okutur veya stok kodu/urun adi yazar; API urunu bulur ve secili depodaki anlik Mikro stok miktarini dondurur.
+
+`GET /api/arama-islemleri/var-yok?warehouseNo=110&barcode=8690000000000`
+
+Stok kodu veya urun adi ile:
+
+`GET /api/arama-islemleri/var-yok?warehouseNo=110&stockCode=015550`
+
+`GET /api/arama-islemleri/var-yok?warehouseNo=110&stockName=sut&take=20`
+
+Yetki:
+
+- `arama-islemleri.var-yok.list`
+
+Query:
+
+```text
+warehouseNo    opsiyonel; verilmezse JWT icindeki depo kullanilir
+barcode        opsiyonel; barkod ile exact arama; 27/29 terazi barkodunda arama barkodu normalize edilir
+stockCode      opsiyonel; stok kodu ile exact arama
+stockName      opsiyonel; stok adinda contains arama, en az 2 karakter
+take           opsiyonel; default 20, max 100
+```
+
+Response:
+
+```json
+[
+  {
+    "warehouseNo": 110,
+    "warehouseName": "KESTEL 1",
+    "barcode": "2700174",
+    "stockCode": "015550",
+    "stockName": "MNV SEFTALI KG",
+    "unitName": "KG",
+    "currentStockQuantity": 24.75,
+    "hasStock": true,
+    "price": 99.9,
+    "priceTypeCode": 1,
+    "secondaryUnitName": "KOLI",
+    "secondaryUnitMultiplier": 12,
+    "salesBlockCode": 0,
+    "orderBlockCode": 0,
+    "goodsAcceptanceBlockCode": 0,
+    "isSalesBlocked": false,
+    "isOrderBlocked": false,
+    "isGoodsAcceptanceBlocked": false,
+    "productManagerCode": "PER001",
+    "requestedBarcode": "2700174041103",
+    "lookupBarcode": "2700174",
+    "isVariableWeightBarcode": true,
+    "embeddedQuantity": 4.11,
+    "embeddedQuantityUnit": "KG",
+    "isBarcodeCheckDigitValid": true
+  }
+]
+```
+
+UI kullanim notu:
+
+- Sol menu altinda `AramaIslemleri > VarYok` veya "Var Yok" gibi ayri bir hizli ekran olarak sunulabilir.
+- Ana gosterim icin `stockCode`, `stockName`, `currentStockQuantity`, `unitName`, `warehouseName`, `price` ve varsa `secondaryUnitName/secondaryUnitMultiplier` yeterlidir.
+- `hasStock=false` ise UI urunu buldugunu ama secili depoda stok olmadigini net gostermelidir.
+- `secondaryUnitMultiplier > 1` ise kullaniciya koli ici miktar olarak gosterilebilir; ornek: `KOLI ici 12 ADET`.
+- Depo secici sadece `arama-islemleri.var-yok.all-warehouses` yetkisi varsa acilmalidir; normal kullanicida depo JWT deposudur.
+- Bu endpoint satir ekleme karari icin degil, hizli stok sorgu ekranidir. Mal kabul/siparis/sevk satira ekleme kararinda yine `barkodlar/{barcode}/cozumle` ana karar noktasi olmalidir.
+
 ### Urun Son Kunye
 
 Secili stok kodu ve sube/depo icin son sevk tarihli kunye bilgisini ve Mikro satis fiyatini getirir.
@@ -7362,7 +7432,7 @@ Depo ozel kayit zaten yoksa `deletedRowCount=0` doner. Stok veya depo bulunamazs
 
 Query:
 
-- `searchText`: opsiyonel; depo no, depo adi, grup kodu, il veya ilce icinde arar
+- `searchText`: opsiyonel; depo no, depo adi, grup kodu, bolge kodu, il veya ilce icinde arar
 - `includePassive`: varsayilan `false`; `true` olursa pasif/gizli depolar da gelir
 - `take`: varsayilan `50`, maksimum `200`
 
@@ -7373,6 +7443,7 @@ Response item:
   "warehouseNo": 110,
   "name": "KESTEL 1",
   "groupCode": "MAGAZA",
+  "regionCode": "1",
   "warehouseType": 0,
   "city": "BURSA",
   "district": "KESTEL",
@@ -7446,6 +7517,7 @@ Body'de sadece degistirilecek alanlar gonderilmelidir:
   "groupCode": "MAGAZA",
   "responsibilityCenter": "SRM-110",
   "projectCode": "",
+  "regionCode": "1",
   "city": "BURSA",
   "district": "KESTEL",
   "postalCode": "16000",
@@ -7472,6 +7544,12 @@ E-irsaliye notu:
 - Bu alan hedef teslim deposunun `postalCode` degerinden gelir.
 - Yoldaki sevklerde `girisDepo/transitWarehouseNo` 60 gibi nakliye depo olabilir; asil teslim deposu `targetWarehouseNo`/Mikro `sth_nakliyedeposu` alanidir.
 - Hedef teslim deposunun `postalCode` alani bos ise e-irsaliye gonderimi Uyumsoft'a gitmeden `400 Bad Request` ile durdurulur. UI bu durumda Duzeltme Islemleri > Mikro Evrak Duzenleme > Depo Karti ekranindan ilgili deponun posta kodunu doldurtmalidir.
+
+Bolge notu:
+
+- Sube/depo bolgesi Mikro `DEPOLAR.dep_bolge_kodu` alanidir.
+- Liste response'unda `regionCode` gelir; UI depo karti listesinde bolge kolonunu gostermeli ve bos bolge kodlarini kolay filtrelenebilir yapmalidir.
+- Depo karti guncellemede body'ye `regionCode` gonderilirse ilgili deponun bolge kodu degisir. Bos string gondermek bolge kodunu temizleme istegidir; alan hic gonderilmezse mevcut bolge korunur.
 
 Response:
 
@@ -14786,6 +14864,36 @@ Bu endpoint ne yapmaz:
 
 - `isPrinted` alanini kendiliginden guncellemez
 - kullanicinin "yazdirildi" karari yerine gecmez
+
+### Fatura Goruntuleme Yazdirma PDF
+
+`GET /api/fatura-islemleri/fatura-goruntuleme/{documentId}/pdf/yazdirma`
+
+Alias:
+
+`GET /api/fatura-islemleri/fatura-goruntuleme/{documentId}/pdf/print`
+
+Yetki:
+
+- `fatura-islemleri.fatura-goruntuleme.detail`
+
+Response:
+
+- `Content-Type: application/pdf`
+- Backend once Uyumsoft gelen fatura PDF'ini alir.
+- PDF zaten tek sayfaysa veya son sayfa anlamli doluysa orijinal PDF aynen doner.
+- Son sayfa tamamen bos kuyruk sayfaysa bu sayfa atilir.
+- PDF 2-3 sayfaliysa ve son sayfa cok az icerik tasiyan kuyruk sayfa gibi gorunuyorsa tek sayfaya kompakt yerlestirme denenir.
+- Kompakt yerlestirme okunabilirligi fazla dusurecekse orijinal PDF doner; 2 veya 3 sayfayi gercekten hak eden belgeler zorla tek sayfaya sikistirilmaz.
+- Okunabilirlik siniri hem ilk sayfa hem kuyruk parca icin yaklasik `%88` olcek altidir. Tek sayfaya sigdirmak icin bu sinirin altina inmek gerekiyorsa backend kagit tasarrufu yerine orijinal cok sayfali PDF'i tercih eder.
+
+UI uygulama kurali:
+
+- `PDF Goster` aksiyonu icin ham endpoint kullanilabilir: `/pdf`
+- `Yazdir` aksiyonu icin bu endpoint tercih edilmelidir: `/pdf/yazdirma`
+- Tarayici print dialog'unda `2 kagit` gorunmeye devam ediyorsa UI eski `/pdf` yolunu yazdiriyor olabilir; yazdirma aksiyonu mutlaka bu optimize endpointten gelen blob ile acilmalidir.
+- UI yine response'u JSON gibi okumaz; `blob`/`application/pdf` olarak acar veya print iframe'ine basar.
+- Yazdirma gercekten basarili olduysa sonra `PATCH /api/fatura-islemleri/fatura-goruntuleme/{documentId}/printed` ile yazdirildi durumu isaretlenebilir.
 
 ### Fatura Goruntuleme HTML Detay
 

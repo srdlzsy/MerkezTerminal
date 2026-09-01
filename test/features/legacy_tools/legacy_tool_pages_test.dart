@@ -42,6 +42,73 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('var yok uses stock availability result fields', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: ProductLookupToolPage(
+            repository: _FakeLegacyToolsRepository(
+              stockAvailabilityProducts: const <SearchProductLookupItem>[
+                SearchProductLookupItem(
+                  warehouseNo: 110,
+                  warehouseName: 'KESTEL 1',
+                  barcode: '2700174',
+                  stockCode: '015550',
+                  stockName: 'MNV SEFTALI KG',
+                  price: 99.9,
+                  priceTypeCode: 1,
+                  unitName: 'KG',
+                  unitMultiplier: 1,
+                  secondaryUnitName: 'KOLI',
+                  secondaryUnitMultiplier: 12,
+                  salesBlockCode: 0,
+                  orderBlockCode: 0,
+                  goodsAcceptanceBlockCode: 0,
+                  isSalesBlocked: false,
+                  isOrderBlocked: false,
+                  isGoodsAcceptanceBlocked: false,
+                  productManagerCode: 'PER001',
+                  currentStockQuantity: 24.75,
+                  hasStock: true,
+                  requestedBarcode: '2700174041103',
+                  lookupBarcode: '2700174',
+                  isVariableWeightBarcode: true,
+                  embeddedQuantity: 4.11,
+                  embeddedQuantityUnit: 'KG',
+                  isBarcodeCheckDigitValid: true,
+                ),
+              ],
+            ),
+            accessToken: 'token',
+            defaultWarehouseNo: '110',
+            productCatalogRepository: _productCatalogRepository(),
+            productCatalogSyncService: _productCatalogSyncService(),
+            customerCatalogRepository: _customerCatalogRepository(),
+            customerCatalogSyncService: _customerCatalogSyncService(),
+            warehouseCatalogRepository: _warehouseCatalogRepository(),
+            warehouseCatalogSyncService: _warehouseCatalogSyncService(),
+            title: 'Var Yok',
+            subtitle: 'Stok durum sorgusu.',
+            emptyMessage: 'Bos',
+            useStockAvailabilityEndpoint: true,
+          ),
+        ),
+      ),
+    );
+
+    await tester.enterText(find.byType(TextField), '2700174041103');
+    await tester.tap(find.widgetWithText(FilledButton, 'Urun'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Stok Var'), findsOneWidget);
+    expect(find.text('MNV SEFTALI KG'), findsOneWidget);
+    expect(find.text('24,75 KG'), findsOneWidget);
+    expect(find.text('KESTEL 1'), findsOneWidget);
+    expect(find.text('12 KG'), findsOneWidget);
+    expect(find.textContaining('Terazi barkodu: 4,11 KG'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('cari bul uses compact Urun and camera actions', (tester) async {
     await tester.pumpWidget(
       MaterialApp(
@@ -165,9 +232,13 @@ MobileWarehouseCatalogSyncService _warehouseCatalogSyncService() {
 }
 
 class _FakeLegacyToolsRepository implements LegacyToolsRepository {
-  _FakeLegacyToolsRepository({this.searchCustomersByBarcodeError});
+  _FakeLegacyToolsRepository({
+    this.searchCustomersByBarcodeError,
+    this.stockAvailabilityProducts = const <SearchProductLookupItem>[],
+  });
 
   final ApiException? searchCustomersByBarcodeError;
+  final List<SearchProductLookupItem> stockAvailabilityProducts;
 
   @override
   Future<List<SearchProductLookupItem>> searchProducts({
@@ -176,6 +247,15 @@ class _FakeLegacyToolsRepository implements LegacyToolsRepository {
     required String query,
   }) async {
     return const <SearchProductLookupItem>[];
+  }
+
+  @override
+  Future<List<SearchProductLookupItem>> searchStockAvailability({
+    required String accessToken,
+    required String warehouseNo,
+    required String query,
+  }) async {
+    return stockAvailabilityProducts;
   }
 
   @override

@@ -9,6 +9,12 @@ abstract class LegacyToolsRepository {
     required String query,
   });
 
+  Future<List<SearchProductLookupItem>> searchStockAvailability({
+    required String accessToken,
+    required String warehouseNo,
+    required String query,
+  });
+
   Future<List<CustomerLookupItem>> searchCustomers({
     required String accessToken,
     required String query,
@@ -87,6 +93,43 @@ class ApiLegacyToolsRepository implements LegacyToolsRepository {
                 'stockName': normalizedQuery,
             },
           );
+
+    return response
+        .map(
+          (item) => SearchProductLookupItem.fromJson(
+            item as JsonMap? ?? <String, dynamic>{},
+          ),
+        )
+        .toList(growable: false);
+  }
+
+  @override
+  Future<List<SearchProductLookupItem>> searchStockAvailability({
+    required String accessToken,
+    required String warehouseNo,
+    required String query,
+  }) async {
+    final normalizedQuery = query.trim();
+    final isBarcodeQuery = RegExp(r'^\d{7,}$').hasMatch(normalizedQuery);
+    final isStockCodeQuery =
+        !isBarcodeQuery &&
+        normalizedQuery.contains(RegExp(r'\d')) &&
+        !normalizedQuery.contains(' ');
+
+    final response = await _apiClient.getJsonList(
+      '/api/arama-islemleri/var-yok',
+      accessToken: accessToken,
+      queryParameters: <String, String>{
+        'warehouseNo': warehouseNo,
+        'take': '20',
+        if (isBarcodeQuery)
+          'barcode': normalizedQuery
+        else if (isStockCodeQuery)
+          'stockCode': normalizedQuery
+        else
+          'stockName': normalizedQuery,
+      },
+    );
 
     return response
         .map(

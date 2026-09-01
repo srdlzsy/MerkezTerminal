@@ -31,6 +31,7 @@ class ProductLookupToolPage extends StatefulWidget {
     required this.title,
     required this.subtitle,
     required this.emptyMessage,
+    this.useStockAvailabilityEndpoint = false,
   });
 
   final LegacyToolsRepository repository;
@@ -45,6 +46,7 @@ class ProductLookupToolPage extends StatefulWidget {
   final String title;
   final String subtitle;
   final String emptyMessage;
+  final bool useStockAvailabilityEndpoint;
 
   @override
   State<ProductLookupToolPage> createState() => _ProductLookupToolPageState();
@@ -134,11 +136,17 @@ class _ProductLookupToolPageState extends State<ProductLookupToolPage> {
     });
 
     try {
-      final products = await widget.repository.searchProducts(
-        accessToken: widget.accessToken,
-        warehouseNo: widget.defaultWarehouseNo,
-        query: query,
-      );
+      final products = widget.useStockAvailabilityEndpoint
+          ? await widget.repository.searchStockAvailability(
+              accessToken: widget.accessToken,
+              warehouseNo: widget.defaultWarehouseNo,
+              query: query,
+            )
+          : await widget.repository.searchProducts(
+              accessToken: widget.accessToken,
+              warehouseNo: widget.defaultWarehouseNo,
+              query: query,
+            );
 
       if (!mounted) {
         return;
@@ -406,15 +414,9 @@ class _ProductLookupToolPageState extends State<ProductLookupToolPage> {
                                   ),
                                 ),
                                 TerminalBadge(
-                                  label: item.isSalesBlocked
-                                      ? 'Bloklu'
-                                      : 'Bulundu',
-                                  backgroundColor: item.isSalesBlocked
-                                      ? const Color(0xFFFFE5E5)
-                                      : const Color(0xFFE6F7EE),
-                                  foregroundColor: item.isSalesBlocked
-                                      ? const Color(0xFF7A1818)
-                                      : const Color(0xFF1B7A46),
+                                  label: _resultBadgeLabel(item),
+                                  backgroundColor: _resultBadgeBackground(item),
+                                  foregroundColor: _resultBadgeForeground(item),
                                 ),
                               ],
                             ),
@@ -432,15 +434,42 @@ class _ProductLookupToolPageState extends State<ProductLookupToolPage> {
                                       : item.barcode,
                                 ),
                                 TerminalPdaInfo(
-                                  label: 'Fiyat',
-                                  value: AppFormatters.currency(item.price),
+                                  label: widget.useStockAvailabilityEndpoint
+                                      ? 'Stok'
+                                      : 'Fiyat',
+                                  value: widget.useStockAvailabilityEndpoint
+                                      ? _stockQuantityLabel(item)
+                                      : AppFormatters.currency(item.price),
                                 ),
                                 TerminalPdaInfo(
                                   label: 'Birim',
                                   value: item.unitName,
                                 ),
+                                if (widget.useStockAvailabilityEndpoint)
+                                  TerminalPdaInfo(
+                                    label: 'Depo',
+                                    value: item.warehouseName.isEmpty
+                                        ? item.warehouseNo.toString()
+                                        : item.warehouseName,
+                                  ),
+                                if (widget.useStockAvailabilityEndpoint)
+                                  TerminalPdaInfo(
+                                    label: 'Fiyat',
+                                    value: AppFormatters.currency(item.price),
+                                  ),
+                                if (item.secondaryUnitMultiplier > 1)
+                                  TerminalPdaInfo(
+                                    label: 'Koli ici',
+                                    value:
+                                        '${AppFormatters.quantity(item.secondaryUnitMultiplier)} ${item.unitName}',
+                                  ),
                               ],
                             ),
+                            if (widget.useStockAvailabilityEndpoint &&
+                                item.isVariableWeightBarcode) ...<Widget>[
+                              const SizedBox(height: 4),
+                              Text(_variableWeightLabel(item)),
+                            ],
                             if (blockLabels.isNotEmpty) ...<Widget>[
                               const SizedBox(height: 4),
                               Text('Bloklu: ${blockLabels.join(', ')}'),
@@ -494,6 +523,80 @@ class _ProductLookupToolPageState extends State<ProductLookupToolPage> {
             : 'Depo katalogu: ${AppFormatters.dateTimeOrDash(warehouseMetadata.lastCompletedAt)} | ${warehouseMetadata.itemCount} depo',
       ].join('\n'),
     );
+  }
+
+  String _resultBadgeLabel(SearchProductLookupItem item) {
+    if (!widget.useStockAvailabilityEndpoint) {
+      return item.isSalesBlocked ? 'Bloklu' : 'Bulundu';
+    }
+
+    if (item.hasStock == false) {
+      return 'Stok Yok';
+    }
+
+    if (item.isSalesBlocked ||
+        item.isOrderBlocked ||
+        item.isGoodsAcceptanceBlocked) {
+      return 'Bloklu';
+    }
+
+    return 'Stok Var';
+  }
+
+  Color _resultBadgeBackground(SearchProductLookupItem item) {
+    if (widget.useStockAvailabilityEndpoint && item.hasStock == false) {
+      return const Color(0xFFFFF4D6);
+    }
+
+    final isBlocked =
+        item.isSalesBlocked ||
+        item.isOrderBlocked ||
+        item.isGoodsAcceptanceBlocked;
+    return isBlocked ? const Color(0xFFFFE5E5) : const Color(0xFFE6F7EE);
+  }
+
+  Color _resultBadgeForeground(SearchProductLookupItem item) {
+    if (widget.useStockAvailabilityEndpoint && item.hasStock == false) {
+      return const Color(0xFF7A4A00);
+    }
+
+    final isBlocked =
+        item.isSalesBlocked ||
+        item.isOrderBlocked ||
+        item.isGoodsAcceptanceBlocked;
+    return isBlocked ? const Color(0xFF7A1818) : const Color(0xFF1B7A46);
+  }
+
+  String _stockQuantityLabel(SearchProductLookupItem item) {
+    final quantity = item.currentStockQuantity;
+    if (quantity == null) {
+      return '-';
+    }
+
+    final unit = item.unitName.trim();
+    return unit.isEmpty
+        ? AppFormatters.quantity(quantity)
+        : '${AppFormatters.quantity(quantity)} $unit';
+  }
+
+  String _variableWeightLabel(SearchProductLookupItem item) {
+    final quantity = item.embeddedQuantity;
+    final unit = item.embeddedQuantityUnit.trim().isEmpty
+        ? item.unitName
+        : item.embeddedQuantityUnit;
+    final quantityLabel = quantity == null
+        ? '-'
+        : '${AppFormatters.quantity(quantity)} $unit';
+    final lookupBarcode = item.lookupBarcode.trim().isEmpty
+        ? '-'
+        : item.lookupBarcode;
+    final checkDigitText = switch (item.isBarcodeCheckDigitValid) {
+      true => 'dogru',
+      false => 'hatali',
+      null => 'bilinmiyor',
+    };
+
+    return 'Terazi barkodu: $quantityLabel | Aranan: $lookupBarcode | Kontrol: $checkDigitText';
   }
 }
 

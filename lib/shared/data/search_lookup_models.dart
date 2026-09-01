@@ -20,6 +20,15 @@ class SearchProductLookupItem {
     required this.isOrderBlocked,
     required this.isGoodsAcceptanceBlocked,
     required this.productManagerCode,
+    this.warehouseName = '',
+    this.currentStockQuantity,
+    this.hasStock,
+    this.requestedBarcode = '',
+    this.lookupBarcode = '',
+    this.isVariableWeightBarcode = false,
+    this.embeddedQuantity,
+    this.embeddedQuantityUnit = '',
+    this.isBarcodeCheckDigitValid,
   });
 
   final int warehouseNo;
@@ -39,6 +48,15 @@ class SearchProductLookupItem {
   final bool isOrderBlocked;
   final bool isGoodsAcceptanceBlocked;
   final String productManagerCode;
+  final String warehouseName;
+  final double? currentStockQuantity;
+  final bool? hasStock;
+  final String requestedBarcode;
+  final String lookupBarcode;
+  final bool isVariableWeightBarcode;
+  final double? embeddedQuantity;
+  final String embeddedQuantityUnit;
+  final bool? isBarcodeCheckDigitValid;
 
   String get displayLabel => '$stockCode - $stockName';
 
@@ -63,6 +81,17 @@ class SearchProductLookupItem {
       isOrderBlocked: _readBool(json['isOrderBlocked']),
       isGoodsAcceptanceBlocked: _readBool(json['isGoodsAcceptanceBlocked']),
       productManagerCode: _readString(json['productManagerCode']),
+      warehouseName: _readString(json['warehouseName']),
+      currentStockQuantity: _readNullableDouble(json['currentStockQuantity']),
+      hasStock: _readNullableBool(json['hasStock']),
+      requestedBarcode: _readString(json['requestedBarcode']),
+      lookupBarcode: _readString(json['lookupBarcode']),
+      isVariableWeightBarcode: _readBool(json['isVariableWeightBarcode']),
+      embeddedQuantity: _readNullableDouble(json['embeddedQuantity']),
+      embeddedQuantityUnit: _readString(json['embeddedQuantityUnit']),
+      isBarcodeCheckDigitValid: _readNullableBool(
+        json['isBarcodeCheckDigitValid'],
+      ),
     );
   }
 
@@ -91,6 +120,14 @@ class SearchProductLookupItem {
   }
 }
 
+bool? _readNullableBool(Object? value) {
+  if (value == null) {
+    return null;
+  }
+
+  return _readBool(value);
+}
+
 bool _readBool(Object? value) {
   if (value is bool) {
     return value;
@@ -110,6 +147,18 @@ double _readDouble(Object? value) {
   }
 
   return double.tryParse(value?.toString() ?? '') ?? 0;
+}
+
+double? _readNullableDouble(Object? value) {
+  if (value == null) {
+    return null;
+  }
+
+  if (value is num) {
+    return value.toDouble();
+  }
+
+  return double.tryParse(value.toString());
 }
 
 int _readInt(Object? value) {

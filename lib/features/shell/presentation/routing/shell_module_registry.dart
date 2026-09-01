@@ -645,6 +645,7 @@ class ShellModuleRegistry {
         ),
       ),
       ShellModuleRoute(
+        exactRouteKey: 'arama-islemleri.var-yok',
         menuCodes: const <String>['varyokStoklar'],
         keywords: const <String>['var yok', 'varyok'],
         builder: (context) => ProductLookupToolPage(
@@ -661,6 +662,7 @@ class ShellModuleRegistry {
           title: 'Var Yok',
           subtitle: 'Stok durum sorgusu.',
           emptyMessage: 'Bu aramaya uygun stok bulunamadi.',
+          useStockAvailabilityEndpoint: true,
         ),
       ),
     ];
