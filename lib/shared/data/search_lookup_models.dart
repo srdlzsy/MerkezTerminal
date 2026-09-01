@@ -69,9 +69,12 @@ class SearchProductLookupItem {
       price: _readDouble(json['price']),
       priceTypeCode: _readInt(json['priceTypeCode']),
       unitName: _readString(json['unitName']),
-      unitMultiplier: _readDouble(json['unitMultiplier']),
+      unitMultiplier: _readPositiveMagnitude(json['unitMultiplier']),
       secondaryUnitName: _readString(json['secondaryUnitName']),
-      secondaryUnitMultiplier: _readDouble(json['secondaryUnitMultiplier']),
+      secondaryUnitMultiplier: _readPositiveMagnitude(
+        json['secondaryUnitMultiplier'],
+        fallback: 0,
+      ),
       salesBlockCode: _readNullableInt(json['salesBlockCode']),
       orderBlockCode: _readNullableInt(json['orderBlockCode']),
       goodsAcceptanceBlockCode: _readNullableInt(
@@ -147,6 +150,11 @@ double _readDouble(Object? value) {
   }
 
   return double.tryParse(value?.toString() ?? '') ?? 0;
+}
+
+double _readPositiveMagnitude(Object? value, {double fallback = 1}) {
+  final parsed = _readDouble(value).abs();
+  return parsed > 0 ? parsed : fallback;
 }
 
 double? _readNullableDouble(Object? value) {

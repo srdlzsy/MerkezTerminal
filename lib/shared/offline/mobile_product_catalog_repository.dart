@@ -160,9 +160,11 @@ class MobileProductCatalogItem {
       priceTypeCode: _readInt(json['priceTypeCode']),
       unitPointer: _readInt(json['unitPointer']),
       unitName: _readString(json['unitName']),
-      unitMultiplier: _readDouble(json['unitMultiplier']),
+      unitMultiplier: _readDouble(json['unitMultiplier']).abs(),
       secondaryUnitName: _readString(json['secondaryUnitName']),
-      secondaryUnitMultiplier: _readDouble(json['secondaryUnitMultiplier']),
+      secondaryUnitMultiplier: _readDouble(
+        json['secondaryUnitMultiplier'],
+      ).abs(),
       salesBlockCode: _readNullableInt(json['salesBlockCode']),
       orderBlockCode: _readNullableInt(json['orderBlockCode']),
       goodsAcceptanceBlockCode: _readNullableInt(

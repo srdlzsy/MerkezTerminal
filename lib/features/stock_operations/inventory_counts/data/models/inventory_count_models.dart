@@ -388,7 +388,7 @@ double _readDouble(Object? value) {
 }
 
 double _readPositiveDouble(Object? value, {double fallback = 1}) {
-  final parsed = _readDouble(value);
+  final parsed = _readDouble(value).abs();
   return parsed > 0 ? parsed : fallback;
 }
 

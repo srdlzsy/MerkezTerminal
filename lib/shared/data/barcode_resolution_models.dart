@@ -215,7 +215,7 @@ class BarcodeResolutionResult {
       matchedBarcode: _readString(json['matchedBarcode']),
       primaryBarcode: _readString(json['primaryBarcode']),
       caseBarcode: _readString(json['caseBarcode']),
-      unitsPerCase: _readDouble(json['unitsPerCase']),
+      unitsPerCase: _readDouble(json['unitsPerCase']).abs(),
       matchedUnitPointer: _readInt(json['matchedUnitPointer']),
       matchedUnitName: _readString(json['matchedUnitName']),
       matchedUnitMultiplier: _readPositiveDouble(json['matchedUnitMultiplier']),
@@ -238,7 +238,9 @@ class BarcodeResolutionResult {
       isPrimaryBarcode: _readBool(json['isPrimaryBarcode']),
       isCaseBarcode: _readBool(json['isCaseBarcode']),
       isAlternativeBarcode: _readBool(json['isAlternativeBarcode']),
-      matchedUnitsPerCase: _readNullableDouble(json['matchedUnitsPerCase']),
+      matchedUnitsPerCase: _readNullableDouble(
+        json['matchedUnitsPerCase'],
+      )?.abs(),
       operationType: _readString(json['operationType']),
       targetWarehouseNo: _readNullableInt(json['targetWarehouseNo']),
       isAllowedForTargetWarehouse: _readNullableBool(
@@ -302,7 +304,7 @@ double _readDouble(Object? value) {
 }
 
 double _readPositiveDouble(Object? value, {double fallback = 1}) {
-  final parsed = _readDouble(value);
+  final parsed = _readDouble(value).abs();
   return parsed > 0 ? parsed : fallback;
 }
 

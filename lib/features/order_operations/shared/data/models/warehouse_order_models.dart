@@ -631,7 +631,7 @@ double _readProductUnitMultiplier(JsonMap json) {
     'koliIciMiktar',
     'koliMiktari',
   ]) {
-    final value = _readDouble(json[key]);
+    final value = _readDouble(json[key]).abs();
     if (value > 0) {
       return value;
     }

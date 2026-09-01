@@ -1124,7 +1124,6 @@ class TerminalCompactProductLineCard extends StatelessWidget {
             barcode: barcode,
             packageLabel: packageLabel,
             warningLabel: warningLabel,
-            showLineLabel: true,
           );
           final controls = Row(
             mainAxisSize: isTight ? MainAxisSize.max : MainAxisSize.min,
@@ -1318,7 +1317,6 @@ class TerminalCompactProductLineSummary extends StatelessWidget {
               barcode: barcode,
               packageLabel: packageLabel,
               warningLabel: warningLabel,
-              showLineLabel: false,
             ),
           ),
           if (trailing != null) ...<Widget>[
@@ -1341,7 +1339,6 @@ class _TerminalCompactProductLineDetails extends StatelessWidget {
     required this.barcode,
     required this.packageLabel,
     required this.warningLabel,
-    required this.showLineLabel,
   });
 
   final int lineNo;
@@ -1352,7 +1349,6 @@ class _TerminalCompactProductLineDetails extends StatelessWidget {
   final String? barcode;
   final String? packageLabel;
   final String? warningLabel;
-  final bool showLineLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -1399,8 +1395,6 @@ class _TerminalCompactProductLineDetails extends StatelessWidget {
                 spacing: 5,
                 runSpacing: 3,
                 children: <Widget>[
-                  if (showLineLabel)
-                    _TerminalMiniLineMeta(text: 'Satir $lineNo'),
                   if (stockCode.trim().isNotEmpty)
                     _TerminalMiniLineMeta(text: stockCode),
                   if ((unitLabel ?? '').trim().isNotEmpty)

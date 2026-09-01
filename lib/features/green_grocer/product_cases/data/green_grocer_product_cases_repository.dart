@@ -175,7 +175,7 @@ class GreenGrocerProductCaseResolutionResult {
       microUnit: _readString(json['microUnit']),
       estimatedQuantity: _readDouble(json['estimatedQuantity']),
       averageKgPerCase: _readDouble(json['averageKgPerCase']),
-      unitsPerCase: _readDouble(json['unitsPerCase']),
+      unitsPerCase: _readDouble(json['unitsPerCase']).abs(),
       averageSource: _readString(json['averageSource']),
       averageRecordCount: _readInt(json['averageRecordCount']),
       averageCaseCount: _readDouble(json['averageCaseCount']),
