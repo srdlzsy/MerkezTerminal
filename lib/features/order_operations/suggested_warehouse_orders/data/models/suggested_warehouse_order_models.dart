@@ -272,6 +272,7 @@ double _readDouble(Object? value) {
 
 double _readPackageFactor(JsonMap json) {
   for (final key in const <String>[
+    'unitMultiplier',
     'packageFactor',
     'unitsPerCase',
     'matchedUnitsPerCase',

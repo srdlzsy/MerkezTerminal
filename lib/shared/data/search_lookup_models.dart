@@ -69,7 +69,7 @@ class SearchProductLookupItem {
       price: _readDouble(json['price']),
       priceTypeCode: _readInt(json['priceTypeCode']),
       unitName: _readString(json['unitName']),
-      unitMultiplier: _readPositiveMagnitude(json['unitMultiplier']),
+      unitMultiplier: _readProductUnitMultiplier(json),
       secondaryUnitName: _readString(json['secondaryUnitName']),
       secondaryUnitMultiplier: _readPositiveMagnitude(
         json['secondaryUnitMultiplier'],
@@ -155,6 +155,30 @@ double _readDouble(Object? value) {
 double _readPositiveMagnitude(Object? value, {double fallback = 1}) {
   final parsed = _readDouble(value).abs();
   return parsed > 0 ? parsed : fallback;
+}
+
+double _readProductUnitMultiplier(JsonMap json) {
+  for (final key in const <String>[
+    'unitMultiplier',
+    'packageFactor',
+    'unitsPerCase',
+    'matchedUnitsPerCase',
+    'packageQuantity',
+    'packageQty',
+    'unitPerPackage',
+    'unitsInPackage',
+    'koliIciAdet',
+    'koliIciMiktar',
+    'koliMiktari',
+    'secondaryUnitMultiplier',
+  ]) {
+    final value = _readDouble(json[key]).abs();
+    if (value > 0) {
+      return value;
+    }
+  }
+
+  return 1;
 }
 
 double? _readNullableDouble(Object? value) {

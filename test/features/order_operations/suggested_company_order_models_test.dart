@@ -2,7 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:furpa_merkez_terminal/features/order_operations/suggested_company_orders/data/models/suggested_company_order_models.dart';
 
 void main() {
-  test('suggested company order reads package factor aliases', () {
+  test('suggested company order reads unit multiplier as package factor', () {
     final item = SuggestedCompanyOrderListItem.fromJson(<String, Object?>{
       'supplierCode': '320001',
       'supplierName': 'TEDARIKCI',
@@ -13,7 +13,7 @@ void main() {
       'targetOnHand': 4,
       'salesQuantity': 10,
       'openCompanyOrderQuantity': 0,
-      'unitsPerCase': 12,
+      'unitMultiplier': 12,
       'minDay': 0,
       'recommendedDay': 7,
       'maxDay': 0,

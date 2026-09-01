@@ -145,7 +145,7 @@ void main() {
                   'sourceOnHand': 120,
                   'salesQuantity': 86,
                   'openIncomingOrderQuantity': 3,
-                  'unitsPerCase': 5,
+                  'unitMultiplier': 5,
                   'minDay': 0,
                   'recommendedDay': 7,
                   'maxDay': 0,

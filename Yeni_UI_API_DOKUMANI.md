@@ -3972,6 +3972,13 @@ Kural:
 - Firma icin urun ararken UI `companyCode` gondermelidir; backend bunu Mikro procedure tarafinda `@tedarikci` filtresine baglar.
 - Bu filtre Mikro'da `SATINALMA_SARTLARI.sas_cari_kod` iliskisi uzerinden calisir; yani firma ile iliskili urunler listelenir.
 
+Koli ici standart alan:
+
+- UI urun secim, miktar giris paneli ve terminal satir ekranlarinda koli ici miktar icin ana alan olarak `unitMultiplier` kullanmalidir.
+- `unitMultiplier`, ana miktar birimine gore koli/ikinci birim katsayisidir. Ornek: `unitName=ADET`, `secondaryUnitName=KOLI`, `1 KOLI = 6 ADET` ise `unitMultiplier=6` doner.
+- Deger negatif donmez; Mikro `sto_birim2_katsayi` veya kaynak alan negatif olsa bile API pozitiflestirir.
+- `secondaryUnitMultiplier` geriye uyum icin korunur; yeni UI ana karar icin `unitMultiplier` okumalidir.
+
 Response:
 
 ```json
@@ -3983,10 +3990,10 @@ Response:
     "stockName": "MNV SEFTALI KG",
     "price": 99.9,
     "priceTypeCode": 1,
-    "unitName": "KG",
-    "unitMultiplier": 1,
-    "secondaryUnitName": "",
-    "secondaryUnitMultiplier": 0,
+    "unitName": "ADET",
+    "unitMultiplier": 6,
+    "secondaryUnitName": "KOLI",
+    "secondaryUnitMultiplier": 6,
     "salesBlockCode": 0,
     "orderBlockCode": 0,
     "goodsAcceptanceBlockCode": 0,
@@ -4009,6 +4016,7 @@ UI kullanim notu:
 - Mal kabulde `isGoodsAcceptanceBlocked = true` olan urunlerde uyari gosterilebilir.
 - Siparis girisinde `isOrderBlocked = true` olan urunlerde uyari veya engel uygulanabilir.
 - Satis/sevk formlarinda `isSalesBlocked = true` olan urunlerde uyari gosterilebilir; depolar arasi sevkte bu alan tek basina satira ekleme engeli degildir.
+- Koli ici gosterim icin `unitMultiplier > 1` ise `KOLI ici 6 ADET` gibi gosterim yapilabilir; miktar girisinde koli adedi girilecekse ana miktar `koliAdedi * unitMultiplier` olarak hesaplanir.
 - Barkod okutulan satir ekleme ekranlarinda nihai karar icin once `barkodlar/{barcode}/cozumle` cagrilmalidir; `urunler` daha cok liste/arama deneyimi icindir.
 
 ### Fiyat Gor
@@ -4096,6 +4104,7 @@ Response:
     "hasStock": true,
     "price": 99.9,
     "priceTypeCode": 1,
+    "unitMultiplier": 12,
     "secondaryUnitName": "KOLI",
     "secondaryUnitMultiplier": 12,
     "salesBlockCode": 0,
@@ -4118,9 +4127,9 @@ Response:
 UI kullanim notu:
 
 - Sol menu altinda `AramaIslemleri > VarYok` veya "Var Yok" gibi ayri bir hizli ekran olarak sunulabilir.
-- Ana gosterim icin `stockCode`, `stockName`, `currentStockQuantity`, `unitName`, `warehouseName`, `price` ve varsa `secondaryUnitName/secondaryUnitMultiplier` yeterlidir.
+- Ana gosterim icin `stockCode`, `stockName`, `currentStockQuantity`, `unitName`, `warehouseName`, `price` ve varsa `secondaryUnitName/unitMultiplier` yeterlidir.
 - `hasStock=false` ise UI urunu buldugunu ama secili depoda stok olmadigini net gostermelidir.
-- `secondaryUnitMultiplier > 1` ise kullaniciya koli ici miktar olarak gosterilebilir; ornek: `KOLI ici 12 ADET`.
+- `unitMultiplier > 1` ise kullaniciya koli ici miktar olarak gosterilebilir; ornek: `KOLI ici 12 ADET`.
 - Depo secici sadece `arama-islemleri.var-yok.all-warehouses` yetkisi varsa acilmalidir; normal kullanicida depo JWT deposudur.
 - Bu endpoint satir ekleme karari icin degil, hizli stok sorgu ekranidir. Mal kabul/siparis/sevk satira ekleme kararinda yine `barkodlar/{barcode}/cozumle` ana karar noktasi olmalidir.
 
@@ -4216,6 +4225,8 @@ Onemli not:
 - `resolutionSource` alani eslestirmenin `variable-weight`, `barcode`, `stock-code`, `gtin` veya `not-found` kaynakli oldugunu anlatir.
 - `barcodeKind` alani okutulan barkodun `variable-weight`, `product`, `case`, `alternative`, `stock-code` veya `gtin` gibi pratik tipini verir.
 - `caseBarcode`, `unitsPerCase` ve `matchedUnitsPerCase` alanlari koli/master barkod tespitinde kullanilir.
+- `unitMultiplier`, UI'in koli ici miktar icin kullanacagi standart alandir. Koli barkodu okutulmasa bile stok kartinda koli/ikinci birim katsayisi varsa dolu gelir.
+- `matchedUnitsPerCase`, sadece okutulan barkod koli barkoduysa doludur; miktar panelinde genel koli ici gosterimi icin `unitMultiplier` tercih edilmelidir.
 - `isSalesBlocked`, `isOrderBlocked`, `isGoodsAcceptanceBlocked` ve `isPassive` depo detay degerleri varsa depo ozelinden, yoksa stok kartindan hesaplanir.
 - `isAllowedForTargetWarehouse` hedef depo verilirse `DEPOLAR.dep_barkod_yazici_yolu` icindeki model kod listesine gore hesaplanir.
 - `operationType=shipment` icin hedef depo model kod sonucu bilgi olarak donebilir; fakat hedef depo model kodu sevkte `isUsableInOperation=false` yapmaz.
@@ -4240,6 +4251,7 @@ Response:
   "primaryBarcode": "2700174",
   "caseBarcode": "18690000000007",
   "unitsPerCase": 12,
+  "unitMultiplier": 12,
   "matchedUnitPointer": 1,
   "matchedUnitName": "KG",
   "matchedUnitMultiplier": 1,
@@ -4292,7 +4304,8 @@ UI kullanim notu:
 - UI barkodun urun/stok/ad/tipi tahminini frontend'de yapmamalidir; okutulan degeri aynen bu endpoint'e gondermelidir.
 - Satira ekleme karari icin ana alan `isUsableInOperation` olmalidir. `false` ise `operationDecision` ve `errors` kullaniciya gosterilmelidir. Sevkte `isSalesBlocked` tek basina engel gibi yorumlanmamalidir.
 - Terazi barkodunda satir miktari icin `embeddedQuantity` kullanilabilir; bos ise varsayilan miktar UI tarafinda `1` kabul edilebilir.
-- Koli barkodu okutulduysa `isCaseBarcode = true` ve `matchedUnitsPerCase` dolu gelir; UI koli ici adet kadar miktar onerebilir.
+- Koli ici gosterim icin `unitMultiplier > 1` ise `KOLI ici 12 ADET` gibi gosterim yapilabilir.
+- Koli barkodu okutulduysa `isCaseBarcode = true` ve `matchedUnitsPerCase` dolu gelir; bu durumda UI barkoddan gelen koli miktarini da onerebilir.
 - `caseBarcode` doluysa koli barkodu tekrar okutma, koli bozma veya alternatif birim secimi gibi kisayollar acilabilir.
 
 ### Urunden Cari Onerileri
@@ -4388,6 +4401,7 @@ Response:
   "primaryBarcode": "8690000000000",
   "caseBarcode": "18690000000007",
   "unitsPerCase": 12,
+  "unitMultiplier": 12,
   "defaultSupplierCode": "120.01.03106",
   "defaultSupplierName": "ORNEK TEDARIKCI",
   "suggestions": [
@@ -4750,7 +4764,8 @@ Not:
   ayari acik ve kaynak depo `TrustedSourceWarehouseNos` icindeyse ihtiyactan dusulur.
 - Kaynak depoda elde olmayan miktar onerilmez.
 - Oneri minimum stok esigine gore tetiklenir; `needQuantity` minimum stok acigidir.
-- `packageFactor` 1'den buyukse `suggestedOrderQuantity` koli katina yukari yuvarlanir.
+- `unitMultiplier` 1'den buyukse `suggestedOrderQuantity` koli katina yukari yuvarlanir.
+- `unitMultiplier`, UI'in koli ici miktar icin kullanacagi standart alandir.
 - `maxDay` doluysa onerilen miktar maksimum stok seviyesini asmadan sinirlanir; koli kati korunur.
 - Kaynak stok siniri devreye girerse son miktar yine koli kati korunarak asagi kirpilir.
 - Kaynak depo model kodlari bos ise backend `400 ProblemDetails` dondurebilir.
@@ -4767,7 +4782,7 @@ Liste satiri modeli:
   "sourceOnHand": 120,
   "salesQuantity": 86,
   "openIncomingOrderQuantity": 3,
-  "packageFactor": 5,
+  "unitMultiplier": 5,
   "minDay": 7,
   "recommendedDay": 7,
   "maxDay": 0,
@@ -4781,7 +4796,7 @@ UI akisi:
 
 - Tek sayfada kullanici once kaynak depo secer.
 - Kaynak depo secimi, genel urun arama endpointindeki `warehouseNo` degerini degistirmemelidir. Kaynak depo sadece bu endpointte `SourceWarehouseNo` olarak, siparise cevirme endpointinde de `sourceWarehouseNo` olarak gonderilir.
-- UI listeyi getirir ve stok kodu, stok adi, barkod, hedef stok, kaynak stok, son satis, acik siparis, ihtiyac, koli katsayisi ve onerilen siparis miktarini gosterir.
+- UI listeyi getirir ve stok kodu, stok adi, barkod, hedef stok, kaynak stok, son satis, acik siparis, ihtiyac, `unitMultiplier` koli ici ve onerilen siparis miktarini gosterir.
 - Kullanici satirlari secer, `quantity` alanini varsayilan olarak `suggestedOrderQuantity` ile doldurur.
 - Kullanici miktari degistirebilir; `recommendedQuantity` alanina orijinal `suggestedOrderQuantity` yazilmasi onerilir.
 
@@ -4805,7 +4820,8 @@ Amac:
 - Sadece bu model kodlarina uyan, aktif, siparise kapali olmayan ve secili kaynak depoda `STOK_DEPO_DETAYLARI` kaydi bulunan stoklar doner.
 - Kaynak depo model kodlari bos ise backend `400 ProblemDetails` doner.
 - Response satirlari siparis satirina donusturulmeye hazirdir; `quantity` ve `recommendedQuantity` bilerek `0` gelir. UI satiri ekrana miktar `0` ile koymali, kullanici miktari elle girmelidir.
-- Koli/ikinci birim bilgisi icin `secondaryUnitName`, `packageFactor` ve varsa `caseBarcode` alanlari doner. Ornek `secondaryUnitName=KOLI`, `packageFactor=12` ise 1 koli 12 ana birim olarak okunur.
+- Koli/ikinci birim bilgisi icin `secondaryUnitName`, `unitMultiplier` ve varsa `caseBarcode` alanlari doner. Ornek `unitName=ADET`, `secondaryUnitName=KOLI`, `unitMultiplier=12` ise 1 koli 12 ADET olarak okunur.
+- Bu response'ta koli ici icin tek standart alan `unitMultiplier`dir.
 - Bu akista otomatik oneri miktari uretilmez; kullanici kasa/koli/adet/kg kararini ekranda verir.
 - `/manav` alias'i sadece `sourceWarehouseNo=56` icin kisa yoldur. Yeni UI genel kullanimda `kaynak-depo-urunleri?sourceWarehouseNo={secilenKaynakDepo}` endpointini tercih etmelidir.
 
@@ -4840,7 +4856,7 @@ Response:
     "modelName": "Yesillik",
     "unitName": "ADET",
     "secondaryUnitName": "KOLI",
-    "packageFactor": 25,
+    "unitMultiplier": 25,
     "barcode": "2900729",
     "caseBarcode": "1290072900000",
     "quantity": 0,
@@ -4857,7 +4873,7 @@ UI akisi:
 - Kaynak depo `53`, `55`, `56` veya `58` ise `GET /api/siparis-islemleri/onerilen-depo-siparisleri/kaynak-depo-urunleri?sourceWarehouseNo={sourceWarehouseNo}` cagrilir.
 - Kaynak depo `59` veya `62` secilecekse once DB'de ilgili model kodlari tanimlanmalidir; aksi halde backend `400 ProblemDetails` ile "Secilen kaynak depo icin model kodlari tanimli degil." doner.
 - Donen satirlar grid/form satirina `quantity=0` ile basilir.
-- `packageFactor > 1` ise UI koli miktari girisine izin verebilir; ana miktar `koliAdedi * packageFactor` olarak hesaplanabilir. `caseBarcode` doluysa koli barkodu olarak gosterilebilir veya okutma eslestirmesinde kullanilabilir.
+- `unitMultiplier > 1` ise UI koli miktari girisine izin verebilir; ana miktar `koliAdedi * unitMultiplier` olarak hesaplanabilir. `caseBarcode` doluysa koli barkodu olarak gosterilebilir veya okutma eslestirmesinde kullanilabilir.
 - Kullanici miktari kendisi girer; `quantity > 0` olmayan satirlar siparise cevrilmemelidir.
 - Siparise cevirirken yine `POST /api/siparis-islemleri/onerilen-depo-siparisleri/convert-to-order` kullanilir.
 - Request icinde secilen kaynak depo `sourceWarehouseNo` olarak gonderilir ve secilen satirlar `lines[]` altina yazilir.
@@ -5090,6 +5106,7 @@ Kapsam ve filtre:
 - Pasif, iptal, siparise kapali ve `DLS%` stoklar donmez.
 - Cari eslesmesi once depo detay tedarikcisi, sonra stok karti tedarikcisi, sonra aktif `SATINALMA_SARTLARI` kaydi uzerinden kabul edilir.
 - Satinalma sarti depo no `0`, `null` veya secili depo olan aktif kayitlar dikkate alinir.
+- `unitMultiplier`, UI'in koli ici miktar icin kullanacagi standart alandir.
 
 Response:
 
@@ -5105,7 +5122,7 @@ Response:
     "modelName": "01",
     "unitName": "AD",
     "secondaryUnitName": "KOLI",
-    "packageFactor": 12,
+    "unitMultiplier": 12,
     "barcode": "8690000000001",
     "caseBarcode": "18690000000018",
     "quantity": 0,
@@ -5121,7 +5138,7 @@ Response:
 UI akisi:
 
 - Firma siparisi create ekraninda kullanici cari sectiginde bu endpoint cagrilir.
-- Donen satirlar grid/secim modalina basilir; `packageFactor > 1` ise UI koli ici miktari olarak gosterebilir.
+- Donen satirlar grid/secim modalina basilir; `unitMultiplier > 1` ise UI koli ici miktari olarak gosterebilir.
 - Satir siparise eklendiginde `stockCode`, `unitPrice`, `unitPointer`, `quantity` ve gerekirse `recommendedQuantity` create body satirina tasinir.
 - `quantity=0` olan satirlar kaydetmeye gonderilmemelidir; kullanici miktar girdikten sonra gonderilmelidir.
 - Liste bos gelirse UI kullaniciyi engellememeli; kullanici klasik urun arama ile tek tek urun ekleyebilir.
@@ -5152,7 +5169,8 @@ Not:
   ayari acik ve tedarikci `TrustedSupplierCodes` icindeyse ihtiyactan dusulur.
 - Oneri minimum stok esigine gore tetiklenir; `needQuantity` minimum stok acigidir.
 - Satinalma sartinda asgari miktar varsa onerilen miktar once asgari miktara tamamlanabilir.
-- `packageFactor` 1'den buyukse `suggestedOrderQuantity` koli katina yukari yuvarlanir.
+- `unitMultiplier` 1'den buyukse `suggestedOrderQuantity` koli katina yukari yuvarlanir.
+- `unitMultiplier`, UI'in koli ici miktar icin kullanacagi standart alandir.
 - `maxDay` doluysa onerilen miktar maksimum stok seviyesini asmadan sinirlanir; koli kati korunur.
 
 Liste satiri modeli:
@@ -5168,7 +5186,7 @@ Liste satiri modeli:
   "targetOnHand": 4,
   "salesQuantity": 86,
   "openCompanyOrderQuantity": 2,
-  "packageFactor": 5,
+  "unitMultiplier": 5,
   "minDay": 7,
   "recommendedDay": 7,
   "maxDay": 0,
@@ -5184,7 +5202,7 @@ Liste satiri modeli:
 UI akisi:
 
 - Tek sayfada kullanici firma/tedarikci secer.
-- UI listeyi getirir ve firma, stok kodu, stok adi, barkod, mevcut stok, son satis, acik firma siparisi, ihtiyac, koli katsayisi, asgari alim, alis fiyati ve onerilen siparis miktarini gosterir.
+- UI listeyi getirir ve firma, stok kodu, stok adi, barkod, mevcut stok, son satis, acik firma siparisi, ihtiyac, `unitMultiplier` koli ici, asgari alim, alis fiyati ve onerilen siparis miktarini gosterir.
 - Kullanici satirlari secer, `quantity` alanini varsayilan olarak `suggestedOrderQuantity` ile doldurur.
 - Kullanici miktari degistirebilir; `recommendedQuantity` alanina orijinal `suggestedOrderQuantity` yazilmasi onerilir.
 
@@ -19847,7 +19865,8 @@ public sealed record BarcodeCustomerSuggestionResponse(
     double? UnitsPerCase,
     string? DefaultSupplierCode,
     string? DefaultSupplierName,
-    IReadOnlyCollection<ProductCustomerSuggestionDto> Suggestions);
+    IReadOnlyCollection<ProductCustomerSuggestionDto> Suggestions,
+    double? UnitMultiplier = null);
 
 public sealed record CustomerLookupItemDto(
     string CustomerCode,
@@ -20056,7 +20075,7 @@ public sealed record SuggestedWarehouseOrderListItemDto(
     double SourceOnHand,
     double SalesQuantity,
     double OpenIncomingOrderQuantity,
-    double PackageFactor,
+    double UnitMultiplier,
     double MinDay,
     double RecommendedDay,
     double MaxDay,
@@ -20072,7 +20091,10 @@ public sealed record SuggestedWarehouseSourceProductDto(
     string ModelCode,
     string ModelName,
     string UnitName,
+    string SecondaryUnitName,
+    double UnitMultiplier,
     string Barcode,
+    string CaseBarcode,
     double Quantity,
     double RecommendedQuantity,
     double UnitPrice,
@@ -20088,7 +20110,7 @@ public sealed record SuggestedCompanyOrderListItemDto(
     double TargetOnHand,
     double SalesQuantity,
     double OpenCompanyOrderQuantity,
-    double PackageFactor,
+    double UnitMultiplier,
     double MinDay,
     double RecommendedDay,
     double MaxDay,
