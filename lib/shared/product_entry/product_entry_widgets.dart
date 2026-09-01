@@ -194,7 +194,7 @@ class ProductDraftEntryPanel extends StatelessWidget {
       if ((barcode ?? '').trim().isNotEmpty)
         TerminalPdaInfo(label: 'Barkod', value: barcode!),
       if ((packageLabel ?? '').trim().isNotEmpty)
-        TerminalPdaInfo(label: 'Koli ici', value: packageLabel!),
+        TerminalPdaInfo(label: 'Koli ici', value: _packageInfoValue),
       if ((priceLabel ?? '').trim().isNotEmpty)
         TerminalPdaInfo(label: 'Fiyat', value: priceLabel!),
       ...extraInfo,
@@ -205,8 +205,22 @@ class ProductDraftEntryPanel extends StatelessWidget {
     return <String>[
       stockCode,
       if ((unitLabel ?? '').trim().isNotEmpty) unitLabel!,
-      if ((packageLabel ?? '').trim().isNotEmpty) 'Koli ici $packageLabel',
+      if ((packageLabel ?? '').trim().isNotEmpty) 'Koli ici $_packageInfoValue',
     ].where((part) => part.trim().isNotEmpty).join(' | ');
+  }
+
+  String get _packageInfoValue {
+    final label = packageLabel?.trim() ?? '';
+    if (label.isEmpty) {
+      return '';
+    }
+
+    if (label.contains(RegExp(r'[A-Za-z]'))) {
+      return label;
+    }
+
+    final unit = unitLabel?.trim() ?? '';
+    return unit.isEmpty ? label : '$label $unit';
   }
 
   Widget _buildQuantityAdvisory(

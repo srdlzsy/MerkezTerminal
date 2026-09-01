@@ -466,10 +466,9 @@ class _SuggestedWarehouseOrderCard extends StatelessWidget {
     final packageLabel = item.packageFactor > 0
         ? AppFormatters.quantity(item.packageFactor)
         : '-';
-    final secondaryUnitName = item.secondaryUnitName.trim();
-    final packageDisplayLabel =
-        secondaryUnitName.isNotEmpty && packageLabel != '-'
-        ? '$packageLabel $secondaryUnitName'
+    final unitName = item.unitName.trim();
+    final packageDisplayLabel = unitName.isNotEmpty && packageLabel != '-'
+        ? '$packageLabel $unitName'
         : packageLabel;
     final subtitle = <String>[
       if (item.stockCode.trim().isNotEmpty) 'Kod ${item.stockCode}',

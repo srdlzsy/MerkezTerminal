@@ -739,15 +739,20 @@ class TerminalPdaInfoTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final isPackageInfo = label.trim().toLowerCase() == 'koli ici';
 
     return Container(
       constraints: const BoxConstraints(minHeight: 34),
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest.withAlpha(44),
+        color: isPackageInfo
+            ? const Color(0xFFFFF8E5)
+            : theme.colorScheme.surfaceContainerHighest.withAlpha(44),
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
-          color: theme.colorScheme.outlineVariant.withAlpha(72),
+          color: isPackageInfo
+              ? const Color(0xFFE5B84F).withAlpha(150)
+              : theme.colorScheme.outlineVariant.withAlpha(72),
         ),
       ),
       child: Column(
@@ -759,8 +764,10 @@ class TerminalPdaInfoTile extends StatelessWidget {
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: theme.textTheme.labelSmall?.copyWith(
-              color: const Color(0xFF5F6C7B),
-              fontWeight: FontWeight.w800,
+              color: isPackageInfo
+                  ? const Color(0xFF7A4A00)
+                  : const Color(0xFF5F6C7B),
+              fontWeight: isPackageInfo ? FontWeight.w900 : FontWeight.w800,
             ),
           ),
           const SizedBox(height: 1),
@@ -770,8 +777,10 @@ class TerminalPdaInfoTile extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
             style: theme.textTheme.titleSmall?.copyWith(
               height: 1.05,
-              color: const Color(0xFF1C2D40),
-              fontWeight: FontWeight.w800,
+              color: isPackageInfo
+                  ? const Color(0xFF553600)
+                  : const Color(0xFF1C2D40),
+              fontWeight: isPackageInfo ? FontWeight.w900 : FontWeight.w800,
             ),
           ),
         ],
@@ -1397,7 +1406,10 @@ class _TerminalCompactProductLineDetails extends StatelessWidget {
                   if ((unitLabel ?? '').trim().isNotEmpty)
                     _TerminalMiniLineMeta(text: unitLabel!),
                   if ((packageLabel ?? '').trim().isNotEmpty)
-                    _TerminalMiniLineMeta(text: 'Koli ici $packageLabel'),
+                    _TerminalMiniLineMeta(
+                      text: 'Koli ici $_packageInfoValue',
+                      isPackage: true,
+                    ),
                   if ((priceLabel ?? '').trim().isNotEmpty)
                     _TerminalMiniLineMeta(text: priceLabel!),
                   if ((barcode ?? '').trim().isNotEmpty)
@@ -1415,23 +1427,68 @@ class _TerminalCompactProductLineDetails extends StatelessWidget {
       ],
     );
   }
+
+  String get _packageInfoValue {
+    final label = packageLabel?.trim() ?? '';
+    if (label.isEmpty) {
+      return '';
+    }
+
+    if (label.contains(RegExp(r'[A-Za-z]'))) {
+      return label;
+    }
+
+    final unit = unitLabel?.trim() ?? '';
+    return unit.isEmpty ? label : '$label $unit';
+  }
 }
 
 class _TerminalMiniLineMeta extends StatelessWidget {
-  const _TerminalMiniLineMeta({required this.text, this.color});
+  const _TerminalMiniLineMeta({
+    required this.text,
+    this.color,
+    this.isPackage = false,
+  });
 
   final String text;
   final Color? color;
+  final bool isPackage;
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final effectiveColor =
+        color ??
+        (isPackage ? const Color(0xFF7A4A00) : const Color(0xFF607080));
+
+    if (isPackage) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+        decoration: BoxDecoration(
+          color: const Color(0xFFFFF4D6),
+          borderRadius: BorderRadius.circular(5),
+          border: Border.all(color: const Color(0xFFE5B84F).withAlpha(120)),
+        ),
+        child: Text(
+          text,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: theme.textTheme.labelSmall?.copyWith(
+            height: 1.05,
+            color: effectiveColor,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+      );
+    }
+
     return Text(
       text,
       maxLines: 1,
       overflow: TextOverflow.ellipsis,
-      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+      style: theme.textTheme.labelSmall?.copyWith(
         height: 1.05,
-        color: color ?? const Color(0xFF607080),
+        color: effectiveColor,
         fontWeight: FontWeight.w700,
       ),
     );

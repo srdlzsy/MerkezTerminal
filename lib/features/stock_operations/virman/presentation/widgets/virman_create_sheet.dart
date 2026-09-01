@@ -1466,10 +1466,10 @@ String? _packageLabelForProduct(SearchProductLookupItem product) {
   }
 
   final quantity = AppFormatters.quantity(product.unitMultiplier);
-  final secondaryUnitName = product.secondaryUnitName.trim();
-  if (secondaryUnitName.isEmpty) {
+  final unitName = product.unitName.trim();
+  if (unitName.isEmpty) {
     return quantity;
   }
 
-  return '$quantity $secondaryUnitName';
+  return '$quantity $unitName';
 }

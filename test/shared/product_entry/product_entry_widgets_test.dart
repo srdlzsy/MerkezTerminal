@@ -227,7 +227,7 @@ void main() {
       findsOneWidget,
     );
     expect(find.text('015792'), findsOneWidget);
-    expect(find.text('Koli ici 12'), findsOneWidget);
+    expect(find.text('Koli ici 12 ADET'), findsOneWidget);
   });
 
   testWidgets('compact product line warns for non-package multiple quantity', (
