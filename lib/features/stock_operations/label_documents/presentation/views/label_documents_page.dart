@@ -9,7 +9,6 @@ import 'package:furpa_merkez_terminal/shared/drafts/create_draft_picker.dart';
 import 'package:furpa_merkez_terminal/shared/drafts/create_draft_repository.dart';
 import 'package:furpa_merkez_terminal/shared/drafts/create_draft_session.dart';
 import 'package:furpa_merkez_terminal/shared/formatters/app_formatters.dart';
-import 'package:furpa_merkez_terminal/shared/product_entry/product_entry_controller.dart';
 import 'package:furpa_merkez_terminal/shared/product_entry/product_entry_widgets.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/barcode_camera_scan_page.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/section_card.dart';
@@ -724,23 +723,16 @@ class _LabelDocumentCreateSheetState extends State<_LabelDocumentCreateSheet> {
     }
     final pickedProduct = selected;
 
-    var mergedIntoExisting = false;
     setState(() {
-      mergedIntoExisting = _applyProductToLine(line, pickedProduct);
-      if (!mergedIntoExisting) {
-        line.setLookupStatus(
-          'Secildi: ${pickedProduct.stockCode} | ${pickedProduct.stockName}',
-        );
-      }
+      _applyProductToLine(line, pickedProduct);
+      line.setLookupStatus(
+        'Secildi: ${pickedProduct.stockCode} | ${pickedProduct.stockName}',
+      );
       _ensureFreshEntryLine();
       _errorMessage = null;
     });
     _draftSession.scheduleSave();
     _focusFreshEntryLine();
-
-    if (mergedIntoExisting) {
-      _showFeedback('Bu urun zaten etiket belgesine ekli.');
-    }
   }
 
   Future<void> _scanProductWithCamera(_LabelDocumentLineDraft line) async {
@@ -782,40 +774,8 @@ class _LabelDocumentCreateSheetState extends State<_LabelDocumentCreateSheet> {
     _LabelDocumentLineDraft line,
     SearchProductLookupItem product,
   ) {
-    final existingLine = productEntryController.findDuplicateLine(
-      ProductEntryDuplicateMergePolicy<_LabelDocumentLineDraft>(
-        currentLine: line,
-        targetBarcode: product.barcode,
-        targetStockCode: product.stockCode,
-        lines: _lines,
-        lineBarcode: (line) => line.selectedProduct?.barcode ?? '',
-        lineStockCode: (line) => line.selectedProduct?.stockCode ?? '',
-        canMergeLine: (line) => line.selectedProduct != null,
-      ),
-    );
-
-    if (existingLine == null) {
-      line.applyProduct(product);
-      return false;
-    }
-
-    _recycleMergedLine(line, createReplacement: _createLine);
-    return true;
-  }
-
-  void _recycleMergedLine(
-    _LabelDocumentLineDraft line, {
-    required _LabelDocumentLineDraft Function() createReplacement,
-  }) {
-    final lineIndex = _lines.indexOf(line);
-    line.dispose();
-
-    if (lineIndex == 0) {
-      _lines[lineIndex] = createReplacement();
-      return;
-    }
-
-    _lines.removeAt(lineIndex);
+    line.applyProduct(product);
+    return false;
   }
 
   void _ensureFreshEntryLine() {
@@ -844,6 +804,8 @@ class _LabelDocumentCreateSheetState extends State<_LabelDocumentCreateSheet> {
   Future<void> _submit() async {
     final activeLines = _lines
         .where((line) => !_isBlankLine(line))
+        .toList(growable: false)
+        .reversed
         .toList(growable: false);
 
     if (activeLines.isEmpty) {
@@ -1044,8 +1006,8 @@ class _LabelDocumentCreateSheetState extends State<_LabelDocumentCreateSheet> {
                 TerminalPdaInfo(label: 'Birim', value: product.unitName),
                 if (product.unitMultiplier > 1)
                   TerminalPdaInfo(
-                    label: 'Koli',
-                    value: AppFormatters.quantity(product.unitMultiplier),
+                    label: 'Koli ici',
+                    value: _labelProductPackageText(product),
                   ),
                 if (product.barcode.trim().isNotEmpty)
                   TerminalPdaInfo(label: 'Barkod', value: product.barcode),
@@ -1160,6 +1122,12 @@ Map<String, dynamic>? _labelDraftMap(Object? value) {
     final Map map => map.map((key, item) => MapEntry(key.toString(), item)),
     _ => null,
   };
+}
+
+String _labelProductPackageText(SearchProductLookupItem product) {
+  final quantity = AppFormatters.quantity(product.unitMultiplier);
+  final unitName = product.unitName.trim();
+  return unitName.isEmpty ? quantity : '$quantity $unitName';
 }
 
 Map<String, dynamic> _searchProductJson(SearchProductLookupItem item) {

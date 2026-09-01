@@ -158,6 +158,10 @@ class ProductDraftEntryPanel extends StatelessWidget {
         ],
         if (!isCompact)
           TerminalPdaInfoGrid(minTileWidth: 92, spacing: 6, items: _infoItems),
+        if (isCompact && _compactInfoItems.isNotEmpty) ...<Widget>[
+          _CompactProductInfoStrip(items: _compactInfoItems),
+          const SizedBox(height: 1),
+        ],
         SizedBox(height: isCompact ? 3 : 10),
         _buildQuantityInputs(isCompact: isCompact),
         _buildQuantityAdvisory(context, isCompact: isCompact),
@@ -205,8 +209,18 @@ class ProductDraftEntryPanel extends StatelessWidget {
     return <String>[
       stockCode,
       if ((unitLabel ?? '').trim().isNotEmpty) unitLabel!,
-      if ((packageLabel ?? '').trim().isNotEmpty) 'Koli ici $_packageInfoValue',
     ].where((part) => part.trim().isNotEmpty).join(' | ');
+  }
+
+  List<_CompactProductInfo> get _compactInfoItems {
+    return <_CompactProductInfo>[
+      if ((packageLabel ?? '').trim().isNotEmpty)
+        _CompactProductInfo(
+          label: 'Koli ici',
+          value: _packageInfoValue,
+          isPackage: true,
+        ),
+    ];
   }
 
   String get _packageInfoValue {
@@ -456,6 +470,63 @@ class _ProductDraftEntryAdvisory {
   final bool isError;
 }
 
+class _CompactProductInfo {
+  const _CompactProductInfo({
+    required this.label,
+    required this.value,
+    this.isPackage = false,
+  });
+
+  final String label;
+  final String value;
+  final bool isPackage;
+}
+
+class _CompactProductInfoStrip extends StatelessWidget {
+  const _CompactProductInfoStrip({required this.items});
+
+  final List<_CompactProductInfo> items;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Wrap(
+      spacing: 4,
+      runSpacing: 3,
+      children: <Widget>[
+        for (final item in items)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+            decoration: BoxDecoration(
+              color: item.isPackage
+                  ? const Color(0xFFFFF4D6)
+                  : theme.colorScheme.surface.withAlpha(190),
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(
+                color: item.isPackage
+                    ? const Color(0xFFE5B84F).withAlpha(150)
+                    : theme.colorScheme.outlineVariant.withAlpha(95),
+              ),
+            ),
+            child: Text(
+              '${item.label}: ${item.value}',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.labelSmall?.copyWith(
+                height: 1.05,
+                color: item.isPackage
+                    ? const Color(0xFF7A4A00)
+                    : const Color(0xFF4B5F73),
+                fontWeight: item.isPackage ? FontWeight.w900 : FontWeight.w800,
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
 class _CompactDraftEntryCard extends StatelessWidget {
   const _CompactDraftEntryCard({
     required this.title,
@@ -476,7 +547,7 @@ class _CompactDraftEntryCard extends StatelessWidget {
     return Container(
       width: double.infinity,
       margin: const EdgeInsets.only(bottom: 6),
-      padding: const EdgeInsets.fromLTRB(6, 4, 6, 5),
+      padding: const EdgeInsets.fromLTRB(6, 3, 6, 3),
       decoration: BoxDecoration(
         color: theme.colorScheme.primaryContainer.withAlpha(42),
         borderRadius: BorderRadius.circular(8),

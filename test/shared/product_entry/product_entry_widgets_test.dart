@@ -138,6 +138,7 @@ void main() {
 
     expect(tester.takeException(), isNull);
     expect(find.text('Barkod / stok kodu / urun adi'), findsOneWidget);
+    expect(find.text('Koli ici: 12 ADET'), findsOneWidget);
     expect(find.text('Kaleme Ekle'), findsOneWidget);
     expect(
       tester

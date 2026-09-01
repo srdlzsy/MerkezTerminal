@@ -9236,6 +9236,8 @@ Not:
 - `warehouseNo` verilmezse JWT icindeki kullanici deposu kullanilir
 - response modeli `LabelDocumentProductDto` doner
 - backend once Furpa tarafinda belge detaylarini okur, sonra her satiri Mikro urun karti ile zenginlestirir
+- response satir sirasi Furpa `LabelDocumentDetails.DetailId` sirasi ile gelir; bu sira pratikte create anindaki insert sirasi kabul edilir
+- UI yazdirirken response'u urun adi, stok kodu veya fiyata gore yeniden siralamamali; gelen sirayi korumalidir
 
 Response:
 
@@ -10448,7 +10450,10 @@ Onemli not:
 - `kasa-islemleri.etiket-belgeleri.all-warehouses` yoksa `warehouseNo` sorulmaz; backend JWT icindeki kullanici deposunu kullanir. Bu yetki varsa baska depo icin etiket belgesi olusturulacaksa body'de opsiyonel `warehouseNo` gonderilebilir
 - en az bir satir zorunludur
 - her satir yalnizca `productCode` alanini ister
+- `lines[]` dizisinin sirasi etiket yazdirma sirasi kabul edilir; terminal/web okutma veya ekleme sirasini bu diziye aynen yansitmalidir
+- UI yeni okutulan urunu ekranda en ustte gosterse bile, kaydetme payload'inda kullanicinin ekleme/okutma sirasi korunmalidir
 - backend Furpa veritabaninda `LabelDocuments` ve `LabelDocumentDetails` tablolarina transaction ile yazar
+- backend tablo yapisini degistirmeden detay satirlarini insert eder; detay/yazdirma akisi `DetailId` sirasiyla doner
 
 Request:
 
@@ -10480,6 +10485,7 @@ UI notu:
 
 - `PUT /api/kasa-islemleri/etiket-belgeleri/{id}` route'u acik olsa da backend tarafinda su an `501 Not Implemented` doner
 - detay ekraninda belge basligindan cok urun kartlari on plana cikacagi icin grid tasarimi urun odakli kurulmalidir
+- etiket belgesi yazdirma/listeden detay alma akisi urun adi veya stok koduna gore yeniden siralama yapmamalidir; kullanici hangi sirayla eklediyse baskida o sira gorunmelidir
 
 ### Virmanlar Liste
 
