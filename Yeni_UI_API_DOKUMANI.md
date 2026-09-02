@@ -3949,7 +3949,7 @@ Query:
 
 ```text
 warehouseNo    opsiyonel; verilmezse JWT icindeki depo kullanilir
-barcode        opsiyonel; barkod ile exact arama; 27/29 ile baslayan 13 haneli terazi barkoduysa arama barkodu ilk 7 haneye normalize edilir
+barcode        opsiyonel; once tam barkod arar; 27/29 ile baslayan 13 haneli terazi barkoduysa arama barkodu ilk 7 haneye normalize edilir; sonuc yoksa 6+ rakamda barkod son hane fallback'i calisir
 stockCode      opsiyonel; stok kodu ile exact arama
 stockName      opsiyonel; stok adinda contains arama, en az 2 karakter
 companyCode    opsiyonel; secilen firma/cari kodu filtresi
@@ -3966,8 +3966,11 @@ Kural:
 - Ornek yanlis kullanim: `GET /api/arama-islemleri/urunler?warehouseNo=50&stockName=aytac`. Kullanici token deposu `56` ise ve tum depo yetkisi yoksa backend `403 Forbidden` dondurur.
 - Ornek dogru kullanim: `GET /api/arama-islemleri/urunler?stockName=aytac&take=20` veya `GET /api/arama-islemleri/urunler?warehouseNo=56&stockName=aytac&take=20`.
 - Barkod okutulduysa UI mumkunse degeri `barcode` alaninda gondermelidir. 27/29 terazi barkodunda backend ilk 7 haneyi arar; sonuc bulunamazsa ayni urun/PLU kismi icin `27`/`29` alternatif prefix'ini de dener. Ornek: `2700740000008` okutulursa `2700740`, sonra `2900740`, sonra orijinal barkod denenir.
-- Genel arama kutusunda kullanici sadece numerik metin yazarsa ve ilk arama sonuc donmezse backend bu metni once barkod, sonra stok kodu gibi tekrar dener.
-- Ornek: `stockName=2900729` gibi yanlis/genel arama seklinde gelirse backend sonuc bulamazsa `barcode=2900729` gibi tekrar deneyip `015806` stokunu dondurebilir. En temiz UI yolu yine `barcode=2900729` veya `GET /api/arama-islemleri/barkodlar/2900729/cozumle` kullanmaktir.
+- Kullanici barkodu elle ve eksik yazarsa, en az 6 rakamlik degerlerde backend once tam barkod dener; sonuc yoksa `BARKOD_TANIMLARI.bar_kodu` son hanelerine gore arama yapar. Ornek `barcode=321158` istegi `...321158` ile biten barkodlari bulabilir. Bu fallback birden fazla urun dondurebilir; UI liste olarak gostermelidir.
+- Genel arama kutusunda kullanici sadece numerik metin yazarsa backend ayni degeri tam stok kodu ve tam barkod olarak arar. Iki arama farkli urunlere denk gelirse ikisini de dondurur; tam stok kodu eslesmesi ilk sirada olur. UI bu durumda kullaniciya secim yaptirmalidir.
+- Tam stok kodu ve tam barkod ayni urune denk gelirse urun stok koduna gore tekillestirilir ve bir kez doner.
+- Barkod son hane fallback'i yalnizca tam stok kodu ve tam barkod aramalarinin ikisi de sonuc vermediyse calisir. Ornek: `stockName=026883` tam stok kodu olarak bulunursa `...026883` ile biten baska barkodlar listeye eklenmez.
+- Ornek: `stockName=2900729` gibi tek kutu/genel arama seklinde gelirse backend tam stok kodu ve tam barkodu kontrol eder, ikisi de bulunamazsa barkod sonu aramasina gecer. Barkod okutulan ekranda en temiz yol yine `barcode=2900729` veya `GET /api/arama-islemleri/barkodlar/2900729/cozumle` kullanmaktir.
 - UI barkodu yanlislikla `stockCode` alaninda gonderirse de backend ilk stok kodu aramasindan sonuc alamazsa ayni numerik degeri barkod gibi tekrar dener. Ornek: `stockCode=2900728&companyCode=8880325699` sonuc bulamazsa backend `barcode=2900728&companyCode=8880325699` gibi tekrar arar ve stok `015805` donebilir.
 - Firma icin urun ararken UI `companyCode` gondermelidir; backend bunu Mikro procedure tarafinda `@tedarikci` filtresine baglar.
 - Bu filtre Mikro'da `SATINALMA_SARTLARI.sas_cari_kod` iliskisi uzerinden calisir; yani firma ile iliskili urunler listelenir.
@@ -3990,6 +3993,10 @@ Response:
     "stockName": "MNV SEFTALI KG",
     "price": 99.9,
     "priceTypeCode": 1,
+    "purchasePrice": 50,
+    "purchaseGrossPrice": 62.5,
+    "purchasePriceSource": "purchase-requirement",
+    "purchaseSupplierCode": "120.01.03106",
     "unitName": "ADET",
     "unitMultiplier": 6,
     "secondaryUnitName": "KOLI",
@@ -4013,6 +4020,10 @@ Response:
 
 UI kullanim notu:
 
+- `price` satis fiyatidir; firma mal kabul veya alis maliyeti icin body'ye basilmamalidir.
+- `purchasePrice` sadece `companyCode/supplierCode` ile cari baglamli aramada dolabilir; son `SATINALMA_SARTLARI` kaydindan iskonto sonrasi alis birim fiyatidir. Firma mal kabulde e-belge satirindan `netUnitPrice` gelmiyorsa UI `unitPrice` icin sadece `purchasePrice` alanini kullanmalidir.
+- Firma mal kabul ekraninda kullaniciya alis fiyati elle yazdirilmamalidir. `netUnitPrice` veya `purchasePrice` yoksa UI satiri durdurmadan `unitPrice=0` gondermelidir; satis fiyati fallback olarak kullanilmamalidir.
+- `purchaseGrossPrice` satin alma sartindaki brut fiyat, `purchaseSupplierCode` ise fiyat kaydinin carisidir. `companyCode/supplierCode` ile arama yapilirsa fiyat o carinin satin alma sartindan gelir.
 - Mal kabulde `isGoodsAcceptanceBlocked = true` olan urunlerde uyari gosterilebilir.
 - Siparis girisinde `isOrderBlocked = true` olan urunlerde uyari veya engel uygulanabilir.
 - Satis/sevk formlarinda `isSalesBlocked = true` olan urunlerde uyari gosterilebilir; depolar arasi sevkte bu alan tek basina satira ekleme engeli degildir.
@@ -4043,7 +4054,7 @@ Query:
 
 ```text
 warehouseNo    opsiyonel; verilmezse JWT icindeki depo kullanilir
-barcode        opsiyonel; barkod ile exact arama; 27/29 ile baslayan 13 haneli terazi barkoduysa arama barkodu ilk 7 haneye normalize edilir
+barcode        opsiyonel; once tam barkod arar; 27/29 ile baslayan 13 haneli terazi barkoduysa arama barkodu ilk 7 haneye normalize edilir; sonuc yoksa 6+ rakamda barkod son hane fallback'i calisir
 stockCode      opsiyonel; stok kodu ile exact arama
 stockName      opsiyonel; stok adinda contains arama, en az 2 karakter
 companyCode    opsiyonel; secilen firma/cari kodu filtresi
@@ -4083,7 +4094,7 @@ Query:
 
 ```text
 warehouseNo    opsiyonel; verilmezse JWT icindeki depo kullanilir
-barcode        opsiyonel; barkod ile exact arama; 27/29 terazi barkodunda arama barkodu normalize edilir
+barcode        opsiyonel; once tam barkod arar; 27/29 terazi barkodunda arama barkodu normalize edilir; sonuc yoksa 6+ rakamda barkod son hane fallback'i calisir
 stockCode      opsiyonel; stok kodu ile exact arama
 stockName      opsiyonel; stok adinda contains arama, en az 2 karakter
 take           opsiyonel; default 20, max 100
@@ -4221,6 +4232,7 @@ Onemli not:
 - Endpoint once 13 haneli terazi barkodunu normalize eder. `27` veya `29` ile baslayan EAN-13 barkodlarda ilk 7 hane urun barkodu kabul edilir; 8-12. haneler KG miktari olarak `embeddedQuantity` alanina yazilir.
 - Ornek: `2700174041103` okutulursa `lookupBarcode = 2700174`, `embeddedQuantity = 4.11`, `embeddedQuantityUnit = KG` doner.
 - Endpoint normalize edilen barkodu `BARKOD_TANIMLARI` tablosunda exact arar. Terazi barkodunda sonuc bulunamazsa ayni urun/PLU kismi icin `27`/`29` alternatif prefix'i denenir. Ornek: `2700740000008` icin `2700740`, sonra `2900740`, sonra orijinal barkod aranir.
+- Tam barkod ve stok/GTIN eslesmesi bulunamazsa, en az 6 rakamlik girislerde barkod son hane fallback'i denenir. Bu fallback tek stoga denk gelirse barkod cozumlenir ve `warnings` icinde kismi barkodla eslesme uyarisi gelir. Birden fazla stoga denk gelirse yanlis urun secmemek icin `isFound=false`, `resolutionSource=ambiguous-partial-barcode` ve tam barkod isteme hatasi doner.
 - Barkod bulunamazsa barkodu stok kodu veya global urun numarasi gibi degerlerle eslestirmeyi dener.
 - `resolutionSource` alani eslestirmenin `variable-weight`, `barcode`, `stock-code`, `gtin` veya `not-found` kaynakli oldugunu anlatir.
 - `barcodeKind` alani okutulan barkodun `variable-weight`, `product`, `case`, `alternative`, `stock-code` veya `gtin` gibi pratik tipini verir.
@@ -4284,6 +4296,10 @@ Response:
   "purchaseRequirementReason": "Secili tedarikci icin satinalma sarti bulundu.",
   "salesPrice": 99.9,
   "priceTypeCode": 1,
+  "purchasePrice": 50.0,
+  "purchaseGrossPrice": 62.5,
+  "purchasePriceSource": "purchase-requirement",
+  "purchaseSupplierCode": "120.01.03106",
   "isPassive": false,
   "isUsableInOperation": true,
   "operationDecision": "Urun mal kabul isleminde kullanilabilir.",
@@ -4303,6 +4319,7 @@ UI kullanim notu:
 - Kamera ile tek barkod okutulan ekranlarda once bu endpoint cagrilmalidir.
 - UI barkodun urun/stok/ad/tipi tahminini frontend'de yapmamalidir; okutulan degeri aynen bu endpoint'e gondermelidir.
 - Satira ekleme karari icin ana alan `isUsableInOperation` olmalidir. `false` ise `operationDecision` ve `errors` kullaniciya gosterilmelidir. Sevkte `isSalesBlocked` tek basina engel gibi yorumlanmamalidir.
+- `salesPrice` satis fiyatidir; firma mal kabul body fiyatina basilmaz. `purchasePrice` sadece `supplierCode/companyCode` verilirse dolabilir. Mal kabulde e-belge `netUnitPrice` yoksa ve barkod cozumleme `purchasePrice` donduruyorsa UI `unitPrice` icin sadece `purchasePrice` kullanmalidir. `purchasePrice` yoksa kullaniciya fiyat alani actirmadan `unitPrice=0` gonderilmelidir.
 - Terazi barkodunda satir miktari icin `embeddedQuantity` kullanilabilir; bos ise varsayilan miktar UI tarafinda `1` kabul edilebilir.
 - Koli ici gosterim icin `unitMultiplier > 1` ise `KOLI ici 12 ADET` gibi gosterim yapilabilir.
 - Koli barkodu okutulduysa `isCaseBarcode = true` ve `matchedUnitsPerCase` dolu gelir; bu durumda UI barkoddan gelen koli miktarini da onerebilir.
@@ -6505,7 +6522,9 @@ UI on dolum kurali:
 | `ettn` | `officialDocumentEttn` | Belge Akis Takibi `externalUuid` icin asil alandir. |
 | `lines[].internalStockCode` | `lines[].stockCode` | Sadece `isMatched=true` ve `canUseForGoodsAcceptance=true` ise otomatik satira tasinir. |
 | `lines[].quantity` | `lines[].dispatchQuantity` ve ilk oneride `acceptedQuantity` | Resmi belge miktari sevk/gelen miktar kabul edilir; kullanici fiili sayimla `acceptedQuantity` degerini degistirebilir. |
-| `lines[].unitPrice` | `lines[].unitPrice` | Varsa on dolumdur; kullanici/ekran son degeri create body'de gonderir. |
+| `lines[].netUnitPrice` | `lines[].unitPrice` | E-faturada iskonto sonrasi net satir tutari / miktar hesabidir; firma mal kabul create icin oncelikli fiyat alanidir. |
+| `lines[].unitPrice` | bilgi/ekranda brut fiyat | UBL `PriceAmount` degeridir; iskonto varsa brut olabilir. `netUnitPrice` doluyken mal kabul body'deki `unitPrice` icin bu alan kullanilmamalidir. |
+| `lines[].lineAmount` | kontrol/ozet | E-fatura satirinin iskonto sonrasi net mal hizmet tutaridir. |
 | `lines[].description` | `lines[].description` | Max 50 karaktere kirpilerek gonderilmelidir. |
 
 Not:
@@ -6513,6 +6532,7 @@ Not:
 - `documentNo`, Mikro `STOK_HAREKETLERI.sth_belge_no` alanidir; ETTN degildir.
 - `officialDocumentEttn` gonderilmezse mal kabul fisinin Mikro kaydi olusabilir, fakat Belge Akis Takibi'nde ETTN/UUID ile izleme yapilamaz.
 - UI lookup response'unu sakliyorsa bile kaydetmede sade ve net model olarak `officialDocumentKind`, `officialDocumentNo`, `officialDocumentDate`, `officialDocumentEttn` alanlarini gondermelidir.
+- Firma mal kabulde satis fiyati kullanilmamalidir. E-belge satiri icin fiyat onceligi `netUnitPrice` olmalidir. E-belge fiyat vermiyorsa cari baglamli urun/barkod aramasindan gelen `purchasePrice` kullanilir. Bu iki kaynak da yoksa UI fiyat girisi actirmadan `unitPrice=0` gondermelidir.
 
 Response:
 
@@ -6595,6 +6615,8 @@ Response:
       "canUseForGoodsAcceptance": true,
       "unitPrice": null,
       "lineAmount": null,
+      "netUnitPrice": null,
+      "priceSource": null,
       "quantitySource": "despatch"
     },
     {
@@ -6615,6 +6637,8 @@ Response:
       "canUseForGoodsAcceptance": false,
       "unitPrice": null,
       "lineAmount": null,
+      "netUnitPrice": null,
+      "priceSource": null,
       "quantitySource": "despatch"
     }
   ]
@@ -6659,8 +6683,10 @@ E-fatura bulunursa ayni response modeli kullanilir; farkli dolan alanlar ornegi:
       "internalStockName": "Stok Adi",
       "isMatched": true,
       "canUseForGoodsAcceptance": true,
-      "unitPrice": 1000.0,
-      "lineAmount": 10000.0,
+      "unitPrice": 62.5,
+      "lineAmount": 150.0,
+      "netUnitPrice": 50.0,
+      "priceSource": "line-extension-amount",
       "quantitySource": "invoice"
     }
   ]
@@ -6720,6 +6746,7 @@ Onemli not:
 - `autoCreateReturnForPartialAcceptance = false` gonderilirse fark icin iade evragi olusmaz; satir `returnStatus = IadeBekliyor` olarak doner ve UI bunu manuel cozum bekleyen fark gibi gostermelidir.
 - Satirda `orderGuid` doluysa `sth_sip_uid = orderGuid` kullanilir. `Database` modunda `SIPARISLER.sip_teslim_miktar` mal kabul hareket miktari, yani `dispatchQuantity`, kadar artirilir; `MikroApi` modunda teslim etkisi Mikro API'ye birakilir ve backend siparis tablosuna ek DB update yapmaz.
 - Satirda `orderGuid` bos veya `null` ise siparis GUID'i bos gider ve siparis tablosuna dokunulmaz.
+- Satir `unitPrice` degeri net alis birim fiyatidir; `urunler/fiyat-gor` response'undaki `price` satis fiyati oldugu icin buraya basilmaz. E-belge lookup'tan geliyorsa `lines[].netUnitPrice`, cari baglamli urun/barkod aramadan geliyorsa `purchasePrice` kullanilmalidir. UI kullaniciya alis fiyati elle girdirmemeli; bu iki otomatik kaynak da yoksa `unitPrice=0` gondermelidir.
 - Siparis kalanindan fazla kabul varsayilan olarak engellenir. `allowOrderOverReceiving = true` gonderilirse kalan kadar siparisli, fazla kisim siparissiz hareket olarak bolunur.
 - `documentNo` opsiyoneldir. E-belge/e-irsaliye no varsa tam `seri + 9 haneli sayisal sira` formatinda gonderilebilir.
 - ETTN/UUID ile cozumlenen resmi belge varsa UI kaydetmede `officialDocumentKind`, `officialDocumentNo`, `officialDocumentDate` ve `officialDocumentEttn` alanlarini da gondermelidir. Backend bu bilgileri Mikro hareket satirina yazmaz; `document_flows.external_document_no` ve `document_flows.external_uuid` alanlarina iz olarak kaydeder.
@@ -9356,7 +9383,7 @@ Response:
 
 ### Manav Kunye Etiket Yazdirma
 
-Belirli bir depo icin manav kunye etiket kayitlarini stok kodu, stok adi, satis fiyati ve urun birimi bilgileriyle getirir. `dateToGet` verilirse secilen gun icindeki kayitlardan, verilmezse son 1 ay icindeki kayitlardan her stok icin son kunye kaydi secilir. Bu ekran Kasa Islemleri altindaki `ManavKunyeEtiketYazdirma` menusu icindir.
+Belirli bir depo icin manav kunye etiket kayitlarini stok kodu, stok adi, barkod, satis fiyati ve urun birimi bilgileriyle getirir. `dateToGet` verilirse secilen gun icindeki kayitlardan, verilmezse son 1 ay icindeki kayitlardan her stok icin son kunye kaydi secilir. Bu ekran Kasa Islemleri altindaki `ManavKunyeEtiketYazdirma` menusu icindir.
 
 `GET /api/kasa-islemleri/manav-kunye-etiket-yazdirma/detayli-etiketler?warehouseNo=110&dateToGet=2026-04-24`
 
@@ -9379,6 +9406,7 @@ Not:
 - veri Mikro `dbo.STOKLAR`, `[KUNYENET].[dbo].[MuhStok]`, `[KUNYENET].[dbo].[FaturaIslem]` ve `[Furpa].[dbo].[VwKunyeNet]` joinlerinden okunur
 - `FaturaIslem.StokId` bazinda `ROW_NUMBER() OVER (PARTITION BY StokId ORDER BY ShippingDate DESC)` kullanilarak her stok icin son kunye kaydi secilir
 - sadece Mikro `STOKLAR.sto_model_kodu` degeri `10`, `11`, `12`, `23` olan stoklar doner
+- `barcode` Mikro `BARKOD_TANIMLARI` icinden aktif, master ve ana birim barkodu oncelikli olacak sekilde secilir; barkod yoksa bos string doner
 - `salesPrice` alani Mikro `dbo.fn_StokSatisFiyati(stockCode, '1', branchNo, '1')` fonksiyonundan gelir
 - `dateToGet` verilirse tarih filtresi secilen gunun tamamini kapsar; verilmezse `ShippingDate` son 1 ay ile sinirlanir
 - liste `ShippingDate desc` siralanir
@@ -9394,6 +9422,7 @@ Response:
     "productionCity": "BURSA",
     "stockCode": "STK-001",
     "stockName": "DANA KIYMA",
+    "barcode": "8690000000001",
     "salesPrice": 599.9,
     "productionDistrict": "KESTEL",
     "productName": "DANA KIYMA",
@@ -12024,6 +12053,7 @@ Endpoint ozeti:
 | `GET /api/rapor-islemleri/stok-raporlari/envanter-degeri` | query | `StockOnHandReportHttpRequest` | `StockOnHandReportDto` | `list` |
 | `GET /api/rapor-islemleri/stok-raporlari/urun-depo-durum` | query | `ProductWarehouseStockHttpRequest` | `ProductWarehouseStockDto[]` | `list` |
 | `GET /api/rapor-islemleri/stok-raporlari/urun/{stockCodeOrBarcode}/depo-durum` | path + query | `ProductWarehouseStockByPathHttpRequest` | `ProductWarehouseStockDto[]` | `list` |
+| `GET /api/rapor-islemleri/stok-raporlari/urun-sevk-dagilimi` | query | `ProductShipmentDistributionHttpRequest` | `ProductShipmentDistributionDto[]` | `list` |
 | `GET /api/rapor-islemleri/stok-raporlari/stok-kartlari` | query | `StockCardDetailHttpRequest` | `StockCardDetailDto[]` | `list` |
 | `GET /api/rapor-islemleri/stok-raporlari/urun-ara` | query | `StockCardDetailHttpRequest` | `StockCardDetailDto[]` | `list` |
 | `GET /api/rapor-islemleri/stok-raporlari/depoda-var-subede-yok` | query | `WarehouseMissingStockHttpRequest` | `WarehouseMissingStockDto[]` | `list` |
@@ -12049,7 +12079,7 @@ take          opsiyonel; max 1000
 
 Depo kapsami:
 
-- `son-stok`, `tedarikci-son-stok`, `kategori-son-stok`, `uretici-son-stok`, `envanter-degeri`, `depoda-var-subede-yok`, `depo-sifir-stok` ve `sayim-karsilastirma` tek depo raporudur.
+- `son-stok`, `tedarikci-son-stok`, `kategori-son-stok`, `uretici-son-stok`, `envanter-degeri`, `depoda-var-subede-yok`, `depo-sifir-stok`, `urun-sevk-dagilimi` ve `sayim-karsilastirma` tek kaynak/tek depo raporudur.
 - `urun-depo-durum`, `stok-kartlari`, `hareketler`, `giris-cikis-karsilastirma`, satis, iade, satmayan urun ve karlilik raporlarinda `rapor-islemleri.stok-raporlari.all-warehouses` yetkisi olan kullanici `warehouseNo` bos birakirsa tum depolar okunabilir.
 - `rapor-islemleri.stok-raporlari.all-warehouses` olmayan kullanicida backend token deposunu uygular; UI depo secimi gostermemelidir.
 - Ornek: Asistan rolune sadece stok raporlari icin tum sube erisimi verilecekse role `rapor-islemleri.stok-raporlari.list` ve `rapor-islemleri.stok-raporlari.all-warehouses` yetkileri atanir; `Admin` rolu verilmesi gerekmez.
@@ -12083,12 +12113,13 @@ UI akisi:
 4. `son-stok` response icindeki `totalQuantity`, `totalSalesValue`, `returnedCount` ust ozet kartlarinda; `items` gridde gosterilir.
 5. `envanter-degeri` ayni response modelini kullanan deger odakli kisayoldur; UI ayni endpoint ailesini kullanip toplam satis degerini one cikarabilir.
 6. `urun-depo-durum` tek urunun subeler/depolar bazinda miktar ve satis degerini gosterir; arama icin `stockCodeOrBarcode` zorunludur. Barkod okutma veya urun kartindan gecis icin `urun/{stockCodeOrBarcode}/depo-durum` path kisayolu da kullanilabilir.
-7. `urun-ara`, `stok-kartlari` ile ayni response'u donen kolay okunur arama alias'idir.
-8. `depoda-var-subede-yok` kaynak depoda mevcut, hedef subede olmayan urunleri listeler; kaynak depo UI tarafinda zorunlu secilmelidir.
-9. `depo-sifir-stok` secili depoda sistem miktari sifir olan urunleri listeler.
-10. `giris-cikis-karsilastirma`, `satislar/sube-detay`, `satislar/yil-karsilastirma`, `iadeler/subeler`, `satislar/satmayan-urunler` tarih araligi ile calisir.
-11. `karlilik` raporunda UI `scope` icin segmented control veya select kullanmali; sonuc `groupCode/groupName` bazli ozetlenir.
-12. `sayim-karsilastirma` sayim gunu, opsiyonel belge no ve paket kodu ile sistem miktari/sayim miktari farkini gosterir.
+7. `urun-sevk-dagilimi`, secili kaynak deponun secili tarihte yaptigi sevkleri gosterir. `stockCodeOrBarcode` bos birakilirsa urun bazli toplam doner; ornek armut 150 KG, elma 500 KG. `stockCodeOrBarcode` dolu gonderilirse sadece ilgili stok/barkod hedef depolara gore dagitilir; ornek kavun hangi subeye kac kilo gitti. Filtresiz cevapta `targetWarehouseNo=0`, `targetWarehouseName="Tum hedef depolar"` gelir.
+8. `urun-ara`, `stok-kartlari` ile ayni response'u donen kolay okunur arama alias'idir.
+9. `depoda-var-subede-yok` kaynak depoda mevcut, hedef subede olmayan urunleri listeler; kaynak depo UI tarafinda zorunlu secilmelidir.
+10. `depo-sifir-stok` secili depoda sistem miktari sifir olan urunleri listeler.
+11. `giris-cikis-karsilastirma`, `satislar/sube-detay`, `satislar/yil-karsilastirma`, `iadeler/subeler`, `satislar/satmayan-urunler` tarih araligi ile calisir.
+12. `karlilik` raporunda UI `scope` icin segmented control veya select kullanmali; sonuc `groupCode/groupName` bazli ozetlenir.
+13. `sayim-karsilastirma` sayim gunu, opsiyonel belge no ve paket kodu ile sistem miktari/sayim miktari farkini gosterir.
 
 Ornekler:
 
@@ -12097,6 +12128,10 @@ Ornekler:
 `GET /api/rapor-islemleri/stok-raporlari/kategori-secenekleri?search=MEYVE&take=50`
 
 `GET /api/rapor-islemleri/stok-raporlari/urun/8690000000000/depo-durum?onlyWithStock=true`
+
+`GET /api/rapor-islemleri/stok-raporlari/urun-sevk-dagilimi?warehouseNo=56&shipmentDate=2026-08-28`
+
+`GET /api/rapor-islemleri/stok-raporlari/urun-sevk-dagilimi?warehouseNo=56&shipmentDate=2026-08-28&stockCodeOrBarcode=023740`
 
 `GET /api/rapor-islemleri/stok-raporlari/karlilik?startDate=2026-07-01&endDate=2026-07-21&scope=producer&take=250`
 
@@ -15134,6 +15169,8 @@ Response `InvoiceSendingListResponse`:
       "invoiceProfileId": "TICARIFATURA",
       "invoiceTypeCode": "SATIS",
       "scenario": 0,
+      "grossTotal": 1000.00,
+      "discountTotal": 0.00,
       "lineExtensionTotal": 1000.00,
       "taxTotal": 180.00,
       "chargeTotal": 0.00,
@@ -15162,6 +15199,8 @@ Response `InvoiceSendingListResponse`:
       "invoiceProfileId": "TICARIFATURA",
       "invoiceTypeCode": "SATIS",
       "scenario": 0,
+      "grossTotal": 1000.00,
+      "discountTotal": 0.00,
       "lineExtensionTotal": 1000.00,
       "taxTotal": 180.00,
       "chargeTotal": 0.00,
@@ -15190,6 +15229,10 @@ Davranis:
 - `invoiceId` legacy WinForms mantigina uygun sekilde `seri + yil + 9 haneli sira` olarak uretilir
 - `invoiceId`, UBL icindeki `cbc:ID` degeridir; PDF endpoint path'i icin bunun yerine `documentSerie` ve `documentOrderNo` kullanilir
 - `sentDocumentNo` Mikro `cha_belge_no` alanidir; gonderim sonrasi kullaniciya gosterilen resmi belge numarasidir
+- `grossTotal`, Mikro iskonto oncesi mal/hizmet toplamidir.
+- `discountTotal`, Mikro `cha_ft_iskonto1..6` alanlarinin toplamidir.
+- `lineExtensionTotal`, iskonto sonrasi KDV haric net matrahtir: `grossTotal - discountTotal`.
+- `payableTotal`, `lineExtensionTotal + taxTotal + chargeTotal` olarak hesaplanir. UI toplam kartinda brut, iskonto, net matrah, KDV ve genel toplam ayri satirlarda gosterilmelidir.
 
 Performans notlari:
 
@@ -15204,7 +15247,7 @@ Performans notlari:
 - DBA ile kontrol edilmesi gereken mevcut indeks: `NDX_CARI_HESAP_HAREKETLERI_02 (cha_tarihi)`. Bu indeks kullanilmiyorsa istatistikler ve execution plan incelenmelidir.
 - `STOK_HAREKETLERI.sth_fat_uid` icin modelde indeks gorunuyor; sevkiyat/istisna apply'lari bu indeksten yararlanmalidir. Canli planda bu indeks kullanilmiyorsa istatistikler guncellenmelidir.
 - liste belge bazinda doner; ayni `cha_evrakno_seri` + `cha_evrakno_sira` altindaki birden fazla hizmet/cari hareket satiri tek fatura satirinda toplanir
-- `sourceLineCount`, belge altinda birlesen Mikro kaynak cari hareket satiri sayisidir; hizmet faturalarinda tek fatura icindeki hizmet kalemlerini anlamak icin kullanilir
+- hafif liste response'undaki `sourceLineCount`, belge altinda birlesen Mikro kaynak cari hareket satiri sayisidir. Detay/render response'unda XML'e uretilen gercek fatura kalem sayisiyla guncellenir.
 - `sourceLineSummary`, hizmet/demirbas kaynakli satirlarda `kod - ad` ozetidir; ornek: `0056 - CIRO PRIMI GELIRI % 20 | 0055 - CIRO PRIMI GELIRI % 10`
 - `taxRateSummary`, kaynak satirlarin Mikro vergi pointer'larindan cozulen KDV oran ozetidir; farkli KDV'li hizmet satirlari ayni faturada gorunebilir
 - `isSent = false` ise UI lokal HTML onizleme endpoint'ini acar
@@ -15621,7 +15664,7 @@ Davranis:
 - UBL-TR is kurali ve XSD dogrulamalari calistirilir
 - Uyumsoft'a fatura gonderilmez
 - Mikro `cha_belge_no`, `cha_kilitli` veya baska alanlar guncellenmez
-- bu endpoint UI'daki "Kontrol Et" butonunun karsiligidir; `send` hiz icin bu dogrulamalari tekrar calistirmaz
+- bu endpoint UI'daki "Kontrol Et" butonunun karsiligidir. UI kullaniciya hatalari gonderimden once gostermek icin bu endpoint'i kullanir; guvenlik icin `send` de ayni UBL-TR ve XSD kontrollerini Uyumsoft cagrisindan hemen once zorunlu olarak tekrar calistirir.
 
 Response `ValidateInvoiceDocumentsResponse`:
 
@@ -15722,13 +15765,16 @@ Davranis:
 - secimler duplicate ise backend tekilleÃƒâ€¦Ã…Â¸tirir
 - gonderim Uyumsoft WCF client ile fatura bazli tek tek yapilir; boylece basarili/hatali kayitlar response icinde ayri ayri gorulur
 - her belge icin UBL invoice uretilir ve Uyumsoft `SendInvoice` operasyonu cagrilir
-- hiz icin UBL-TR is kurali ve XSD dogrulamalari burada tekrar calistirilmaz; bu kontroller icin kullanici once `/validate` endpoint'ini cagirir
+- UBL-TR is kurali ve XSD dogrulamalari Uyumsoft cagrisi oncesinde zorunlu calisir. UI'nin once `/validate` cagirmasi hizli kullanici geri bildirimi saglar ancak veri guvenligi UI davranisina birakilmaz.
+- backend satir neti, satir KDV matrahi, iskonto toplami, belge net matrahi, KDV ve `PayableAmount` aritmetigini kontrol eder; tutarsiz XML Uyumsoft'a gonderilmez.
 - ayni belge icin SQL application lock alinir; ayni belge baska bir istek tarafindan gonderiliyorsa ikinci istek Uyumsoft'a cagrilmaz ve ilgili satir hata mesaji ile doner
 - basarili donuste `serviceDocumentNumber` Mikro `cha_belge_no` alanina yazilir
 - `serviceDocumentId` Uyumsoft'un teknik id'sidir; basarili gonderimde Mikro `cha_uuid` alanina yazilir, servis id bos donerse faturanin lokal UUID degeri fallback olarak saklanir
 - sonraki liste ekraninda gonderilmis fatura PDF ve tekrar gonderim aksiyonlari backend tarafinda bu UUID uzerinden cozulur; UI teknik UUID gondermek zorunda degildir
 - ayni anda `cha_kilitli = true`, `cha_degisti = true`, `cha_lastup_user = 39` ve `cha_lastup_date = now` set edilir
 - zaten gonderilmis kayitlar response'ta `isSucceeded = false` ile doner; genel request tamamen patlatilmaz
+- basarili veya hatali gonderim loglarinda toplam sureye ek olarak `BuildAndValidateMs`, `UyumsoftMs` ve `MarkAsSentMs` sureleri bulunur. Uzun beklemenin DB/XML, Uyumsoft veya Mikro geri yazma asamasindan hangisinde oldugu bu alanlarla ayristirilir.
+- Liste 2 saniyeyi veya onizleme 5 saniyeyi asarsa backend tek bir warning logu yazar. Liste logunda filtreler, kayit sayisi ve toplam sure; onizleme logunda `LoadMs`, `BuildMs` ve `RenderMs` alanlari bulunur. Normal hizdaki istekler icin ek log uretilmez.
 
 UBL / gonderim kurallari:
 

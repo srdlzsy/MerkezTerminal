@@ -2824,7 +2824,9 @@ class _AcceptanceLineDraft {
       );
     }
     previousDispatchQuantity = dispatchQuantity;
-    unitPriceController.text = product.price.toString();
+    unitPriceController.text = _formatDraftQuantity(
+      product.companyAcceptanceUnitPrice,
+    );
     unitPointer = 1;
   }
 

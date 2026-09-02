@@ -87,6 +87,10 @@ class BarcodeResolutionResult {
     required this.purchaseRequirementReason,
     required this.salesPrice,
     required this.priceTypeCode,
+    this.purchasePrice = 0,
+    this.purchaseGrossPrice = 0,
+    this.purchasePriceSource = '',
+    this.purchaseSupplierCode = '',
     required this.isPassive,
     required this.isUsableInOperation,
     required this.operationDecision,
@@ -137,6 +141,10 @@ class BarcodeResolutionResult {
   final String purchaseRequirementReason;
   final double salesPrice;
   final int priceTypeCode;
+  final double purchasePrice;
+  final double purchaseGrossPrice;
+  final String purchasePriceSource;
+  final String purchaseSupplierCode;
   final bool isPassive;
   final bool isUsableInOperation;
   final String operationDecision;
@@ -256,6 +264,10 @@ class BarcodeResolutionResult {
       purchaseRequirementReason: _readString(json['purchaseRequirementReason']),
       salesPrice: _readDouble(json['salesPrice']),
       priceTypeCode: _readInt(json['priceTypeCode']),
+      purchasePrice: _readDouble(json['purchasePrice']),
+      purchaseGrossPrice: _readDouble(json['purchaseGrossPrice']),
+      purchasePriceSource: _readString(json['purchasePriceSource']),
+      purchaseSupplierCode: _readString(json['purchaseSupplierCode']),
       isPassive: _readBool(json['isPassive']),
       isUsableInOperation: _readBool(json['isUsableInOperation']),
       operationDecision: _readString(json['operationDecision']),

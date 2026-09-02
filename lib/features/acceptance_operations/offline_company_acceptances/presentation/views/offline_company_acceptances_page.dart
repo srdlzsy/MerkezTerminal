@@ -2235,7 +2235,9 @@ class _OfflineCompanyAcceptanceLineDraft {
         _unitMultiplierQuantity(product.unitMultiplier),
       );
     }
-    unitPriceController.text = product.price.toString();
+    unitPriceController.text = _formatQuantity(
+      product.companyAcceptanceUnitPrice,
+    );
   }
 
   void clear() {

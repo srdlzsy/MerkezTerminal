@@ -9,6 +9,10 @@ class SearchProductLookupItem {
     required this.stockName,
     required this.price,
     required this.priceTypeCode,
+    this.purchasePrice = 0,
+    this.purchaseGrossPrice = 0,
+    this.purchasePriceSource = '',
+    this.purchaseSupplierCode = '',
     required this.unitName,
     required this.unitMultiplier,
     required this.secondaryUnitName,
@@ -37,6 +41,10 @@ class SearchProductLookupItem {
   final String stockName;
   final double price;
   final int priceTypeCode;
+  final double purchasePrice;
+  final double purchaseGrossPrice;
+  final String purchasePriceSource;
+  final String purchaseSupplierCode;
   final String unitName;
   final double unitMultiplier;
   final String secondaryUnitName;
@@ -60,6 +68,9 @@ class SearchProductLookupItem {
 
   String get displayLabel => '$stockCode - $stockName';
 
+  double get companyAcceptanceUnitPrice =>
+      purchasePrice > 0 ? purchasePrice : 0;
+
   factory SearchProductLookupItem.fromJson(JsonMap json) {
     return SearchProductLookupItem(
       warehouseNo: _readInt(json['warehouseNo']),
@@ -68,6 +79,10 @@ class SearchProductLookupItem {
       stockName: _readString(json['stockName']),
       price: _readDouble(json['price']),
       priceTypeCode: _readInt(json['priceTypeCode']),
+      purchasePrice: _readDouble(json['purchasePrice']),
+      purchaseGrossPrice: _readDouble(json['purchaseGrossPrice']),
+      purchasePriceSource: _readString(json['purchasePriceSource']),
+      purchaseSupplierCode: _readString(json['purchaseSupplierCode']),
       unitName: _readString(json['unitName']),
       unitMultiplier: _readProductUnitMultiplier(json),
       secondaryUnitName: _readString(json['secondaryUnitName']),
@@ -108,6 +123,10 @@ class SearchProductLookupItem {
       stockName: resolution.stockName,
       price: resolution.salesPrice,
       priceTypeCode: resolution.priceTypeCode,
+      purchasePrice: resolution.purchasePrice,
+      purchaseGrossPrice: resolution.purchaseGrossPrice,
+      purchasePriceSource: resolution.purchasePriceSource,
+      purchaseSupplierCode: resolution.purchaseSupplierCode,
       unitName: resolution.matchedUnitName,
       unitMultiplier: resolution.matchedUnitMultiplier,
       secondaryUnitName: '',

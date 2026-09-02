@@ -600,6 +600,8 @@ class CompanyAcceptanceEDespatchLine {
     required this.canUseForGoodsAcceptance,
     required this.unitPrice,
     required this.lineAmount,
+    this.netUnitPrice,
+    this.priceSource = '',
     required this.quantitySource,
   });
 
@@ -620,6 +622,8 @@ class CompanyAcceptanceEDespatchLine {
   final bool canUseForGoodsAcceptance;
   final double? unitPrice;
   final double? lineAmount;
+  final double? netUnitPrice;
+  final String priceSource;
   final String quantitySource;
 
   bool get hasUsableInternalStock =>
@@ -663,6 +667,8 @@ class CompanyAcceptanceEDespatchLine {
       canUseForGoodsAcceptance: _readBool(json['canUseForGoodsAcceptance']),
       unitPrice: _readNullableDouble(json['unitPrice']),
       lineAmount: _readNullableDouble(json['lineAmount']),
+      netUnitPrice: _readNullableDouble(json['netUnitPrice']),
+      priceSource: _readString(json['priceSource']),
       quantitySource: _readString(json['quantitySource']),
     );
   }
