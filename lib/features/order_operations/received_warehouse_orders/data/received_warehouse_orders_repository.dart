@@ -77,6 +77,7 @@ class ApiReceivedWarehouseOrdersRepository
     required String accessToken,
     required String warehouseNo,
     required String query,
+    bool includeDelisted = true,
   }) async {
     throw UnsupportedError(
       'Alinan depo siparisleri ekraninda urun arama desteklenmiyor.',

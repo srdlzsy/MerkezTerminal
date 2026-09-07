@@ -135,7 +135,6 @@ void main() {
     await _confirmPendingProduct(tester);
     expect(find.text('1 kalem'), findsOneWidget);
     expect(find.text('Giris satiri'), findsOneWidget);
-    expect(find.text('Satir 1'), findsOneWidget);
     expect(find.text('Test Urun'), findsOneWidget);
     expect(find.text('8690000000012'), findsWidgets);
   });
@@ -170,7 +169,6 @@ void main() {
 
     expect(find.text('1 kalem'), findsNothing);
     expect(find.text('Giris satiri'), findsOneWidget);
-    expect(find.text('Satir 1'), findsNothing);
     expect(find.text('Urun bulunamadi.'), findsWidgets);
     expect(
       find.widgetWithText(TextFormField, 'Barkod / stok kodu / urun adi'),

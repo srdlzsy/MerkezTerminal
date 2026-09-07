@@ -147,7 +147,6 @@ void main() {
 
     expect(find.text('1 kalem'), findsOneWidget);
     expect(find.text('Giris satiri'), findsOneWidget);
-    expect(find.text('Satir 1'), findsOneWidget);
     expect(find.text('Test Urun'), findsOneWidget);
     expect(find.text('015792'), findsOneWidget);
     expect(find.text('KL'), findsOneWidget);
@@ -487,7 +486,6 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Giris satiri'), findsOneWidget);
-    expect(find.text('Satir 1'), findsOneWidget);
     expect(find.text('Siparis Urun'), findsOneWidget);
     expect(find.text('SIP001'), findsOneWidget);
     expect(find.text('AD'), findsOneWidget);
@@ -497,12 +495,10 @@ void main() {
 
     expect(find.text('Siparis Urun'), findsNothing);
     expect(find.text('SIP001'), findsNothing);
-    expect(find.text('Satir 1'), findsNothing);
     expect(find.text('Giris satiri'), findsOneWidget);
 
     await _enterShipmentBarcode(tester);
 
-    expect(find.text('Satir 1'), findsOneWidget);
     expect(find.text('Test Urun'), findsOneWidget);
     expect(find.text('015792'), findsOneWidget);
   });
@@ -959,6 +955,7 @@ class _FakeOutgoingWarehouseShipmentsRepository
     required String accessToken,
     required String warehouseNo,
     required String query,
+    bool includeDelisted = true,
   }) async {
     return const <ProductLookupItem>[
       ProductLookupItem(
@@ -1086,6 +1083,7 @@ class _GreenGrocerReceivedWarehouseOrdersRepository
     required String accessToken,
     required String warehouseNo,
     required String query,
+    bool includeDelisted = true,
   }) async {
     return const <ProductLookupItem>[];
   }
@@ -1193,6 +1191,7 @@ class _FakeReceivedWarehouseOrdersRepository
     required String accessToken,
     required String warehouseNo,
     required String query,
+    bool includeDelisted = true,
   }) async {
     return const <ProductLookupItem>[];
   }

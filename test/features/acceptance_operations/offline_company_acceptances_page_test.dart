@@ -247,6 +247,7 @@ class _FakeGivenCompanyOrdersRepository
     required String warehouseNo,
     required String customerCode,
     required String query,
+    bool includeDelisted = true,
   }) async {
     return <CompanyOrderProductLookupItem>[];
   }
@@ -311,6 +312,7 @@ class _FakeInventoryCountsRepository implements InventoryCountsRepository {
     required String accessToken,
     required String warehouseNo,
     required String query,
+    bool includeDelisted = true,
   }) async {
     return <InventoryCountProductLookupItem>[];
   }

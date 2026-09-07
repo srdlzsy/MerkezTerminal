@@ -785,6 +785,7 @@ class _FakeGivenCompanyOrdersRepository
     required String warehouseNo,
     required String customerCode,
     required String query,
+    bool includeDelisted = true,
   }) async {
     return const <CompanyOrderProductLookupItem>[];
   }

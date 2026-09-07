@@ -78,6 +78,7 @@ class ApiReceivedCompanyOrdersRepository
     required String warehouseNo,
     required String customerCode,
     required String query,
+    bool includeDelisted = true,
   }) async {
     throw UnsupportedError(
       'Alinan firma siparisleri ekraninda urun arama desteklenmiyor.',

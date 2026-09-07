@@ -72,8 +72,6 @@ void main() {
     expect(find.text('8690000000012'), findsOneWidget);
 
     expect(find.text('Giris satiri'), findsOneWidget);
-    expect(find.text('Satir 1'), findsOneWidget);
-    expect(find.text('Satir 2'), findsNothing);
     expect(
       tester.getTopLeft(productInfo).dy,
       greaterThan(tester.getTopLeft(find.text('Giris satiri')).dy),
@@ -193,6 +191,7 @@ class _FakeWarehouseReturnsRepository implements WarehouseReturnsRepository {
     required String accessToken,
     required String warehouseNo,
     required String query,
+    bool includeDelisted = true,
   }) async {
     return const <ProductLookupItem>[
       ProductLookupItem(

@@ -1,6 +1,108 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+Future<T?> showTerminalProductSelectionSheet<T>({
+  required BuildContext context,
+  required List<T> items,
+  required bool Function(T item) needsStatusAttention,
+  required Widget Function(BuildContext context, T item, VoidCallback onSelect)
+  itemBuilder,
+}) {
+  return showModalBottomSheet<T>(
+    context: context,
+    isScrollControlled: true,
+    useSafeArea: true,
+    showDragHandle: true,
+    builder: (context) => _TerminalProductSelectionSheet<T>(
+      items: items,
+      needsStatusAttention: needsStatusAttention,
+      itemBuilder: itemBuilder,
+    ),
+  );
+}
+
+class _TerminalProductSelectionSheet<T> extends StatefulWidget {
+  const _TerminalProductSelectionSheet({
+    required this.items,
+    required this.needsStatusAttention,
+    required this.itemBuilder,
+  });
+
+  final List<T> items;
+  final bool Function(T item) needsStatusAttention;
+  final Widget Function(BuildContext context, T item, VoidCallback onSelect)
+  itemBuilder;
+
+  @override
+  State<_TerminalProductSelectionSheet<T>> createState() =>
+      _TerminalProductSelectionSheetState<T>();
+}
+
+class _TerminalProductSelectionSheetState<T>
+    extends State<_TerminalProductSelectionSheet<T>> {
+  bool _hideDelistedProducts = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final visibleItems = _hideDelistedProducts
+        ? widget.items
+              .where((item) => !widget.needsStatusAttention(item))
+              .toList(growable: false)
+        : widget.items;
+
+    return FractionallySizedBox(
+      heightFactor: 0.82,
+      child: Column(
+        children: <Widget>[
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+            child: Row(
+              children: <Widget>[
+                Expanded(
+                  child: Text(
+                    '${visibleItems.length} urun',
+                    style: Theme.of(context).textTheme.titleSmall,
+                  ),
+                ),
+                FilterChip(
+                  label: const Text('Pasif/DLS gizle'),
+                  avatar: Icon(
+                    _hideDelistedProducts
+                        ? Icons.visibility_off_rounded
+                        : Icons.visibility_rounded,
+                    size: 18,
+                  ),
+                  selected: _hideDelistedProducts,
+                  onSelected: (selected) {
+                    setState(() => _hideDelistedProducts = selected);
+                  },
+                ),
+              ],
+            ),
+          ),
+          const Divider(height: 1),
+          Expanded(
+            child: visibleItems.isEmpty
+                ? const Center(child: Text('Gosterilecek aktif urun yok.'))
+                : ListView.separated(
+                    itemCount: visibleItems.length,
+                    separatorBuilder: (_, _) => const Divider(height: 1),
+                    itemBuilder: (context, index) {
+                      final item = visibleItems[index];
+                      return widget.itemBuilder(
+                        context,
+                        item,
+                        () => Navigator.of(context).pop(item),
+                      );
+                    },
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class TerminalListHeaderCard extends StatelessWidget {
   const TerminalListHeaderCard({
     super.key,

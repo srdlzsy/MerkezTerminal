@@ -739,6 +739,7 @@ class _FakeWarehouseOrdersRepository
     required String accessToken,
     required String warehouseNo,
     required String query,
+    bool includeDelisted = true,
   }) async {
     lastSearchWarehouseNo = warehouseNo;
     return <ProductLookupItem>[product];

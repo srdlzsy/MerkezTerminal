@@ -49,6 +49,7 @@ abstract class OutgoingWarehouseShipmentsRepository {
     required String accessToken,
     required String warehouseNo,
     required String query,
+    bool includeDelisted = true,
   });
 
   Future<BarcodeResolutionResult> resolveBarcode({
@@ -197,6 +198,7 @@ class ApiOutgoingWarehouseShipmentsRepository
     required String accessToken,
     required String warehouseNo,
     required String query,
+    bool includeDelisted = true,
   }) async {
     final normalizedQuery = query.trim();
     final isBarcodeQuery = RegExp(r'^\d{7,}$').hasMatch(normalizedQuery);
@@ -207,6 +209,7 @@ class ApiOutgoingWarehouseShipmentsRepository
     final queryParameters = <String, String>{
       'warehouseNo': warehouseNo,
       'take': '20',
+      if (!includeDelisted) 'includeDelisted': 'false',
       if (isBarcodeQuery)
         'barcode': normalizedQuery
       else if (isStockCodeQuery)

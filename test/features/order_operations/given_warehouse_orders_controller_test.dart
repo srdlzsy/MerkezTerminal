@@ -212,6 +212,7 @@ class _FakeGivenWarehouseOrdersRepository
     required String accessToken,
     required String warehouseNo,
     required String query,
+    bool includeDelisted = true,
   }) async {
     return const <ProductLookupItem>[];
   }

@@ -30,6 +30,7 @@ abstract class CompanyOrdersRepository {
     required String warehouseNo,
     required String customerCode,
     required String query,
+    bool includeDelisted = true,
   });
 
   Future<List<CompanyOrderProductLookupItem>> fetchCustomerProducts({

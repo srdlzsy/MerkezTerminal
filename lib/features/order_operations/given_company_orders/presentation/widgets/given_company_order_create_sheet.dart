@@ -1741,6 +1741,7 @@ class _CompanyProductLookupSheetState
     extends State<_CompanyProductLookupSheet> {
   late final TextEditingController _queryController;
   bool _isLoading = false;
+  bool _hideDelistedProducts = false;
   String? _errorMessage;
   List<CompanyOrderProductLookupItem> _items =
       const <CompanyOrderProductLookupItem>[];
@@ -1781,6 +1782,7 @@ class _CompanyProductLookupSheetState
         warehouseNo: widget.warehouseNo,
         customerCode: widget.customerCode,
         query: query,
+        includeDelisted: !_hideDelistedProducts,
       );
 
       if (!mounted) {
@@ -1815,6 +1817,24 @@ class _CompanyProductLookupSheetState
       errorMessage: _errorMessage,
       isEmpty: _items.isEmpty,
       emptyMessage: 'Sonuc bulunamadi.',
+      filter: FilterChip(
+        label: const Text('Pasif/DLS gizle'),
+        avatar: Icon(
+          _hideDelistedProducts
+              ? Icons.visibility_off_rounded
+              : Icons.visibility_rounded,
+          size: 18,
+        ),
+        selected: _hideDelistedProducts,
+        onSelected: _isLoading
+            ? null
+            : (selected) {
+                setState(() => _hideDelistedProducts = selected);
+                if (_queryController.text.trim().length >= 2) {
+                  _load();
+                }
+              },
+      ),
       child: ListView.separated(
         itemCount: _items.length,
         separatorBuilder: (_, _) => const SizedBox(height: 4),
@@ -1867,6 +1887,7 @@ class _LookupScaffold extends StatelessWidget {
     required this.errorMessage,
     required this.isEmpty,
     required this.emptyMessage,
+    this.filter,
     required this.child,
   });
 
@@ -1878,6 +1899,7 @@ class _LookupScaffold extends StatelessWidget {
   final String? errorMessage;
   final bool isEmpty;
   final String emptyMessage;
+  final Widget? filter;
   final Widget child;
 
   @override
@@ -1925,6 +1947,10 @@ class _LookupScaffold extends StatelessWidget {
                           ),
                         ],
                       ),
+                      if (filter != null) ...<Widget>[
+                        const SizedBox(height: 8),
+                        filter!,
+                      ],
                     ],
                   ),
                 ),

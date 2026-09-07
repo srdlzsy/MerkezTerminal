@@ -1927,6 +1927,7 @@ class _ProductLookupSheet extends StatefulWidget {
 class _ProductLookupSheetState extends State<_ProductLookupSheet> {
   late final TextEditingController _queryController;
   bool _isLoading = false;
+  bool _hideDelistedProducts = false;
   String? _errorMessage;
   List<ProductLookupItem> _items = [];
 
@@ -1964,6 +1965,7 @@ class _ProductLookupSheetState extends State<_ProductLookupSheet> {
         accessToken: widget.accessToken,
         warehouseNo: widget.warehouseNo,
         query: _queryController.text,
+        includeDelisted: !_hideDelistedProducts,
       );
       if (!mounted) {
         return;
@@ -2033,6 +2035,27 @@ class _ProductLookupSheetState extends State<_ProductLookupSheet> {
                             child: const Text('Ara'),
                           ),
                         ],
+                      ),
+                      const SizedBox(height: 8),
+                      FilterChip(
+                        label: const Text('Pasif/DLS gizle'),
+                        avatar: Icon(
+                          _hideDelistedProducts
+                              ? Icons.visibility_off_rounded
+                              : Icons.visibility_rounded,
+                          size: 18,
+                        ),
+                        selected: _hideDelistedProducts,
+                        onSelected: _isLoading
+                            ? null
+                            : (selected) {
+                                setState(() {
+                                  _hideDelistedProducts = selected;
+                                });
+                                if (_queryController.text.trim().length >= 2) {
+                                  _load();
+                                }
+                              },
                       ),
                     ],
                   ),

@@ -699,43 +699,34 @@ class _OfflineCompanyAcceptanceCreateSheetState
     if (products.length == 1) {
       selected = products.single;
     } else {
-      selected = await showModalBottomSheet<SearchProductLookupItem>(
-        context: context,
-        isScrollControlled: true,
-        useSafeArea: true,
-        showDragHandle: true,
-        builder: (context) {
-          return FractionallySizedBox(
-            heightFactor: 0.82,
-            child: ListView.separated(
-              itemCount: products.length,
-              separatorBuilder: (_, _) => const Divider(height: 1),
-              itemBuilder: (context, index) {
-                final item = products[index];
-                return ListTile(
-                  dense: true,
-                  visualDensity: VisualDensity.compact,
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 2,
-                  ),
-                  title: Text(
-                    item.displayLabel,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  subtitle: Text(
-                    '${item.unitName} | ${AppFormatters.currency(item.price)}',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  onTap: () => Navigator.of(context).pop(item),
-                );
-              },
+      selected =
+          await showTerminalProductSelectionSheet<SearchProductLookupItem>(
+            context: context,
+            items: products,
+            needsStatusAttention: (item) => item.needsStatusAttention,
+            itemBuilder: (context, item, onSelect) => ListTile(
+              dense: true,
+              visualDensity: VisualDensity.compact,
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 12,
+                vertical: 2,
+              ),
+              title: Text(
+                item.displayLabel,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              subtitle: Text(
+                '${item.unitName} | ${AppFormatters.currency(item.price)}',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              trailing: item.needsStatusAttention
+                  ? const Icon(Icons.warning_amber_rounded)
+                  : null,
+              onTap: onSelect,
             ),
           );
-        },
-      );
     }
 
     if (selected == null) {

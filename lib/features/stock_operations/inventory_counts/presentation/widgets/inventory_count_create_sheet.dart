@@ -284,13 +284,15 @@ class _InventoryCountCreateSheetState extends State<InventoryCountCreateSheet>
   }
 
   Future<List<InventoryCountProductLookupItem>> _searchProductsWithFallback(
-    String query,
-  ) async {
+    String query, {
+    bool includeDelisted = true,
+  }) async {
     try {
       return await widget.repository.searchProducts(
         accessToken: widget.accessToken,
         warehouseNo: widget.defaultWarehouseNo,
         query: query,
+        includeDelisted: includeDelisted,
       );
     } on ApiException {
       final catalogItems = await widget.mobileProductCatalogRepository
@@ -298,6 +300,7 @@ class _InventoryCountCreateSheetState extends State<InventoryCountCreateSheet>
       if (catalogItems.isNotEmpty) {
         return catalogItems
             .map((item) => item.toInventoryCountProductLookupItem())
+            .where((item) => includeDelisted || !item.needsStatusAttention)
             .toList(growable: false);
       }
       rethrow;
@@ -1169,7 +1172,10 @@ class _InventoryProductLookupSheet extends StatefulWidget {
     required this.initialQuery,
   });
 
-  final Future<List<InventoryCountProductLookupItem>> Function(String query)
+  final Future<List<InventoryCountProductLookupItem>> Function(
+    String query, {
+    required bool includeDelisted,
+  })
   onSearchProducts;
   final String initialQuery;
 
@@ -1182,9 +1188,17 @@ class _InventoryProductLookupSheetState
     extends State<_InventoryProductLookupSheet> {
   late final TextEditingController _queryController;
   bool _isLoading = false;
+  bool _hideDelistedProducts = false;
   String? _errorMessage;
   List<InventoryCountProductLookupItem> _items =
       const <InventoryCountProductLookupItem>[];
+
+  List<InventoryCountProductLookupItem> get _visibleItems =>
+      _hideDelistedProducts
+      ? _items
+            .where((item) => !item.needsStatusAttention)
+            .toList(growable: false)
+      : _items;
 
   @override
   void initState() {
@@ -1217,7 +1231,10 @@ class _InventoryProductLookupSheetState
     });
 
     try {
-      final items = await widget.onSearchProducts(query);
+      final items = await widget.onSearchProducts(
+        query,
+        includeDelisted: !_hideDelistedProducts,
+      );
 
       if (!mounted) {
         return;
@@ -1248,13 +1265,31 @@ class _InventoryProductLookupSheetState
       onSearch: _load,
       isLoading: _isLoading,
       errorMessage: _errorMessage,
-      isEmpty: _items.isEmpty,
+      isEmpty: _visibleItems.isEmpty,
       emptyMessage: 'Sonuc bulunamadi.',
+      filter: FilterChip(
+        label: const Text('Pasif/DLS gizle'),
+        avatar: Icon(
+          _hideDelistedProducts
+              ? Icons.visibility_off_rounded
+              : Icons.visibility_rounded,
+          size: 18,
+        ),
+        selected: _hideDelistedProducts,
+        onSelected: _isLoading
+            ? null
+            : (selected) {
+                setState(() => _hideDelistedProducts = selected);
+                if (_queryController.text.trim().length >= 2) {
+                  _load();
+                }
+              },
+      ),
       child: ListView.separated(
-        itemCount: _items.length,
+        itemCount: _visibleItems.length,
         separatorBuilder: (_, _) => const SizedBox(height: 4),
         itemBuilder: (context, index) {
-          final item = _items[index];
+          final item = _visibleItems[index];
           return ListTile(
             dense: true,
             visualDensity: VisualDensity.compact,
@@ -1300,6 +1335,7 @@ class _LookupScaffold extends StatelessWidget {
     required this.errorMessage,
     required this.isEmpty,
     required this.emptyMessage,
+    this.filter,
     required this.child,
   });
 
@@ -1311,6 +1347,7 @@ class _LookupScaffold extends StatelessWidget {
   final String? errorMessage;
   final bool isEmpty;
   final String emptyMessage;
+  final Widget? filter;
   final Widget child;
 
   @override
@@ -1358,6 +1395,10 @@ class _LookupScaffold extends StatelessWidget {
                           ),
                         ],
                       ),
+                      if (filter != null) ...<Widget>[
+                        const SizedBox(height: 8),
+                        filter!,
+                      ],
                     ],
                   ),
                 ),

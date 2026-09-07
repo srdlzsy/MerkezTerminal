@@ -30,6 +30,7 @@ abstract class InventoryCountsRepository {
     required String accessToken,
     required String warehouseNo,
     required String query,
+    bool includeDelisted = true,
   });
 
   Future<BarcodeResolutionResult> resolveBarcode({
@@ -118,6 +119,7 @@ class ApiInventoryCountsRepository implements InventoryCountsRepository {
     required String accessToken,
     required String warehouseNo,
     required String query,
+    bool includeDelisted = true,
   }) async {
     final normalizedQuery = query.trim();
     final isBarcodeQuery = RegExp(r'^\d{7,}$').hasMatch(normalizedQuery);
@@ -128,6 +130,7 @@ class ApiInventoryCountsRepository implements InventoryCountsRepository {
     final queryParameters = <String, String>{
       'warehouseNo': warehouseNo,
       'take': '20',
+      if (!includeDelisted) 'includeDelisted': 'false',
       if (isBarcodeQuery)
         'barcode': normalizedQuery
       else if (isStockCodeQuery)

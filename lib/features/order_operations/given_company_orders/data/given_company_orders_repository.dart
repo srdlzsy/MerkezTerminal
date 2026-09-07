@@ -95,6 +95,7 @@ class ApiGivenCompanyOrdersRepository implements GivenCompanyOrdersRepository {
     required String warehouseNo,
     required String customerCode,
     required String query,
+    bool includeDelisted = true,
   }) async {
     final normalizedQuery = query.trim();
     final isBarcodeQuery = RegExp(r'^\d{7,}$').hasMatch(normalizedQuery);
@@ -110,6 +111,7 @@ class ApiGivenCompanyOrdersRepository implements GivenCompanyOrdersRepository {
         'warehouseNo': warehouseNo,
         'companyCode': customerCode,
         'take': '20',
+        if (!includeDelisted) 'includeDelisted': 'false',
         if (isBarcodeQuery)
           'barcode': normalizedQuery
         else if (isStockCodeQuery)

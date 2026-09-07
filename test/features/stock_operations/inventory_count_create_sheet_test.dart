@@ -83,6 +83,7 @@ class _FakeInventoryCountsRepository implements InventoryCountsRepository {
     required String accessToken,
     required String warehouseNo,
     required String query,
+    bool includeDelisted = true,
   }) async {
     return const <InventoryCountProductLookupItem>[];
   }

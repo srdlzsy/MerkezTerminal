@@ -105,6 +105,7 @@ class ApiIncomingWarehouseShipmentsRepository
     required String accessToken,
     required String warehouseNo,
     required String query,
+    bool includeDelisted = true,
   }) async {
     throw UnsupportedError(
       'Gelen depolar arasi sevkler ekraninda urun arama desteklenmiyor.',
