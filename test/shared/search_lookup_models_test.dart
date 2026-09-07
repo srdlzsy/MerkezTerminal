@@ -72,4 +72,20 @@ void main() {
     expect(item.purchaseSupplierCode, 'C001');
     expect(item.companyAcceptanceUnitPrice, 75);
   });
+
+  test('product lookup reads passive and delisted status', () {
+    final item = SearchProductLookupItem.fromJson(<String, dynamic>{
+      'stockCode': '000001',
+      'stockName': 'URUN',
+      'isPassive': true,
+      'isDelisted': true,
+      'delistReason': 'DLS/99',
+    });
+
+    expect(item.isPassive, isTrue);
+    expect(item.isDelisted, isTrue);
+    expect(item.delistReason, 'DLS/99');
+    expect(item.needsStatusAttention, isTrue);
+    expect(item.statusWarningLabel, 'Pasif / DLS');
+  });
 }

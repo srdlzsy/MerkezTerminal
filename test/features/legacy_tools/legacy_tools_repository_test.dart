@@ -69,4 +69,34 @@ void main() {
     expect(items.single.embeddedQuantity, 4.11);
     expect(items.single.isBarcodeCheckDigitValid, isTrue);
   });
+
+  test(
+    'searchStockAvailability can hide delisted products on backend',
+    () async {
+      Uri? requestedUri;
+      final repository = ApiLegacyToolsRepository(
+        apiClient: ApiClient(
+          baseUrl: 'https://terminal.test',
+          httpClient: MockClient((request) async {
+            requestedUri = request.url;
+            return http.Response(
+              jsonEncode(const <Map<String, Object?>>[]),
+              200,
+              headers: <String, String>{'content-type': 'application/json'},
+            );
+          }),
+        ),
+      );
+
+      await repository.searchStockAvailability(
+        accessToken: 'token',
+        warehouseNo: '110',
+        query: 'sut',
+        includeDelisted: false,
+      );
+
+      expect(requestedUri?.path, '/api/arama-islemleri/var-yok');
+      expect(requestedUri?.queryParameters['includeDelisted'], 'false');
+    },
+  );
 }

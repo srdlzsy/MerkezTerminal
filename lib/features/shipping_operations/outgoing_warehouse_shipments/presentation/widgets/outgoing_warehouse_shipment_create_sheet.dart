@@ -2263,6 +2263,9 @@ class _ManualShipmentLineCard extends StatelessWidget {
         priceLabel: product.price > 0
             ? AppFormatters.currency(product.price)
             : null,
+        warningLabel: product.needsStatusAttention
+            ? product.statusWarningLabel
+            : null,
         quantityStep: line.quantityStep,
         maximumQuantity: _maxShipmentLineQuantity,
         quantityInputFormatters: _shipmentQuantityInputFormatters,
@@ -2451,6 +2454,9 @@ class _LinkedShipmentLineCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final product = line.selectedProduct;
+    final productStatusWarning = product != null && product.needsStatusAttention
+        ? product.statusWarningLabel
+        : null;
 
     if (isEntrySlot && !isFreshEntry && product != null) {
       return ProductDraftEntryPanel(
@@ -2467,7 +2473,10 @@ class _LinkedShipmentLineCard extends StatelessWidget {
             : product.price > 0
             ? AppFormatters.currency(product.price)
             : null,
-        warningLabel: isQuantityLimited ? 'Siparisli' : null,
+        warningLabel: _joinShipmentWarningLabels(<String>[
+          ?productStatusWarning,
+          if (isQuantityLimited) 'Siparisli',
+        ]),
         quantityStep: line.quantityStep,
         maximumQuantity: _effectiveShipmentMaximumQuantity(
           isQuantityLimited ? line.maxQuantity : null,
@@ -2529,11 +2538,10 @@ class _LinkedShipmentLineCard extends StatelessWidget {
             : line.isOrderLinked
             ? 'Sip. ${AppFormatters.quantity(line.orderQuantity)}'
             : null,
-        warningLabel: line.isOrderLinked
-            ? isQuantityLimited
-                  ? 'Siparisli'
-                  : 'Manav'
-            : null,
+        warningLabel: _joinShipmentWarningLabels(<String>[
+          ?productStatusWarning,
+          if (line.isOrderLinked) isQuantityLimited ? 'Siparisli' : 'Manav',
+        ]),
         maximumQuantity: _effectiveShipmentMaximumQuantity(
           isQuantityLimited ? line.maxQuantity : null,
         ),
@@ -3774,6 +3782,18 @@ String? _shipmentQuantitySubmitError(
   return null;
 }
 
+String? _joinShipmentWarningLabels(List<String> labels) {
+  final normalized = labels
+      .map((label) => label.trim())
+      .where((label) => label.isNotEmpty)
+      .toList(growable: false);
+  if (normalized.isEmpty) {
+    return null;
+  }
+
+  return normalized.join(' | ');
+}
+
 bool _looksLikeBarcodeQuantityInput(String value) {
   return _barcodeLikeQuantityPattern.hasMatch(value.trim());
 }
@@ -3845,6 +3865,9 @@ Map<String, dynamic> _shipmentProductJson(ProductLookupItem item) {
     'price': item.price,
     'unitName': item.unitName,
     'unitMultiplier': item.unitMultiplier,
+    'isPassive': item.isPassive,
+    'isDelisted': item.isDelisted,
+    'delistReason': item.delistReason,
     'isOrderBlocked': item.isOrderBlocked,
   };
 }

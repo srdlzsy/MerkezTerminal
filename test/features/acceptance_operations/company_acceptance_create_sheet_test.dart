@@ -426,6 +426,12 @@ void main() {
       capturedRequest!.officialDocumentEttn,
       '3fd0e4f4-87a2-43f2-b5ca-f2a4fd778111',
     );
+    expect(capturedRequest!.description.length, lessThanOrEqualTo(50));
+    expect(
+      capturedRequest!.description,
+      startsWith('Bu e-irsaliye notu firma mal kabul'),
+    );
+    expect(capturedRequest!.description, isNot(contains('Ikinci uzun not')));
     expect(capturedRequest!.toJson()['officialDocumentKind'], 'e-despatch');
   });
 
@@ -703,7 +709,10 @@ CompanyAcceptanceEDespatchPrefill _buildEDespatchPrefill() {
     currencyCode: '',
     despatchReferences: const <String>[],
     warnings: const <String>[],
-    notes: const <String>[],
+    notes: const <String>[
+      'Bu e-irsaliye notu firma mal kabul aciklamasini gereksiz uzatmamali ve limit icinde kalmali.',
+      'Ikinci uzun not da aciklamayi sisirmemeli.',
+    ],
     sender: const CompanyAcceptanceEDespatchParty(
       title: 'ORNEK TEDARIKCI A.S.',
       taxNoOrTckn: '1234567890',

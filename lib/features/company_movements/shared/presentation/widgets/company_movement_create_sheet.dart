@@ -1034,6 +1034,9 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
             ? AppFormatters.quantity(product.unitMultiplier)
             : null,
         priceLabel: AppFormatters.currency(product.price),
+        warningLabel: product.needsStatusAttention
+            ? product.statusWarningLabel
+            : null,
         onConfirm: () => _commitEntryLine(line),
         onCancel: () => _cancelPendingEntryLine(line),
         scanRow: TerminalResponsiveLookupRow(
@@ -1447,6 +1450,9 @@ Map<String, dynamic> _productToJson(SearchProductLookupItem product) {
     'isSalesBlocked': product.isSalesBlocked,
     'isOrderBlocked': product.isOrderBlocked,
     'isGoodsAcceptanceBlocked': product.isGoodsAcceptanceBlocked,
+    'isPassive': product.isPassive,
+    'isDelisted': product.isDelisted,
+    'delistReason': product.delistReason,
     'productManagerCode': product.productManagerCode,
   };
 }

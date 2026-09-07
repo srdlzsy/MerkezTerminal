@@ -1072,12 +1072,45 @@ UI davranis kurali:
 
 - `clientRequestId` form ekraninin kimligi degildir; tek mantiksal kaydetme denemesinin kimligidir.
 - UI ilk `Kaydet` aninda `clientRequestId` uretmeli, gonderilen body'nin snapshot'ini bu id ile birlikte saklamalidir.
+- `clientRequestId` form acilisinda veya her render/submit denemesinde yeniden uretilmemelidir. Ayni kaydetme denemesi sonuc kesinlesene kadar ayni id ile yasar.
 - Request devam ederken kaydet butonu ve form alanlari kilitlenmelidir.
 - Timeout, network kopmasi veya belirsiz sonuc olursa UI ayni body snapshot'i ve ayni `clientRequestId` ile `Tekrar Dene` yapmalidir.
+- Timeout veya 500 cevabi sonrasi UI ayni fis icin yeni `clientRequestId` uretirse backend bunu yeni bir create islemi olarak kabul edebilir ve ayni icerikte ikinci evrak olusabilir.
 - Kullanici belirsiz kayit modundayken formu degistirmek isterse UI bunu yeni islem kabul etmeli, eski `clientRequestId` degerini birakip sonraki kaydetmede yeni `clientRequestId` uretmelidir.
 - Ayni `clientRequestId` ile farkli body gonderilip API `409 Conflict` donerse UI bunu teknik hata gibi degil, "Bu kayit denemesinin icerigi degismis; yeni islem olarak tekrar kaydedin." durumu gibi ele almalidir.
 - `409 Conflict` sonrasi kullanici devam edecekse UI yeni `clientRequestId` uretmeli ve guncel body'yi yeni kaydetme denemesi olarak gondermelidir.
 - En guvenli akista `Normal Edit Mode` alanlari degistirilebilir, `Pending/Retry Mode` alanlari kilitlidir; pending durumundan cikmak icin kullanici acikca `Yeni islem olarak duzenle` veya `Vazgec` aksiyonu secmelidir.
+
+UI state ornegi:
+
+```ts
+type PendingCreateState = {
+  clientRequestId: string;
+  payloadSnapshot: unknown;
+  status: "idle" | "sending" | "retryable" | "completed";
+};
+```
+
+Kaydetme akisi:
+
+```text
+1. Kullanici Kaydet'e basar.
+2. UI yeni GUID uretir ve gonderilecek body'nin snapshot'ini alir.
+3. Body icine ayni `clientRequestId` yazilir ve POST edilir.
+4. Request devam ederken Kaydet butonu ve form alanlari kilitlenir.
+5. Basarili response gelirse islem `completed` olur ve pending state temizlenir.
+6. Timeout, HTTP 0, network kopmasi veya belirsiz 500 durumunda islem `retryable` olur.
+7. Kullanici `Tekrar Dene` derse UI yeni body uretmez; saklanan snapshot'i ayni `clientRequestId` ile tekrar POST eder.
+8. Kullanici pending kaydi degistirmek isterse once `Yeni islem olarak duzenle` secilir; bu durumda sonraki Kaydet yeni `clientRequestId` ile yeni islem sayilir.
+```
+
+Yanlis retry ornegi:
+
+```text
+08:20 ayni sevk A clientRequestId ile POST edildi, cevap gec geldi veya timeout goruldu.
+08:25 UI ayni sevki B clientRequestId ile tekrar POST etti.
+Sonuc: Backend A ve B isteklerini iki ayri create sayabilir; F120/3496 ve F120/3497 gibi ayni icerikli iki evrak olusabilir.
+```
 
 Offline durum sorgu endpointleri:
 
@@ -3954,6 +3987,7 @@ stockCode      opsiyonel; stok kodu ile exact arama
 stockName      opsiyonel; stok adinda contains arama, en az 2 karakter
 companyCode    opsiyonel; secilen firma/cari kodu filtresi
 supplierCode   opsiyonel; companyCode ile ayni filtre icin geriye uyum alias'i
+includeDelisted opsiyonel; default true. true ise pasif veya DLS/99 urunler de doner; false ise bu urunler listeden gizlenir
 take           opsiyonel; default 20, max 100
 ```
 
@@ -3961,6 +3995,9 @@ Kural:
 
 - `barcode`, `stockCode`, `stockName`, `companyCode` veya `supplierCode` alanlarindan en az biri verilmelidir.
 - Bos arama engellenir; cunku Mikro procedure genis fiyat/stok seti dondurebilir.
+- Urun arama, fiyat gor ve var-yok listelerinde pasif veya DLS/99 urunler normalde gorunur; backend satiri `isPassive`, `isDelisted` ve `delistReason` alanlariyla isaretler.
+- UI "delistleri/pasifleri gizle" toggle'i aciksa ayni istege `includeDelisted=false` eklemelidir. Toggle kapaliysa alan gonderilmeyebilir; default `true` kabul edilir.
+- UI sadece kendi icinde filtre yapmamalidir; gizleme karari backend tarafinda calismalidir ki web, terminal ve mobil ayni sonucu gorsun.
 - `warehouseNo`, fiyat/stok/blok bilgisinin hangi islem deposuna gore okunacagini belirler. Bu alan kaynak depo secimi icin kullanilmaz.
 - Merkez depoya siparis verme ekraninda kullanici deposu `56`, kaynak depo `50` ise urun arama istegi `warehouseNo=50` ile degil, `warehouseNo=56` ile veya `warehouseNo` bos gonderilerek yapilmalidir.
 - Ornek yanlis kullanim: `GET /api/arama-islemleri/urunler?warehouseNo=50&stockName=aytac`. Kullanici token deposu `56` ise ve tum depo yetkisi yoksa backend `403 Forbidden` dondurur.
@@ -4027,6 +4064,7 @@ UI kullanim notu:
 - Mal kabulde `isGoodsAcceptanceBlocked = true` olan urunlerde uyari gosterilebilir.
 - Siparis girisinde `isOrderBlocked = true` olan urunlerde uyari veya engel uygulanabilir.
 - Satis/sevk formlarinda `isSalesBlocked = true` olan urunlerde uyari gosterilebilir; depolar arasi sevkte bu alan tek basina satira ekleme engeli degildir.
+- `isDelisted=true` gelen satirlar normalde listede gorunur ama pasif/delist etiketiyle ayrilmalidir. Kullanici gizle toggle'ini acarsa UI tekrar `includeDelisted=false` ile backend'den liste istemelidir.
 - Koli ici gosterim icin `unitMultiplier > 1` ise `KOLI ici 6 ADET` gibi gosterim yapilabilir; miktar girisinde koli adedi girilecekse ana miktar `koliAdedi * unitMultiplier` olarak hesaplanir.
 - Barkod okutulan satir ekleme ekranlarinda nihai karar icin once `barkodlar/{barcode}/cozumle` cagrilmalidir; `urunler` daha cok liste/arama deneyimi icindir.
 
@@ -4059,6 +4097,7 @@ stockCode      opsiyonel; stok kodu ile exact arama
 stockName      opsiyonel; stok adinda contains arama, en az 2 karakter
 companyCode    opsiyonel; secilen firma/cari kodu filtresi
 supplierCode   opsiyonel; companyCode ile ayni filtre icin geriye uyum alias'i
+includeDelisted opsiyonel; default true. true ise pasif veya DLS/99 urunler de doner; false ise bu urunler listeden gizlenir
 take           opsiyonel; default 20, max 100
 ```
 
@@ -4097,6 +4136,7 @@ warehouseNo    opsiyonel; verilmezse JWT icindeki depo kullanilir
 barcode        opsiyonel; once tam barkod arar; 27/29 terazi barkodunda arama barkodu normalize edilir; sonuc yoksa 6+ rakamda barkod son hane fallback'i calisir
 stockCode      opsiyonel; stok kodu ile exact arama
 stockName      opsiyonel; stok adinda contains arama, en az 2 karakter
+includeDelisted opsiyonel; default true. true ise pasif veya DLS/99 urunler de doner; false ise bu urunler listeden gizlenir
 take           opsiyonel; default 20, max 100
 ```
 
@@ -4124,6 +4164,9 @@ Response:
     "isSalesBlocked": false,
     "isOrderBlocked": false,
     "isGoodsAcceptanceBlocked": false,
+    "isPassive": false,
+    "isDelisted": false,
+    "delistReason": null,
     "productManagerCode": "PER001",
     "requestedBarcode": "2700174041103",
     "lookupBarcode": "2700174",
@@ -4140,6 +4183,7 @@ UI kullanim notu:
 - Sol menu altinda `AramaIslemleri > VarYok` veya "Var Yok" gibi ayri bir hizli ekran olarak sunulabilir.
 - Ana gosterim icin `stockCode`, `stockName`, `currentStockQuantity`, `unitName`, `warehouseName`, `price` ve varsa `secondaryUnitName/unitMultiplier` yeterlidir.
 - `hasStock=false` ise UI urunu buldugunu ama secili depoda stok olmadigini net gostermelidir.
+- `isDelisted=true` gelen satirlar normalde listede gorunur ama pasif/delist etiketiyle ayrilmalidir. Kullanici gizle toggle'ini acarsa UI tekrar `includeDelisted=false` ile backend'den liste istemelidir.
 - `unitMultiplier > 1` ise kullaniciya koli ici miktar olarak gosterilebilir; ornek: `KOLI ici 12 ADET`.
 - Depo secici sadece `arama-islemleri.var-yok.all-warehouses` yetkisi varsa acilmalidir; normal kullanicida depo JWT deposudur.
 - Bu endpoint satir ekleme karari icin degil, hizli stok sorgu ekranidir. Mal kabul/siparis/sevk satira ekleme kararinda yine `barkodlar/{barcode}/cozumle` ana karar noktasi olmalidir.
@@ -5593,6 +5637,10 @@ Onemli not:
 - Backend ayni `documentSerie` icin sevk olusturma islemlerini SQL application lock ile siraya alir. Bu, terminalden pes pese kaydetme veya ayni anda birden fazla sevk olusturma durumunda sira numarasi/insert deadlock riskini azaltir.
 - Backend son 5 dakika icinde ayni kaynak depo, hedef depo, transit depo, tarih ve birebir ayni satirlar ile olusmus bir sevk bulursa yeni evrak acmaz; mevcut evrakin `documentSerie` ve `documentOrderNo` bilgisini ayni response modeliyle dondurur. Bu alan response'ta ayrica isaretlenmez, UI ayni response'u basar.
 - UI kaydet butonunu ilk tiklamadan sonra request bitene kadar disable etmeli ve timeout sonrasi ayni body tekrar gonderildiginde ayni evrak numarasinin donebilecegini kabul etmelidir. Timeout gorulse bile kullaniciya liste/detay yenileme secenegi verilmesi onerilir.
+- Depolar arasi sevk create ekraninda `clientRequestId` pratikte zorunlu kabul edilmelidir. UI bu id'yi ilk `Kaydet` aninda uretmeli, ayni body snapshot'i ile birlikte saklamali ve sonuc kesinlesene kadar degistirmemelidir.
+- Timeout, HTTP 0, tarayici iptali, 500 veya kullaniciya sonucu kesin gosterilemeyen durumlarda `Tekrar Dene` aksiyonu ayni `clientRequestId` ve ayni body snapshot'i ile POST etmelidir.
+- UI ayni sevk icerigini yeni `clientRequestId` ile tekrar gonderirse backend bunu yeni evrak olarak yorumlayabilir. Bu durumda ayni stok/miktar satirlari farkli `documentOrderNo` ile ikinci kez olusur; ornek risk `F120/3496` ve `F120/3497` gibi ayni icerikli iki sevktir.
+- Kullanici pending/retry durumundaki sevk formunu degistirmek isterse UI bunu acikca yeni islem saymali; eski pending state'i kullanmadan yeni `clientRequestId` uretmelidir.
 - Satirda `warehouseOrderLineGuid` verilirse depo siparis satirina baglanir. `MikroWriteRouting:InterWarehouseShipment=Database` modunda backend `STOK_HAREKETLERI_EK.sth_subesip_uid` linkini DB'de kurar; `MikroApi` modunda ayni GUID `DahiliStokHareketKaydetV2` satirina `sth_subesip_uid` olarak gonderilir ve link/teslim etkisi Mikro tarafina birakilir.
 - `warehouseOrderLineGuid` verilmezse satir normalde siparissiz sevk olarak olusur; otomatik depo siparisi kurali devredeyse backend once Mikro API ile depo siparisi olusturup satiri bu yeni siparis GUID'ine baglar.
 - Siparise bagli satirda stok kodu, kaynak depo, hedef depo ve kalan miktar kontrol edilir.
@@ -11267,6 +11315,10 @@ Not:
 - response modeli `CashTurnoverListItemDto` doner
 - `source` alani satirin `new` veya `old` kaynagini gosterir
 - `netCollectionAmount` backend tarafinda `totalCollectionAmount - totalCustomerCommission` olarak hesaplanir
+- `grossSalesTotal` satis/brut ciro toplamidir; eski kasada `TurnoverOverallTotal`, yeni kasada satis header toplamlarindan gelir.
+- `comparisonTotal` icmal/mutabakat karsilastirmasinda kullanilacak tahsilat toplamidir. Eski kasada `CashTotal + CreditTotal + GiftCardTotal`, yeni kasada duplicate cozulmus ve tahsilata giren odeme satirlari toplamidir.
+- `futuresSalesTotal` eski POS dosyalarinda veresiye/acik hesap gibi hemen tahsil edilmemis satis toplamidir; icmal karsilastirmasina dahil edilmemelidir.
+- `paymentDataMissing=true` ise satis vardir ama yeni kasa odeme satiri bulunamamistir; UI bunu tahsilat 0 gibi sessiz gecmek yerine veri kalitesi uyarisi olarak gostermelidir.
 
 Response:
 
@@ -11286,7 +11338,11 @@ Response:
     "totalCollectionAmount": 25640.75,
     "totalCustomerCommission": 142.3,
     "netCollectionAmount": 25498.45,
-    "source": "new"
+    "source": "new",
+    "grossSalesTotal": 25640.75,
+    "comparisonTotal": 25640.75,
+    "futuresSalesTotal": 0,
+    "paymentDataMissing": false
   }
 ]
 ```
@@ -11318,7 +11374,11 @@ Not:
 - yeni kasa tarafinda `customerCount` alani yalnizca tamamlanmis (`status = 4`) `received_sales` fislerinden hesaplanir; fisler `receipt_number`, bu bos ise `uuid` bazinda ve gun/kasa kiriliminda tekillestirilir
 - yeni kasa tarafinda `discountCardCustomerCount`, `furparaCardCustomerCount`, `expenseNoteTotal`, `expenseNoteCount`, `futuresSalesTotal` ve `futuresSalesCount` alanlari kaynakta dogrudan olmadigi icin `0` doner
 - yeni kasa odeme kiriliminda `Nakit` nakit, yemek/gift kart tipleri `giftCardTotal`, diger tahsilat tipleri `creditTotal` tarafina yazilir
-- `averageBasketAmount` backend tarafinda `overallTotal / customerCount` olarak hesaplanir
+- `overallTotal` ve `grossSalesTotal` satis/brut ciro toplamidir; `averageBasketAmount` bu toplam uzerinden hesaplanir.
+- `collectionTotal` tahsilat toplamidir; nakit, kredi/kart ve yemek/gift kart toplamlarindan olusur.
+- `comparisonTotal` icmal ile karsilastirilmesi gereken toplamdir. UI icmal farki hesaplarken `overallTotal` yerine bu alani kullanmalidir.
+- `futuresSalesTotal` veresiye/acik hesap gibi tahsilata girmeyen eski POS satisidir; satis analizinde gosterilebilir ama icmal farkina katilmamalidir.
+- yeni kasa tarafinda satis olup odeme satiri yoksa `paymentDataMissing=true` doner ve `comparisonTotal` 0 kalir; bu durumda fark "ciro eksik" degil, "odeme verisi eksik" olarak ele alinmalidir.
 
 Response:
 
@@ -11336,6 +11396,10 @@ Response:
   "averageBasketAmount": 185.12,
   "dailyFuturesSalesCount": 0,
   "dailyFuturesSalesTotal": 0,
+  "dailyCollectionTotal": 397343.74,
+  "dailyGrossSalesTotal": 398941.24,
+  "dailyComparisonTotal": 397343.74,
+  "dailyPaymentDataMissingBranchCount": 0,
   "subeCirolari": [
     {
       "region": "1",
@@ -11353,7 +11417,11 @@ Response:
       "overallTotal": 2295.9,
       "futuresSalesTotal": 0,
       "futuresSalesCount": 0,
-      "averageBasketAmount": 135.05
+      "averageBasketAmount": 135.05,
+      "collectionTotal": 1464.24,
+      "grossSalesTotal": 2295.9,
+      "comparisonTotal": 1464.24,
+      "paymentDataMissing": false
     }
   ]
 }
@@ -11403,7 +11471,11 @@ Response:
     "totalCollectionAmount": 25640.75,
     "totalCustomerCommission": 142.3,
     "netCollectionAmount": 25498.45,
-    "source": "new"
+    "source": "new",
+    "grossSalesTotal": 25640.75,
+    "comparisonTotal": 25640.75,
+    "futuresSalesTotal": 0,
+    "paymentDataMissing": false
   },
   "payments": [
     {
@@ -11481,7 +11553,7 @@ Not:
 - Fis tekillestirme once `uuid`, yoksa `receipt_number`, o da yoksa satir `id` uzerinden yapilir.
 - `saleTotal` satis header toplamidir.
 - `productLineCount` ve `productQuantity` silinmemis/iade edilmemis `sale_items` satirlarindan gelir.
-- `paymentTotal` silinmemis/iade edilmemis `payments` satirlarindan gelir.
+- `paymentTotal` silinmemis/iade edilmemis, duplicate cozulmus ve tahsilata giren `payments` satirlarindan gelir. `Odemesiz` gibi tahsilata girmeyen tipler bu toplama dahil edilmez.
 - `difference = saleTotal - paymentTotal` olarak hesaplanir.
 
 Response:
@@ -11520,8 +11592,9 @@ Odeme kategorileri:
 - `cashTotal`: nakit odemeler
 - `creditCardTotal`: kredi/banka karti odemeleri
 - `giftCardTotal`: yemek karti/gift card benzeri odemeler
-- `otherPaymentTotal`: odemesiz, kapali hesap veya baska kategoriye dusen odemeler
+- `otherPaymentTotal`: tahsilat sayilan ama nakit/kredi/yemek karti disinda kalan odemeler
 - `unknownPaymentTotal`: `payment_methods` ile eslesmeyen odemeler
+- `nonCollectionPaymentTotal`: `Odemesiz` gibi satis var ama kasa tahsilatina girmeyen odemeler. Icmal karsilastirmasina dahil edilmemelidir.
 
 Response:
 
@@ -11541,6 +11614,7 @@ Response:
     "giftCardTotal": 20080,
     "otherPaymentTotal": 0,
     "unknownPaymentTotal": 0,
+    "nonCollectionPaymentTotal": 0,
     "difference": 0,
     "cashierCount": 4,
     "lastSaleAt": "2026-07-08T22:45:10"
@@ -11648,7 +11722,7 @@ Not:
 
 - `paymentMethodCode`, `payments.payment_method` alanidir.
 - `isKnown = false` ise kod `payment_methods.id` veya `payment_methods.pavo_mediator` ile eslesmemistir.
-- `category`: `Cash`, `CreditCard`, `GiftCard`, `Other`, `Unknown`
+- `category`: `Cash`, `CreditCard`, `GiftCard`, `Other`, `Unknown`, `None`
 
 Response:
 
@@ -13794,10 +13868,26 @@ Onemli not:
 - `documentSerie` backend tarafinda legacy kasa icmal formatinda `F{islemDepoNo}.{cashNo}` olarak uretilir
 - `documentOrderNo` ayni seri icin mevcut maksimum degerin bir fazlasi olarak uretilir
 - `zReportNo` Z rapor numarasidir; `zTotalValue` Z rapor tutaridir
+- `total` UI tarafinda hesaplanip gonderilmek zorunda degildir; kasa/Z fark uyumu icin backend legacy belge toplamlarini kendi hesaplar. UI tercihen `0` gondermelidir.
+- legacy CARI/Z fark toplaminda `paymentTypeNo < 100` odemeler + backend'in banknotlardan urettigi nakit toplam + `storeExpenses` toplami sayilir; `paymentTypeNo = 100` Gider Pusulasi bu toplamdan haric tutulur
+- create response icindeki `total`, ekranda gosterilen tahsilat toplamindan farkli olabilir; bu alan CARI/Z fark uyumu icin kullanilan legacy belge toplamidir. Liste, detay ve yazdirma ekranlari satir tutarlarindan kendi toplamlarini hesaplamalidir.
+- UI create ekraninda kullaniciya ayri toplamlar gosterilmelidir:
+  - `Tahsilat Toplami`: banknotlardan hesaplanan nakit + `paymentTypeNo < 100` odeme satirlari
+  - `Magaza Gideri`: `storeExpenses` satirlari toplami
+  - `Gider Pusulasi`: `paymentTypes` icindeki `paymentTypeNo = 100` satiri
+  - `Z Fark Bazi`: `Tahsilat Toplami + Magaza Gideri`
+  - `Z Farki`: `Z Fark Bazi - zTotalValue`
+  - `Genel Bilgi Toplami`: istenirse `Tahsilat Toplami + Magaza Gideri + Gider Pusulasi`; bu deger CARI/Z fark hesabi degildir
+- UI yazdirma/detayda tek bir "toplam" alanini belirsiz kullanmamalidir; ekranda bu toplam isimleriyle ayrilmalidir.
 - `zTotalValue` eski sistemle uyumlu sekilde `Summaries` satiri olarak saklanmaz; `CARI_HESAP_HAREKETLERI` tarafinda canli/eski uyumlu `X / sira` evraklari olarak tutulur, gercek kasa sayimi belgesi `cha_aciklama = "{documentSerie}.{documentOrderNo}"` icinden izlenir
 - CARI tarafinda odeme tipleri, nakit toplam, `300 = total - zTotalValue fark` ve `400 = Z Rapor Toplami` satirlari ayri hareketler olarak yazilir
 - nakit toplam `paymentTypes` icinde manuel gonderilmez; backend banknot hareketlerinden `PaymentTypeID = 500`, `description = "Nakit Toplam"` satirini garanti eder
+- backend nakit satirinin `slipNumber` degerini banknot adet toplami olarak yazar; ornegin 137 adet 200 TL + 46 adet 100 TL varsa nakit `slipNumber = 183` olur
 - UI yanlislikla `paymentTypes` icinde `Nakit` veya `paymentTypeNo = 500` gonderirse backend bunu ayri odeme satiri olarak yazmaz, 500 satirini banknot toplamindan uretir
+- UI sifir tutar/adetli odeme, banknot, hediye ceki veya magaza gideri satirlarini gondermemelidir; backend create sirasinda bu satirlari da yazmadan eler
+- Gider Pusulasi `paymentTypes` icinde `paymentTypeNo = 100` olarak gonderilir; fis/adet bilgisi varsa `slipNumber` dolu gelmelidir
+- Magaza giderleri `storeExpenses` icinden gonderilir; dogru `storeExpensesType` ve kullanicinin girdigi aciklama aynen gonderilmelidir.
+- Magaza gider tipi secimi icin UI `GET /api/kasa-islemleri/kasa-sayimlari/odeme-tipleri/magaza-masrafi` endpointini kullanmalidir. Bu endpoint `PaymentTypeNo 110-113` araligindaki tipleri dondurur; eski sistemdeki "Disaridan Alinan" tipi `112` olarak gelirse UI bunu secilebilir yapmalidir.
 - `BanknoteMovements.CreateDate` eski sistem uyumu icin `summaryDate` gunu olarak yazilir; `UpdateDate` teknik olusturma/guncelleme anini tasir
 
 Request:
@@ -13810,7 +13900,7 @@ Request:
   "cashierNo": 1001,
   "managerNo": 1002,
   "zTotalValue": 6500,
-  "total": 6500,
+  "total": 0,
   "summaryDate": "2026-04-24",
   "giftCheckMovements": [],
   "banknoteMovements": [
@@ -15765,13 +15855,14 @@ Davranis:
 - secimler duplicate ise backend tekilleÃƒâ€¦Ã…Â¸tirir
 - gonderim Uyumsoft WCF client ile fatura bazli tek tek yapilir; boylece basarili/hatali kayitlar response icinde ayri ayri gorulur
 - her belge icin UBL invoice uretilir ve Uyumsoft `SendInvoice` operasyonu cagrilir
-- UBL-TR is kurali ve XSD dogrulamalari Uyumsoft cagrisi oncesinde zorunlu calisir. UI'nin once `/validate` cagirmasi hizli kullanici geri bildirimi saglar ancak veri guvenligi UI davranisina birakilmaz.
-- backend satir neti, satir KDV matrahi, iskonto toplami, belge net matrahi, KDV ve `PayableAmount` aritmetigini kontrol eder; tutarsiz XML Uyumsoft'a gonderilmez.
+- performans icin `/send` agir UBL-TR is kurali ve XSD dogrulamasini otomatik calistirmaz; kullanici kontrol istiyorsa veya toplu gonderim oncesi guvence isteniyorsa UI once `/validate` cagirmalidir
+- `/validate` backend satir neti, satir KDV matrahi, iskonto toplami, belge net matrahi, KDV ve `PayableAmount` aritmetigini kontrol eder; UI validasyon sonucunu kullaniciya ayri aksiyon olarak gostermelidir
 - ayni belge icin SQL application lock alinir; ayni belge baska bir istek tarafindan gonderiliyorsa ikinci istek Uyumsoft'a cagrilmaz ve ilgili satir hata mesaji ile doner
 - basarili donuste `serviceDocumentNumber` Mikro `cha_belge_no` alanina yazilir
 - `serviceDocumentId` Uyumsoft'un teknik id'sidir; basarili gonderimde Mikro `cha_uuid` alanina yazilir, servis id bos donerse faturanin lokal UUID degeri fallback olarak saklanir
 - sonraki liste ekraninda gonderilmis fatura PDF ve tekrar gonderim aksiyonlari backend tarafinda bu UUID uzerinden cozulur; UI teknik UUID gondermek zorunda degildir
-- ayni anda `cha_kilitli = true`, `cha_degisti = true`, `cha_lastup_user = 39` ve `cha_lastup_date = now` set edilir
+- ayni anda Mikro'da `cha_kilitli = true` olur; write rotasi DB ise `cha_degisti`, `cha_lastup_user` ve `cha_lastup_date` backend tarafindan set edilir, write rotasi Mikro API ise backend `KayitKaydetV2` icin kaydin mevcut `cha_degisti` ve `cha_lastup_user` degerlerini kullanir
+- `MikroWriteRouting:InvoiceSendingMarkAsSent=MikroApi` ortaminda marker yazimi `POST /Api/apiMethods/KayitKaydetV2` ile `CARI_HESAP_HAREKETLERI` tablo no `51`, `KayitTipi=1` uzerinden yapilir; backend yazimdan sonra `cha_belge_no`, `cha_uuid` ve `cha_kilitli` alanlarini readback ile dogrular
 - zaten gonderilmis kayitlar response'ta `isSucceeded = false` ile doner; genel request tamamen patlatilmaz
 - basarili veya hatali gonderim loglarinda toplam sureye ek olarak `BuildAndValidateMs`, `UyumsoftMs` ve `MarkAsSentMs` sureleri bulunur. Uzun beklemenin DB/XML, Uyumsoft veya Mikro geri yazma asamasindan hangisinde oldugu bu alanlarla ayristirilir.
 - Liste 2 saniyeyi veya onizleme 5 saniyeyi asarsa backend tek bir warning logu yazar. Liste logunda filtreler, kayit sayisi ve toplam sure; onizleme logunda `LoadMs`, `BuildMs` ve `RenderMs` alanlari bulunur. Normal hizdaki istekler icin ek log uretilmez.
@@ -15885,7 +15976,7 @@ Fatura modulu notlari:
 - `fatura-goruntuleme` icinde legacy'deki "goruntule" ve "yazdirildi say" ayrimi artik ayri endpointlerle temsil edilir
 - `GET /{documentId}/detail` ile `POST render` ayni response tipini doner; fark, `POST render` ile XSLT davranisinin override edilebilmesidir
 - `fatura-gonderimi` detail/send akisinda invoice XML Mikro verisinden backend tarafinda yeniden uretilir; UI ham XML kurmak zorunda degildir
-- `fatura-gonderimi` send akisinda basarili sonuclarda Mikro `cha_belge_no` ve `cha_uuid` geri yazilir, kayit kilitlenir
+- `fatura-gonderimi` send akisinda basarili sonuclarda Mikro `cha_belge_no` ve `cha_uuid` geri yazilir, kayit kilitlenir; `InvoiceSendingMarkAsSent=MikroApi` ise bu is `KayitKaydetV2` tablo `51` update yolu ile yapilir ve backend readback dogrulamasi olmadan basarili donmez
 - render sirasinda once embedded XSLT denenir; yoksa WebApi icindeki `Assets/Xslt/efatura.xslt` veya `Assets/Xslt/earsiv.xslt` fallback olarak kullanilir
 - ortak renderer artik ek karekod uretmez; fatura-gonderimi ve fatura-goruntuleme HTML'inde karekodun tek kaynagi secilen XSLT'dir
 - `fatura-goruntuleme` PDF/detail lookup anahtari `documentId`'dir; `invoiceId` ise kullaniciya gosterilen numaradir
@@ -19878,7 +19969,14 @@ public sealed record ProductLookupItemDto(
     bool IsVariableWeightBarcode = false,
     double? EmbeddedQuantity = null,
     string? EmbeddedQuantityUnit = null,
-    bool? IsBarcodeCheckDigitValid = null);
+    bool? IsBarcodeCheckDigitValid = null,
+    double? PurchasePrice = null,
+    double? PurchaseGrossPrice = null,
+    string? PurchasePriceSource = null,
+    string? PurchaseSupplierCode = null,
+    bool IsPassive = false,
+    bool IsDelisted = false,
+    string? DelistReason = null);
 
 public sealed record ProductCustomerSuggestionResponse(
     bool IsProductFound,
@@ -21184,7 +21282,11 @@ public sealed record CashTurnoverListItemDto(
     double TotalCollectionAmount,
     double TotalCustomerCommission,
     double NetCollectionAmount,
-    string Source);
+    string Source,
+    double GrossSalesTotal,
+    double ComparisonTotal,
+    double FuturesSalesTotal,
+    bool PaymentDataMissing);
 
 public sealed record CashTurnoverHeaderDto(
     DateTime BusinessDate,
@@ -21200,7 +21302,11 @@ public sealed record CashTurnoverHeaderDto(
     double TotalCollectionAmount,
     double TotalCustomerCommission,
     double NetCollectionAmount,
-    string Source);
+    string Source,
+    double GrossSalesTotal,
+    double ComparisonTotal,
+    double FuturesSalesTotal,
+    bool PaymentDataMissing);
 
 public sealed record CashTurnoverPaymentDetailItemDto(
     int PaymentTypeNo,
@@ -21230,6 +21336,10 @@ public sealed record CashTurnoverOverviewDto(
     double AverageBasketAmount,
     int DailyFuturesSalesCount,
     double DailyFuturesSalesTotal,
+    double DailyCollectionTotal,
+    double DailyGrossSalesTotal,
+    double DailyComparisonTotal,
+    int DailyPaymentDataMissingBranchCount,
     IReadOnlyCollection<CashTurnoverBranchOverviewItemDto> SubeCirolari);
 
 public sealed record CashTurnoverBranchOverviewItemDto(
@@ -21248,7 +21358,11 @@ public sealed record CashTurnoverBranchOverviewItemDto(
     double OverallTotal,
     double FuturesSalesTotal,
     int FuturesSalesCount,
-    double AverageBasketAmount);
+    double AverageBasketAmount,
+    double CollectionTotal,
+    double GrossSalesTotal,
+    double ComparisonTotal,
+    bool PaymentDataMissing);
 
 public sealed record YeniKasaCiroOzetItemDto(
     DateTime BusinessDate,
@@ -21282,6 +21396,7 @@ public sealed record YeniKasaKasaOzetItemDto(
     double GiftCardTotal,
     double OtherPaymentTotal,
     double UnknownPaymentTotal,
+    double NonCollectionPaymentTotal,
     double Difference,
     int CashierCount,
     DateTime? LastSaleAt);
@@ -22377,8 +22492,9 @@ Bu bolumde yalnizca endpointlerin dogrudan baglandigi HTTP request modelleri yer
 
 ### Arama Request Modelleri
 
-- `ProductSearchHttpRequest`: `WarehouseNo`, `Barcode`, `StockCode`, `StockName`, `SupplierCode`, `CompanyCode`, `Take`
-- `ProductBarcodePriceLookupHttpRequest`: `WarehouseNo`, `Take`
+- `ProductSearchHttpRequest`: `WarehouseNo`, `Barcode`, `StockCode`, `StockName`, `SupplierCode`, `CompanyCode`, `IncludeDelisted`, `Take`
+- `ProductBarcodePriceLookupHttpRequest`: `WarehouseNo`, `IncludeDelisted`, `Take`
+- `ProductAvailabilityHttpRequest`: `WarehouseNo`, `Barcode`, `StockCode`, `StockName`, `IncludeDelisted`, `Take`
 - `CustomerSearchHttpRequest`: `SearchText`, `Take`
 - `WarehouseSearchHttpRequest`: `SearchText`, `WarehouseNo`, `Take`
 - `BarcodeResolutionHttpRequest`: `WarehouseNo`, `OperationType`, `TargetWarehouseNo`, `SupplierCode`, `CompanyCode`, `IsRefund`, `ScreenCode`

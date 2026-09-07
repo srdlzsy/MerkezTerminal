@@ -58,7 +58,7 @@ void main() {
                   price: 99.9,
                   priceTypeCode: 1,
                   unitName: 'KG',
-                  unitMultiplier: 1,
+                  unitMultiplier: 12,
                   secondaryUnitName: 'KOLI',
                   secondaryUnitMultiplier: 12,
                   salesBlockCode: 0,
@@ -76,6 +76,9 @@ void main() {
                   embeddedQuantity: 4.11,
                   embeddedQuantityUnit: 'KG',
                   isBarcodeCheckDigitValid: true,
+                  isPassive: true,
+                  isDelisted: true,
+                  delistReason: 'DLS/99',
                 ),
               ],
             ),
@@ -100,7 +103,7 @@ void main() {
     await tester.tap(find.widgetWithText(FilledButton, 'Urun'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Stok Var'), findsOneWidget);
+    expect(find.text('Pasif / DLS'), findsOneWidget);
     expect(find.text('MNV SEFTALI KG'), findsOneWidget);
     expect(find.text('24,75 KG'), findsOneWidget);
     expect(find.text('KESTEL 1'), findsOneWidget);
@@ -245,6 +248,7 @@ class _FakeLegacyToolsRepository implements LegacyToolsRepository {
     required String accessToken,
     required String warehouseNo,
     required String query,
+    bool includeDelisted = true,
   }) async {
     return const <SearchProductLookupItem>[];
   }
@@ -254,8 +258,11 @@ class _FakeLegacyToolsRepository implements LegacyToolsRepository {
     required String accessToken,
     required String warehouseNo,
     required String query,
+    bool includeDelisted = true,
   }) async {
-    return stockAvailabilityProducts;
+    return stockAvailabilityProducts
+        .where((item) => includeDelisted || !item.needsStatusAttention)
+        .toList(growable: false);
   }
 
   @override

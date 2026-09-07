@@ -92,6 +92,8 @@ class BarcodeResolutionResult {
     this.purchasePriceSource = '',
     this.purchaseSupplierCode = '',
     required this.isPassive,
+    this.isDelisted = false,
+    this.delistReason = '',
     required this.isUsableInOperation,
     required this.operationDecision,
     required this.warnings,
@@ -146,6 +148,8 @@ class BarcodeResolutionResult {
   final String purchasePriceSource;
   final String purchaseSupplierCode;
   final bool isPassive;
+  final bool isDelisted;
+  final String delistReason;
   final bool isUsableInOperation;
   final String operationDecision;
   final List<String> warnings;
@@ -269,6 +273,8 @@ class BarcodeResolutionResult {
       purchasePriceSource: _readString(json['purchasePriceSource']),
       purchaseSupplierCode: _readString(json['purchaseSupplierCode']),
       isPassive: _readBool(json['isPassive']),
+      isDelisted: _readBool(json['isDelisted']),
+      delistReason: _readString(json['delistReason']),
       isUsableInOperation: _readBool(json['isUsableInOperation']),
       operationDecision: _readString(json['operationDecision']),
       warnings: _readStringList(json['warnings']),

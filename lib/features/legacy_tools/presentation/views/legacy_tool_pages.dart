@@ -58,6 +58,7 @@ class _ProductLookupToolPageState extends State<ProductLookupToolPage> {
   bool _isSyncingCatalog = false;
   bool _hasQuery = false;
   bool _isUsingOfflineCatalog = false;
+  bool _hideDelistedProducts = false;
   String? _errorMessage;
   String? _catalogStatusMessage;
   MobileProductCatalogMetadata? _catalogMetadata;
@@ -141,11 +142,13 @@ class _ProductLookupToolPageState extends State<ProductLookupToolPage> {
               accessToken: widget.accessToken,
               warehouseNo: widget.defaultWarehouseNo,
               query: query,
+              includeDelisted: !_hideDelistedProducts,
             )
           : await widget.repository.searchProducts(
               accessToken: widget.accessToken,
               warehouseNo: widget.defaultWarehouseNo,
               query: query,
+              includeDelisted: !_hideDelistedProducts,
             );
 
       if (!mounted) {
@@ -167,10 +170,14 @@ class _ProductLookupToolPageState extends State<ProductLookupToolPage> {
       }
 
       if (catalogProducts.isNotEmpty) {
+        final mappedProducts = catalogProducts
+            .map((item) => item.toSearchProductLookupItem())
+            .where(
+              (item) => !_hideDelistedProducts || !item.needsStatusAttention,
+            )
+            .toList(growable: false);
         setState(() {
-          _products = catalogProducts
-              .map((item) => item.toSearchProductLookupItem())
-              .toList(growable: false);
+          _products = mappedProducts;
           _isUsingOfflineCatalog = true;
           _catalogStatusMessage =
               'API erisilemedi; son basarili katalog sync verisi gosteriliyor.';
@@ -359,6 +366,26 @@ class _ProductLookupToolPageState extends State<ProductLookupToolPage> {
                         _isSyncingCatalog ? 'Sync...' : 'Mobil Katalog Sync',
                       ),
                     ),
+                    FilterChip(
+                      selected: _hideDelistedProducts,
+                      onSelected: _isLoading
+                          ? null
+                          : (selected) {
+                              setState(() {
+                                _hideDelistedProducts = selected;
+                              });
+                              if (_queryController.text.trim().isNotEmpty) {
+                                unawaited(_search());
+                              }
+                            },
+                      label: const Text('Pasif/DLS gizle'),
+                      avatar: Icon(
+                        _hideDelistedProducts
+                            ? Icons.visibility_off_rounded
+                            : Icons.visibility_rounded,
+                        size: 18,
+                      ),
+                    ),
                   ],
                 ),
                 const SizedBox(height: 12),
@@ -391,6 +418,11 @@ class _ProductLookupToolPageState extends State<ProductLookupToolPage> {
                 else
                   ..._products.map((item) {
                     final blockLabels = <String>[
+                      if (item.isPassive) 'Pasif',
+                      if (item.isDelisted)
+                        item.delistReason.trim().isEmpty
+                            ? 'DLS'
+                            : 'DLS: ${item.delistReason.trim()}',
                       if (item.isOrderBlocked) 'Siparis',
                       if (item.isSalesBlocked) 'Satis',
                       if (item.isGoodsAcceptanceBlocked) 'Kabul',
@@ -457,11 +489,11 @@ class _ProductLookupToolPageState extends State<ProductLookupToolPage> {
                                     label: 'Fiyat',
                                     value: AppFormatters.currency(item.price),
                                   ),
-                                if (item.secondaryUnitMultiplier > 1)
+                                if (item.unitMultiplier > 1)
                                   TerminalPdaInfo(
                                     label: 'Koli ici',
                                     value:
-                                        '${AppFormatters.quantity(item.secondaryUnitMultiplier)} ${item.unitName}',
+                                        '${AppFormatters.quantity(item.unitMultiplier)} ${item.unitName}',
                                   ),
                               ],
                             ),
@@ -527,7 +559,14 @@ class _ProductLookupToolPageState extends State<ProductLookupToolPage> {
 
   String _resultBadgeLabel(SearchProductLookupItem item) {
     if (!widget.useStockAvailabilityEndpoint) {
+      if (item.needsStatusAttention) {
+        return item.statusWarningLabel;
+      }
       return item.isSalesBlocked ? 'Bloklu' : 'Bulundu';
+    }
+
+    if (item.needsStatusAttention) {
+      return item.statusWarningLabel;
     }
 
     if (item.hasStock == false) {
@@ -548,6 +587,10 @@ class _ProductLookupToolPageState extends State<ProductLookupToolPage> {
       return const Color(0xFFFFF4D6);
     }
 
+    if (item.needsStatusAttention) {
+      return const Color(0xFFFFF4D6);
+    }
+
     final isBlocked =
         item.isSalesBlocked ||
         item.isOrderBlocked ||
@@ -557,6 +600,10 @@ class _ProductLookupToolPageState extends State<ProductLookupToolPage> {
 
   Color _resultBadgeForeground(SearchProductLookupItem item) {
     if (widget.useStockAvailabilityEndpoint && item.hasStock == false) {
+      return const Color(0xFF7A4A00);
+    }
+
+    if (item.needsStatusAttention) {
       return const Color(0xFF7A4A00);
     }
 

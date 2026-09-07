@@ -941,6 +941,9 @@ class _WarehouseReturnCreateSheetState extends State<WarehouseReturnCreateSheet>
         priceLabel: product.price > 0
             ? AppFormatters.currency(product.price)
             : null,
+        warningLabel: product.needsStatusAttention
+            ? product.statusWarningLabel
+            : null,
         onConfirm: () => _commitEntryLine(line),
         onCancel: () => _cancelPendingEntryLine(line),
         scanRow: TerminalResponsiveLookupRow(
@@ -1296,6 +1299,9 @@ Map<String, dynamic> _returnProductJson(ProductLookupItem item) {
     'price': item.price,
     'unitName': item.unitName,
     'unitMultiplier': item.unitMultiplier,
+    'isPassive': item.isPassive,
+    'isDelisted': item.isDelisted,
+    'delistReason': item.delistReason,
     'isOrderBlocked': item.isOrderBlocked,
   };
 }

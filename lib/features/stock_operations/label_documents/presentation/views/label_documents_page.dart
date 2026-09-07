@@ -1148,6 +1148,9 @@ Map<String, dynamic> _searchProductJson(SearchProductLookupItem item) {
     'isSalesBlocked': item.isSalesBlocked,
     'isOrderBlocked': item.isOrderBlocked,
     'isGoodsAcceptanceBlocked': item.isGoodsAcceptanceBlocked,
+    'isPassive': item.isPassive,
+    'isDelisted': item.isDelisted,
+    'delistReason': item.delistReason,
     'productManagerCode': item.productManagerCode,
   };
 }

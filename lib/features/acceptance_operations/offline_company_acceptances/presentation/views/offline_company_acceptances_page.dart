@@ -1773,6 +1773,9 @@ class _OfflineCompanyAcceptanceCreateSheetState
         priceLabel: line.unitPrice > 0
             ? AppFormatters.currency(line.unitPrice)
             : null,
+        warningLabel: selectedProduct.needsStatusAttention
+            ? selectedProduct.statusWarningLabel
+            : null,
         onConfirm: () => _commitEntryLine(line),
         onCancel: () => _cancelPendingEntryLine(line),
         scanRow: _buildProductLookupRow(line),

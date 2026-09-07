@@ -318,6 +318,9 @@ class InventoryCountProductLookupItem {
     required this.unitName,
     this.unitMultiplier = 1,
     required this.price,
+    this.isPassive = false,
+    this.isDelisted = false,
+    this.delistReason = '',
     required this.isGoodsAcceptanceBlocked,
   });
 
@@ -328,9 +331,27 @@ class InventoryCountProductLookupItem {
   final String unitName;
   final double unitMultiplier;
   final double price;
+  final bool isPassive;
+  final bool isDelisted;
+  final String delistReason;
   final bool isGoodsAcceptanceBlocked;
 
   String get displayLabel => '$stockCode - $stockName';
+
+  bool get needsStatusAttention => isPassive || isDelisted;
+
+  String get statusWarningLabel {
+    if (isDelisted && isPassive) {
+      return 'Pasif / DLS';
+    }
+    if (isDelisted) {
+      return 'DLS';
+    }
+    if (isPassive) {
+      return 'Pasif';
+    }
+    return '';
+  }
 
   factory InventoryCountProductLookupItem.fromJson(JsonMap json) {
     return InventoryCountProductLookupItem(
@@ -341,6 +362,9 @@ class InventoryCountProductLookupItem {
       unitName: _readString(json['unitName']),
       unitMultiplier: _readPositiveDouble(json['unitMultiplier']),
       price: _readDouble(json['price']),
+      isPassive: _readBool(json['isPassive']),
+      isDelisted: _readBool(json['isDelisted']),
+      delistReason: _readString(json['delistReason']),
       isGoodsAcceptanceBlocked: _readBool(json['isGoodsAcceptanceBlocked']),
     );
   }
@@ -356,6 +380,9 @@ class InventoryCountProductLookupItem {
       unitName: resolution.matchedUnitName,
       unitMultiplier: resolution.matchedUnitMultiplier,
       price: resolution.salesPrice,
+      isPassive: resolution.isPassive,
+      isDelisted: resolution.isDelisted,
+      delistReason: resolution.delistReason,
       isGoodsAcceptanceBlocked: resolution.isGoodsAcceptanceBlocked,
     );
   }

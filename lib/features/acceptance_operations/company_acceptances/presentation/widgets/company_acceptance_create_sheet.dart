@@ -414,7 +414,9 @@ class _CompanyAcceptanceCreateSheetState
 
     if (_descriptionController.text.trim().isEmpty &&
         prefill.notes.isNotEmpty) {
-      _descriptionController.text = prefill.notes.join('\n');
+      _descriptionController.text = _compactEDespatchDescriptionFromNotes(
+        prefill.notes,
+      );
     }
   }
 
@@ -1858,6 +1860,9 @@ class _CompanyAcceptanceCreateSheetState
         priceLabel: line.unitPrice > 0
             ? AppFormatters.currency(line.unitPrice)
             : null,
+        warningLabel: selectedProduct.needsStatusAttention
+            ? selectedProduct.statusWarningLabel
+            : null,
         onConfirm: () => _commitEntryLine(line),
         onCancel: () => _cancelPendingEntryLine(line),
         scanRow: _buildProductLookupRow(line),
@@ -2560,6 +2565,14 @@ String _trimForApi(String value, int maxLength) {
   return normalized.substring(0, maxLength);
 }
 
+String _compactEDespatchDescriptionFromNotes(List<String> notes) {
+  final normalized = notes
+      .map((note) => note.trim().replaceAll(RegExp(r'\s+'), ' '))
+      .where((note) => note.isNotEmpty)
+      .join(' / ');
+  return _trimForApi(normalized, _descriptionMaxLength);
+}
+
 class _CompactCheckboxTile extends StatelessWidget {
   const _CompactCheckboxTile({
     required this.value,
@@ -2934,6 +2947,9 @@ Map<String, dynamic> _acceptanceProductJson(SearchProductLookupItem item) {
     'isSalesBlocked': item.isSalesBlocked,
     'isOrderBlocked': item.isOrderBlocked,
     'isGoodsAcceptanceBlocked': item.isGoodsAcceptanceBlocked,
+    'isPassive': item.isPassive,
+    'isDelisted': item.isDelisted,
+    'delistReason': item.delistReason,
     'productManagerCode': item.productManagerCode,
   };
 }

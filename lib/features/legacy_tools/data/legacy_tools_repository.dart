@@ -7,12 +7,14 @@ abstract class LegacyToolsRepository {
     required String accessToken,
     required String warehouseNo,
     required String query,
+    bool includeDelisted = true,
   });
 
   Future<List<SearchProductLookupItem>> searchStockAvailability({
     required String accessToken,
     required String warehouseNo,
     required String query,
+    bool includeDelisted = true,
   });
 
   Future<List<CustomerLookupItem>> searchCustomers({
@@ -63,6 +65,7 @@ class ApiLegacyToolsRepository implements LegacyToolsRepository {
     required String accessToken,
     required String warehouseNo,
     required String query,
+    bool includeDelisted = true,
   }) async {
     final normalizedQuery = query.trim();
     final isBarcodeQuery = RegExp(r'^\d{7,}$').hasMatch(normalizedQuery);
@@ -79,6 +82,7 @@ class ApiLegacyToolsRepository implements LegacyToolsRepository {
             queryParameters: <String, String>{
               'warehouseNo': warehouseNo,
               'take': '20',
+              if (!includeDelisted) 'includeDelisted': 'false',
             },
           )
         : await _apiClient.getJsonList(
@@ -87,6 +91,7 @@ class ApiLegacyToolsRepository implements LegacyToolsRepository {
             queryParameters: <String, String>{
               'warehouseNo': warehouseNo,
               'take': '20',
+              if (!includeDelisted) 'includeDelisted': 'false',
               if (isStockCodeQuery)
                 'stockCode': normalizedQuery
               else
@@ -108,6 +113,7 @@ class ApiLegacyToolsRepository implements LegacyToolsRepository {
     required String accessToken,
     required String warehouseNo,
     required String query,
+    bool includeDelisted = true,
   }) async {
     final normalizedQuery = query.trim();
     final isBarcodeQuery = RegExp(r'^\d{7,}$').hasMatch(normalizedQuery);
@@ -122,6 +128,7 @@ class ApiLegacyToolsRepository implements LegacyToolsRepository {
       queryParameters: <String, String>{
         'warehouseNo': warehouseNo,
         'take': '20',
+        if (!includeDelisted) 'includeDelisted': 'false',
         if (isBarcodeQuery)
           'barcode': normalizedQuery
         else if (isStockCodeQuery)

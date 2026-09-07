@@ -26,6 +26,8 @@ class MobileProductCatalogItem {
     required this.isOrderBlocked,
     required this.isGoodsAcceptanceBlocked,
     required this.isPassive,
+    this.isDelisted = false,
+    this.delistReason = '',
     required this.isDeleted,
     required this.productManagerCode,
     this.updatedAt,
@@ -51,6 +53,8 @@ class MobileProductCatalogItem {
   final bool isOrderBlocked;
   final bool isGoodsAcceptanceBlocked;
   final bool isPassive;
+  final bool isDelisted;
+  final String delistReason;
   final bool isDeleted;
   final String productManagerCode;
   final DateTime? updatedAt;
@@ -76,6 +80,9 @@ class MobileProductCatalogItem {
       isSalesBlocked: isSalesBlocked,
       isOrderBlocked: isOrderBlocked,
       isGoodsAcceptanceBlocked: isGoodsAcceptanceBlocked,
+      isPassive: isPassive,
+      isDelisted: isDelisted || isDeleted,
+      delistReason: delistReason,
       productManagerCode: productManagerCode,
     );
   }
@@ -89,6 +96,9 @@ class MobileProductCatalogItem {
       unitName: unitName,
       unitMultiplier: unitMultiplier,
       price: price,
+      isPassive: isPassive,
+      isDelisted: isDelisted || isDeleted,
+      delistReason: delistReason,
       isGoodsAcceptanceBlocked: isGoodsAcceptanceBlocked,
     );
   }
@@ -114,6 +124,8 @@ class MobileProductCatalogItem {
       isOrderBlocked: isOrderBlocked,
       isGoodsAcceptanceBlocked: isGoodsAcceptanceBlocked,
       isPassive: isPassive,
+      isDelisted: isDelisted,
+      delistReason: delistReason,
       isDeleted: isDeleted,
       productManagerCode: productManagerCode,
       updatedAt: updatedAt,
@@ -142,6 +154,8 @@ class MobileProductCatalogItem {
       'isOrderBlocked': isOrderBlocked,
       'isGoodsAcceptanceBlocked': isGoodsAcceptanceBlocked,
       'isPassive': isPassive,
+      'isDelisted': isDelisted,
+      'delistReason': delistReason,
       'isDeleted': isDeleted,
       'productManagerCode': productManagerCode,
       'updatedAt': updatedAt?.toIso8601String(),
@@ -174,6 +188,8 @@ class MobileProductCatalogItem {
       isOrderBlocked: _readBool(json['isOrderBlocked']),
       isGoodsAcceptanceBlocked: _readBool(json['isGoodsAcceptanceBlocked']),
       isPassive: _readBool(json['isPassive']),
+      isDelisted: _readBool(json['isDelisted']),
+      delistReason: _readString(json['delistReason']),
       isDeleted: _readBool(json['isDeleted']),
       productManagerCode: _readString(json['productManagerCode']),
       updatedAt: _readDate(json['updatedAt']),

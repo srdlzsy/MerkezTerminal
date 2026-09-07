@@ -33,6 +33,9 @@ class SearchProductLookupItem {
     this.embeddedQuantity,
     this.embeddedQuantityUnit = '',
     this.isBarcodeCheckDigitValid,
+    this.isPassive = false,
+    this.isDelisted = false,
+    this.delistReason = '',
   });
 
   final int warehouseNo;
@@ -65,8 +68,26 @@ class SearchProductLookupItem {
   final double? embeddedQuantity;
   final String embeddedQuantityUnit;
   final bool? isBarcodeCheckDigitValid;
+  final bool isPassive;
+  final bool isDelisted;
+  final String delistReason;
 
   String get displayLabel => '$stockCode - $stockName';
+
+  bool get needsStatusAttention => isPassive || isDelisted;
+
+  String get statusWarningLabel {
+    if (isDelisted && isPassive) {
+      return 'Pasif / DLS';
+    }
+    if (isDelisted) {
+      return 'DLS';
+    }
+    if (isPassive) {
+      return 'Pasif';
+    }
+    return '';
+  }
 
   double get companyAcceptanceUnitPrice =>
       purchasePrice > 0 ? purchasePrice : 0;
@@ -110,6 +131,9 @@ class SearchProductLookupItem {
       isBarcodeCheckDigitValid: _readNullableBool(
         json['isBarcodeCheckDigitValid'],
       ),
+      isPassive: _readBool(json['isPassive']),
+      isDelisted: _readBool(json['isDelisted']),
+      delistReason: _readString(json['delistReason']),
     );
   }
 
@@ -138,6 +162,9 @@ class SearchProductLookupItem {
       isOrderBlocked: resolution.isOrderBlocked,
       isGoodsAcceptanceBlocked: resolution.isGoodsAcceptanceBlocked,
       productManagerCode: '',
+      isPassive: resolution.isPassive,
+      isDelisted: resolution.isDelisted,
+      delistReason: resolution.delistReason,
     );
   }
 }

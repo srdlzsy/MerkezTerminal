@@ -1177,6 +1177,9 @@ class _GivenCompanyOrderCreateSheetState
             fallback: product.price,
           ),
         ),
+        warningLabel: product.needsStatusAttention
+            ? product.statusWarningLabel
+            : null,
         onConfirm: () => _commitEntryLine(line),
         onCancel: () => _cancelPendingEntryLine(line),
         scanRow: TerminalResponsiveLookupRow(
@@ -1561,6 +1564,9 @@ Map<String, dynamic> _companyOrderProductJson(
     'minimumPurchaseQuantity': item.minimumPurchaseQuantity,
     'deliveryDay': item.deliveryDay,
     'unitPointer': item.unitPointer,
+    'isPassive': item.isPassive,
+    'isDelisted': item.isDelisted,
+    'delistReason': item.delistReason,
     'isOrderBlocked': item.isOrderBlocked,
     'isSalesBlocked': item.isSalesBlocked,
   };

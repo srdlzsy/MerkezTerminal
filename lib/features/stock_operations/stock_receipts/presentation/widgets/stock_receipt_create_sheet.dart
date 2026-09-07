@@ -938,6 +938,9 @@ class _StockReceiptCreateSheetState extends State<StockReceiptCreateSheet>
             ? AppFormatters.quantity(product.unitMultiplier)
             : null,
         barcode: product.barcode,
+        warningLabel: product.needsStatusAttention
+            ? product.statusWarningLabel
+            : null,
         onConfirm: () => _commitEntryLine(line),
         onCancel: () => _cancelPendingEntryLine(line),
         scanRow: TerminalResponsiveLookupRow(
@@ -1323,6 +1326,9 @@ Map<String, dynamic> _stockReceiptProductJson(SearchProductLookupItem item) {
     'isSalesBlocked': item.isSalesBlocked,
     'isOrderBlocked': item.isOrderBlocked,
     'isGoodsAcceptanceBlocked': item.isGoodsAcceptanceBlocked,
+    'isPassive': item.isPassive,
+    'isDelisted': item.isDelisted,
+    'delistReason': item.delistReason,
     'productManagerCode': item.productManagerCode,
   };
 }

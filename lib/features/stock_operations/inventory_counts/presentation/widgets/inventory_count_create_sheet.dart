@@ -838,7 +838,7 @@ class _InventoryCountCreateSheetState extends State<InventoryCountCreateSheet>
             ? AppFormatters.quantity(product.unitMultiplier)
             : null,
         barcode: product.barcode,
-        warningLabel: product.isGoodsAcceptanceBlocked ? 'Bayrak var' : null,
+        warningLabel: _inventoryProductWarningLabel(product),
         onConfirm: () => _commitEntryLine(line),
         onCancel: () => _cancelPendingEntryLine(line),
         scanRow: TerminalResponsiveLookupRow(
@@ -888,7 +888,7 @@ class _InventoryCountCreateSheetState extends State<InventoryCountCreateSheet>
             ? AppFormatters.quantity(product.unitMultiplier)
             : null,
         barcode: product.barcode,
-        warningLabel: product.isGoodsAcceptanceBlocked ? 'Bayrak var' : null,
+        warningLabel: _inventoryProductWarningLabel(product),
         canDelete: _lines.length > 1,
         onDelete: () => _removeLine(line),
         onMinimumReached: _lines.length > 1 ? () => _removeLine(line) : null,
@@ -949,6 +949,11 @@ class _InventoryCountCreateSheetState extends State<InventoryCountCreateSheet>
                 TerminalPdaInfo(label: 'Birim', value: product.unitName),
                 if (product.barcode.isNotEmpty)
                   TerminalPdaInfo(label: 'Barkod', value: product.barcode),
+                if (product.needsStatusAttention)
+                  TerminalPdaInfo(
+                    label: 'Durum',
+                    value: product.statusWarningLabel,
+                  ),
                 if (product.isGoodsAcceptanceBlocked)
                   const TerminalPdaInfo(label: 'Uyari', value: 'Bayrak var'),
               ],
@@ -976,6 +981,18 @@ class _InventoryCountCreateSheetState extends State<InventoryCountCreateSheet>
         ],
       ),
     );
+  }
+
+  String? _inventoryProductWarningLabel(InventoryCountProductLookupItem item) {
+    final labels = <String>[
+      if (item.needsStatusAttention) item.statusWarningLabel,
+      if (item.isGoodsAcceptanceBlocked) 'Bayrak var',
+    ];
+    if (labels.isEmpty) {
+      return null;
+    }
+
+    return labels.join(' | ');
   }
 
   static DateTime _normalizeDate(DateTime value) {
@@ -1139,6 +1156,9 @@ Map<String, dynamic> _inventoryProductJson(
     'unitName': item.unitName,
     'unitMultiplier': item.unitMultiplier,
     'price': item.price,
+    'isPassive': item.isPassive,
+    'isDelisted': item.isDelisted,
+    'delistReason': item.delistReason,
     'isGoodsAcceptanceBlocked': item.isGoodsAcceptanceBlocked,
   };
 }

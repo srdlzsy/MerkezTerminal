@@ -293,6 +293,9 @@ class CompanyOrderProductLookupItem {
     this.minimumPurchaseQuantity = 0,
     this.deliveryDay,
     this.unitPointer = 1,
+    this.isPassive = false,
+    this.isDelisted = false,
+    this.delistReason = '',
     required this.isOrderBlocked,
     required this.isSalesBlocked,
   });
@@ -309,10 +312,28 @@ class CompanyOrderProductLookupItem {
   final double minimumPurchaseQuantity;
   final int? deliveryDay;
   final int unitPointer;
+  final bool isPassive;
+  final bool isDelisted;
+  final String delistReason;
   final bool isOrderBlocked;
   final bool isSalesBlocked;
 
   String get displayLabel => '$stockCode - $stockName';
+
+  bool get needsStatusAttention => isPassive || isDelisted;
+
+  String get statusWarningLabel {
+    if (isDelisted && isPassive) {
+      return 'Pasif / DLS';
+    }
+    if (isDelisted) {
+      return 'DLS';
+    }
+    if (isPassive) {
+      return 'Pasif';
+    }
+    return '';
+  }
 
   factory CompanyOrderProductLookupItem.fromJson(JsonMap json) {
     return CompanyOrderProductLookupItem(
@@ -332,6 +353,9 @@ class CompanyOrderProductLookupItem {
       unitPointer: _readInt(json['unitPointer']) <= 0
           ? 1
           : _readInt(json['unitPointer']),
+      isPassive: _readBool(json['isPassive']),
+      isDelisted: _readBool(json['isDelisted']),
+      delistReason: _readString(json['delistReason']),
       isOrderBlocked: _readBool(json['isOrderBlocked']),
       isSalesBlocked: _readBool(json['isSalesBlocked']),
     );

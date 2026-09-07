@@ -243,6 +243,9 @@ class ProductLookupItem {
     this.secondaryUnitName = '',
     this.caseBarcode = '',
     this.modelCode = '',
+    this.isPassive = false,
+    this.isDelisted = false,
+    this.delistReason = '',
     required this.isOrderBlocked,
   });
 
@@ -256,9 +259,27 @@ class ProductLookupItem {
   final String secondaryUnitName;
   final String caseBarcode;
   final String modelCode;
+  final bool isPassive;
+  final bool isDelisted;
+  final String delistReason;
   final bool isOrderBlocked;
 
   String get displayLabel => '$stockCode - $stockName';
+
+  bool get needsStatusAttention => isPassive || isDelisted;
+
+  String get statusWarningLabel {
+    if (isDelisted && isPassive) {
+      return 'Pasif / DLS';
+    }
+    if (isDelisted) {
+      return 'DLS';
+    }
+    if (isPassive) {
+      return 'Pasif';
+    }
+    return '';
+  }
 
   factory ProductLookupItem.fromJson(JsonMap json) {
     return ProductLookupItem(
@@ -280,6 +301,9 @@ class ProductLookupItem {
         'productModelCode',
         'stockModelCode',
       ]),
+      isPassive: _readBool(json['isPassive']),
+      isDelisted: _readBool(json['isDelisted']),
+      delistReason: _readString(json['delistReason']),
       isOrderBlocked: _readBool(json['isOrderBlocked']),
     );
   }
@@ -297,6 +321,9 @@ class ProductLookupItem {
       unitMultiplier: resolution.matchedUnitMultiplier,
       caseBarcode: resolution.caseBarcode,
       modelCode: resolution.productModelCode,
+      isPassive: resolution.isPassive,
+      isDelisted: resolution.isDelisted,
+      delistReason: resolution.delistReason,
       isOrderBlocked: resolution.isOrderBlocked,
     );
   }

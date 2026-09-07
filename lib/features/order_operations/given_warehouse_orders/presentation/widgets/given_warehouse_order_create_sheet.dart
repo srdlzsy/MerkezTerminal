@@ -1190,6 +1190,7 @@ class _GivenWarehouseOrderCreateSheetState
     ProductLookupItem product,
   ) {
     final labels = <String>[
+      if (product.needsStatusAttention) product.statusWarningLabel,
       if (product.isOrderBlocked) 'Blokeli',
       if (line.productCaseStatusMessage != null &&
           (line.isProductCaseStatusError || line.isProductCaseStatusWarning))
@@ -2254,6 +2255,9 @@ Map<String, dynamic> _warehouseOrderProductJson(ProductLookupItem item) {
     'secondaryUnitName': item.secondaryUnitName,
     'caseBarcode': item.caseBarcode,
     'modelCode': item.modelCode,
+    'isPassive': item.isPassive,
+    'isDelisted': item.isDelisted,
+    'delistReason': item.delistReason,
     'isOrderBlocked': item.isOrderBlocked,
   };
 }
