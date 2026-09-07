@@ -703,7 +703,11 @@ class _OfflineCompanyAcceptanceCreateSheetState
           await showTerminalProductSelectionSheet<SearchProductLookupItem>(
             context: context,
             items: products,
-            needsStatusAttention: (item) => item.needsStatusAttention,
+            reloadItems: ({required bool includeDelisted}) =>
+                _searchProductsWithCatalogFallback(
+                  query,
+                  includeDelisted: includeDelisted,
+                ),
             itemBuilder: (context, item, onSelect) => ListTile(
               dense: true,
               visualDensity: VisualDensity.compact,
@@ -755,8 +759,9 @@ class _OfflineCompanyAcceptanceCreateSheetState
   }
 
   Future<List<SearchProductLookupItem>> _searchProductsWithCatalogFallback(
-    String query,
-  ) async {
+    String query, {
+    bool includeDelisted = true,
+  }) async {
     final customerCode = _customerCodeController.text.trim();
     try {
       return await widget.repository.searchProducts(
@@ -764,6 +769,7 @@ class _OfflineCompanyAcceptanceCreateSheetState
         warehouseNo: widget.defaultWarehouseNo,
         query: query,
         customerCode: customerCode.isEmpty ? null : customerCode,
+        includeDelisted: includeDelisted,
       );
     } on ApiException {
       final catalogItems = await widget.mobileProductCatalogRepository
@@ -771,6 +777,7 @@ class _OfflineCompanyAcceptanceCreateSheetState
       if (catalogItems.isNotEmpty) {
         return catalogItems
             .map((item) => item.toSearchProductLookupItem())
+            .where((item) => includeDelisted || !item.needsStatusAttention)
             .toList(growable: false);
       }
       rethrow;

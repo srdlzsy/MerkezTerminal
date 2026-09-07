@@ -43,6 +43,7 @@ abstract class CompanyAcceptancesRepository {
     required String warehouseNo,
     required String query,
     String? customerCode,
+    bool includeDelisted = true,
   });
 }
 
@@ -168,6 +169,7 @@ class ApiCompanyAcceptancesRepository implements CompanyAcceptancesRepository {
     required String warehouseNo,
     required String query,
     String? customerCode,
+    bool includeDelisted = true,
   }) async {
     final normalizedQuery = query.trim();
     final isBarcodeQuery = RegExp(r'^\d{7,}$').hasMatch(normalizedQuery);
@@ -182,6 +184,7 @@ class ApiCompanyAcceptancesRepository implements CompanyAcceptancesRepository {
       queryParameters: <String, String>{
         'warehouseNo': warehouseNo,
         'take': '20',
+        if (!includeDelisted) 'includeDelisted': 'false',
         if (customerCode != null && customerCode.trim().isNotEmpty)
           'companyCode': customerCode.trim(),
         if (isBarcodeQuery)

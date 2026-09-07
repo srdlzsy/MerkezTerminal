@@ -662,6 +662,7 @@ class _FakeCompanyAcceptancesRepository
     required String warehouseNo,
     required String query,
     String? customerCode,
+    bool includeDelisted = true,
   }) async {
     return const <SearchProductLookupItem>[
       SearchProductLookupItem(

@@ -167,20 +167,30 @@ class _VirmanCreateSheetState extends State<VirmanCreateSheet>
       return;
     }
 
-    List<SearchProductLookupItem> products;
-    try {
-      products = await widget.repository.searchProducts(
-        accessToken: widget.accessToken,
-        warehouseNo: widget.defaultWarehouseNo,
-        query: query,
-      );
-    } catch (_) {
-      final catalogItems = await widget.mobileProductCatalogRepository
-          .searchProducts(warehouseNo: widget.defaultWarehouseNo, query: query);
-      products = catalogItems
-          .map((item) => item.toSearchProductLookupItem())
-          .toList(growable: false);
+    Future<List<SearchProductLookupItem>> loadProducts({
+      bool includeDelisted = true,
+    }) async {
+      try {
+        return await widget.repository.searchProducts(
+          accessToken: widget.accessToken,
+          warehouseNo: widget.defaultWarehouseNo,
+          query: query,
+          includeDelisted: includeDelisted,
+        );
+      } catch (_) {
+        final catalogItems = await widget.mobileProductCatalogRepository
+            .searchProducts(
+              warehouseNo: widget.defaultWarehouseNo,
+              query: query,
+            );
+        return catalogItems
+            .map((item) => item.toSearchProductLookupItem())
+            .where((item) => includeDelisted || !item.needsStatusAttention)
+            .toList(growable: false);
+      }
     }
+
+    final products = await loadProducts();
 
     if (!mounted) {
       return;
@@ -201,7 +211,8 @@ class _VirmanCreateSheetState extends State<VirmanCreateSheet>
       selected = await showTerminalProductSelectionSheet<SearchProductLookupItem>(
         context: context,
         items: products,
-        needsStatusAttention: (item) => item.needsStatusAttention,
+        reloadItems: ({required bool includeDelisted}) =>
+            loadProducts(includeDelisted: includeDelisted),
         itemBuilder: (context, item, onSelect) => ListTile(
           dense: true,
           visualDensity: VisualDensity.compact,

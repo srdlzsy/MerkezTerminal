@@ -228,7 +228,13 @@ class _StockReceiptCreateSheetState extends State<StockReceiptCreateSheet>
           await showTerminalProductSelectionSheet<SearchProductLookupItem>(
             context: context,
             items: products,
-            needsStatusAttention: (item) => item.needsStatusAttention,
+            reloadItems: ({required bool includeDelisted}) =>
+                widget.repository.searchProducts(
+                  accessToken: widget.accessToken,
+                  warehouseNo: widget.defaultWarehouseNo,
+                  query: query,
+                  includeDelisted: includeDelisted,
+                ),
             itemBuilder: (context, item, onSelect) => ListTile(
               dense: true,
               visualDensity: VisualDensity.compact,

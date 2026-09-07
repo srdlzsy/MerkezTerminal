@@ -403,7 +403,14 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
       selected = await showTerminalProductSelectionSheet<SearchProductLookupItem>(
         context: context,
         items: products,
-        needsStatusAttention: (item) => item.needsStatusAttention,
+        reloadItems: ({required bool includeDelisted}) =>
+            widget.repository.searchProducts(
+              accessToken: widget.accessToken,
+              warehouseNo: widget.defaultWarehouseNo,
+              query: query,
+              customerCode: _selectedCustomer?.customerCode,
+              includeDelisted: includeDelisted,
+            ),
         itemBuilder: (context, item, onSelect) => ListTile(
           dense: true,
           visualDensity: VisualDensity.compact,

@@ -509,7 +509,11 @@ class _OfflineInventoryCountCreateSheetState
           >(
             context: context,
             items: products,
-            needsStatusAttention: (item) => item.needsStatusAttention,
+            reloadItems: ({required bool includeDelisted}) =>
+                _searchProductsWithCatalogFallback(
+                  query,
+                  includeDelisted: includeDelisted,
+                ),
             itemBuilder: (context, item, onSelect) => ListTile(
               dense: true,
               visualDensity: VisualDensity.compact,
@@ -561,12 +565,16 @@ class _OfflineInventoryCountCreateSheetState
   }
 
   Future<List<InventoryCountProductLookupItem>>
-  _searchProductsWithCatalogFallback(String query) async {
+  _searchProductsWithCatalogFallback(
+    String query, {
+    bool includeDelisted = true,
+  }) async {
     try {
       return await widget.onlineRepository.searchProducts(
         accessToken: widget.accessToken,
         warehouseNo: widget.defaultWarehouseNo,
         query: query,
+        includeDelisted: includeDelisted,
       );
     } on ApiException {
       final catalogItems = await widget.mobileProductCatalogRepository
@@ -574,6 +582,7 @@ class _OfflineInventoryCountCreateSheetState
       if (catalogItems.isNotEmpty) {
         return catalogItems
             .map((item) => item.toInventoryCountProductLookupItem())
+            .where((item) => includeDelisted || !item.needsStatusAttention)
             .toList(growable: false);
       }
       rethrow;

@@ -1193,13 +1193,6 @@ class _InventoryProductLookupSheetState
   List<InventoryCountProductLookupItem> _items =
       const <InventoryCountProductLookupItem>[];
 
-  List<InventoryCountProductLookupItem> get _visibleItems =>
-      _hideDelistedProducts
-      ? _items
-            .where((item) => !item.needsStatusAttention)
-            .toList(growable: false)
-      : _items;
-
   @override
   void initState() {
     super.initState();
@@ -1265,7 +1258,7 @@ class _InventoryProductLookupSheetState
       onSearch: _load,
       isLoading: _isLoading,
       errorMessage: _errorMessage,
-      isEmpty: _visibleItems.isEmpty,
+      isEmpty: _items.isEmpty,
       emptyMessage: 'Sonuc bulunamadi.',
       filter: FilterChip(
         label: const Text('Pasif/DLS gizle'),
@@ -1286,10 +1279,10 @@ class _InventoryProductLookupSheetState
               },
       ),
       child: ListView.separated(
-        itemCount: _visibleItems.length,
+        itemCount: _items.length,
         separatorBuilder: (_, _) => const SizedBox(height: 4),
         itemBuilder: (context, index) {
-          final item = _visibleItems[index];
+          final item = _items[index];
           return ListTile(
             dense: true,
             visualDensity: VisualDensity.compact,

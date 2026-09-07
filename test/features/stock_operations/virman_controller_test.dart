@@ -275,6 +275,7 @@ class _FakeVirmanRepository implements VirmanRepository {
     required String accessToken,
     required String warehouseNo,
     required String query,
+    bool includeDelisted = true,
   }) async {
     return const <SearchProductLookupItem>[];
   }

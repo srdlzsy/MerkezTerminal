@@ -577,7 +577,12 @@ class _CompanyAcceptanceCreateSheetState
           await showTerminalProductSelectionSheet<SearchProductLookupItem>(
             context: context,
             items: products,
-            needsStatusAttention: (item) => item.needsStatusAttention,
+            reloadItems: ({required bool includeDelisted}) =>
+                _searchProductsWithFallback(
+                  query,
+                  customerCode: _customerCodeController.text.trim(),
+                  includeDelisted: includeDelisted,
+                ),
             itemBuilder: (context, item, onSelect) => ListTile(
               dense: true,
               visualDensity: VisualDensity.compact,
@@ -1401,6 +1406,7 @@ class _CompanyAcceptanceCreateSheetState
   Future<List<SearchProductLookupItem>> _searchProductsWithFallback(
     String query, {
     String? customerCode,
+    bool includeDelisted = true,
   }) async {
     final normalizedCustomerCode = customerCode?.trim();
     try {
@@ -1408,6 +1414,7 @@ class _CompanyAcceptanceCreateSheetState
         accessToken: widget.accessToken,
         warehouseNo: widget.defaultWarehouseNo,
         query: query,
+        includeDelisted: includeDelisted,
         customerCode:
             normalizedCustomerCode == null || normalizedCustomerCode.isEmpty
             ? null
@@ -1419,6 +1426,7 @@ class _CompanyAcceptanceCreateSheetState
       if (catalogItems.isNotEmpty) {
         return catalogItems
             .map((item) => item.toSearchProductLookupItem())
+            .where((item) => includeDelisted || !item.needsStatusAttention)
             .toList(growable: false);
       }
       rethrow;

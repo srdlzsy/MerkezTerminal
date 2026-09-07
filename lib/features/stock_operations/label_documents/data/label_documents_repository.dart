@@ -39,6 +39,7 @@ abstract class LabelDocumentsRepository {
     required String accessToken,
     required String warehouseNo,
     required String query,
+    bool includeDelisted = true,
   });
 }
 
@@ -172,6 +173,7 @@ class ApiLabelDocumentsRepository implements LabelDocumentsRepository {
     required String accessToken,
     required String warehouseNo,
     required String query,
+    bool includeDelisted = true,
   }) async {
     final normalizedQuery = query.trim();
     final isBarcodeQuery = RegExp(r'^\d{7,}$').hasMatch(normalizedQuery);
@@ -186,6 +188,7 @@ class ApiLabelDocumentsRepository implements LabelDocumentsRepository {
       queryParameters: <String, String>{
         'warehouseNo': warehouseNo,
         'take': '20',
+        if (!includeDelisted) 'includeDelisted': 'false',
         if (isBarcodeQuery)
           'barcode': normalizedQuery
         else if (isStockCodeQuery)

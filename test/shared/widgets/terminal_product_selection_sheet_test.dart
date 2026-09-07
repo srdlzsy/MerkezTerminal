@@ -7,6 +7,7 @@ void main() {
     tester,
   ) async {
     String? selected;
+    final includeDelistedRequests = <bool>[];
 
     await tester.pumpWidget(
       MaterialApp(
@@ -17,7 +18,12 @@ void main() {
                 selected = await showTerminalProductSelectionSheet<String>(
                   context: context,
                   items: const <String>['Aktif urun', 'Pasif urun'],
-                  needsStatusAttention: (item) => item.startsWith('Pasif'),
+                  reloadItems: ({required bool includeDelisted}) async {
+                    includeDelistedRequests.add(includeDelisted);
+                    return includeDelisted
+                        ? const <String>['Aktif urun', 'Pasif urun']
+                        : const <String>['Aktif urun'];
+                  },
                   itemBuilder: (context, item, onSelect) =>
                       ListTile(title: Text(item), onTap: onSelect),
                 );
@@ -40,6 +46,7 @@ void main() {
 
     expect(find.text('Aktif urun'), findsOneWidget);
     expect(find.text('Pasif urun'), findsNothing);
+    expect(includeDelistedRequests, <bool>[false]);
 
     await tester.tap(find.text('Aktif urun'));
     await tester.pumpAndSettle();

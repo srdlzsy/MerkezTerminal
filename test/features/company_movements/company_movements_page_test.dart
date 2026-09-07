@@ -227,6 +227,7 @@ class _FakeCompanyMovementsRepository implements CompanyMovementsRepository {
     required String warehouseNo,
     required String query,
     String? customerCode,
+    bool includeDelisted = true,
   }) async {
     return const <SearchProductLookupItem>[];
   }

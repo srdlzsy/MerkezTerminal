@@ -4,7 +4,8 @@ import 'package:flutter/services.dart';
 Future<T?> showTerminalProductSelectionSheet<T>({
   required BuildContext context,
   required List<T> items,
-  required bool Function(T item) needsStatusAttention,
+  required Future<List<T>> Function({required bool includeDelisted})
+  reloadItems,
   required Widget Function(BuildContext context, T item, VoidCallback onSelect)
   itemBuilder,
 }) {
@@ -15,7 +16,7 @@ Future<T?> showTerminalProductSelectionSheet<T>({
     showDragHandle: true,
     builder: (context) => _TerminalProductSelectionSheet<T>(
       items: items,
-      needsStatusAttention: needsStatusAttention,
+      reloadItems: reloadItems,
       itemBuilder: itemBuilder,
     ),
   );
@@ -24,12 +25,12 @@ Future<T?> showTerminalProductSelectionSheet<T>({
 class _TerminalProductSelectionSheet<T> extends StatefulWidget {
   const _TerminalProductSelectionSheet({
     required this.items,
-    required this.needsStatusAttention,
+    required this.reloadItems,
     required this.itemBuilder,
   });
 
   final List<T> items;
-  final bool Function(T item) needsStatusAttention;
+  final Future<List<T>> Function({required bool includeDelisted}) reloadItems;
   final Widget Function(BuildContext context, T item, VoidCallback onSelect)
   itemBuilder;
 
@@ -41,15 +42,45 @@ class _TerminalProductSelectionSheet<T> extends StatefulWidget {
 class _TerminalProductSelectionSheetState<T>
     extends State<_TerminalProductSelectionSheet<T>> {
   bool _hideDelistedProducts = false;
+  bool _isLoading = false;
+  String? _errorMessage;
+  late List<T> _items;
+
+  @override
+  void initState() {
+    super.initState();
+    _items = widget.items;
+  }
+
+  Future<void> _setHideDelisted(bool selected) async {
+    setState(() {
+      _hideDelistedProducts = selected;
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final items = await widget.reloadItems(includeDelisted: !selected);
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _items = items;
+        _isLoading = false;
+      });
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _errorMessage = error.toString().replaceFirst('Exception: ', '').trim();
+        _isLoading = false;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    final visibleItems = _hideDelistedProducts
-        ? widget.items
-              .where((item) => !widget.needsStatusAttention(item))
-              .toList(growable: false)
-        : widget.items;
-
     return FractionallySizedBox(
       heightFactor: 0.82,
       child: Column(
@@ -60,7 +91,7 @@ class _TerminalProductSelectionSheetState<T>
               children: <Widget>[
                 Expanded(
                   child: Text(
-                    '${visibleItems.length} urun',
+                    '${_items.length} urun',
                     style: Theme.of(context).textTheme.titleSmall,
                   ),
                 ),
@@ -73,22 +104,24 @@ class _TerminalProductSelectionSheetState<T>
                     size: 18,
                   ),
                   selected: _hideDelistedProducts,
-                  onSelected: (selected) {
-                    setState(() => _hideDelistedProducts = selected);
-                  },
+                  onSelected: _isLoading ? null : _setHideDelisted,
                 ),
               ],
             ),
           ),
           const Divider(height: 1),
           Expanded(
-            child: visibleItems.isEmpty
-                ? const Center(child: Text('Gosterilecek aktif urun yok.'))
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : _errorMessage != null
+                ? Center(child: Text(_errorMessage!))
+                : _items.isEmpty
+                ? const Center(child: Text('Urun bulunamadi.'))
                 : ListView.separated(
-                    itemCount: visibleItems.length,
+                    itemCount: _items.length,
                     separatorBuilder: (_, _) => const Divider(height: 1),
                     itemBuilder: (context, index) {
-                      final item = visibleItems[index];
+                      final item = _items[index];
                       return widget.itemBuilder(
                         context,
                         item,

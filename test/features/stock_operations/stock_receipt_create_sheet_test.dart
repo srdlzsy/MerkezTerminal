@@ -258,6 +258,7 @@ class _FakeStockReceiptsRepository implements StockReceiptsRepository {
     required String accessToken,
     required String warehouseNo,
     required String query,
+    bool includeDelisted = true,
   }) async {
     return products;
   }
