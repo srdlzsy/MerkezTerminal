@@ -1760,6 +1760,7 @@ class _OfflineCompanyAcceptanceCreateSheetState
         warningLabel: selectedProduct.needsStatusAttention
             ? selectedProduct.statusWarningLabel
             : null,
+        informationLabels: selectedProduct.sourceInformationLabels,
         onConfirm: () => _commitEntryLine(line),
         onCancel: () => _cancelPendingEntryLine(line),
         scanRow: _buildProductLookupRow(line),

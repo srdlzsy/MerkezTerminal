@@ -1541,6 +1541,7 @@ class _GivenWarehouseOrderCreateSheetState
         barcode: product.barcode,
         priceLabel: _greenGrocerMetaLabel(line),
         warningLabel: _greenGrocerWarningLabel(line, product),
+        informationLabels: product.sourceInformationLabels,
         onConfirm: () => _commitEntryLine(line),
         onCancel: () => _cancelPendingEntryLine(line),
         scanRow: canScan

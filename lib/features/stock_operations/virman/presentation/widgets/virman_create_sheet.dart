@@ -911,6 +911,7 @@ class _VirmanDraftLineCard extends StatelessWidget {
             warningLabel: product.price > 0
                 ? AppFormatters.currency(product.price)
                 : null,
+            informationLabels: product.sourceInformationLabels,
             onConfirm: onConfirmPending,
             onCancel: onCancelPending,
             scanRow: TerminalResponsiveLookupRow(

@@ -924,6 +924,7 @@ class _StockReceiptCreateSheetState extends State<StockReceiptCreateSheet>
         warningLabel: product.needsStatusAttention
             ? product.statusWarningLabel
             : null,
+        informationLabels: product.sourceInformationLabels,
         onConfirm: () => _commitEntryLine(line),
         onCancel: () => _cancelPendingEntryLine(line),
         scanRow: TerminalResponsiveLookupRow(

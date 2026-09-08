@@ -51,6 +51,7 @@ class ProductDraftEntryPanel extends StatelessWidget {
     this.packageFactor,
     this.priceLabel,
     this.warningLabel,
+    this.informationLabels = const <String>[],
     this.confirmLabel = 'Kaleme Ekle',
     this.quantityLabel = 'Miktar',
     this.quantityStep = 1,
@@ -78,6 +79,7 @@ class ProductDraftEntryPanel extends StatelessWidget {
   final double? packageFactor;
   final String? priceLabel;
   final String? warningLabel;
+  final List<String> informationLabels;
   final TextEditingController quantityController;
   final String confirmLabel;
   final String quantityLabel;
@@ -201,12 +203,15 @@ class ProductDraftEntryPanel extends StatelessWidget {
         TerminalPdaInfo(label: 'Koli ici', value: _packageInfoValue),
       if ((priceLabel ?? '').trim().isNotEmpty)
         TerminalPdaInfo(label: 'Fiyat', value: priceLabel!),
+      if (_informationSummary.isNotEmpty)
+        TerminalPdaInfo(label: 'Kaynak', value: _informationSummary),
       ...extraInfo,
     ];
   }
 
   String get _compactMetaSummary {
     return <String>[
+      if (_compactSourceSummary.isNotEmpty) _compactSourceSummary,
       stockCode,
       if ((unitLabel ?? '').trim().isNotEmpty) unitLabel!,
     ].where((part) => part.trim().isNotEmpty).join(' | ');
@@ -222,6 +227,38 @@ class ProductDraftEntryPanel extends StatelessWidget {
         ),
     ];
   }
+
+  String get _compactSourceSummary {
+    final labels = informationLabels
+        .map((label) => label.trim())
+        .where((label) => label.isNotEmpty)
+        .toSet()
+        .toList(growable: false);
+    const sourceTypes = <String>{
+      'Depo Urunu',
+      'Firma Urunu',
+      'Karisik Kaynak',
+      'Kaynak Atanmamis',
+    };
+    final sourceType = labels.where(sourceTypes.contains).firstOrNull;
+    final sourceWarehouse = labels
+        .where(
+          (label) =>
+              !sourceTypes.contains(label) &&
+              !label.startsWith('Model ') &&
+              label != 'Alis Ihtiyaci Var' &&
+              label != 'Satin Alma Sarti Var',
+        )
+        .firstOrNull;
+
+    return <String>[?sourceType, ?sourceWarehouse].join(' | ');
+  }
+
+  String get _informationSummary => informationLabels
+      .map((label) => label.trim())
+      .where((label) => label.isNotEmpty)
+      .toSet()
+      .join(' | ');
 
   String get _packageInfoValue {
     final label = packageLabel?.trim() ?? '';

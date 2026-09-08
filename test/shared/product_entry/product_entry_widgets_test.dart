@@ -113,6 +113,7 @@ void main() {
               barcode: '8690000000012',
               packageLabel: '12',
               priceLabel: '10,00',
+              informationLabels: const <String>['MANAV DEPO 56', 'Depo Urunu'],
               scanRow: TerminalResponsiveLookupRow(
                 field: ProductLookupField(
                   controller: lookupController,
@@ -139,6 +140,10 @@ void main() {
     expect(tester.takeException(), isNull);
     expect(find.text('Barkod / stok kodu / urun adi'), findsOneWidget);
     expect(find.text('Koli ici: 12 ADET'), findsOneWidget);
+    expect(
+      find.text('Depo Urunu | MANAV DEPO 56 | STK-001 | ADET'),
+      findsOneWidget,
+    );
     expect(find.text('Kaleme Ekle'), findsOneWidget);
     expect(
       tester
@@ -227,13 +232,54 @@ void main() {
       find.text('Cok Uzun Test Urunu Manav Koli Denemesi'),
       findsOneWidget,
     );
-    expect(find.text('015792'), findsOneWidget);
-    expect(find.text('Koli ici 12 ADET'), findsOneWidget);
+    expect(find.textContaining('015792'), findsOneWidget);
+    expect(find.textContaining('Koli ici 12 ADET'), findsOneWidget);
+    expect(find.text('01'), findsOneWidget);
+    expect(find.byTooltip('Satiri sil'), findsOneWidget);
     final productName = tester.widget<Text>(
       find.byKey(const ValueKey<String>('terminal-product-line-name')),
     );
     expect(productName.style?.fontWeight, FontWeight.w900);
     expect(productName.maxLines, 2);
+  });
+
+  testWidgets('pda product line gives product name the full row', (
+    tester,
+  ) async {
+    final quantityController = TextEditingController(text: '12');
+    addTearDown(quantityController.dispose);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 390,
+            child: TerminalCompactProductLineCard(
+              lineNo: 1,
+              stockCode: '015792',
+              stockName: 'COK UZUN VE OKUNMASI GEREKEN TEST URUNU',
+              quantityController: quantityController,
+              unitLabel: 'ADET',
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final productName = find.byKey(
+      const ValueKey<String>('terminal-product-line-name'),
+    );
+    final quantityField = find.byType(TextFormField);
+    final deleteButton = find.byTooltip('Satiri sil');
+    expect(tester.takeException(), isNull);
+    expect(
+      tester.getTopLeft(quantityField).dy,
+      greaterThan(tester.getBottomLeft(productName).dy),
+    );
+    expect(
+      tester.getTopLeft(deleteButton).dy,
+      lessThan(tester.getTopLeft(quantityField).dy),
+    );
   });
 
   testWidgets('compact product line warns for non-package multiple quantity', (

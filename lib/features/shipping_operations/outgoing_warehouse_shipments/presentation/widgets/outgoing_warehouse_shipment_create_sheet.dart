@@ -2266,6 +2266,7 @@ class _ManualShipmentLineCard extends StatelessWidget {
         warningLabel: product.needsStatusAttention
             ? product.statusWarningLabel
             : null,
+        informationLabels: product.sourceInformationLabels,
         quantityStep: line.quantityStep,
         maximumQuantity: _maxShipmentLineQuantity,
         quantityInputFormatters: _shipmentQuantityInputFormatters,
@@ -2477,6 +2478,7 @@ class _LinkedShipmentLineCard extends StatelessWidget {
           ?productStatusWarning,
           if (isQuantityLimited) 'Siparisli',
         ]),
+        informationLabels: product.sourceInformationLabels,
         quantityStep: line.quantityStep,
         maximumQuantity: _effectiveShipmentMaximumQuantity(
           isQuantityLimited ? line.maxQuantity : null,

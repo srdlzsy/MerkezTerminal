@@ -19,6 +19,118 @@ typedef WarehouseReturnCreateRequest = WarehouseShipmentCreateRequest;
 typedef WarehouseReturnCreateLine = WarehouseShipmentCreateLine;
 typedef WarehouseReturnCreateResult = WarehouseShipmentCreateResult;
 
+class ReturnableWarehouseProductsResult {
+  const ReturnableWarehouseProductsResult({
+    required this.sourceWarehouseNo,
+    required this.sourceWarehouseName,
+    required this.totalCount,
+    required this.items,
+  });
+
+  final int sourceWarehouseNo;
+  final String sourceWarehouseName;
+  final int totalCount;
+  final List<ReturnableWarehouseProduct> items;
+
+  factory ReturnableWarehouseProductsResult.fromJson(JsonMap json) {
+    final rawItems = json['items'];
+    return ReturnableWarehouseProductsResult(
+      sourceWarehouseNo: _readInt(json['sourceWarehouseNo']),
+      sourceWarehouseName: _readString(json['sourceWarehouseName']),
+      totalCount: _readInt(json['totalCount']),
+      items: rawItems is List
+          ? rawItems
+                .whereType<Map>()
+                .map(
+                  (item) => ReturnableWarehouseProduct.fromJson(
+                    item.map((key, value) => MapEntry(key.toString(), value)),
+                  ),
+                )
+                .toList(growable: false)
+          : const <ReturnableWarehouseProduct>[],
+    );
+  }
+}
+
+class ReturnableWarehouseProduct {
+  const ReturnableWarehouseProduct({
+    required this.stockCode,
+    required this.stockName,
+    required this.barcode,
+    required this.caseBarcode,
+    required this.modelCode,
+    required this.modelName,
+    required this.unitName,
+    required this.secondaryUnitName,
+    required this.unitMultiplier,
+    required this.productSourceWarehouseNo,
+    required this.productSourceWarehouseName,
+    required this.returnWarehouseNo,
+    required this.returnWarehouseName,
+    required this.currentStockQuantity,
+    required this.returnableQuantity,
+    required this.procurementType,
+    required this.hasPurchaseRequirement,
+    required this.isReturnable,
+    required this.decision,
+    required this.warnings,
+  });
+
+  final String stockCode;
+  final String stockName;
+  final String barcode;
+  final String caseBarcode;
+  final String modelCode;
+  final String modelName;
+  final String unitName;
+  final String secondaryUnitName;
+  final double unitMultiplier;
+  final int productSourceWarehouseNo;
+  final String productSourceWarehouseName;
+  final int returnWarehouseNo;
+  final String returnWarehouseName;
+  final double currentStockQuantity;
+  final double returnableQuantity;
+  final String procurementType;
+  final bool hasPurchaseRequirement;
+  final bool isReturnable;
+  final String decision;
+  final List<String> warnings;
+
+  String get displayLabel => '$stockCode - $stockName';
+
+  String get routeLabel =>
+      '$productSourceWarehouseName $productSourceWarehouseNo -> '
+      '$returnWarehouseName $returnWarehouseNo';
+
+  factory ReturnableWarehouseProduct.fromJson(JsonMap json) {
+    return ReturnableWarehouseProduct(
+      stockCode: _readString(json['stockCode']),
+      stockName: _readString(json['stockName']),
+      barcode: _readString(json['barcode']),
+      caseBarcode: _readString(json['caseBarcode']),
+      modelCode: _readString(json['modelCode']),
+      modelName: _readString(json['modelName']),
+      unitName: _readString(json['unitName']),
+      secondaryUnitName: _readString(json['secondaryUnitName']),
+      unitMultiplier: _readPositiveDouble(json['unitMultiplier']),
+      productSourceWarehouseNo: _readInt(json['productSourceWarehouseNo']),
+      productSourceWarehouseName: _readString(
+        json['productSourceWarehouseName'],
+      ),
+      returnWarehouseNo: _readInt(json['returnWarehouseNo']),
+      returnWarehouseName: _readString(json['returnWarehouseName']),
+      currentStockQuantity: _readDouble(json['currentStockQuantity']),
+      returnableQuantity: _readDouble(json['returnableQuantity']),
+      procurementType: _readString(json['procurementType']),
+      hasPurchaseRequirement: _readBool(json['hasPurchaseRequirement']),
+      isReturnable: _readBool(json['isReturnable']),
+      decision: _readString(json['decision']),
+      warnings: _readStringList(json['warnings']),
+    );
+  }
+}
+
 enum WarehouseReturnDirection { outgoing, incoming }
 
 extension WarehouseReturnDirectionX on WarehouseReturnDirection {
@@ -200,4 +312,26 @@ bool _readBool(Object? value, {bool fallback = false}) {
   }
 
   return fallback;
+}
+
+double _readDouble(Object? value) {
+  if (value is num) {
+    return value.toDouble();
+  }
+  return double.tryParse(value?.toString().replaceAll(',', '.') ?? '') ?? 0;
+}
+
+double _readPositiveDouble(Object? value) {
+  final parsed = _readDouble(value).abs();
+  return parsed > 0 ? parsed : 1;
+}
+
+List<String> _readStringList(Object? value) {
+  if (value is! List) {
+    return const <String>[];
+  }
+  return value
+      .map((item) => item?.toString().trim() ?? '')
+      .where((item) => item.isNotEmpty)
+      .toList(growable: false);
 }

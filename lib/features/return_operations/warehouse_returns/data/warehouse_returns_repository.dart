@@ -52,6 +52,13 @@ abstract class WarehouseReturnsRepository {
     bool includeDelisted = true,
   });
 
+  Future<ReturnableWarehouseProductsResult> fetchReturnableProducts({
+    required String accessToken,
+    String? warehouseNo,
+    int? targetWarehouseNo,
+    String? search,
+  });
+
   Future<BarcodeResolutionResult> resolveBarcode({
     required String accessToken,
     required BarcodeResolutionRequest request,
@@ -227,6 +234,30 @@ class ApiWarehouseReturnsRepository implements WarehouseReturnsRepository {
           ),
         )
         .toList(growable: false);
+  }
+
+  @override
+  Future<ReturnableWarehouseProductsResult> fetchReturnableProducts({
+    required String accessToken,
+    String? warehouseNo,
+    int? targetWarehouseNo,
+    String? search,
+  }) async {
+    final normalizedWarehouseNo = warehouseNo?.trim() ?? '';
+    final normalizedSearch = search?.trim() ?? '';
+    final response = await _apiClient.getJsonMap(
+      '/api/iade-islemleri/depo-iadeleri/iade-edilebilir-urunler',
+      accessToken: accessToken,
+      queryParameters: <String, String>{
+        if (normalizedWarehouseNo.isNotEmpty)
+          'warehouseNo': normalizedWarehouseNo,
+        if (targetWarehouseNo != null && targetWarehouseNo > 0)
+          'targetWarehouseNo': '$targetWarehouseNo',
+        if (normalizedSearch.isNotEmpty) 'search': normalizedSearch,
+      },
+    );
+
+    return ReturnableWarehouseProductsResult.fromJson(response);
   }
 
   @override

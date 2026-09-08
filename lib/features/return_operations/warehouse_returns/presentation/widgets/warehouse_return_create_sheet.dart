@@ -257,6 +257,109 @@ class _WarehouseReturnCreateSheetState extends State<WarehouseReturnCreateSheet>
     _refocusLine(entryLine.lookupFocusNode);
   }
 
+  Future<void> _pickReturnableProduct() async {
+    final currentTargetWarehouseNo = int.tryParse(
+      _targetWarehouseController.text.trim(),
+    );
+    final selected = await showModalBottomSheet<ReturnableWarehouseProduct>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      showDragHandle: true,
+      builder: (context) => _ReturnableProductLookupSheet(
+        repository: widget.repository,
+        accessToken: widget.accessToken,
+        warehouseNo: widget.defaultWarehouseNo,
+        targetWarehouseNo: currentTargetWarehouseNo,
+      ),
+    );
+
+    if (selected == null || !mounted) {
+      _focusFreshEntryLine();
+      return;
+    }
+    if (!selected.isReturnable || selected.returnWarehouseNo <= 0) {
+      _showFeedback(
+        selected.decision.trim().isEmpty
+            ? 'Bu urun depo iadesine uygun degil.'
+            : selected.decision,
+      );
+      return;
+    }
+
+    final hasSelectedLine = _lines.any((line) => line.selectedProduct != null);
+    if (currentTargetWarehouseNo != null &&
+        currentTargetWarehouseNo > 0 &&
+        currentTargetWarehouseNo != selected.returnWarehouseNo &&
+        hasSelectedLine) {
+      _showFeedback(
+        'Bu urun ${selected.returnWarehouseName} '
+        '(${selected.returnWarehouseNo}) deposuna iade edilmeli. '
+        'Farkli hedefler ayni evraka eklenemez.',
+      );
+      unawaited(TerminalFeedback.warning());
+      return;
+    }
+
+    final product = _returnableProductLookupItem(selected);
+    final line = _lines.first;
+    if (_increasePendingQuantityIfSameProduct(line, product)) {
+      _draftSession.scheduleSave();
+      _refocusLine(line.lookupFocusNode);
+      return;
+    }
+
+    final entryLine = await _commitPendingEntryBeforeNextProduct(line);
+    if (entryLine == null || !mounted) {
+      return;
+    }
+
+    setState(() {
+      _selectedWarehouse = WarehouseLookupItem(
+        warehouseNo: selected.returnWarehouseNo,
+        warehouseName: selected.returnWarehouseName,
+        address: '',
+        district: '',
+        province: '',
+      );
+      _targetWarehouseController.text = '${selected.returnWarehouseNo}';
+      entryLine.applyProduct(product);
+      entryLine.setLookupStatus(
+        'Iade edilebilir ${AppFormatters.quantity(selected.returnableQuantity)} '
+        '${selected.unitName}',
+      );
+      _validationMessage = null;
+    });
+    _draftSession.scheduleSave();
+    _refocusLine(entryLine.lookupFocusNode);
+  }
+
+  ProductLookupItem _returnableProductLookupItem(
+    ReturnableWarehouseProduct item,
+  ) {
+    return ProductLookupItem(
+      warehouseNo: int.tryParse(widget.defaultWarehouseNo) ?? 0,
+      barcode: item.barcode,
+      stockCode: item.stockCode,
+      stockName: item.stockName,
+      price: 0,
+      unitName: item.unitName,
+      unitMultiplier: item.unitMultiplier,
+      secondaryUnitName: item.secondaryUnitName,
+      caseBarcode: item.caseBarcode,
+      modelCode: item.modelCode,
+      procurementType: item.procurementType,
+      sourceWarehouses: <ProductSourceWarehouse>[
+        ProductSourceWarehouse(
+          warehouseNo: item.productSourceWarehouseNo,
+          warehouseName: item.productSourceWarehouseName,
+        ),
+      ],
+      hasPurchaseRequirement: item.hasPurchaseRequirement,
+      isOrderBlocked: false,
+    );
+  }
+
   Future<bool> _tryResolveBarcode(_ReturnLineDraft line, String query) async {
     if (!looksLikeDirectBarcodeInput(query)) {
       return false;
@@ -786,7 +889,18 @@ class _WarehouseReturnCreateSheetState extends State<WarehouseReturnCreateSheet>
                       const SizedBox(height: 5),
                       TerminalSectionToolbar(
                         title: 'Satirlar',
-                        actions: const <Widget>[],
+                        breakpoint: 0,
+                        spacing: 4,
+                        actions: <Widget>[
+                          Tooltip(
+                            message: 'Iade edilebilir urunler',
+                            child: FilledButton.tonalIcon(
+                              onPressed: _pickReturnableProduct,
+                              icon: const Icon(Icons.assignment_return_rounded),
+                              label: const Text('Iade'),
+                            ),
+                          ),
+                        ],
                       ),
                       const SizedBox(height: 4),
                       _buildEntryLineCard(theme),
@@ -944,6 +1058,7 @@ class _WarehouseReturnCreateSheetState extends State<WarehouseReturnCreateSheet>
         warningLabel: product.needsStatusAttention
             ? product.statusWarningLabel
             : null,
+        informationLabels: product.sourceInformationLabels,
         onConfirm: () => _commitEntryLine(line),
         onCancel: () => _cancelPendingEntryLine(line),
         scanRow: TerminalResponsiveLookupRow(
@@ -1423,6 +1538,142 @@ class _WarehouseLookupSheetState extends State<_WarehouseLookupSheet> {
             ),
             subtitle: Text('${item.district} ${item.province}'.trim()),
             onTap: () => Navigator.of(context).pop(item),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _ReturnableProductLookupSheet extends StatefulWidget {
+  const _ReturnableProductLookupSheet({
+    required this.repository,
+    required this.accessToken,
+    required this.warehouseNo,
+    required this.targetWarehouseNo,
+  });
+
+  final WarehouseReturnsRepository repository;
+  final String accessToken;
+  final String warehouseNo;
+  final int? targetWarehouseNo;
+
+  @override
+  State<_ReturnableProductLookupSheet> createState() =>
+      _ReturnableProductLookupSheetState();
+}
+
+class _ReturnableProductLookupSheetState
+    extends State<_ReturnableProductLookupSheet> {
+  late final TextEditingController _queryController;
+  bool _isLoading = false;
+  String? _errorMessage;
+  List<ReturnableWarehouseProduct> _items =
+      const <ReturnableWarehouseProduct>[];
+
+  @override
+  void initState() {
+    super.initState();
+    _queryController = TextEditingController();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _load());
+  }
+
+  @override
+  void dispose() {
+    _queryController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _load() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final result = await widget.repository.fetchReturnableProducts(
+        accessToken: widget.accessToken,
+        warehouseNo: widget.warehouseNo,
+        targetWarehouseNo: widget.targetWarehouseNo,
+        search: _queryController.text,
+      );
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _items = result.items;
+        _isLoading = false;
+      });
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _errorMessage = error.toString();
+        _isLoading = false;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final targetWarehouseNo = widget.targetWarehouseNo;
+    return _LookupScaffold(
+      title: 'Iade Edilebilir Urunler',
+      subtitle: targetWarehouseNo == null || targetWarehouseNo <= 0
+          ? 'Urunu secin; uygun iade deposu otomatik belirlensin.'
+          : 'Hedef depo $targetWarehouseNo icin iade edilebilir urunler.',
+      queryController: _queryController,
+      onSearch: _load,
+      isLoading: _isLoading,
+      errorMessage: _errorMessage,
+      isEmpty: _items.isEmpty,
+      emptyMessage: 'Iade edilebilir urun bulunamadi.',
+      child: ListView.separated(
+        itemCount: _items.length,
+        separatorBuilder: (_, _) => const SizedBox(height: 4),
+        itemBuilder: (context, index) {
+          final item = _items[index];
+          final packageLabel = item.unitMultiplier > 1
+              ? ' | Koli ici ${AppFormatters.quantity(item.unitMultiplier)}'
+              : '';
+          return ListTile(
+            dense: true,
+            visualDensity: VisualDensity.compact,
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 10,
+              vertical: 2,
+            ),
+            tileColor: Theme.of(
+              context,
+            ).colorScheme.surfaceContainerHighest.withAlpha(40),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
+            title: Text(
+              item.displayLabel,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontWeight: FontWeight.w800),
+            ),
+            subtitle: Text(
+              '${item.routeLabel}\n'
+              'Stok ${AppFormatters.quantity(item.currentStockQuantity)} | '
+              'Iade ${AppFormatters.quantity(item.returnableQuantity)} '
+              '${item.unitName}$packageLabel',
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+            isThreeLine: true,
+            trailing: item.warnings.isNotEmpty
+                ? const Icon(
+                    Icons.warning_amber_rounded,
+                    semanticLabel: 'Uyari',
+                  )
+                : const Icon(Icons.chevron_right_rounded),
+            onTap: item.isReturnable
+                ? () => Navigator.of(context).pop(item)
+                : null,
           );
         },
       ),

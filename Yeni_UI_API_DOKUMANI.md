@@ -61,6 +61,7 @@ Controller'da acik olan pratik alias/canonical route'lar:
 - `GET /api/iade-islemleri/depo-iadeleri/{documentSerie}/{documentOrderNo}`, `POST /api/iade-islemleri/depo-iadeleri/{documentSerie}/{documentOrderNo}/e-irsaliye` ve `GET /api/iade-islemleri/depo-iadeleri/{documentSerie}/{documentOrderNo}/e-irsaliye/pdf`, `giden` alias'i ile ayni outgoing akisi calistirir.
 - `GET /api/iade-islemleri/depo-iadeleri/giden/{documentSerie}/{documentOrderNo}`, `POST /api/iade-islemleri/depo-iadeleri/giden/{documentSerie}/{documentOrderNo}/e-irsaliye` ve `GET /api/iade-islemleri/depo-iadeleri/giden/{documentSerie}/{documentOrderNo}/e-irsaliye/pdf`
 - `GET /api/iade-islemleri/depo-iadeleri/gelen/{documentSerie}/{documentOrderNo}`
+- `GET /api/iade-islemleri/depo-iadeleri/iade-edilebilir-urunler`
 - `GET /api/iade-islemleri/firma-iadeleri/{documentSerie}/{documentOrderNo}`, `POST /api/iade-islemleri/firma-iadeleri/{documentSerie}/{documentOrderNo}/e-irsaliye` ve `GET /api/iade-islemleri/firma-iadeleri/{documentSerie}/{documentOrderNo}/e-irsaliye/pdf`
 - `GET /api/mal-kabul-islemleri/depo-mal-kabulleri/{documentSerie}/{documentOrderNo}` ve `POST /api/mal-kabul-islemleri/depo-mal-kabulleri/{documentSerie}/{documentOrderNo}/kabul`
 - `GET /api/mal-kabul-islemleri/mal-kabuller/depo-sevkleri/{documentSerie}/{documentOrderNo}` ve `POST /api/mal-kabul-islemleri/mal-kabuller/depo-sevkleri/{documentSerie}/{documentOrderNo}/kabul`, depo mal kabul detay/kabul endpointinin eski menu uyum alias'idir.
@@ -10989,6 +10990,91 @@ Onemli not:
 - `warehouseNo` verilmezse JWT icindeki kullanici deposu kullanilir.
 - Evrak henuz e-irsaliye olarak gonderilmediyse endpoint `409 Conflict` doner.
 
+### Depo Iadesi Yapilabilir Urunler
+
+Kullanicinin kaynak subesindeki mevcut stoktan, tanimli kaynak depo urun ailelerine gore hangi depoya iade yapabilecegini tek listede getirir.
+
+`GET /api/iade-islemleri/depo-iadeleri/iade-edilebilir-urunler`
+
+Hedef depo filtresiyle:
+
+`GET /api/iade-islemleri/depo-iadeleri/iade-edilebilir-urunler?targetWarehouseNo=51`
+
+Metin aramasiyla:
+
+`GET /api/iade-islemleri/depo-iadeleri/iade-edilebilir-urunler?search=browni`
+
+Yetki:
+
+- `iade-islemleri.giden-depo-iadeleri.create`
+
+Query:
+
+```text
+warehouseNo       opsiyonel; verilmezse JWT deposu kullanilir, baska depo icin all-warehouses gerekir
+targetWarehouseNo opsiyonel; verilmezse tum tanimli iade hedefleri birlikte doner
+search            opsiyonel; stok kodu, stok adi veya barkodda arar; max 100
+```
+
+Bu endpointte `take`, `skip` veya sayfalama yoktur. Arama ve hedef depo verilmezse kaynak subenin stokta bulunan tum iade edilebilir urunleri doner.
+
+Varsayilan urun kaynagi / iade hedefi eslemeleri:
+
+```text
+50 MERKEZ DEPO          -> 51 MERKEZ IADE DEPOSU
+53 ET-SARKUTERI DEPO    -> 53 ET-SARKUTERI DEPO
+55 UNLU URETIM          -> 55 UNLU URETIM
+56 MANAV DEPO           -> 56 MANAV DEPO
+58 UNLU URETIM - OZLUCE -> 58 UNLU URETIM - OZLUCE
+```
+
+Eslemeler `WarehouseReturnProducts:Routes` konfigurasyonundan degistirilebilir. Urun ailesi, `productSourceWarehouseNo` deposunun `DEPOLAR.dep_barkod_yazici_yolu` model kodlarindan cozulur. Bu nedenle model kodu bulunmayan 51 numarali iade deposu, merkez urunleri icin 50 numarali deponun urun ailesini kullanir.
+
+Liste kurallari:
+
+- Kaynak subedeki anlik stok `STOK_HAREKETLERI_OZET` uzerinden toplu hesaplanir; sadece miktari sifirdan buyuk urunler gelir.
+- Iptal, pasif veya adi `DLS` ile baslayan urunler gelmez.
+- Urunun tanimli kaynak deposunda aktif ve siparise acik stok-depo detayi bulunmalidir.
+- Kaynak sube ile iade hedefi ayni olan rota listeden cikarilir.
+- Firma satin alma baglantisi da bulunan kaynak depo urunleri `procurementType=Mixed` ve uyariyla gelir; listeden gizlenmez.
+- Farkli `returnWarehouseNo` degerlerine ait urunler ayni iade evrakina eklenmemelidir.
+
+Response:
+
+```json
+{
+  "sourceWarehouseNo": 120,
+  "sourceWarehouseName": "ORNEK SUBE",
+  "totalCount": 2205,
+  "items": [
+    {
+      "stockCode": "019700",
+      "stockName": "ETI BROWNI INTENSE",
+      "barcode": "8690526366654",
+      "caseBarcode": "",
+      "modelCode": "01",
+      "modelName": "Market",
+      "unitName": "ADET",
+      "secondaryUnitName": "KOLI",
+      "unitMultiplier": 12,
+      "productSourceWarehouseNo": 50,
+      "productSourceWarehouseName": "MERKEZ DEPO",
+      "returnWarehouseNo": 51,
+      "returnWarehouseName": "MERKEZ IADE DEPOSU",
+      "currentStockQuantity": 24,
+      "returnableQuantity": 24,
+      "procurementType": "Warehouse",
+      "hasPurchaseRequirement": false,
+      "isReturnable": true,
+      "decision": "Urun MERKEZ DEPO kaynakli; MERKEZ IADE DEPOSU deposuna iade edilebilir.",
+      "warnings": []
+    }
+  ]
+}
+```
+
+UI, urun secildiginde `returnWarehouseNo` degerini iade create request'indeki `targetWarehouseNo` alanina yazmalidir. Sepette farkli hedef depodan urun varsa ayri evrak olusturulmali veya hedef degisimi engellenmelidir.
+
 ### Depo Iadeleri Olustur
 
 `POST /api/iade-islemleri/depo-iadeleri`
@@ -17260,7 +17346,9 @@ Not: Bu listede eski teknik route'lar da bulunabilir. Yeni UI icin oncelikli rou
   - response `AxataOutboundDeliveryImportPreviewDto`
 - `POST /api/integrations/axata-sync/live/axata/outbound-deliveries/c02/import`
   - uygun C02 teslimatini Mikro firma sevk hareketine cevirir
-  - `sip_teslim_miktar` alanlarini gunceller; `acknowledge=true` ise `ENT006.S06STAT=1` yapar
+  - `MikroWriteRouting:CompanyMovement=Database` ise eski DB transaction yolu kullanilir ve `sip_teslim_miktar` backend tarafindan guncellenir
+  - `MikroWriteRouting:CompanyMovement=MikroApi` ise firma sevki API ile olusturulur; backend `sth_sip_uid`, `sip_teslim_miktar` ve `sip_kapat_fl` etkilerini read-only geri okumayla dogrular, ayrica DB update yapmaz
+  - MikroApi modunda teslim etkisi dogrulanamazsa AXATA ack atilmaz ve islem hata doner; `acknowledge=true` ise sadece tam dogrulamadan sonra `ENT006.S06STAT=1` yapar
   - body `AxataOutboundDeliveryImportExecuteHttpRequest`
   - response `AxataOutboundDeliveryImportExecuteDto`
 - `GET /api/integrations/axata-sync/live/axata/outbound-deliveries/c03/preview?take=20`
@@ -17332,7 +17420,9 @@ Not: Bu listede eski teknik route'lar da bulunabilir. Yeni UI icin oncelikli rou
   - response `AxataDynamicCensusPreviewDto`
 - `POST /api/integrations/axata-sync/live/axata/dynamic-census/import`
   - uygun `vw_stok_duzeltme` satirlarini Mikro `STOK_HAREKETLERI` dynamic census hareketine cevirir
-  - `acknowledge=true` ise `ENT011.S11STAT=1` yapar
+  - yazma yolu `MikroWriteRouting:AxataDynamicCensus` ile secilir; `Database` eski EF Core transaction yolunu, `MikroApi` ise `DahiliStokHareketKaydetV2` yolunu kullanir
+  - MikroApi modunda her AXATA satiri `sth_HareketGrupKodu1` iziyle geri okunup dogrulanmadan basarili sayilmaz
+  - `acknowledge=true` ise ancak Mikro yazimi ve readback tamamlandiktan sonra `ENT011.S11STAT=1` yapar
   - body `AxataOutboundDeliveryImportExecuteHttpRequest`
   - response `AxataDynamicCensusExecuteDto`
 - `POST /api/integrations/axata-sync/manual/axata/outbound-deliveries/inter-warehouse-shipments`
@@ -17721,7 +17811,7 @@ UI'da asil karistirilmamasi gereken farklar:
 | `g02/documents/{serie}/{sira}/preview` | G02 teslimatini AXATA'da belge no ile arar, status verilmezse `0` sonra `1` dener | Veri yazmaz |
 | `g02/documents/{serie}/{sira}/import` | Tek G02 teslimatini mevcut Mikro bekleyen sevk fisine kabul olarak uygular | Mikro'ya yazar, `acknowledge=true` ise AXATA EXT status gunceller |
 | `g01/import` | AXATA G01 ATF satirlarini Mikro firma mal kabule cevirir | Mikro'ya yazar; `CompanyReceiving=Database` veya `MikroApi` rotasina uyar, `acknowledge=true` ise AXATA EXT `ENT016_IRS.S16STAT` gunceller |
-| `dynamic-census/import` | AXATA EXT `vw_stok_duzeltme` satirlarini Mikro stok duzeltme hareketine cevirir | Mikro'ya yazar, `acknowledge=true` ise AXATA EXT `ENT011.S11STAT` gunceller |
+| `dynamic-census/import` | AXATA EXT `vw_stok_duzeltme` satirlarini Mikro stok duzeltme hareketine cevirir | `AxataDynamicCensus=Database/MikroApi` rotasina uyar; API yolunda readback zorunludur, `acknowledge=true` ise AXATA EXT `ENT011.S11STAT` gunceller |
 | `manual/axata/*` | AXATA verisi body olarak UI/operasyon tarafindan saglanir | AXATA'dan canli fetch yapmaz |
 | `manual/incoming/*` | Mikro'ya manuel belge yazar | AXATA status guncellemez |
 

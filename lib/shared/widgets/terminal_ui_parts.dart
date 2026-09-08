@@ -1316,8 +1316,8 @@ class TerminalCompactProductLineCard extends StatelessWidget {
 
     return Container(
       width: double.infinity,
-      margin: const EdgeInsets.only(bottom: 6),
-      padding: const EdgeInsets.fromLTRB(8, 7, 7, 7),
+      margin: const EdgeInsets.only(bottom: 4),
+      padding: const EdgeInsets.fromLTRB(6, 5, 6, 5),
       decoration: BoxDecoration(
         color: theme.colorScheme.surface,
         borderRadius: BorderRadius.circular(8),
@@ -1327,7 +1327,8 @@ class TerminalCompactProductLineCard extends StatelessWidget {
       ),
       child: LayoutBuilder(
         builder: (context, constraints) {
-          final isTight = constraints.maxWidth < 350;
+          // PDA ekranlarinda urun kimligi miktar kontrollerinden once okunur.
+          final isTight = constraints.maxWidth < 430;
           final details = _TerminalCompactProductLineDetails(
             lineNo: lineNo,
             stockCode: stockCode,
@@ -1337,6 +1338,13 @@ class TerminalCompactProductLineCard extends StatelessWidget {
             barcode: barcode,
             packageLabel: packageLabel,
             warningLabel: warningLabel,
+            isCompact: isTight,
+            trailing: isTight
+                ? _TerminalLineDeleteButton(
+                    enabled: canDelete,
+                    onPressed: onDelete,
+                  )
+                : null,
           );
           final controls = Row(
             mainAxisSize: isTight ? MainAxisSize.max : MainAxisSize.min,
@@ -1364,20 +1372,13 @@ class TerminalCompactProductLineCard extends StatelessWidget {
                     onMinimumReached: onMinimumReached,
                   ),
                 ),
-              const SizedBox(width: 4),
-              IconButton(
-                onPressed: canDelete ? onDelete : null,
-                icon: const Icon(Icons.delete_outline_rounded, size: 20),
-                tooltip: 'Satiri sil',
-                constraints: const BoxConstraints.tightFor(
-                  width: 44,
-                  height: 44,
+              if (!isTight) ...<Widget>[
+                const SizedBox(width: 4),
+                _TerminalLineDeleteButton(
+                  enabled: canDelete,
+                  onPressed: onDelete,
                 ),
-                padding: EdgeInsets.zero,
-                style: IconButton.styleFrom(
-                  tapTargetSize: MaterialTapTargetSize.padded,
-                ),
-              ),
+              ],
             ],
           );
 
@@ -1386,7 +1387,7 @@ class TerminalCompactProductLineCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
                     details,
-                    const SizedBox(height: 6),
+                    const SizedBox(height: 4),
                     controls,
                   ],
                 )
@@ -1509,7 +1510,7 @@ class TerminalCompactProductLineSummary extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(8, 7, 7, 7),
+      padding: const EdgeInsets.fromLTRB(6, 5, 6, 5),
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(8),
@@ -1517,26 +1518,26 @@ class TerminalCompactProductLineSummary extends StatelessWidget {
           color: Theme.of(context).colorScheme.outlineVariant.withAlpha(96),
         ),
       ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: <Widget>[
-          Expanded(
-            child: _TerminalCompactProductLineDetails(
-              lineNo: lineNo,
-              stockCode: stockCode,
-              stockName: stockName,
-              unitLabel: unitLabel,
-              priceLabel: priceLabel,
-              barcode: barcode,
-              packageLabel: packageLabel,
-              warningLabel: warningLabel,
+      child: LayoutBuilder(
+        builder: (context, constraints) => Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: <Widget>[
+            Expanded(
+              child: _TerminalCompactProductLineDetails(
+                lineNo: lineNo,
+                stockCode: stockCode,
+                stockName: stockName,
+                unitLabel: unitLabel,
+                priceLabel: priceLabel,
+                barcode: barcode,
+                packageLabel: packageLabel,
+                warningLabel: warningLabel,
+                isCompact: constraints.maxWidth < 430,
+                trailing: trailing,
+              ),
             ),
-          ),
-          if (trailing != null) ...<Widget>[
-            const SizedBox(width: 6),
-            trailing!,
           ],
-        ],
+        ),
       ),
     );
   }
@@ -1552,6 +1553,8 @@ class _TerminalCompactProductLineDetails extends StatelessWidget {
     required this.barcode,
     required this.packageLabel,
     required this.warningLabel,
+    required this.isCompact,
+    this.trailing,
   });
 
   final int lineNo;
@@ -1562,6 +1565,8 @@ class _TerminalCompactProductLineDetails extends StatelessWidget {
   final String? barcode;
   final String? packageLabel;
   final String? warningLabel;
+  final bool isCompact;
+  final Widget? trailing;
 
   @override
   Widget build(BuildContext context) {
@@ -1571,19 +1576,23 @@ class _TerminalCompactProductLineDetails extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
         Container(
-          width: 24,
-          height: 24,
+          width: isCompact ? 30 : 24,
+          height: isCompact ? 30 : 24,
           alignment: Alignment.center,
           decoration: BoxDecoration(
-            color: theme.colorScheme.surfaceContainerHighest,
-            borderRadius: BorderRadius.circular(5),
+            color: isCompact
+                ? theme.colorScheme.primary
+                : theme.colorScheme.surfaceContainerHighest,
+            borderRadius: BorderRadius.circular(6),
           ),
           child: Text(
-            '$lineNo',
-            style: theme.textTheme.labelMedium?.copyWith(
+            lineNo.toString().padLeft(2, '0'),
+            style: theme.textTheme.labelLarge?.copyWith(
               height: 1,
-              color: theme.colorScheme.onSurfaceVariant,
-              fontWeight: FontWeight.w800,
+              color: isCompact
+                  ? theme.colorScheme.onPrimary
+                  : theme.colorScheme.onSurfaceVariant,
+              fontWeight: FontWeight.w900,
             ),
           ),
         ),
@@ -1593,56 +1602,86 @@ class _TerminalCompactProductLineDetails extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: <Widget>[
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.fromLTRB(6, 3, 5, 3),
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.primaryContainer.withAlpha(48),
-                  borderRadius: BorderRadius.circular(5),
-                  border: Border(
-                    left: BorderSide(
-                      color: theme.colorScheme.primary,
-                      width: 2,
-                    ),
-                  ),
-                ),
-                child: Text(
-                  stockName.trim().isEmpty ? 'Urun adi bulunamadi' : stockName,
-                  key: const ValueKey<String>('terminal-product-line-name'),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    height: 1.12,
-                    color: theme.colorScheme.onSurface,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 4),
-              Wrap(
-                spacing: 5,
-                runSpacing: 3,
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
-                  if (stockCode.trim().isNotEmpty)
-                    _TerminalMiniLineMeta(text: stockCode),
-                  if ((unitLabel ?? '').trim().isNotEmpty)
-                    _TerminalMiniLineMeta(text: unitLabel!),
-                  if ((packageLabel ?? '').trim().isNotEmpty)
-                    _TerminalMiniLineMeta(
-                      text: 'Koli ici $_packageInfoValue',
-                      isPackage: true,
+                  Expanded(
+                    child: Text(
+                      stockName.trim().isEmpty
+                          ? 'Urun adi bulunamadi'
+                          : stockName,
+                      key: const ValueKey<String>('terminal-product-line-name'),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        height: 1.08,
+                        color: theme.colorScheme.onSurface,
+                        fontWeight: FontWeight.w900,
+                      ),
                     ),
-                  if ((priceLabel ?? '').trim().isNotEmpty)
-                    _TerminalMiniLineMeta(text: priceLabel!),
-                  if ((barcode ?? '').trim().isNotEmpty)
-                    _TerminalMiniLineMeta(text: barcode!),
-                  if ((warningLabel ?? '').trim().isNotEmpty)
-                    _TerminalMiniLineMeta(
-                      text: warningLabel!,
-                      color: theme.colorScheme.error,
-                    ),
+                  ),
+                  if (trailing != null) ...<Widget>[
+                    const SizedBox(width: 5),
+                    trailing!,
+                  ],
                 ],
               ),
+              if (stockCode.trim().isNotEmpty ||
+                  (isCompact && (barcode ?? '').trim().isNotEmpty)) ...<Widget>[
+                const SizedBox(height: 1),
+                Wrap(
+                  spacing: 7,
+                  runSpacing: 1,
+                  children: <Widget>[
+                    if (stockCode.trim().isNotEmpty)
+                      Text(
+                        stockCode.trim(),
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          height: 1,
+                          color: theme.colorScheme.onSurfaceVariant,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    if (isCompact && (barcode ?? '').trim().isNotEmpty)
+                      Text(
+                        barcode!.trim(),
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          height: 1,
+                          color: theme.colorScheme.onSurfaceVariant,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                  ],
+                ),
+              ],
+              const SizedBox(height: 3),
+              if (isCompact)
+                _buildCompactMeta(theme)
+              else
+                Wrap(
+                  spacing: 5,
+                  runSpacing: 3,
+                  children: <Widget>[
+                    if (stockCode.trim().isNotEmpty)
+                      _TerminalMiniLineMeta(text: stockCode),
+                    if ((unitLabel ?? '').trim().isNotEmpty)
+                      _TerminalMiniLineMeta(text: unitLabel!),
+                    if ((packageLabel ?? '').trim().isNotEmpty)
+                      _TerminalMiniLineMeta(
+                        text: 'Koli ici $_packageInfoValue',
+                        isPackage: true,
+                      ),
+                    if ((priceLabel ?? '').trim().isNotEmpty)
+                      _TerminalMiniLineMeta(text: priceLabel!),
+                    if ((barcode ?? '').trim().isNotEmpty)
+                      _TerminalMiniLineMeta(text: barcode!),
+                    if ((warningLabel ?? '').trim().isNotEmpty)
+                      _TerminalMiniLineMeta(
+                        text: warningLabel!,
+                        color: theme.colorScheme.error,
+                      ),
+                  ],
+                ),
             ],
           ),
         ),
@@ -1663,6 +1702,77 @@ class _TerminalCompactProductLineDetails extends StatelessWidget {
     final unit = unitLabel?.trim() ?? '';
     return unit.isEmpty ? label : '$label $unit';
   }
+
+  Widget _buildCompactMeta(ThemeData theme) {
+    final metaStyle = theme.textTheme.labelSmall?.copyWith(
+      height: 1.05,
+      color: theme.colorScheme.onSurfaceVariant,
+      fontWeight: FontWeight.w700,
+    );
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        Wrap(
+          spacing: 4,
+          runSpacing: 2,
+          children: <Widget>[
+            if ((unitLabel ?? '').trim().isNotEmpty)
+              _TerminalMiniLineMeta(text: unitLabel!.trim(), isUnit: true),
+            if ((packageLabel ?? '').trim().isNotEmpty)
+              _TerminalMiniLineMeta(
+                text: 'Koli ici $_packageInfoValue',
+                isPackage: true,
+              ),
+            if ((priceLabel ?? '').trim().isNotEmpty)
+              Text(
+                priceLabel!.trim(),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: metaStyle,
+              ),
+          ],
+        ),
+        if ((warningLabel ?? '').trim().isNotEmpty)
+          Text(
+            warningLabel!.trim(),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: metaStyle?.copyWith(color: theme.colorScheme.error),
+          ),
+      ],
+    );
+  }
+}
+
+class _TerminalLineDeleteButton extends StatelessWidget {
+  const _TerminalLineDeleteButton({
+    required this.enabled,
+    required this.onPressed,
+  });
+
+  final bool enabled;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return IconButton.filled(
+      onPressed: enabled ? onPressed : null,
+      icon: const Icon(Icons.delete_outline_rounded, size: 18),
+      tooltip: 'Satiri sil',
+      constraints: const BoxConstraints.tightFor(width: 38, height: 34),
+      padding: EdgeInsets.zero,
+      style: IconButton.styleFrom(
+        foregroundColor: theme.colorScheme.onErrorContainer,
+        backgroundColor: theme.colorScheme.errorContainer,
+        disabledForegroundColor: theme.colorScheme.onSurface.withAlpha(70),
+        disabledBackgroundColor: theme.colorScheme.surfaceContainerHighest,
+        tapTargetSize: MaterialTapTargetSize.padded,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+      ),
+    );
+  }
 }
 
 class _TerminalMiniLineMeta extends StatelessWidget {
@@ -1670,11 +1780,13 @@ class _TerminalMiniLineMeta extends StatelessWidget {
     required this.text,
     this.color,
     this.isPackage = false,
+    this.isUnit = false,
   });
 
   final String text;
   final Color? color;
   final bool isPackage;
+  final bool isUnit;
 
   @override
   Widget build(BuildContext context) {
@@ -1683,13 +1795,22 @@ class _TerminalMiniLineMeta extends StatelessWidget {
         color ??
         (isPackage ? const Color(0xFF7A4A00) : const Color(0xFF607080));
 
-    if (isPackage) {
+    if (isPackage || isUnit) {
+      final backgroundColor = isPackage
+          ? const Color(0xFFFFF4D6)
+          : theme.colorScheme.primaryContainer.withAlpha(115);
+      final borderColor = isPackage
+          ? const Color(0xFFE5B84F).withAlpha(120)
+          : theme.colorScheme.primary.withAlpha(70);
+      final foregroundColor = isPackage
+          ? effectiveColor
+          : theme.colorScheme.onPrimaryContainer;
       return Container(
         padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
         decoration: BoxDecoration(
-          color: const Color(0xFFFFF4D6),
+          color: backgroundColor,
           borderRadius: BorderRadius.circular(5),
-          border: Border.all(color: const Color(0xFFE5B84F).withAlpha(120)),
+          border: Border.all(color: borderColor),
         ),
         child: Text(
           text,
@@ -1697,7 +1818,7 @@ class _TerminalMiniLineMeta extends StatelessWidget {
           overflow: TextOverflow.ellipsis,
           style: theme.textTheme.labelSmall?.copyWith(
             height: 1.05,
-            color: effectiveColor,
+            color: foregroundColor,
             fontWeight: FontWeight.w900,
           ),
         ),
@@ -1736,61 +1857,74 @@ class _TerminalCompactQuantityControl extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: <Widget>[
-        _TerminalCompactQuantityButton(
-          icon: Icons.remove_rounded,
-          tooltip: 'Azalt',
-          isPrimary: false,
-          onPressed: () => _changeBy(context, -step),
-        ),
-        Expanded(
-          child: SizedBox(
-            height: 34,
-            child: TextFormField(
-              controller: controller,
-              textAlign: TextAlign.center,
-              keyboardType: const TextInputType.numberWithOptions(
-                decimal: true,
-              ),
-              inputFormatters: <TextInputFormatter>[
-                FilteringTextInputFormatter.allow(RegExp(r'[0-9,\.]')),
-                ...inputFormatters,
-              ],
-              decoration: const InputDecoration(
-                isDense: true,
-                contentPadding: EdgeInsets.symmetric(
-                  horizontal: 4,
-                  vertical: 7,
+    final theme = Theme.of(context);
+    return Container(
+      height: 44,
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest.withAlpha(145),
+        borderRadius: BorderRadius.circular(7),
+      ),
+      child: Row(
+        children: <Widget>[
+          _TerminalCompactQuantityButton(
+            icon: Icons.remove_rounded,
+            tooltip: 'Azalt',
+            isPrimary: false,
+            onPressed: () => _changeBy(context, -step),
+          ),
+          Expanded(
+            child: SizedBox(
+              height: 34,
+              child: TextFormField(
+                controller: controller,
+                textAlign: TextAlign.center,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
                 ),
-              ),
-              style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                height: 1,
-                fontWeight: FontWeight.w900,
-              ),
-              validator:
-                  validator ??
-                  (value) {
-                    if (_readQuantity(value ?? '') <= 0) {
-                      return '';
-                    }
-                    final max = maximum;
-                    if (max != null && _readQuantity(value ?? '') > max) {
-                      return '';
-                    }
+                inputFormatters: <TextInputFormatter>[
+                  FilteringTextInputFormatter.allow(RegExp(r'[0-9,\.]')),
+                  ...inputFormatters,
+                ],
+                decoration: const InputDecoration(
+                  border: InputBorder.none,
+                  enabledBorder: InputBorder.none,
+                  focusedBorder: InputBorder.none,
+                  errorBorder: InputBorder.none,
+                  focusedErrorBorder: InputBorder.none,
+                  isDense: true,
+                  contentPadding: EdgeInsets.symmetric(
+                    horizontal: 4,
+                    vertical: 7,
+                  ),
+                ),
+                style: theme.textTheme.titleSmall?.copyWith(
+                  height: 1,
+                  fontWeight: FontWeight.w900,
+                ),
+                validator:
+                    validator ??
+                    (value) {
+                      if (_readQuantity(value ?? '') <= 0) {
+                        return '';
+                      }
+                      final max = maximum;
+                      if (max != null && _readQuantity(value ?? '') > max) {
+                        return '';
+                      }
 
-                    return null;
-                  },
+                      return null;
+                    },
+              ),
             ),
           ),
-        ),
-        _TerminalCompactQuantityButton(
-          icon: Icons.add_rounded,
-          tooltip: 'Artir',
-          isPrimary: true,
-          onPressed: () => _changeBy(context, step),
-        ),
-      ],
+          _TerminalCompactQuantityButton(
+            icon: Icons.add_rounded,
+            tooltip: 'Artir',
+            isPrimary: true,
+            onPressed: () => _changeBy(context, step),
+          ),
+        ],
+      ),
     );
   }
 
@@ -1878,7 +2012,14 @@ class _TerminalCompactQuantityButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     final buttonStyle = IconButton.styleFrom(
+      foregroundColor: isPrimary
+          ? theme.colorScheme.onPrimary
+          : theme.colorScheme.onInverseSurface,
+      backgroundColor: isPrimary
+          ? theme.colorScheme.primary
+          : theme.colorScheme.inverseSurface,
       tapTargetSize: MaterialTapTargetSize.padded,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(7)),
     );

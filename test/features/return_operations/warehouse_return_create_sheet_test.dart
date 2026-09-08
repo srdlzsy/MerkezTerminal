@@ -83,6 +83,45 @@ void main() {
     expect(productInfo, findsOneWidget);
     expect(find.text('4'), findsOneWidget);
   });
+
+  testWidgets('selects returnable product and assigns its return warehouse', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 1000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: WarehouseReturnCreateSheet(
+            repository: _FakeWarehouseReturnsRepository(),
+            accessToken: 'token',
+            defaultWarehouseNo: '110',
+            mobileWarehouseCatalogRepository:
+                MobileWarehouseCatalogLocalRepository(
+                  database: MemoryLocalDatabase(),
+                ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.widgetWithText(FilledButton, 'Iade'));
+    await tester.pumpAndSettle();
+    expect(find.text('Iade Edilebilir Urunler'), findsOneWidget);
+    expect(
+      find.textContaining('MERKEZ DEPO 50 -> MERKEZ IADE DEPOSU 51'),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.text('019700 - Iade Test Urunu'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Iade Test Urunu'), findsOneWidget);
+    expect(find.text('51'), findsOneWidget);
+  });
 }
 
 Future<void> _pickTargetWarehouse(WidgetTester tester) async {
@@ -118,6 +157,44 @@ Future<void> _confirmPendingProduct(WidgetTester tester) async {
 }
 
 class _FakeWarehouseReturnsRepository implements WarehouseReturnsRepository {
+  @override
+  Future<ReturnableWarehouseProductsResult> fetchReturnableProducts({
+    required String accessToken,
+    String? warehouseNo,
+    int? targetWarehouseNo,
+    String? search,
+  }) async {
+    return const ReturnableWarehouseProductsResult(
+      sourceWarehouseNo: 110,
+      sourceWarehouseName: 'TEST SUBE',
+      totalCount: 1,
+      items: <ReturnableWarehouseProduct>[
+        ReturnableWarehouseProduct(
+          stockCode: '019700',
+          stockName: 'Iade Test Urunu',
+          barcode: '8690526366654',
+          caseBarcode: '',
+          modelCode: '01',
+          modelName: 'Market',
+          unitName: 'ADET',
+          secondaryUnitName: 'KOLI',
+          unitMultiplier: 12,
+          productSourceWarehouseNo: 50,
+          productSourceWarehouseName: 'MERKEZ DEPO',
+          returnWarehouseNo: 51,
+          returnWarehouseName: 'MERKEZ IADE DEPOSU',
+          currentStockQuantity: 24,
+          returnableQuantity: 24,
+          procurementType: 'Warehouse',
+          hasPurchaseRequirement: false,
+          isReturnable: true,
+          decision: 'Iade edilebilir.',
+          warnings: <String>[],
+        ),
+      ],
+    );
+  }
+
   @override
   Future<BarcodeResolutionResult> resolveBarcode({
     required String accessToken,

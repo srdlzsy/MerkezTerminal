@@ -74,6 +74,16 @@ void main() {
 
 class _FakeWarehouseReturnsRepository implements WarehouseReturnsRepository {
   @override
+  Future<ReturnableWarehouseProductsResult> fetchReturnableProducts({
+    required String accessToken,
+    String? warehouseNo,
+    int? targetWarehouseNo,
+    String? search,
+  }) {
+    throw UnimplementedError();
+  }
+
+  @override
   Future<BarcodeResolutionResult> resolveBarcode({
     required String accessToken,
     required BarcodeResolutionRequest request,
