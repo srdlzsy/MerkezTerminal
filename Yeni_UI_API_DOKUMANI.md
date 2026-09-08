@@ -29,6 +29,7 @@ Timeout ve tekrar deneme notu:
 - `MikroReadSeconds` liste/detay/rapor okumalari, `MikroWriteSeconds` create/update/delete yazma islemleri icin kullanilir. `AuthSeconds`, `FurpaSeconds`, `AxataSeconds`, `PuanSeconds` ve `ShopigoCiroSeconds` ilgili DB context'leri icindir.
 - Raw SQL ile yazilmis liste/arama/rapor komutlari da genel olarak `300` saniye bekleyecek sekilde ayarlanmistir.
 - `MikroApi:TimeoutSeconds` varsayilan appsettings'te `300` saniyedir. Yazma rotasi `MikroApi` ise UI bu sureyi de dikkate almalidir.
+- Manav mal kabul Mikro aktarimi `GreenGrocerGoodsReceipt`, POS muhasebe ERP aktarimi `PosAccountingSlip` routing ayariyla opsiyonel olarak Mikro API uzerinden calisir. Bu secim UI request modelini degistirmez; backend API sonrasi Mikro DB readback yapmadan islemi basarili saymaz.
 - Terminal, mobil ve web istemcileri liste ve create isteklerinde HTTP client timeout degerini en az `300` saniye yapmalidir. Subede internet zayifsa API islemi devam ederken istemci 30-60 saniyede vazgecerse kullanici timeout gorur ve kontrolsuz tekrar basabilir.
 - POST/create timeout gorurse UI hemen yeni istek kimligi veya farkli body uretmemeli; mumkunse ayni payload ile guvenli retry yapmali veya liste/detay yenileyerek evrakin olusup olusmadigini kontrol etmelidir.
 
@@ -3987,15 +3988,15 @@ stockCode      opsiyonel; stok kodu ile exact arama
 stockName      opsiyonel; stok adinda contains arama, en az 2 karakter
 companyCode    opsiyonel; secilen firma/cari kodu filtresi
 supplierCode   opsiyonel; companyCode ile ayni filtre icin geriye uyum alias'i
-includeDelisted opsiyonel; default true. true ise pasif veya DLS/99 urunler de doner; false ise bu urunler listeden gizlenir
-take           opsiyonel; default 20, max 100
+includeDelisted opsiyonel; default true. true ise pasif veya DLS prefixli urunler de doner; false ise bu urunler listeden gizlenir
+take           opsiyonel; default 150, max 150
 ```
 
 Kural:
 
 - `barcode`, `stockCode`, `stockName`, `companyCode` veya `supplierCode` alanlarindan en az biri verilmelidir.
 - Bos arama engellenir; cunku Mikro procedure genis fiyat/stok seti dondurebilir.
-- Urun arama, fiyat gor ve var-yok listelerinde pasif veya DLS/99 urunler normalde gorunur; backend satiri `isPassive`, `isDelisted` ve `delistReason` alanlariyla isaretler.
+- Urun arama, fiyat gor ve var-yok listelerinde pasif veya stok adi `DLS` ile baslayan urunler normalde gorunur; backend satiri `isPassive`, `isDelisted` ve `delistReason` alanlariyla isaretler.
 - UI "delistleri/pasifleri gizle" toggle'i aciksa ayni istege `includeDelisted=false` eklemelidir. Toggle kapaliysa alan gonderilmeyebilir; default `true` kabul edilir.
 - UI sadece kendi icinde filtre yapmamalidir; gizleme karari backend tarafinda calismalidir ki web, terminal ve mobil ayni sonucu gorsun.
 - `warehouseNo`, fiyat/stok/blok bilgisinin hangi islem deposuna gore okunacagini belirler. Bu alan kaynak depo secimi icin kullanilmaz.
@@ -4045,6 +4046,15 @@ Response:
     "isOrderBlocked": false,
     "isGoodsAcceptanceBlocked": false,
     "productManagerCode": "PER001",
+    "modelCode": "10",
+    "procurementType": "Mixed",
+    "sourceWarehouses": [
+      {
+        "warehouseNo": 56,
+        "warehouseName": "MANAV DEPO"
+      }
+    ],
+    "hasPurchaseRequirement": true,
     "requestedBarcode": "2700174041103",
     "lookupBarcode": "2700174",
     "isVariableWeightBarcode": true,
@@ -4058,6 +4068,12 @@ Response:
 UI kullanim notu:
 
 - `price` satis fiyatidir; firma mal kabul veya alis maliyeti icin body'ye basilmamalidir.
+- `modelCode`, Mikro stok kartindaki urun model kodudur.
+- `procurementType`, urunun bilgi amacli tedarik sinifidir: `Warehouse`, `Company`, `Mixed` veya `Unassigned`.
+- `sourceWarehouses`, urunun model kodu kaynak deponun model listesiyle eslesen ve ilgili stok-depo kaydi siparise acik olan kaynak depolari gosterir. Bos dizi urunun tanimli bir kaynak depoyla eslesmedigini belirtir.
+- `hasPurchaseRequirement`, stok kartinda varsayilan tedarikci veya aktif satin alma sarti bulunup bulunmadigini belirtir. `true` olmasi urunun kaynak depodan da alinmasina engel degildir; bu durumda `procurementType=Mixed` gelebilir.
+- Bu alanlar UI'da bilgi/etiket amaclidir. Urunu gizlemek veya satira eklemeyi pasif yapmak icin kullanilmamalidir. Ornek etiketler: `Model 01`, `Merkez Depo 50`, `Firma Urunu`, `Karisik Kaynak`.
+- Tedarikci isimleri bu response'a eklenmez; kullanicinin yalnizca kaynak turunu gormesi icin ek bir `cari-onerileri` cagrisi gerekmez.
 - `purchasePrice` sadece `companyCode/supplierCode` ile cari baglamli aramada dolabilir; son `SATINALMA_SARTLARI` kaydindan iskonto sonrasi alis birim fiyatidir. Firma mal kabulde e-belge satirindan `netUnitPrice` gelmiyorsa UI `unitPrice` icin sadece `purchasePrice` alanini kullanmalidir.
 - Firma mal kabul ekraninda kullaniciya alis fiyati elle yazdirilmamalidir. `netUnitPrice` veya `purchasePrice` yoksa UI satiri durdurmadan `unitPrice=0` gondermelidir; satis fiyati fallback olarak kullanilmamalidir.
 - `purchaseGrossPrice` satin alma sartindaki brut fiyat, `purchaseSupplierCode` ise fiyat kaydinin carisidir. `companyCode/supplierCode` ile arama yapilirsa fiyat o carinin satin alma sartindan gelir.
@@ -4097,7 +4113,7 @@ stockCode      opsiyonel; stok kodu ile exact arama
 stockName      opsiyonel; stok adinda contains arama, en az 2 karakter
 companyCode    opsiyonel; secilen firma/cari kodu filtresi
 supplierCode   opsiyonel; companyCode ile ayni filtre icin geriye uyum alias'i
-includeDelisted opsiyonel; default true. true ise pasif veya DLS/99 urunler de doner; false ise bu urunler listeden gizlenir
+includeDelisted opsiyonel; default true. true ise pasif veya DLS prefixli urunler de doner; false ise bu urunler listeden gizlenir
 take           opsiyonel; default 20, max 100
 ```
 
@@ -4136,7 +4152,7 @@ warehouseNo    opsiyonel; verilmezse JWT icindeki depo kullanilir
 barcode        opsiyonel; once tam barkod arar; 27/29 terazi barkodunda arama barkodu normalize edilir; sonuc yoksa 6+ rakamda barkod son hane fallback'i calisir
 stockCode      opsiyonel; stok kodu ile exact arama
 stockName      opsiyonel; stok adinda contains arama, en az 2 karakter
-includeDelisted opsiyonel; default true. true ise pasif veya DLS/99 urunler de doner; false ise bu urunler listeden gizlenir
+includeDelisted opsiyonel; default true. true ise pasif veya DLS prefixli urunler de doner; false ise bu urunler listeden gizlenir
 take           opsiyonel; default 20, max 100
 ```
 
@@ -4258,7 +4274,7 @@ operationType  opsiyonel; islem tipini verir, satira ekleme kararinda kullanilir
 targetWarehouseNo opsiyonel; hedef depo/model kod uygunlugu hesaplamak icin kullanilir; shipment icin bloklayici degildir
 supplierCode   opsiyonel; secili tedarikciye gore SATINALMA_SARTLARI kontrolu yapar; receiving/order icin karar motoruna dahil edilir
 companyCode    opsiyonel; supplierCode ile ayni anlamda geriye uyum alias'i
-isRefund       opsiyonel; false ise eski sistemdeki iade disi DLS/99 filtresi uygulanir
+isRefund       opsiyonel; false ise eski sistemdeki iade disi DLS filtresi uygulanir
 screenCode     opsiyonel; eski UI uyumu icin korunur, operationType bos ise ekran baglami gibi kullanilir
 ```
 
@@ -7130,7 +7146,11 @@ Genel kurallar:
 - Depo siparislerinde `documentSerie` ve `documentOrderNo` zorunludur; `warehouseNo`, `inWarehouseNo` ve `outWarehouseNo` opsiyonel daraltma filtreleridir.
 - Siparis satir guncellemeleri `orderGuid` ile yapilir. UI detay response'undaki `lines[].orderGuid` degerini satir modelinde gizli anahtar olarak saklamalidir.
 - Request body'de `null` gelen alanlar degismez. Bos string gonderilirse ilgili metin alani bosaltma istegi olarak islenir.
-- Kayitlarda Mikro audit alanlari guncellenir: `lastup_user`, `lastup_date`, `degisti`.
+- `MikroWriteRouting:MicroDocumentEditing=MikroApi` iken stok/cari/depo karti, stok-depo override ve satis fiyati yazmalari Mikro API uzerinden yapilir. UI endpointleri ve response modelleri degismez.
+- Generic Mikro API tablo eslemeleri `*_fileid` degerleriyle aynidir: `STOK_DEPO_DETAYLARI=10`, `STOKLAR=13`, `CARI_HESAPLAR=31`, `CARI_HESAP_HAREKETLERI=51`, `DEPOLAR=111`, `SUBELER=112`, `STOK_SATIS_FIYAT_LISTELERI=228`.
+- API update/delete cagrilarinda backend DB'den okudugu mevcut `lastup_date` degerini concurrency anahtari olarak kullanir; UI'nin bu alani body'de gondermesi gerekmez.
+- `KayitKaydetTopluV2` atomik olmadigi icin backend kart/override/fiyat yazmalarini tek kayitlik isteklerle yapar ve sonucu Mikro DB'den geri okur.
+- Database modunda kayitlarda Mikro audit alanlari guncellenir: `lastup_user`, `lastup_date`, `degisti`; MikroApi modunda teknik audit alanlarini Mikro cekirdegi yonetir.
 - Bu modul yeni evrak olusturma yapmaz; sadece whitelist icindeki alanlari gunceller.
 - Delete yalnizca silinmesi guvenli kayitlarda vardir: depo ozel stok ayari, depo bazli satis fiyati, stok hareket evraki, cari hareket evraki, firma siparis evraki ve depo siparis evraki.
 - Stok karti, depo karti ve cari karti icin delete yoktur; UI bu ana kartlarda sil butonu gostermemelidir.
@@ -15861,8 +15881,8 @@ Davranis:
 - basarili donuste `serviceDocumentNumber` Mikro `cha_belge_no` alanina yazilir
 - `serviceDocumentId` Uyumsoft'un teknik id'sidir; basarili gonderimde Mikro `cha_uuid` alanina yazilir, servis id bos donerse faturanin lokal UUID degeri fallback olarak saklanir
 - sonraki liste ekraninda gonderilmis fatura PDF ve tekrar gonderim aksiyonlari backend tarafinda bu UUID uzerinden cozulur; UI teknik UUID gondermek zorunda degildir
-- ayni anda Mikro'da `cha_kilitli = true` olur; write rotasi DB ise `cha_degisti`, `cha_lastup_user` ve `cha_lastup_date` backend tarafindan set edilir, write rotasi Mikro API ise backend `KayitKaydetV2` icin kaydin mevcut `cha_degisti` ve `cha_lastup_user` degerlerini kullanir
-- `MikroWriteRouting:InvoiceSendingMarkAsSent=MikroApi` ortaminda marker yazimi `POST /Api/apiMethods/KayitKaydetV2` ile `CARI_HESAP_HAREKETLERI` tablo no `51`, `KayitTipi=1` uzerinden yapilir; backend yazimdan sonra `cha_belge_no`, `cha_uuid` ve `cha_kilitli` alanlarini readback ile dogrular
+- ayni anda Mikro'da `cha_kilitli = true` olur; write rotasi DB ise `cha_degisti`, `cha_lastup_user` ve `cha_lastup_date` backend tarafindan set edilir
+- `MikroWriteRouting:InvoiceSendingMarkAsSent=MikroApi` ortaminda marker yazimi `POST /Api/apiMethods/KayitKaydetTopluV2` ile yapilir. Her `Kayit` satirinda `TabloNo=51`, `KayitTipi=1`, `cha_Guid`, `cha_belge_no`, `cha_uuid` ve `cha_kilitli` gonderilir; backend yazimdan sonra belgenin beklenen tum GUID'lerinde bu uc alani readback ile dogrular
 - zaten gonderilmis kayitlar response'ta `isSucceeded = false` ile doner; genel request tamamen patlatilmaz
 - basarili veya hatali gonderim loglarinda toplam sureye ek olarak `BuildAndValidateMs`, `UyumsoftMs` ve `MarkAsSentMs` sureleri bulunur. Uzun beklemenin DB/XML, Uyumsoft veya Mikro geri yazma asamasindan hangisinde oldugu bu alanlarla ayristirilir.
 - Liste 2 saniyeyi veya onizleme 5 saniyeyi asarsa backend tek bir warning logu yazar. Liste logunda filtreler, kayit sayisi ve toplam sure; onizleme logunda `LoadMs`, `BuildMs` ve `RenderMs` alanlari bulunur. Normal hizdaki istekler icin ek log uretilmez.
@@ -15976,7 +15996,7 @@ Fatura modulu notlari:
 - `fatura-goruntuleme` icinde legacy'deki "goruntule" ve "yazdirildi say" ayrimi artik ayri endpointlerle temsil edilir
 - `GET /{documentId}/detail` ile `POST render` ayni response tipini doner; fark, `POST render` ile XSLT davranisinin override edilebilmesidir
 - `fatura-gonderimi` detail/send akisinda invoice XML Mikro verisinden backend tarafinda yeniden uretilir; UI ham XML kurmak zorunda degildir
-- `fatura-gonderimi` send akisinda basarili sonuclarda Mikro `cha_belge_no` ve `cha_uuid` geri yazilir, kayit kilitlenir; `InvoiceSendingMarkAsSent=MikroApi` ise bu is `KayitKaydetV2` tablo `51` update yolu ile yapilir ve backend readback dogrulamasi olmadan basarili donmez
+- `fatura-gonderimi` send akisinda basarili sonuclarda Mikro `cha_belge_no` ve `cha_uuid` geri yazilir, kayit kilitlenir; `InvoiceSendingMarkAsSent=MikroApi` ise bu is `KayitKaydetTopluV2` ile her satirda tablo `51`/update `1` belirtilerek yapilir ve backend tum hareketleri readback ile dogrulamadan basarili donmez
 - render sirasinda once embedded XSLT denenir; yoksa WebApi icindeki `Assets/Xslt/efatura.xslt` veya `Assets/Xslt/earsiv.xslt` fallback olarak kullanilir
 - ortak renderer artik ek karekod uretmez; fatura-gonderimi ve fatura-goruntuleme HTML'inde karekodun tek kaynagi secilen XSLT'dir
 - `fatura-goruntuleme` PDF/detail lookup anahtari `documentId`'dir; `invoiceId` ise kullaniciya gosterilen numaradir
@@ -16196,7 +16216,9 @@ Config:
 - Mikro login cagrisi audit kapsaminda degildir.
 - Yalnizca `MikroApiClient` uzerinden yapilan POST yazma cagrilari kaydedilir.
 - `MikroWriteRouting` ilgili islem icin `Database` ise Mikro API cagrisi yapilmayacagindan audit kaydi da olusmaz.
-- Mevcut config'te yazma rotalari `Database` oldugu icin audit ancak ilgili rota `MikroApi` olarak degistirildiginde kayit uretir.
+- Mevcut development ve production config'te standart belge yazma rotalari `MikroApi` secilidir; bu POST cagrilari audit kaydi uretir.
+- `MikroApi` secimi yalnizca standart Mikro tablo yazma yolunu degistirir. Liste/detay/readback sorgulari ile Auth, Furpa, B2B, audit, offline retry, belge akis ve `STOK_DAGILIM` gibi uygulamaya ozel tablolar SQL/EF uzerinden calismaya devam eder.
+- `MicroDocumentEditing=MikroApi` modunda stok hareketi, cari hareket, firma siparisi, depo siparisi ve sayim update/sil aileleri Mikro API kullanir. Stok/cari/depo karti, depo-stok override ve satis fiyati duzeltmeleri icin dogrulanmis V17 contract bulunmadigindan backend bu islemleri sessizce DB'ye yazmaz; acik desteklenmiyor hatasi dondurur.
 
 Kaydedilen temel alanlar:
 
@@ -19976,7 +19998,15 @@ public sealed record ProductLookupItemDto(
     string? PurchaseSupplierCode = null,
     bool IsPassive = false,
     bool IsDelisted = false,
-    string? DelistReason = null);
+    string? DelistReason = null,
+    string ModelCode = "",
+    string ProcurementType = "Unassigned",
+    IReadOnlyCollection<ProductSourceWarehouseDto>? SourceWarehouses = null,
+    bool HasPurchaseRequirement = false);
+
+public sealed record ProductSourceWarehouseDto(
+    int WarehouseNo,
+    string WarehouseName);
 
 public sealed record ProductCustomerSuggestionResponse(
     bool IsProductFound,

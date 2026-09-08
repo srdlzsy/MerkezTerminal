@@ -229,6 +229,11 @@ void main() {
     );
     expect(find.text('015792'), findsOneWidget);
     expect(find.text('Koli ici 12 ADET'), findsOneWidget);
+    final productName = tester.widget<Text>(
+      find.byKey(const ValueKey<String>('terminal-product-line-name')),
+    );
+    expect(productName.style?.fontWeight, FontWeight.w900);
+    expect(productName.maxLines, 2);
   });
 
   testWidgets('compact product line warns for non-package multiple quantity', (

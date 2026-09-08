@@ -13,6 +13,10 @@ class SearchProductLookupItem {
     this.purchaseGrossPrice = 0,
     this.purchasePriceSource = '',
     this.purchaseSupplierCode = '',
+    this.modelCode = '',
+    this.procurementType = '',
+    this.sourceWarehouses = const <SearchProductSourceWarehouse>[],
+    this.hasPurchaseRequirement = false,
     required this.unitName,
     required this.unitMultiplier,
     required this.secondaryUnitName,
@@ -48,6 +52,10 @@ class SearchProductLookupItem {
   final double purchaseGrossPrice;
   final String purchasePriceSource;
   final String purchaseSupplierCode;
+  final String modelCode;
+  final String procurementType;
+  final List<SearchProductSourceWarehouse> sourceWarehouses;
+  final bool hasPurchaseRequirement;
   final String unitName;
   final double unitMultiplier;
   final String secondaryUnitName;
@@ -73,6 +81,28 @@ class SearchProductLookupItem {
   final String delistReason;
 
   String get displayLabel => '$stockCode - $stockName';
+
+  String get procurementTypeLabel {
+    switch (procurementType.trim().toLowerCase()) {
+      case 'warehouse':
+        return 'Depo Urunu';
+      case 'company':
+        return 'Firma Urunu';
+      case 'mixed':
+        return 'Karisik Kaynak';
+      case 'unassigned':
+        return 'Kaynak Atanmamis';
+      default:
+        return procurementType.trim();
+    }
+  }
+
+  List<String> get sourceInformationLabels => <String>[
+    if (modelCode.trim().isNotEmpty) 'Model ${modelCode.trim()}',
+    for (final warehouse in sourceWarehouses) warehouse.displayLabel,
+    if (procurementTypeLabel.isNotEmpty) procurementTypeLabel,
+    if (hasPurchaseRequirement) 'Alis Ihtiyaci Var',
+  ];
 
   bool get needsStatusAttention => isPassive || isDelisted;
 
@@ -104,6 +134,10 @@ class SearchProductLookupItem {
       purchaseGrossPrice: _readDouble(json['purchaseGrossPrice']),
       purchasePriceSource: _readString(json['purchasePriceSource']),
       purchaseSupplierCode: _readString(json['purchaseSupplierCode']),
+      modelCode: _readString(json['modelCode']),
+      procurementType: _readString(json['procurementType']),
+      sourceWarehouses: _readSourceWarehouses(json['sourceWarehouses']),
+      hasPurchaseRequirement: _readBool(json['hasPurchaseRequirement']),
       unitName: _readString(json['unitName']),
       unitMultiplier: _readProductUnitMultiplier(json),
       secondaryUnitName: _readString(json['secondaryUnitName']),
@@ -151,6 +185,8 @@ class SearchProductLookupItem {
       purchaseGrossPrice: resolution.purchaseGrossPrice,
       purchasePriceSource: resolution.purchasePriceSource,
       purchaseSupplierCode: resolution.purchaseSupplierCode,
+      modelCode: resolution.productModelCode,
+      hasPurchaseRequirement: resolution.hasPurchaseRequirement ?? false,
       unitName: resolution.matchedUnitName,
       unitMultiplier: resolution.matchedUnitMultiplier,
       secondaryUnitName: '',
@@ -167,6 +203,46 @@ class SearchProductLookupItem {
       delistReason: resolution.delistReason,
     );
   }
+}
+
+class SearchProductSourceWarehouse {
+  const SearchProductSourceWarehouse({
+    required this.warehouseNo,
+    required this.warehouseName,
+  });
+
+  final int warehouseNo;
+  final String warehouseName;
+
+  String get displayLabel {
+    final name = warehouseName.trim();
+    if (name.isEmpty) {
+      return 'Depo $warehouseNo';
+    }
+    return '$name $warehouseNo';
+  }
+
+  factory SearchProductSourceWarehouse.fromJson(JsonMap json) {
+    return SearchProductSourceWarehouse(
+      warehouseNo: _readInt(json['warehouseNo']),
+      warehouseName: _readString(json['warehouseName']),
+    );
+  }
+}
+
+List<SearchProductSourceWarehouse> _readSourceWarehouses(Object? value) {
+  if (value is! List) {
+    return const <SearchProductSourceWarehouse>[];
+  }
+
+  return value
+      .whereType<Map>()
+      .map(
+        (item) => SearchProductSourceWarehouse.fromJson(
+          Map<String, dynamic>.from(item),
+        ),
+      )
+      .toList(growable: false);
 }
 
 bool? _readNullableBool(Object? value) {

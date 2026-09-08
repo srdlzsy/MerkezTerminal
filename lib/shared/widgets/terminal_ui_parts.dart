@@ -136,6 +136,84 @@ class _TerminalProductSelectionSheetState<T>
   }
 }
 
+class TerminalProductLookupTile extends StatelessWidget {
+  const TerminalProductLookupTile({
+    super.key,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+    this.informationLabels = const <String>[],
+    this.showWarning = false,
+  });
+
+  final String title;
+  final String subtitle;
+  final List<String> informationLabels;
+  final bool showWarning;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final labels = informationLabels
+        .map((item) => item.trim())
+        .where((item) => item.isNotEmpty)
+        .toList(growable: false);
+
+    return ListTile(
+      dense: true,
+      visualDensity: VisualDensity.compact,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+      title: Text(
+        title,
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
+        style: const TextStyle(fontWeight: FontWeight.w700),
+      ),
+      subtitle: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Text(subtitle, maxLines: 1, overflow: TextOverflow.ellipsis),
+          if (labels.isNotEmpty) ...<Widget>[
+            const SizedBox(height: 4),
+            Wrap(
+              spacing: 4,
+              runSpacing: 3,
+              children: <Widget>[
+                for (final label in labels)
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.secondaryContainer.withAlpha(95),
+                      borderRadius: BorderRadius.circular(5),
+                      border: Border.all(
+                        color: theme.colorScheme.secondary.withAlpha(70),
+                      ),
+                    ),
+                    child: Text(
+                      label,
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: theme.colorScheme.onSecondaryContainer,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ],
+        ],
+      ),
+      trailing: showWarning
+          ? Icon(Icons.warning_amber_rounded, color: theme.colorScheme.error)
+          : null,
+      onTap: onTap,
+    );
+  }
+}
+
 class TerminalListHeaderCard extends StatelessWidget {
   const TerminalListHeaderCard({
     super.key,
@@ -1493,19 +1571,19 @@ class _TerminalCompactProductLineDetails extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
         Container(
-          width: 28,
-          height: 28,
+          width: 24,
+          height: 24,
           alignment: Alignment.center,
           decoration: BoxDecoration(
-            color: theme.colorScheme.primaryContainer.withAlpha(92),
-            borderRadius: BorderRadius.circular(7),
+            color: theme.colorScheme.surfaceContainerHighest,
+            borderRadius: BorderRadius.circular(5),
           ),
           child: Text(
             '$lineNo',
-            style: theme.textTheme.labelLarge?.copyWith(
+            style: theme.textTheme.labelMedium?.copyWith(
               height: 1,
-              color: theme.colorScheme.primary,
-              fontWeight: FontWeight.w900,
+              color: theme.colorScheme.onSurfaceVariant,
+              fontWeight: FontWeight.w800,
             ),
           ),
         ),
@@ -1515,14 +1593,29 @@ class _TerminalCompactProductLineDetails extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: <Widget>[
-              Text(
-                stockName,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  height: 1.08,
-                  color: const Color(0xFF1F2937),
-                  fontWeight: FontWeight.w800,
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.fromLTRB(6, 3, 5, 3),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.primaryContainer.withAlpha(48),
+                  borderRadius: BorderRadius.circular(5),
+                  border: Border(
+                    left: BorderSide(
+                      color: theme.colorScheme.primary,
+                      width: 2,
+                    ),
+                  ),
+                ),
+                child: Text(
+                  stockName.trim().isEmpty ? 'Urun adi bulunamadi' : stockName,
+                  key: const ValueKey<String>('terminal-product-line-name'),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    height: 1.12,
+                    color: theme.colorScheme.onSurface,
+                    fontWeight: FontWeight.w900,
+                  ),
                 ),
               ),
               const SizedBox(height: 4),

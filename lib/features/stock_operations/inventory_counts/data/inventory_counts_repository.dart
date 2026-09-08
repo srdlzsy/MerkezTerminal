@@ -129,7 +129,7 @@ class ApiInventoryCountsRepository implements InventoryCountsRepository {
         !normalizedQuery.contains(' ');
     final queryParameters = <String, String>{
       'warehouseNo': warehouseNo,
-      'take': '20',
+      'take': '150',
       if (!includeDelisted) 'includeDelisted': 'false',
       if (isBarcodeQuery)
         'barcode': normalizedQuery

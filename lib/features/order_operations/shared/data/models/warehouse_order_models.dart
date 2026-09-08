@@ -243,6 +243,9 @@ class ProductLookupItem {
     this.secondaryUnitName = '',
     this.caseBarcode = '',
     this.modelCode = '',
+    this.procurementType = '',
+    this.sourceWarehouses = const <ProductSourceWarehouse>[],
+    this.hasPurchaseRequirement = false,
     this.isPassive = false,
     this.isDelisted = false,
     this.delistReason = '',
@@ -259,12 +262,37 @@ class ProductLookupItem {
   final String secondaryUnitName;
   final String caseBarcode;
   final String modelCode;
+  final String procurementType;
+  final List<ProductSourceWarehouse> sourceWarehouses;
+  final bool hasPurchaseRequirement;
   final bool isPassive;
   final bool isDelisted;
   final String delistReason;
   final bool isOrderBlocked;
 
   String get displayLabel => '$stockCode - $stockName';
+
+  String get procurementTypeLabel {
+    switch (procurementType.trim().toLowerCase()) {
+      case 'warehouse':
+        return 'Depo Urunu';
+      case 'company':
+        return 'Firma Urunu';
+      case 'mixed':
+        return 'Karisik Kaynak';
+      case 'unassigned':
+        return 'Kaynak Atanmamis';
+      default:
+        return procurementType.trim();
+    }
+  }
+
+  List<String> get sourceInformationLabels => <String>[
+    if (modelCode.trim().isNotEmpty) 'Model ${modelCode.trim()}',
+    for (final warehouse in sourceWarehouses) warehouse.displayLabel,
+    if (procurementTypeLabel.isNotEmpty) procurementTypeLabel,
+    if (hasPurchaseRequirement) 'Alis Ihtiyaci Var',
+  ];
 
   bool get needsStatusAttention => isPassive || isDelisted;
 
@@ -301,6 +329,9 @@ class ProductLookupItem {
         'productModelCode',
         'stockModelCode',
       ]),
+      procurementType: _readString(json['procurementType']),
+      sourceWarehouses: _readProductSourceWarehouses(json['sourceWarehouses']),
+      hasPurchaseRequirement: _readBool(json['hasPurchaseRequirement']),
       isPassive: _readBool(json['isPassive']),
       isDelisted: _readBool(json['isDelisted']),
       delistReason: _readString(json['delistReason']),
@@ -321,12 +352,57 @@ class ProductLookupItem {
       unitMultiplier: resolution.matchedUnitMultiplier,
       caseBarcode: resolution.caseBarcode,
       modelCode: resolution.productModelCode,
+      hasPurchaseRequirement: resolution.hasPurchaseRequirement ?? false,
       isPassive: resolution.isPassive,
       isDelisted: resolution.isDelisted,
       delistReason: resolution.delistReason,
       isOrderBlocked: resolution.isOrderBlocked,
     );
   }
+}
+
+class ProductSourceWarehouse {
+  const ProductSourceWarehouse({
+    required this.warehouseNo,
+    required this.warehouseName,
+  });
+
+  final int warehouseNo;
+  final String warehouseName;
+
+  String get displayLabel {
+    final name = warehouseName.trim();
+    if (name.isEmpty) {
+      return 'Depo $warehouseNo';
+    }
+    return '$name $warehouseNo';
+  }
+
+  Map<String, dynamic> toJson() => <String, dynamic>{
+    'warehouseNo': warehouseNo,
+    'warehouseName': warehouseName,
+  };
+
+  factory ProductSourceWarehouse.fromJson(JsonMap json) {
+    return ProductSourceWarehouse(
+      warehouseNo: _readInt(json['warehouseNo']),
+      warehouseName: _readString(json['warehouseName']),
+    );
+  }
+}
+
+List<ProductSourceWarehouse> _readProductSourceWarehouses(Object? value) {
+  if (value is! List) {
+    return const <ProductSourceWarehouse>[];
+  }
+
+  return value
+      .whereType<Map>()
+      .map(
+        (item) =>
+            ProductSourceWarehouse.fromJson(Map<String, dynamic>.from(item)),
+      )
+      .toList(growable: false);
 }
 
 class WarehouseLookupItem {

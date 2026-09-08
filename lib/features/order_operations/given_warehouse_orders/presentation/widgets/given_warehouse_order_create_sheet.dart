@@ -2073,36 +2073,14 @@ class _ProductLookupSheetState extends State<_ProductLookupSheet> {
                           separatorBuilder: (_, _) => const SizedBox(height: 4),
                           itemBuilder: (context, index) {
                             final item = _items[index];
-                            return ListTile(
-                              dense: true,
-                              visualDensity: VisualDensity.compact,
-                              contentPadding: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                                vertical: 2,
-                              ),
-                              tileColor: Theme.of(context)
-                                  .colorScheme
-                                  .surfaceContainerHighest
-                                  .withAlpha(40),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                              title: Text(
-                                item.displayLabel,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                              subtitle: Text(
-                                'Birim: ${item.unitName} | Fiyat: ${AppFormatters.currency(item.price)}',
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                              trailing: item.isOrderBlocked
-                                  ? const Icon(Icons.warning_amber_rounded)
-                                  : null,
+                            return TerminalProductLookupTile(
+                              title: item.displayLabel,
+                              subtitle:
+                                  'Birim: ${item.unitName} | Fiyat: ${AppFormatters.currency(item.price)}',
+                              informationLabels: item.sourceInformationLabels,
+                              showWarning:
+                                  item.isOrderBlocked ||
+                                  item.needsStatusAttention,
                               onTap: () => Navigator.of(context).pop(item),
                             );
                           },
@@ -2278,6 +2256,11 @@ Map<String, dynamic> _warehouseOrderProductJson(ProductLookupItem item) {
     'secondaryUnitName': item.secondaryUnitName,
     'caseBarcode': item.caseBarcode,
     'modelCode': item.modelCode,
+    'procurementType': item.procurementType,
+    'sourceWarehouses': item.sourceWarehouses
+        .map((warehouse) => warehouse.toJson())
+        .toList(growable: false),
+    'hasPurchaseRequirement': item.hasPurchaseRequirement,
     'isPassive': item.isPassive,
     'isDelisted': item.isDelisted,
     'delistReason': item.delistReason,

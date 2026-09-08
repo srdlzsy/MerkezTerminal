@@ -183,7 +183,7 @@ class ApiCompanyAcceptancesRepository implements CompanyAcceptancesRepository {
       accessToken: accessToken,
       queryParameters: <String, String>{
         'warehouseNo': warehouseNo,
-        'take': '20',
+        'take': '150',
         if (!includeDelisted) 'includeDelisted': 'false',
         if (customerCode != null && customerCode.trim().isNotEmpty)
           'companyCode': customerCode.trim(),

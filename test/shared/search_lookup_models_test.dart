@@ -88,4 +88,27 @@ void main() {
     expect(item.needsStatusAttention, isTrue);
     expect(item.statusWarningLabel, 'Pasif / DLS');
   });
+
+  test('product lookup reads source and procurement information', () {
+    final item = SearchProductLookupItem.fromJson(<String, dynamic>{
+      'stockCode': '010416',
+      'stockName': 'DOMATES',
+      'modelCode': '10',
+      'procurementType': 'Mixed',
+      'hasPurchaseRequirement': true,
+      'sourceWarehouses': <Map<String, dynamic>>[
+        <String, dynamic>{'warehouseNo': 56, 'warehouseName': 'MANAV DEPO'},
+      ],
+    });
+
+    expect(item.modelCode, '10');
+    expect(item.procurementTypeLabel, 'Karisik Kaynak');
+    expect(item.sourceWarehouses.single.warehouseNo, 56);
+    expect(item.sourceInformationLabels, <String>[
+      'Model 10',
+      'MANAV DEPO 56',
+      'Karisik Kaynak',
+      'Alis Ihtiyaci Var',
+    ]);
+  });
 }

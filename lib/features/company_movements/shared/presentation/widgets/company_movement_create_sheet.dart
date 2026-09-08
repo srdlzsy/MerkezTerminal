@@ -411,26 +411,12 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
               customerCode: _selectedCustomer?.customerCode,
               includeDelisted: includeDelisted,
             ),
-        itemBuilder: (context, item, onSelect) => ListTile(
-          dense: true,
-          visualDensity: VisualDensity.compact,
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 12,
-            vertical: 2,
-          ),
-          title: Text(
-            item.displayLabel,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-          subtitle: Text(
-            '${item.unitName} | ${AppFormatters.currency(item.price)}${item.barcode.isNotEmpty ? ' | ${item.barcode}' : ''}',
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-          trailing: item.needsStatusAttention
-              ? const Icon(Icons.warning_amber_rounded)
-              : null,
+        itemBuilder: (context, item, onSelect) => TerminalProductLookupTile(
+          title: item.displayLabel,
+          subtitle:
+              '${item.unitName} | ${AppFormatters.currency(item.price)}${item.barcode.isNotEmpty ? ' | ${item.barcode}' : ''}',
+          informationLabels: item.sourceInformationLabels,
+          showWarning: item.needsStatusAttention,
           onTap: onSelect,
         ),
       );

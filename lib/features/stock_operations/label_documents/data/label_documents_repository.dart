@@ -187,7 +187,7 @@ class ApiLabelDocumentsRepository implements LabelDocumentsRepository {
       accessToken: accessToken,
       queryParameters: <String, String>{
         'warehouseNo': warehouseNo,
-        'take': '20',
+        'take': '150',
         if (!includeDelisted) 'includeDelisted': 'false',
         if (isBarcodeQuery)
           'barcode': normalizedQuery

@@ -110,7 +110,7 @@ class ApiGivenCompanyOrdersRepository implements GivenCompanyOrdersRepository {
       queryParameters: <String, String>{
         'warehouseNo': warehouseNo,
         'companyCode': customerCode,
-        'take': '20',
+        'take': '150',
         if (!includeDelisted) 'includeDelisted': 'false',
         if (isBarcodeQuery)
           'barcode': normalizedQuery

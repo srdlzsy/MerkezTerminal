@@ -53,4 +53,36 @@ void main() {
 
     expect(selected, 'Aktif urun');
   });
+
+  testWidgets('shows product source information without blocking selection', (
+    tester,
+  ) async {
+    var selected = false;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: TerminalProductLookupTile(
+            title: '010416 - DOMATES',
+            subtitle: 'ADET | 25,00 TL',
+            informationLabels: const <String>[
+              'Model 10',
+              'MANAV DEPO 56',
+              'Firma Urunu',
+              'Karisik Kaynak',
+            ],
+            onTap: () => selected = true,
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('Model 10'), findsOneWidget);
+    expect(find.text('MANAV DEPO 56'), findsOneWidget);
+    expect(find.text('Firma Urunu'), findsOneWidget);
+    expect(find.text('Karisik Kaynak'), findsOneWidget);
+
+    await tester.tap(find.text('010416 - DOMATES'));
+    expect(selected, isTrue);
+  });
 }
