@@ -137,6 +137,7 @@ class ProductDraftEntryPanel extends StatelessWidget {
         return _CompactDraftEntryCard(
           title: stockName,
           subtitle: _compactMetaSummary,
+          sourceLabel: _compactSourceTypeLabel,
           actions: _buildActionButtons(isCompact: true),
           child: body,
         );
@@ -211,7 +212,6 @@ class ProductDraftEntryPanel extends StatelessWidget {
 
   String get _compactMetaSummary {
     return <String>[
-      if (_compactSourceSummary.isNotEmpty) _compactSourceSummary,
       stockCode,
       if ((unitLabel ?? '').trim().isNotEmpty) unitLabel!,
     ].where((part) => part.trim().isNotEmpty).join(' | ');
@@ -228,30 +228,23 @@ class ProductDraftEntryPanel extends StatelessWidget {
     ];
   }
 
-  String get _compactSourceSummary {
-    final labels = informationLabels
-        .map((label) => label.trim())
-        .where((label) => label.isNotEmpty)
-        .toSet()
-        .toList(growable: false);
-    const sourceTypes = <String>{
-      'Depo Urunu',
-      'Firma Urunu',
-      'Karisik Kaynak',
-      'Kaynak Atanmamis',
-    };
-    final sourceType = labels.where(sourceTypes.contains).firstOrNull;
-    final sourceWarehouse = labels
-        .where(
-          (label) =>
-              !sourceTypes.contains(label) &&
-              !label.startsWith('Model ') &&
-              label != 'Alis Ihtiyaci Var' &&
-              label != 'Satin Alma Sarti Var',
-        )
-        .firstOrNull;
-
-    return <String>[?sourceType, ?sourceWarehouse].join(' | ');
+  String get _compactSourceTypeLabel {
+    final normalizedLabels = informationLabels
+        .map((label) => label.trim().toLowerCase())
+        .where((label) => label.isNotEmpty);
+    if (normalizedLabels.contains('karisik kaynak')) {
+      return 'KARISIK';
+    }
+    if (normalizedLabels.contains('firma urunu')) {
+      return 'FIRMA';
+    }
+    if (normalizedLabels.contains('depo urunu')) {
+      return 'DEPO';
+    }
+    if (normalizedLabels.contains('kaynak atanmamis')) {
+      return 'ATANMAMIS';
+    }
+    return '';
   }
 
   String get _informationSummary => informationLabels
@@ -568,12 +561,14 @@ class _CompactDraftEntryCard extends StatelessWidget {
   const _CompactDraftEntryCard({
     required this.title,
     required this.subtitle,
+    required this.sourceLabel,
     required this.actions,
     required this.child,
   });
 
   final String title;
   final String subtitle;
+  final String sourceLabel;
   final Widget actions;
   final Widget child;
 
@@ -619,16 +614,29 @@ class _CompactDraftEntryCard extends StatelessWidget {
                         fontWeight: FontWeight.w900,
                       ),
                     ),
-                    if (subtitle.trim().isNotEmpty)
-                      Text(
-                        subtitle,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.labelMedium?.copyWith(
-                          height: 1,
-                          color: theme.colorScheme.onSurface.withAlpha(150),
-                          fontWeight: FontWeight.w700,
-                        ),
+                    if (sourceLabel.isNotEmpty || subtitle.trim().isNotEmpty)
+                      Row(
+                        children: <Widget>[
+                          if (sourceLabel.isNotEmpty) ...<Widget>[
+                            _CompactProductSourceBadge(label: sourceLabel),
+                            const SizedBox(width: 4),
+                          ],
+                          if (subtitle.trim().isNotEmpty)
+                            Expanded(
+                              child: Text(
+                                subtitle,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: theme.textTheme.labelMedium?.copyWith(
+                                  height: 1,
+                                  color: theme.colorScheme.onSurface.withAlpha(
+                                    150,
+                                  ),
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                        ],
                       ),
                   ],
                 ),
@@ -640,6 +648,47 @@ class _CompactDraftEntryCard extends StatelessWidget {
           const SizedBox(height: 4),
           child,
         ],
+      ),
+    );
+  }
+}
+
+class _CompactProductSourceBadge extends StatelessWidget {
+  const _CompactProductSourceBadge({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isCompany = label == 'FIRMA';
+    final isMixed = label == 'KARISIK';
+    final backgroundColor = isCompany
+        ? theme.colorScheme.tertiaryContainer
+        : isMixed
+        ? theme.colorScheme.secondaryContainer
+        : theme.colorScheme.primaryContainer;
+    final foregroundColor = isCompany
+        ? theme.colorScheme.onTertiaryContainer
+        : isMixed
+        ? theme.colorScheme.onSecondaryContainer
+        : theme.colorScheme.onPrimaryContainer;
+
+    return Container(
+      key: const ValueKey<String>('product-source-badge'),
+      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+      decoration: BoxDecoration(
+        color: backgroundColor,
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Text(
+        label,
+        maxLines: 1,
+        style: theme.textTheme.labelSmall?.copyWith(
+          height: 1,
+          color: foregroundColor,
+          fontWeight: FontWeight.w900,
+        ),
       ),
     );
   }
