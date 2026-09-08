@@ -137,7 +137,7 @@ class ProductDraftEntryPanel extends StatelessWidget {
         return _CompactDraftEntryCard(
           title: stockName,
           subtitle: _compactMetaSummary,
-          sourceLabel: _compactSourceTypeLabel,
+          sourceLabel: _sourceTypeLabel,
           actions: _buildActionButtons(isCompact: true),
           child: body,
         );
@@ -204,8 +204,8 @@ class ProductDraftEntryPanel extends StatelessWidget {
         TerminalPdaInfo(label: 'Koli ici', value: _packageInfoValue),
       if ((priceLabel ?? '').trim().isNotEmpty)
         TerminalPdaInfo(label: 'Fiyat', value: priceLabel!),
-      if (_informationSummary.isNotEmpty)
-        TerminalPdaInfo(label: 'Kaynak', value: _informationSummary),
+      if (_sourceTypeLabel.isNotEmpty)
+        TerminalPdaInfo(label: 'Kaynak', value: _sourceTypeLabel),
       ...extraInfo,
     ];
   }
@@ -228,30 +228,28 @@ class ProductDraftEntryPanel extends StatelessWidget {
     ];
   }
 
-  String get _compactSourceTypeLabel {
+  String get _sourceTypeLabel {
     final normalizedLabels = informationLabels
         .map((label) => label.trim().toLowerCase())
         .where((label) => label.isNotEmpty);
-    if (normalizedLabels.contains('karisik kaynak')) {
+    if (normalizedLabels.contains('karisik kaynak') ||
+        normalizedLabels.contains('mixed')) {
       return 'KARISIK';
     }
-    if (normalizedLabels.contains('firma urunu')) {
+    if (normalizedLabels.contains('firma urunu') ||
+        normalizedLabels.contains('company')) {
       return 'FIRMA';
     }
-    if (normalizedLabels.contains('depo urunu')) {
+    if (normalizedLabels.contains('depo urunu') ||
+        normalizedLabels.contains('warehouse')) {
       return 'DEPO';
     }
-    if (normalizedLabels.contains('kaynak atanmamis')) {
+    if (normalizedLabels.contains('kaynak atanmamis') ||
+        normalizedLabels.contains('unassigned')) {
       return 'ATANMAMIS';
     }
     return '';
   }
-
-  String get _informationSummary => informationLabels
-      .map((label) => label.trim())
-      .where((label) => label.isNotEmpty)
-      .toSet()
-      .join(' | ');
 
   String get _packageInfoValue {
     final label = packageLabel?.trim() ?? '';

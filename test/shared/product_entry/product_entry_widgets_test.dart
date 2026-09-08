@@ -155,6 +155,43 @@ void main() {
     );
   });
 
+  testWidgets('product draft entry panel shows only the source type', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(420, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final quantityController = TextEditingController(text: '1');
+    addTearDown(quantityController.dispose);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: ProductDraftEntryPanel(
+            stockCode: 'STK-099',
+            stockName: 'Firma Test Urunu',
+            quantityController: quantityController,
+            unitLabel: 'ADET',
+            informationLabels: const <String>[
+              'Model 99',
+              'TEST FIRMA',
+              'Firma Urunu',
+            ],
+            onConfirm: () {},
+            onCancel: () {},
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('Kaynak'), findsOneWidget);
+    expect(find.text('FIRMA'), findsOneWidget);
+    expect(find.text('Model 99'), findsNothing);
+    expect(find.text('TEST FIRMA'), findsNothing);
+  });
+
   testWidgets('terminal create input dock stays fixed without nested scroll', (
     tester,
   ) async {
