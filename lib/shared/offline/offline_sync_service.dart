@@ -279,6 +279,18 @@ class OfflineSyncService {
     required String accessToken,
     required OfflineCompanyAcceptanceDraft draft,
   }) async {
+    if (draft.documentSerie.trim().isEmpty || draft.documentOrderNo <= 0) {
+      const message =
+          'Evrak serisi ve sirasi zorunlu. Eski offline taslagi yeniden olusturun.';
+      await _offlineCompanyAcceptanceRepository.saveDraft(
+        draft.copyWith(status: OfflineRecordStatus.failed, lastError: message),
+      );
+      return const OfflineDraftSyncResult(
+        status: OfflineDraftSyncResultStatus.failed,
+        message: message,
+      );
+    }
+
     final syncingDraft = draft.copyWith(
       status: OfflineRecordStatus.syncing,
       lastSyncAttemptAt: DateTime.now(),

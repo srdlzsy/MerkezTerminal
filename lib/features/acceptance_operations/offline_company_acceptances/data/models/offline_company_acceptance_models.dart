@@ -12,7 +12,8 @@ class OfflineCompanyAcceptanceDraft {
     required this.customerDisplayName,
     required this.movementDate,
     required this.documentDate,
-    required this.documentNo,
+    required this.documentSerie,
+    required this.documentOrderNo,
     required this.officialDocumentKind,
     required this.officialDocumentNo,
     required this.officialDocumentDate,
@@ -36,7 +37,8 @@ class OfflineCompanyAcceptanceDraft {
   final String customerDisplayName;
   final DateTime movementDate;
   final DateTime documentDate;
-  final String documentNo;
+  final String documentSerie;
+  final int documentOrderNo;
   final String? officialDocumentKind;
   final String? officialDocumentNo;
   final DateTime? officialDocumentDate;
@@ -54,6 +56,13 @@ class OfflineCompanyAcceptanceDraft {
 
   String get clientRequestId => id;
 
+  String get documentLabel {
+    final serie = documentSerie.trim();
+    return serie.isEmpty || documentOrderNo <= 0
+        ? ''
+        : '$serie.$documentOrderNo';
+  }
+
   bool matchesContext({required String userId, required String warehouseNo}) {
     return this.userId == userId && this.warehouseNo == warehouseNo;
   }
@@ -63,7 +72,8 @@ class OfflineCompanyAcceptanceDraft {
       customerCode: customerCode,
       movementDate: movementDate,
       documentDate: documentDate,
-      documentNo: documentNo,
+      documentSerie: documentSerie,
+      documentOrderNo: documentOrderNo,
       officialDocumentKind: officialDocumentKind,
       officialDocumentNo: officialDocumentNo,
       officialDocumentDate: officialDocumentDate,
@@ -110,7 +120,8 @@ class OfflineCompanyAcceptanceDraft {
       customerDisplayName: customerDisplayName,
       movementDate: movementDate,
       documentDate: documentDate,
-      documentNo: documentNo,
+      documentSerie: documentSerie,
+      documentOrderNo: documentOrderNo,
       officialDocumentKind: officialDocumentKind,
       officialDocumentNo: officialDocumentNo,
       officialDocumentDate: officialDocumentDate,
@@ -138,7 +149,8 @@ class OfflineCompanyAcceptanceDraft {
       'customerDisplayName': customerDisplayName,
       'movementDate': movementDate.toIso8601String(),
       'documentDate': documentDate.toIso8601String(),
-      'documentNo': documentNo,
+      'documentSerie': documentSerie,
+      'documentOrderNo': documentOrderNo,
       'officialDocumentKind': officialDocumentKind,
       'officialDocumentNo': officialDocumentNo,
       'officialDocumentDate': officialDocumentDate?.toIso8601String(),
@@ -158,6 +170,12 @@ class OfflineCompanyAcceptanceDraft {
   }
 
   factory OfflineCompanyAcceptanceDraft.fromJson(Map<String, dynamic> json) {
+    final legacyDocumentIdentity = parseCompanyAcceptanceDocumentIdentity(
+      json['documentNo']?.toString() ?? '',
+    );
+    final documentSerie = json['documentSerie']?.toString().trim() ?? '';
+    final parsedDocumentOrderNo =
+        int.tryParse(json['documentOrderNo']?.toString() ?? '') ?? 0;
     return OfflineCompanyAcceptanceDraft(
       id: json['id']?.toString() ?? '',
       userId: json['userId']?.toString() ?? '',
@@ -170,7 +188,12 @@ class OfflineCompanyAcceptanceDraft {
       documentDate:
           DateTime.tryParse(json['documentDate']?.toString() ?? '') ??
           DateTime.now(),
-      documentNo: json['documentNo']?.toString() ?? '',
+      documentSerie: documentSerie.isNotEmpty
+          ? documentSerie
+          : legacyDocumentIdentity?.serie ?? '',
+      documentOrderNo: parsedDocumentOrderNo > 0
+          ? parsedDocumentOrderNo
+          : legacyDocumentIdentity?.orderNo ?? 0,
       officialDocumentKind: _readNullableString(json['officialDocumentKind']),
       officialDocumentNo: _readNullableString(json['officialDocumentNo']),
       officialDocumentDate: DateTime.tryParse(
@@ -225,7 +248,8 @@ class OfflineCompanyAcceptanceDraft {
       customerDisplayName: customerDisplayName,
       movementDate: request.movementDate,
       documentDate: request.documentDate,
-      documentNo: request.documentNo,
+      documentSerie: request.documentSerie,
+      documentOrderNo: request.documentOrderNo,
       officialDocumentKind: request.officialDocumentKind,
       officialDocumentNo: request.officialDocumentNo,
       officialDocumentDate: request.officialDocumentDate,

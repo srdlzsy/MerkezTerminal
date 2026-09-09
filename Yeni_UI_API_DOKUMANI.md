@@ -4530,6 +4530,7 @@ take         opsiyonel; default 20, max 100
 
 Not:
 
+- `cari_iptal = true` olan cari kayitlari sonuc listesine alinmaz. Kilitli veya kapali cari kayitlari listede gelir; UI `isLocked = true` ya da `isClosed = true` olan satiri secilemez yapmalidir.
 - Cari kod aramasinda tam eslesme, kod baslangici, kod sonu ve kod icinde eslesme oncelikli siralanir.
 - Ornek: kullanici `391` yazarsa `32000391` gibi kod sonu eslesen cari ilk sonuclarda gelir.
 - UI cari secim kutusunda kullaniciya sadece unvan degil, `selectionLabel` veya en az `customerCode + customerDisplayName` gostermelidir.
@@ -6580,8 +6581,10 @@ UI on dolum kurali:
 | `primaryCustomerSuggestion.customerCode` | `customerCode` | Cari bos ise varsayilan cari adayi olarak onerilir; kullanici degistirebilir. |
 | `sourceDocumentKind` | `officialDocumentKind` | `e-despatch` veya `e-invoice` olarak aynen tasinir. |
 | `sourceDocumentNumber` | `officialDocumentNo` | Belge Akis Takibi `externalDocumentNo` icin asil alandir. |
-| `despatchNumber` | `documentNo` ve gerekirse `officialDocumentNo` | E-irsaliye bulunduysa Mikro `sth_belge_no` icin en temiz adaydir. |
-| `invoiceNumber` | `documentNo` ve gerekirse `officialDocumentNo` | E-fatura bulunduysa Mikro `sth_belge_no` icin adaydir. |
+| `documentSerie` | `documentSerie` | Resmi belge no kesin `seri + 9 haneli sira` formatindaysa backend ayristirir; UI alani otomatik doldurur. |
+| `documentOrderNo` | `documentOrderNo` | Resmi belge no kesin formata uyuyorsa ayristirilan pozitif sira numarasidir. |
+| `despatchNumber` | `officialDocumentNo` | E-irsaliye bulunduysa Mikro `sth_belge_no` ve Belge Akis Takibi icin resmi numaradir. |
+| `invoiceNumber` | `officialDocumentNo` | E-fatura bulunduysa Mikro `sth_belge_no` ve Belge Akis Takibi icin resmi numaradir. |
 | `issueDate` | `documentDate` ve gerekirse `officialDocumentDate` | E-irsaliye belge tarihidir. |
 | `invoiceDate` | `documentDate` ve gerekirse `officialDocumentDate` | E-fatura belge tarihidir. |
 | `ettn` | `officialDocumentEttn` | Belge Akis Takibi `externalUuid` icin asil alandir. |
@@ -6594,7 +6597,7 @@ UI on dolum kurali:
 
 Not:
 
-- `documentNo`, Mikro `STOK_HAREKETLERI.sth_belge_no` alanidir; ETTN degildir.
+- Create body artik kullanicidan `documentNo` almaz. Mikro `STOK_HAREKETLERI.sth_belge_no` yalniz QR/e-belge lookup sonucundan tasinan `officialDocumentNo` ile dolar; manuel kayitta bos kalir.
 - `officialDocumentEttn` gonderilmezse mal kabul fisinin Mikro kaydi olusabilir, fakat Belge Akis Takibi'nde ETTN/UUID ile izleme yapilamaz.
 - UI lookup response'unu sakliyorsa bile kaydetmede sade ve net model olarak `officialDocumentKind`, `officialDocumentNo`, `officialDocumentDate`, `officialDocumentEttn` alanlarini gondermelidir.
 - Firma mal kabulde satis fiyati kullanilmamalidir. E-belge satiri icin fiyat onceligi `netUnitPrice` olmalidir. E-belge fiyat vermiyorsa cari baglamli urun/barkod aramasindan gelen `purchasePrice` kullanilir. Bu iki kaynak da yoksa UI fiyat girisi actirmadan `unitPrice=0` gondermelidir.
@@ -6610,6 +6613,8 @@ Response:
   "sourceDocumentKind": "e-despatch",
   "sourceDocumentLabel": "E-Irsaliye",
   "sourceDocumentNumber": "IRS2026000001234",
+  "documentSerie": "IRS2026",
+  "documentOrderNo": 1234,
   "despatchNumber": "IRS2026000001234",
   "issueDate": "2026-05-06T00:00:00",
   "actualDespatchDate": "2026-05-06T00:00:00",
@@ -6813,18 +6818,14 @@ Onemli not:
 - Satirda `orderGuid` bos veya `null` ise siparis GUID'i bos gider ve siparis tablosuna dokunulmaz.
 - Satir `unitPrice` degeri net alis birim fiyatidir; `urunler/fiyat-gor` response'undaki `price` satis fiyati oldugu icin buraya basilmaz. E-belge lookup'tan geliyorsa `lines[].netUnitPrice`, cari baglamli urun/barkod aramadan geliyorsa `purchasePrice` kullanilmalidir. UI kullaniciya alis fiyati elle girdirmemeli; bu iki otomatik kaynak da yoksa `unitPrice=0` gondermelidir.
 - Siparis kalanindan fazla kabul varsayilan olarak engellenir. `allowOrderOverReceiving = true` gonderilirse kalan kadar siparisli, fazla kisim siparissiz hareket olarak bolunur.
-- `documentNo` opsiyoneldir. E-belge/e-irsaliye no varsa tam `seri + 9 haneli sayisal sira` formatinda gonderilebilir.
+- `documentSerie` ve `documentOrderNo` zorunludur. Backend bunlari tahmin etmez, birlestirmez ve siradaki numarayi uretmez.
+- Manuel kayitta kullanici seri ve sirayi ayri alanlara girer. UI birlesik belge no alani gostermemeli; backend `sth_belge_no` alanini bos birakir.
+- QR/e-belge lookup response'unda `documentSerie` ve `documentOrderNo` doluysa UI bu iki alani otomatik doldurur. Resmi numara kesin `seri + 9 haneli sayisal sira` formatinda degilse bu alanlar `null` gelir ve kullanici seri/sirayi ayri girer.
 - ETTN/UUID ile cozumlenen resmi belge varsa UI kaydetmede `officialDocumentKind`, `officialDocumentNo`, `officialDocumentDate` ve `officialDocumentEttn` alanlarini da gondermelidir. Backend bu bilgileri Mikro hareket satirina yazmaz; `document_flows.external_document_no` ve `document_flows.external_uuid` alanlarina iz olarak kaydeder.
 - UI lookup response'unu direkt tasimak isterse `sourceDocumentKind`, `sourceDocumentNumber`, `sourceDocumentDate`, `despatchNumber`, `issueDate`, `invoiceNumber`, `invoiceDate` ve `ettn` alias alanlari da kabul edilir. `officialDocument*` alanlari doluysa onlar onceliklidir.
-- `documentNo` Mikro `STOK_HAREKETLERI.sth_belge_no` alanina basilan tedarikci belge numarasidir. ETTN/UUID bu alana basilmaz; resmi belgeyi bulmak icin Belge Akis Takibi'nde `externalUuid` olarak aranir.
-- UYARI: `documentNo` veya `description = "E-Irsaliye: ..."` gondermek resmi belge izini Belge Akis Takibi'ne yazdirmaz. `document_flows.external_document_no` icin mutlaka `officialDocumentNo` veya alias'i, `document_flows.external_uuid` icin mutlaka `officialDocumentEttn` veya `ettn` gonderilmelidir.
-- Ornek tam `documentNo` degerleri: `ST12026000002395`, `C682026000003472`, `FRM2026600059281`, `OY32026000000162`
-- Tam formatta `documentNo` gelirse `documentSerie` son 9 hane atilarak, `documentOrderNo` son 9 hane sayi olarak okunarak uretilir. Son 9 hanenin sayisal degeri `0` olamaz; sira `1` ve uzeri olmalidir.
-- `documentNo` bos gelirse backend `FMK{depoNo}` serisini kullanir ve ayni depo/seri icin siradaki `documentOrderNo` degerini verir.
-- `documentNo` `ABC`, `ULK`, `FIRMA` gibi harf iceren ve tam format olmayan kisa bir deger gelirse backend bunu seri/prefix kabul eder, sadece harf-rakam karakterlerini kullanir ve siradaki sira numarasini uretir.
-- `documentNo` bos veya sadece sayisal bir degerse backend seri icin `FMK{depoNo}` degerine duser.
-- Bos/prefix modunda ilgili seri daha once hic kullanilmadiysa ilk `documentOrderNo` degeri `1` olur; `0` uretilmez.
-- Response'taki `documentNo`, uretilen nihai `documentSerie + 9 haneli documentOrderNo` degeridir.
+- `officialDocumentNo` varsa Mikro `STOK_HAREKETLERI.sth_belge_no` alanina da yazilir. ETTN/UUID bu alana yazilmaz.
+- `IRS19105-1`, `ABC` veya yalniz sayisal metinlerden seri/sira ya da belge no uretilmez.
+- Response'taki `documentNo`, Mikro'ya yazilan resmi belge numarasidir; manuel kayitta bos string doner. Evrak anahtari her zaman response `documentSerie + documentOrderNo` alanlaridir.
 - Ayni depo icinde ayni `documentSerie + documentOrderNo` kombinasyonu tekrar kullanilamaz.
 - Mobil retry icin backend `clientRequestId` izini `FR` prefixli trace olarak `sth_eticaret_kanal_kodu` alanina tasir; `MikroApi` modunda bu payload ile Mikro'ya gider, tekrar istekte sonuc bu iz uzerinden toparlanabilir.
 - Ayni `clientRequestId` ile ayni payload tekrar gonderilirse backend ayni business response'u dondurmeye calisir.
@@ -6840,7 +6841,8 @@ Create body validasyonlari:
 | `customerCode` | Evet | Max 25 karakter; Mikro write DB'de `CARI_HESAPLAR.cari_kod` olarak bulunmalidir. |
 | `movementDate` | Hayir | Bos ise backend bugunu kullanir; Mikro `sth_tarih` alanina yazilir. |
 | `documentDate` | Hayir | Bos ise `movementDate` kullanilir; Mikro `sth_belge_tarih` alanina yazilir; `documentDate > movementDate` olamaz. |
-| `documentNo` | Hayir | Max 29 karakter; Mikro `sth_belge_no` alanina yazilir; ETTN buraya yazilmaz. |
+| `documentSerie` | Evet | Max 20; yalniz ASCII harf ve rakam; backend buyuk harfe cevirir. |
+| `documentOrderNo` | Evet | Pozitif integer; `1` ve uzeri olmalidir. |
 | `officialDocumentKind` | Hayir | Max 30 karakter; `e-despatch` veya `e-invoice` onerilir. |
 | `officialDocumentNo` | Hayir | Max 50 karakter; Belge Akis Takibi `externalDocumentNo` alanina yazilir. |
 | `officialDocumentDate` | Hayir | Resmi e-belge tarihidir; Belge Akis mesajinda kullanilir. |
@@ -6894,7 +6896,9 @@ Resmi belge / Mikro alan eslesmesi:
 
 | Create alani | Yazildigi yer | Aciklama |
 |---|---|---|
-| `documentNo` | Mikro `STOK_HAREKETLERI.sth_belge_no` | Tedarikci belge numarasi veya UI'nin manuel belge no degeri. |
+| `documentSerie` | Mikro `STOK_HAREKETLERI.sth_evrakno_seri` | Kullanici tarafindan ayri girilen veya QR lookup'tan kesin olarak cozulmus evrak serisi. |
+| `documentOrderNo` | Mikro `STOK_HAREKETLERI.sth_evrakno_sira` | Kullanici tarafindan ayri girilen veya QR lookup'tan kesin olarak cozulmus pozitif evrak sirasi. |
+| `officialDocumentNo` | Mikro `STOK_HAREKETLERI.sth_belge_no` | Yalniz gercek QR/e-belge numarasi; manuel kayitta bos kalir. |
 | `movementDate` | Mikro `STOK_HAREKETLERI.sth_tarih` | Mal kabul/islem tarihi; liste filtresi bu tarihe bakar. |
 | `documentDate` | Mikro `STOK_HAREKETLERI.sth_belge_tarih` | Tedarikci resmi belge tarihi. |
 | `customerCode` | Mikro `STOK_HAREKETLERI.sth_cari_kodu` | Mal kabul carisi. |
@@ -6907,7 +6911,7 @@ Resmi belge / Mikro alan eslesmesi:
 UI icin kritik uyari:
 
 - Uzun aciklama gondermeyin: `description`, `lines[].description`, `deliverer`, `receiver` gibi alanlar Mikro kolon limitleri nedeniyle kisadir. Son loglarda gorulen `Description must be a string with a maximum length of 50` hatasi bu sebeptendir.
-- ETTN okutulduysa `documentNo` doldurmak tek basina yeterli degildir. Mutlaka `officialDocumentEttn` de gonderilmelidir.
+- ETTN okutulduysa lookup'tan gelen `officialDocumentNo` ile birlikte `officialDocumentEttn` de gonderilmelidir.
 - E-fatura bulunduysa `invoiceNumber` ve `invoiceDate`, e-irsaliye bulunduysa `despatchNumber` ve `issueDate` on dolum icin kullanilir; fakat kaydetme body modelinde `officialDocument*` alanlari tercih edilmelidir.
 
 Request:
@@ -6918,7 +6922,8 @@ Request:
   "customerCode": "120.01.03106",
   "movementDate": "2026-04-20",
   "documentDate": "2026-04-20",
-  "documentNo": "ST12026000002395",
+  "documentSerie": "ST12026",
+  "documentOrderNo": 2395,
   "officialDocumentKind": "e-despatch",
   "officialDocumentNo": "ST12026000002395",
   "officialDocumentDate": "2026-04-20",
@@ -7078,15 +7083,13 @@ Firma mal kabul UI akisi:
 - Kullanici listedeki fisi acarsa `GET /api/mal-kabul-islemleri/firma-mal-kabulleri/{seri}/{sira}` cagrilir ve ekran salt okunur detay gibi davranir.
 - Yeni fis icin kullanici `Yeni Mal Kabul` aksiyonuna basar. Create ekraninda cari secimi zorunludur; cari secilmeden satir kaydetme ve `Siparis Bagla` pasif kalmalidir.
 - Kullanici QR'dan ETTN/UUID okutursa UI ilk adimda `GET /api/mal-kabul-islemleri/firma-mal-kabulleri/resmi-belge/ettn/{ettn}?documentKind=auto` cagirabilir. Bu akista backend once e-irsaliye, bulunamazsa e-fatura gelen kutusunu dener.
-- Bu response'tan `primaryCustomerSuggestion` varsa cari alani icin varsayilan onerilir; `despatchNumber` ve `issueDate` alanlari `documentNo` ve `documentDate` icin on dolum adayi olarak kullanilabilir.
+- Bu response'tan `primaryCustomerSuggestion` varsa cari alani icin varsayilan onerilir. `documentSerie` ve `documentOrderNo` doluysa ayni adli zorunlu create alanlari otomatik doldurulur; ikisinden biri `null` ise kullanici seri ve sirayi ayri girer.
 - Kaydetmede resmi belge izinin Belge Akis Takibi'ne dusmesi icin UI lookup response'undan `sourceDocumentKind`, `sourceDocumentNumber`, `issueDate` veya `invoiceDate` ve `ettn` alanlarini create body'deki `officialDocumentKind`, `officialDocumentNo`, `officialDocumentDate`, `officialDocumentEttn` alanlarina tasimalidir.
 - Backend ayrica `sourceDocumentKind`, `sourceDocumentNumber`, `sourceDocumentDate`, `despatchNumber`, `issueDate`, `invoiceNumber`, `invoiceDate` ve `ettn` alias alanlarini da kabul eder; fakat sade UI modeli icin `officialDocument*` alanlari onerilir.
-- UI sadece `documentNo = ST42026000001970` ve `description = "E-Irsaliye: ST42026000001970"` gonderirse Mikro mal kabul evragi dogru olusur, fakat Belge Akis Takibi'nde `externalDocumentNo` ve `externalUuid` bos kalir. QR/ETTN ile cozumlenmis belgede lookup sonucu mutlaka `officialDocument*` alanlarina tasinmalidir.
-- Kayit sonrasi `documentNo` Mikro `sth_belge_no` alaninda, resmi belge no/ETTN ise Belge Akis Takibi listesinde `externalDocumentNo` ve `externalUuid` alanlarinda aranabilir olur.
+- QR/ETTN ile cozumlenmis belgede lookup sonucu mutlaka `officialDocument*` alanlarina tasinmalidir. `officialDocumentNo` Mikro `sth_belge_no`, resmi belge no/ETTN ise Belge Akis Takibi `externalDocumentNo` ve `externalUuid` alanlarinda aranabilir olur.
 - `lines[].isMatched = true` olan satirlar tek tikla create satirina aktarilabilir; `isMatched = false` olanlar ayrica "manuel eslestir" listesine dusurulebilir.
-- `DocumentNo` artik zorunlu degildir. E-belge/e-irsaliye no varsa UI tam `seri + 9 haneli sayisal sira` formatinda gonderebilir; yoksa bos gonderebilir.
-- Kullanici e-belge olmayan firmalarda isterse `ABC`, `ULK`, cari unvanin ilk 2-3 harfi gibi harf iceren bir prefix girebilir. Backend bu prefix'ten seri uretip siradaki sira numarasini verir.
-- UI kayit sonrasi ekranda mutlaka response'taki `documentNo`, `documentSerie` ve `documentOrderNo` alanlarini esas almalidir; bos veya prefix request'in kendisini evrak kimligi gibi saklamamalidir.
+- UI her durumda ayri `documentSerie` ve `documentOrderNo` alanlarini gostermeli ve ikisini de zorunlu tutmalidir. Birlesik manuel belge no veya prefix alani yoktur.
+- Manuel kayitta `officialDocumentNo` gonderilmez ve response `documentNo` bos gelir. UI detay gecisinde response `documentSerie` ve `documentOrderNo` alanlarini kullanir.
 - Cari secildikten sonra kullanici manuel satir ekleyebilir. Manuel satirlarda `orderGuid = null` gonderilir.
 - `Siparis Bagla` aksiyonunda UI secili carinin acik verilen firma siparislerini `GET /api/siparis-islemleri/verilen-firma-siparisleri?WarehouseNo=...&CustomerCode=...&OnlyOpen=true` ile listeler.
 - Kullanici bir siparis secerse siparis detayi `GET /api/siparis-islemleri/verilen-firma-siparisleri/{seri}/{sira}?warehouseNo=...` ile acilir ve detaydaki `items[].orderGuid` mal kabul satirina tasinir.
@@ -22645,7 +22648,7 @@ Bu bolumde yalnizca endpointlerin dogrudan baglandigi HTTP request modelleri yer
 - `CreateWarehouseReturnLineHttpRequest`: `StockCode`, `Quantity`, `UnitPrice`, `UnitPointer`, `Description`, `PartyCode`, `LotNo`, `ProjectCode`, `CustomerResponsibilityCenter`, `ProductResponsibilityCenter`
 - `AcceptWarehouseReceivingHttpRequest`: `WarehouseNo`, `AllowDiscrepancy`, `Lines`
 - `AcceptWarehouseReceivingLineHttpRequest`: `MovementGuid`, `ReceivedQuantity`
-- `CreateCompanyReceivingHttpRequest`: `WarehouseNo`, `ClientRequestId`, `CustomerCode`, `MovementDate`, `DocumentDate`, `DocumentNo`, `Deliverer`, `Receiver`, `Description`, `AllowOrderOverReceiving`, `AutoCreateReturnForPartialAcceptance`, `Lines`
+- `CreateCompanyReceivingHttpRequest`: `WarehouseNo`, `ClientRequestId`, `CustomerCode`, `MovementDate`, `DocumentDate`, `DocumentSerie`, `DocumentOrderNo`, `OfficialDocumentKind`, `OfficialDocumentNo`, `OfficialDocumentDate`, `OfficialDocumentEttn`, `Deliverer`, `Receiver`, `Description`, `AllowOrderOverReceiving`, `AutoCreateReturnForPartialAcceptance`, `Lines`
 - `CreateCompanyReceivingLineHttpRequest`: `StockCode`, `Quantity`, `DispatchQuantity`, `AcceptedQuantity`, `UnitPrice`, `UnitPointer`, `LastConsumingDate`, `OrderGuid`, `Description`, `PartyCode`, `LotNo`, `ProjectCode`, `CustomerResponsibilityCenter`, `ProductResponsibilityCenter`
 
 ### Stok ve Etiket Request Modelleri
@@ -22823,7 +22826,7 @@ Bu bolumde yalnizca endpointlerin dogrudan baglandigi HTTP request modelleri yer
 - `AxataOutboundDeliveryHttpRequest`: `SourceWarehouseNo`, `TargetWarehouseNo`, `TransitWarehouseNo`, `MovementDate`, `DocumentDate`, `DocumentNo`, `AxataDeliveryNo`, `MovementCode`, `Description`, `Lines`
 - `AxataOutboundDeliveryLineHttpRequest`: `LineNo`, `StockCode`, `Quantity`, `UnitPrice`, `UnitPointer`, `Description`, `PartyCode`, `LotNo`, `ProjectCode`, `CustomerResponsibilityCenter`, `ProductResponsibilityCenter`
 - `AxataOutboundDeliveryBatchHttpRequest`: `ContinueOnError`, `Items`
-- `AxataInboundAtfCompanyReceivingHttpRequest`: `WarehouseNo`, `CustomerCode`, `MovementDate`, `DocumentDate`, `DocumentNo`, `AxataOrderNo`, `InvoiceNo`, `Deliverer`, `Receiver`, `Description`, `AllowOrderOverReceiving`, `Lines`
+- `AxataInboundAtfCompanyReceivingHttpRequest`: `WarehouseNo`, `CustomerCode`, `MovementDate`, `DocumentDate`, `DocumentSerie`, `DocumentOrderNo`, `AxataOrderNo`, `InvoiceNo`, `Deliverer`, `Receiver`, `Description`, `AllowOrderOverReceiving`, `Lines`
 - `AxataInboundAtfCompanyReceivingLineHttpRequest`: `LineNo`, `StockCode`, `Quantity`, `UnitPrice`, `UnitPointer`, `LastConsumingDate`, `Description`, `PartyCode`, `LotNo`, `ProjectCode`, `CustomerResponsibilityCenter`, `ProductResponsibilityCenter`
 - `AxataInboundAtfCompanyReceivingBatchHttpRequest`: `ContinueOnError`, `Items`
 - `AxataManualIncomingCompanyReceivingBatchHttpRequest`: `ContinueOnError`, `Items`
@@ -22871,11 +22874,11 @@ Bu bolumde yalnizca endpointlerin dogrudan baglandigi HTTP request modelleri yer
 
 ### Ozel Request Notlari
 
-- `CreateCompanyReceivingHttpRequest.DocumentNo` opsiyoneldir. Tam `seri + 9 haneli sayisal sira` gelirse aynen kullanilir; bos veya sadece sayisal gelirse backend cari unvanindan seri uretir; tam format olmayan ve harf iceren `ABC` gibi deger gelirse prefix kabul edilip siradaki sira uretilir. Ornek tam no: `ST12026000002395` -> `documentSerie = ST12026`, `documentOrderNo = 2395`
+- `CreateCompanyReceivingHttpRequest.DocumentSerie` ve `DocumentOrderNo` zorunludur. Seri yalniz ASCII harf/rakam ve max 20 karakter, sira pozitif integer olmalidir. Backend `DocumentNo`, prefix veya `FMK{depo}` fallback'i uretmez.
 - Firma mal kabulde yeni UI `dispatchQuantity` ve `acceptedQuantity` alanlarini ayri kullanmalidir. `quantity` sadece eski uyumluluk alanidir ve tek basina gonderilirse hem sevk/irsaliye hem fiili kabul miktari gibi yorumlanir.
 - `CreateCompanyReceivingLineHttpRequest.AcceptedQuantity`, `DispatchQuantity` degerinden buyuk olamaz. Eksik kabulde fark kadar firma iadesi `AutoCreateReturnForPartialAcceptance = true` ise otomatik olusur.
 - Otomatik olusan firma iadesi icin e-irsaliye gonderimi otomatik degildir; UI response'taki `autoCreatedReturnDocumentSerie`, `autoCreatedReturnDocumentOrderNo` ve `returnEDespatchStatus` alanlariyla iade linki/statusu gosterir.
-- `AxataInboundAtfCompanyReceivingHttpRequest` icin `DocumentNo`, `InvoiceNo` veya `AxataOrderNo` tam formatta ise aynen kullanilir; tam format degilse seri/prefix gibi degerlendirilir; hepsi bos ise backend cari unvanindan seri/sira uretir.
+- `AxataInboundAtfCompanyReceivingHttpRequest` icin de `DocumentSerie` ve `DocumentOrderNo` zorunludur. `InvoiceNo` yalniz gercek resmi belge no olarak `sth_belge_no` alanina yazilir; `AxataOrderNo` belge no veya seri/sira kaynagi yapilmaz.
 - `AxataInboundAtfCompanyReceivingLineHttpRequest` icinde yalnizca `Quantity` vardir; bu endpoint native ATF miktarini tam kabul sayar. Kismi kabul/iade gerekiyorsa `manual/incoming/company-receivings` endpoint'ine `dispatchQuantity` ve `acceptedQuantity` ayrimiyla payload gonderilmelidir.
 - E-irsaliye olusturan endpointler body'de `SendEDespatchHttpRequest`, path'te `documentSerie` ve `documentOrderNo`, query'de opsiyonel `warehouseNo` alir.
 - `POST /api/entegrasyon-islemleri/uyumsoft/e-fatura/get/{operationName}` ve `POST /api/entegrasyon-islemleri/uyumsoft/e-irsaliye/get/{operationName}` endpoint'leri body'de `UyumsoftOperationHttpRequest` alir.

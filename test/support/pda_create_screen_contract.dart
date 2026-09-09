@@ -36,22 +36,31 @@ Future<void> expectPdaCreateScreenContract(
     for (final scenario in scenarios) {
       tester.view.physicalSize = scenario.size;
       tester.view.devicePixelRatio = 1;
+      final subject = buildSubject();
 
-      await tester.pumpWidget(
-        MaterialApp(
+      Widget buildFrame(double keyboardInset) {
+        return MaterialApp(
+          key: ValueKey<String>(scenario.name),
           home: MediaQuery(
             data: MediaQueryData(
               size: scenario.size,
-              viewInsets: EdgeInsets.only(bottom: scenario.keyboardInset),
+              viewInsets: EdgeInsets.only(bottom: keyboardInset),
             ),
-            child: Scaffold(body: buildSubject()),
+            child: Scaffold(body: subject),
           ),
-        ),
-      );
+        );
+      }
+
+      await tester.pumpWidget(buildFrame(0));
       await tester.pumpAndSettle();
 
       if (prepare != null) {
         await prepare(tester);
+        await tester.pumpAndSettle();
+      }
+
+      if (scenario.keyboardInset > 0) {
+        await tester.pumpWidget(buildFrame(scenario.keyboardInset));
         await tester.pumpAndSettle();
       }
 

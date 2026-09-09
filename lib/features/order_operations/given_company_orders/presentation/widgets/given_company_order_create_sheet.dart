@@ -1683,6 +1683,7 @@ class _CustomerLookupSheetState extends State<_CustomerLookupSheet> {
         separatorBuilder: (_, _) => const SizedBox(height: 4),
         itemBuilder: (context, index) {
           final item = _items[index];
+          final isUnavailable = item.isLocked || item.isClosed;
           return ListTile(
             dense: true,
             visualDensity: VisualDensity.compact,
@@ -1708,8 +1709,11 @@ class _CustomerLookupSheetState extends State<_CustomerLookupSheet> {
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
             ),
-            trailing: item.isClosed ? const Icon(Icons.block_rounded) : null,
-            onTap: () => Navigator.of(context).pop(item),
+            trailing: isUnavailable
+                ? const Icon(Icons.block_rounded, semanticLabel: 'Secilemez')
+                : null,
+            enabled: !isUnavailable,
+            onTap: isUnavailable ? null : () => Navigator.of(context).pop(item),
           );
         },
       ),

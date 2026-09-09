@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:furpa_merkez_terminal/core/network/api_exception.dart';
 import 'package:furpa_merkez_terminal/features/acceptance_operations/company_acceptances/data/company_acceptances_repository.dart';
 import 'package:furpa_merkez_terminal/features/acceptance_operations/offline_company_acceptances/data/models/offline_company_acceptance_models.dart';
@@ -159,9 +160,9 @@ class _OfflineCompanyAcceptancesPageState
 
       final message = switch (result.status) {
         OfflineDraftSyncResultStatus.synced =>
-          draft.documentNo.isEmpty
+          draft.documentLabel.isEmpty
               ? 'Offline firma mal kabul taslagi sunucuya aktarildi.'
-              : '${draft.documentNo} sunucuya aktarildi.',
+              : '${draft.documentLabel} sunucuya aktarildi.',
         OfflineDraftSyncResultStatus.processing =>
           result.message ?? 'Kayit arka planda isleniyor.',
         OfflineDraftSyncResultStatus.deferred =>
@@ -317,9 +318,9 @@ class _OfflineCompanyAcceptancesPageState
                       final isSyncing =
                           _syncingIds.contains(draft.id) ||
                           draft.status == OfflineRecordStatus.syncing;
-                      final title = draft.documentNo.trim().isEmpty
+                      final title = draft.documentLabel.isEmpty
                           ? draft.customerCode
-                          : draft.documentNo;
+                          : draft.documentLabel;
                       final customerLabel =
                           draft.customerDisplayName.trim().isEmpty
                           ? draft.customerCode
@@ -519,7 +520,8 @@ class _OfflineCompanyAcceptanceCreateSheetState
       <_OfflineCompanyAcceptanceLineDraft>[];
   late final TextEditingController _customerSearchController;
   late final TextEditingController _customerCodeController;
-  late final TextEditingController _documentNoController;
+  late final TextEditingController _documentSerieController;
+  late final TextEditingController _documentOrderNoController;
   late final TextEditingController _delivererController;
   late final TextEditingController _receiverController;
   late final TextEditingController _descriptionController;
@@ -538,7 +540,8 @@ class _OfflineCompanyAcceptanceCreateSheetState
     super.initState();
     _customerSearchController = TextEditingController();
     _customerCodeController = TextEditingController();
-    _documentNoController = TextEditingController();
+    _documentSerieController = TextEditingController();
+    _documentOrderNoController = TextEditingController();
     _delivererController = TextEditingController();
     _receiverController = TextEditingController();
     _descriptionController = TextEditingController();
@@ -549,7 +552,8 @@ class _OfflineCompanyAcceptanceCreateSheetState
   void dispose() {
     _customerSearchController.dispose();
     _customerCodeController.dispose();
-    _documentNoController.dispose();
+    _documentSerieController.dispose();
+    _documentOrderNoController.dispose();
     _delivererController.dispose();
     _receiverController.dispose();
     _descriptionController.dispose();
@@ -629,6 +633,7 @@ class _OfflineCompanyAcceptanceCreateSheetState
             separatorBuilder: (_, _) => const Divider(height: 1),
             itemBuilder: (context, index) {
               final item = customers[index];
+              final isUnavailable = item.isLocked || item.isClosed;
               return ListTile(
                 dense: true,
                 visualDensity: VisualDensity.compact,
@@ -647,7 +652,16 @@ class _OfflineCompanyAcceptanceCreateSheetState
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
-                onTap: () => Navigator.of(context).pop(item),
+                trailing: isUnavailable
+                    ? const Icon(
+                        Icons.block_rounded,
+                        semanticLabel: 'Secilemez',
+                      )
+                    : null,
+                enabled: !isUnavailable,
+                onTap: isUnavailable
+                    ? null
+                    : () => Navigator.of(context).pop(item),
               );
             },
           ),
@@ -1262,12 +1276,28 @@ class _OfflineCompanyAcceptanceCreateSheetState
     }
 
     final customerCode = _customerCodeController.text.trim();
-    final documentNo = _documentNoController.text.trim();
+    final documentSerie = _documentSerieController.text.trim();
+    final documentOrderNo = int.tryParse(
+      _documentOrderNoController.text.trim(),
+    );
 
     if (customerCode.isEmpty) {
       setState(() {
         _step = _OfflineCompanyAcceptanceCreateStep.document;
         _validationMessage = 'Cari kodu zorunludur.';
+      });
+      return;
+    }
+
+    if (documentSerie.isEmpty ||
+        documentSerie.length > 20 ||
+        !RegExp(r'^[A-Za-z0-9]+$').hasMatch(documentSerie) ||
+        documentOrderNo == null ||
+        documentOrderNo <= 0) {
+      setState(() {
+        _step = _OfflineCompanyAcceptanceCreateStep.document;
+        _validationMessage =
+            'Evrak serisi harf/rakam olmali, evrak sirasi 1 veya daha buyuk olmali.';
       });
       return;
     }
@@ -1370,7 +1400,8 @@ class _OfflineCompanyAcceptanceCreateSheetState
             _customerSearchController.text.trim(),
         movementDate: _movementDate,
         documentDate: _documentDate,
-        documentNo: documentNo,
+        documentSerie: documentSerie,
+        documentOrderNo: documentOrderNo,
         officialDocumentKind: null,
         officialDocumentNo: null,
         officialDocumentDate: null,
@@ -1604,7 +1635,8 @@ class _OfflineCompanyAcceptanceCreateSheetState
     final theme = Theme.of(context);
     final customerText = _customerSearchController.text.trim();
     final customerCode = _customerCodeController.text.trim();
-    final documentNo = _documentNoController.text.trim();
+    final documentSerie = _documentSerieController.text.trim();
+    final documentOrderNo = _documentOrderNoController.text.trim();
     final lineCount = _filledLineIndexes().length;
     final dispatchTotal = _totalDispatchQuantity();
     final acceptedTotal = _totalAcceptedQuantity();
@@ -1619,7 +1651,8 @@ class _OfflineCompanyAcceptanceCreateSheetState
       'Irs ${AppFormatters.quantity(dispatchTotal)}',
       'Kabul ${AppFormatters.quantity(acceptedTotal)}',
       if (returnTotal > 0) 'Fark ${AppFormatters.quantity(returnTotal)}',
-      if (documentNo.isNotEmpty) documentNo,
+      if (documentSerie.isNotEmpty && documentOrderNo.isNotEmpty)
+        '$documentSerie.$documentOrderNo',
     ].join(' | ');
     final orderButton = IconButton.outlined(
       visualDensity: VisualDensity.compact,
@@ -1877,16 +1910,6 @@ class _OfflineCompanyAcceptanceCreateSheetState
           ],
         ),
         const SizedBox(height: 6),
-        TextFormField(
-          controller: _documentNoController,
-          decoration: const InputDecoration(
-            labelText: 'Belge No / Seri',
-            hintText: 'Bos birakilabilir veya ULK gibi seri girilebilir',
-            isDense: true,
-            contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-          ),
-        ),
-        const SizedBox(height: 6),
         LayoutBuilder(
           builder: (context, constraints) {
             final maxWidth = constraints.maxWidth;
@@ -1897,6 +1920,45 @@ class _OfflineCompanyAcceptanceCreateSheetState
               spacing: 8,
               runSpacing: 6,
               children: <Widget>[
+                SizedBox(
+                  width: fieldWidth,
+                  child: TextFormField(
+                    controller: _documentSerieController,
+                    maxLength: 20,
+                    textCapitalization: TextCapitalization.characters,
+                    inputFormatters: <TextInputFormatter>[
+                      FilteringTextInputFormatter.allow(RegExp(r'[A-Za-z0-9]')),
+                    ],
+                    decoration: const InputDecoration(
+                      labelText: 'Evrak Serisi*',
+                      hintText: 'Orn. ST12026',
+                      isDense: true,
+                      contentPadding: EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 10,
+                      ),
+                    ),
+                  ),
+                ),
+                SizedBox(
+                  width: fieldWidth,
+                  child: TextFormField(
+                    controller: _documentOrderNoController,
+                    keyboardType: TextInputType.number,
+                    inputFormatters: <TextInputFormatter>[
+                      FilteringTextInputFormatter.digitsOnly,
+                    ],
+                    decoration: const InputDecoration(
+                      labelText: 'Evrak Sirasi*',
+                      hintText: 'Orn. 2395',
+                      isDense: true,
+                      contentPadding: EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 10,
+                      ),
+                    ),
+                  ),
+                ),
                 SizedBox(
                   width: fieldWidth,
                   child: TextFormField(

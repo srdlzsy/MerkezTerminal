@@ -276,6 +276,9 @@ void main() {
           .toCreateRequest();
       expect(savedRequest.officialDocumentKind, 'e-despatch');
       expect(savedRequest.officialDocumentNo, 'ST12026000002395');
+      expect(savedRequest.documentSerie, 'fmk');
+      expect(savedRequest.documentOrderNo, 1001);
+      expect(savedRequest.toJson()['documentSerie'], 'FMK');
       expect(savedRequest.officialDocumentDate, DateTime(2026, 4, 20));
       expect(
         savedRequest.officialDocumentEttn,
@@ -481,6 +484,46 @@ void main() {
       );
     },
   );
+
+  test(
+    'syncCompanyAcceptanceDraft fails legacy drafts without document identity',
+    () async {
+      final serializedDraft =
+          _buildCompanyAcceptanceDraft(clientRequestId: 'legacy-draft').toJson()
+            ..remove('documentSerie')
+            ..remove('documentOrderNo');
+      final draft = OfflineCompanyAcceptanceDraft.fromJson(serializedDraft);
+
+      final result = await service.syncCompanyAcceptanceDraft(
+        accessToken: 'token',
+        draft: draft,
+      );
+
+      expect(result.status, OfflineDraftSyncResultStatus.failed);
+      expect(
+        result.message,
+        'Evrak serisi ve sirasi zorunlu. Eski offline taslagi yeniden olusturun.',
+      );
+      expect(
+        offlineCompanyAcceptanceRepository.savedDrafts.single.status,
+        OfflineRecordStatus.failed,
+      );
+    },
+  );
+
+  test('migrates legacy company acceptance document number when valid', () {
+    final serializedDraft =
+        _buildCompanyAcceptanceDraft(clientRequestId: 'legacy-valid').toJson()
+          ..remove('documentSerie')
+          ..remove('documentOrderNo')
+          ..['documentNo'] = 'FMK000001001';
+
+    final draft = OfflineCompanyAcceptanceDraft.fromJson(serializedDraft);
+
+    expect(draft.documentSerie, 'FMK');
+    expect(draft.documentOrderNo, 1001);
+    expect(draft.documentLabel, 'FMK.1001');
+  });
 }
 
 InventoryCountCreateRequest _buildRequest({required String clientRequestId}) {
@@ -528,7 +571,8 @@ CompanyAcceptanceCreateRequest _buildCompanyAcceptanceRequest({
     customerCode: '320.01.001',
     movementDate: DateTime(2026, 4, 23),
     documentDate: DateTime(2026, 4, 23),
-    documentNo: 'IRS-1',
+    documentSerie: 'fmk',
+    documentOrderNo: 1001,
     officialDocumentKind: 'e-despatch',
     officialDocumentNo: 'ST12026000002395',
     officialDocumentDate: DateTime(2026, 4, 20),

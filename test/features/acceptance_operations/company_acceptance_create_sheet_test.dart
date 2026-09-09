@@ -16,6 +16,81 @@ import '../../support/memory_local_database.dart';
 import '../../support/pda_create_screen_contract.dart';
 
 void main() {
+  test('parses e-document document identity for company acceptance', () {
+    final prefill =
+        CompanyAcceptanceEDespatchPrefill.fromJson(<String, dynamic>{
+          'isFound': true,
+          'warehouseNo': 110,
+          'receivingContext': 'firma-mal-kabulleri',
+          'ettn': '3fd0e4f4-87a2-43f2-b5ca-f2a4fd778111',
+          'documentSerie': 'IRS2026',
+          'documentOrderNo': 1234,
+        });
+
+    expect(prefill.documentSerie, 'IRS2026');
+    expect(prefill.documentOrderNo, 1234);
+  });
+
+  testWidgets('prevents selecting locked and closed customers', (tester) async {
+    final repository = _FakeCompanyAcceptancesRepository()
+      ..customers = <CustomerLookupItem>[
+        _buildCustomer(code: 'K001', name: 'Kilitli Cari', isLocked: true),
+        _buildCustomer(code: 'P001', name: 'Kapali Cari', isClosed: true),
+        _buildCustomer(code: 'A001', name: 'Aktif Cari'),
+      ];
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: CompanyAcceptanceCreateSheet(
+            repository: repository,
+            ordersRepository: _FakeGivenCompanyOrdersRepository(),
+            accessToken: 'token',
+            defaultWarehouseNo: '110',
+            mobileCustomerCatalogRepository:
+                MobileCustomerCatalogLocalRepository(
+                  database: MemoryLocalDatabase(),
+                ),
+            mobileProductCatalogRepository: MobileProductCatalogLocalRepository(
+              database: MemoryLocalDatabase(),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.enterText(
+      find.widgetWithText(TextFormField, 'Cari Arama'),
+      'Cari',
+    );
+    await tester.tap(find.widgetWithText(FilledButton, 'Bul').last);
+    await tester.pumpAndSettle();
+
+    final lockedTile = tester.widget<ListTile>(
+      find.ancestor(
+        of: find.text('K001 - Kilitli Cari'),
+        matching: find.byType(ListTile),
+      ),
+    );
+    final closedTile = tester.widget<ListTile>(
+      find.ancestor(
+        of: find.text('P001 - Kapali Cari'),
+        matching: find.byType(ListTile),
+      ),
+    );
+    expect(lockedTile.enabled, isFalse);
+    expect(closedTile.enabled, isFalse);
+    expect(find.byIcon(Icons.block_rounded), findsNWidgets(2));
+
+    await tester.tap(find.text('A001 - Aktif Cari'));
+    await tester.pumpAndSettle();
+
+    final customerCodeField = tester.widget<TextFormField>(
+      find.widgetWithText(TextFormField, 'Cari Kodu*'),
+    );
+    expect(customerCodeField.controller?.text, 'A001');
+  });
+
   testWidgets('passes pda create screen contract with keyboard inset', (
     tester,
   ) async {
@@ -125,7 +200,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('shows Turkish length validation for company acceptance header', (
+  testWidgets('shows document error only below the related field', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(390, 1000);
@@ -162,8 +237,12 @@ void main() {
       'CR001',
     );
     await tester.enterText(
-      find.widgetWithText(TextFormField, 'Belge No / Seri'),
-      'BELGE-NO-BU-COK-UZUN-OLAN-BIR-DEGER',
+      find.widgetWithText(TextFormField, 'Evrak Serisi*'),
+      'FMK',
+    );
+    await tester.enterText(
+      find.widgetWithText(TextFormField, 'Evrak Sirasi*'),
+      '0',
     );
     await tester.pump();
 
@@ -173,7 +252,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(
-      find.textContaining('Belge no / seri en fazla 29 karakter olabilir'),
+      find.textContaining('Evrak sirasi 1 veya daha buyuk bir sayi olmali'),
       findsOneWidget,
     );
     expect(
@@ -422,6 +501,8 @@ void main() {
     expect(capturedRequest!.officialDocumentKind, 'e-despatch');
     expect(capturedRequest!.officialDocumentNo, 'ST12026000002395');
     expect(capturedRequest!.officialDocumentDate, DateTime(2026, 4, 20));
+    expect(capturedRequest!.documentSerie, 'FMK');
+    expect(capturedRequest!.documentOrderNo, 1001);
     expect(
       capturedRequest!.officialDocumentEttn,
       '3fd0e4f4-87a2-43f2-b5ca-f2a4fd778111',
@@ -588,6 +669,28 @@ Future<void> _goToLineStepIfNeeded(WidgetTester tester) async {
     }
   }
 
+  final documentSerieField = find.widgetWithText(
+    TextFormField,
+    'Evrak Serisi*',
+  );
+  if (documentSerieField.evaluate().isNotEmpty) {
+    final widget = tester.widget<TextFormField>(documentSerieField.first);
+    if ((widget.controller?.text.trim() ?? '').isEmpty) {
+      await tester.enterText(documentSerieField.first, 'FMK');
+    }
+  }
+
+  final documentOrderNoField = find.widgetWithText(
+    TextFormField,
+    'Evrak Sirasi*',
+  );
+  if (documentOrderNoField.evaluate().isNotEmpty) {
+    final widget = tester.widget<TextFormField>(documentOrderNoField.first);
+    if ((widget.controller?.text.trim() ?? '').isEmpty) {
+      await tester.enterText(documentOrderNoField.first, '1001');
+    }
+  }
+
   await tester.pump();
   final nextButton = find.widgetWithText(FilledButton, 'Kalemlere Gec');
   await tester.ensureVisible(nextButton);
@@ -596,9 +699,31 @@ Future<void> _goToLineStepIfNeeded(WidgetTester tester) async {
   await tester.pumpAndSettle();
 }
 
+CustomerLookupItem _buildCustomer({
+  required String code,
+  required String name,
+  bool isLocked = false,
+  bool isClosed = false,
+}) {
+  return CustomerLookupItem(
+    customerCode: code,
+    customerName: name,
+    customerTitle: name,
+    customerDisplayName: name,
+    taxNumber: '',
+    representativeCode: '',
+    representativeName: '',
+    invoiceAddressNo: 0,
+    shippingAddressNo: 0,
+    isLocked: isLocked,
+    isClosed: isClosed,
+  );
+}
+
 class _FakeCompanyAcceptancesRepository
     implements CompanyAcceptancesRepository {
   CompanyAcceptanceEDespatchPrefill? eDocumentPrefill;
+  List<CustomerLookupItem> customers = const <CustomerLookupItem>[];
 
   @override
   Future<CompanyAcceptanceCreateResult> createAcceptance({
@@ -653,7 +778,7 @@ class _FakeCompanyAcceptancesRepository
     required String accessToken,
     required String query,
   }) async {
-    return const <CustomerLookupItem>[];
+    return customers;
   }
 
   @override
@@ -697,6 +822,8 @@ CompanyAcceptanceEDespatchPrefill _buildEDespatchPrefill() {
     sourceDocumentKind: 'e-despatch',
     sourceDocumentLabel: 'E-Irsaliye',
     sourceDocumentNumber: 'ST12026000002395',
+    documentSerie: 'FMK',
+    documentOrderNo: 1001,
     despatchNumber: 'ST12026000002395',
     issueDate: DateTime(2026, 4, 20),
     actualDespatchDate: DateTime(2026, 4, 20),

@@ -19,8 +19,44 @@ import 'package:furpa_merkez_terminal/shared/offline/mobile_product_catalog_repo
 import 'package:furpa_merkez_terminal/shared/offline/offline_sync_service.dart';
 
 import '../../support/memory_local_database.dart';
+import '../../support/pda_create_screen_contract.dart';
 
 void main() {
+  testWidgets('passes offline pda create contract with keyboard inset', (
+    tester,
+  ) async {
+    await expectPdaCreateScreenContract(
+      tester,
+      buildSubject: () {
+        final offlineRepository = _FakeOfflineCompanyAcceptancesRepository();
+        return OfflineCompanyAcceptancesPage(
+          offlineRepository: offlineRepository,
+          onlineRepository: _FakeCompanyAcceptancesRepository(),
+          ordersRepository: _FakeGivenCompanyOrdersRepository(),
+          accessToken: 'token',
+          offlineSyncService: OfflineSyncService(
+            inventoryRepository: _FakeInventoryCountsRepository(),
+            companyAcceptanceRepository: _FakeCompanyAcceptancesRepository(),
+            offlineInventoryRepository: _FakeOfflineInventoryCountsRepository(),
+            offlineCompanyAcceptanceRepository: offlineRepository,
+          ),
+          mobileCustomerCatalogRepository: MobileCustomerCatalogLocalRepository(
+            database: MemoryLocalDatabase(),
+          ),
+          mobileProductCatalogRepository: MobileProductCatalogLocalRepository(
+            database: MemoryLocalDatabase(),
+          ),
+          currentUserId: 'u1',
+          defaultWarehouseNo: '110',
+          userWarehouseName: 'TEST DEPO',
+        );
+      },
+      prepare: _openOfflineCompanyAcceptanceLines,
+      entryRowFinder: find.text('Giris satiri'),
+      saveButtonFinder: find.widgetWithText(FilledButton, 'Taslagi Kaydet'),
+    );
+  });
+
   testWidgets(
     'opens offline company acceptance with document and lines steps',
     (tester) async {
@@ -94,6 +130,27 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+}
+
+Future<void> _openOfflineCompanyAcceptanceLines(WidgetTester tester) async {
+  await tester.tap(find.byIcon(Icons.add_task_rounded));
+  await tester.pumpAndSettle();
+  await tester.enterText(
+    find.widgetWithText(TextFormField, 'Cari Kodu*'),
+    'CR-001',
+  );
+  await tester.enterText(
+    find.widgetWithText(TextFormField, 'Evrak Serisi*'),
+    'FMK',
+  );
+  await tester.enterText(
+    find.widgetWithText(TextFormField, 'Evrak Sirasi*'),
+    '1001',
+  );
+  final nextButton = find.widgetWithText(FilledButton, 'Kalemlere Gec');
+  await tester.ensureVisible(nextButton);
+  await tester.tap(nextButton);
+  await tester.pumpAndSettle();
 }
 
 class _FakeOfflineCompanyAcceptancesRepository

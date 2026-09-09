@@ -5,7 +5,8 @@ class CompanyAcceptanceCreateRequest {
     required this.customerCode,
     required this.movementDate,
     required this.documentDate,
-    required this.documentNo,
+    required this.documentSerie,
+    required this.documentOrderNo,
     required this.deliverer,
     required this.receiver,
     required this.description,
@@ -22,7 +23,8 @@ class CompanyAcceptanceCreateRequest {
   final String customerCode;
   final DateTime movementDate;
   final DateTime documentDate;
-  final String documentNo;
+  final String documentSerie;
+  final int documentOrderNo;
   final String deliverer;
   final String receiver;
   final String description;
@@ -40,7 +42,8 @@ class CompanyAcceptanceCreateRequest {
       'customerCode': customerCode,
       'movementDate': _toApiDate(movementDate),
       'documentDate': _toApiDate(documentDate),
-      'documentNo': documentNo,
+      'documentSerie': documentSerie.trim().toUpperCase(),
+      'documentOrderNo': documentOrderNo,
       if (clientRequestId != null && clientRequestId!.trim().isNotEmpty)
         'clientRequestId': clientRequestId!.trim(),
       if (officialDocumentKind != null &&
@@ -64,11 +67,20 @@ class CompanyAcceptanceCreateRequest {
   }
 
   factory CompanyAcceptanceCreateRequest.fromJson(JsonMap json) {
+    final legacyDocumentIdentity = parseCompanyAcceptanceDocumentIdentity(
+      _readString(json['documentNo']),
+    );
+    final parsedDocumentOrderNo = _readInt(json['documentOrderNo']);
     return CompanyAcceptanceCreateRequest(
       customerCode: _readString(json['customerCode']),
       movementDate: _readDate(json['movementDate']) ?? DateTime.now(),
       documentDate: _readDate(json['documentDate']) ?? DateTime.now(),
-      documentNo: _readString(json['documentNo']),
+      documentSerie: _readString(json['documentSerie']).trim().isNotEmpty
+          ? _readString(json['documentSerie'])
+          : legacyDocumentIdentity?.serie ?? '',
+      documentOrderNo: parsedDocumentOrderNo > 0
+          ? parsedDocumentOrderNo
+          : legacyDocumentIdentity?.orderNo ?? 0,
       deliverer: _readString(json['deliverer']),
       receiver: _readString(json['receiver']),
       description: _readString(json['description']),
@@ -101,6 +113,38 @@ class CompanyAcceptanceCreateRequest {
           .toList(growable: false),
     );
   }
+}
+
+class CompanyAcceptanceDocumentIdentity {
+  const CompanyAcceptanceDocumentIdentity({
+    required this.serie,
+    required this.orderNo,
+  });
+
+  final String serie;
+  final int orderNo;
+
+  String get displayLabel => '$serie.$orderNo';
+}
+
+CompanyAcceptanceDocumentIdentity? parseCompanyAcceptanceDocumentIdentity(
+  String value,
+) {
+  final normalized = value.trim();
+  final match = RegExp(r'^([A-Za-z0-9]{1,20})(\d{9})$').firstMatch(normalized);
+  if (match == null) {
+    return null;
+  }
+
+  final orderNo = int.tryParse(match.group(2) ?? '');
+  if (orderNo == null || orderNo <= 0) {
+    return null;
+  }
+
+  return CompanyAcceptanceDocumentIdentity(
+    serie: (match.group(1) ?? '').toUpperCase(),
+    orderNo: orderNo,
+  );
 }
 
 class CompanyAcceptanceCreateLine {
@@ -349,6 +393,8 @@ class CompanyAcceptanceEDespatchPrefill {
     required this.sourceDocumentKind,
     required this.sourceDocumentLabel,
     required this.sourceDocumentNumber,
+    required this.documentSerie,
+    required this.documentOrderNo,
     required this.despatchNumber,
     required this.issueDate,
     required this.actualDespatchDate,
@@ -380,6 +426,8 @@ class CompanyAcceptanceEDespatchPrefill {
   final String sourceDocumentKind;
   final String sourceDocumentLabel;
   final String sourceDocumentNumber;
+  final String? documentSerie;
+  final int? documentOrderNo;
   final String despatchNumber;
   final DateTime? issueDate;
   final DateTime? actualDespatchDate;
@@ -476,6 +524,12 @@ class CompanyAcceptanceEDespatchPrefill {
                 : 'E-Belge'
           : _readString(json['sourceDocumentLabel']),
       sourceDocumentNumber: sourceDocumentNumber,
+      documentSerie: _readString(json['documentSerie']).trim().isEmpty
+          ? null
+          : _readString(json['documentSerie']),
+      documentOrderNo: _readInt(json['documentOrderNo']) > 0
+          ? _readInt(json['documentOrderNo'])
+          : null,
       despatchNumber: despatchNumber,
       issueDate: _readDate(json['issueDate']),
       actualDespatchDate: _readDate(json['actualDespatchDate']),

@@ -25,7 +25,7 @@ import 'package:furpa_merkez_terminal/shared/widgets/terminal_ui_parts.dart';
 
 enum _CompanyAcceptanceCreateStep { document, lines }
 
-const int _documentNoMaxLength = 29;
+const int _documentSerieMaxLength = 20;
 const int _shortCodeMaxLength = 25;
 const int _descriptionMaxLength = 50;
 const int _officialDocumentKindMaxLength = 30;
@@ -66,7 +66,8 @@ class _CompanyAcceptanceCreateSheetState
   late final TextEditingController _customerController;
   late final TextEditingController _customerCodeController;
   late final TextEditingController _ettnController;
-  late final TextEditingController _documentNoController;
+  late final TextEditingController _documentSerieController;
+  late final TextEditingController _documentOrderNoController;
   late final TextEditingController _delivererController;
   late final TextEditingController _receiverController;
   late final TextEditingController _descriptionController;
@@ -94,8 +95,20 @@ class _CompanyAcceptanceCreateSheetState
     _ettnController = TextEditingController(
       text: payload['ettn']?.toString() ?? '',
     );
-    _documentNoController = TextEditingController(
-      text: payload['documentNo']?.toString() ?? '',
+    final legacyDocumentIdentity = parseCompanyAcceptanceDocumentIdentity(
+      payload['documentNo']?.toString() ?? '',
+    );
+    _documentSerieController = TextEditingController(
+      text:
+          payload['documentSerie']?.toString() ??
+          legacyDocumentIdentity?.serie ??
+          '',
+    );
+    _documentOrderNoController = TextEditingController(
+      text:
+          payload['documentOrderNo']?.toString() ??
+          legacyDocumentIdentity?.orderNo.toString() ??
+          '',
     );
     _delivererController = TextEditingController(
       text: payload['deliverer']?.toString() ?? '',
@@ -150,7 +163,8 @@ class _CompanyAcceptanceCreateSheetState
       _customerController,
       _customerCodeController,
       _ettnController,
-      _documentNoController,
+      _documentSerieController,
+      _documentOrderNoController,
       _delivererController,
       _receiverController,
       _descriptionController,
@@ -163,7 +177,8 @@ class _CompanyAcceptanceCreateSheetState
     _customerController.dispose();
     _customerCodeController.dispose();
     _ettnController.dispose();
-    _documentNoController.dispose();
+    _documentSerieController.dispose();
+    _documentOrderNoController.dispose();
     _delivererController.dispose();
     _receiverController.dispose();
     _descriptionController.dispose();
@@ -184,7 +199,8 @@ class _CompanyAcceptanceCreateSheetState
     return _customerController.text.trim().isNotEmpty ||
         _customerCodeController.text.trim().isNotEmpty ||
         _ettnController.text.trim().isNotEmpty ||
-        _documentNoController.text.trim().isNotEmpty ||
+        _documentSerieController.text.trim().isNotEmpty ||
+        _documentOrderNoController.text.trim().isNotEmpty ||
         _delivererController.text.trim().isNotEmpty ||
         _receiverController.text.trim().isNotEmpty ||
         _descriptionController.text.trim().isNotEmpty ||
@@ -198,7 +214,8 @@ class _CompanyAcceptanceCreateSheetState
       'customerText': _customerController.text,
       'customerCode': _customerCodeController.text,
       'ettn': _ettnController.text,
-      'documentNo': _documentNoController.text,
+      'documentSerie': _documentSerieController.text,
+      'documentOrderNo': _documentOrderNoController.text,
       'deliverer': _delivererController.text,
       'receiver': _receiverController.text,
       'description': _descriptionController.text,
@@ -366,8 +383,15 @@ class _CompanyAcceptanceCreateSheetState
         return;
       }
 
+      final selectableCustomers = customers
+          .where((item) => !item.isLocked && !item.isClosed)
+          .toList(growable: false);
+      if (selectableCustomers.isEmpty) {
+        return;
+      }
       final selectedCustomer =
-          _findCustomerByTaxNo(customers, taxNoOrTckn) ?? customers.first;
+          _findCustomerByTaxNo(selectableCustomers, taxNoOrTckn) ??
+          selectableCustomers.first;
       setState(() {
         _customerController.text = selectedCustomer.displayLabel;
         _customerCodeController.text = selectedCustomer.customerCode;
@@ -380,10 +404,7 @@ class _CompanyAcceptanceCreateSheetState
   }
 
   void _applyQrPayloadPrefill(EDespatchQrPayload qrPayload) {
-    final documentNo = qrPayload.documentNo?.trim() ?? '';
-    if (documentNo.isNotEmpty) {
-      _documentNoController.text = documentNo;
-    }
+    _applyDocumentIdentityFromCombinedValue(qrPayload.documentNo);
 
     final issueDate = qrPayload.issueDate;
     if (issueDate != null) {
@@ -392,9 +413,13 @@ class _CompanyAcceptanceCreateSheetState
   }
 
   void _applyEDespatchPrefill(CompanyAcceptanceEDespatchPrefill prefill) {
-    final documentNumber = prefill.effectiveDocumentNumber;
-    if (documentNumber.isNotEmpty) {
-      _documentNoController.text = documentNumber;
+    final documentSerie = prefill.documentSerie?.trim() ?? '';
+    final documentOrderNo = prefill.documentOrderNo;
+    if (documentSerie.isNotEmpty &&
+        documentOrderNo != null &&
+        documentOrderNo > 0) {
+      _documentSerieController.text = documentSerie;
+      _documentOrderNoController.text = documentOrderNo.toString();
     }
 
     final documentDate = prefill.effectiveDocumentDate;
@@ -418,6 +443,16 @@ class _CompanyAcceptanceCreateSheetState
         prefill.notes,
       );
     }
+  }
+
+  void _applyDocumentIdentityFromCombinedValue(String? value) {
+    final identity = parseCompanyAcceptanceDocumentIdentity(value ?? '');
+    if (identity == null) {
+      return;
+    }
+
+    _documentSerieController.text = identity.serie;
+    _documentOrderNoController.text = identity.orderNo.toString();
   }
 
   Future<void> _searchCustomer() async {
@@ -486,7 +521,16 @@ class _CompanyAcceptanceCreateSheetState
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
-                onTap: () => Navigator.of(context).pop(item),
+                trailing: item.isLocked || item.isClosed
+                    ? const Icon(
+                        Icons.block_rounded,
+                        semanticLabel: 'Secilemez',
+                      )
+                    : null,
+                enabled: !item.isLocked && !item.isClosed,
+                onTap: item.isLocked || item.isClosed
+                    ? null
+                    : () => Navigator.of(context).pop(item),
               );
             },
           ),
@@ -961,6 +1005,15 @@ class _CompanyAcceptanceCreateSheetState
       return;
     }
 
+    final documentIdentityError = _validateDocumentIdentity();
+    if (documentIdentityError != null) {
+      _showStepError(
+        step: _CompanyAcceptanceCreateStep.document,
+        message: documentIdentityError,
+      );
+      return;
+    }
+
     List<CompanyOrderListItem> orders;
     try {
       final today = DateTime.now();
@@ -1218,7 +1271,8 @@ class _CompanyAcceptanceCreateSheetState
       customerCode: customerCode,
       movementDate: _movementDate,
       documentDate: _documentDate,
-      documentNo: _documentNoController.text.trim(),
+      documentSerie: _documentSerieController.text.trim(),
+      documentOrderNo: int.parse(_documentOrderNoController.text.trim()),
       clientRequestId: generateClientRequestId(),
       officialDocumentKind: officialDocumentKind,
       officialDocumentNo: officialDocumentNo,
@@ -1285,11 +1339,6 @@ class _CompanyAcceptanceCreateSheetState
           maxLength: _shortCodeMaxLength,
         ) ??
         _maxLengthError(
-          label: 'Belge no / seri',
-          value: _documentNoController.text,
-          maxLength: _documentNoMaxLength,
-        ) ??
-        _maxLengthError(
           label: 'Teslim eden',
           value: _delivererController.text,
           maxLength: _shortCodeMaxLength,
@@ -1319,6 +1368,31 @@ class _CompanyAcceptanceCreateSheetState
           value: officialDocumentEttn ?? '',
           maxLength: _officialDocumentValueMaxLength,
         );
+  }
+
+  String? _validateDocumentIdentity() {
+    return _validateDocumentSerie() ?? _validateDocumentOrderNo();
+  }
+
+  String? _validateDocumentSerie() {
+    final serie = _documentSerieController.text.trim();
+    if (serie.isEmpty) {
+      return 'Evrak serisi zorunludur.';
+    }
+    if (serie.length > _documentSerieMaxLength ||
+        !RegExp(r'^[A-Za-z0-9]+$').hasMatch(serie)) {
+      return 'Evrak serisi en fazla $_documentSerieMaxLength harf veya rakam olmali.';
+    }
+
+    return null;
+  }
+
+  String? _validateDocumentOrderNo() {
+    final orderNo = int.tryParse(_documentOrderNoController.text.trim());
+    if (orderNo == null || orderNo <= 0) {
+      return 'Evrak sirasi 1 veya daha buyuk bir sayi olmali.';
+    }
+    return null;
   }
 
   String? _validateLineLengthLimits(_AcceptanceLineDraft line, int index) {
@@ -1687,7 +1761,8 @@ class _CompanyAcceptanceCreateSheetState
     final theme = Theme.of(context);
     final customerText = _customerController.text.trim();
     final customerCode = _customerCodeController.text.trim();
-    final documentNo = _documentNoController.text.trim();
+    final documentSerie = _documentSerieController.text.trim();
+    final documentOrderNo = _documentOrderNoController.text.trim();
     final lineCount = _filledLineIndexes().length;
     final dispatchTotal = _totalDispatchQuantity();
     final acceptedTotal = _totalAcceptedQuantity();
@@ -1702,7 +1777,8 @@ class _CompanyAcceptanceCreateSheetState
       'Irs ${AppFormatters.quantity(dispatchTotal)}',
       'Kabul ${AppFormatters.quantity(acceptedTotal)}',
       if (returnTotal > 0) 'Fark ${AppFormatters.quantity(returnTotal)}',
-      if (documentNo.isNotEmpty) documentNo,
+      if (documentSerie.isNotEmpty && documentOrderNo.isNotEmpty)
+        '$documentSerie.$documentOrderNo',
     ].join(' | ');
     final orderButton = IconButton.outlined(
       visualDensity: VisualDensity.compact,
@@ -2025,25 +2101,45 @@ class _CompanyAcceptanceCreateSheetState
               runSpacing: 6,
               children: <Widget>[
                 SizedBox(
-                  width: maxWidth,
+                  width: halfWidth,
                   child: TextFormField(
-                    controller: _documentNoController,
-                    maxLength: _documentNoMaxLength,
+                    controller: _documentSerieController,
+                    maxLength: _documentSerieMaxLength,
                     maxLengthEnforcement: MaxLengthEnforcement.none,
+                    textCapitalization: TextCapitalization.characters,
+                    inputFormatters: <TextInputFormatter>[
+                      FilteringTextInputFormatter.allow(RegExp(r'[A-Za-z0-9]')),
+                    ],
                     decoration: const InputDecoration(
-                      labelText: 'Belge No / Seri',
-                      hintText: 'Bos birakilabilir',
+                      labelText: 'Evrak Serisi*',
+                      hintText: 'Orn. ST12026',
                       isDense: true,
                       contentPadding: EdgeInsets.symmetric(
                         horizontal: 12,
                         vertical: 10,
                       ),
                     ),
-                    validator: (value) => _maxLengthError(
-                      label: 'Belge no / seri',
-                      value: value ?? '',
-                      maxLength: _documentNoMaxLength,
+                    validator: (_) => _validateDocumentSerie(),
+                  ),
+                ),
+                SizedBox(
+                  width: halfWidth,
+                  child: TextFormField(
+                    controller: _documentOrderNoController,
+                    keyboardType: TextInputType.number,
+                    inputFormatters: <TextInputFormatter>[
+                      FilteringTextInputFormatter.digitsOnly,
+                    ],
+                    decoration: const InputDecoration(
+                      labelText: 'Evrak Sirasi*',
+                      hintText: 'Orn. 2395',
+                      isDense: true,
+                      contentPadding: EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 10,
+                      ),
                     ),
+                    validator: (_) => _validateDocumentOrderNo(),
                   ),
                 ),
                 SizedBox(

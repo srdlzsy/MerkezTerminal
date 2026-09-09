@@ -292,6 +292,7 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
             separatorBuilder: (_, _) => const Divider(height: 1),
             itemBuilder: (context, index) {
               final item = customers[index];
+              final isUnavailable = item.isLocked || item.isClosed;
               return ListTile(
                 dense: true,
                 visualDensity: VisualDensity.compact,
@@ -310,7 +311,16 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
-                onTap: () => Navigator.of(context).pop(item),
+                trailing: isUnavailable
+                    ? const Icon(
+                        Icons.block_rounded,
+                        semanticLabel: 'Secilemez',
+                      )
+                    : null,
+                enabled: !isUnavailable,
+                onTap: isUnavailable
+                    ? null
+                    : () => Navigator.of(context).pop(item),
               );
             },
           ),
