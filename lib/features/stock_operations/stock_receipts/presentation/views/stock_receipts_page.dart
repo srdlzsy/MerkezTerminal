@@ -9,6 +9,7 @@ import 'package:furpa_merkez_terminal/features/stock_operations/stock_receipts/p
 import 'package:furpa_merkez_terminal/shared/drafts/create_draft.dart';
 import 'package:furpa_merkez_terminal/shared/drafts/create_draft_picker.dart';
 import 'package:furpa_merkez_terminal/shared/drafts/create_draft_repository.dart';
+import 'package:furpa_merkez_terminal/shared/form_memory/remembered_form_values.dart';
 import 'package:furpa_merkez_terminal/shared/formatters/app_formatters.dart';
 import 'package:furpa_merkez_terminal/shared/utils/safe_create_retry.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/section_card.dart';
@@ -43,6 +44,8 @@ class StockReceiptsPage extends StatefulWidget {
 
 class _StockReceiptsPageState extends State<StockReceiptsPage> {
   late final StockReceiptsController _controller;
+  StockReceiptCreateRequest? _pendingCreateRequest;
+  CreateDraft? _pendingCreateDraft;
   late DateTime _startDate;
   late DateTime _endDate;
 
@@ -216,6 +219,15 @@ class _StockReceiptsPageState extends State<StockReceiptsPage> {
     StockReceiptCreateRequest request,
     CreateDraft? draft,
   ) async {
+    if (_controller.isCreating) {
+      return;
+    }
+
+    setState(() {
+      _pendingCreateRequest = request;
+      _pendingCreateDraft = draft;
+    });
+
     final result = await _controller.createReceipt(request);
 
     if (!mounted) {
@@ -226,6 +238,12 @@ class _StockReceiptsPageState extends State<StockReceiptsPage> {
     messenger.hideCurrentSnackBar();
 
     if (result == null) {
+      if (!shouldOfferSafeCreateRetry(_controller.createErrorStatusCode)) {
+        setState(() {
+          _pendingCreateRequest = null;
+          _pendingCreateDraft = null;
+        });
+      }
       messenger.showSnackBar(
         SnackBar(
           content: Text(_controller.createError ?? 'Fis kaydedilemedi.'),
@@ -241,6 +259,21 @@ class _StockReceiptsPageState extends State<StockReceiptsPage> {
       );
       return;
     }
+
+    setState(() {
+      _pendingCreateRequest = null;
+      _pendingCreateDraft = null;
+    });
+
+    unawaited(
+      RememberedFormValuesRepository().rememberAll(
+        warehouseNo: widget.defaultWarehouseNo,
+        values: <RememberedFormField, String>{
+          RememberedFormField.creator: request.creator,
+          RememberedFormField.acceptor: request.acceptor,
+        },
+      ),
+    );
 
     messenger.showSnackBar(
       SnackBar(
@@ -319,18 +352,31 @@ class _StockReceiptsPageState extends State<StockReceiptsPage> {
         ),
         if (widget.canCreate)
           FilledButton.tonalIcon(
-            onPressed: _controller.isCreating ? null : _openCreateSheet,
+            onPressed: _controller.isCreating
+                ? null
+                : _pendingCreateRequest == null
+                ? _openCreateSheet
+                : () => _submitCreateRequest(
+                    _pendingCreateRequest!,
+                    _pendingCreateDraft,
+                  ),
             icon: _controller.isCreating
                 ? const SizedBox(
                     height: 16,
                     width: 16,
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
-                : const Icon(Icons.add_circle_outline_rounded),
+                : Icon(
+                    _pendingCreateRequest == null
+                        ? Icons.add_circle_outline_rounded
+                        : Icons.refresh_rounded,
+                  ),
             label: Text(
               _controller.isCreating
                   ? 'Kaydediliyor...'
-                  : widget.kind.createButtonLabel,
+                  : _pendingCreateRequest == null
+                  ? widget.kind.createButtonLabel
+                  : 'Kaydi Tekrar Dene',
             ),
           ),
       ],

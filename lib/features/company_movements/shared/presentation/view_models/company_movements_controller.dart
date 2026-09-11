@@ -195,6 +195,10 @@ class CompanyMovementsController extends ChangeNotifier
   Future<CompanyMovementCreateResult?> createMovement(
     CompanyMovementCreateRequest request,
   ) async {
+    if (_isCreating) {
+      return null;
+    }
+
     if (!_repository.supportsCreate) {
       _createError = 'Bu ekranda yeni evrak olusturma desteklenmiyor.';
       notifySafely();

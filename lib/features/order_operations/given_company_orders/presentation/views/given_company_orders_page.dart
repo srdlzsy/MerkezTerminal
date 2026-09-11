@@ -9,6 +9,7 @@ import 'package:furpa_merkez_terminal/features/order_operations/shared/data/comp
 import 'package:furpa_merkez_terminal/shared/drafts/create_draft.dart';
 import 'package:furpa_merkez_terminal/shared/drafts/create_draft_picker.dart';
 import 'package:furpa_merkez_terminal/shared/drafts/create_draft_repository.dart';
+import 'package:furpa_merkez_terminal/shared/form_memory/remembered_form_values.dart';
 import 'package:furpa_merkez_terminal/shared/formatters/app_formatters.dart';
 import 'package:furpa_merkez_terminal/shared/offline/mobile_customer_catalog_repository.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/section_card.dart';
@@ -177,6 +178,16 @@ class _GivenCompanyOrdersPageState extends State<GivenCompanyOrdersPage> {
       );
       return;
     }
+
+    unawaited(
+      RememberedFormValuesRepository().rememberAll(
+        warehouseNo: widget.defaultWarehouseNo,
+        values: <RememberedFormField, String>{
+          RememberedFormField.deliverer: request.deliverer,
+          RememberedFormField.receiver: request.receiver,
+        },
+      ),
+    );
 
     messenger.showSnackBar(
       SnackBar(

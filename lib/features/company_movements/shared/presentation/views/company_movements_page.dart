@@ -13,6 +13,7 @@ import 'package:furpa_merkez_terminal/shared/data/despatch_drivers_repository.da
 import 'package:furpa_merkez_terminal/shared/drafts/create_draft.dart';
 import 'package:furpa_merkez_terminal/shared/drafts/create_draft_picker.dart';
 import 'package:furpa_merkez_terminal/shared/drafts/create_draft_repository.dart';
+import 'package:furpa_merkez_terminal/shared/form_memory/remembered_form_values.dart';
 import 'package:furpa_merkez_terminal/shared/formatters/app_formatters.dart';
 import 'package:furpa_merkez_terminal/shared/offline/mobile_customer_catalog_repository.dart';
 import 'package:furpa_merkez_terminal/shared/utils/safe_create_retry.dart';
@@ -66,6 +67,8 @@ class CompanyMovementsPage extends StatefulWidget {
 
 class _CompanyMovementsPageState extends State<CompanyMovementsPage> {
   late final CompanyMovementsController _controller;
+  CompanyMovementCreateRequest? _pendingCreateRequest;
+  CreateDraft? _pendingCreateDraft;
   late DateTime _startDate;
   late DateTime _endDate;
 
@@ -242,6 +245,15 @@ class _CompanyMovementsPageState extends State<CompanyMovementsPage> {
     CompanyMovementCreateRequest request,
     CreateDraft? draft,
   ) async {
+    if (_controller.isCreating) {
+      return;
+    }
+
+    setState(() {
+      _pendingCreateRequest = request;
+      _pendingCreateDraft = draft;
+    });
+
     final result = await _controller.createMovement(request);
 
     if (!mounted) {
@@ -252,6 +264,12 @@ class _CompanyMovementsPageState extends State<CompanyMovementsPage> {
     messenger.hideCurrentSnackBar();
 
     if (result == null) {
+      if (!shouldOfferSafeCreateRetry(_controller.createErrorStatusCode)) {
+        setState(() {
+          _pendingCreateRequest = null;
+          _pendingCreateDraft = null;
+        });
+      }
       messenger.showSnackBar(
         SnackBar(
           content: Text(_controller.createError ?? 'Evrak olusturulamadi.'),
@@ -267,6 +285,21 @@ class _CompanyMovementsPageState extends State<CompanyMovementsPage> {
       );
       return;
     }
+
+    setState(() {
+      _pendingCreateRequest = null;
+      _pendingCreateDraft = null;
+    });
+
+    unawaited(
+      RememberedFormValuesRepository().rememberAll(
+        warehouseNo: widget.defaultWarehouseNo,
+        values: <RememberedFormField, String>{
+          RememberedFormField.deliverer: request.deliverer,
+          RememberedFormField.receiver: request.receiver,
+        },
+      ),
+    );
 
     messenger.showSnackBar(
       SnackBar(
@@ -448,18 +481,31 @@ class _CompanyMovementsPageState extends State<CompanyMovementsPage> {
         ),
         if (widget.canCreate && _controller.canCreate)
           FilledButton.tonalIcon(
-            onPressed: _controller.isCreating ? null : _openCreateSheet,
+            onPressed: _controller.isCreating
+                ? null
+                : _pendingCreateRequest == null
+                ? _openCreateSheet
+                : () => _submitCreateRequest(
+                    _pendingCreateRequest!,
+                    _pendingCreateDraft,
+                  ),
             icon: _controller.isCreating
                 ? const SizedBox(
                     height: 16,
                     width: 16,
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
-                : const Icon(Icons.add_rounded),
+                : Icon(
+                    _pendingCreateRequest == null
+                        ? Icons.add_rounded
+                        : Icons.refresh_rounded,
+                  ),
             label: Text(
               _controller.isCreating
                   ? 'Kaydediliyor...'
-                  : widget.createButtonLabel,
+                  : _pendingCreateRequest == null
+                  ? widget.createButtonLabel
+                  : 'Kaydi Tekrar Dene',
             ),
           ),
       ],

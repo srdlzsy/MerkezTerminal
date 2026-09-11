@@ -49,6 +49,8 @@ class WarehouseReturnsPage extends StatefulWidget {
 
 class _WarehouseReturnsPageState extends State<WarehouseReturnsPage> {
   late final WarehouseReturnsController _controller;
+  WarehouseReturnCreateRequest? _pendingCreateRequest;
+  CreateDraft? _pendingCreateDraft;
   late DateTime _startDate;
   late DateTime _endDate;
 
@@ -330,6 +332,15 @@ class _WarehouseReturnsPageState extends State<WarehouseReturnsPage> {
     WarehouseReturnCreateRequest request,
     CreateDraft? draft,
   ) async {
+    if (_controller.isCreating) {
+      return;
+    }
+
+    setState(() {
+      _pendingCreateRequest = request;
+      _pendingCreateDraft = draft;
+    });
+
     final result = await _controller.createReturn(request);
 
     if (!mounted) {
@@ -340,6 +351,12 @@ class _WarehouseReturnsPageState extends State<WarehouseReturnsPage> {
     messenger.hideCurrentSnackBar();
 
     if (result == null) {
+      if (!shouldOfferSafeCreateRetry(_controller.createErrorStatusCode)) {
+        setState(() {
+          _pendingCreateRequest = null;
+          _pendingCreateDraft = null;
+        });
+      }
       messenger.showSnackBar(
         SnackBar(
           content: Text(
@@ -357,6 +374,11 @@ class _WarehouseReturnsPageState extends State<WarehouseReturnsPage> {
       );
       return;
     }
+
+    setState(() {
+      _pendingCreateRequest = null;
+      _pendingCreateDraft = null;
+    });
 
     messenger.showSnackBar(
       SnackBar(
@@ -442,16 +464,31 @@ class _WarehouseReturnsPageState extends State<WarehouseReturnsPage> {
         ),
         if (widget.direction == WarehouseReturnDirection.outgoing)
           FilledButton.tonalIcon(
-            onPressed: _controller.isCreating ? null : _openCreateSheet,
+            onPressed: _controller.isCreating
+                ? null
+                : _pendingCreateRequest == null
+                ? _openCreateSheet
+                : () => _submitCreateRequest(
+                    _pendingCreateRequest!,
+                    _pendingCreateDraft,
+                  ),
             icon: _controller.isCreating
                 ? const SizedBox(
                     height: 16,
                     width: 16,
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
-                : const Icon(Icons.add_rounded),
+                : Icon(
+                    _pendingCreateRequest == null
+                        ? Icons.add_rounded
+                        : Icons.refresh_rounded,
+                  ),
             label: Text(
-              _controller.isCreating ? 'Kaydediliyor...' : 'Yeni Iade',
+              _controller.isCreating
+                  ? 'Kaydediliyor...'
+                  : _pendingCreateRequest == null
+                  ? 'Yeni Iade'
+                  : 'Kaydi Tekrar Dene',
             ),
           ),
       ],

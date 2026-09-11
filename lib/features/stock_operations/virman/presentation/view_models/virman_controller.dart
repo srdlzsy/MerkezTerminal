@@ -153,6 +153,10 @@ class VirmanController extends ChangeNotifier with SafeChangeNotifier {
   }
 
   Future<VirmanCreateResult?> createVirman(VirmanCreateRequest request) async {
+    if (_isCreating) {
+      return null;
+    }
+
     _isCreating = true;
     _createError = null;
     _createErrorStatusCode = null;

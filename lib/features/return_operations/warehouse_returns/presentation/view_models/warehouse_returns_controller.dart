@@ -199,6 +199,10 @@ class WarehouseReturnsController extends ChangeNotifier
   Future<WarehouseReturnCreateResult?> createReturn(
     WarehouseReturnCreateRequest request,
   ) async {
+    if (_isCreating) {
+      return null;
+    }
+
     if (_direction != WarehouseReturnDirection.outgoing) {
       _createError = 'Bu ekranda yeni depo iadesi olusturma desteklenmiyor.';
       notifySafely();

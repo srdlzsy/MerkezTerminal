@@ -156,6 +156,10 @@ class CompanyAcceptancesController extends ChangeNotifier
   Future<CompanyAcceptanceCreateResult?> createAcceptance(
     CompanyAcceptanceCreateRequest request,
   ) async {
+    if (_isCreating) {
+      return null;
+    }
+
     _isCreating = true;
     _createError = null;
     notifySafely();

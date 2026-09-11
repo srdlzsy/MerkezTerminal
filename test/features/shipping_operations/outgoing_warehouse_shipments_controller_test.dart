@@ -70,6 +70,46 @@ void main() {
     expect(controller.selectedShipmentDetail?.header.documentNoLabel, 'F110.0');
   });
 
+  test('createShipment blocks a concurrent second post', () async {
+    final repository = _BlockingCreateWarehouseShipmentsRepository();
+    final controller = OutgoingWarehouseShipmentsController(
+      repository: repository,
+      accessToken: 'token',
+      defaultWarehouseNo: '110',
+    );
+    final request = WarehouseShipmentCreateRequest(
+      clientRequestId: '2e8f99f1-8ad5-4dfb-a375-82b93f9aa101',
+      targetWarehouseNo: 50,
+      transitWarehouseNo: 60,
+      movementDate: DateTime(2026, 4, 17),
+      documentDate: DateTime(2026, 4, 17),
+      documentNo: '',
+      description: '',
+      lines: const <WarehouseShipmentCreateLine>[
+        WarehouseShipmentCreateLine(
+          stockCode: '015792',
+          quantity: 10,
+          unitPrice: 125,
+          unitPointer: 1,
+          description: '',
+          partyCode: '',
+          lotNo: 0,
+          projectCode: '',
+        ),
+      ],
+    );
+
+    final firstRequest = controller.createShipment(request);
+    final secondResult = await controller.createShipment(request);
+
+    expect(secondResult, isNull);
+    expect(repository.createCallCount, 1);
+
+    repository.completeCreate();
+    expect(await firstRequest, isNotNull);
+    expect(repository.createCallCount, 1);
+  });
+
   test(
     'selectShipment ignores stale detail response from earlier selection',
     () async {
@@ -384,6 +424,42 @@ class _FakeOutgoingWarehouseShipmentsRepository
     String? query,
   }) async {
     return const <WarehouseLookupItem>[];
+  }
+}
+
+class _BlockingCreateWarehouseShipmentsRepository
+    extends _FakeOutgoingWarehouseShipmentsRepository {
+  final Completer<WarehouseShipmentCreateResult> _createCompleter =
+      Completer<WarehouseShipmentCreateResult>();
+  int createCallCount = 0;
+
+  @override
+  Future<WarehouseShipmentCreateResult> createShipment({
+    required String accessToken,
+    required WarehouseShipmentCreateRequest request,
+  }) {
+    createCallCount += 1;
+    return _createCompleter.future;
+  }
+
+  void completeCreate() {
+    _createCompleter.complete(
+      const WarehouseShipmentCreateResult(
+        documentSerie: 'F110',
+        documentOrderNo: 3694,
+        movementDate: null,
+        documentDate: null,
+        documentNo: 'SVK-0001',
+        sourceWarehouseNo: 110,
+        targetWarehouseNo: 50,
+        transitWarehouseNo: 60,
+        lineCount: 1,
+        linkedWarehouseOrderLineCount: 0,
+        totalQuantity: 10,
+        totalAmount: 1250,
+        writeConnectionName: 'testMikroConnection',
+      ),
+    );
   }
 }
 

@@ -119,6 +119,10 @@ class _InventoryCountsPageState extends State<InventoryCountsPage> {
   }
 
   Future<void> _openCreateSheet() async {
+    if (_isSubmittingCreate) {
+      return;
+    }
+
     CreateDraft? draft;
     if (widget.draftRepository != null) {
       final launch = await showCreateDraftPicker(

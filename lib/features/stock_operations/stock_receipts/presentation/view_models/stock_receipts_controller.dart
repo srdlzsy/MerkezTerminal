@@ -160,6 +160,10 @@ class StockReceiptsController extends ChangeNotifier with SafeChangeNotifier {
   Future<StockReceiptCreateResult?> createReceipt(
     StockReceiptCreateRequest request,
   ) async {
+    if (_isCreating) {
+      return null;
+    }
+
     _isCreating = true;
     _createError = null;
     _createErrorStatusCode = null;

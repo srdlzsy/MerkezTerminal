@@ -8,6 +8,7 @@ import 'package:furpa_merkez_terminal/features/order_operations/given_company_or
 import 'package:furpa_merkez_terminal/shared/data/search_lookup_models.dart';
 import 'package:furpa_merkez_terminal/shared/drafts/create_draft.dart';
 import 'package:furpa_merkez_terminal/shared/drafts/create_draft_repository.dart';
+import 'package:furpa_merkez_terminal/shared/form_memory/remembered_form_values.dart';
 import 'package:furpa_merkez_terminal/shared/formatters/app_formatters.dart';
 import 'package:furpa_merkez_terminal/shared/offline/mobile_customer_catalog_repository.dart';
 import 'package:furpa_merkez_terminal/shared/product_entry/product_entry_controller.dart';
@@ -927,7 +928,9 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
   }
 
   Widget _buildDeliveryInfoRow() {
-    final delivererField = TextFormField(
+    final delivererField = RememberedTextFormField(
+      warehouseNo: widget.defaultWarehouseNo,
+      field: RememberedFormField.deliverer,
       controller: _delivererController,
       textInputAction: TextInputAction.next,
       decoration: const InputDecoration(
@@ -936,7 +939,9 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
         contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       ),
     );
-    final receiverField = TextFormField(
+    final receiverField = RememberedTextFormField(
+      warehouseNo: widget.defaultWarehouseNo,
+      field: RememberedFormField.receiver,
       controller: _receiverController,
       textInputAction: TextInputAction.done,
       decoration: const InputDecoration(

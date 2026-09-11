@@ -44,6 +44,8 @@ class VirmanPage extends StatefulWidget {
 
 class _VirmanPageState extends State<VirmanPage> {
   late final VirmanController _controller;
+  VirmanCreateRequest? _pendingCreateRequest;
+  CreateDraft? _pendingCreateDraft;
   late DateTime _startDate;
   late DateTime _endDate;
 
@@ -215,6 +217,15 @@ class _VirmanPageState extends State<VirmanPage> {
     VirmanCreateRequest request,
     CreateDraft? draft,
   ) async {
+    if (_controller.isCreating) {
+      return;
+    }
+
+    setState(() {
+      _pendingCreateRequest = request;
+      _pendingCreateDraft = draft;
+    });
+
     final result = await _controller.createVirman(request);
 
     if (!mounted) {
@@ -225,6 +236,12 @@ class _VirmanPageState extends State<VirmanPage> {
     messenger.hideCurrentSnackBar();
 
     if (result == null) {
+      if (!shouldOfferSafeCreateRetry(_controller.createErrorStatusCode)) {
+        setState(() {
+          _pendingCreateRequest = null;
+          _pendingCreateDraft = null;
+        });
+      }
       messenger.showSnackBar(
         SnackBar(
           content: Text(_controller.createError ?? 'Virman kaydedilemedi.'),
@@ -240,6 +257,11 @@ class _VirmanPageState extends State<VirmanPage> {
       );
       return;
     }
+
+    setState(() {
+      _pendingCreateRequest = null;
+      _pendingCreateDraft = null;
+    });
 
     messenger.showSnackBar(
       SnackBar(
@@ -318,16 +340,31 @@ class _VirmanPageState extends State<VirmanPage> {
         ),
         if (widget.canCreate)
           FilledButton.tonalIcon(
-            onPressed: _controller.isCreating ? null : _openCreateSheet,
+            onPressed: _controller.isCreating
+                ? null
+                : _pendingCreateRequest == null
+                ? _openCreateSheet
+                : () => _submitCreateRequest(
+                    _pendingCreateRequest!,
+                    _pendingCreateDraft,
+                  ),
             icon: _controller.isCreating
                 ? const SizedBox(
                     height: 16,
                     width: 16,
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
-                : const Icon(Icons.swap_horiz_rounded),
+                : Icon(
+                    _pendingCreateRequest == null
+                        ? Icons.swap_horiz_rounded
+                        : Icons.refresh_rounded,
+                  ),
             label: Text(
-              _controller.isCreating ? 'Kaydediliyor...' : 'Yeni Virman',
+              _controller.isCreating
+                  ? 'Kaydediliyor...'
+                  : _pendingCreateRequest == null
+                  ? 'Yeni Virman'
+                  : 'Kaydi Tekrar Dene',
             ),
           ),
       ],

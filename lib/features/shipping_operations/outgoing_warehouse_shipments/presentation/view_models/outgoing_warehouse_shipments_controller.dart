@@ -203,6 +203,10 @@ class OutgoingWarehouseShipmentsController extends ChangeNotifier
   Future<WarehouseShipmentCreateResult?> createShipment(
     WarehouseShipmentCreateRequest request,
   ) async {
+    if (_isCreating) {
+      return null;
+    }
+
     _isCreating = true;
     _createError = null;
     _createErrorStatusCode = null;

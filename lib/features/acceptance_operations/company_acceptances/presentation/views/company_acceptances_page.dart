@@ -13,6 +13,7 @@ import 'package:furpa_merkez_terminal/features/order_operations/given_company_or
 import 'package:furpa_merkez_terminal/shared/drafts/create_draft.dart';
 import 'package:furpa_merkez_terminal/shared/drafts/create_draft_picker.dart';
 import 'package:furpa_merkez_terminal/shared/drafts/create_draft_repository.dart';
+import 'package:furpa_merkez_terminal/shared/form_memory/remembered_form_values.dart';
 import 'package:furpa_merkez_terminal/shared/formatters/app_formatters.dart';
 import 'package:furpa_merkez_terminal/shared/offline/mobile_customer_catalog_repository.dart';
 import 'package:furpa_merkez_terminal/shared/offline/mobile_product_catalog_repository.dart';
@@ -180,6 +181,10 @@ class _CompanyAcceptancesPageState extends State<CompanyAcceptancesPage> {
   }
 
   Future<void> _openCreateSheet() async {
+    if (_isSubmittingCreate) {
+      return;
+    }
+
     CreateDraft? draft;
     if (widget.draftRepository != null) {
       final launch = await showCreateDraftPicker(
@@ -239,6 +244,16 @@ class _CompanyAcceptancesPageState extends State<CompanyAcceptancesPage> {
             warehouseNo: widget.defaultWarehouseNo,
             request: request,
           );
+
+      unawaited(
+        RememberedFormValuesRepository().rememberAll(
+          warehouseNo: widget.defaultWarehouseNo,
+          values: <RememberedFormField, String>{
+            RememberedFormField.deliverer: request.deliverer,
+            RememberedFormField.receiver: request.receiver,
+          },
+        ),
+      );
 
       if (!mounted) {
         return;

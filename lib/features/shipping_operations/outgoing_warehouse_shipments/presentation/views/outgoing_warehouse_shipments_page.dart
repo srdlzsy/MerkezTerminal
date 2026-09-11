@@ -63,6 +63,8 @@ class OutgoingWarehouseShipmentsPage extends StatefulWidget {
 class _OutgoingWarehouseShipmentsPageState
     extends State<OutgoingWarehouseShipmentsPage> {
   late final OutgoingWarehouseShipmentsController _controller;
+  WarehouseShipmentCreateRequest? _pendingCreateRequest;
+  CreateDraft? _pendingCreateDraft;
   late DateTime _startDate;
   late DateTime _endDate;
 
@@ -184,6 +186,15 @@ class _OutgoingWarehouseShipmentsPageState
     WarehouseShipmentCreateRequest request,
     CreateDraft? draft,
   ) async {
+    if (_controller.isCreating) {
+      return;
+    }
+
+    setState(() {
+      _pendingCreateRequest = request;
+      _pendingCreateDraft = draft;
+    });
+
     final result = await _controller.createShipment(request);
 
     if (!mounted) {
@@ -194,6 +205,12 @@ class _OutgoingWarehouseShipmentsPageState
     messenger.hideCurrentSnackBar();
 
     if (result == null) {
+      if (!shouldOfferSafeCreateRetry(_controller.createErrorStatusCode)) {
+        setState(() {
+          _pendingCreateRequest = null;
+          _pendingCreateDraft = null;
+        });
+      }
       messenger.showSnackBar(
         SnackBar(
           content: Text(_controller.createError ?? 'Sevk olusturulamadi.'),
@@ -209,6 +226,11 @@ class _OutgoingWarehouseShipmentsPageState
       );
       return;
     }
+
+    setState(() {
+      _pendingCreateRequest = null;
+      _pendingCreateDraft = null;
+    });
 
     final linkedInfo = result.linkedWarehouseOrderLineCount > 0
         ? ' ${result.linkedWarehouseOrderLineCount} satir siparise baglandi.'
@@ -457,16 +479,31 @@ class _OutgoingWarehouseShipmentsPageState
         ),
         if (widget.canCreate)
           FilledButton.tonalIcon(
-            onPressed: _controller.isCreating ? null : _openCreateSheet,
+            onPressed: _controller.isCreating
+                ? null
+                : _pendingCreateRequest == null
+                ? _openCreateSheet
+                : () => _submitCreateRequest(
+                    _pendingCreateRequest!,
+                    _pendingCreateDraft,
+                  ),
             icon: _controller.isCreating
                 ? const SizedBox(
                     height: 16,
                     width: 16,
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
-                : const Icon(Icons.local_shipping_outlined),
+                : Icon(
+                    _pendingCreateRequest == null
+                        ? Icons.local_shipping_outlined
+                        : Icons.refresh_rounded,
+                  ),
             label: Text(
-              _controller.isCreating ? 'Kaydediliyor...' : 'Yeni Sevk',
+              _controller.isCreating
+                  ? 'Kaydediliyor...'
+                  : _pendingCreateRequest == null
+                  ? 'Yeni Sevk'
+                  : 'Kaydi Tekrar Dene',
             ),
           ),
       ],

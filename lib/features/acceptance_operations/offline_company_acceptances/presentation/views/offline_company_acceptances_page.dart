@@ -9,6 +9,7 @@ import 'package:furpa_merkez_terminal/features/acceptance_operations/offline_com
 import 'package:furpa_merkez_terminal/features/order_operations/given_company_orders/data/given_company_orders_repository.dart';
 import 'package:furpa_merkez_terminal/features/order_operations/given_company_orders/data/models/given_company_order_models.dart';
 import 'package:furpa_merkez_terminal/shared/data/search_lookup_models.dart';
+import 'package:furpa_merkez_terminal/shared/form_memory/remembered_form_values.dart';
 import 'package:furpa_merkez_terminal/shared/formatters/app_formatters.dart';
 import 'package:furpa_merkez_terminal/shared/offline/mobile_customer_catalog_repository.dart';
 import 'package:furpa_merkez_terminal/shared/offline/mobile_product_catalog_repository.dart';
@@ -126,6 +127,15 @@ class _OfflineCompanyAcceptancesPageState
     }
 
     await widget.offlineRepository.saveDraft(draft);
+    unawaited(
+      RememberedFormValuesRepository().rememberAll(
+        warehouseNo: widget.defaultWarehouseNo,
+        values: <RememberedFormField, String>{
+          RememberedFormField.deliverer: draft.deliverer,
+          RememberedFormField.receiver: draft.receiver,
+        },
+      ),
+    );
     await _loadDrafts();
     unawaited(
       widget.offlineSyncService.syncPending(
@@ -1961,7 +1971,9 @@ class _OfflineCompanyAcceptanceCreateSheetState
                 ),
                 SizedBox(
                   width: fieldWidth,
-                  child: TextFormField(
+                  child: RememberedTextFormField(
+                    warehouseNo: widget.defaultWarehouseNo,
+                    field: RememberedFormField.deliverer,
                     controller: _delivererController,
                     decoration: const InputDecoration(
                       labelText: 'Teslim Eden',
@@ -1975,7 +1987,9 @@ class _OfflineCompanyAcceptanceCreateSheetState
                 ),
                 SizedBox(
                   width: fieldWidth,
-                  child: TextFormField(
+                  child: RememberedTextFormField(
+                    warehouseNo: widget.defaultWarehouseNo,
+                    field: RememberedFormField.receiver,
                     controller: _receiverController,
                     decoration: const InputDecoration(
                       labelText: 'Teslim Alan',

@@ -9,6 +9,7 @@ import 'package:furpa_merkez_terminal/shared/data/search_lookup_models.dart';
 import 'package:furpa_merkez_terminal/shared/drafts/create_draft.dart';
 import 'package:furpa_merkez_terminal/shared/drafts/create_draft_repository.dart';
 import 'package:furpa_merkez_terminal/shared/drafts/create_draft_session.dart';
+import 'package:furpa_merkez_terminal/shared/form_memory/remembered_form_values.dart';
 import 'package:furpa_merkez_terminal/shared/formatters/app_formatters.dart';
 import 'package:furpa_merkez_terminal/shared/product_entry/product_entry_controller.dart';
 import 'package:furpa_merkez_terminal/shared/product_entry/product_entry_widgets.dart';
@@ -806,7 +807,9 @@ class _StockReceiptCreateSheetState extends State<StockReceiptCreateSheet>
               children: <Widget>[
                 SizedBox(
                   width: fieldWidth,
-                  child: TextFormField(
+                  child: RememberedTextFormField(
+                    warehouseNo: widget.defaultWarehouseNo,
+                    field: RememberedFormField.creator,
                     controller: _creatorController,
                     decoration: const InputDecoration(
                       labelText: 'Olusturan*',
@@ -827,7 +830,9 @@ class _StockReceiptCreateSheetState extends State<StockReceiptCreateSheet>
                 ),
                 SizedBox(
                   width: fieldWidth,
-                  child: TextFormField(
+                  child: RememberedTextFormField(
+                    warehouseNo: widget.defaultWarehouseNo,
+                    field: RememberedFormField.acceptor,
                     controller: _acceptorController,
                     decoration: const InputDecoration(
                       labelText: 'Onaylayan*',

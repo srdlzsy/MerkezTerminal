@@ -8,6 +8,7 @@ import 'package:furpa_merkez_terminal/features/order_operations/shared/data/comp
 import 'package:furpa_merkez_terminal/shared/drafts/create_draft.dart';
 import 'package:furpa_merkez_terminal/shared/drafts/create_draft_repository.dart';
 import 'package:furpa_merkez_terminal/shared/drafts/create_draft_session.dart';
+import 'package:furpa_merkez_terminal/shared/form_memory/remembered_form_values.dart';
 import 'package:furpa_merkez_terminal/shared/formatters/app_formatters.dart';
 import 'package:furpa_merkez_terminal/shared/offline/mobile_customer_catalog_repository.dart';
 import 'package:furpa_merkez_terminal/shared/product_entry/product_entry_controller.dart';
@@ -1055,7 +1056,11 @@ class _GivenCompanyOrderCreateSheetState
       required String label,
       required TextInputAction textInputAction,
     }) {
-      return TextFormField(
+      return RememberedTextFormField(
+        warehouseNo: widget.defaultWarehouseNo,
+        field: identical(controller, _delivererController)
+            ? RememberedFormField.deliverer
+            : RememberedFormField.receiver,
         controller: controller,
         textInputAction: textInputAction,
         inputFormatters: <TextInputFormatter>[
