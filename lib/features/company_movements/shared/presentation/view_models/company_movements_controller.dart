@@ -144,12 +144,15 @@ class CompanyMovementsController extends ChangeNotifier
   Future<void> selectMovement(
     CompanyMovementListItem item, {
     bool preserveEDespatchResult = false,
+    bool preserveEDespatchError = false,
   }) async {
     final detailRequestId = _detailEpoch.next();
     _selectedMovement = item;
     _selectedMovementDetail = null;
     _detailError = null;
-    _sendEDespatchError = null;
+    if (!preserveEDespatchError) {
+      _sendEDespatchError = null;
+    }
     _pdfError = null;
     if (!preserveEDespatchResult) {
       _lastEDespatchResult = null;
@@ -267,8 +270,13 @@ class CompanyMovementsController extends ChangeNotifier
       return result;
     } on ApiException catch (error) {
       _isSendingEDespatch = false;
-      _sendEDespatchError = error.message;
+      _sendEDespatchError = error.statusCode == 409
+          ? '${error.message} Belge bilgileri yenilendi; kontrol edip tekrar deneyin.'
+          : error.message;
       notifySafely();
+      if (error.statusCode == 409) {
+        await selectMovement(currentSelection, preserveEDespatchError: true);
+      }
       return null;
     }
   }

@@ -6,6 +6,7 @@ void main() {
   test('safe create retry offers retry only for uncertain create statuses', () {
     expect(shouldOfferSafeCreateRetry(0), isTrue);
     expect(shouldOfferSafeCreateRetry(409), isTrue);
+    expect(shouldOfferSafeCreateRetry(503), isTrue);
     expect(shouldOfferSafeCreateRetry(400), isFalse);
     expect(shouldOfferSafeCreateRetry(null), isFalse);
   });

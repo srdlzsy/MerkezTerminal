@@ -5,7 +5,7 @@ const String safeCreateRetryConflictMessage =
     'icerigi degistirecekseniz yeni islem olarak tekrar kaydedin.';
 
 bool shouldOfferSafeCreateRetry(int? statusCode) {
-  return statusCode == 0 || statusCode == 409;
+  return statusCode == 0 || statusCode == 409 || statusCode == 503;
 }
 
 String safeCreateRetryErrorMessage(ApiException error) {

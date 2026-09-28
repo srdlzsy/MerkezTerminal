@@ -144,12 +144,14 @@ class TerminalProductLookupTile extends StatelessWidget {
     required this.onTap,
     this.informationLabels = const <String>[],
     this.showWarning = false,
+    this.showFullText = false,
   });
 
   final String title;
   final String subtitle;
   final List<String> informationLabels;
   final bool showWarning;
+  final bool showFullText;
   final VoidCallback onTap;
 
   @override
@@ -166,14 +168,20 @@ class TerminalProductLookupTile extends StatelessWidget {
       contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
       title: Text(
         title,
-        maxLines: 2,
-        overflow: TextOverflow.ellipsis,
+        maxLines: showFullText ? null : 2,
+        overflow: showFullText ? TextOverflow.visible : TextOverflow.ellipsis,
         style: const TextStyle(fontWeight: FontWeight.w700),
       ),
       subtitle: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          Text(subtitle, maxLines: 1, overflow: TextOverflow.ellipsis),
+          Text(
+            subtitle,
+            maxLines: showFullText ? null : 1,
+            overflow: showFullText
+                ? TextOverflow.visible
+                : TextOverflow.ellipsis,
+          ),
           if (labels.isNotEmpty) ...<Widget>[
             const SizedBox(height: 4),
             Wrap(

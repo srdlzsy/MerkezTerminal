@@ -803,7 +803,6 @@ class _MovementDetailBody extends StatelessWidget {
                 ],
               ),
             ),
-            const SizedBox(height: 12),
           ],
           if (lastEDespatchResult != null) ...<Widget>[
             const SizedBox(height: 12),
@@ -813,6 +812,24 @@ class _MovementDetailBody extends StatelessWidget {
                   '${lastEDespatchResult!.serviceDocumentLabel}'
                   '${lastEDespatchResult!.hasWarning ? '\nUyari: ${lastEDespatchResult!.warningMessage}' : ''}',
             ),
+          ],
+          if (detail!.header.deliverer.trim().isNotEmpty ||
+              detail!.header.receiver.trim().isNotEmpty) ...<Widget>[
+            TerminalPdaInfoGrid(
+              items: <TerminalPdaInfo>[
+                if (detail!.header.deliverer.trim().isNotEmpty)
+                  TerminalPdaInfo(
+                    label: 'Teslim Eden',
+                    value: detail!.header.deliverer,
+                  ),
+                if (detail!.header.receiver.trim().isNotEmpty)
+                  TerminalPdaInfo(
+                    label: 'Teslim Alan',
+                    value: detail!.header.receiver,
+                  ),
+              ],
+            ),
+            const SizedBox(height: 12),
           ],
           const SizedBox(height: 14),
           Text(

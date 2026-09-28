@@ -33,6 +33,19 @@ Timeout ve tekrar deneme notu:
 - Terminal, mobil ve web istemcileri liste ve create isteklerinde HTTP client timeout degerini en az `300` saniye yapmalidir. Subede internet zayifsa API islemi devam ederken istemci 30-60 saniyede vazgecerse kullanici timeout gorur ve kontrolsuz tekrar basabilir.
 - POST/create timeout gorurse UI hemen yeni istek kimligi veya farkli body uretmemeli; mumkunse ayni payload ile guvenli retry yapmali veya liste/detay yenileyerek evrakin olusup olusmadigini kontrol etmelidir.
 
+E-irsaliye alici alias notu:
+
+- Firma sevki ve firma iadesi e-irsaliye gonderiminde backend, carinin VKN/TCKN bilgisiyle Uyumsoft `GetUserAliasses` servisini cagirir.
+- Yalnizca aktif `DespatchReceiverboxAliases` kayitlari e-irsaliye alici alias'i olarak kabul edilir. E-fatura `ReceiverboxAliases` listesi bu islemde kullanilmaz.
+- Mikro `CARI_HESAP_ADRESLERI.adr_eirsaliye_alias` degeri aktif e-irsaliye listesinde bulunuyorsa korunur; eski, hatali veya e-fatura alias'iysa Uyumsoft'un dondurdugu ilk aktif e-irsaliye alici alias'i kullanilir.
+- Alias sorgusu hata verirse veya aktif e-irsaliye alici alias'i donmezse backend `TargetCustomer` bilgisini gondermez; UBL icindeki alici VKN/TCKN bilgisini koruyarak alias secimini eski akis gibi Uyumsoft'a birakir.
+- Alias fallback'i de Uyumsoft tarafinda reddedilirse API servis hatasini dondurur. UI alias secmeye veya Mikro alias'ini request body'ye yazmaya calismamalidir.
+- Depolar arasi sevk ve depo iadesinde hedef bir cari olmadigi icin bu alias cozumleme adimi calismaz.
+- Mikro API yazma audit kaydi istekten once `Pending` acilir. Kesin basari `Succeeded`, kesin is kurali hatasi `Failed`, timeout/baglanti kopmasi/istemci iptali gibi commit sonucu kanitlanamayan durumlar `Unknown`, Mikro DB readback ile evrak bulundugunda `Recovered` olur.
+- Istemci istegi iptal edilse bile audit kapanisi kullanici request token'ina bagli degildir; Auth DB yazimi kisa ve ayri bir timeout ile tamamlanmaya calisilir.
+- Arka plan uzlastirma islemi varsayilan olarak 5 dakikada bir calisir. 15 dakikadan eski `Pending` kayitlari `Unknown` yapar ve eski parser nedeniyle `Succeeded` yazilmis `MikroAPI - TimeOut` cevaplarini duzeltir. `Recovered` kayitlara dokunmaz.
+- `Unknown`, evrakin Mikro'da kesinlikle olusmadigi anlamina gelmez. UI veya islem servisi ayni payload ile kontrolsuz yeni kayit acmamalidir; once readback/guvenli retry akisi calistirilmalidir.
+
 Route parametre notu:
 
 - Controller route template'lerinde belge anahtarlari genel olarak `{documentSerie}/{documentOrderNo}` seklindedir.
@@ -46,6 +59,7 @@ Controller'da acik olan pratik alias/canonical route'lar:
 - `GET /api/arama-islemleri/urunler/{stockCode}/son-kunye`
 - `GET /api/siparis-islemleri/alinan-depo-siparisleri/{documentSerie}/{documentOrderNo}`
 - `GET /api/siparis-islemleri/alinan-depo-siparisleri/key/{documentKey}`
+- `POST /api/siparis-islemleri/alinan-depo-siparisleri/toplu-yazdir`
 - `GET /api/siparis-islemleri/alinan-firma-siparisleri/{documentSerie}/{documentOrderNo}`
 - `GET /api/siparis-islemleri/alinan-firma-siparisleri/key/{documentKey}`
 - `GET /api/siparis-islemleri/verilen-depo-siparisleri/{documentSerie}/{documentOrderNo}`
@@ -72,6 +86,77 @@ Controller'da acik olan pratik alias/canonical route'lar:
 - `GET /api/stok-islemleri/virmanlar/{documentSerie}/{documentOrderNo}`
 - `GET /api/kasa-islemleri/kasa-sayimlari/{documentSerie}/{documentOrderNo}`, `GET /api/kasa-islemleri/kasa-sayimlari/{documentSerie}/{documentOrderNo}/detaylar`, `GET /api/kasa-islemleri/kasa-sayimlari/{documentSerie}/{documentOrderNo}/banknot-hareketleri`, `GET /api/kasa-islemleri/kasa-sayimlari/{documentSerie}/{documentOrderNo}/hediye-ceki-hareketleri`
 - `PUT /api/kasa-islemleri/kasa-sayimlari/{documentSerie}/{documentOrderNo}/detaylar`, `PUT /api/kasa-islemleri/kasa-sayimlari/{documentSerie}/{documentOrderNo}/banknot-hareketleri`, `PUT /api/kasa-islemleri/kasa-sayimlari/{documentSerie}/{documentOrderNo}/hediye-ceki-hareketleri` ve `DELETE /api/kasa-islemleri/kasa-sayimlari/{documentSerie}/{documentOrderNo}`
+
+### Legacy E-Irsaliye Koprusu
+
+Eski arayuz kendi login sistemini kullandigi ve FurpaMerkezApi JWT token'i uretemedigi icin, e-irsaliye gonderimi icin dar kapsamli legacy kopru endpoint'i vardir. Normal JWT'li endpointler degismez; yeni ekranlar yine `/api/sevk-islemleri/.../e-irsaliye` ve `/api/iade-islemleri/.../e-irsaliye` route'larini kullanmalidir.
+
+Config:
+
+```json
+{
+  "LegacyEDespatchBridge": {
+    "Enabled": false,
+    "AllowedOrigins": [
+      "http://10.0.0.100:5002"
+    ],
+    "AllowedWarehouseNos": []
+  }
+}
+```
+
+Kural:
+
+- `Enabled=false` ise endpoint `404 Not Found` doner.
+- `warehouseNo` query zorunludur; JWT olmadigi icin backend kullanici deposu cozemez.
+- `AllowedOrigins` doluysa browser `Origin`/`Referer` bu listede olmalidir.
+- `AllowedWarehouseNos` doluysa sadece listedeki depolar adina gonderim yapilir.
+- Bu endpoint legacy uyumluluk icin anonim acilir. Canlida mumkunse `AllowedOrigins` ve `AllowedWarehouseNos` bos birakilmamalidir.
+- Iceride mevcut `EDespatchService.SendAsync` calisir; belge no, tekrar gonderim kontrolu, Mikro isaretleme ve document flow kaydi mevcut ana akisla aynidir.
+- Eski arayuzde sevk/iade ayrimi her zaman guvenilir olmadigi icin legacy kopru, gonderimden once Mikro `STOK_HAREKETLERI` satirlarindaki `sth_evraktip`, `sth_tip`, `sth_normal_iade` ve depo bilgisini kontrol eder. Istenen `documentKind` ile Mikro'daki gercek hareket tipi uyusmazsa sadece legacy akista belge tipi otomatik duzeltilir; yeni JWT'li endpointlerde bu otomatik duzeltme yoktur.
+- Ornek: `firma-iadeleri` olarak cagrilan bir belge Mikro'da `sth_normal_iade=0` firma sevki ise backend gonderimi `OutgoingCompanyShipment` olarak calistirir ve belge akis anahtari `CompanyShipment:{warehouseNo}:{documentSerie}:{documentOrderNo}` olur.
+
+Endpoint:
+
+```text
+POST /api/legacy/e-irsaliye/{documentKind}/{documentSerie}/{documentOrderNo}/gonder?warehouseNo=56
+POST /api/legacy/e-irsaliye/{documentKind}/giden/{documentSerie}/{documentOrderNo}/gonder?warehouseNo=56
+```
+
+`documentKind` degerleri:
+
+```text
+depolar-arasi-sevkler  Depolar arasi giden sevk
+depo-iadeleri          Giden depo iadesi
+firma-sevkleri         Giden firma sevki
+firma-iadeleri         Firma iadesi
+```
+
+Ornek:
+
+```text
+POST /api/legacy/e-irsaliye/depolar-arasi-sevkler/giden/F56/86102/gonder?warehouseNo=56
+POST /api/legacy/e-irsaliye/depo-iadeleri/giden/F56/123/gonder?warehouseNo=56
+POST /api/legacy/e-irsaliye/firma-sevkleri/giden/F56/124/gonder?warehouseNo=56
+POST /api/legacy/e-irsaliye/firma-iadeleri/F56/125/gonder?warehouseNo=56
+```
+
+Body:
+
+```json
+{
+  "driverId": "25a9f3ea-a55a-4558-bb82-8109c3f14cd4",
+  "plaque": "16BZU759",
+  "driverNameSurname": "SINAN BERKER",
+  "driverTckn": "11111111111"
+}
+```
+
+Not:
+
+- `driverId` verilirse aktif sofor kaydindan plaka/ad soyad/TCKN doldurulur.
+- `driverId` verilmezse `plaque`, `driverNameSurname` ve `driverTckn` zorunludur.
+- Bu route acildiginda login/JWT kontrolu yoktur. E-irsaliye gercek belge urettigi icin canlida origin, CORS ve depo listesi dar tutulmalidir.
 
 ### Tum Depo Yetki Modeli
 
@@ -106,7 +191,7 @@ Bu tablo UI icin ana permission referansidir. Kaynak kod tarafi `PermissionCatal
 | `ayar-islemleri` | `kasiyerler` | `ayar-islemleri.kasiyerler.manage` | `ayar-islemleri.kasiyerler.list`<br>`ayar-islemleri.kasiyerler.detail`<br>`ayar-islemleri.kasiyerler.create`<br>`ayar-islemleri.kasiyerler.update` | `ayar-islemleri.kasiyerler.all-warehouses` |
 | `ayar-islemleri` | `soforler` | `ayar-islemleri.soforler.manage` | `ayar-islemleri.soforler.list`<br>`ayar-islemleri.soforler.detail`<br>`ayar-islemleri.soforler.create`<br>`ayar-islemleri.soforler.update`<br>`ayar-islemleri.soforler.delete` | `ayar-islemleri.soforler.all-warehouses` |
 | `ayar-islemleri` | `b2b-ayarlari` | `ayar-islemleri.b2b-ayarlari.manage` | `ayar-islemleri.b2b-ayarlari.list`<br>`ayar-islemleri.b2b-ayarlari.detail`<br>`ayar-islemleri.b2b-ayarlari.create`<br>`ayar-islemleri.b2b-ayarlari.update`<br>`ayar-islemleri.b2b-ayarlari.delete` | `ayar-islemleri.b2b-ayarlari.all-warehouses` |
-| `siparis-islemleri` | `alinan-depo-siparisleri` | `siparis-islemleri.alinan-depo-siparisleri.page` | `siparis-islemleri.alinan-depo-siparisleri.list`<br>`siparis-islemleri.alinan-depo-siparisleri.detail`<br>`siparis-islemleri.alinan-depo-siparisleri.create`<br>`siparis-islemleri.alinan-depo-siparisleri.update` | `siparis-islemleri.alinan-depo-siparisleri.all-warehouses` |
+| `siparis-islemleri` | `alinan-depo-siparisleri` | `siparis-islemleri.alinan-depo-siparisleri.page` | `siparis-islemleri.alinan-depo-siparisleri.list`<br>`siparis-islemleri.alinan-depo-siparisleri.detail`<br>`siparis-islemleri.alinan-depo-siparisleri.create`<br>`siparis-islemleri.alinan-depo-siparisleri.update`<br>`siparis-islemleri.alinan-depo-siparisleri.print` | `siparis-islemleri.alinan-depo-siparisleri.all-warehouses` |
 | `siparis-islemleri` | `verilen-depo-siparisleri` | `siparis-islemleri.verilen-depo-siparisleri.page` | `siparis-islemleri.verilen-depo-siparisleri.list`<br>`siparis-islemleri.verilen-depo-siparisleri.detail`<br>`siparis-islemleri.verilen-depo-siparisleri.create`<br>`siparis-islemleri.verilen-depo-siparisleri.update` | `siparis-islemleri.verilen-depo-siparisleri.all-warehouses` |
 | `siparis-islemleri` | `alinan-firma-siparisleri` | `siparis-islemleri.alinan-firma-siparisleri.page` | `siparis-islemleri.alinan-firma-siparisleri.list`<br>`siparis-islemleri.alinan-firma-siparisleri.detail`<br>`siparis-islemleri.alinan-firma-siparisleri.create`<br>`siparis-islemleri.alinan-firma-siparisleri.update` | `siparis-islemleri.alinan-firma-siparisleri.all-warehouses` |
 | `siparis-islemleri` | `verilen-firma-siparisleri` | `siparis-islemleri.verilen-firma-siparisleri.page` | `siparis-islemleri.verilen-firma-siparisleri.list`<br>`siparis-islemleri.verilen-firma-siparisleri.detail`<br>`siparis-islemleri.verilen-firma-siparisleri.create`<br>`siparis-islemleri.verilen-firma-siparisleri.update` | `siparis-islemleri.verilen-firma-siparisleri.all-warehouses` |
@@ -1468,6 +1553,7 @@ Olasi durumlar:
 - `404` kayit bulunamadi
 - `409` conflict/is kurali cakisiyor
 - `501` route acik ama backend henuz implement edilmedi
+- `503` SQL Server/veritabani servisine gecici olarak ulasilamiyor; create retry gerekiyorsa UI ayni payload ve ayni `clientRequestId` ile tekrar denemelidir
 
 ## Kimlik Akisi
 
@@ -5453,6 +5539,59 @@ Yetki:
 
 - `siparis-islemleri.alinan-depo-siparisleri.detail`
 
+### Alinan Depo Siparisleri Toplu Yazdir
+
+`POST /api/siparis-islemleri/alinan-depo-siparisleri/toplu-yazdir`
+
+Yetki:
+
+- `siparis-islemleri.alinan-depo-siparisleri.print`
+
+Request:
+
+```json
+{
+  "documentKeys": [
+    "MTEwfEQxMTB8MTkxNQ",
+    "MTEwfEQxMTB8MTkxNg"
+  ]
+}
+```
+
+Kurallar:
+
+- `documentKeys` liste response'undaki `documentKey` alanlarindan olusur.
+- En az 1, en fazla 100 evrak tek istekte yazdirilabilir.
+- Tekrar eden anahtarlar backend tarafinda tekillestirilir.
+- Her anahtarin icindeki depo no kullanicinin depo yetkisine gore yeniden kontrol edilir. Baska depo evraki icin ilgili menunun `all-warehouses` yetkisi gerekir.
+- Secilen evraklardan biri bulunamazsa eksik veya kismi PDF donmez; API `404 Not Found` doner.
+- Backend secilen evraklari ve satirlarini toplu Mikro sorgusuyla okur; UI'nin her evrak icin ayri detay istegi atmasi gerekmez.
+- Response JSON degildir. `Content-Type: application/pdf` ve `Content-Disposition: inline` ile tek PDF doner.
+- Her siparis yeni PDF sayfasindan baslar. Uzun siparisler devam sayfasina tasar; tablo basligi tekrar yazilir.
+
+UI akisi:
+
+1. Listeyi bugunun `StartDate` ve `EndDate` degerleriyle getir.
+2. Grid satirlarina checkbox, ust aksiyon alanina `Secilenleri Yazdir` ve `Bugunun Tumunu Yazdir` butonlari ekle.
+3. Butonlari sadece kullanicida `siparis-islemleri.alinan-depo-siparisleri.print` varsa goster.
+4. Secilen veya filtrelenmis tum satirlarin `documentKey` alanlarini tek POST body icinde gonder.
+5. Response'u `blob` olarak al, `application/pdf` object URL olustur ve tarayici yazdirma/onizleme penceresinde ac.
+6. Islem surerken butonu kilitle; hata halinde acilan bos pencereyi kapat ve API `ProblemDetails.detail` mesajini goster.
+
+Frontend ornegi:
+
+```ts
+const response = await api.post(
+  "/api/siparis-islemleri/alinan-depo-siparisleri/toplu-yazdir",
+  { documentKeys: selectedRows.map(row => row.documentKey) },
+  { responseType: "blob" }
+);
+
+const pdfUrl = URL.createObjectURL(response.data);
+window.open(pdfUrl, "_blank", "noopener,noreferrer");
+setTimeout(() => URL.revokeObjectURL(pdfUrl), 60_000);
+```
+
 ### Siparis Detay Response
 
 ```json
@@ -6826,7 +6965,7 @@ Onemli not:
 - `officialDocumentNo` varsa Mikro `STOK_HAREKETLERI.sth_belge_no` alanina da yazilir. ETTN/UUID bu alana yazilmaz.
 - `IRS19105-1`, `ABC` veya yalniz sayisal metinlerden seri/sira ya da belge no uretilmez.
 - Response'taki `documentNo`, Mikro'ya yazilan resmi belge numarasidir; manuel kayitta bos string doner. Evrak anahtari her zaman response `documentSerie + documentOrderNo` alanlaridir.
-- Ayni depo icinde ayni `documentSerie + documentOrderNo` kombinasyonu tekrar kullanilamaz.
+- Ayni `documentSerie + documentOrderNo` kombinasyonu tum depolar genelinde yalnizca bir firma mal kabul evrakinda kullanilabilir. Baska depoda daha once kullanildiysa API yeni kaydi reddeder.
 - Mobil retry icin backend `clientRequestId` izini `FR` prefixli trace olarak `sth_eticaret_kanal_kodu` alanina tasir; `MikroApi` modunda bu payload ile Mikro'ya gider, tekrar istekte sonuc bu iz uzerinden toparlanabilir.
 - Ayni `clientRequestId` ile ayni payload tekrar gonderilirse backend ayni business response'u dondurmeye calisir.
 - Ayni `clientRequestId` ile farkli payload gonderilirse `409 Conflict` doner.
@@ -11181,6 +11320,7 @@ Not:
 
 - response modeli firma sevk detay response modeliyle aynidir
 - filtre `sth_evraktip = 1`, `sth_tip = 1`, `sth_normal_iade = 1`, `sth_cikis_depo_no = warehouseNo` olarak uygulanir
+- `header.deliverer` teslim eden kisiyi, `header.receiver` teslim alan kisiyi dondurur. Degerler Mikro `sth_HareketGrupKodu2` ve `sth_HareketGrupKodu3` alanlarindan okunur.
 - bu endpoint Mikro veritabaninda sadece SELECT yapar; insert/update/delete yoktur
 
 ### Firma Iadesini E-Irsaliyeye Cevir
@@ -11342,6 +11482,9 @@ Notlar:
 - Basarili gonderimden sonra cozulmus plaka ve TCKN Mikro hareket satirlarina metadata olarak yazilmaya calisilir.
 - Response icindeki `localMikroMetadataUpdated=false` gelirse Uyumsoft gonderimi basarilidir, fakat Mikro hareket satirlari FRM/ETTN metadata'si ile isaretlenememistir. UI bu durumda tekrar e-irsaliye gondermemeli; `eDespatchDocumentNo` ve `eDespatchUuid` degerleriyle lokal Mikro belge metadata onarimi yapilmalidir.
 - Ayni evrak icin belge akisinda basarili Uyumsoft gonderimi kayitliysa backend ikinci gonderimi `409 Conflict` ile engeller. Bu kural Mikro metadata isaretleme eksik kalmis olsa bile Uyumsoft'ta duplicate zarf olusmasini onlemek icindir.
+- Backend Uyumsoft gonderiminden hemen once seri/sira kapsamindaki guncel hareket GUID listesini hazirlanan belgeyle karsilastirir. Satir eklenmis veya silinmisse e-irsaliye gonderilmeden `409 Conflict` doner; UI belgeyi yenileyip tekrar denemelidir.
+- Uyumsoft gonderimi devam ederken hareket kumesi degisirse sadece gercekten gonderilen snapshot satirlari isaretlenir ve `localMikroMetadataUpdated=false` doner. UI bu durumda otomatik tekrar gonderim yapmamalidir.
+- Ayni Mikro evrakinda hem FRM/ETTN ile isaretli hem de bos satir bulunursa backend otomatik kurtarmayi durdurur ve `409 Conflict` doner. Bu durum manuel olarak Uyumsoft belge icerigiyle uzlastirilmadan bos satirlar mevcut e-irsaliyeye baglanmamalidir.
 
 Response:
 
@@ -13796,6 +13939,40 @@ UI kasa seciminde `GET /api/kasa-islemleri/kasa-sayimlari/kasalar?branchNo=...` 
 
 `odeme-tipleri/yemek-ceki` response'unda yemek ceki tipi adi `paymentName` alanindadir. Backend eski API ile uyumlu olarak `PaymentTypes.PaymentGenus = 2` olan yemek ceki odeme tiplerini listeler ve `accountCode` alanini `PaymentTypes.AccountCode` degeriyle doldurur. UI yemek ceki seciminde gorunen ad olarak `paymentName`, kayit payload'inda odeme tipi olarak `paymentTypeNo` kullanmalidir.
 
+`odeme-tipleri/online`, `PaymentTypes.PaymentGenus = 5` olan kayitlari ve geriye uyumluluk icin `PaymentName` icinde `online` gecen kayitlari birlikte dondurur. Response'taki `paymentGenus` Mikro kaydinin gercek turudur. Canli Mikro tanimiyla beklenen temel satirlar:
+
+```json
+[
+  {
+    "paymentName": "Online Ödeme",
+    "paymentTypeNo": 10,
+    "terminalId": "",
+    "paymentGenus": 1,
+    "accountCode": "0021",
+    "amountValue": 0,
+    "slipNumber": 0
+  },
+  {
+    "paymentName": "Trendyol",
+    "paymentTypeNo": 600,
+    "terminalId": "",
+    "paymentGenus": 5,
+    "accountCode": "0013",
+    "amountValue": 0,
+    "slipNumber": 0
+  },
+  {
+    "paymentName": "Yemek Sepeti",
+    "paymentTypeNo": 601,
+    "terminalId": "",
+    "paymentGenus": 5,
+    "accountCode": "0014",
+    "amountValue": 0,
+    "slipNumber": 0
+  }
+]
+```
+
 Kisa response ornekleri:
 
 ```json
@@ -15756,7 +15933,7 @@ Tried series: FRP26, FRP.
 
 Bu mesaj backend'in hem `FRP26` hem `FRP` serisini denedigini, fakat aramayi `EArsiv` filtresiyle yaptigini gosterir. Secilen satir `EFatura` ise once frontend body'deki `scenario` duzeltilmelidir.
 
-Not: Kayit `EBELGE_EVRAK_HAREKETLERI.ebh_related_uid = iade faturasi cha_Guid` uzerinden update/insert edilir. `send` sirasinda iade referansi halen bos ise backend fallback'i otomatik deneyip kaydeder; fallback bulunamazsa gonderim durdurulur.
+Not: Kayit `EBELGE_EVRAK_HAREKETLERI.ebh_related_uid = iade faturasi cha_Guid` uzerinden update/insert edilir. `send` sirasinda iade referansi halen bos ise backend fallback'i otomatik deneyip kaydeder; fallback bulunamazsa gonderim durdurulur. `MikroWriteRouting:InvoiceReturnReference=Database` dogrudan DB yolunu, `MikroApi` ise `KayitKaydetTopluV2` tablo `597` yolunu kullanir. Mikro API yolunda referans no/tarih DB readback ile dogrulanmadan islem basarili sayilmaz. `DualShadow`, API dry-run destegi olmadigi icin yalniz DB yolunu calistirir.
 
 ### Fatura Gonderimi Detay
 
@@ -20499,6 +20676,8 @@ public sealed record CompanyMovementListItemDto(
     byte DocumentType,
     byte MovementType,
     byte ReturnType,
+    string Deliverer,
+    string Receiver,
     string Description,
     int LineCount,
     double TotalQuantity,

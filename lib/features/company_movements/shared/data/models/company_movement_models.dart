@@ -48,6 +48,8 @@ class CompanyMovementListItem {
     required this.lineCount,
     required this.totalQuantity,
     required this.totalAmount,
+    this.deliverer = '',
+    this.receiver = '',
   });
 
   final DateTime? documentDate;
@@ -73,6 +75,8 @@ class CompanyMovementListItem {
   final int lineCount;
   final double totalQuantity;
   final double totalAmount;
+  final String deliverer;
+  final String receiver;
 
   String get documentNoLabel => '$documentSerie.$documentOrderNo';
   bool get hasDocumentNo => documentNo.trim().isNotEmpty;
@@ -103,6 +107,8 @@ class CompanyMovementListItem {
       lineCount: _readInt(json['lineCount']),
       totalQuantity: _readDouble(json['totalQuantity']),
       totalAmount: _readDouble(json['totalAmount']),
+      deliverer: _readString(json['deliverer']),
+      receiver: _readString(json['receiver']),
     );
   }
 }
@@ -155,6 +161,8 @@ class CompanyMovementHeader {
     required this.lineCount,
     required this.totalQuantity,
     required this.totalAmount,
+    this.deliverer = '',
+    this.receiver = '',
   });
 
   final DateTime? documentDate;
@@ -181,6 +189,8 @@ class CompanyMovementHeader {
   final int lineCount;
   final double totalQuantity;
   final double totalAmount;
+  final String deliverer;
+  final String receiver;
 
   String get documentNoLabel => '$documentSerie.$documentOrderNo';
   bool get hasDocumentNo => documentNo.trim().isNotEmpty;
@@ -212,6 +222,8 @@ class CompanyMovementHeader {
       lineCount: _readInt(json['lineCount']),
       totalQuantity: _readDouble(json['totalQuantity']),
       totalAmount: _readDouble(json['totalAmount']),
+      deliverer: _readString(json['deliverer']),
+      receiver: _readString(json['receiver']),
     );
   }
 }

@@ -511,8 +511,6 @@ class _LabelDocumentProductCard extends StatelessWidget {
         children: <Widget>[
           Text(
             product.productName,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
             style: Theme.of(
               context,
             ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800),
@@ -521,11 +519,12 @@ class _LabelDocumentProductCard extends StatelessWidget {
           TerminalPdaInfoGrid(
             items: <TerminalPdaInfo>[
               TerminalPdaInfo(label: 'Kod', value: product.productCode),
-              TerminalPdaInfo(
-                label: 'Barkod',
-                value: product.barcode.isEmpty ? '-' : product.barcode,
-              ),
             ],
+          ),
+          const SizedBox(height: 6),
+          _LabelDocumentFullInfo(
+            label: 'Barkod',
+            value: product.barcode.isEmpty ? '-' : product.barcode,
           ),
         ],
       ),
@@ -673,9 +672,11 @@ class _LabelDocumentCreateSheetState extends State<_LabelDocumentCreateSheet> {
             itemBuilder: (context, item, onSelect) => TerminalProductLookupTile(
               title: item.displayLabel,
               subtitle:
+                  'Barkod ${item.barcode.isEmpty ? '-' : item.barcode} | '
                   '${item.unitName} | ${AppFormatters.currency(item.price)}',
               informationLabels: item.sourceInformationLabels,
               showWarning: item.needsStatusAttention,
+              showFullText: true,
               onTap: onSelect,
             ),
           );
@@ -971,22 +972,39 @@ class _LabelDocumentCreateSheetState extends State<_LabelDocumentCreateSheet> {
               ),
             )
           else if (product != null)
-            TerminalPdaInfoGrid(
-              minTileWidth: 92,
-              items: <TerminalPdaInfo>[
-                TerminalPdaInfo(label: 'Kod', value: product.stockCode),
-                TerminalPdaInfo(
-                  label: 'Fiyat',
-                  value: AppFormatters.currency(product.price),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: <Widget>[
+                Text(
+                  product.stockName,
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900),
                 ),
-                TerminalPdaInfo(label: 'Birim', value: product.unitName),
-                if (product.unitMultiplier > 1)
-                  TerminalPdaInfo(
-                    label: 'Koli ici',
-                    value: _labelProductPackageText(product),
+                const SizedBox(height: 6),
+                TerminalPdaInfoGrid(
+                  minTileWidth: 92,
+                  items: <TerminalPdaInfo>[
+                    TerminalPdaInfo(label: 'Kod', value: product.stockCode),
+                    TerminalPdaInfo(
+                      label: 'Fiyat',
+                      value: AppFormatters.currency(product.price),
+                    ),
+                    TerminalPdaInfo(label: 'Birim', value: product.unitName),
+                    if (product.unitMultiplier > 1)
+                      TerminalPdaInfo(
+                        label: 'Koli ici',
+                        value: _labelProductPackageText(product),
+                      ),
+                  ],
+                ),
+                if (product.barcode.trim().isNotEmpty) ...<Widget>[
+                  const SizedBox(height: 6),
+                  _LabelDocumentFullInfo(
+                    label: 'Barkod',
+                    value: product.barcode,
                   ),
-                if (product.barcode.trim().isNotEmpty)
-                  TerminalPdaInfo(label: 'Barkod', value: product.barcode),
+                ],
               ],
             ),
           if (isFreshEntry && line.lookupStatusMessage != null) ...<Widget>[
@@ -1024,6 +1042,49 @@ class _LabelDocumentCreateSheetState extends State<_LabelDocumentCreateSheet> {
         focusNode.requestFocus();
       }
     });
+  }
+}
+
+class _LabelDocumentFullInfo extends StatelessWidget {
+  const _LabelDocumentFullInfo({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest.withAlpha(44),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: theme.colorScheme.outlineVariant.withAlpha(72),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Text(
+            label,
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: const Color(0xFF5F6C7B),
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 1),
+          SelectableText(
+            value,
+            style: theme.textTheme.titleSmall?.copyWith(
+              color: const Color(0xFF1C2D40),
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 
