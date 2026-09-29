@@ -51,18 +51,42 @@ Future<CreateDraftLaunch?> showCreateDraftPicker({
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: <Widget>[
                   TerminalSheetHeader(
-                    title: 'Taslaklar',
+                    title: 'Yarim Kalan Formlar',
                     subtitle:
-                        'Yarim kalan islemi surdurun veya yeni bir $createTitle acin.',
+                        'Bunlar sunucuya gonderilmis evraklar degildir. '
+                        'Yalnizca bu cihazda yarim kalan girislerdir.',
                     padding: EdgeInsets.zero,
+                  ),
+                  const SizedBox(height: 8),
+                  const TerminalMessageBlock.info(
+                    message:
+                        'Islemi daha once tamamlayip gonderdiyseniz bu formu '
+                        'silebilirsiniz. Son 5 form tutulur; 30 gunden eski '
+                        'formlar otomatik temizlenir.',
                   ),
                   const SizedBox(height: 14),
                   FilledButton.icon(
-                    onPressed: () => Navigator.of(
-                      sheetContext,
-                    ).pop(const CreateDraftLaunch.newDraft()),
-                    icon: const Icon(Icons.add_rounded),
-                    label: const Text('Yeni Belge'),
+                    onPressed: () async {
+                      final shouldDelete = await _confirmDeleteAll(
+                        context,
+                        drafts.length,
+                      );
+                      if (!shouldDelete) {
+                        return;
+                      }
+                      await repository.deleteDrafts(
+                        moduleKey: moduleKey,
+                        userId: userId,
+                        warehouseNo: warehouseNo,
+                      );
+                      if (sheetContext.mounted) {
+                        Navigator.of(
+                          sheetContext,
+                        ).pop(const CreateDraftLaunch.newDraft());
+                      }
+                    },
+                    icon: const Icon(Icons.note_add_rounded),
+                    label: const Text('Yarim Formlari Sil ve Yeni Basla'),
                   ),
                   const SizedBox(height: 12),
                   Flexible(
@@ -79,13 +103,15 @@ Future<CreateDraftLaunch?> showCreateDraftPicker({
                             draft.title.isEmpty ? createTitle : draft.title,
                           ),
                           subtitle: Text(
-                            'Son kayit ${AppFormatters.dateTime(draft.updatedAt)}',
+                            'Cihazda yarim kaldi: '
+                            '${AppFormatters.dateTime(draft.updatedAt)}\n'
+                            'Devam etmek icin satira dokunun.',
                           ),
                           onTap: () => Navigator.of(
                             sheetContext,
                           ).pop(CreateDraftLaunch.resume(draft)),
                           trailing: IconButton(
-                            tooltip: 'Taslagi sil',
+                            tooltip: 'Yarim kalan formu sil',
                             onPressed: () async {
                               await repository.deleteDraft(draft.id);
                               if (!context.mounted) {
@@ -116,4 +142,28 @@ Future<CreateDraftLaunch?> showCreateDraftPicker({
       );
     },
   );
+}
+
+Future<bool> _confirmDeleteAll(BuildContext context, int count) async {
+  return await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Yarim Formlari Temizle'),
+          content: Text(
+            '$count yarim kalan form bu cihazdan silinecek. '
+            'Bu islem sunucudaki evraklari etkilemez.',
+          ),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Vazgec'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: const Text('Temizle'),
+            ),
+          ],
+        ),
+      ) ??
+      false;
 }

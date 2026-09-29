@@ -70,4 +70,103 @@ void main() {
     );
     expect(drafts, isEmpty);
   });
+
+  test('keeps only the newest five drafts for each scope', () async {
+    final repository = LocalCreateDraftRepository(
+      database: MemoryLocalDatabase(),
+    );
+    final now = DateTime.now();
+
+    for (var index = 0; index < 7; index += 1) {
+      final draft = CreateDraft.empty(
+        moduleKey: 'company-return',
+        userId: '7',
+        warehouseNo: '50',
+        title: 'Form $index',
+      ).copyWith(updatedAt: now.subtract(Duration(minutes: index)));
+      await repository.saveDraft(draft);
+    }
+
+    final drafts = await repository.fetchDrafts(
+      moduleKey: 'company-return',
+      userId: '7',
+      warehouseNo: '50',
+    );
+
+    expect(drafts, hasLength(5));
+    expect(drafts.map((draft) => draft.title), <String>[
+      'Form 0',
+      'Form 1',
+      'Form 2',
+      'Form 3',
+      'Form 4',
+    ]);
+  });
+
+  test('removes drafts older than thirty days', () async {
+    final repository = LocalCreateDraftRepository(
+      database: MemoryLocalDatabase(),
+    );
+    final expiredDraft = CreateDraft.empty(
+      moduleKey: 'company-return',
+      userId: '7',
+      warehouseNo: '50',
+      title: 'Eski Form',
+    ).copyWith(updatedAt: DateTime.now().subtract(const Duration(days: 31)));
+
+    await repository.saveDraft(expiredDraft);
+
+    final drafts = await repository.fetchDrafts(
+      moduleKey: 'company-return',
+      userId: '7',
+      warehouseNo: '50',
+    );
+    expect(drafts, isEmpty);
+  });
+
+  test(
+    'deleteDrafts clears only the selected module user and warehouse',
+    () async {
+      final repository = LocalCreateDraftRepository(
+        database: MemoryLocalDatabase(),
+      );
+      final selectedScope = CreateDraft.empty(
+        moduleKey: 'company-return',
+        userId: '7',
+        warehouseNo: '50',
+        title: 'Silinecek',
+      );
+      final otherWarehouse = CreateDraft.empty(
+        moduleKey: 'company-return',
+        userId: '7',
+        warehouseNo: '56',
+        title: 'Kalacak',
+      );
+      await repository.saveDraft(selectedScope);
+      await repository.saveDraft(otherWarehouse);
+
+      await repository.deleteDrafts(
+        moduleKey: 'company-return',
+        userId: '7',
+        warehouseNo: '50',
+      );
+
+      expect(
+        await repository.fetchDrafts(
+          moduleKey: 'company-return',
+          userId: '7',
+          warehouseNo: '50',
+        ),
+        isEmpty,
+      );
+      expect(
+        await repository.fetchDrafts(
+          moduleKey: 'company-return',
+          userId: '7',
+          warehouseNo: '56',
+        ),
+        hasLength(1),
+      );
+    },
+  );
 }
