@@ -9,6 +9,7 @@ import 'package:furpa_merkez_terminal/core/update/app_update_service.dart';
 import 'package:furpa_merkez_terminal/features/auth/presentation/views/login_page.dart';
 import 'package:furpa_merkez_terminal/features/shell/presentation/view_models/app_session_controller.dart';
 import 'package:furpa_merkez_terminal/features/shell/presentation/views/home_shell_page.dart';
+import 'package:furpa_merkez_terminal/shared/widgets/furpa_brand.dart';
 
 class FurpaMerkezApp extends StatefulWidget {
   const FurpaMerkezApp({super.key, required this.dependencies});
@@ -262,6 +263,32 @@ class _BootPlaceholderPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Scaffold(backgroundColor: Color(0xFFF6F8FC));
+    return const Scaffold(
+      backgroundColor: FurpaBrandColors.canvas,
+      body: SafeArea(
+        child: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              FurpaBrandLockup(scale: 0.82, showCaption: true),
+              SizedBox(height: 28),
+              SizedBox(
+                width: 28,
+                height: 28,
+                child: CircularProgressIndicator(strokeWidth: 3),
+              ),
+              SizedBox(height: 12),
+              Text(
+                'Oturum hazirlaniyor...',
+                style: TextStyle(
+                  color: FurpaBrandColors.muted,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }

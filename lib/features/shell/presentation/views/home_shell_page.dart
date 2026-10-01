@@ -391,15 +391,16 @@ class _HomeShellPageState extends State<HomeShellPage>
 
   Widget _buildWarehouseContextGuard(Widget child) {
     if (_isWarehouseContextChecking && !_isWarehouseContextVerified) {
-      return const Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: <Widget>[
-            CircularProgressIndicator(),
-            SizedBox(height: 12),
-            Text('Depo bilgisi dogrulaniyor...'),
-          ],
-        ),
+      return Stack(
+        children: <Widget>[
+          child,
+          const Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: LinearProgressIndicator(minHeight: 3),
+          ),
+        ],
       );
     }
 

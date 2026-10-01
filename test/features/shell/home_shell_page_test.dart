@@ -75,7 +75,7 @@ void main() {
     expect(find.text('Content: Birinci Menu'), findsNothing);
   });
 
-  testWidgets('waits for warehouse verification before initial offline sync', (
+  testWidgets('shows home while warehouse verification guards offline sync', (
     tester,
   ) async {
     final session = _buildSession();
@@ -98,13 +98,14 @@ void main() {
     );
     await tester.pump();
 
-    expect(find.text('Depo bilgisi dogrulaniyor...'), findsOneWidget);
+    expect(find.text('Tum Menuler'), findsOneWidget);
+    expect(find.byType(LinearProgressIndicator), findsOneWidget);
     expect(registry.syncCallCount, 0);
 
     warehouseContextCompleter.complete(_verifiedWarehouseContext());
     await tester.pumpAndSettle();
 
-    expect(find.text('Depo bilgisi dogrulaniyor...'), findsNothing);
+    expect(find.byType(LinearProgressIndicator), findsNothing);
     expect(registry.syncCallCount, 1);
   });
 }

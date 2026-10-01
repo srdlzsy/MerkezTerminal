@@ -17,6 +17,7 @@ class AuthRepository {
   final TokenStorage _tokenStorage;
 
   static const String _clientType = 'terminal';
+  static const Duration _startupTokenSafetyWindow = Duration(minutes: 1);
 
   Future<AuthSession> signIn({
     required String usernameOrEmail,
@@ -68,6 +69,30 @@ class AuthRepository {
       return null;
     }
 
+    if (cachedSession != null) {
+      if (_canUseCachedSession(cachedSession)) {
+        return cachedSession;
+      }
+
+      if (storedTokens.refreshToken?.trim().isNotEmpty ?? false) {
+        try {
+          final refreshedSession = await _tryRefreshSession(
+            refreshToken: storedTokens.refreshToken,
+            fallbackExpiresAtUtc: cachedSession.expiresAtUtc,
+            cachedSession: cachedSession,
+          );
+          if (refreshedSession != null) {
+            return refreshedSession;
+          }
+        } on ApiException catch (error) {
+          if (error.statusCode == 0) {
+            return cachedSession;
+          }
+          rethrow;
+        }
+      }
+    }
+
     try {
       return await _fetchAndPersistSession(
         accessToken: accessToken,
@@ -93,6 +118,17 @@ class AuthRepository {
 
       rethrow;
     }
+  }
+
+  bool _canUseCachedSession(AuthSession session) {
+    final expiresAtUtc = session.expiresAtUtc;
+    if (expiresAtUtc == null) {
+      return false;
+    }
+
+    return expiresAtUtc.toUtc().isAfter(
+      DateTime.now().toUtc().add(_startupTokenSafetyWindow),
+    );
   }
 
   Future<AuthSession?> refreshSession() async {
@@ -245,6 +281,20 @@ class AuthRepository {
     final refreshedTokens = await _refreshTokens(refreshToken);
     if (refreshedTokens == null) {
       return null;
+    }
+
+    if (cachedSession != null) {
+      final refreshedSession = AuthSession(
+        accessToken: refreshedTokens.accessToken!,
+        refreshToken: refreshedTokens.refreshToken,
+        refreshTokenExpiresAtUtc:
+            refreshedTokens.refreshTokenExpiresAtUtc ??
+            cachedSession.refreshTokenExpiresAtUtc,
+        user: cachedSession.user,
+        expiresAtUtc: refreshedTokens.expiresAtUtc ?? fallbackExpiresAtUtc,
+      );
+      await _persistSession(refreshedSession);
+      return refreshedSession;
     }
 
     try {

@@ -88,6 +88,92 @@ void main() {
   );
 
   test(
+    'restoreSession uses a valid cached session without waiting for api',
+    () async {
+      final storage = TokenStorage();
+      await storage.ensureAuthClientProfile('terminal');
+      await storage.writeToken('cached-token');
+      await storage.writeRefreshToken('cached-refresh');
+      final cachedSession = <String, dynamic>{
+        'accessToken': 'cached-token',
+        'refreshToken': 'cached-refresh',
+        'expiresAtUtc': DateTime.now()
+            .toUtc()
+            .add(const Duration(hours: 1))
+            .toIso8601String(),
+        'user': _currentUserJson(),
+      };
+      await storage.writeCachedSessionJson(jsonEncode(cachedSession));
+      var requestCount = 0;
+      final repository = AuthRepository(
+        tokenStorage: storage,
+        apiClient: ApiClient(
+          baseUrl: 'http://localhost:5228',
+          httpClient: MockClient((request) async {
+            requestCount += 1;
+            return http.Response('{"title":"Unexpected"}', 500);
+          }),
+        ),
+      );
+
+      final session = await repository.restoreSession();
+
+      expect(session?.accessToken, 'cached-token');
+      expect(session?.user.warehouseNo, '110');
+      expect(requestCount, 0);
+    },
+  );
+
+  test('restoreSession refreshes an expired cached session directly', () async {
+    final storage = TokenStorage();
+    await storage.ensureAuthClientProfile('terminal');
+    await storage.writeToken('expired-token');
+    await storage.writeRefreshToken('refresh-1');
+    await storage.writeCachedSessionJson(
+      jsonEncode(<String, dynamic>{
+        'accessToken': 'expired-token',
+        'refreshToken': 'refresh-1',
+        'expiresAtUtc': DateTime.now()
+            .toUtc()
+            .subtract(const Duration(minutes: 5))
+            .toIso8601String(),
+        'user': _currentUserJson(),
+      }),
+    );
+    final requestedPaths = <String>[];
+    final repository = AuthRepository(
+      tokenStorage: storage,
+      apiClient: ApiClient(
+        baseUrl: 'http://localhost:5228',
+        httpClient: MockClient((request) async {
+          requestedPaths.add(request.url.path);
+          if (request.url.path == '/api/auth/refresh') {
+            return http.Response(
+              jsonEncode(<String, dynamic>{
+                'accessToken': 'fresh-token',
+                'refreshToken': 'refresh-2',
+                'expiresAtUtc': DateTime.now()
+                    .toUtc()
+                    .add(const Duration(hours: 1))
+                    .toIso8601String(),
+              }),
+              200,
+              headers: <String, String>{'content-type': 'application/json'},
+            );
+          }
+          return http.Response('{"title":"Unexpected"}', 500);
+        }),
+      ),
+    );
+
+    final session = await repository.restoreSession();
+
+    expect(requestedPaths, <String>['/api/auth/refresh']);
+    expect(session?.accessToken, 'fresh-token');
+    expect(session?.user.warehouseNo, '110');
+  });
+
+  test(
     'clearSession posts refresh token to logout and clears local tokens',
     () async {
       final storage = TokenStorage();
