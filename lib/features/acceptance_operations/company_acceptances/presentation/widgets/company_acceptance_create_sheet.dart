@@ -650,6 +650,10 @@ class _CompanyAcceptanceCreateSheetState
     }
     final pickedProduct = selected;
 
+    if (_rejectDelistedProduct(line, pickedProduct)) {
+      return;
+    }
+
     if (_increasePendingQuantityIfSameProduct(line, pickedProduct)) {
       _draftSession.scheduleSave();
       _refocusLine(line.lookupFocusNode);
@@ -732,6 +736,28 @@ class _CompanyAcceptanceCreateSheetState
       _lookupError = null;
     });
     unawaited(TerminalFeedback.success());
+    return true;
+  }
+
+  bool _rejectDelistedProduct(
+    _AcceptanceLineDraft line,
+    SearchProductLookupItem product,
+  ) {
+    if (!product.isDelisted) {
+      return false;
+    }
+
+    final reason = product.delistReason.trim();
+    setState(() {
+      line.setLookupStatus(
+        'Bu urun DLS durumunda ve listeye eklenemez. '
+        'Lutfen yetkililere bildirin.${reason.isEmpty ? '' : ' DLS: $reason'}',
+        isError: true,
+      );
+      _lookupError = null;
+    });
+    unawaited(TerminalFeedback.warning());
+    _refocusLine(line.lookupFocusNode);
     return true;
   }
 
@@ -833,6 +859,10 @@ class _CompanyAcceptanceCreateSheetState
     final product = line.selectedProduct;
     if (product == null) {
       _refocusLine(line.lookupFocusNode);
+      return;
+    }
+
+    if (_rejectDelistedProduct(line, product)) {
       return;
     }
 
@@ -1179,7 +1209,7 @@ class _CompanyAcceptanceCreateSheetState
     if (_hasPendingEntryLine) {
       _showStepError(
         step: _CompanyAcceptanceCreateStep.lines,
-        message: 'Secilen urunu once Kaleme Ekle ile listeye alin.',
+        message: 'Secilen urunu once Ekle ile listeye alin.',
       );
       return;
     }

@@ -207,6 +207,7 @@ class EDespatchSendResult {
     required this.sentAt,
     required this.endpointUrl,
     this.localMikroMetadataUpdated = true,
+    this.localMikroMetadataUpdateQueued = false,
     this.warning = '',
   });
 
@@ -220,14 +221,21 @@ class EDespatchSendResult {
   final DateTime? sentAt;
   final String endpointUrl;
   final bool localMikroMetadataUpdated;
+  final bool localMikroMetadataUpdateQueued;
   final String warning;
 
   String get documentNoLabel => '$documentSerie.$documentOrderNo';
   String get serviceDocumentLabel => serviceDocumentNumber.isEmpty
       ? eDespatchDocumentNo
       : serviceDocumentNumber;
+  bool get isMikroMetadataPending =>
+      !localMikroMetadataUpdated && localMikroMetadataUpdateQueued;
   bool get hasWarning =>
-      !localMikroMetadataUpdated || warning.trim().isNotEmpty;
+      !isMikroMetadataPending &&
+      (!localMikroMetadataUpdated || warning.trim().isNotEmpty);
+  String get metadataStatusMessage => isMikroMetadataPending
+      ? 'E-irsaliye gonderildi. Mikro isaretlemesi bekliyor.'
+      : '';
   String get warningMessage {
     final explicitWarning = warning.trim();
     if (explicitWarning.isNotEmpty) {
@@ -255,6 +263,10 @@ class EDespatchSendResult {
       localMikroMetadataUpdated: _readBool(
         json['localMikroMetadataUpdated'],
         fallback: true,
+      ),
+      localMikroMetadataUpdateQueued: _readBool(
+        json['localMikroMetadataUpdateQueued'],
+        fallback: false,
       ),
       warning: _readString(json['warning']),
     );

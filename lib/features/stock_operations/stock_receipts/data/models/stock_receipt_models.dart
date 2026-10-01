@@ -285,6 +285,29 @@ class StockReceiptCreateRequest {
       'lines': lines.map((item) => item.toJson()).toList(growable: false),
     };
   }
+
+  factory StockReceiptCreateRequest.fromJson(JsonMap json) {
+    final rawLines = json['lines'];
+    return StockReceiptCreateRequest(
+      clientRequestId: _readString(json['clientRequestId']),
+      creator: _readString(json['creator']),
+      acceptor: _readString(json['acceptor']),
+      movementDate: _readDate(json['movementDate']) ?? DateTime.now(),
+      documentDate: _readDate(json['documentDate']) ?? DateTime.now(),
+      documentNo: _readString(json['documentNo']),
+      description: _readString(json['description']),
+      lines: rawLines is List
+          ? rawLines
+                .whereType<Map>()
+                .map(
+                  (item) => StockReceiptCreateLine.fromJson(
+                    item.map((key, value) => MapEntry(key.toString(), value)),
+                  ),
+                )
+                .toList(growable: false)
+          : const <StockReceiptCreateLine>[],
+    );
+  }
 }
 
 class StockReceiptCreateLine {
@@ -316,6 +339,18 @@ class StockReceiptCreateLine {
       'lotNo': lotNo,
       'projectCode': projectCode,
     };
+  }
+
+  factory StockReceiptCreateLine.fromJson(JsonMap json) {
+    return StockReceiptCreateLine(
+      stockCode: _readString(json['stockCode']),
+      quantity: _readDouble(json['quantity']),
+      unitPointer: _readInt(json['unitPointer']),
+      description: _readString(json['description']),
+      partyCode: _readString(json['partyCode']),
+      lotNo: _readInt(json['lotNo']),
+      projectCode: _readString(json['projectCode']),
+    );
   }
 }
 

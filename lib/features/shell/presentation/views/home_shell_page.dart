@@ -36,6 +36,9 @@ class _HomeShellPageState extends State<HomeShellPage>
       const _OfflineQueueSummary.empty();
   Timer? _offlineSyncTimer;
   Timer? _sessionContextRefreshTimer;
+  bool _isWarehouseContextChecking = true;
+  bool _isWarehouseContextVerified = false;
+  bool _isWarehouseContextUnavailable = false;
 
   @override
   void initState() {
@@ -48,9 +51,9 @@ class _HomeShellPageState extends State<HomeShellPage>
     );
     _sessionContextRefreshTimer = Timer.periodic(
       _sessionContextRefreshInterval,
-      (_) => unawaited(widget.sessionController.refreshWarehouseContextGuard()),
+      (_) => unawaited(_refreshWarehouseContext()),
     );
-    unawaited(_triggerOfflineSync());
+    unawaited(_initializeWarehouseContext());
   }
 
   @override
@@ -111,7 +114,7 @@ class _HomeShellPageState extends State<HomeShellPage>
           : null,
       onHomeTap: _goHome,
       onSelectMenu: (menu) {
-        _openMenu(menu);
+        unawaited(_openMenu(menu));
         if (!isWide) {
           Navigator.of(context).pop();
         }
@@ -119,19 +122,20 @@ class _HomeShellPageState extends State<HomeShellPage>
       onSignOut: () => session.signOut(),
     );
 
-    final content = _selectedMenu == null
+    final pageContent = _selectedMenu == null
         ? HomeDashboard(
             user: user,
             menus: availableMenus,
             offlineQueueCount: _offlineQueueSummary.total,
             offlineFailedCount: _offlineQueueSummary.failed,
-            onSelectMenu: _openMenu,
+            onSelectMenu: (menu) => unawaited(_openMenu(menu)),
           )
         : _buildContent(
             selectedMenu: _selectedMenu!,
             session: session,
             user: user,
           );
+    final content = _buildWarehouseContextGuard(pageContent);
 
     if (isWide) {
       return _buildBackAwareScaffold(
@@ -216,9 +220,18 @@ class _HomeShellPageState extends State<HomeShellPage>
     });
   }
 
-  void _openMenu(MenuEntry menu) {
+  Future<void> _openMenu(MenuEntry menu) async {
     if (_selectedMenu?.id == menu.id) {
       return;
+    }
+
+    if (!_isWarehouseContextVerified) {
+      final result = await _refreshWarehouseContext(showProgress: true);
+      if (!mounted ||
+          result == WarehouseContextGuardResult.signedOut ||
+          result == WarehouseContextGuardResult.notAuthenticated) {
+        return;
+      }
     }
 
     setState(() {
@@ -298,6 +311,21 @@ class _HomeShellPageState extends State<HomeShellPage>
   }
 
   Future<void> _triggerOfflineSync() async {
+    if (!_isWarehouseContextVerified) {
+      final result = await widget.sessionController
+          .refreshWarehouseContextGuard();
+      if (result != WarehouseContextGuardResult.verified) {
+        await _refreshOfflineQueueSummary();
+        return;
+      }
+      if (mounted) {
+        setState(() {
+          _isWarehouseContextVerified = true;
+          _isWarehouseContextUnavailable = false;
+        });
+      }
+    }
+
     final user = widget.sessionController.currentUser;
     final accessToken = widget.sessionController.accessToken;
 
@@ -320,8 +348,93 @@ class _HomeShellPageState extends State<HomeShellPage>
   }
 
   Future<void> _handleAppResume() async {
-    await widget.sessionController.refreshWarehouseContextGuard();
-    await _triggerOfflineSync();
+    final result = await _refreshWarehouseContext();
+    if (result == WarehouseContextGuardResult.verified) {
+      await _triggerOfflineSync();
+    }
+  }
+
+  Future<void> _initializeWarehouseContext() async {
+    final result = await _refreshWarehouseContext(showProgress: true);
+    if (result == WarehouseContextGuardResult.verified) {
+      await _triggerOfflineSync();
+    } else {
+      await _refreshOfflineQueueSummary();
+    }
+  }
+
+  Future<WarehouseContextGuardResult> _refreshWarehouseContext({
+    bool showProgress = false,
+  }) async {
+    if (showProgress && mounted) {
+      setState(() => _isWarehouseContextChecking = true);
+    }
+
+    final result = await widget.sessionController
+        .refreshWarehouseContextGuard();
+    if (!mounted) {
+      return result;
+    }
+
+    setState(() {
+      _isWarehouseContextChecking = false;
+      if (result == WarehouseContextGuardResult.verified) {
+        _isWarehouseContextVerified = true;
+        _isWarehouseContextUnavailable = false;
+      } else if (result == WarehouseContextGuardResult.unavailable &&
+          !_isWarehouseContextVerified) {
+        _isWarehouseContextUnavailable = true;
+      }
+    });
+    return result;
+  }
+
+  Widget _buildWarehouseContextGuard(Widget child) {
+    if (_isWarehouseContextChecking && !_isWarehouseContextVerified) {
+      return const Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            CircularProgressIndicator(),
+            SizedBox(height: 12),
+            Text('Depo bilgisi dogrulaniyor...'),
+          ],
+        ),
+      );
+    }
+
+    if (!_isWarehouseContextUnavailable || _isWarehouseContextVerified) {
+      return child;
+    }
+
+    return Column(
+      children: <Widget>[
+        Material(
+          color: Theme.of(context).colorScheme.errorContainer,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            child: Row(
+              children: <Widget>[
+                const Icon(Icons.wifi_off_rounded, size: 18),
+                const SizedBox(width: 8),
+                const Expanded(
+                  child: Text(
+                    'Depo bilgisi dogrulanamadi. Otomatik senkronizasyon '
+                    'bekletiliyor; online kayittan once tekrar deneyin.',
+                    maxLines: 2,
+                  ),
+                ),
+                TextButton(
+                  onPressed: () => unawaited(_initializeWarehouseContext()),
+                  child: const Text('Tekrar Dene'),
+                ),
+              ],
+            ),
+          ),
+        ),
+        Expanded(child: child),
+      ],
+    );
   }
 
   Future<void> _refreshOfflineQueueSummary() async {

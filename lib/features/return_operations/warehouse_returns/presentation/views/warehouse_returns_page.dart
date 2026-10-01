@@ -14,6 +14,7 @@ import 'package:furpa_merkez_terminal/shared/drafts/create_draft_picker.dart';
 import 'package:furpa_merkez_terminal/shared/drafts/create_draft_repository.dart';
 import 'package:furpa_merkez_terminal/shared/formatters/app_formatters.dart';
 import 'package:furpa_merkez_terminal/shared/offline/mobile_warehouse_catalog_repository.dart';
+import 'package:furpa_merkez_terminal/shared/pending_create/pending_create_repository.dart';
 import 'package:furpa_merkez_terminal/shared/utils/safe_create_retry.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/section_card.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/terminal_create_page.dart';
@@ -30,6 +31,7 @@ class WarehouseReturnsPage extends StatefulWidget {
     required this.direction,
     this.currentUserId = '',
     this.draftRepository,
+    required this.pendingCreateRepository,
     this.despatchDriversRepository,
   });
 
@@ -41,6 +43,7 @@ class WarehouseReturnsPage extends StatefulWidget {
   final WarehouseReturnDirection direction;
   final String currentUserId;
   final CreateDraftRepository? draftRepository;
+  final PendingCreateRepository pendingCreateRepository;
   final DespatchDriversRepository? despatchDriversRepository;
 
   @override
@@ -51,6 +54,8 @@ class _WarehouseReturnsPageState extends State<WarehouseReturnsPage> {
   late final WarehouseReturnsController _controller;
   WarehouseReturnCreateRequest? _pendingCreateRequest;
   CreateDraft? _pendingCreateDraft;
+  SafeCreateFailureKind _pendingCreateFailureKind =
+      SafeCreateFailureKind.notRetryable;
   late DateTime _startDate;
   late DateTime _endDate;
 
@@ -65,7 +70,60 @@ class _WarehouseReturnsPageState extends State<WarehouseReturnsPage> {
     );
     _startDate = _controller.startDate;
     _endDate = _controller.endDate;
+    if (widget.direction == WarehouseReturnDirection.outgoing) {
+      unawaited(_restorePendingCreate());
+    }
     unawaited(_controller.loadReturns());
+  }
+
+  static const String _pendingModuleKey = 'iade-islemleri.giden-depo-iadeleri';
+
+  Future<void> _restorePendingCreate() async {
+    try {
+      final pending = await widget.pendingCreateRepository.read(
+        moduleKey: _pendingModuleKey,
+        userId: widget.currentUserId,
+        warehouseNo: widget.defaultWarehouseNo,
+      );
+      if (!mounted || pending == null) {
+        return;
+      }
+      setState(() {
+        _pendingCreateRequest = WarehouseReturnCreateRequest.fromJson(
+          pending.payload,
+        );
+        _pendingCreateDraft = pending.draft;
+        _pendingCreateFailureKind = _failureKindFromName(pending.failureKind);
+      });
+    } on Object {
+      await _clearPersistedPendingCreate();
+    }
+  }
+
+  Future<void> _persistPendingCreate(
+    WarehouseReturnCreateRequest request,
+    CreateDraft? draft, {
+    SafeCreateFailureKind? failureKind,
+  }) {
+    return widget.pendingCreateRepository.save(
+      PendingCreateOperation(
+        moduleKey: _pendingModuleKey,
+        userId: widget.currentUserId,
+        warehouseNo: widget.defaultWarehouseNo,
+        payload: request.toJson(),
+        updatedAt: DateTime.now(),
+        failureKind: failureKind?.name,
+        draft: draft,
+      ),
+    );
+  }
+
+  Future<void> _clearPersistedPendingCreate() {
+    return widget.pendingCreateRepository.remove(
+      moduleKey: _pendingModuleKey,
+      userId: widget.currentUserId,
+      warehouseNo: widget.defaultWarehouseNo,
+    );
   }
 
   @override
@@ -231,6 +289,7 @@ class _WarehouseReturnsPageState extends State<WarehouseReturnsPage> {
     final message =
         '${result.documentNoLabel} icin e-irsaliye gonderildi. '
         'Belge: ${result.serviceDocumentLabel}'
+        '${result.isMikroMetadataPending ? ' | Mikro isaretlemesi bekliyor.' : ''}'
         '${result.hasWarning ? ' | Uyari: ${result.warningMessage}' : ''}';
     messenger.showSnackBar(
       SnackBar(
@@ -336,9 +395,25 @@ class _WarehouseReturnsPageState extends State<WarehouseReturnsPage> {
       return;
     }
 
+    try {
+      await _persistPendingCreate(request, draft);
+    } on Object {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Guvenli kayit bilgisi cihaza yazilamadi. Islem baslatilmadi.',
+            ),
+          ),
+        );
+      }
+      return;
+    }
+
     setState(() {
       _pendingCreateRequest = request;
       _pendingCreateDraft = draft;
+      _pendingCreateFailureKind = SafeCreateFailureKind.notRetryable;
     });
 
     final result = await _controller.createReturn(request);
@@ -351,10 +426,26 @@ class _WarehouseReturnsPageState extends State<WarehouseReturnsPage> {
     messenger.hideCurrentSnackBar();
 
     if (result == null) {
-      if (!shouldOfferSafeCreateRetry(_controller.createErrorStatusCode)) {
+      final failureKind = _controller.createFailureKind;
+      final keepsPending =
+          failureKind == SafeCreateFailureKind.uncertain ||
+          failureKind == SafeCreateFailureKind.processing ||
+          failureKind == SafeCreateFailureKind.multipleDocuments;
+      if (keepsPending) {
+        await _persistPendingCreate(request, draft, failureKind: failureKind);
+        if (!mounted) {
+          return;
+        }
+        setState(() => _pendingCreateFailureKind = failureKind);
+      } else {
+        await _clearPersistedPendingCreate();
+        if (!mounted) {
+          return;
+        }
         setState(() {
           _pendingCreateRequest = null;
           _pendingCreateDraft = null;
+          _pendingCreateFailureKind = SafeCreateFailureKind.notRetryable;
         });
       }
       messenger.showSnackBar(
@@ -362,7 +453,11 @@ class _WarehouseReturnsPageState extends State<WarehouseReturnsPage> {
           content: Text(
             _controller.createError ?? 'Depo iadesi kaydedilemedi.',
           ),
-          action: shouldOfferSafeCreateRetry(_controller.createErrorStatusCode)
+          action:
+              shouldOfferSafeCreateRetry(
+                _controller.createErrorStatusCode,
+                message: _controller.createError,
+              )
               ? SnackBarAction(
                   label: 'Tekrar Dene',
                   onPressed: () {
@@ -378,7 +473,12 @@ class _WarehouseReturnsPageState extends State<WarehouseReturnsPage> {
     setState(() {
       _pendingCreateRequest = null;
       _pendingCreateDraft = null;
+      _pendingCreateFailureKind = SafeCreateFailureKind.notRetryable;
     });
+    await _clearPersistedPendingCreate();
+    if (!mounted) {
+      return;
+    }
 
     messenger.showSnackBar(
       SnackBar(
@@ -464,7 +564,10 @@ class _WarehouseReturnsPageState extends State<WarehouseReturnsPage> {
         ),
         if (widget.direction == WarehouseReturnDirection.outgoing)
           FilledButton.tonalIcon(
-            onPressed: _controller.isCreating
+            onPressed:
+                _controller.isCreating ||
+                    _pendingCreateFailureKind ==
+                        SafeCreateFailureKind.multipleDocuments
                 ? null
                 : _pendingCreateRequest == null
                 ? _openCreateSheet
@@ -488,12 +591,22 @@ class _WarehouseReturnsPageState extends State<WarehouseReturnsPage> {
                   ? 'Kaydediliyor...'
                   : _pendingCreateRequest == null
                   ? 'Yeni Iade'
+                  : _pendingCreateFailureKind ==
+                        SafeCreateFailureKind.multipleDocuments
+                  ? 'Inceleme Gerekli'
                   : 'Kaydi Tekrar Dene',
             ),
           ),
       ],
     );
   }
+}
+
+SafeCreateFailureKind _failureKindFromName(String? value) {
+  return SafeCreateFailureKind.values.firstWhere(
+    (item) => item.name == value,
+    orElse: () => SafeCreateFailureKind.uncertain,
+  );
 }
 
 class _ReturnsAccordionPanel extends StatelessWidget {
@@ -980,6 +1093,10 @@ class _EDespatchResultCard extends StatelessWidget {
             TerminalMessageBlock.info(
               message: 'Uyari: ${result.warningMessage}',
             ),
+          ],
+          if (result.isMikroMetadataPending) ...<Widget>[
+            const SizedBox(height: 12),
+            TerminalMessageBlock.info(message: result.metadataStatusMessage),
           ],
         ],
       ),

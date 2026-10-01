@@ -36,6 +36,7 @@ class OutgoingWarehouseShipmentsController extends ChangeNotifier
   String? _detailError;
   String? _createError;
   int? _createErrorStatusCode;
+  SafeCreateFailureKind _createFailureKind = SafeCreateFailureKind.notRetryable;
   String? _sendEDespatchError;
   String? _pdfError;
   List<WarehouseShipmentListItem> _shipments =
@@ -56,6 +57,7 @@ class OutgoingWarehouseShipmentsController extends ChangeNotifier
   String? get detailError => _detailError;
   String? get createError => _createError;
   int? get createErrorStatusCode => _createErrorStatusCode;
+  SafeCreateFailureKind get createFailureKind => _createFailureKind;
   String? get sendEDespatchError => _sendEDespatchError;
   String? get pdfError => _pdfError;
   List<WarehouseShipmentListItem> get shipments => _shipments;
@@ -210,6 +212,7 @@ class OutgoingWarehouseShipmentsController extends ChangeNotifier
     _isCreating = true;
     _createError = null;
     _createErrorStatusCode = null;
+    _createFailureKind = SafeCreateFailureKind.notRetryable;
     notifySafely();
 
     try {
@@ -231,6 +234,10 @@ class OutgoingWarehouseShipmentsController extends ChangeNotifier
       _isCreating = false;
       _createError = safeCreateRetryErrorMessage(error);
       _createErrorStatusCode = error.statusCode;
+      _createFailureKind = classifySafeCreateFailure(
+        statusCode: error.statusCode,
+        message: error.message,
+      );
       notifySafely();
       return null;
     }

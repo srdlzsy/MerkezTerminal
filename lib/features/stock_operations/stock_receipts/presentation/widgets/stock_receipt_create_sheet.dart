@@ -673,7 +673,7 @@ class _StockReceiptCreateSheetState extends State<StockReceiptCreateSheet>
 
     if (_hasPendingEntryLine) {
       setState(() {
-        _lookupError = 'Secilen urunu once Kaleme Ekle ile listeye alin.';
+        _lookupError = 'Secilen urunu once Ekle ile listeye alin.';
       });
       return;
     }

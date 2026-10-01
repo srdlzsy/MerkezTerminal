@@ -108,4 +108,84 @@ void main() {
       clientRequestId,
     );
   });
+
+  test('safe retry create models restore the exact persisted payload', () {
+    const clientRequestId = 'persisted-request-123';
+    final requests = <Map<String, dynamic>>[
+      CompanyMovementCreateRequest(
+        clientRequestId: clientRequestId,
+        customerCode: '120.01.001',
+        movementDate: DateTime(2026, 10, 1),
+        documentDate: DateTime(2026, 10, 1),
+        documentNo: 'FS-1',
+        description: 'Firma sevki',
+        deliverer: 'Ali',
+        receiver: 'Veli',
+        lines: const <CompanyMovementCreateLine>[
+          CompanyMovementCreateLine(
+            stockCode: '015792',
+            quantity: 4,
+            unitPrice: 12.5,
+            unitPointer: 1,
+            description: 'Satir',
+            partyCode: 'P1',
+            lotNo: 2,
+            projectCode: 'PRJ',
+            customerResponsibilityCenter: 'CRM',
+            productResponsibilityCenter: 'URM',
+            orderLineGuid: 'order-line-1',
+          ),
+        ],
+      ).toJson(),
+      StockReceiptCreateRequest(
+        clientRequestId: clientRequestId,
+        creator: 'Olusturan',
+        acceptor: 'Onaylayan',
+        movementDate: DateTime(2026, 10, 1),
+        documentDate: DateTime(2026, 10, 1),
+        documentNo: 'ZF-1',
+        description: 'Zayiat',
+        lines: const <StockReceiptCreateLine>[
+          StockReceiptCreateLine(
+            stockCode: '015792',
+            quantity: 3,
+            unitPointer: 1,
+            description: 'Satir',
+            partyCode: 'P1',
+            lotNo: 2,
+            projectCode: 'PRJ',
+          ),
+        ],
+      ).toJson(),
+      VirmanCreateRequest(
+        clientRequestId: clientRequestId,
+        movementDate: DateTime(2026, 10, 1),
+        documentDate: DateTime(2026, 10, 1),
+        documentNo: 'VR-1',
+        description: 'Virman',
+        lines: const <VirmanCreateLine>[
+          VirmanCreateLine(
+            stockCode: '015792',
+            movementType: 1,
+            quantity: 2,
+            unitPointer: 1,
+            description: 'Satir',
+            partyCode: 'P1',
+            lotNo: 2,
+            projectCode: 'PRJ',
+          ),
+        ],
+      ).toJson(),
+    ];
+
+    expect(
+      CompanyMovementCreateRequest.fromJson(requests[0]).toJson(),
+      requests[0],
+    );
+    expect(
+      StockReceiptCreateRequest.fromJson(requests[1]).toJson(),
+      requests[1],
+    );
+    expect(VirmanCreateRequest.fromJson(requests[2]).toJson(), requests[2]);
+  });
 }

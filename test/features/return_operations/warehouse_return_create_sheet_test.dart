@@ -149,7 +149,7 @@ Future<void> _pickProduct(WidgetTester tester) async {
 }
 
 Future<void> _confirmPendingProduct(WidgetTester tester) async {
-  final addButton = find.widgetWithText(FilledButton, 'Kaleme Ekle').first;
+  final addButton = find.widgetWithText(FilledButton, 'Ekle').first;
   await tester.ensureVisible(addButton);
   await tester.pumpAndSettle();
   await tester.tap(addButton);

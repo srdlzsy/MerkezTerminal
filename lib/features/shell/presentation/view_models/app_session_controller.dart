@@ -6,6 +6,13 @@ import 'package:furpa_merkez_terminal/features/shell/domain/menu_entry.dart';
 
 enum AppSessionStatus { booting, unauthenticated, authenticated }
 
+enum WarehouseContextGuardResult {
+  notAuthenticated,
+  verified,
+  unavailable,
+  signedOut,
+}
+
 class AppSessionController extends ChangeNotifier {
   AppSessionController({required AuthRepository authRepository})
     : _authRepository = authRepository;
@@ -22,6 +29,7 @@ class AppSessionController extends ChangeNotifier {
   String? _errorMessage;
   Future<String?>? _unauthorizedRecovery;
   Future<void>? _resumeRefresh;
+  Future<WarehouseContextGuardResult>? _warehouseContextRefresh;
 
   AppSessionStatus get status => _status;
   String? get accessToken => _session?.accessToken;
@@ -108,14 +116,29 @@ class AppSessionController extends ChangeNotifier {
     }
   }
 
-  Future<void> refreshWarehouseContextGuard() async {
+  Future<WarehouseContextGuardResult> refreshWarehouseContextGuard() {
+    final activeRefresh = _warehouseContextRefresh;
+    if (activeRefresh != null) {
+      return activeRefresh;
+    }
+
+    final refreshFuture = _performWarehouseContextGuard();
+    _warehouseContextRefresh = refreshFuture;
+    return refreshFuture.whenComplete(() {
+      if (identical(_warehouseContextRefresh, refreshFuture)) {
+        _warehouseContextRefresh = null;
+      }
+    });
+  }
+
+  Future<WarehouseContextGuardResult> _performWarehouseContextGuard() async {
     if (_status != AppSessionStatus.authenticated) {
-      return;
+      return WarehouseContextGuardResult.notAuthenticated;
     }
 
     final session = _session;
     if (session == null) {
-      return;
+      return WarehouseContextGuardResult.notAuthenticated;
     }
 
     try {
@@ -124,16 +147,17 @@ class AppSessionController extends ChangeNotifier {
       );
 
       if (!context.requiresRelogin) {
-        return;
+        return WarehouseContextGuardResult.verified;
       }
 
       await _setUnauthenticated(
         clearStoredSession: true,
         errorMessage: _warehouseContextChangedMessage,
       );
+      return WarehouseContextGuardResult.signedOut;
     } on ApiException catch (error) {
       if (error.statusCode == 0) {
-        return;
+        return WarehouseContextGuardResult.unavailable;
       }
 
       if (error.statusCode == 401) {
@@ -141,7 +165,9 @@ class AppSessionController extends ChangeNotifier {
           clearStoredSession: true,
           errorMessage: _sessionExpiredMessage,
         );
+        return WarehouseContextGuardResult.signedOut;
       }
+      return WarehouseContextGuardResult.unavailable;
     }
   }
 

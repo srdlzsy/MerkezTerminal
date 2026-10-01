@@ -333,6 +333,30 @@ class CompanyMovementCreateRequest {
       'lines': lines.map((item) => item.toJson()).toList(growable: false),
     };
   }
+
+  factory CompanyMovementCreateRequest.fromJson(JsonMap json) {
+    final rawLines = json['lines'];
+    return CompanyMovementCreateRequest(
+      clientRequestId: _readString(json['clientRequestId']),
+      customerCode: _readString(json['customerCode']),
+      movementDate: _readDate(json['movementDate']) ?? DateTime.now(),
+      documentDate: _readDate(json['documentDate']) ?? DateTime.now(),
+      documentNo: _readString(json['documentNo']),
+      description: _readString(json['description']),
+      deliverer: _readString(json['deliverer']),
+      receiver: _readString(json['receiver']),
+      lines: rawLines is List
+          ? rawLines
+                .whereType<Map>()
+                .map(
+                  (item) => CompanyMovementCreateLine.fromJson(
+                    item.map((key, value) => MapEntry(key.toString(), value)),
+                  ),
+                )
+                .toList(growable: false)
+          : const <CompanyMovementCreateLine>[],
+    );
+  }
 }
 
 class CompanyMovementCreateLine {
@@ -379,6 +403,26 @@ class CompanyMovementCreateLine {
       if (normalizedOrderLineGuid.isNotEmpty)
         'orderLineGuid': normalizedOrderLineGuid,
     };
+  }
+
+  factory CompanyMovementCreateLine.fromJson(JsonMap json) {
+    return CompanyMovementCreateLine(
+      stockCode: _readString(json['stockCode']),
+      quantity: _readDouble(json['quantity']),
+      unitPrice: _readDouble(json['unitPrice']),
+      unitPointer: _readInt(json['unitPointer']),
+      description: _readString(json['description']),
+      partyCode: _readString(json['partyCode']),
+      lotNo: _readInt(json['lotNo']),
+      projectCode: _readString(json['projectCode']),
+      customerResponsibilityCenter: _readString(
+        json['customerResponsibilityCenter'],
+      ),
+      productResponsibilityCenter: _readString(
+        json['productResponsibilityCenter'],
+      ),
+      orderLineGuid: _readString(json['orderLineGuid']),
+    );
   }
 }
 

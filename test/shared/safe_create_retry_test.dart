@@ -24,4 +24,46 @@ void main() {
       expect(safeCreateRetryErrorMessage(validation), 'Validation');
     },
   );
+
+  test('classifies create conflicts without losing the pending operation', () {
+    expect(
+      classifySafeCreateFailure(
+        statusCode: 409,
+        message: 'Request is already being processed',
+      ),
+      SafeCreateFailureKind.processing,
+    );
+    expect(
+      classifySafeCreateFailure(
+        statusCode: 409,
+        message: 'Same clientRequestId has different request payload',
+      ),
+      SafeCreateFailureKind.payloadChanged,
+    );
+    expect(
+      classifySafeCreateFailure(
+        statusCode: 409,
+        message: 'multiple Mikro documents: F120/1, F120/2',
+      ),
+      SafeCreateFailureKind.multipleDocuments,
+    );
+  });
+
+  test('offers retry for processing and server uncertainty only', () {
+    expect(
+      shouldOfferSafeCreateRetry(
+        409,
+        message: 'Kayit Mikro tarafinda halen isleniyor.',
+      ),
+      isTrue,
+    );
+    expect(
+      shouldOfferSafeCreateRetry(
+        409,
+        message: 'Bu kayit denemesinin icerigi degismis.',
+      ),
+      isFalse,
+    );
+    expect(shouldOfferSafeCreateRetry(500), isTrue);
+  });
 }

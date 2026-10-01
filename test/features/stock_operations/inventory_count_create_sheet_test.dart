@@ -28,6 +28,47 @@ void main() {
       saveButtonFinder: find.widgetWithText(FilledButton, 'Sayimi Kaydet'),
     );
   });
+
+  testWidgets(
+    'shows the existing list quantity when a counted product returns',
+    (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: InventoryCountCreateSheet(
+              repository: _FakeInventoryCountsRepository(),
+              accessToken: 'token',
+              defaultWarehouseNo: '110',
+              mobileProductCatalogRepository:
+                  MobileProductCatalogLocalRepository(
+                    database: MemoryLocalDatabase(),
+                  ),
+            ),
+          ),
+        ),
+      );
+
+      Future<void> scanTestProduct() async {
+        final lookup = find.widgetWithText(
+          TextFormField,
+          'Barkod / stok kodu / urun adi',
+        );
+        await tester.enterText(lookup, '8690000000012');
+        await tester.tap(find.widgetWithText(FilledButton, 'Urun').first);
+        await tester.pumpAndSettle();
+      }
+
+      await scanTestProduct();
+      expect(find.text('Ekle'), findsOneWidget);
+      await tester.tap(find.widgetWithText(FilledButton, 'Ekle'));
+      await tester.pumpAndSettle();
+
+      await scanTestProduct();
+
+      expect(find.text('Listede: 1 AD'), findsOneWidget);
+      expect(find.textContaining('Kaleme Ekle'), findsNothing);
+    },
+  );
 }
 
 class _FakeInventoryCountsRepository implements InventoryCountsRepository {

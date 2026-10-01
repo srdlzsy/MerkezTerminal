@@ -793,7 +793,7 @@ class _WarehouseReturnCreateSheetState extends State<WarehouseReturnCreateSheet>
 
     if (_hasPendingEntryLine) {
       setState(() {
-        _validationMessage = 'Secilen urunu once Kaleme Ekle ile listeye alin.';
+        _validationMessage = 'Secilen urunu once Ekle ile listeye alin.';
       });
       return;
     }

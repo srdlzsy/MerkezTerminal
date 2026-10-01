@@ -11,6 +11,7 @@ import 'package:furpa_merkez_terminal/shared/drafts/create_draft_picker.dart';
 import 'package:furpa_merkez_terminal/shared/drafts/create_draft_repository.dart';
 import 'package:furpa_merkez_terminal/shared/formatters/app_formatters.dart';
 import 'package:furpa_merkez_terminal/shared/offline/mobile_product_catalog_repository.dart';
+import 'package:furpa_merkez_terminal/shared/pending_create/pending_create_repository.dart';
 import 'package:furpa_merkez_terminal/shared/utils/safe_create_retry.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/section_card.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/terminal_create_page.dart';
@@ -26,6 +27,7 @@ class VirmanPage extends StatefulWidget {
     required this.userWarehouseName,
     required this.mobileProductCatalogRepository,
     required this.currentUserId,
+    required this.pendingCreateRepository,
     this.draftRepository,
   });
 
@@ -36,6 +38,7 @@ class VirmanPage extends StatefulWidget {
   final String userWarehouseName;
   final MobileProductCatalogLocalRepository mobileProductCatalogRepository;
   final String currentUserId;
+  final PendingCreateRepository pendingCreateRepository;
   final CreateDraftRepository? draftRepository;
 
   @override
@@ -46,6 +49,8 @@ class _VirmanPageState extends State<VirmanPage> {
   late final VirmanController _controller;
   VirmanCreateRequest? _pendingCreateRequest;
   CreateDraft? _pendingCreateDraft;
+  SafeCreateFailureKind _pendingCreateFailureKind =
+      SafeCreateFailureKind.notRetryable;
   late DateTime _startDate;
   late DateTime _endDate;
 
@@ -59,7 +64,56 @@ class _VirmanPageState extends State<VirmanPage> {
     );
     _startDate = _controller.startDate;
     _endDate = _controller.endDate;
+    if (widget.canCreate) {
+      unawaited(_restorePendingCreate());
+    }
     unawaited(_controller.loadVirmans());
+  }
+
+  Future<void> _restorePendingCreate() async {
+    try {
+      final pending = await widget.pendingCreateRepository.read(
+        moduleKey: 'stok-islemleri.virmanlar',
+        userId: widget.currentUserId,
+        warehouseNo: widget.defaultWarehouseNo,
+      );
+      if (!mounted || pending == null) {
+        return;
+      }
+      setState(() {
+        _pendingCreateRequest = VirmanCreateRequest.fromJson(pending.payload);
+        _pendingCreateDraft = pending.draft;
+        _pendingCreateFailureKind = _failureKindFromName(pending.failureKind);
+      });
+    } on Object {
+      await _clearPersistedPendingCreate();
+    }
+  }
+
+  Future<void> _persistPendingCreate(
+    VirmanCreateRequest request,
+    CreateDraft? draft, {
+    SafeCreateFailureKind? failureKind,
+  }) {
+    return widget.pendingCreateRepository.save(
+      PendingCreateOperation(
+        moduleKey: 'stok-islemleri.virmanlar',
+        userId: widget.currentUserId,
+        warehouseNo: widget.defaultWarehouseNo,
+        payload: request.toJson(),
+        updatedAt: DateTime.now(),
+        failureKind: failureKind?.name,
+        draft: draft,
+      ),
+    );
+  }
+
+  Future<void> _clearPersistedPendingCreate() {
+    return widget.pendingCreateRepository.remove(
+      moduleKey: 'stok-islemleri.virmanlar',
+      userId: widget.currentUserId,
+      warehouseNo: widget.defaultWarehouseNo,
+    );
   }
 
   @override
@@ -221,9 +275,25 @@ class _VirmanPageState extends State<VirmanPage> {
       return;
     }
 
+    try {
+      await _persistPendingCreate(request, draft);
+    } on Object {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Guvenli kayit bilgisi cihaza yazilamadi. Islem baslatilmadi.',
+            ),
+          ),
+        );
+      }
+      return;
+    }
+
     setState(() {
       _pendingCreateRequest = request;
       _pendingCreateDraft = draft;
+      _pendingCreateFailureKind = SafeCreateFailureKind.notRetryable;
     });
 
     final result = await _controller.createVirman(request);
@@ -236,10 +306,29 @@ class _VirmanPageState extends State<VirmanPage> {
     messenger.hideCurrentSnackBar();
 
     if (result == null) {
-      if (!shouldOfferSafeCreateRetry(_controller.createErrorStatusCode)) {
+      final failureKind = classifySafeCreateFailure(
+        statusCode: _controller.createErrorStatusCode,
+        message: _controller.createError,
+      );
+      final keepsPending =
+          failureKind == SafeCreateFailureKind.uncertain ||
+          failureKind == SafeCreateFailureKind.processing ||
+          failureKind == SafeCreateFailureKind.multipleDocuments;
+      if (keepsPending) {
+        await _persistPendingCreate(request, draft, failureKind: failureKind);
+        if (!mounted) {
+          return;
+        }
+        setState(() => _pendingCreateFailureKind = failureKind);
+      } else {
+        await _clearPersistedPendingCreate();
+        if (!mounted) {
+          return;
+        }
         setState(() {
           _pendingCreateRequest = null;
           _pendingCreateDraft = null;
+          _pendingCreateFailureKind = SafeCreateFailureKind.notRetryable;
         });
       }
       messenger.showSnackBar(
@@ -261,7 +350,12 @@ class _VirmanPageState extends State<VirmanPage> {
     setState(() {
       _pendingCreateRequest = null;
       _pendingCreateDraft = null;
+      _pendingCreateFailureKind = SafeCreateFailureKind.notRetryable;
     });
+    await _clearPersistedPendingCreate();
+    if (!mounted) {
+      return;
+    }
 
     messenger.showSnackBar(
       SnackBar(
@@ -340,7 +434,10 @@ class _VirmanPageState extends State<VirmanPage> {
         ),
         if (widget.canCreate)
           FilledButton.tonalIcon(
-            onPressed: _controller.isCreating
+            onPressed:
+                _controller.isCreating ||
+                    _pendingCreateFailureKind ==
+                        SafeCreateFailureKind.multipleDocuments
                 ? null
                 : _pendingCreateRequest == null
                 ? _openCreateSheet
@@ -364,6 +461,9 @@ class _VirmanPageState extends State<VirmanPage> {
                   ? 'Kaydediliyor...'
                   : _pendingCreateRequest == null
                   ? 'Yeni Virman'
+                  : _pendingCreateFailureKind ==
+                        SafeCreateFailureKind.multipleDocuments
+                  ? 'Inceleme Gerekli'
                   : 'Kaydi Tekrar Dene',
             ),
           ),
@@ -527,6 +627,13 @@ class _VirmanPageState extends State<VirmanPage> {
       ),
     );
   }
+}
+
+SafeCreateFailureKind _failureKindFromName(String? value) {
+  return SafeCreateFailureKind.values.firstWhere(
+    (item) => item.name == value,
+    orElse: () => SafeCreateFailureKind.uncertain,
+  );
 }
 
 class _VirmanDetailSection extends StatelessWidget {

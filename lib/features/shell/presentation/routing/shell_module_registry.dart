@@ -47,6 +47,7 @@ import 'package:furpa_merkez_terminal/shared/offline/mobile_customer_catalog_rep
 import 'package:furpa_merkez_terminal/shared/offline/mobile_product_catalog_repository.dart';
 import 'package:furpa_merkez_terminal/shared/offline/mobile_warehouse_catalog_repository.dart';
 import 'package:furpa_merkez_terminal/shared/offline/offline_sync_service.dart';
+import 'package:furpa_merkez_terminal/shared/pending_create/pending_create_repository.dart';
 
 typedef ShellModulePageBuilder =
     Widget Function(ShellModuleRouteContext context);
@@ -158,6 +159,7 @@ class ShellModuleRegistry {
     required this.mobileWarehouseCatalogSyncService,
     required this.legacyToolsRepository,
     required this.createDraftRepository,
+    required this.pendingCreateRepository,
   });
 
   final GivenCompanyOrdersRepository givenCompanyOrdersRepository;
@@ -195,6 +197,7 @@ class ShellModuleRegistry {
   final MobileWarehouseCatalogSyncService mobileWarehouseCatalogSyncService;
   final LegacyToolsRepository legacyToolsRepository;
   final CreateDraftRepository createDraftRepository;
+  final PendingCreateRepository pendingCreateRepository;
 
   static const String _despatchDriverListPermission =
       'ayar-islemleri.soforler.list';
@@ -320,6 +323,7 @@ class ShellModuleRegistry {
           currentUserId: context.user.id,
           draftModuleKey: 'sevk-islemleri.giden-depolar-arasi-sevkler',
           draftRepository: createDraftRepository,
+          pendingCreateRepository: pendingCreateRepository,
           defaultWarehouseNo: context.user.warehouseNo,
           mobileWarehouseCatalogRepository:
               mobileWarehouseCatalogLocalRepository,
@@ -343,6 +347,7 @@ class ShellModuleRegistry {
           currentUserId: context.user.id,
           draftModuleKey: 'sevk-islemleri.gelen-depolar-arasi-sevkler',
           draftRepository: createDraftRepository,
+          pendingCreateRepository: pendingCreateRepository,
           defaultWarehouseNo: context.user.warehouseNo,
           mobileWarehouseCatalogRepository:
               mobileWarehouseCatalogLocalRepository,
@@ -387,6 +392,7 @@ class ShellModuleRegistry {
           direction: WarehouseReturnDirection.outgoing,
           currentUserId: context.user.id,
           draftRepository: createDraftRepository,
+          pendingCreateRepository: pendingCreateRepository,
           despatchDriversRepository:
               context.hasPermission(_despatchDriverListPermission)
               ? despatchDriversRepository
@@ -404,6 +410,7 @@ class ShellModuleRegistry {
               mobileWarehouseCatalogLocalRepository,
           userWarehouseName: context.user.warehouseName,
           direction: WarehouseReturnDirection.incoming,
+          pendingCreateRepository: pendingCreateRepository,
         ),
       ),
       ShellModuleRoute(
@@ -447,6 +454,7 @@ class ShellModuleRegistry {
           defaultWarehouseNo: context.user.warehouseNo,
           currentUserId: context.user.id,
           draftRepository: createDraftRepository,
+          pendingCreateRepository: pendingCreateRepository,
           mobileProductCatalogRepository: mobileProductCatalogLocalRepository,
           userWarehouseName: context.user.warehouseName,
         ),
@@ -461,6 +469,7 @@ class ShellModuleRegistry {
           currentUserId: context.user.id,
           draftModuleKey: 'sevk-islemleri.giden-firma-sevkleri',
           draftRepository: createDraftRepository,
+          pendingCreateRepository: pendingCreateRepository,
           defaultWarehouseNo: context.user.warehouseNo,
           mobileCustomerCatalogRepository: mobileCustomerCatalogLocalRepository,
           userWarehouseName: context.user.warehouseName,
@@ -487,6 +496,7 @@ class ShellModuleRegistry {
           currentUserId: context.user.id,
           draftModuleKey: 'sevk-islemleri.gelen-firma-sevkleri',
           draftRepository: createDraftRepository,
+          pendingCreateRepository: pendingCreateRepository,
           defaultWarehouseNo: context.user.warehouseNo,
           mobileCustomerCatalogRepository: mobileCustomerCatalogLocalRepository,
           userWarehouseName: context.user.warehouseName,
@@ -527,6 +537,7 @@ class ShellModuleRegistry {
           currentUserId: context.user.id,
           draftModuleKey: 'iade-islemleri.firma-iadeleri',
           draftRepository: createDraftRepository,
+          pendingCreateRepository: pendingCreateRepository,
           defaultWarehouseNo: context.user.warehouseNo,
           mobileCustomerCatalogRepository: mobileCustomerCatalogLocalRepository,
           userWarehouseName: context.user.warehouseName,
@@ -554,7 +565,9 @@ class ShellModuleRegistry {
           defaultWarehouseNo: context.user.warehouseNo,
           userWarehouseName: context.user.warehouseName,
           currentUserId: context.user.id,
+          draftModuleKey: 'stok-islemleri.zayiat-fisleri',
           draftRepository: createDraftRepository,
+          pendingCreateRepository: pendingCreateRepository,
         ),
       ),
       ShellModuleRoute(
@@ -568,7 +581,9 @@ class ShellModuleRegistry {
           defaultWarehouseNo: context.user.warehouseNo,
           userWarehouseName: context.user.warehouseName,
           currentUserId: context.user.id,
+          draftModuleKey: 'stok-islemleri.masraf-fisleri',
           draftRepository: createDraftRepository,
+          pendingCreateRepository: pendingCreateRepository,
         ),
       ),
       ShellModuleRoute(

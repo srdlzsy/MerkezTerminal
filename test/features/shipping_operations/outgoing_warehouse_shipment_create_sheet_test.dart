@@ -317,7 +317,7 @@ void main() {
 
     expect(find.text('A Urun'), findsWidgets);
 
-    await tester.tap(find.widgetWithText(FilledButton, 'Kaleme Ekle').first);
+    await tester.tap(find.widgetWithText(FilledButton, 'Ekle').first);
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 350));
     expect(find.text('Urun listede var'), findsOneWidget);
@@ -805,7 +805,7 @@ Future<void> _confirmPendingShipmentLine(
   WidgetTester tester, {
   required bool settleAfterSubmit,
 }) async {
-  final addButton = find.widgetWithText(FilledButton, 'Kaleme Ekle').first;
+  final addButton = find.widgetWithText(FilledButton, 'Ekle').first;
   await tester.ensureVisible(addButton);
   await tester.pumpAndSettle();
   await tester.tap(addButton);

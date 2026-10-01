@@ -207,9 +207,7 @@ class _GivenCompanyOrderCreateSheetState
     }
 
     if (_hasPendingEntryLine) {
-      _showFeedback(
-        'Once giris satirindaki urunu Kaleme Ekle ile listeye alin.',
-      );
+      _showFeedback('Once giris satirindaki urunu Ekle ile listeye alin.');
       _focusFreshEntryLine();
       return;
     }
@@ -764,7 +762,7 @@ class _GivenCompanyOrderCreateSheetState
 
     if (_hasPendingEntryLine) {
       setState(() {
-        _validationMessage = 'Secilen urunu once Kaleme Ekle ile listeye alin.';
+        _validationMessage = 'Secilen urunu once Ekle ile listeye alin.';
       });
       return;
     }

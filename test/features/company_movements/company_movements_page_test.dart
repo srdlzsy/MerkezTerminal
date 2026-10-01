@@ -12,6 +12,7 @@ import 'package:furpa_merkez_terminal/shared/data/search_lookup_models.dart';
 import 'package:furpa_merkez_terminal/shared/drafts/create_draft.dart';
 import 'package:furpa_merkez_terminal/shared/drafts/create_draft_repository.dart';
 import 'package:furpa_merkez_terminal/shared/offline/mobile_customer_catalog_repository.dart';
+import 'package:furpa_merkez_terminal/shared/pending_create/pending_create_repository.dart';
 
 import '../../support/memory_local_database.dart';
 import '../../support/pda_create_screen_contract.dart';
@@ -35,6 +36,9 @@ void main() {
             createTitle: 'Yeni  Iade',
             createHelperText: 'Cari secildikten sonra iade satirlari eklenir.',
             createButtonLabel: 'Yeni  Iade',
+            pendingCreateRepository: LocalPendingCreateRepository(
+              database: MemoryLocalDatabase(),
+            ),
           ),
         ),
       ),
@@ -49,6 +53,70 @@ void main() {
     expect(tester.takeException(), isNull);
     expect(find.text('Cari'), findsOneWidget);
     expect(find.text('Satirlar'), findsOneWidget);
+  });
+
+  testWidgets('restores a persisted uncertain create with the same request', (
+    tester,
+  ) async {
+    final database = MemoryLocalDatabase();
+    final pendingRepository = LocalPendingCreateRepository(database: database);
+    await pendingRepository.save(
+      PendingCreateOperation(
+        moduleKey: 'iade-islemleri.firma-iadeleri',
+        userId: 'user-1',
+        warehouseNo: '50',
+        payload: CompanyMovementCreateRequest(
+          clientRequestId: 'request-1',
+          customerCode: 'CARI-1',
+          movementDate: DateTime(2026, 10, 1),
+          documentDate: DateTime(2026, 10, 1),
+          documentNo: '',
+          description: '',
+          deliverer: '',
+          receiver: '',
+          lines: const <CompanyMovementCreateLine>[
+            CompanyMovementCreateLine(
+              stockCode: 'STOK-1',
+              quantity: 2,
+              unitPrice: 0,
+              unitPointer: 1,
+              description: '',
+              partyCode: '',
+              lotNo: 0,
+              projectCode: '',
+              customerResponsibilityCenter: '',
+              productResponsibilityCenter: '',
+            ),
+          ],
+        ).toJson(),
+        updatedAt: DateTime(2026, 10, 1),
+        failureKind: 'uncertain',
+      ),
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: CompanyMovementsPage(
+          repository: _FakeCompanyMovementsRepository(),
+          accessToken: 'token',
+          canCreate: true,
+          currentUserId: 'user-1',
+          draftModuleKey: 'iade-islemleri.firma-iadeleri',
+          pendingCreateRepository: pendingRepository,
+          defaultWarehouseNo: '50',
+          mobileCustomerCatalogRepository: _emptyCustomerCatalogRepository(),
+          userWarehouseName: 'MERKEZ DEPO',
+          title: 'Firma Iadeleri',
+          subtitle: 'Firma iade evraklari listelenir.',
+          createTitle: 'Yeni Iade',
+          createHelperText: 'Cari secildikten sonra iade satirlari eklenir.',
+          createButtonLabel: 'Yeni Iade',
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Kaydi Tekrar Dene'), findsOneWidget);
   });
 
   testWidgets('renders create sheet on 320px terminal width without overflow', (

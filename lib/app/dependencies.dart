@@ -32,6 +32,7 @@ import 'package:furpa_merkez_terminal/shared/offline/mobile_customer_catalog_rep
 import 'package:furpa_merkez_terminal/shared/offline/mobile_product_catalog_repository.dart';
 import 'package:furpa_merkez_terminal/shared/offline/mobile_warehouse_catalog_repository.dart';
 import 'package:furpa_merkez_terminal/shared/offline/offline_sync_service.dart';
+import 'package:furpa_merkez_terminal/shared/pending_create/pending_create_repository.dart';
 import 'package:http/http.dart' as http;
 
 class AppDependencies {
@@ -45,6 +46,9 @@ class AppDependencies {
     final tokenStorage = TokenStorage();
     final localDatabase = LocalSqliteDatabase();
     final createDraftRepository = LocalCreateDraftRepository(
+      database: localDatabase,
+    );
+    final pendingCreateRepository = LocalPendingCreateRepository(
       database: localDatabase,
     );
     final offlineInventoryCountsRepository =
@@ -195,6 +199,7 @@ class AppDependencies {
       mobileWarehouseCatalogSyncService: mobileWarehouseCatalogSyncService,
       legacyToolsRepository: legacyToolsRepository,
       createDraftRepository: createDraftRepository,
+      pendingCreateRepository: pendingCreateRepository,
     );
 
     return AppDependencies._(

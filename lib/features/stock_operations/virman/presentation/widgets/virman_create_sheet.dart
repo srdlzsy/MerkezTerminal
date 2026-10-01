@@ -597,7 +597,7 @@ class _VirmanCreateSheetState extends State<VirmanCreateSheet>
 
     if (_hasPendingEntryLine) {
       setState(() {
-        _errorMessage = 'Secilen urunu once Kaleme Ekle ile listeye alin.';
+        _errorMessage = 'Secilen urunu once Ekle ile listeye alin.';
       });
       return;
     }

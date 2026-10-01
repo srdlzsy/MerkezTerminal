@@ -158,6 +158,70 @@ void main() {
     },
   );
 
+  testWidgets('does not add a delisted product to company acceptance', (
+    tester,
+  ) async {
+    final repository = _FakeCompanyAcceptancesRepository()
+      ..products = const <SearchProductLookupItem>[
+        SearchProductLookupItem(
+          warehouseNo: 110,
+          barcode: '8690000000099',
+          stockCode: 'DLS-99',
+          stockName: 'DLS Test Urun',
+          price: 0,
+          priceTypeCode: 0,
+          unitName: 'ADET',
+          unitMultiplier: 1,
+          secondaryUnitName: '',
+          secondaryUnitMultiplier: 0,
+          salesBlockCode: null,
+          orderBlockCode: null,
+          goodsAcceptanceBlockCode: null,
+          isSalesBlocked: false,
+          isOrderBlocked: false,
+          isGoodsAcceptanceBlocked: false,
+          productManagerCode: '',
+          isDelisted: true,
+          delistReason: 'DLS/99',
+        ),
+      ];
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: CompanyAcceptanceCreateSheet(
+            repository: repository,
+            ordersRepository: _FakeGivenCompanyOrdersRepository(),
+            accessToken: 'token',
+            defaultWarehouseNo: '110',
+            mobileCustomerCatalogRepository:
+                MobileCustomerCatalogLocalRepository(
+                  database: MemoryLocalDatabase(),
+                ),
+            mobileProductCatalogRepository: MobileProductCatalogLocalRepository(
+              database: MemoryLocalDatabase(),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await _goToLineStepIfNeeded(tester);
+    final lookupFinder = find.widgetWithText(
+      TextFormField,
+      'Barkod / stok kodu / urun adi',
+    );
+    await tester.enterText(lookupFinder.first, '8690000000099');
+    await tester.tap(find.widgetWithText(FilledButton, 'Urun').first);
+    await tester.pumpAndSettle();
+
+    expect(
+      find.textContaining('Bu urun DLS durumunda ve listeye eklenemez'),
+      findsOneWidget,
+    );
+    expect(find.text('Satir 1'), findsNothing);
+  });
+
   testWidgets('renders two-step company acceptance flow on terminal width', (
     tester,
   ) async {
@@ -638,7 +702,7 @@ Future<void> _selectProductWithoutConfirm(WidgetTester tester) async {
 }
 
 Future<void> _confirmPendingProduct(WidgetTester tester) async {
-  final addButton = find.widgetWithText(FilledButton, 'Kaleme Ekle').first;
+  final addButton = find.widgetWithText(FilledButton, 'Ekle').first;
   await tester.ensureVisible(addButton);
   await tester.pumpAndSettle();
   await tester.tap(addButton);
@@ -724,6 +788,7 @@ class _FakeCompanyAcceptancesRepository
     implements CompanyAcceptancesRepository {
   CompanyAcceptanceEDespatchPrefill? eDocumentPrefill;
   List<CustomerLookupItem> customers = const <CustomerLookupItem>[];
+  List<SearchProductLookupItem>? products;
 
   @override
   Future<CompanyAcceptanceCreateResult> createAcceptance({
@@ -789,27 +854,28 @@ class _FakeCompanyAcceptancesRepository
     String? customerCode,
     bool includeDelisted = true,
   }) async {
-    return const <SearchProductLookupItem>[
-      SearchProductLookupItem(
-        warehouseNo: 110,
-        barcode: '8690000000012',
-        stockCode: '015792',
-        stockName: 'Test Urun',
-        price: 125,
-        priceTypeCode: 0,
-        unitName: 'KL',
-        unitMultiplier: 2,
-        secondaryUnitName: '',
-        secondaryUnitMultiplier: 0,
-        salesBlockCode: null,
-        orderBlockCode: null,
-        goodsAcceptanceBlockCode: null,
-        isSalesBlocked: false,
-        isOrderBlocked: false,
-        isGoodsAcceptanceBlocked: false,
-        productManagerCode: '',
-      ),
-    ];
+    return products ??
+        const <SearchProductLookupItem>[
+          SearchProductLookupItem(
+            warehouseNo: 110,
+            barcode: '8690000000012',
+            stockCode: '015792',
+            stockName: 'Test Urun',
+            price: 125,
+            priceTypeCode: 0,
+            unitName: 'KL',
+            unitMultiplier: 2,
+            secondaryUnitName: '',
+            secondaryUnitMultiplier: 0,
+            salesBlockCode: null,
+            orderBlockCode: null,
+            goodsAcceptanceBlockCode: null,
+            isSalesBlocked: false,
+            isOrderBlocked: false,
+            isGoodsAcceptanceBlocked: false,
+            productManagerCode: '',
+          ),
+        ];
   }
 }
 

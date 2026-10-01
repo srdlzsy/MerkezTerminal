@@ -16,6 +16,7 @@ import 'package:furpa_merkez_terminal/shared/drafts/create_draft_picker.dart';
 import 'package:furpa_merkez_terminal/shared/drafts/create_draft_repository.dart';
 import 'package:furpa_merkez_terminal/shared/formatters/app_formatters.dart';
 import 'package:furpa_merkez_terminal/shared/offline/mobile_warehouse_catalog_repository.dart';
+import 'package:furpa_merkez_terminal/shared/pending_create/pending_create_repository.dart';
 import 'package:furpa_merkez_terminal/shared/utils/safe_create_retry.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/section_card.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/terminal_create_page.dart';
@@ -37,6 +38,7 @@ class OutgoingWarehouseShipmentsPage extends StatefulWidget {
     this.currentUserId = '',
     this.draftModuleKey = '',
     this.draftRepository,
+    required this.pendingCreateRepository,
     this.despatchDriversRepository,
   });
 
@@ -53,6 +55,7 @@ class OutgoingWarehouseShipmentsPage extends StatefulWidget {
   final String currentUserId;
   final String draftModuleKey;
   final CreateDraftRepository? draftRepository;
+  final PendingCreateRepository pendingCreateRepository;
   final DespatchDriversRepository? despatchDriversRepository;
 
   @override
@@ -65,6 +68,8 @@ class _OutgoingWarehouseShipmentsPageState
   late final OutgoingWarehouseShipmentsController _controller;
   WarehouseShipmentCreateRequest? _pendingCreateRequest;
   CreateDraft? _pendingCreateDraft;
+  SafeCreateFailureKind _pendingCreateFailureKind =
+      SafeCreateFailureKind.notRetryable;
   late DateTime _startDate;
   late DateTime _endDate;
 
@@ -78,7 +83,58 @@ class _OutgoingWarehouseShipmentsPageState
     );
     _startDate = _controller.startDate;
     _endDate = _controller.endDate;
+    if (widget.canCreate) {
+      unawaited(_restorePendingCreate());
+    }
     unawaited(_controller.loadShipments());
+  }
+
+  Future<void> _restorePendingCreate() async {
+    try {
+      final pending = await widget.pendingCreateRepository.read(
+        moduleKey: widget.draftModuleKey,
+        userId: widget.currentUserId,
+        warehouseNo: widget.defaultWarehouseNo,
+      );
+      if (!mounted || pending == null) {
+        return;
+      }
+      setState(() {
+        _pendingCreateRequest = WarehouseShipmentCreateRequest.fromJson(
+          pending.payload,
+        );
+        _pendingCreateDraft = pending.draft;
+        _pendingCreateFailureKind = _failureKindFromName(pending.failureKind);
+      });
+    } on Object {
+      await _clearPersistedPendingCreate();
+    }
+  }
+
+  Future<void> _persistPendingCreate(
+    WarehouseShipmentCreateRequest request,
+    CreateDraft? draft, {
+    SafeCreateFailureKind? failureKind,
+  }) {
+    return widget.pendingCreateRepository.save(
+      PendingCreateOperation(
+        moduleKey: widget.draftModuleKey,
+        userId: widget.currentUserId,
+        warehouseNo: widget.defaultWarehouseNo,
+        payload: request.toJson(),
+        updatedAt: DateTime.now(),
+        failureKind: failureKind?.name,
+        draft: draft,
+      ),
+    );
+  }
+
+  Future<void> _clearPersistedPendingCreate() {
+    return widget.pendingCreateRepository.remove(
+      moduleKey: widget.draftModuleKey,
+      userId: widget.currentUserId,
+      warehouseNo: widget.defaultWarehouseNo,
+    );
   }
 
   @override
@@ -190,9 +246,25 @@ class _OutgoingWarehouseShipmentsPageState
       return;
     }
 
+    try {
+      await _persistPendingCreate(request, draft);
+    } on Object {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Guvenli kayit bilgisi cihaza yazilamadi. Islem baslatilmadi.',
+            ),
+          ),
+        );
+      }
+      return;
+    }
+
     setState(() {
       _pendingCreateRequest = request;
       _pendingCreateDraft = draft;
+      _pendingCreateFailureKind = SafeCreateFailureKind.notRetryable;
     });
 
     final result = await _controller.createShipment(request);
@@ -205,16 +277,36 @@ class _OutgoingWarehouseShipmentsPageState
     messenger.hideCurrentSnackBar();
 
     if (result == null) {
-      if (!shouldOfferSafeCreateRetry(_controller.createErrorStatusCode)) {
+      final failureKind = _controller.createFailureKind;
+      final keepsPending =
+          failureKind == SafeCreateFailureKind.uncertain ||
+          failureKind == SafeCreateFailureKind.processing ||
+          failureKind == SafeCreateFailureKind.multipleDocuments;
+      if (keepsPending) {
+        await _persistPendingCreate(request, draft, failureKind: failureKind);
+        if (!mounted) {
+          return;
+        }
+        setState(() => _pendingCreateFailureKind = failureKind);
+      } else {
+        await _clearPersistedPendingCreate();
+        if (!mounted) {
+          return;
+        }
         setState(() {
           _pendingCreateRequest = null;
           _pendingCreateDraft = null;
+          _pendingCreateFailureKind = SafeCreateFailureKind.notRetryable;
         });
       }
       messenger.showSnackBar(
         SnackBar(
           content: Text(_controller.createError ?? 'Sevk olusturulamadi.'),
-          action: shouldOfferSafeCreateRetry(_controller.createErrorStatusCode)
+          action:
+              shouldOfferSafeCreateRetry(
+                _controller.createErrorStatusCode,
+                message: _controller.createError,
+              )
               ? SnackBarAction(
                   label: 'Tekrar Dene',
                   onPressed: () {
@@ -230,7 +322,12 @@ class _OutgoingWarehouseShipmentsPageState
     setState(() {
       _pendingCreateRequest = null;
       _pendingCreateDraft = null;
+      _pendingCreateFailureKind = SafeCreateFailureKind.notRetryable;
     });
+    await _clearPersistedPendingCreate();
+    if (!mounted) {
+      return;
+    }
 
     final linkedInfo = result.linkedWarehouseOrderLineCount > 0
         ? ' ${result.linkedWarehouseOrderLineCount} satir siparise baglandi.'
@@ -359,6 +456,7 @@ class _OutgoingWarehouseShipmentsPageState
     final message =
         '${result.documentNoLabel} icin e-irsaliye gonderildi. '
         'Belge: ${result.serviceDocumentLabel}'
+        '${result.isMikroMetadataPending ? ' | Mikro isaretlemesi bekliyor.' : ''}'
         '${result.hasWarning ? ' | Uyari: ${result.warningMessage}' : ''}';
     messenger.showSnackBar(
       SnackBar(
@@ -479,7 +577,10 @@ class _OutgoingWarehouseShipmentsPageState
         ),
         if (widget.canCreate)
           FilledButton.tonalIcon(
-            onPressed: _controller.isCreating
+            onPressed:
+                _controller.isCreating ||
+                    _pendingCreateFailureKind ==
+                        SafeCreateFailureKind.multipleDocuments
                 ? null
                 : _pendingCreateRequest == null
                 ? _openCreateSheet
@@ -503,12 +604,22 @@ class _OutgoingWarehouseShipmentsPageState
                   ? 'Kaydediliyor...'
                   : _pendingCreateRequest == null
                   ? 'Yeni Sevk'
+                  : _pendingCreateFailureKind ==
+                        SafeCreateFailureKind.multipleDocuments
+                  ? 'Inceleme Gerekli'
                   : 'Kaydi Tekrar Dene',
             ),
           ),
       ],
     );
   }
+}
+
+SafeCreateFailureKind _failureKindFromName(String? value) {
+  return SafeCreateFailureKind.values.firstWhere(
+    (item) => item.name == value,
+    orElse: () => SafeCreateFailureKind.uncertain,
+  );
 }
 
 class _ShipmentAccordionPanel extends StatelessWidget {
@@ -947,6 +1058,10 @@ class _ShipmentEDespatchResultCard extends StatelessWidget {
             TerminalMessageBlock.info(
               message: 'Uyari: ${result.warningMessage}',
             ),
+          ],
+          if (result.isMikroMetadataPending) ...<Widget>[
+            const SizedBox(height: 12),
+            TerminalMessageBlock.info(message: result.metadataStatusMessage),
           ],
         ],
       ),

@@ -516,6 +516,30 @@ class _InventoryCountCreateSheetState extends State<InventoryCountCreateSheet>
     );
   }
 
+  double? _existingQuantityForProduct(
+    _InventoryLineDraft currentLine,
+    InventoryCountProductLookupItem product,
+  ) {
+    final existingLine = productEntryController.findDuplicateLine(
+      ProductEntryDuplicateMergePolicy<_InventoryLineDraft>(
+        currentLine: currentLine,
+        targetBarcode: product.barcode,
+        targetStockCode: product.stockCode,
+        lines: _lines,
+        lineBarcode: (line) => line.selectedProduct?.barcode ?? '',
+        lineStockCode: (line) => line.selectedProduct?.stockCode ?? '',
+        canMergeLine: (line) => line.selectedProduct != null,
+      ),
+    );
+    if (existingLine == null) {
+      return null;
+    }
+    return productEntryController.readQuantity(
+      existingLine.quantityController.text,
+      fallback: 0,
+    );
+  }
+
   bool get _hasPendingEntryLine =>
       _lines.isNotEmpty && !_isBlankLine(_lines.first);
 
@@ -614,7 +638,7 @@ class _InventoryCountCreateSheetState extends State<InventoryCountCreateSheet>
 
     if (_hasPendingEntryLine) {
       setState(() {
-        _validationMessage = 'Secilen urunu once Kaleme Ekle ile listeye alin.';
+        _validationMessage = 'Secilen urunu once Ekle ile listeye alin.';
       });
       return;
     }
@@ -832,6 +856,7 @@ class _InventoryCountCreateSheetState extends State<InventoryCountCreateSheet>
         .length;
 
     if (isPendingEntry && product != null) {
+      final existingQuantity = _existingQuantityForProduct(line, product);
       return ProductDraftEntryPanel(
         stockCode: product.stockCode,
         stockName: product.stockName,
@@ -842,6 +867,14 @@ class _InventoryCountCreateSheetState extends State<InventoryCountCreateSheet>
             : null,
         barcode: product.barcode,
         warningLabel: _inventoryProductWarningLabel(product),
+        extraInfo: <TerminalPdaInfo>[
+          if (existingQuantity != null)
+            TerminalPdaInfo(
+              label: 'Listede',
+              value:
+                  '${AppFormatters.quantity(existingQuantity)} ${product.unitName}',
+            ),
+        ],
         onConfirm: () => _commitEntryLine(line),
         onCancel: () => _cancelPendingEntryLine(line),
         scanRow: TerminalResponsiveLookupRow(

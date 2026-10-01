@@ -221,9 +221,10 @@ void main() {
         usernameOrEmail: 'demo',
         password: 'secret',
       );
-      await controller.refreshWarehouseContextGuard();
+      final result = await controller.refreshWarehouseContextGuard();
 
       expect(signedIn, isTrue);
+      expect(result, WarehouseContextGuardResult.signedOut);
       expect(controller.status, AppSessionStatus.unauthenticated);
       expect(controller.currentUser, isNull);
       expect(controller.errorMessage, contains('Depo/IP'));

@@ -773,7 +773,7 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
 
     if (_hasPendingEntryLine) {
       setState(() {
-        _lookupError = 'Secilen urunu once Kaleme Ekle ile listeye alin.';
+        _lookupError = 'Secilen urunu once Ekle ile listeye alin.';
       });
       return;
     }

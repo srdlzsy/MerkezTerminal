@@ -146,11 +146,9 @@ void main() {
       findsOneWidget,
     );
     expect(find.text('STK-001 | ADET'), findsOneWidget);
-    expect(find.text('Kaleme Ekle'), findsOneWidget);
+    expect(find.text('Ekle'), findsOneWidget);
     expect(
-      tester
-          .getBottomRight(find.widgetWithText(FilledButton, 'Kaleme Ekle'))
-          .dy,
+      tester.getBottomRight(find.widgetWithText(FilledButton, 'Ekle')).dy,
       lessThanOrEqualTo(220),
     );
   });

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:furpa_merkez_terminal/core/network/api_client.dart';
@@ -72,10 +74,45 @@ void main() {
     expect(find.text('Tum Menuler'), findsOneWidget);
     expect(find.text('Content: Birinci Menu'), findsNothing);
   });
+
+  testWidgets('waits for warehouse verification before initial offline sync', (
+    tester,
+  ) async {
+    final session = _buildSession();
+    final warehouseContextCompleter = Completer<WarehouseContext>();
+    final repository = _FakeAuthRepository(
+      session,
+      warehouseContextCompleter: warehouseContextCompleter,
+    );
+    final sessionController = AppSessionController(authRepository: repository);
+    final registry = _FakeShellModuleRegistry();
+    await sessionController.signIn(usernameOrEmail: 'demo', password: '1234');
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: HomeShellPage(
+          sessionController: sessionController,
+          moduleRegistry: registry,
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('Depo bilgisi dogrulaniyor...'), findsOneWidget);
+    expect(registry.syncCallCount, 0);
+
+    warehouseContextCompleter.complete(_verifiedWarehouseContext());
+    await tester.pumpAndSettle();
+
+    expect(find.text('Depo bilgisi dogrulaniyor...'), findsNothing);
+    expect(registry.syncCallCount, 1);
+  });
 }
 
 class _FakeShellModuleRegistry implements ShellModuleRegistry {
   final _NoopOfflineSyncService _offlineSyncService = _NoopOfflineSyncService();
+
+  int get syncCallCount => _offlineSyncService.syncCallCount;
 
   @override
   OfflineSyncService get offlineSyncService => _offlineSyncService;
@@ -94,19 +131,23 @@ class _FakeShellModuleRegistry implements ShellModuleRegistry {
 }
 
 class _NoopOfflineSyncService implements OfflineSyncService {
+  int syncCallCount = 0;
+
   @override
   Future<void> syncPending({
     required String accessToken,
     required String userId,
     required String warehouseNo,
-  }) async {}
+  }) async {
+    syncCallCount += 1;
+  }
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
 class _FakeAuthRepository extends AuthRepository {
-  _FakeAuthRepository(this._session)
+  _FakeAuthRepository(this._session, {this.warehouseContextCompleter})
     : super(
         apiClient: ApiClient(
           baseUrl: 'http://localhost:5228',
@@ -116,6 +157,7 @@ class _FakeAuthRepository extends AuthRepository {
       );
 
   final AuthSession _session;
+  final Completer<WarehouseContext>? warehouseContextCompleter;
 
   @override
   Future<AuthSession> signIn({
@@ -123,6 +165,12 @@ class _FakeAuthRepository extends AuthRepository {
     required String password,
   }) async {
     return _session;
+  }
+
+  @override
+  Future<WarehouseContext> fetchWarehouseContext({String? accessToken}) {
+    return warehouseContextCompleter?.future ??
+        Future<WarehouseContext>.value(_verifiedWarehouseContext());
   }
 }
 
@@ -169,5 +217,19 @@ AuthSession _buildSession() {
       ],
       modules: <PermissionModule>[module],
     ),
+  );
+}
+
+WarehouseContext _verifiedWarehouseContext() {
+  return const WarehouseContext(
+    userId: 'user-1',
+    username: 'demo',
+    tokenWarehouseNo: '110',
+    tokenWarehouseName: 'KESTEL 1',
+    currentWarehouseNo: '110',
+    currentWarehouseName: 'KESTEL 1',
+    isTerminalUser: true,
+    requiresRelogin: false,
+    reason: '',
   );
 }

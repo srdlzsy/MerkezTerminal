@@ -11,6 +11,7 @@ import 'package:furpa_merkez_terminal/shared/drafts/create_draft_picker.dart';
 import 'package:furpa_merkez_terminal/shared/drafts/create_draft_repository.dart';
 import 'package:furpa_merkez_terminal/shared/form_memory/remembered_form_values.dart';
 import 'package:furpa_merkez_terminal/shared/formatters/app_formatters.dart';
+import 'package:furpa_merkez_terminal/shared/pending_create/pending_create_repository.dart';
 import 'package:furpa_merkez_terminal/shared/utils/safe_create_retry.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/section_card.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/terminal_create_page.dart';
@@ -26,6 +27,8 @@ class StockReceiptsPage extends StatefulWidget {
     required this.defaultWarehouseNo,
     required this.userWarehouseName,
     required this.currentUserId,
+    required this.draftModuleKey,
+    required this.pendingCreateRepository,
     this.draftRepository,
   });
 
@@ -36,6 +39,8 @@ class StockReceiptsPage extends StatefulWidget {
   final String defaultWarehouseNo;
   final String userWarehouseName;
   final String currentUserId;
+  final String draftModuleKey;
+  final PendingCreateRepository pendingCreateRepository;
   final CreateDraftRepository? draftRepository;
 
   @override
@@ -46,6 +51,8 @@ class _StockReceiptsPageState extends State<StockReceiptsPage> {
   late final StockReceiptsController _controller;
   StockReceiptCreateRequest? _pendingCreateRequest;
   CreateDraft? _pendingCreateDraft;
+  SafeCreateFailureKind _pendingCreateFailureKind =
+      SafeCreateFailureKind.notRetryable;
   late DateTime _startDate;
   late DateTime _endDate;
 
@@ -60,7 +67,58 @@ class _StockReceiptsPageState extends State<StockReceiptsPage> {
     );
     _startDate = _controller.startDate;
     _endDate = _controller.endDate;
+    if (widget.canCreate) {
+      unawaited(_restorePendingCreate());
+    }
     unawaited(_controller.loadReceipts());
+  }
+
+  Future<void> _restorePendingCreate() async {
+    try {
+      final pending = await widget.pendingCreateRepository.read(
+        moduleKey: widget.draftModuleKey,
+        userId: widget.currentUserId,
+        warehouseNo: widget.defaultWarehouseNo,
+      );
+      if (!mounted || pending == null) {
+        return;
+      }
+      setState(() {
+        _pendingCreateRequest = StockReceiptCreateRequest.fromJson(
+          pending.payload,
+        );
+        _pendingCreateDraft = pending.draft;
+        _pendingCreateFailureKind = _failureKindFromName(pending.failureKind);
+      });
+    } on Object {
+      await _clearPersistedPendingCreate();
+    }
+  }
+
+  Future<void> _persistPendingCreate(
+    StockReceiptCreateRequest request,
+    CreateDraft? draft, {
+    SafeCreateFailureKind? failureKind,
+  }) {
+    return widget.pendingCreateRepository.save(
+      PendingCreateOperation(
+        moduleKey: widget.draftModuleKey,
+        userId: widget.currentUserId,
+        warehouseNo: widget.defaultWarehouseNo,
+        payload: request.toJson(),
+        updatedAt: DateTime.now(),
+        failureKind: failureKind?.name,
+        draft: draft,
+      ),
+    );
+  }
+
+  Future<void> _clearPersistedPendingCreate() {
+    return widget.pendingCreateRepository.remove(
+      moduleKey: widget.draftModuleKey,
+      userId: widget.currentUserId,
+      warehouseNo: widget.defaultWarehouseNo,
+    );
   }
 
   @override
@@ -223,9 +281,25 @@ class _StockReceiptsPageState extends State<StockReceiptsPage> {
       return;
     }
 
+    try {
+      await _persistPendingCreate(request, draft);
+    } on Object {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Guvenli kayit bilgisi cihaza yazilamadi. Islem baslatilmadi.',
+            ),
+          ),
+        );
+      }
+      return;
+    }
+
     setState(() {
       _pendingCreateRequest = request;
       _pendingCreateDraft = draft;
+      _pendingCreateFailureKind = SafeCreateFailureKind.notRetryable;
     });
 
     final result = await _controller.createReceipt(request);
@@ -238,10 +312,29 @@ class _StockReceiptsPageState extends State<StockReceiptsPage> {
     messenger.hideCurrentSnackBar();
 
     if (result == null) {
-      if (!shouldOfferSafeCreateRetry(_controller.createErrorStatusCode)) {
+      final failureKind = classifySafeCreateFailure(
+        statusCode: _controller.createErrorStatusCode,
+        message: _controller.createError,
+      );
+      final keepsPending =
+          failureKind == SafeCreateFailureKind.uncertain ||
+          failureKind == SafeCreateFailureKind.processing ||
+          failureKind == SafeCreateFailureKind.multipleDocuments;
+      if (keepsPending) {
+        await _persistPendingCreate(request, draft, failureKind: failureKind);
+        if (!mounted) {
+          return;
+        }
+        setState(() => _pendingCreateFailureKind = failureKind);
+      } else {
+        await _clearPersistedPendingCreate();
+        if (!mounted) {
+          return;
+        }
         setState(() {
           _pendingCreateRequest = null;
           _pendingCreateDraft = null;
+          _pendingCreateFailureKind = SafeCreateFailureKind.notRetryable;
         });
       }
       messenger.showSnackBar(
@@ -263,7 +356,12 @@ class _StockReceiptsPageState extends State<StockReceiptsPage> {
     setState(() {
       _pendingCreateRequest = null;
       _pendingCreateDraft = null;
+      _pendingCreateFailureKind = SafeCreateFailureKind.notRetryable;
     });
+    await _clearPersistedPendingCreate();
+    if (!mounted) {
+      return;
+    }
 
     unawaited(
       RememberedFormValuesRepository().rememberAll(
@@ -352,7 +450,10 @@ class _StockReceiptsPageState extends State<StockReceiptsPage> {
         ),
         if (widget.canCreate)
           FilledButton.tonalIcon(
-            onPressed: _controller.isCreating
+            onPressed:
+                _controller.isCreating ||
+                    _pendingCreateFailureKind ==
+                        SafeCreateFailureKind.multipleDocuments
                 ? null
                 : _pendingCreateRequest == null
                 ? _openCreateSheet
@@ -376,6 +477,9 @@ class _StockReceiptsPageState extends State<StockReceiptsPage> {
                   ? 'Kaydediliyor...'
                   : _pendingCreateRequest == null
                   ? widget.kind.createButtonLabel
+                  : _pendingCreateFailureKind ==
+                        SafeCreateFailureKind.multipleDocuments
+                  ? 'Inceleme Gerekli'
                   : 'Kaydi Tekrar Dene',
             ),
           ),
@@ -516,6 +620,13 @@ class _StockReceiptsPageState extends State<StockReceiptsPage> {
       ),
     );
   }
+}
+
+SafeCreateFailureKind _failureKindFromName(String? value) {
+  return SafeCreateFailureKind.values.firstWhere(
+    (item) => item.name == value,
+    orElse: () => SafeCreateFailureKind.uncertain,
+  );
 }
 
 class _StockReceiptSummaryCard extends StatelessWidget {

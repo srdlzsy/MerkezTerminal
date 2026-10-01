@@ -52,7 +52,7 @@ class ProductDraftEntryPanel extends StatelessWidget {
     this.priceLabel,
     this.warningLabel,
     this.informationLabels = const <String>[],
-    this.confirmLabel = 'Kaleme Ekle',
+    this.confirmLabel = 'Ekle',
     this.quantityLabel = 'Miktar',
     this.quantityStep = 1,
     this.maximumQuantity,
@@ -225,6 +225,9 @@ class ProductDraftEntryPanel extends StatelessWidget {
           value: _packageInfoValue,
           isPackage: true,
         ),
+      for (final item in extraInfo)
+        if (item.value.trim().isNotEmpty)
+          _CompactProductInfo(label: item.label, value: item.value),
     ];
   }
 

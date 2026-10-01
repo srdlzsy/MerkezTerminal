@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:furpa_merkez_terminal/core/network/api_exception.dart';
 import 'package:furpa_merkez_terminal/features/acceptance_operations/company_acceptances/data/company_acceptances_repository.dart';
 import 'package:furpa_merkez_terminal/features/acceptance_operations/company_acceptances/data/models/company_acceptance_models.dart';
 import 'package:furpa_merkez_terminal/features/acceptance_operations/offline_company_acceptances/data/models/offline_company_acceptance_models.dart';
@@ -130,6 +131,92 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+
+  testWidgets('blocks delisted product from the offline catalog', (
+    tester,
+  ) async {
+    final database = MemoryLocalDatabase();
+    final productCatalog = MobileProductCatalogLocalRepository(
+      database: database,
+    );
+    await productCatalog.applyCatalogDelta(
+      warehouseNo: 110,
+      items: const <MobileProductCatalogItem>[
+        MobileProductCatalogItem(
+          warehouseNo: 110,
+          barcode: '8690000000099',
+          lookupSource: 'barcode',
+          stockCode: 'DLS-99',
+          stockName: 'DLS Test Urun',
+          price: 0,
+          priceTypeCode: 0,
+          unitPointer: 1,
+          unitName: 'ADET',
+          unitMultiplier: 1,
+          secondaryUnitName: '',
+          secondaryUnitMultiplier: 0,
+          salesBlockCode: null,
+          orderBlockCode: null,
+          goodsAcceptanceBlockCode: null,
+          isSalesBlocked: false,
+          isOrderBlocked: false,
+          isGoodsAcceptanceBlocked: false,
+          isPassive: false,
+          isDelisted: true,
+          delistReason: 'DLS/99',
+          isDeleted: false,
+          productManagerCode: '',
+        ),
+      ],
+      deletedBarcodes: const <String>[],
+    );
+    final offlineRepository = _FakeOfflineCompanyAcceptancesRepository();
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: OfflineCompanyAcceptancesPage(
+          offlineRepository: offlineRepository,
+          onlineRepository: _FakeCompanyAcceptancesRepository(
+            productSearchError: const ApiException(
+              statusCode: 0,
+              title: 'Baglanti Hatasi',
+            ),
+          ),
+          ordersRepository: _FakeGivenCompanyOrdersRepository(),
+          accessToken: 'token',
+          offlineSyncService: OfflineSyncService(
+            inventoryRepository: _FakeInventoryCountsRepository(),
+            companyAcceptanceRepository: _FakeCompanyAcceptancesRepository(),
+            offlineInventoryRepository: _FakeOfflineInventoryCountsRepository(),
+            offlineCompanyAcceptanceRepository: offlineRepository,
+          ),
+          mobileCustomerCatalogRepository: MobileCustomerCatalogLocalRepository(
+            database: database,
+          ),
+          mobileProductCatalogRepository: productCatalog,
+          currentUserId: 'u1',
+          defaultWarehouseNo: '110',
+          userWarehouseName: 'TEST DEPO',
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await _openOfflineCompanyAcceptanceLines(tester);
+
+    final lookup = find.widgetWithText(
+      TextFormField,
+      'Barkod / stok kodu / urun adi',
+    );
+    await tester.enterText(lookup.first, '8690000000099');
+    await tester.tap(find.widgetWithText(FilledButton, 'Urun').first);
+    await tester.pumpAndSettle();
+
+    expect(
+      find.textContaining('Bu urun DLS durumunda ve listeye eklenemez'),
+      findsWidgets,
+    );
+    expect(find.text('Satir 1'), findsNothing);
+  });
 }
 
 Future<void> _openOfflineCompanyAcceptanceLines(WidgetTester tester) async {
@@ -197,6 +284,10 @@ class _FakeOfflineCompanyAcceptancesRepository
 
 class _FakeCompanyAcceptancesRepository
     implements CompanyAcceptancesRepository {
+  _FakeCompanyAcceptancesRepository({this.productSearchError});
+
+  final ApiException? productSearchError;
+
   @override
   Future<CompanyAcceptanceCreateResult> createAcceptance({
     required String accessToken,
@@ -256,6 +347,9 @@ class _FakeCompanyAcceptancesRepository
     String? customerCode,
     bool includeDelisted = true,
   }) async {
+    if (productSearchError case final error?) {
+      throw error;
+    }
     return <SearchProductLookupItem>[];
   }
 }

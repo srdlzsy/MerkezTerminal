@@ -767,6 +767,15 @@ class _OfflineInventoryCountCreateSheetState
     );
   }
 
+  double? _existingQuantityForProduct(_OfflineLineDraft currentLine) {
+    final existingLine = _findDuplicateLine(
+      currentLine: currentLine,
+      barcode: currentLine.barcodeController.text,
+      stockCode: currentLine.stockCodeController.text,
+    );
+    return existingLine?.quantity;
+  }
+
   Future<bool> _confirmDuplicateIncrease(
     _OfflineLineDraft line,
     InventoryCountProductLookupItem product,
@@ -913,7 +922,7 @@ class _OfflineInventoryCountCreateSheetState
     if (_hasPendingEntryLine) {
       unawaited(TerminalFeedback.warning());
       setState(() {
-        _errorMessage = 'Secilen urunu once Kaleme Ekle ile listeye alin.';
+        _errorMessage = 'Secilen urunu once Ekle ile listeye alin.';
       });
       return;
     }
@@ -1110,6 +1119,7 @@ class _OfflineInventoryCountCreateSheetState
         .length;
 
     if (isPendingEntry) {
+      final existingQuantity = _existingQuantityForProduct(line);
       return ProductDraftEntryPanel(
         stockCode: line.stockCodeController.text.trim(),
         stockName: line.stockNameController.text.trim().isEmpty
@@ -1121,6 +1131,13 @@ class _OfflineInventoryCountCreateSheetState
             ? AppFormatters.quantity(line.unitMultiplier)
             : null,
         barcode: line.barcodeController.text.trim(),
+        extraInfo: <TerminalPdaInfo>[
+          if (existingQuantity != null)
+            TerminalPdaInfo(
+              label: 'Listede',
+              value: AppFormatters.quantity(existingQuantity),
+            ),
+        ],
         onConfirm: () => _commitEntryLine(line),
         onCancel: () => _cancelPendingEntryLine(line),
         scanRow: TerminalResponsiveLookupRow(

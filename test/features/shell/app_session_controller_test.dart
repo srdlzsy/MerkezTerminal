@@ -86,6 +86,42 @@ void main() {
       expect(repository.clearSessionCallCount, 0);
     },
   );
+
+  test('warehouse context guard reports verified context', () async {
+    final repository = _FakeAuthRepository();
+    final controller = AppSessionController(authRepository: repository);
+    repository.signInResult = _buildSession(accessToken: 'token-1');
+    repository.warehouseContextResult = _warehouseContext(
+      requiresRelogin: false,
+    );
+
+    await controller.signIn(usernameOrEmail: 'demo', password: '1234');
+    final result = await controller.refreshWarehouseContextGuard();
+
+    expect(result, WarehouseContextGuardResult.verified);
+    expect(controller.status, AppSessionStatus.authenticated);
+  });
+
+  test(
+    'warehouse context guard keeps offline session but reports unavailable',
+    () async {
+      final repository = _FakeAuthRepository();
+      final controller = AppSessionController(authRepository: repository);
+      repository.signInResult = _buildSession(accessToken: 'token-1');
+      repository.warehouseContextError = const ApiException(
+        statusCode: 0,
+        title: 'Baglanti Hatasi',
+        detail: 'offline',
+      );
+
+      await controller.signIn(usernameOrEmail: 'demo', password: '1234');
+      final result = await controller.refreshWarehouseContextGuard();
+
+      expect(result, WarehouseContextGuardResult.unavailable);
+      expect(controller.status, AppSessionStatus.authenticated);
+      expect(repository.clearSessionCallCount, 0);
+    },
+  );
 }
 
 class _FakeAuthRepository extends AuthRepository {
@@ -106,6 +142,8 @@ class _FakeAuthRepository extends AuthRepository {
   ApiException? restoreSessionError;
   ApiException? refreshSessionError;
   ApiException? unauthorizedRecoveryError;
+  WarehouseContext? warehouseContextResult;
+  ApiException? warehouseContextError;
   int clearSessionCallCount = 0;
 
   @override
@@ -151,6 +189,14 @@ class _FakeAuthRepository extends AuthRepository {
   Future<void> clearSession() async {
     clearSessionCallCount += 1;
   }
+
+  @override
+  Future<WarehouseContext> fetchWarehouseContext({String? accessToken}) async {
+    if (warehouseContextError case final error?) {
+      throw error;
+    }
+    return warehouseContextResult!;
+  }
 }
 
 AuthSession _buildSession({required String accessToken, String? refreshToken}) {
@@ -171,5 +217,19 @@ AuthSession _buildSession({required String accessToken, String? refreshToken}) {
       permissions: <String>['stok-islemleri.sayim-sonuclari.list'],
       modules: <PermissionModule>[],
     ),
+  );
+}
+
+WarehouseContext _warehouseContext({required bool requiresRelogin}) {
+  return WarehouseContext(
+    userId: 'user-1',
+    username: 'demo',
+    tokenWarehouseNo: '110',
+    tokenWarehouseName: 'KESTEL 1',
+    currentWarehouseNo: requiresRelogin ? '160' : '110',
+    currentWarehouseName: requiresRelogin ? 'SUBE 160' : 'KESTEL 1',
+    isTerminalUser: true,
+    requiresRelogin: requiresRelogin,
+    reason: requiresRelogin ? 'WarehouseChanged' : '',
   );
 }

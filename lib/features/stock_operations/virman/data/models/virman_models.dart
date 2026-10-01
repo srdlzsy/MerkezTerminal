@@ -264,6 +264,27 @@ class VirmanCreateRequest {
       'lines': lines.map((item) => item.toJson()).toList(growable: false),
     };
   }
+
+  factory VirmanCreateRequest.fromJson(JsonMap json) {
+    final rawLines = json['lines'];
+    return VirmanCreateRequest(
+      clientRequestId: _readString(json['clientRequestId']),
+      movementDate: _readDate(json['movementDate']) ?? DateTime.now(),
+      documentDate: _readDate(json['documentDate']) ?? DateTime.now(),
+      documentNo: _readString(json['documentNo']),
+      description: _readString(json['description']),
+      lines: rawLines is List
+          ? rawLines
+                .whereType<Map>()
+                .map(
+                  (item) => VirmanCreateLine.fromJson(
+                    item.map((key, value) => MapEntry(key.toString(), value)),
+                  ),
+                )
+                .toList(growable: false)
+          : const <VirmanCreateLine>[],
+    );
+  }
 }
 
 class VirmanCreateLine {
@@ -298,6 +319,19 @@ class VirmanCreateLine {
       'lotNo': lotNo,
       'projectCode': projectCode,
     };
+  }
+
+  factory VirmanCreateLine.fromJson(JsonMap json) {
+    return VirmanCreateLine(
+      stockCode: _readString(json['stockCode']),
+      movementType: _readInt(json['movementType']),
+      quantity: _readDouble(json['quantity']),
+      unitPointer: _readInt(json['unitPointer']),
+      description: _readString(json['description']),
+      partyCode: _readString(json['partyCode']),
+      lotNo: _readInt(json['lotNo']),
+      projectCode: _readString(json['projectCode']),
+    );
   }
 }
 

@@ -38,6 +38,7 @@ class WarehouseReturnsController extends ChangeNotifier
   String? _detailError;
   String? _createError;
   int? _createErrorStatusCode;
+  SafeCreateFailureKind _createFailureKind = SafeCreateFailureKind.notRetryable;
   String? _sendEDespatchError;
   String? _pdfError;
   List<WarehouseReturnListItem> _returns = const <WarehouseReturnListItem>[];
@@ -57,6 +58,7 @@ class WarehouseReturnsController extends ChangeNotifier
   String? get detailError => _detailError;
   String? get createError => _createError;
   int? get createErrorStatusCode => _createErrorStatusCode;
+  SafeCreateFailureKind get createFailureKind => _createFailureKind;
   String? get sendEDespatchError => _sendEDespatchError;
   String? get pdfError => _pdfError;
   List<WarehouseReturnListItem> get returns => _returns;
@@ -212,6 +214,7 @@ class WarehouseReturnsController extends ChangeNotifier
     _isCreating = true;
     _createError = null;
     _createErrorStatusCode = null;
+    _createFailureKind = SafeCreateFailureKind.notRetryable;
     notifySafely();
 
     try {
@@ -233,6 +236,10 @@ class WarehouseReturnsController extends ChangeNotifier
       _isCreating = false;
       _createError = safeCreateRetryErrorMessage(error);
       _createErrorStatusCode = error.statusCode;
+      _createFailureKind = classifySafeCreateFailure(
+        statusCode: error.statusCode,
+        message: error.message,
+      );
       notifySafely();
       return null;
     }

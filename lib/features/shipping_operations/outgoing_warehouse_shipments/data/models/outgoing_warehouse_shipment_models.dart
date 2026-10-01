@@ -293,6 +293,31 @@ class WarehouseShipmentCreateRequest {
       'lines': lines.map((item) => item.toJson()).toList(growable: false),
     };
   }
+
+  factory WarehouseShipmentCreateRequest.fromJson(JsonMap json) {
+    final rawLines = json['lines'];
+    return WarehouseShipmentCreateRequest(
+      clientRequestId: _readString(json['clientRequestId']),
+      targetWarehouseNo: _readInt(json['targetWarehouseNo']),
+      transitWarehouseNo: json['transitWarehouseNo'] == null
+          ? null
+          : _readInt(json['transitWarehouseNo']),
+      movementDate: _readDate(json['movementDate']) ?? DateTime.now(),
+      documentDate: _readDate(json['documentDate']) ?? DateTime.now(),
+      documentNo: _readString(json['documentNo']),
+      description: _readString(json['description']),
+      lines: rawLines is List
+          ? rawLines
+                .whereType<Map>()
+                .map(
+                  (item) => WarehouseShipmentCreateLine.fromJson(
+                    item.map((key, value) => MapEntry(key.toString(), value)),
+                  ),
+                )
+                .toList(growable: false)
+          : const <WarehouseShipmentCreateLine>[],
+    );
+  }
 }
 
 class WarehouseShipmentCreateLine {
@@ -332,6 +357,20 @@ class WarehouseShipmentCreateLine {
       'lotNo': lotNo,
       'projectCode': projectCode,
     };
+  }
+
+  factory WarehouseShipmentCreateLine.fromJson(JsonMap json) {
+    return WarehouseShipmentCreateLine(
+      warehouseOrderLineGuid: _readString(json['warehouseOrderLineGuid']),
+      stockCode: _readString(json['stockCode']),
+      quantity: _readDouble(json['quantity']),
+      unitPrice: _readDouble(json['unitPrice']),
+      unitPointer: _readInt(json['unitPointer']),
+      description: _readString(json['description']),
+      partyCode: _readString(json['partyCode']),
+      lotNo: _readInt(json['lotNo']),
+      projectCode: _readString(json['projectCode']),
+    );
   }
 }
 

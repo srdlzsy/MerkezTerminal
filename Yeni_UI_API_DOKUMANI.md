@@ -66,8 +66,8 @@ Controller'da acik olan pratik alias/canonical route'lar:
 - `GET /api/siparis-islemleri/verilen-depo-siparisleri/key/{documentKey}`
 - `GET /api/siparis-islemleri/verilen-firma-siparisleri/{documentSerie}/{documentOrderNo}`
 - `GET /api/siparis-islemleri/verilen-firma-siparisleri/key/{documentKey}`
-- `GET /api/sevk-islemleri/depolar-arasi-sevkler/{documentSerie}/{documentOrderNo}`, `POST /api/sevk-islemleri/depolar-arasi-sevkler/{documentSerie}/{documentOrderNo}/e-irsaliye` ve `GET /api/sevk-islemleri/depolar-arasi-sevkler/{documentSerie}/{documentOrderNo}/e-irsaliye/pdf`, `giden` alias'i ile ayni outgoing akisi calistirir.
-- `GET /api/sevk-islemleri/depolar-arasi-sevkler/giden/{documentSerie}/{documentOrderNo}`, `POST /api/sevk-islemleri/depolar-arasi-sevkler/giden/{documentSerie}/{documentOrderNo}/e-irsaliye` ve `GET /api/sevk-islemleri/depolar-arasi-sevkler/giden/{documentSerie}/{documentOrderNo}/e-irsaliye/pdf`
+- `GET`, `PUT` ve `DELETE /api/sevk-islemleri/depolar-arasi-sevkler/{documentSerie}/{documentOrderNo}`, `POST /api/sevk-islemleri/depolar-arasi-sevkler/{documentSerie}/{documentOrderNo}/e-irsaliye` ve `GET /api/sevk-islemleri/depolar-arasi-sevkler/{documentSerie}/{documentOrderNo}/e-irsaliye/pdf`, `giden` alias'i ile ayni outgoing akisi calistirir.
+- `GET`, `PUT` ve `DELETE /api/sevk-islemleri/depolar-arasi-sevkler/giden/{documentSerie}/{documentOrderNo}`, `POST /api/sevk-islemleri/depolar-arasi-sevkler/giden/{documentSerie}/{documentOrderNo}/e-irsaliye` ve `GET /api/sevk-islemleri/depolar-arasi-sevkler/giden/{documentSerie}/{documentOrderNo}/e-irsaliye/pdf`
 - `GET /api/sevk-islemleri/depolar-arasi-sevkler/gelen/{documentSerie}/{documentOrderNo}`
 - `GET /api/sevk-islemleri/firma-sevkleri/{documentSerie}/{documentOrderNo}`, `POST /api/sevk-islemleri/firma-sevkleri/{documentSerie}/{documentOrderNo}/e-irsaliye` ve `GET /api/sevk-islemleri/firma-sevkleri/{documentSerie}/{documentOrderNo}/e-irsaliye/pdf`, `giden` alias'i ile ayni outgoing akisi calistirir.
 - `GET /api/sevk-islemleri/firma-sevkleri/giden/{documentSerie}/{documentOrderNo}`, `POST /api/sevk-islemleri/firma-sevkleri/giden/{documentSerie}/{documentOrderNo}/e-irsaliye` ve `GET /api/sevk-islemleri/firma-sevkleri/giden/{documentSerie}/{documentOrderNo}/e-irsaliye/pdf`
@@ -121,6 +121,10 @@ Endpoint:
 ```text
 POST /api/legacy/e-irsaliye/{documentKind}/{documentSerie}/{documentOrderNo}/gonder?warehouseNo=56
 POST /api/legacy/e-irsaliye/{documentKind}/giden/{documentSerie}/{documentOrderNo}/gonder?warehouseNo=56
+GET /api/legacy/e-irsaliye/{documentKind}/{documentSerie}/{documentOrderNo}/durum?warehouseNo=56
+GET /api/legacy/e-irsaliye/{documentKind}/giden/{documentSerie}/{documentOrderNo}/durum?warehouseNo=56
+GET /api/legacy/e-irsaliye/{documentKind}/{documentSerie}/{documentOrderNo}/pdf?warehouseNo=56
+GET /api/legacy/e-irsaliye/{documentKind}/giden/{documentSerie}/{documentOrderNo}/pdf?warehouseNo=56
 ```
 
 `documentKind` degerleri:
@@ -141,6 +145,36 @@ POST /api/legacy/e-irsaliye/firma-sevkleri/giden/F56/124/gonder?warehouseNo=56
 POST /api/legacy/e-irsaliye/firma-iadeleri/F56/125/gonder?warehouseNo=56
 ```
 
+Legacy durum ve PDF akisi:
+
+- Eski arayuz e-irsaliye POST istegi `200 OK` dondugunde `isSentToUyumsoft=true` kabul etmelidir. `localMikroMetadataUpdateQueued=true` gelmesi Uyumsoft gonderiminin basarisiz oldugu anlamina gelmez.
+- Sayfa yenilendiginde veya liste tekrar acildiginda eski UI Mikro satirindaki FRM/ETTN alanina bakarak tek basina "gonderilmedi" karari vermemelidir. Bunun yerine `GET .../durum` endpointini cagirmalidir.
+- `status=PendingMetadata` ve `isSentToUyumsoft=true`: ekranda `E-Irsaliye Gonderildi - Mikro Isaretlemesi Bekliyor` gosterilir. PDF butonu aktiftir; tekrar gonder butonu kapali kalir.
+- `status=Completed`: Uyumsoft gonderimi ve Mikro isaretlemesi tamamdir.
+- `status=NeedsReview`: Uyumsoft gonderimi basarilidir; Mikro tarafinda icerik/isaret uyusmazligi manuel inceleme bekler. PDF butonu aktiftir ve yeniden gonderim yapilmaz.
+- `status=Unknown`: Uyumsoft sonucu henuz dogrulaniyordur. UI yeni POST uretmez; kisa bir sure sonra yalnizca `GET .../durum` istegini tekrarlar.
+- `status=NotSent`: Auth DB'de onayli bir gonderim bulunamamistir. UI ancak kullanicinin acik aksiyonuyla normal gonderim akisini baslatabilir.
+- PDF icin `GET .../pdf?warehouseNo=56` kullanilir. Endpoint `application/pdf` ve `inline` doner; browser yeni sekmede acabilir. PDF gecici olarak hazir degilse yalnizca PDF GET istegi tekrar edilir, `POST .../gonder` tekrar edilmez.
+- Durum ve PDF route'lari da gonderim route'u gibi `Enabled`, `AllowedOrigins` ve `AllowedWarehouseNos` kontrollerinden gecer. Eski arayuz JWT gondermez.
+
+Durum response ornegi:
+
+```json
+{
+  "documentType": 3,
+  "documentSerie": "F56",
+  "documentOrderNo": 88015,
+  "isSentToUyumsoft": true,
+  "status": "PendingMetadata",
+  "eDespatchDocumentNo": "FRM2026600132160",
+  "eDespatchUuid": "0d594419-f940-4f7f-acaf-36ee7735bc21",
+  "sentAtUtc": "2026-09-30T07:10:00Z",
+  "localMikroMetadataUpdated": false,
+  "localMikroMetadataUpdateQueued": true,
+  "warning": "E-irsaliye Uyumsoft'a gonderildi; Mikro metadata update was queued and will continue in the background; do not resend."
+}
+```
+
 Body:
 
 ```json
@@ -148,7 +182,9 @@ Body:
   "driverId": "25a9f3ea-a55a-4558-bb82-8109c3f14cd4",
   "plaque": "16BZU759",
   "driverNameSurname": "SINAN BERKER",
-  "driverTckn": "11111111111"
+  "driverTckn": "11111111111",
+  "deliverer": "ZEHRA SAMUK",
+  "receiver": "SINAN BERKER"
 }
 ```
 
@@ -156,6 +192,8 @@ Not:
 
 - `driverId` verilirse aktif sofor kaydindan plaka/ad soyad/TCKN doldurulur.
 - `driverId` verilmezse `plaque`, `driverNameSurname` ve `driverTckn` zorunludur.
+- `deliverer` ve `receiver` opsiyoneldir. Verilmezse once Mikro hareketindeki `sth_HareketGrupKodu2` ve `sth_HareketGrupKodu3` kullanilir; teslim alan da bos ise `driverNameSurname` kullanilir.
+- Uyumsoft UBL icinde `deliverer`, `DespatchSupplierParty/DespatchContact/Name`; `receiver`, `DeliveryCustomerParty/DeliveryContact/Name` alanina yazilir. Sofor ayrica `Shipment/ShipmentStage/DriverPerson` altinda gonderilir.
 - Bu route acildiginda login/JWT kontrolu yoktur. E-irsaliye gercek belge urettigi icin canlida origin, CORS ve depo listesi dar tutulmalidir.
 
 ### Tum Depo Yetki Modeli
@@ -197,7 +235,7 @@ Bu tablo UI icin ana permission referansidir. Kaynak kod tarafi `PermissionCatal
 | `siparis-islemleri` | `verilen-firma-siparisleri` | `siparis-islemleri.verilen-firma-siparisleri.page` | `siparis-islemleri.verilen-firma-siparisleri.list`<br>`siparis-islemleri.verilen-firma-siparisleri.detail`<br>`siparis-islemleri.verilen-firma-siparisleri.create`<br>`siparis-islemleri.verilen-firma-siparisleri.update` | `siparis-islemleri.verilen-firma-siparisleri.all-warehouses` |
 | `siparis-islemleri` | `onerilen-depo-siparisleri` | `siparis-islemleri.onerilen-depo-siparisleri.page` | `siparis-islemleri.onerilen-depo-siparisleri.list`<br>`siparis-islemleri.onerilen-depo-siparisleri.create` | `siparis-islemleri.onerilen-depo-siparisleri.all-warehouses` |
 | `siparis-islemleri` | `onerilen-firma-siparisleri` | `siparis-islemleri.onerilen-firma-siparisleri.page` | `siparis-islemleri.onerilen-firma-siparisleri.list`<br>`siparis-islemleri.onerilen-firma-siparisleri.create` | `siparis-islemleri.onerilen-firma-siparisleri.all-warehouses` |
-| `sevk-islemleri` | `giden-depolar-arasi-sevkler` | `sevk-islemleri.giden-depolar-arasi-sevkler.page` | `sevk-islemleri.giden-depolar-arasi-sevkler.list`<br>`sevk-islemleri.giden-depolar-arasi-sevkler.detail`<br>`sevk-islemleri.giden-depolar-arasi-sevkler.create`<br>`sevk-islemleri.giden-depolar-arasi-sevkler.update` | `sevk-islemleri.giden-depolar-arasi-sevkler.all-warehouses` |
+| `sevk-islemleri` | `giden-depolar-arasi-sevkler` | `sevk-islemleri.giden-depolar-arasi-sevkler.page` | `sevk-islemleri.giden-depolar-arasi-sevkler.list`<br>`sevk-islemleri.giden-depolar-arasi-sevkler.detail`<br>`sevk-islemleri.giden-depolar-arasi-sevkler.create`<br>`sevk-islemleri.giden-depolar-arasi-sevkler.update`<br>`sevk-islemleri.giden-depolar-arasi-sevkler.delete` | `sevk-islemleri.giden-depolar-arasi-sevkler.all-warehouses` |
 | `sevk-islemleri` | `gelen-depolar-arasi-sevkler` | `sevk-islemleri.gelen-depolar-arasi-sevkler.page` | `sevk-islemleri.gelen-depolar-arasi-sevkler.list`<br>`sevk-islemleri.gelen-depolar-arasi-sevkler.detail`<br>`sevk-islemleri.gelen-depolar-arasi-sevkler.create`<br>`sevk-islemleri.gelen-depolar-arasi-sevkler.update` | `sevk-islemleri.gelen-depolar-arasi-sevkler.all-warehouses` |
 | `sevk-islemleri` | `giden-firma-sevkleri` | `sevk-islemleri.giden-firma-sevkleri.page` | `sevk-islemleri.giden-firma-sevkleri.list`<br>`sevk-islemleri.giden-firma-sevkleri.detail`<br>`sevk-islemleri.giden-firma-sevkleri.create`<br>`sevk-islemleri.giden-firma-sevkleri.update` | `sevk-islemleri.giden-firma-sevkleri.all-warehouses` |
 | `sevk-islemleri` | `gelen-firma-sevkleri` | `sevk-islemleri.gelen-firma-sevkleri.page` | `sevk-islemleri.gelen-firma-sevkleri.list`<br>`sevk-islemleri.gelen-firma-sevkleri.detail`<br>`sevk-islemleri.gelen-firma-sevkleri.create`<br>`sevk-islemleri.gelen-firma-sevkleri.update` | `sevk-islemleri.gelen-firma-sevkleri.all-warehouses` |
@@ -222,6 +260,7 @@ Bu tablo UI icin ana permission referansidir. Kaynak kod tarafi `PermissionCatal
 | `operasyon-islemleri` | `urun-dagilimlari` | `operasyon-islemleri.urun-dagilimlari.page` | `operasyon-islemleri.urun-dagilimlari.list`<br>`operasyon-islemleri.urun-dagilimlari.detail`<br>`operasyon-islemleri.urun-dagilimlari.create`<br>`operasyon-islemleri.urun-dagilimlari.update`<br>`operasyon-islemleri.urun-dagilimlari.delete` | `operasyon-islemleri.urun-dagilimlari.all-warehouses` |
 | `duzeltme-islemleri` | `mikro-evrak-duzenleme` | `duzeltme-islemleri.mikro-evrak-duzenleme.page` | `duzeltme-islemleri.mikro-evrak-duzenleme.list`<br>`duzeltme-islemleri.mikro-evrak-duzenleme.detail`<br>`duzeltme-islemleri.mikro-evrak-duzenleme.update`<br>`duzeltme-islemleri.mikro-evrak-duzenleme.delete` | `duzeltme-islemleri.mikro-evrak-duzenleme.all-warehouses` |
 | `entegrasyon-islemleri` | `axata-senkronizasyonu` | `entegrasyon-islemleri.axata-senkronizasyonu.page` | `entegrasyon-islemleri.axata-senkronizasyonu.list`<br>`entegrasyon-islemleri.axata-senkronizasyonu.detail`<br>`entegrasyon-islemleri.axata-senkronizasyonu.create`<br>`entegrasyon-islemleri.axata-senkronizasyonu.update` | `entegrasyon-islemleri.axata-senkronizasyonu.all-warehouses` |
+| `entegrasyon-islemleri` | `trendyol-go` | `entegrasyon-islemleri.trendyol-go.page` | `entegrasyon-islemleri.trendyol-go.list`<br>`entegrasyon-islemleri.trendyol-go.detail`<br>`entegrasyon-islemleri.trendyol-go.update` | `-` |
 | `entegrasyon-islemleri` | `pos-muhasebe-aktarimi` | `entegrasyon-islemleri.pos-muhasebe-aktarimi.page` | `entegrasyon-islemleri.pos-muhasebe-aktarimi.list`<br>`entegrasyon-islemleri.pos-muhasebe-aktarimi.detail`<br>`entegrasyon-islemleri.pos-muhasebe-aktarimi.create`<br>`entegrasyon-islemleri.pos-muhasebe-aktarimi.update` | `entegrasyon-islemleri.pos-muhasebe-aktarimi.all-warehouses` |
 | `entegrasyon-islemleri` | `uyumsoft-e-fatura` | `entegrasyon-islemleri.uyumsoft-e-fatura.page` | `entegrasyon-islemleri.uyumsoft-e-fatura.list`<br>`entegrasyon-islemleri.uyumsoft-e-fatura.detail`<br>`entegrasyon-islemleri.uyumsoft-e-fatura.create`<br>`entegrasyon-islemleri.uyumsoft-e-fatura.update` | `entegrasyon-islemleri.uyumsoft-e-fatura.all-warehouses` |
 | `entegrasyon-islemleri` | `uyumsoft-e-irsaliye` | `entegrasyon-islemleri.uyumsoft-e-irsaliye.page` | `entegrasyon-islemleri.uyumsoft-e-irsaliye.list`<br>`entegrasyon-islemleri.uyumsoft-e-irsaliye.detail`<br>`entegrasyon-islemleri.uyumsoft-e-irsaliye.create`<br>`entegrasyon-islemleri.uyumsoft-e-irsaliye.update` | `entegrasyon-islemleri.uyumsoft-e-irsaliye.all-warehouses` |
@@ -1152,6 +1191,8 @@ Bu endpointler legacy UI gibi normal online da kullanilabilir. Ancak mobil uygul
 - POST cevabi cihaza ulasmadiysa mobil uygulama once ayni `clientRequestId` ile tekrar POST denemelidir.
 - Firma mal kabul ve sayim sonucunda durum hala belirsizse ilgili `offline-sync/{clientRequestId}` endpoint'i ile durum sorgulanabilir.
 - Sevk, iade, zayiat, masraf ve virman create akislarinda ayri durum endpoint'i yoktur; sonuc ayni `clientRequestId` ile tekrar POST edilerek toparlanir.
+- Depolar arasi sevk ve depo iadesi Mikro API yaziminda timeout/istemci iptali gibi sonucu belirsiz bir hata olursa ayni `clientRequestId` ile gelen tekrar POST, Mikro'ya ikinci kez yazma gondermez. Backend sadece trace ile readback yapar; tum satirlar tamamlandiysa mevcut evraki `Completed` olarak toparlar, henuz tamamlanmadiysa `409 Conflict` ile islemin surdugunu bildirir.
+- Bu iki akista belirsiz sonuc sonrasi `409 Conflict` alinmasi yeni `clientRequestId` uretilmesi gerektigi anlamina gelmez. UI ayni payload snapshot'ini ve ayni `clientRequestId` degerini korumali; yeni id ancak kullanici acikca yeni bir islem baslatirsa uretilmelidir.
 - Stok hareketi yazan genisletilmis akislarda backend `clientRequestId` izini `FR` prefixli 24 karakterlik trace olarak Mikro `STOK_HAREKETLERI.sth_eticaret_kanal_kodu` alanina tasir. `MikroApi` rotasinda da ayni iz payload'a eklenir.
 - `FR` prefix'i bu alan ileride dolu goruldugunde kaydin Furpa guvenli retry izinden geldigini ayirt etmek icindir.
 
@@ -1165,7 +1206,7 @@ UI davranis kurali:
 - Timeout veya 500 cevabi sonrasi UI ayni fis icin yeni `clientRequestId` uretirse backend bunu yeni bir create islemi olarak kabul edebilir ve ayni icerikte ikinci evrak olusabilir.
 - Kullanici belirsiz kayit modundayken formu degistirmek isterse UI bunu yeni islem kabul etmeli, eski `clientRequestId` degerini birakip sonraki kaydetmede yeni `clientRequestId` uretmelidir.
 - Ayni `clientRequestId` ile farkli body gonderilip API `409 Conflict` donerse UI bunu teknik hata gibi degil, "Bu kayit denemesinin icerigi degismis; yeni islem olarak tekrar kaydedin." durumu gibi ele almalidir.
-- `409 Conflict` sonrasi kullanici devam edecekse UI yeni `clientRequestId` uretmeli ve guncel body'yi yeni kaydetme denemesi olarak gondermelidir.
+- `409 Conflict` ayni id ile farkli payload kullanildigini soyluyorsa kullanici devam edecekse UI yeni `clientRequestId` uretmeli ve guncel body'yi yeni kaydetme denemesi olarak gondermelidir. `Already being processed`/belirsiz Mikro sonucu 409'unda yeni id uretilmemelidir.
 - En guvenli akista `Normal Edit Mode` alanlari degistirilebilir, `Pending/Retry Mode` alanlari kilitlidir; pending durumundan cikmak icin kullanici acikca `Yeni islem olarak duzenle` veya `Vazgec` aksiyonu secmelidir.
 
 UI state ornegi:
@@ -1222,7 +1263,7 @@ Ortak offline status response modeli:
 
 - `Processing`: istek backend tarafinda rezerve edildi, islem tamamlanmadi veya sonuc henuz toparlanamadi
 - `Completed`: istek basariyla tamamlandi; `result` alaninda asil business response bulunur
-- `Failed`: son deneme hata ile kapandi; `errorMessage` dolu olabilir. Ayni payload ile retry yapilabilir, ama payload degistiyse yeni `clientRequestId` kullanilmalidir
+- `Failed`: son deneme hata ile kapandi; `errorMessage` dolu olabilir. Ayni payload ile retry yapilabilir, ama payload degistiyse yeni `clientRequestId` kullanilmalidir. Depolar arasi sevk ve depo iadesinde timeout/iptal gibi belirsiz Mikro sonucunda retry yalnizca readback yapar; ayni id ile ikinci yazma baslatmaz.
 
 ## Mobil Urun-Fiyat Katalog Sync
 
@@ -2529,7 +2570,7 @@ Ornek:
     "id": 3503,
     "terminalNo": "PAV210010584",
     "cashRegisterNo": "PAV210010584",
-    "bank": "İş Bankası",
+    "bank": "Ä°ÅŸ BankasÄ±",
     "terminalId": "PAV210010584-3",
     "merchantNo": "PAV210010584-3",
     "cashNo": 130
@@ -5796,6 +5837,10 @@ Onemli not:
 - UI kaydet butonunu ilk tiklamadan sonra request bitene kadar disable etmeli ve timeout sonrasi ayni body tekrar gonderildiginde ayni evrak numarasinin donebilecegini kabul etmelidir. Timeout gorulse bile kullaniciya liste/detay yenileme secenegi verilmesi onerilir.
 - Depolar arasi sevk create ekraninda `clientRequestId` pratikte zorunlu kabul edilmelidir. UI bu id'yi ilk `Kaydet` aninda uretmeli, ayni body snapshot'i ile birlikte saklamali ve sonuc kesinlesene kadar degistirmemelidir.
 - Timeout, HTTP 0, tarayici iptali, 500 veya kullaniciya sonucu kesin gosterilemeyen durumlarda `Tekrar Dene` aksiyonu ayni `clientRequestId` ve ayni body snapshot'i ile POST etmelidir.
+- `MikroApi` yazma yolunda Mikro `MikroAPI - TimeOut` dondurse bile ERP arka planda satirlari yazmaya devam edebilir. Bu nedenle timeout cevabi "evrak olusmadi" anlamina gelmez.
+- Depolar arasi sevkte timeout/iptal gibi sonucu belirsiz bir create sonrasi ayni `clientRequestId` tekrar gonderildiginde backend Mikro'ya ikinci create POST'u atmaz. Once trace readback yapar; tum satirlar tamamsa mevcut evraki `200 OK` ile dondurur, satirlar henuz tam degilse `409 Conflict` ile islemin devam ettigini bildirir.
+- `409 Conflict` detail mesaji `already being processed` anlamindaysa UI pending state'i korumali, formu ve e-irsaliye butonunu kilitli tutmali, yeni GUID uretmemelidir. Kullanici ayni snapshot ile daha sonra tekrar deneyebilir; otomatik kontrol yapilacaksa sik ve sinirsiz polling yerine 5-10 saniye aralikli sinirli retry kullanilmalidir.
+- Create endpointinden `200 OK` ve `documentSerie/documentOrderNo` alinmadan UI liste satirindan tahmin edilen evrak numarasiyla e-irsaliye endpointini cagirmamalidir.
 - UI ayni sevk icerigini yeni `clientRequestId` ile tekrar gonderirse backend bunu yeni evrak olarak yorumlayabilir. Bu durumda ayni stok/miktar satirlari farkli `documentOrderNo` ile ikinci kez olusur; ornek risk `F120/3496` ve `F120/3497` gibi ayni icerikli iki sevktir.
 - Kullanici pending/retry durumundaki sevk formunu degistirmek isterse UI bunu acikca yeni islem saymali; eski pending state'i kullanmadan yeni `clientRequestId` uretmelidir.
 - Satirda `warehouseOrderLineGuid` verilirse depo siparis satirina baglanir. `MikroWriteRouting:InterWarehouseShipment=Database` modunda backend `STOK_HAREKETLERI_EK.sth_subesip_uid` linkini DB'de kurar; `MikroApi` modunda ayni GUID `DahiliStokHareketKaydetV2` satirina `sth_subesip_uid` olarak gonderilir ve link/teslim etkisi Mikro tarafina birakilir.
@@ -5872,6 +5917,31 @@ Response:
   "writeConnectionName": "testMikroConnection"
 }
 ```
+
+#### Sevk Create Timeout ve UI State Akisi
+
+UI bu akista `clientRequestId + payloadSnapshot` ikilisini request sonucu kesinlesene kadar kalici/persist edilebilir pending state olarak tutmalidir. Sayfa yenilenmesi veya uygulamanin kapanip acilmasi ayni mantiksal sevk icin yeni kimlik uretme sebebi degildir.
+
+| API sonucu | Backend davranisi | UI davranisi |
+|---|---|---|
+| `200 OK` | Sevk kesin olarak olusmus veya trace readback ile toparlanmistir | Pending state'i temizle; response'taki seri/sira ile detayi ac; e-irsaliye butonunu etkinlestir |
+| Timeout, HTTP 0 veya belirsiz `5xx` | Mikro yazmaya devam ediyor olabilir | Ayni body snapshot ve ayni `clientRequestId` korunur; form degistirilmez |
+| `409` ve `already being processed` | Backend ikinci Mikro POST'unu engellemis, yalniz readback sonucu henuz tamamlanmamistir | "Sevk Mikro'da isleniyor" goster; yeni GUID veya yeni evrak olusturma; ayni istekle kontrollu tekrar dene |
+| `409` ve `different request payload` | Ayni id altinda body degistirilmistir | Eski pending islemiyle devam etme; kullanici acikca yeni islem baslatirsa yeni GUID uret |
+| `409` ve `multiple Mikro documents` | Ayni trace ile daha once birden fazla evrak olusmustur | E-irsaliye gonderme; evrak numaralarini operasyonel incelemeye goster |
+
+UI icin zorunlu sira:
+
+```text
+1. Ilk Kaydet: yeni clientRequestId + body snapshot olustur.
+2. POST devam ederken formu, Kaydet'i ve E-Irsaliyeye Donustur'u kilitle.
+3. Belirsiz sonuc: pending state'i silme veya yeni id uretme.
+4. Tekrar Dene: saklanan snapshot'i ayni clientRequestId ile aynen POST et.
+5. Yalniz 200 OK create response'u geldikten sonra response seri/sira degerini ekrana bagla.
+6. Detayi yenile ve ancak bundan sonra E-Irsaliyeye Donustur aksiyonunu ac.
+```
+
+Backend korumasi UI hatali davransa bile ayni `clientRequestId` ile belirsiz Mikro yazimini ikinci kez baslatmaz. Buna ragmen UI yeni `clientRequestId` uretirse bu teknik olarak yeni islem sayilir; bu nedenle pending state yonetimi yine zorunludur.
 
 ### Depolar Arasi Giden Sevk Detay
 
@@ -5969,6 +6039,60 @@ Response:
   "writeConnectionName": "testMikroConnection"
 }
 ```
+
+### Depolar Arasi Giden Sevki Sil
+
+E-irsaliyesi gonderilmemis ve hedef depo tarafindan kabul edilmemis giden depolar arasi sevk evrakinin tamamini siler.
+
+`DELETE /api/sevk-islemleri/depolar-arasi-sevkler/giden/F110/3694?warehouseNo=110`
+
+Geriye uyum icin root route da ayni delete gibi calisir:
+
+`DELETE /api/sevk-islemleri/depolar-arasi-sevkler/F110/3694?warehouseNo=110`
+
+Yetki:
+
+- `sevk-islemleri.giden-depolar-arasi-sevkler.delete`
+
+UI kurali:
+
+- Sil butonu sadece kullanicinin `permissions` listesinde `sevk-islemleri.giden-depolar-arasi-sevkler.delete` varsa gosterilmelidir.
+- `update` yetkisi tek basina tum evragi silme hakki vermez.
+- `*.all-warehouses` yoksa `warehouseNo` gonderilmemeli; backend JWT deposunu kaynak depo kabul eder. Bu yetki varsa secili satirin `sourceWarehouseNo` degeri query'ye yazilabilir.
+- Silme geri alinamaz. UI belge numarasi ve satir sayisini gosteren acik bir onay istemelidir.
+- Basarili response gelmeden satir listeden kaldirilmamalidir. Basaridan sonra liste ve varsa bagli depo siparisi detayi yenilenmelidir.
+- E-irsaliye gonderimi ile silme ayni anda calisamaz. Backend belge kilidi kullanir; gonderim devam ediyorsa `409 Conflict` doner.
+
+Backend guvenlik kurallari:
+
+- Auth DB'de gonderilmis veya sonucu henuz uzlastirilmamis e-irsaliye kaydi varsa silme reddedilir.
+- Mikro satirlarinda e-irsaliye belge no/UUID/gonderim kilidi varsa silme reddedilir.
+- Hedef depo sevki kabul etmisse (`sth_nakliyedurumu = 1`) silme reddedilir.
+- Silme tum `STOK_HAREKETLERI` satirlarini ve bu satirlara bagli `STOK_HAREKETLERI_EK` kayitlarini kapsar.
+- Sevk depo siparisine bagliysa silinen miktarlar siparisin `ssip_teslim_miktar` alanindan geri dusulur; siparis satiri yeniden acik duruma gelebilir.
+- Yazma yolu `MikroWriteRouting:WarehouseShippingUpdate` ayarina uyar. `Database` modunda islem transaction icinde, `MikroApi` modunda GUID bazli Mikro silme endpointleriyle calisir ve sonucun sifir aktif satir oldugu geri okunarak dogrulanir.
+- Islem belge akis takibine `DocumentDeleted / Succeeded` olarak kaydedilir.
+
+Response `200 OK`:
+
+```json
+{
+  "documentSerie": "F110",
+  "documentOrderNo": 3694,
+  "sourceWarehouseNo": 110,
+  "targetWarehouseNo": 50,
+  "deletedLineCount": 8,
+  "deletedAt": "2026-09-30T13:15:00",
+  "updateUser": 110,
+  "writeConnectionName": "MikroWriteConnection"
+}
+```
+
+Hata davranisi:
+
+- `403 Forbidden`: kullanicida `delete` veya secilen kaynak depo icin `all-warehouses` yetkisi yoktur.
+- `404 Not Found`: belge kaynak depo + seri + sira ile bulunamamistir veya daha once silinmistir.
+- `409 Conflict`: e-irsaliye gonderilmis/belirsiz durumdadir, gonderim devam ediyordur, belge kilitlidir ya da hedef depo kabul yapmistir.
 
 ### Depolar Arasi Giden Sevki E-Irsaliyeye Cevir
 
@@ -8860,8 +8984,8 @@ Onemli not:
 - `documentSerie` backend tarafinda `F{islemDepoNo}` olarak uretilir
 - `documentOrderNo` ayni seri ve zayiat fis turu icin write DB'deki mevcut maksimum sira okunarak uretilir
 - Satir tutari eski sistemle uyumlu olacak sekilde create aninda hesaplanir ve `STOK_HAREKETLERI.sth_tutar` alanina yazilir.
-- Birim fiyat icin ilgili stogun `SATINALMA_SARTLARI` tablosundaki en guncel kaydi kullanilir: `sas_net_alis_kdvli - (sas_isk_miktar1..6 toplamı)`.
-- Ilgili stok icin satin alma sarti bulunamazsa satir tutari `0` yazilir ve backend log'a uyarı duser.
+- Birim fiyat icin ilgili stogun `SATINALMA_SARTLARI` tablosundaki en guncel kaydi kullanilir: `sas_net_alis_kdvli - (sas_isk_miktar1..6 toplamÄ±)`.
+- Ilgili stok icin satin alma sarti bulunamazsa satir tutari `0` yazilir ve backend log'a uyarÄ± duser.
 - Response `totalAmount`, yazilan satirlarin `sth_tutar` toplamidir. Liste ve detay ekranlari da kayitli `sth_tutar` alanini okur; detay endpointi sonradan fiyat hesaplamaz.
 
 Request:
@@ -9770,7 +9894,7 @@ UI durum modeli onerisi:
 Kullanici deneyimi notlari:
 
 - Ekran pazaryeri/hal operasyonu gibi hizli veri girisine uygun olmalidir; form alanlari kisa, tablo satirlari yogun ve klavye/barkod okutmaya uygun tasarlanmalidir.
-- Aynı stoktan birden fazla tartim olabilir; UI satirlari sadece stok koduyla birlestirmemeli, satir/kayit bazinda gostermelidir.
+- AynÄ± stoktan birden fazla tartim olabilir; UI satirlari sadece stok koduyla birlestirmemeli, satir/kayit bazinda gostermelidir.
 - `acceptanceRecordId` Mikro aktarim satirina tasinirse aktarimdan sonra ilgili Furpa kaydi otomatik `Mikro_Aktarildi=1` olur.
 - Mikro aktarim request'i pending iken buton kilitlenmelidir. Timeout veya belirsiz durumda UI yeni seri/sira uretip tekrar basmamalidir; once Mikro belge listesi ve karsilastirma yenilenmelidir.
 - UI, `documentSeries/documentOrderNo` degerlerini kullaniciya gosterebilir ama bos birakilirsa backend seri/sira uretir. Manuel seri/sira girilirse duplicate kontrolu devrededir.
@@ -10580,7 +10704,7 @@ UI alan kaynagi:
 | `markAcceptanceRecordsTransferred` | Normal akista `true` | `acceptanceRecordId` gonderilen kayitlari aktarildi isaretler. |
 | `lines[].acceptanceRecordId` | Furpa etiket/kabul kaydi `id` | Etiket kaydiyla bagli aktarimda doldurulur. |
 | `lines[].stockCode` | `matchedStockCode` veya kullanicinin sectigi MNV stok | Zorunlu. |
-| `lines[].quantity` | Tartim/etiket net kg toplamı veya onayli fatura miktari | Manavda pratikte kesin kabul miktari tartim net kg olmalidir. |
+| `lines[].quantity` | Tartim/etiket net kg toplamÄ± veya onayli fatura miktari | Manavda pratikte kesin kabul miktari tartim net kg olmalidir. |
 | `lines[].unitPrice` | Fatura kalemi `unitPrice` veya manuel fiyat | Fiyat bilinmeden aktarim acilmamali. |
 | `lines[].unitPointer` | Stok ana birimi icin genelde `1` | Farkli birim senaryosu yoksa UI `1` gonderir. |
 | `lines[].taxPointer` | Fatura/stok KDV pointer'i | Doluyken tercih edilir. |
@@ -11447,13 +11571,33 @@ Sofor bilgisi iki sekilde gonderilebilir:
 
 `driverNameSurname` dolu gonderilirse en az iki kelime olacak sekilde `Ad Soyad` formatinda olmalidir; tek kelime gelirse API 400 doner. `driverTckn` dolu gonderilirse 11 haneli numeric olmalidir. Backend UBL uretiminde `DriverPerson` icinde sirayi `FirstName`, `FamilyName`, `NationalityID` olarak yazar; `NationalityID` soyaddan once gonderilmez.
 
+`deliverer` ve `receiver` opsiyoneldir. Request'te verilirse Mikro'daki degerleri ezer. Verilmezse `sth_HareketGrupKodu2` teslim eden, `sth_HareketGrupKodu3` teslim alan olarak kullanilir. Teslim alan bilgisi hem request'te hem Mikro'da bossa `driverNameSurname` fallback olur. UBL eslemesi:
+
+```text
+deliverer -> cac:DespatchSupplierParty/cac:DespatchContact/cbc:Name
+receiver  -> cac:DeliveryCustomerParty/cac:DeliveryContact/cbc:Name
+sofor     -> cac:Shipment/cac:ShipmentStage/cac:DriverPerson
+```
+
+E-irsaliye kalemlerinde backend Mikro `BARKOD_TANIMLARI` tablosundan aktif ana barkodu secer. Uyumsoft UBL eslemesi:
+
+```text
+barkod    -> cac:Item/cbc:Description
+stok kodu -> cac:Item/cac:SellersItemIdentification/cbc:ID
+stok adi  -> cac:Item/cbc:Name
+```
+
+Urunun aktif barkodu yoksa `Description` alaninda geriye uyumlu olarak stok kodu gonderilir. Barkod seciminde once `bar_master=true`, sonra birim pointer ve barkod sirasi kullanilir.
+
 Request - elle giris:
 
 ```json
 {
   "plaque": "16 ABC 123",
   "driverNameSurname": "Ad Soyad",
-  "driverTckn": "11111111111"
+  "driverTckn": "11111111111",
+  "deliverer": "Teslim Eden Ad Soyad",
+  "receiver": "Teslim Alan Ad Soyad"
 }
 ```
 
@@ -11479,12 +11623,81 @@ Notlar:
 - `driverId` bos veya yoksa eski manuel zorunlu alan mantigi calisir.
 - `driverId` doluysa kayit aktif degilse veya bulunamazsa `404 Not Found` doner.
 - `driverId` ile birlikte gelen dolu manuel alanlar secili sofor kaydinin ustune yazilir; bos manuel alanlar sofor tanimindan doldurulur.
-- Basarili gonderimden sonra cozulmus plaka ve TCKN Mikro hareket satirlarina metadata olarak yazilmaya calisilir.
-- Response icindeki `localMikroMetadataUpdated=false` gelirse Uyumsoft gonderimi basarilidir, fakat Mikro hareket satirlari FRM/ETTN metadata'si ile isaretlenememistir. UI bu durumda tekrar e-irsaliye gondermemeli; `eDespatchDocumentNo` ve `eDespatchUuid` degerleriyle lokal Mikro belge metadata onarimi yapilmalidir.
-- Ayni evrak icin belge akisinda basarili Uyumsoft gonderimi kayitliysa backend ikinci gonderimi `409 Conflict` ile engeller. Bu kural Mikro metadata isaretleme eksik kalmis olsa bile Uyumsoft'ta duplicate zarf olusmasini onlemek icindir.
-- Backend Uyumsoft gonderiminden hemen once seri/sira kapsamindaki guncel hareket GUID listesini hazirlanan belgeyle karsilastirir. Satir eklenmis veya silinmisse e-irsaliye gonderilmeden `409 Conflict` doner; UI belgeyi yenileyip tekrar denemelidir.
-- Uyumsoft gonderimi devam ederken hareket kumesi degisirse sadece gercekten gonderilen snapshot satirlari isaretlenir ve `localMikroMetadataUpdated=false` doner. UI bu durumda otomatik tekrar gonderim yapmamalidir.
-- Ayni Mikro evrakinda hem FRM/ETTN ile isaretli hem de bos satir bulunursa backend otomatik kurtarmayi durdurur ve `409 Conflict` doner. Bu durum manuel olarak Uyumsoft belge icerigiyle uzlastirilmadan bos satirlar mevcut e-irsaliyeye baglanmamalidir.
+- Uyumsoft cagrilmadan once FRM numarasi, UUID, sofor/teslim bilgileri ve gonderilecek Mikro satirlarinin sabit kopyasi Auth DB `edespatch_submissions` tablosuna kaydedilir. Bu kayit yazilamazsa gonderim yapilmaz.
+- Uyumsoft basarili cevap verdikten sonra basari durumu, belge akis olayi ve bekleyen Mikro isaretleme isi ayni Auth DB kaydetme islemiyle kalicilastirilir. HTTP `200` cevabi Mikro API isaretlemesini beklemeden doner. Basari kaydi hatasi yutulmaz.
+- Mikro yazma yolu `MikroWriteRouting:EDespatchMarkAsSent=MikroApi` olarak korunur. Worker `DahiliStokHareketDuzeltV2` kullanir; API hatasinda SQL yazma fallback'i yapilmaz.
+- Mikro hareket satirlarinin kilit, FRM/ETTN, plaka, teslim eden/alani ve sofor TCKN metadata guncellemesi kalici is kaydindan calisir. Gecici hatalar artan bekleme suresiyle (en fazla 15 dakika ara) yeniden denenir; besinci hatada is kaybedilmez. Bir belgenin tekrar deneme beklemesi diger isleri uyutmaz.
+- Normal hizli response'ta `localMikroMetadataUpdated=false` ve `localMikroMetadataUpdateQueued=true` gelir. Bu hata degildir; Uyumsoft gonderimi basarili, Mikro isaretleme kuyruktadir. UI islemi basarili gostermeli ve tekrar gonder butonunu acmamalidir.
+- `localMikroMetadataUpdated=true` gelirse Mikro satirlari zaten FRM/ETTN ile tam isaretlidir. `localMikroMetadataUpdateQueued=false` ve `localMikroMetadataUpdated=false` birlikte gelirse gercek lokal metadata uyarisi olarak ele alinabilir.
+- Ayni evrak icin Auth DB'de veya Mikro satirlarinda basarili Uyumsoft gonderimi bulunursa backend Uyumsoft'a ikinci kez gondermez; mevcut belge numarasi ve UUID ile `200 OK` doner ve gerekiyorsa Mikro isaretlemeyi tekrar kuyruga alir.
+- IIS/API yeniden baslarsa kalici bekleyen isler yas/toplam adet siniri olmadan devam eder; 25 kayitlik parcalar worker'in isleme boyutudur. Eski bellek kuyrugundan gecis icin son iki gunun FRM/UUID iceren takip kayitlari da kademeli olarak bu tabloya alinir ve Uyumsoft icerigi dogrulanir.
+- Backend gonderimden once GUID, stok kodu, miktar, birim, satir no, depo ve hareket bilgilerini hazirlanan belgeyle karsilastirir. GUID ayni kalsa bile miktar/stok degisikligi yakalanir. Eksik veya degismis belgede `409 Conflict` doner.
+- Create audit kaydi Mikro timeout nedeniyle `Failed`/`Processing` kalmis fakat secili Mikro evraki orijinal request ile birebir tamamsa backend create kaydini `Completed` olarak toparlayip e-irsaliye akisina devam eder. Otomatik depo siparisi baglantisinda Mikro'nun bos aciklama yerine yazdigi siparis satir GUID'i gecerli sistem donusumu olarak kabul edilir; diger satir kontrolleri gevsetilmez.
+- Ayni `clientRequestId` trace'i birden fazla Mikro evrakinda bulunursa backend hangi evrakin asil oldugunu tahmin etmez ve Uyumsoft'a gondermez. `409 Conflict` detail icinde eslesen Mikro evrak numaralari doner. UI bu durumda tekrar e-irsaliye POST'u atmamalidir; operasyonel mukerrer incelemesi istemelidir.
+- Sevk/depo iadesi duzenleme endpointi gonderimle ayni belge kilidini kullanir; Auth DB'de gonderim girisimi veya basari izi varsa Mikro isaretlemesi beklerken de duzenleme engellenir. ERP uzerinden disarida yapilan degisiklikler worker'in sabit satir karsilastirmasinda yakalanir.
+- Worker yalniz gonderilen satir icerigiyle eslesen belgeyi isaretler. Belge degismisse veya baska FRM/UUID varsa `NeedsReview` olur; uyusmayan satirlarin uzerine yazilmaz. Uyumsoft gonderimi basarili kalir, PDF erisimi devam eder.
+- Firma iadesinde Mikro'nun teknik hedef depo normalizasyonu (`sth_giris_depo_no` degerinin `0`dan `1`e gecmesi) tek basina belge degisikligi sayilmaz. Stok, miktar, birim, satir no, kaynak depo, evrak tipi ve diger hareket alanlari yine kontrol edilir; baska hedef depo farki `NeedsReview` olmaya devam eder. Eski bu nedenle takilmis firma iadeleri bir kez yeniden dogrulanir; gercek fark varsa tekrar inceleme durumunda kalir.
+- Mikro ve JSON arasindaki ikilik kayan nokta temsili farklari icin miktar/tutar alanlari `0.000001` toleransla karsilastirilir. Anlamli fiyat veya miktar degisikligi yine uyusmazliktir.
+- Ayni gonderime ait kismen isaretli satirlar hata sebebi degildir: satir icerigi ve FRM/UUID dogrulanir, sadece eksik/kilitsiz satirlar Mikro API ile tamamlanir.
+- Uyumsoft cevabi kaybolursa veya basari Auth DB'ye yazilamadan surec kapanirsa kayit `Unknown` kalir. Worker kayitli UUID ile Uyumsoft'tan belge numarasini ve satirlarini sorgular. Dogrulanana kadar yeni e-irsaliye gonderilmez; UI otomatik yeni POST uretmemelidir. Servis belgeyi dogrulayamazsa durum belirsiz kalir ve operasyonel inceleme gerekir.
+- Belge bazli kilit ayni evraga cift tiklamayi engeller. Ortak numara kilidi yalniz FRM ayirma/kalici kayit adimindadir; Uyumsoft gonderimleri farkli belgeler icin ortak kilitte beklemez.
+- Dagitimda `AddDurableEDespatchSubmissions` Auth DB migration'i uygulanmalidir. `StartupTasks:ApplyAuthMigrations=true` ise acilista uygulanir; aksi halde dagitim adiminda uygulanmadan yeni surum baslatilmamalidir.
+- Mevcut Production ayarinda `ApplyAuthMigrations=false` oldugundan yeni surum yayinlanmadan once Auth DB'ye `docs/DEPLOY_EDESPATCH_SUBMISSIONS.sql` uygulanmalidir. Script sadece bu yeni migration'i icerir; Mikro DB'ye uygulanmaz. Eski uygulama durdurulup script uygulandiktan sonra yeni uygulama baslatilmalidir.
+
+#### Sevkten PDF'ye Adim Adim Akis
+
+Bu akista kuyruga alinan is **Uyumsoft'a gonderim degil, gonderimden sonraki Mikro isaretlemesidir**. UI sadece kuyruga alindi diye gonderim basarisi gostermemelidir; gonderim endpointinin onaylanmis `200 OK` cevabini beklemelidir.
+
+1. Kullanici sevk satirlarini hazirlar ve `Kaydet` der. UI ayni kaydetme denemesinde ayni `clientRequestId` ve payload'i korur.
+2. Yazma rotasi `MikroApi` ise sevk Mikro API ile olusturulur. Mikro'da birkac satirin gorunmesi belgenin tamamlandigi anlamina gelmez.
+3. Backend orijinal istekteki satirlarin tamamini Mikro'dan okunan satirlarla dogrular. Stok, miktar, birim, satir no ve islem izi kontrol edilir. Ornegin istek 29 satirsa 27 satir tamamlandi kabul edilmez.
+4. UI sevk create cevabi basarili olmadan `E-Irsaliyeye Donustur` butonunu etkinlestirmez. Timeout olursa yeni evrak acmak yerine mevcut kaydetme denemesinin sonucu toparlanir.
+5. Kullanici e-irsaliye gonderimini baslatir. Backend yetki/depo baglamini, sofor/plaka bilgilerini ve belgenin hareket turunu kontrol eder; ayni belgeye eszamanli islem kilidi alir.
+6. Daha once onaylanmis gonderim varsa yeni belge gonderilmez; mevcut FRM/UUID doner. Sonucu belirsiz bir deneme varsa yeni gonderim engellenir.
+7. Belgenin butun satirlari kontrol edilir. Eski erken tamamlanmis kayitlarda mevcutsa orijinal create istegi esas alinir; gercek eksiklik veya icerik farki varsa `409` doner ve Uyumsoft cagrilmaz.
+8. UBL, taraf/adres/barkod ve teslim bilgileri hazirlanir. FRM ve UUID ayrilir; gonderilecek satirlar tekrar dogrulanir. Kimlik ve satirlarin sabit kopyasi Auth DB'ye yazilir. Bu kayit basarisizsa gonderim yapilmaz.
+9. Uyumsoft'a belge gonderilir. Bu adim HTTP isteginin icindedir; kullanici Uyumsoft sonucunu bekler.
+10. Uyumsoft basarisi Auth DB'ye belge akis olayi ve bekleyen Mikro isaretleme isiyle birlikte kaydedilir. Ancak bundan sonra `200 OK` doner. Bu basari, Uyumsoft'un belgeyi kabul ettigini belirtir; alicinin teslim kabulunu anlatmaz.
+11. UI `Gonderildi` durumunu, FRM/UUID'yi ve PDF butonunu gosterir. `localMikroMetadataUpdateQueued=true` ise ek olarak `Mikro isaretlemesi bekliyor` bilgisi gosterilebilir; kullanici tekrar gonderime yonlendirilmez.
+12. Kullanici PDF isterse backend Auth DB'deki onayli UUID ile Uyumsoft'tan PDF alir. Mikro isaretlemesinin tamamlanmasi beklenmez.
+13. Worker kalici kayitlardan bekleyen isleri okur. Guncel Mikro satirlari gonderilen sabit kopyayla eslesiyorsa eksik/kilitsiz satirlari Mikro API ile isaretler ve SQL'den okuyarak sonucu dogrular.
+14. Dogrulama basariliysa is `Completed` olur. Gecici hata varsa yeniden denenir; farkli icerik veya baska FRM/UUID varsa uzerine yazilmaz ve is `NeedsReview` olur. Bu durum onayli Uyumsoft belgesini veya PDF'yi iptal etmez.
+
+#### UI Durum ve Tekrar Deneme Kurallari
+
+| Durum | UI davranisi | Yapilmamasi gereken |
+|---|---|---|
+| Sevk kaydi devam ediyor | Kaydetme sonucunu bekle, donustur butonunu kilitle | Henuz tamamlanmamis sevki gondermek |
+| E-irsaliye POST devam ediyor | Ayni belge icin gonder butonunu kilitle | Cift tiklama veya paralel POST |
+| POST `200`, updated=false, queued=true | Gonderildi ve PDF butonu; Mikro isaretleme bekliyor bilgisi | Gonderimi basarisiz sanip yeniden belge uretmek |
+| POST `200`, updated=true | Gonderildi; Mikro isaretlemesi de tamam | Yeni gonderim yapmak |
+| POST `200`, updated=false, queued=false | Gonderildi ve PDF; `warning` ile manuel inceleme uyarisi | Mikro uyarisini Uyumsoft hatasi gibi gostermek |
+| POST timeout veya belirsiz sonuc | Sonuc bilinmiyor; mevcut belge durumunu kontrol et | Yeni belge/FRM uretmek veya otomatik POST dongusu |
+| PDF servisi gecici olarak hazir degil | Yalnizca PDF GET istegini aralikli, sinirli tekrar dene | PDF almak icin gonderim POST'unu tekrarlamak |
+
+Tablodaki `updated` ve `queued`, response'taki `localMikroMetadataUpdated` ve `localMikroMetadataUpdateQueued` alanlarinin kisa yazimidir. UI bu alanlari ve `warning` alanini birlikte okumali; tum `409` cevaplarini ayni hata gibi gostermemeli, `detail` mesajini korumalidir. Yetkili kullanici belge akis/timeline ekranindan onayli gonderim kimligini kontrol edebilir. Bu degisiklik ayri bir is-durumu polling endpointi eklemez; mevcut POST bir durum sorgusu gibi periyodik cagrilmamalidir.
+
+#### Kalici Is Kaydi ve Dagitim
+
+`edespatch_submissions.status` operasyonel anlamlari:
+
+| Durum | Anlam |
+|---|---|
+| `Unknown` | Kimlik ayrildi; Uyumsoft sonucu henuz onayli degil. Ilk arka plan dogrulamasi en erken iki dakika sonra yapilir; devam eden gonderimin belge kilidi varsa worker bekleyen isi atlar. |
+| `PendingMetadata` | Uyumsoft gonderimi onayli; Mikro isaretlemesi bekliyor. PDF kullanilabilir. |
+| `Completed` | Uyumsoft gonderimi ve Mikro isaretleme dogrulamasi tamamlandi. |
+| `NeedsReview` | Uyumsoft gonderimi onayli fakat Mikro icerigi/isaretleri uyusmuyor; otomatik uzerine yazma durduruldu. PDF kullanilabilir. |
+
+Worker Uyumsoft'a yeni belge gondermez. `Unknown` durumda sadece kayitli UUID'nin Uyumsoft'taki belge/satir bilgilerini dogrular. Uyumsoft'ta bulunamayan veya acikca reddedilen denemeyi yeni kimlikle otomatik gondermez; bu durum operasyonel inceleme gerektirir. Her hata kendiliginden duzelir garantisi yoktur.
+
+Worker yaklasik bes saniyelik aralarla sorgular, bir turda en fazla 25 isi sirayla isler. Bu nedenle Mikro cagrilari yavas ise isaretleme birikebilir; yeni HTTP/PDF akisinin bu kuyrugu beklememesi bunun icindir. Basarisiz isin tekrar denemesi en fazla 15 dakikalik araliklara kadar geri cekilir. Yeni kalici isler yeniden baslatma sonrasi korunur. Otomatik eski kayit aktariminin son iki gunle sinirli olmasi, yeni islerin iki gun sonra silinecegi anlamina gelmez.
+
+Dagitim kaydi (30.09.2026): `20260930082411_AddDurableEDespatchSubmissions` migration'i mevcut Local/Production ayarlarinin gosterdigi `FurpaMerkezDb` Auth veritabanina uygulanmis, tablo ve indeksler dogrulanmistir. Mikro tablolarina migration uygulanmamistir. Bu islem yeni uygulama kodunu IIS'e yayinlamaz; yeni davranisin canlida aktif olmasi icin guncel backend yayinlanip yeniden baslatilmalidir. Baska ortama kurulumda migration ayrica kontrol edilmelidir.
+
+Gecikme teshisi:
+
+- Loglarda `E-despatch reservation completed` numara kilidi/numara ayirma ve son kontrolu, `Uyumsoft submission completed` dis servis gonderimini, `Mikro metadata completed` arka plan isaretlemesini milisaniye olarak ayri gosterir.
+- Mikro API cagrilarinin gercek sureleri `mikro_api_write_audits.elapsed_milliseconds` alanindadir. `Unknown` ve yaklasik `120000` ms, metadata isleminin zaman asimina ugradigini gosterebilir; bu Uyumsoft gonderiminin basarisiz oldugu anlamina gelmez.
 
 Response:
 
@@ -11498,7 +11711,10 @@ Response:
   "serviceDocumentId": "123456789",
   "serviceDocumentNumber": "IRS2026000000012",
   "sentAt": "2026-04-17T14:25:00+03:00",
-  "endpointUrl": "http://efatura.uyumsoft.com.tr/Services/BasicDespatchIntegration"
+  "endpointUrl": "http://efatura.uyumsoft.com.tr/Services/BasicDespatchIntegration",
+  "localMikroMetadataUpdated": false,
+  "warning": "E-despatch was sent to Uyumsoft. Mikro metadata update was queued and will continue in the background; do not resend.",
+  "localMikroMetadataUpdateQueued": true
 }
 ```
 
@@ -11532,6 +11748,9 @@ Response:
 UI kullanim notu:
 
 - Bu endpointler JSON donmez; response blob/binary olarak ele alinmalidir.
+- Basarili gonderim cevabindan hemen sonra PDF butonu acilabilir. `localMikroMetadataUpdateQueued=true` olmasi PDF'yi engellemez; UI Mikro isaretlemesinin bitmesini beklememelidir.
+- PDF kimligi once kalici onaylanmis gonderim kaydindan, sonra mevcut Auth DB belge akisindaki FRM/UUID'den okunur. Bu kaynaklarda yoksa eski Mikro isaretleri kullanilir. Boylece Mikro satirlari henuz isaretlenmemis olsa bile gonderilmis belge icin yanlis `not been sent yet` hatasi verilmez.
+- PDF dosyasi kayitli UUID ile dogrudan Uyumsoft `GetOutboxDespatchPdf` servisinden alinir; once belge listesi taranmaz. Uyumsoft PDF'yi henuz hazirlamamissa veya servise ulasilamiyorsa UI sadece PDF GET istegini tekrar denemelidir, gonderim POST istegini tekrarlamamali.
 - Browser yeni sekmede acma, iframe icinde gosterme veya custom pdf viewer'a blob URL baglama yaklasimlari kullanilabilir.
 - Evrak henuz e-irsaliye olarak gonderilmemisse `409 Conflict` doner.
 - Evrak bulunamazsa `404 Not Found` doner.
@@ -11996,7 +12215,7 @@ Response:
 
 #### Yeni Kasa Saglik Ozeti
 
-Secilen tarih araliginda sube/kasa bazinda fiÃƒâ€¦Ã…Â¸ sagligini tek bakista gosterir. Dashboard ust kartlari veya risk listesi icin kullanilir.
+Secilen tarih araliginda sube/kasa bazinda fiÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€¦Ã‚Â¸ sagligini tek bakista gosterir. Dashboard ust kartlari veya risk listesi icin kullanilir.
 
 `GET /api/kasa-islemleri/yeni-kasa-analizleri/saglik-ozeti?startDate=2026-07-08&endDate=2026-07-08&warehouseNo=110`
 
@@ -12421,8 +12640,8 @@ filterValue filterType/scope ile eslesen kod veya arama degeri
 Notlar:
 
 - `filterType` icin Turkce aliaslar da kabul edilir: `stok`, `kategori`, `uretici`, `tedarikci`, `satin-almaci`, `satinalmaci`, `model`.
-- Turkce karakterli aliaslar da kabul edilir: `urun`, `ÃƒÆ’Ã‚Â¼rÃƒÆ’Ã‚Â¼n`, `ÃƒÆ’Ã‚Â¼retici`, `tedarikÃƒÆ’Ã‚Â§i`, `satÃƒâ€Ã‚Â±n-almacÃƒâ€Ã‚Â±`.
-- `filterType` ve `filterValue` birlikte kullanÃƒâ€Ã‚Â±lmalÃƒâ€Ã‚Â±dÃƒâ€Ã‚Â±r; sadece biri gÃƒÆ’Ã‚Â¶nderilirse backend 400 dÃƒÆ’Ã‚Â¶ner.
+- Turkce karakterli aliaslar da kabul edilir: `urun`, `ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¼rÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¼n`, `ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¼retici`, `tedarikÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â§i`, `satÃƒÆ’Ã¢â‚¬ÂÃƒâ€šÃ‚Â±n-almacÃƒÆ’Ã¢â‚¬ÂÃƒâ€šÃ‚Â±`.
+- `filterType` ve `filterValue` birlikte kullanÃƒÆ’Ã¢â‚¬ÂÃƒâ€šÃ‚Â±lmalÃƒÆ’Ã¢â‚¬ÂÃƒâ€šÃ‚Â±dÃƒÆ’Ã¢â‚¬ÂÃƒâ€šÃ‚Â±r; sadece biri gÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¶nderilirse backend 400 dÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¶ner.
 - `scope` bos verilirse karlilik raporu `producer` kirilimi ile doner.
 - Sayisal toplamlar backend tarafinda 2 ondaliga yuvarlanir.
 - Barkod alanlari master/birim-1 barkod onceligiyle secilir.
@@ -13213,7 +13432,7 @@ Response ana bolumleri:
 ```text
 movementReport             aktarim raporundaki sube+kasa satiri
 comparison                 aktarim Z raporu ile Mikro icmal toplam farki
-summary                    detay ekraninin ust KPI toplamları
+summary                    detay ekraninin ust KPI toplamlarÄ±
 cashierSummaries           aktarim fislerinden kasiyer bazli ozet
 movementPaymentSummaries   aktarim fislerinin odeme tipi kirilimi
 cashSummaryPayments        Mikro Summaries odeme tipi kirilimi
@@ -13594,7 +13813,7 @@ Response ornekleri:
   {
     "value": 100,
     "giftCheckType": 1,
-    "giftCheckTypeName": "Hediye Çeki 100 TL",
+    "giftCheckTypeName": "Hediye Ã‡eki 100 TL",
     "quantity": 3,
     "total": 300
   }
@@ -13944,7 +14163,7 @@ UI kasa seciminde `GET /api/kasa-islemleri/kasa-sayimlari/kasalar?branchNo=...` 
 ```json
 [
   {
-    "paymentName": "Online Ödeme",
+    "paymentName": "Online Ã–deme",
     "paymentTypeNo": 10,
     "terminalId": "",
     "paymentGenus": 1,
@@ -14028,14 +14247,14 @@ Kisa response ornekleri:
     "quantity": 0,
     "total": 0,
     "giftCheckType": 1,
-    "giftCheckTypeName": "Hediye Çeki 25 TL"
+    "giftCheckTypeName": "Hediye Ã‡eki 25 TL"
   },
   {
     "value": 100,
     "quantity": 0,
     "total": 0,
     "giftCheckType": 2,
-    "giftCheckTypeName": "Hediye Çeki 100 TL"
+    "giftCheckTypeName": "Hediye Ã‡eki 100 TL"
   }
 ]
 ```
@@ -14099,7 +14318,7 @@ Kisa response ornekleri:
 ```json
 [
   {
-    "paymentName": "Gider Pusulası",
+    "paymentName": "Gider PusulasÄ±",
     "paymentTypeId": 100,
     "paymentTypeNo": 100,
     "terminalId": "",
@@ -14115,7 +14334,7 @@ Not:
 
 - `paymentName`, kullaniciya basilacak gercek addir; UI `paymentTypeNo` araligindan isim tahmin etmemelidir
 - `paymentTypeKey`, dropdown secili satirini guvenli bulmak icindir; ayni odeme tipinin farkli terminal/hesap kodu varsa tek secenege dusurulmemelidir
-- `odeme-tipleri/masraf-pusulasi`, Mikro tarafinda tanim yoksa bile fallback olarak `Gider Pusulası / 100` dondurur
+- `odeme-tipleri/masraf-pusulasi`, Mikro tarafinda tanim yoksa bile fallback olarak `Gider PusulasÄ± / 100` dondurur
 
 ### Z Rapor Toplami
 
@@ -14261,7 +14480,7 @@ Not:
 - nakit/500 satiri UI tarafindan normal detay gibi yonetilmez; backend mevcut banknot/nakit toplamindan 500 satirini yeniden uretir
 - banknot update de patch degildir; `banknoteMovements` son durumda kalacak tum banknotlari icermelidir
 - banknot update request'inde `banknoteMovements` bos gonderilirse mevcut banknot satirlari temizlenebilir
-- banknot update eski satirlari silip yeniden yazar, ancak yeni `BanknoteMovements.CreateDate` mevcut icmal belgesinin `Summaries.SummaryDate` gununde kalir; boylece gecmis tarihli icmal duzeltmesi baska ekranlarda bugunun banknot toplamına kaymaz
+- banknot update eski satirlari silip yeniden yazar, ancak yeni `BanknoteMovements.CreateDate` mevcut icmal belgesinin `Summaries.SummaryDate` gununde kalir; boylece gecmis tarihli icmal duzeltmesi baska ekranlarda bugunun banknot toplamÄ±na kaymaz
 - banknot update sonrasi backend `PaymentTypeID = 500` nakit toplam satirini ve ilgili cari hareket toplamlarini yeni belge toplamiyla gunceller
 - hediye ceki update de patch degildir; `giftCheckMovements` son durumda kalacak tum hediye ceki satirlarini icermelidir
 - hediye ceki update request'inde `giftCheckMovements` bos gonderilirse mevcut hediye ceki satirlari temizlenebilir
@@ -14806,7 +15025,7 @@ Kasa Islemleri / Kasa Sayimlari
 Kasa Islemleri / Icmal Kaydi Girisi
   -> UI bu gorevi Kasa Sayimlari'ndan ayri menu/task olarak gostermelidir
   -> lookup alanlari icin kasiyer, kasa, odeme tipi ve banknot tipi endpointlerini paralel cagir
-  -> Z rapor karsilastirmasi icin GET /api/kasa-islemleri/kasa-sayimlari/z-rapor-toplam?... 
+  -> Z rapor karsilastirmasi icin GET /api/kasa-islemleri/kasa-sayimlari/z-rapor-toplam?...
   -> kaydetmek icin POST /api/kasa-islemleri/kasa-sayimlari
 
 Kasa Islemleri / Banknot Takipleri
@@ -14902,7 +15121,7 @@ Mevcut API'yi kullanarak ilerleyecekseniz akisi su sekilde okuyun:
 6. Kontrol sonucu uygunsa secilen gonderilmemis faturalari canli Uyumsoft'a gondermek icin `POST /api/fatura-islemleri/fatura-gonderimi/send`
    - `send` endpoint'i hiz icin `/validate` kontrolunu tekrar calistirmaz; UI "Kontrol Et" butonunu ayri aksiyon olarak sunmalidir
    - backend ayni belge icin eszamanli ikinci `send` istegini Uyumsoft'a gitmeden durdurur; UI bu durumda satir bazli hata mesajini gosterip ilk istegin sonucunu beklemelidir
-   - daha once Uyumsoft'a gonderilmis fakat yeniden kuyruÃƒâ€Ã…Â¸a alinmasi gereken faturalar icin ayri olarak `POST /api/fatura-islemleri/fatura-gonderimi/retry` kullanilir
+   - daha once Uyumsoft'a gonderilmis fakat yeniden kuyruÃƒÆ’Ã¢â‚¬ÂÃƒâ€¦Ã‚Â¸a alinmasi gereken faturalar icin ayri olarak `POST /api/fatura-islemleri/fatura-gonderimi/retry` kullanilir
 7. Gelen/inbox faturalari icin secilen tarih araligini Uyumsoft'tan cache tabloya almak gerekirse `POST /api/fatura-islemleri/fatura-goruntuleme/senkronize`
 8. Gelen/inbox cache listesini okumak icin `GET /api/fatura-islemleri/fatura-goruntuleme`
 9. Gelen/inbox resmi PDF icin `GET /api/fatura-islemleri/fatura-goruntuleme/{documentId}` veya `/pdf` alias'i kullanilir.
@@ -16138,7 +16357,7 @@ Response `SendInvoiceDocumentsResponse`:
 
 Davranis:
 
-- secimler duplicate ise backend tekilleÃƒâ€¦Ã…Â¸tirir
+- secimler duplicate ise backend tekilleÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€¦Ã‚Â¸tirir
 - gonderim Uyumsoft WCF client ile fatura bazli tek tek yapilir; boylece basarili/hatali kayitlar response icinde ayri ayri gorulur
 - her belge icin UBL invoice uretilir ve Uyumsoft `SendInvoice` operasyonu cagrilir
 - performans icin `/send` agir UBL-TR is kurali ve XSD dogrulamasini otomatik calistirmaz; kullanici kontrol istiyorsa veya toplu gonderim oncesi guvence isteniyorsa UI once `/validate` cagirmalidir
@@ -16451,7 +16670,24 @@ Authorization file ekran akis onerisi:
 
 ### Belge Akis ve Hata Takibi
 
-Bu ekran sevk, iade, mal kabul, siparis ve e-irsaliye adimlarini Auth DB tarafinda izlemek icin eklendi. Mikro semasina yazmaz; kayitlar `document_flows` ve `document_flow_events` tablolarinda tutulur.
+Bu ekran sevk, iade, mal kabul, siparis, e-irsaliye, icmal, zayiat, masraf, virman ve sayim sonucu adimlarini Auth DB tarafinda izlemek icin eklendi. Mikro semasina yazmaz; kayitlar `document_flows` ve `document_flow_events` tablolarinda tutulur.
+
+Belge turleri:
+
+```text
+CompanyShipment          Firma sevki
+InterWarehouseShipment   Depolar arasi sevk
+CompanyReturn            Firma iadesi
+WarehouseReturn          Depo iadesi
+CompanyReceiving         Firma mal kabul
+IssuedCompanyOrder       Verilen firma siparisi
+IssuedWarehouseOrder     Verilen depo siparisi
+CashSummary              Icmal/kasa sayimi
+OutageReceipt            Zayiat fisi
+ExpenseReceipt           Masraf fisi
+Virman                    Virman fisi
+InventoryCount           Stok sayim sonucu
+```
 
 Alan mantigi:
 
@@ -16459,7 +16695,12 @@ Alan mantigi:
 - `targetWarehouseNo`: depolar arasi sevk ve depo iadesinde mal kabulu beklenen veya tamamlayan karsi depodur. Firma sevki ve firma iadesinde bos gelir.
 - `currentStep = DocumentCreated`: belge API tarafindan olusturuldu.
 - `currentStep = EDespatchSubmission`: e-irsaliye gonderim adimi calisti. `status = Failed` ise hata panelde kaynak depoya yazilir.
-- `currentStep = WarehouseReceivingAccepted`: hedef depo mal kabul islemini tamamladı. Depo Operasyon Paneli bu adimi hedef depoda tamamlanan kabul olarak sayar.
+- `currentStep = WarehouseReceivingAccepted`: hedef depo mal kabul islemini tamamladÄ±. Depo Operasyon Paneli bu adimi hedef depoda tamamlanan kabul olarak sayar.
+- Icmal, zayiat, masraf, virman ve sayim sonucu create islemleri basarili oldugunda `currentStep = DocumentCreated`, `status = Succeeded` kaydi olusur.
+- Sayim sonucunda Mikro response'u ayri bir evrak serisi dondurmedigi icin takip ekraninda belge `SAYIM / {documentNo}` olarak gosterilir; bu deger Mikro'da uretilmis gercek bir seri degildir.
+- Bu ek kayitlar sadece API uzerinden yeni belge olusturuldugunda yazilir; Mikro'da veya baska bir uygulamada manuel olusturulan eski belgeler geriye donuk otomatik aktarilmaz.
+- Belge akis kaydi teknik izleme kaydidir. Kayit yazimi hata verirse asil Mikro create islemi geri alinmaz; backend warning log uretir.
+- E-irsaliye basariliysa akisin mevcut timeline satiri degistirilmez; yeni `EDespatchSubmission/Succeeded` olayi eklenir ve ana kayda Uyumsoft belge numarasi ile UUID yazilir.
 - Depolar arasi belgelerde tek belge akis kaydi hem kaynak depo hem hedef depo icin kullanilir; liste filtresinde iki taraftan biri eslesirse kayit gelir.
 
 ### Mikro API Yazma Audit Kayitlari
@@ -17315,6 +17556,341 @@ Operasyon modulu notlari:
 - `promofile` icin `ConnectionStrings:MaydayConnection` ve `ConnectionStrings:UyumConnection` ayarlari gereklidir
 
 ## Entegrasyon Islemleri
+
+### Trendyol Go Market Entegrasyonu
+
+Trendyol Go Market baglanti katmani `api.tgoapis.com` adresini kullanir. Asagidaki tablo **bizim API'de kodlanmis route'lari** gosterir; TGO'nun tum Market API'sinin desteklendigi veya bu route'larin canlida dogrulandigi anlamina gelmez. Siparis, urun katalogu, sube bazli fiyat-stok, satis acma/kapama, batch sonucu, bazi paket aksiyonlari, fatura linki ve iade/itiraz icin manuel endpointler vardir. Webhook alicisi ve Mikro satis/fatura evragi olusturma yoktur. Kapsam matrisi, operasyon akislarinin ayrintilari ve resmi kaynaklar: [Trendyol Go Entegrasyonu](TRENDYOL_GO_ENTEGRASYONU.md).
+
+Fiyat/stok onizlemesi Mikro'da Trendyol Go icin ayrilan `TrendyolGo:PriceListNo` listesini kullanir; varsayilan fiyat listesi `3`, odeme plani `0`'dir. Liste `1` veya genel satis fiyati fallback olarak kullanilmaz. `POST /price-stock/dispatch` Trendyol Go'da basarili olduktan sonra, secilen satirlar opsiyonel `TrendyolGo:BranchPosPriceSync` worker'i ile sube POS bilgisayarindaki PostgreSQL `market.stoksatisfiyat` tablosuna kuyruk uzerinden aktarilir. Bu aktarim API cevabini bekletmez; sube kapaliysa kayit yeniden denemek uzere kuyrukta kalir.
+
+POS sync varsayilan olarak depoya ait `BranchDetails.BranchIpAddress` adresini kullanir. Merkez veya farkli PostgreSQL sunucusu kullanan istisna depolar `WarehouseHosts` icinde depo no anahtariyla override edilir; depo `50` merkez PostgreSQL hostuna bu sekilde yonlendirilir. Tum depolar icin ortak host gerekirse `TrendyolGo:BranchPosPriceSync:Host` ayari kullanilabilir. `Password`, `AuthorizationToken`, `ApiKey` ve `ApiSecret` kaynak dosyaya yazilmaz; local gelistirmede User Secrets, canlida `TrendyolGo__BranchPosPriceSync__Password` dahil ortam degiskenleri kullanilir. PostgreSQL `pg_hba.conf` kullanici/veritabani yetkisi hazir olmadan POS sync acilmamalidir.
+
+Durum (29.09.2026): Fiyat/stok gonderimi, TGO batch sonucu ve merkez POS PostgreSQL upsert akisi canli veriyle dogrulandi. Diger TGO yazma route'lari kendi stage/production senaryolariyla ayri dogrulanmalidir.
+
+TGO gelistirici portali Uber Eats gecisiyle siparis modelinde degisiklikler duyuruyor. Bizim `orders` response'u buyuk olcude ham TGO JSON'u oldugu icin UI'nin alanlari ve paket aksiyon sirasi guncel Market stage verisiyle ayrica dogrulanmalidir.
+
+Yetkiler:
+
+```text
+entegrasyon-islemleri.trendyol-go.page
+entegrasyon-islemleri.trendyol-go.list
+entegrasyon-islemleri.trendyol-go.detail
+entegrasyon-islemleri.trendyol-go.update
+```
+
+Config:
+
+```json
+{
+  "TrendyolGo": {
+    "Enabled": false,
+    "Environment": "Production",
+    "BaseUrl": "https://api.tgoapis.com",
+    "SupplierId": 475658,
+    "IntegrationReferenceCode": "27fe35c1-911c-46bc-84b0-cf6737970126",
+    "ApiKey": "",
+    "ApiSecret": "",
+    "AuthorizationToken": "",
+    "AgentName": "FurpaMerkezApi",
+    "ExecutorUser": "",
+    "TimeoutSeconds": 30,
+    "PriceListNo": 3,
+    "PaymentPlanNo": 0,
+    "PreviewRefreshIntervalSeconds": 1800,
+    "PreviewWarmupStoreIds": [],
+    "PreviewPageParallelism": 1,
+    "PreviewFetchPageSize": 100,
+    "Stores": [
+      {
+        "StoreId": 402535,
+        "WarehouseNo": 110,
+        "StoreName": "Kestel 1"
+      }
+    ]
+  }
+}
+```
+
+Guvenlik:
+
+- `AuthorizationToken` veya `ApiKey`/`ApiSecret` kaynak koda yazilmamalidir. Canlida environment variable veya sunucu secret ayari kullanilmalidir.
+- Hazir Basic token kullanilacaksa environment variable adi `TrendyolGo__AuthorizationToken` olur.
+- Entegrasyonu acmak icin `TrendyolGo__Enabled=true` verilmelidir.
+- Durum guncelleme isteklerinde `x-agentname` ve `x-executor-user` header degerleri config'den gonderilir.
+
+Endpointler:
+
+| Endpoint | Request | Response | Yetki |
+|---|---|---|---|
+| `GET /api/entegrasyon-islemleri/trendyol-go/status` | - | `TrendyolGoConnectionStatusDto` | `list` |
+| `GET /api/entegrasyon-islemleri/trendyol-go` | - | `status` ile ayni cevap | `list` |
+| `GET /api/entegrasyon-islemleri/trendyol-go/stores` | - | `TrendyolGoStoreMappingDto[]` | `list` |
+| `GET /api/entegrasyon-islemleri/trendyol-go/connection-test?storeId=402535` | query | `TrendyolGoConnectionStatusDto` | `detail` |
+| `GET /api/entegrasyon-islemleri/trendyol-go/orders` | query | TGO siparis JSON response'u | `list` |
+| `GET /api/entegrasyon-islemleri/trendyol-go/orders/by-number/{orderNumber}` | path | TGO siparis JSON response'u | `detail` |
+| `PUT /api/entegrasyon-islemleri/trendyol-go/packages/{packageId}/picked` | body yok | TGO response veya `204` | `update` |
+| `GET /api/entegrasyon-islemleri/trendyol-go/orders/{orderId}/invoice-amount` | path | TGO min/max tutar response'u | `detail` |
+| `PUT /api/entegrasyon-islemleri/trendyol-go/packages/{packageId}/invoiced` | body | TGO response veya `204` | `update` |
+| `GET /api/entegrasyon-islemleri/trendyol-go/brands` | query | TGO marka JSON response'u | `list` |
+| `GET /api/entegrasyon-islemleri/trendyol-go/products` | query | TGO urun JSON response'u | `list` |
+| `POST /api/entegrasyon-islemleri/trendyol-go/products` | `{ items: [...] }` | batch response veya `204` | `update` |
+| `PUT /api/entegrasyon-islemleri/trendyol-go/products` | `{ items: [...] }` | batch response veya `204` | `update` |
+| `POST /api/entegrasyon-islemleri/trendyol-go/products/price-and-inventory` | `{ items: [...] }` | batch response veya `204` | `update` |
+| `GET /api/entegrasyon-islemleri/trendyol-go/price-stock/preview?storeId=402535&view=actionable` | query | `TrendyolGoPriceStockPreview` | `list` |
+| `POST /api/entegrasyon-islemleri/trendyol-go/price-stock/preview/refresh?storeId=402535` | query | `202` + `TrendyolGoPriceStockRefreshStatus` | `list` |
+| `POST /api/entegrasyon-islemleri/trendyol-go/price-stock/dispatch` | `TrendyolGoPriceStockDispatchHttpRequest` | `TrendyolGoPriceStockDispatch` | `update` |
+| `GET /api/entegrasyon-islemleri/trendyol-go/products/batch-requests/{batchRequestId}` | path | batch sonucu | `detail` |
+| `PUT /api/entegrasyon-islemleri/trendyol-go/products/sale-on` | `{ items: [...] }` | batch response veya `204` | `update` |
+| `PUT /api/entegrasyon-islemleri/trendyol-go/products/sale-off` | `{ items: [...] }` | batch response veya `204` | `update` |
+| `POST /api/entegrasyon-islemleri/trendyol-go/products/seller-attributes` | `{ items: [...] }` | batch response veya `204` | `update` |
+| `GET /api/entegrasyon-islemleri/trendyol-go/packages/by-ids?id={packageId}` | query | TGO paket JSON response'u | `detail` |
+| `PUT /api/entegrasyon-islemleri/trendyol-go/packages/{packageId}/items/unsupplied` | TGO tedarik-edememe body | TGO response veya `204`; upstream path henuz dogrulanmadi | `update` |
+| `PUT /api/entegrasyon-islemleri/trendyol-go/packages/{packageId}/mark-alternative` | TGO alternatif urun body | TGO response veya `204` | `update` |
+| `PUT /api/entegrasyon-islemleri/trendyol-go/packages/{packageId}/manual-shipped` | body yok | TGO response veya `204` | `update` |
+| `PUT /api/entegrasyon-islemleri/trendyol-go/packages/{packageId}/manual-delivered` | body yok | TGO response veya `204` | `update` |
+| `POST /api/entegrasyon-islemleri/trendyol-go/invoice-links` | `invoiceLink`, `shipmentPackageId` | TGO response veya `204` | `update` |
+| `GET /api/entegrasyon-islemleri/trendyol-go/claims` | query | TGO iade JSON response'u | `list` |
+| `PUT /api/entegrasyon-islemleri/trendyol-go/claims/{claimId}/accept` | TGO iade kabul body | TGO response veya `204` | `update` |
+| `PUT /api/entegrasyon-islemleri/trendyol-go/claims/{claimId}/reject` | TGO iade red body | TGO response veya `204` | `update` |
+| `GET /api/entegrasyon-islemleri/trendyol-go/claims/{claimId}/items/objectionable` | path | itiraz edilebilir kalemler | `detail` |
+| `POST /api/entegrasyon-islemleri/trendyol-go/claims/{claimId}/items/objections` | TGO itiraz body | TGO response veya `204` | `update` |
+
+Siparis liste query:
+
+```text
+storeId       zorunlu; TGO magazasi id degeri
+startDate     opsiyonel; Unix timestamp milisaniye
+endDate       opsiyonel; Unix timestamp milisaniye
+page          opsiyonel; default 0
+size          opsiyonel; default 50, max 200
+status        opsiyonel; tekrarli query olabilir. Created, Picking, Invoiced, Shipped, Cancelled, Delivered, Returned, UnPacked, UnSupplied
+sortDirection opsiyonel; ASC veya DESC, default DESC
+```
+
+Ornek:
+
+```text
+GET /api/entegrasyon-islemleri/trendyol-go/orders?storeId=402535&status=Created&page=0&size=50
+```
+
+Siparis hazir bildirimi body:
+
+```json
+{
+  "invoiceAmount": 1250.50,
+  "bagCount": 3,
+  "receiptLink": null,
+  "invoiceTaxAmount": 113.68
+}
+```
+
+Sube bazli fiyat ve stok body:
+
+```json
+{
+  "items": [
+    {
+      "barcode": "8690000000000",
+      "sellingPrice": 99.90,
+      "quantity": 25,
+      "storeId": 402535
+    }
+  ]
+}
+```
+
+Mikro'dan barkod girmeden fiyat/stok gonderme:
+
+1. UI `stores` listesinden subeyi secer; `storeId` bu kayittan gelir. Kullanici sayfa numarasi girmez.
+2. `price-stock/preview?storeId={id}` hazir snapshot'i hemen doner. Snapshot yoksa uzun TGO taramasini HTTP isteginde bekletmez; yenilemeyi kuyruga alir ve `snapshotStatus=Preparing`, bos `previewHash/items` ile hizli cevap verir. UI 2-5 saniyede bir ayni GET'i tekrar cagirir.
+3. Hosted worker TGO katalogunun tum sayfalarini en fazla 3 paralel TGO istegiyle tarar. Benzersiz barkodlari Mikro tarafinda en fazla 1000 barkodluk toplu sorgularla okur; her TGO sayfasi icin ayri Mikro sorgusu calistirmaz. Hazir olunca snapshot atomik olarak degisir.
+4. `snapshotStatus=Ready` oldugunda `Ready` fiyat/stok farklari gosterilir. Periyodik yenileme sirasinda durum `Refreshing` olur ve kullanici bos ekran gormesin diye onceki hazir satirlar donmeye devam eder. `Failed` durumunda da varsa son snapshot korunur; `refreshError` bilgi/uyari olarak gosterilir.
+5. Kullanici `Yenile` dediginde `POST price-stock/preview/refresh?storeId={id}` cagrilir. Endpoint `202 Accepted` doner ve ayni magazada zaten kuyrukta/calisan yenileme varsa ikinci is acmaz. UI sonucu GET preview ile poll eder.
+6. Sorun inceleme ekrani gerekiyorsa GET istegine `view=issues`; tum katalog denetimi gerekiyorsa `view=all` eklenir. Onizleme endpointinde kullaniciya acik sayfalama yoktur; katalog sayfalari backend tarafinda yonetilir.
+7. Secilen barkodlar ve onizleme `previewHash` degeriyle `price-stock/dispatch` cagrilir. Gonderimde tum katalog tekrar okunmaz; secilen satirlar Mikro'dan yeniden dogrulanir. Secilen urunun fiyati/stoku degismisse veya worker yeni snapshot yayinlayip hash'i degistirmisse `409 Conflict` doner ve UI guncel onizlemeyi alir.
+8. Gonderim response'undaki `upstreamResponses[].batchRequestId` degerleriyle mevcut `products/batch-requests/{batchRequestId}` sonucu kontrol edilir. POST'un kabul edilmesi, tum satirlarin islendigi anlamina gelmez.
+9. Kullanici ister tek tek secim yapar, ister `sendAll=true` ile tum `Ready` farklarini gonderir. Backend Trendyol limitine uygun olarak gonderimi kendi icinde en fazla 1000 satirlik paketlere ayirir; UI paket veya sayfa yonetmez.
+
+Snapshot durumlari:
+
+```text
+Preparing   Ilk snapshot hazirlaniyor; gonder butonu kapali, UI GET ile poll eder.
+Ready       Snapshot hazir; previewHash doluysa Ready satirlar gonderilebilir.
+Refreshing  Eski snapshot ekranda kalir, yenisi arka planda hazirlanir.
+Failed      Son yenileme hata verdi; refreshError gosterilir. Snapshot yoksa gonderim yapilamaz.
+```
+
+Onizleme ornegi:
+
+```json
+{
+  "storeId": 402535,
+  "warehouseNo": 110,
+  "storeName": "Kestel 1",
+
+
+  "totalPages": 2,
+  "totalElements": 120,
+  "previewHash": "A1B2...",
+  "readyCount": 1,
+  "unchangedCount": 119,
+  "skippedCount": 0,
+  "view": "actionable",
+  "visibleCount": 1,
+  "snapshotStatus": "Ready",
+  "isStale": false,
+  "generatedAtUtc": "2026-09-29T12:00:00Z",
+  "refreshStartedAtUtc": "2026-09-29T11:58:20Z",
+  "refreshCompletedAtUtc": "2026-09-29T12:00:00Z",
+  "refreshError": null,
+  "items": [
+    {
+      "barcode": "8690000000000",
+      "stockCode": "015550",
+      "productName": "Urun Adi",
+      "trendyolPrice": 89.9,
+      "trendyolQuantity": 10,
+      "mikroPrice": 99.9,
+      "mikroQuantity": 25,
+      "status": "Ready",
+      "reason": null
+    }
+  ]
+}
+```
+
+Ilk hazirlik response'u:
+
+```json
+{
+  "storeId": 486064,
+  "warehouseNo": 50,
+  "storeName": "Merkez Test Subesi",
+  "totalPages": 0,
+  "totalElements": 0,
+  "previewHash": "",
+  "readyCount": 0,
+  "unchangedCount": 0,
+  "skippedCount": 0,
+  "view": "actionable",
+  "visibleCount": 0,
+  "items": [],
+  "snapshotStatus": "Preparing",
+  "isStale": true,
+  "generatedAtUtc": null,
+  "refreshStartedAtUtc": null,
+  "refreshCompletedAtUtc": null,
+  "refreshError": null
+}
+```
+
+UI gonder butonunu yalniz `previewHash` dolu, `readyCount > 0` ve secili en az bir `Ready` satir varken acmalidir. `Preparing` durumunda uzun HTTP spinner yerine kisa hazirlaniyor durumu ve polling; `Refreshing` durumunda mevcut tabloyla birlikte kompakt yenileniyor gostergesi kullanilmalidir.
+
+Gonderim body:
+
+```json
+{
+  "storeId": 402535,
+
+
+  "previewHash": "A1B2...",
+  "sendAll": true,
+  "barcodes": []
+}
+```
+
+Bu akis sadece TGO katalogunda bulunan urunleri kapsar. Mikro satis fiyati sifir/bos, barkod eslesmesi yok, urun pasif veya satisa kapali ise satir `Skipped` olur. Negatif stok `0` kabul edilir; kesirli stok tam sayiya asagi yuvarlanir. `storeId` tum subeler yerine sadece secilen TGO magazasina gonderilir. Tekrar gonderimden once batch sonucunu ve guncel onizlemeyi kontrol edin; TGO ayni body'nin 15 dakika icinde tekrarini reddedebilir.
+
+Onizleme katalogun tum sayfalarini backend tarafinda tarar. `page` ve `size` query alanlari bu endpointte kullaniciya acik degildir. Mikro'daki TGO'da henuz olmayan urunleri olusturmaz. `dispatch` icin barkodlar UI'da tek tek yazilmaz; onizleme satirlarindan secilir. Batch sonucu otomatik izlenmez, UI `batchRequestId` ile ayrica sorgulamalidir.
+
+POS kuyruk guvenligi:
+
+- Trendyol gonderimi basarili olduktan sonra POS aktarimi kalici kuyruga yazilir; uzak PostgreSQL baglantisi HTTP cevabini bekletmez.
+- Kuyruk tekrar denemeleri ayni depo/stok/fiyat-listesi/birim anahtarini PostgreSQL transaction advisory lock ile serilestirir.
+- Merkez POS `stoksatisfiyat` tablosunda `sdp_depo_no + sfiyat_stokkod + sfiyat_listesirano + fiyat_tip_kodu` benzersiz indeksi bulunur. Diger POS veritabanlarinda da ayni indeksin kurulmasi onerilir.
+- Uzak baglanti veya PostgreSQL hatasinda kayit `RetryDelaySeconds` sonunda yeniden denenir; TGO'ya gonderilmis fiyat/stok kaybi veya kullanici ekraninda ag beklemesi olusmaz.
+
+Urun katalog query:
+
+```text
+storeId    zorunlu; TGO magazasi id degeri
+listType   opsiyonel; TGO urun liste tipi
+barcode    opsiyonel; tekil barkod filtresi
+stockCode  opsiyonel; Mikro stok kodu ile eslesen satici stok kodu filtresi
+startDate  opsiyonel; Unix timestamp milisaniye
+endDate    opsiyonel; Unix timestamp milisaniye
+brandIds   opsiyonel; tekrarli query olabilir, ornek brandIds=12&brandIds=18
+page       opsiyonel; default 0
+size       opsiyonel; default 50, max 100
+```
+
+TGO'nun urun filtreleme V2 servisindeki `categoryIds`, `title`, `orderBy` ve `order` query alanlari bu route'ta henuz yoktur. UI bunlari gonderse bile backend TGO'ya tasimaz. Kategori agaci/getCategoryTree icin ayrica bir route da yoktur.
+
+Marka query:
+
+```text
+page  opsiyonel; default 0
+size  opsiyonel; default 50, max 200
+name  opsiyonel; marka adi filtresi
+```
+
+Iade/claim liste query:
+
+```text
+claimItemStatus  opsiyonel; TGO iade kalem durumu
+startDate        opsiyonel; Unix timestamp milisaniye
+endDate          opsiyonel; Unix timestamp milisaniye
+page             opsiyonel; default 0
+size             opsiyonel; default 50, max 200
+```
+
+TGO iade listelemedeki `claimIds`, `orderNumber`, `acceptedStartDate` ve `acceptedEndDate` filtreleri bu route'ta henuz yoktur.
+
+Tedarik edememe, alternatif urun, iade kabul/red/itiraz ve satici attribute endpointleri JSON body'yi buyuk olcude TGO'ya iletir. Bu, TGO semasinin backend tarafinda tamamen dogrulandigi anlamina gelmez; UI resmi Market body semasini kullanmali ve TGO batch/hata cevabini gostermelidir. Itiraz gorseli icin resmi multipart yukleme destegi bizim API'de yoktur. Fatura linki body ornegi:
+
+```json
+{
+  "invoiceLink": "https://firma.example/faturalar/123.pdf",
+  "shipmentPackageId": 435346443539
+}
+```
+
+Paket durum endpointlerinde `packageId`, claim endpointlerinde `claimId` path parametresidir. Birden fazla paketi tekrar okumak icin query ayni anahtarla tekrar edilir:
+
+```text
+GET /api/entegrasyon-islemleri/trendyol-go/packages/by-ids?id=paket-1&id=paket-2
+```
+
+Kurallar:
+
+- Siparis kabulunde once `picked`, hazir oldugunda `invoiced` cagrilmalidir. Tedarik edilememe ve alternatif urun adimlari varsa bunlar arada yapilir; degisen `packageId` yeniden okunur.
+- `invoiced` oncesi `invoice-amount` ile izin verilen min/max tutar okunmalidir.
+- `bagCount` en fazla `10` olabilir.
+- Urun, fiyat-stok, satis acma/kapama ve attribute isteklerinde `items` 1-1000 satir olmalidir. Donen `batchRequestId` sonucu en gec 4 saat icinde batch endpointinden izlenmelidir.
+- Fiyat-stok satirinda `barcode` zorunludur. `sellingPrice` ve `quantity` negatif olamaz. Ilk aktarimda ikisi birlikte gonderilmelidir.
+- `storeId` yazilirsa sistem bu ID'nin konfigurasyondaki TGO-Mikro depo eslesmesinde oldugunu dogrular. `storeId` bos birakmak TGO tarafinda tum magazalara uygulama anlamina gelebilir; UI bunu sadece merkez yetkili toplu islemde acmalidir.
+- Fiyat veya stok `0` gonderilirse TGO urunu satis disina alabilir. Satisa acma/kapama batch sonucunu UI mutlaka gostermelidir.
+- Tedarik edememe veya alternatif urun bildirimi sonrasinda TGO yeni paket ID uretebilir. UI eski paket yerine `packages/by-ids` veya siparis listeleme ile yeni paketi yeniden okumali, ayni pakete kontrolsuz ikinci islem yapmamalidir.
+- Iade, itiraz, fatura linki ve manuel teslimat gercek dis sistem durumunu degistirir; UI bunlari onayli aksiyon olarak sunmalidir.
+- Config'de 59 TGO magazasi Mikro depo numaralariyla acik olarak eslestirilmistir; runtime'da isimden depo tahmini yapilmaz.
+- Bu endpointler su an Mikro'ya satis/siparis/fatura evragi yazmaz. Bu yazma akisi ayrica idempotency, urun-barkod kontrolu ve hedef Mikro evrak turu kararlastirildiktan sonra acilmalidir.
+
+Resmi Market API'ye gore **bizde olmayan veya eksik** islevler:
+
+| Alan | Bizdeki durum |
+|---|---|
+| Kategori agaci ve kategori/attribute ID aramasi | Yok; urun olusturma body'sindeki `categoryId` disaridan bilinmelidir. |
+| Urun filtreleme V2'nin tum query alanlari | `categoryIds`, `title`, `orderBy`, `order` eksik. |
+| Iade listelemenin tum query alanlari | `claimIds`, `orderNumber`, `acceptedStartDate`, `acceptedEndDate` eksik. |
+| Satici kaynakli iade/claim olusturma | Yok; yalnizca mevcut iade listesi ve aksiyonlari var. |
+| Iade itirazina gorsel ekleme | Yok; yalnizca JSON body var, multipart yok. |
+| Siparis webhook alma ve otomatik siparis senkronizasyonu | Yok; siparisler kullanici istegiyle GET edilir. |
+| Stage test siparisi olusturma | Yok. |
+| Tedarik edememe | Route kodlandi; upstream `items/unsupplied` path'i resmi dokuman ve stage ile henuz dogrulanmadi. |
+| Fiyat/stok icin tam otomasyon | Yalnizca secili sube/sayfa onizleme ve manuel secili satir gonderimi var; tum katalog worker'i, batch takip worker'i ve kalici gonderim gecmisi yok. |
+| Mikro satis/fatura entegrasyonu | Yok; TGO siparisi Mikro evragina donusmez. |
+
+Bu matris resmi **Market/Grocery** dokumanindaki incelenen servisler icindir; Yemek API'si farkli bir urundur. Resmi dokuman ve sinirlar icin [ayrintili entegrasyon rehberine](TRENDYOL_GO_ENTEGRASYONU.md) bakin.
 
 Bu modul, eski `Furpa.WorkerService` akisini yeni API icinde worker + manuel endpoint ayrimi ile yonetmek icin eklendi. UI tarafinda ana ekran `workbench/is-merkezi` mantigiyla, teknik detaylar ise gelismis bolumlerde kurgulanmalidir.
 
@@ -18273,7 +18849,7 @@ Import davranisi:
 - Mikro eslesme: `S06TESL` degeri `DocumentSerie.DocumentOrderNo` olarak okunur
 - Satir eslesme: once `S07KALN + S07SKOD` -> `ssip_satirno + ssip_stok_kod`, sonra 1-bazli satir no farki, son olarak tekil stok + kalan miktar kontrolu
 - Mikro yazim: depolar arasi sevk fisi ve bagli satirlarda `sth_subesip_uid` ile Mikro tarafinda siparis linki/teslim etkisi
-- Mikro tarih kuralı: C01 sevk Mikro'ya hangi gun import ediliyorsa `STOK_HAREKETLERI.sth_tarih` ve `sth_belge_tarih` o gun olur. AXATA `ENT006.S06ITAR` siparis/sevk izleme ve filtreleme bilgisidir; Mikro fis tarihi olarak kullanilmaz.
+- Mikro tarih kuralÄ±: C01 sevk Mikro'ya hangi gun import ediliyorsa `STOK_HAREKETLERI.sth_tarih` ve `sth_belge_tarih` o gun olur. AXATA `ENT006.S06ITAR` siparis/sevk izleme ve filtreleme bilgisidir; Mikro fis tarihi olarak kullanilmaz.
 - AXATA ack: Mikro yazim basarili olursa `AxataServicePoolEXT.svc/updIntegrationTableAsync` ile `ENT006.S06STAT=1`, `IDField=S06SIRA`
 - `acknowledge=false` verilirse Mikro yazilir ama AXATA status guncellenmez; bu sadece kontrollu test/kurtarma icin kullanilmalidir
 
@@ -20069,7 +20645,8 @@ public sealed record SendEDespatchResponse(
     DateTime SentAt,
     string EndpointUrl,
     bool LocalMikroMetadataUpdated = true,
-    string? Warning = null);
+    string? Warning = null,
+    bool LocalMikroMetadataUpdateQueued = false);
 
 public enum UyumsoftConnectedServiceKind
 {
@@ -21511,7 +22088,7 @@ public sealed record GiftCheckMovementItemDto(
     int Quantity,
     double Total)
 {
-    public string GiftCheckTypeName => "Hediye Çeki 100 TL";
+    public string GiftCheckTypeName => "Hediye Ã‡eki 100 TL";
 }
 
 public sealed record GiftCheckTypeItemDto(
@@ -21520,7 +22097,7 @@ public sealed record GiftCheckTypeItemDto(
     double Total,
     int GiftCheckType)
 {
-    public string GiftCheckTypeName => "Hediye Çeki 100 TL";
+    public string GiftCheckTypeName => "Hediye Ã‡eki 100 TL";
 }
 
 public sealed record PaymentTypeItemDto(
@@ -22762,7 +23339,7 @@ Bu bolumde yalnizca endpointlerin dogrudan baglandigi HTTP request modelleri yer
 
 - `HomeWarehousePrioritiesHttpRequest`: `Date`, `WarehouseNo`
 - `WarehouseOrderDateRangeHttpRequest`: `WarehouseNo`, `StartDate`, `EndDate`
-- `SendEDespatchHttpRequest`: `DriverId`, `Plaque`, `DriverNameSurname`, `DriverTckn`
+- `SendEDespatchHttpRequest`: `DriverId`, `Plaque`, `DriverNameSurname`, `DriverTckn`, opsiyonel `Deliverer`, opsiyonel `Receiver`
 - `ModuleActionRequest`: `Fields`
 - `CreateFeedbackItemHttpRequest`: `Type`, `Title`, `Message`, `Priority`
 - `FeedbackManagementListHttpRequest`: `Status`, `Type`, `WarehouseNo`, `StartDate`, `EndDate`, `Take`

@@ -1608,7 +1608,7 @@ class _OutgoingWarehouseShipmentCreateSheetState
 
     if (_hasPendingManualEntryLine) {
       setState(() {
-        _validationMessage = 'Secilen urunu once Kaleme Ekle ile listeye alin.';
+        _validationMessage = 'Secilen urunu once Ekle ile listeye alin.';
       });
       return null;
     }
@@ -1671,7 +1671,7 @@ class _OutgoingWarehouseShipmentCreateSheetState
 
     if (_hasPendingLinkedEntryLine) {
       setState(() {
-        _validationMessage = 'Secilen urunu once Kaleme Ekle ile listeye alin.';
+        _validationMessage = 'Secilen urunu once Ekle ile listeye alin.';
       });
       return null;
     }

@@ -16,6 +16,7 @@ import 'package:furpa_merkez_terminal/shared/drafts/create_draft_repository.dart
 import 'package:furpa_merkez_terminal/shared/form_memory/remembered_form_values.dart';
 import 'package:furpa_merkez_terminal/shared/formatters/app_formatters.dart';
 import 'package:furpa_merkez_terminal/shared/offline/mobile_customer_catalog_repository.dart';
+import 'package:furpa_merkez_terminal/shared/pending_create/pending_create_repository.dart';
 import 'package:furpa_merkez_terminal/shared/utils/safe_create_retry.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/section_card.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/terminal_create_page.dart';
@@ -30,6 +31,7 @@ class CompanyMovementsPage extends StatefulWidget {
     this.currentUserId = '',
     this.draftModuleKey = '',
     this.draftRepository,
+    required this.pendingCreateRepository,
     required this.defaultWarehouseNo,
     required this.mobileCustomerCatalogRepository,
     required this.userWarehouseName,
@@ -49,6 +51,7 @@ class CompanyMovementsPage extends StatefulWidget {
   final String currentUserId;
   final String draftModuleKey;
   final CreateDraftRepository? draftRepository;
+  final PendingCreateRepository pendingCreateRepository;
   final String defaultWarehouseNo;
   final MobileCustomerCatalogLocalRepository mobileCustomerCatalogRepository;
   final String userWarehouseName;
@@ -69,6 +72,8 @@ class _CompanyMovementsPageState extends State<CompanyMovementsPage> {
   late final CompanyMovementsController _controller;
   CompanyMovementCreateRequest? _pendingCreateRequest;
   CreateDraft? _pendingCreateDraft;
+  SafeCreateFailureKind _pendingCreateFailureKind =
+      SafeCreateFailureKind.notRetryable;
   late DateTime _startDate;
   late DateTime _endDate;
 
@@ -82,7 +87,58 @@ class _CompanyMovementsPageState extends State<CompanyMovementsPage> {
     );
     _startDate = _controller.startDate;
     _endDate = _controller.endDate;
+    if (widget.canCreate && _controller.canCreate) {
+      unawaited(_restorePendingCreate());
+    }
     unawaited(_controller.loadMovements());
+  }
+
+  Future<void> _restorePendingCreate() async {
+    try {
+      final pending = await widget.pendingCreateRepository.read(
+        moduleKey: widget.draftModuleKey,
+        userId: widget.currentUserId,
+        warehouseNo: widget.defaultWarehouseNo,
+      );
+      if (!mounted || pending == null) {
+        return;
+      }
+      setState(() {
+        _pendingCreateRequest = CompanyMovementCreateRequest.fromJson(
+          pending.payload,
+        );
+        _pendingCreateDraft = pending.draft;
+        _pendingCreateFailureKind = _failureKindFromName(pending.failureKind);
+      });
+    } on Object {
+      await _clearPersistedPendingCreate();
+    }
+  }
+
+  Future<void> _persistPendingCreate(
+    CompanyMovementCreateRequest request,
+    CreateDraft? draft, {
+    SafeCreateFailureKind? failureKind,
+  }) {
+    return widget.pendingCreateRepository.save(
+      PendingCreateOperation(
+        moduleKey: widget.draftModuleKey,
+        userId: widget.currentUserId,
+        warehouseNo: widget.defaultWarehouseNo,
+        payload: request.toJson(),
+        updatedAt: DateTime.now(),
+        failureKind: failureKind?.name,
+        draft: draft,
+      ),
+    );
+  }
+
+  Future<void> _clearPersistedPendingCreate() {
+    return widget.pendingCreateRepository.remove(
+      moduleKey: widget.draftModuleKey,
+      userId: widget.currentUserId,
+      warehouseNo: widget.defaultWarehouseNo,
+    );
   }
 
   @override
@@ -249,9 +305,25 @@ class _CompanyMovementsPageState extends State<CompanyMovementsPage> {
       return;
     }
 
+    try {
+      await _persistPendingCreate(request, draft);
+    } on Object {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Guvenli kayit bilgisi cihaza yazilamadi. Islem baslatilmadi.',
+            ),
+          ),
+        );
+      }
+      return;
+    }
+
     setState(() {
       _pendingCreateRequest = request;
       _pendingCreateDraft = draft;
+      _pendingCreateFailureKind = SafeCreateFailureKind.notRetryable;
     });
 
     final result = await _controller.createMovement(request);
@@ -264,10 +336,29 @@ class _CompanyMovementsPageState extends State<CompanyMovementsPage> {
     messenger.hideCurrentSnackBar();
 
     if (result == null) {
-      if (!shouldOfferSafeCreateRetry(_controller.createErrorStatusCode)) {
+      final failureKind = classifySafeCreateFailure(
+        statusCode: _controller.createErrorStatusCode,
+        message: _controller.createError,
+      );
+      final keepsPending =
+          failureKind == SafeCreateFailureKind.uncertain ||
+          failureKind == SafeCreateFailureKind.processing ||
+          failureKind == SafeCreateFailureKind.multipleDocuments;
+      if (keepsPending) {
+        await _persistPendingCreate(request, draft, failureKind: failureKind);
+        if (!mounted) {
+          return;
+        }
+        setState(() => _pendingCreateFailureKind = failureKind);
+      } else {
+        await _clearPersistedPendingCreate();
+        if (!mounted) {
+          return;
+        }
         setState(() {
           _pendingCreateRequest = null;
           _pendingCreateDraft = null;
+          _pendingCreateFailureKind = SafeCreateFailureKind.notRetryable;
         });
       }
       messenger.showSnackBar(
@@ -289,7 +380,12 @@ class _CompanyMovementsPageState extends State<CompanyMovementsPage> {
     setState(() {
       _pendingCreateRequest = null;
       _pendingCreateDraft = null;
+      _pendingCreateFailureKind = SafeCreateFailureKind.notRetryable;
     });
+    await _clearPersistedPendingCreate();
+    if (!mounted) {
+      return;
+    }
 
     unawaited(
       RememberedFormValuesRepository().rememberAll(
@@ -367,6 +463,7 @@ class _CompanyMovementsPageState extends State<CompanyMovementsPage> {
     final message =
         '${result.documentNoLabel} icin e-irsaliye gonderildi. '
         'Belge: ${result.serviceDocumentLabel}'
+        '${result.isMikroMetadataPending ? ' | Mikro isaretlemesi bekliyor.' : ''}'
         '${result.hasWarning ? ' | Uyari: ${result.warningMessage}' : ''}';
     messenger.showSnackBar(
       SnackBar(
@@ -481,7 +578,10 @@ class _CompanyMovementsPageState extends State<CompanyMovementsPage> {
         ),
         if (widget.canCreate && _controller.canCreate)
           FilledButton.tonalIcon(
-            onPressed: _controller.isCreating
+            onPressed:
+                _controller.isCreating ||
+                    _pendingCreateFailureKind ==
+                        SafeCreateFailureKind.multipleDocuments
                 ? null
                 : _pendingCreateRequest == null
                 ? _openCreateSheet
@@ -505,6 +605,9 @@ class _CompanyMovementsPageState extends State<CompanyMovementsPage> {
                   ? 'Kaydediliyor...'
                   : _pendingCreateRequest == null
                   ? widget.createButtonLabel
+                  : _pendingCreateFailureKind ==
+                        SafeCreateFailureKind.multipleDocuments
+                  ? 'Inceleme Gerekli'
                   : 'Kaydi Tekrar Dene',
             ),
           ),
@@ -582,6 +685,13 @@ class _CompanyMovementsPageState extends State<CompanyMovementsPage> {
       ),
     );
   }
+}
+
+SafeCreateFailureKind _failureKindFromName(String? value) {
+  return SafeCreateFailureKind.values.firstWhere(
+    (item) => item.name == value,
+    orElse: () => SafeCreateFailureKind.uncertain,
+  );
 }
 
 class _MovementCard extends StatelessWidget {
@@ -810,6 +920,7 @@ class _MovementDetailBody extends StatelessWidget {
               message:
                   'Son e-irsaliye: ${lastEDespatchResult!.documentNoLabel} | '
                   '${lastEDespatchResult!.serviceDocumentLabel}'
+                  '${lastEDespatchResult!.isMikroMetadataPending ? '\n${lastEDespatchResult!.metadataStatusMessage}' : ''}'
                   '${lastEDespatchResult!.hasWarning ? '\nUyari: ${lastEDespatchResult!.warningMessage}' : ''}',
             ),
           ],

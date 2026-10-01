@@ -84,4 +84,39 @@ void main() {
     expect(result.hasWarning, isFalse);
     expect(result.serviceDocumentLabel, 'FRM2026001');
   });
+
+  test('treats queued Mikro metadata update as successful pending state', () {
+    final result = EDespatchSendResult.fromJson(<String, dynamic>{
+      'documentType': 3,
+      'documentSerie': 'F110',
+      'documentOrderNo': 43,
+      'eDespatchDocumentNo': 'FRM2026002',
+      'eDespatchUuid': 'uuid-queued',
+      'serviceDocumentId': 'svc-2',
+      'serviceDocumentNumber': 'IRS2026000000013',
+      'sentAt': '2026-09-30T10:15:00',
+      'endpointUrl': 'http://example.test',
+      'localMikroMetadataUpdated': false,
+      'localMikroMetadataUpdateQueued': true,
+      'warning': 'Mikro metadata update was queued; do not resend.',
+    });
+
+    expect(result.localMikroMetadataUpdated, isFalse);
+    expect(result.localMikroMetadataUpdateQueued, isTrue);
+    expect(result.isMikroMetadataPending, isTrue);
+    expect(result.hasWarning, isFalse);
+    expect(result.metadataStatusMessage, contains('Mikro isaretlemesi'));
+  });
+
+  test('keeps a real metadata warning when no update is queued', () {
+    final result = EDespatchSendResult.fromJson(<String, dynamic>{
+      'localMikroMetadataUpdated': false,
+      'localMikroMetadataUpdateQueued': false,
+      'warning': 'Manuel inceleme gerekiyor.',
+    });
+
+    expect(result.isMikroMetadataPending, isFalse);
+    expect(result.hasWarning, isTrue);
+    expect(result.warningMessage, 'Manuel inceleme gerekiyor.');
+  });
 }
