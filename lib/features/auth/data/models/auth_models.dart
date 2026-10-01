@@ -11,15 +11,24 @@ const Set<String> _hiddenModuleCodes = <String>{
 const Set<String> _hiddenMenuRouteKeys = <String>{};
 
 class LoginRequest {
-  const LoginRequest({required this.usernameOrEmail, required this.password});
+  const LoginRequest({
+    required this.usernameOrEmail,
+    required this.password,
+    required this.clientType,
+    this.deviceId,
+  });
 
   final String usernameOrEmail;
   final String password;
+  final String clientType;
+  final String? deviceId;
 
   JsonMap toJson() {
     return <String, dynamic>{
       'usernameOrEmail': usernameOrEmail,
       'password': password,
+      'clientType': clientType,
+      if (deviceId?.trim().isNotEmpty ?? false) 'deviceId': deviceId!.trim(),
     };
   }
 }

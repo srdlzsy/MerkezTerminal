@@ -114,6 +114,55 @@ void main() {
     },
   );
 
+  test('signIn identifies the installation as a terminal client', () async {
+    final storage = TokenStorage();
+    final loginBodies = <Map<String, dynamic>>[];
+    final repository = AuthRepository(
+      tokenStorage: storage,
+      apiClient: ApiClient(
+        baseUrl: 'http://localhost:5228',
+        httpClient: MockClient((request) async {
+          if (request.url.path == '/api/auth/login') {
+            loginBodies.add(jsonDecode(request.body) as Map<String, dynamic>);
+            return http.Response(
+              jsonEncode(<String, dynamic>{
+                'accessToken': 'access-token',
+                'refreshToken': 'refresh-token',
+                'expiresAtUtc': '2026-10-01T12:00:00Z',
+                'user': _currentUserJson(),
+              }),
+              200,
+              headers: <String, String>{'content-type': 'application/json'},
+            );
+          }
+          if (request.url.path == '/api/auth/me') {
+            return http.Response(
+              jsonEncode(_currentUserJson()),
+              200,
+              headers: <String, String>{'content-type': 'application/json'},
+            );
+          }
+          if (request.url.path == '/api/auth/logout') {
+            return http.Response('', 204);
+          }
+          return http.Response('{"title":"Unexpected"}', 500);
+        }),
+      ),
+    );
+
+    await repository.signIn(usernameOrEmail: '160.sube', password: 'secret');
+    final firstDeviceId = loginBodies.single['deviceId'] as String;
+    expect(loginBodies.single, containsPair('clientType', 'terminal'));
+    expect(firstDeviceId, startsWith('terminal-'));
+    expect(firstDeviceId.length, lessThanOrEqualTo(100));
+
+    await repository.clearSession();
+    await repository.signIn(usernameOrEmail: '160.sube', password: 'secret');
+
+    expect(loginBodies, hasLength(2));
+    expect(loginBodies.last['deviceId'], firstDeviceId);
+  });
+
   test('fetchWarehouseContext reads lightweight warehouse context', () async {
     final repository = AuthRepository(
       tokenStorage: TokenStorage(),

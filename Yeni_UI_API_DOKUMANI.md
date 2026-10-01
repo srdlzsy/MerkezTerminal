@@ -1600,7 +1600,7 @@ Olasi durumlar:
 
 UI akisi:
 
-1. `POST /api/auth/login`
+1. `POST /api/auth/login`; web arayuzu `clientType=web`, el terminali `clientType=terminal` gonderir
 2. `accessToken`, `refreshToken`, `expiresAtUtc` ve `refreshTokenExpiresAtUtc` al
 3. API isteklerinde sadece `accessToken` degerini `Authorization: Bearer {token}` olarak gonder
 4. `GET /api/auth/me` ile kullanici, roller, permission listesi ve module-menu-action agacini al
@@ -1611,6 +1611,11 @@ UI akisi:
 
 Token ve yetki notu:
 
+- Her sube icin tek hesap kullanilir: `{warehouseNo}.sube` (ornek `160.sube`). Ayni hesap web ve terminalde es zamanli oturum acabilir.
+- `clientType` kullanicinin rolu degil, acilan oturumun turudur. Kullanici ve permission seti aynidir; terminale ozel IP/depo kontrolu sadece `clientType=terminal` oturumunda calisir.
+- Web ve terminal refresh token'lari birbirinden bagimsizdir. Bir cihazdaki logout yalniz o cihazda gonderilen refresh token'i iptal eder.
+- Refresh isteginde `clientType` tekrar gonderilmez. Backend oturum turunu, cihaz kimligini, ilk login IP'sini ve depoyu refresh token kaydindan devralir; refresh ile web oturumu terminale veya terminal oturumu web'e cevrilemez.
+- Access token icinde `client_type`, `session_id` ve verildiyse `device_id` claim'leri bulunur. UI bunlari yetki kaynagi olarak kullanmamalidir.
 - Login/register/refresh response modeli `AuthResponse` doner: `accessToken`, `expiresAtUtc`, `user`, `refreshToken`, `refreshTokenExpiresAtUtc`.
 - `Authorization` header'inda sadece `accessToken` gonderilir. Tum login response'u, `user` objesi veya `permissions/modules` listesi header'a konmaz.
 - `refreshToken` header'a konmaz; sadece `/api/auth/refresh` ve `/api/auth/logout` body alaninda kullanilir.
@@ -1633,10 +1638,31 @@ Request:
 
 ```json
 {
-  "usernameOrEmail": "admin",
-  "password": "REPLACE_WITH_PASSWORD"
+  "usernameOrEmail": "160.sube",
+  "password": "REPLACE_WITH_PASSWORD",
+  "clientType": "web",
+  "deviceId": "web-chrome-front-office"
 }
 ```
+
+Terminal girisi:
+
+```json
+{
+  "usernameOrEmail": "160.sube",
+  "password": "REPLACE_WITH_PASSWORD",
+  "clientType": "terminal",
+  "deviceId": "terminal-160-01"
+}
+```
+
+Alan kurallari:
+
+- `clientType`: yeni istemciler icin zorunlu kabul edilmelidir; yalniz `web` veya `terminal` gonderilir. Alan teknik olarak geriye uyumluluk icin opsiyoneldir ve bos oldugunda `web` kabul edilir.
+- `deviceId`: opsiyonel, max 100 karakter. Cihaz kurulumu boyunca sabit kalan ve sifre/seri numarasi gibi hassas veri icermeyen bir kimlik onerilir.
+- `clientType=terminal` girisinde backend request IP'sini kullanicinin Auth DB deposu ve Furpa `BranchDetails.BranchIpAddress` tanimiyla kontrol eder. Uygun sube aginda degilse `401 Unauthorized` doner.
+- Web arayuzu kesinlikle `clientType=terminal` gondermemelidir. El terminali de terminal ag kontrolunun korunmasi icin kesinlikle `clientType=terminal` gondermelidir.
+- Eski `{warehouseNo}.magazaci` ve `{warehouseNo}.terminal` hesaplari yerine iki istemci de ayni `{warehouseNo}.sube` kullanici adini kullanmalidir.
 
 Response:
 
@@ -1811,7 +1837,7 @@ Response:
 ```json
 {
   "userId": "8c2c3d56-3f0d-4ab3-8b2d-4f2d17d6d100",
-  "username": "160.magazaci",
+  "username": "160.sube",
   "tokenWarehouseNo": "160",
   "tokenWarehouseName": "160 SUBE",
   "currentWarehouseNo": "161",
@@ -1827,10 +1853,10 @@ Alan notlari:
 
 - `tokenWarehouseNo` / `tokenWarehouseName`: Auth DB'deki kullanici deposudur; token/session deposu gibi okunabilir.
 - `currentWarehouseNo` / `currentWarehouseName`: request IP'sinin Furpa `BranchDetails.BranchIpAddress` ayarlarindan cozuldugu aktif depo baglamidir. Cozulemez veya ag birden fazla depoya denk gelirse `null` gelebilir.
-- `isTerminalUser`: kullanicinin terminal roluyle acilip acilmadigini belirtir.
+- `isTerminalUser`: geriye uyumlu alan adidir; artik kullanicinin rolunu degil, mevcut JWT'nin `client_type=terminal` oturumu olup olmadigini belirtir.
 - `requiresRelogin`: `true` ise UI kullaniciyi oturumdan cikarmali ve tekrar login istemelidir.
 - `reason`: `Ok`, `SharedNetwork`, `WarehouseChanged`, `NetworkUnknown`, `NetworkAmbiguous`, `NotTerminalUser`, `UserInactive`, `InvalidTokenWarehouse` degerlerinden biri olabilir.
-- Backend sadece terminal kullanicilarda IP/depo degisimini relogin sebebi yapar. Admin/merkez gibi terminal olmayan kullanicilarda `requiresRelogin=false`, `reason=NotTerminalUser` doner.
+- Backend sadece terminal oturumlarinda IP/depo degisimini relogin sebebi yapar. Web oturumlarinda `requiresRelogin=false`, `reason=NotTerminalUser` doner.
 - `Auth:TerminalLogin:SharedNetworkWarehouseGroups` icinde ayni grupta olan depolar ortak ag kabul edilir. Ornek `[50, 56]` tanimliyken 56 terminal kullanicisi 50 agindan gorunurse `requiresRelogin=false`, `reason=SharedNetwork` doner.
 - `NetworkUnknown` ve `NetworkAmbiguous` durumlarinda kullanici gereksiz atilmaz; UI bu durumlari sessiz gecmelidir.
 
@@ -23327,7 +23353,7 @@ Bu bolumde yalnizca endpointlerin dogrudan baglandigi HTTP request modelleri yer
 ### Auth ve Yetki Request Modelleri
 
 - `RegisterUserRequest`: `Username`, `Email`, `Password`, `FirstName`, `LastName`, `WarehouseNo`, `WarehouseName`
-- `LoginUserRequest`: `UsernameOrEmail`, `Password`
+- `LoginUserRequest`: `UsernameOrEmail`, `Password`, `ClientType`, `DeviceId`
 - `RefreshTokenBody`: `RefreshToken`
 - `SavePermissionBody`: `Code`, `Name`, `Description`
 - `SaveRoleBody`: `Name`, `Description`, `IsActive`

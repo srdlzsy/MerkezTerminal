@@ -20,12 +20,15 @@ class AuthRepository {
     required String usernameOrEmail,
     required String password,
   }) async {
+    final deviceId = await _tokenStorage.readOrCreateDeviceId();
     final loginResponse = LoginResponse.fromJson(
       await _apiClient.postJsonMap(
         '/api/auth/login',
         body: LoginRequest(
           usernameOrEmail: usernameOrEmail,
           password: password,
+          clientType: 'terminal',
+          deviceId: deviceId,
         ).toJson(),
       ),
     );

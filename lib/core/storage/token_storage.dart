@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter/services.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -15,6 +17,7 @@ class TokenStorage {
   static const String _tokenKey = 'session.accessToken';
   static const String _refreshTokenKey = 'session.refreshToken';
   static const String _cachedSessionKey = 'session.cachedAuthSession';
+  static const String _deviceIdKey = 'installation.deviceId';
 
   Future<String?> readToken() async {
     return _readSecret(_tokenKey);
@@ -44,6 +47,22 @@ class TokenStorage {
 
   Future<void> writeCachedSessionJson(String rawJson) async {
     await _preferences.setString(_cachedSessionKey, rawJson);
+  }
+
+  Future<String> readOrCreateDeviceId() async {
+    final existing = (await _preferences.getString(_deviceIdKey))?.trim() ?? '';
+    if (existing.isNotEmpty) {
+      return existing;
+    }
+
+    final random = Random.secure();
+    final bytes = List<int>.generate(16, (_) => random.nextInt(256));
+    final suffix = bytes
+        .map((value) => value.toRadixString(16).padLeft(2, '0'))
+        .join();
+    final deviceId = 'terminal-$suffix';
+    await _preferences.setString(_deviceIdKey, deviceId);
+    return deviceId;
   }
 
   Future<void> clear() async {
