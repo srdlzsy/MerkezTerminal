@@ -262,7 +262,7 @@ void main() {
     expect(find.text('TEST FIRMA'), findsNothing);
   });
 
-  testWidgets('terminal create input dock keeps bottom actions reachable', (
+  testWidgets('terminal create input dock fits without nested scroll', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(320, 460);
@@ -301,10 +301,7 @@ void main() {
     );
 
     expect(tester.takeException(), isNull);
-    expect(
-      find.byKey(const ValueKey<String>('terminal-create-input-dock-scroll')),
-      findsOneWidget,
-    );
+    expect(find.byType(SingleChildScrollView), findsNothing);
     expect(find.text('Kaleme Ekle'), findsOneWidget);
     expect(
       find.widgetWithText(FilledButton, 'Kaleme Ekle').hitTestable(),

@@ -2344,54 +2344,20 @@ class TerminalCreateInputDock extends StatelessWidget {
   const TerminalCreateInputDock({
     super.key,
     required this.children,
-    this.preferBottomVisible = true,
     this.padding = const EdgeInsets.fromLTRB(10, 4, 10, 4),
-    this.compactHeightFactor = 0.42,
-    this.regularHeightFactor = 0.46,
-    this.compactMaxHeight = 380,
-    this.regularMaxHeight = 460,
   });
 
   final List<Widget> children;
-  final bool preferBottomVisible;
   final EdgeInsetsGeometry padding;
-  final double compactHeightFactor;
-  final double regularHeightFactor;
-  final double compactMaxHeight;
-  final double regularMaxHeight;
 
   @override
   Widget build(BuildContext context) {
-    final mediaQuery = MediaQuery.of(context);
-    final usableHeight =
-        mediaQuery.size.height -
-        mediaQuery.padding.vertical -
-        mediaQuery.viewInsets.bottom;
-    final isCompact =
-        mediaQuery.size.width < 380 ||
-        usableHeight < 700 ||
-        mediaQuery.viewInsets.bottom > 0;
-    final heightFactor = isCompact ? compactHeightFactor : regularHeightFactor;
-    final configuredMaxHeight = isCompact ? compactMaxHeight : regularMaxHeight;
-    final maxHeight = (usableHeight * heightFactor).clamp(
-      120.0,
-      configuredMaxHeight,
-    );
-
     return Padding(
       padding: padding,
-      child: ConstrainedBox(
-        constraints: BoxConstraints(maxHeight: maxHeight),
-        child: SingleChildScrollView(
-          key: const ValueKey<String>('terminal-create-input-dock-scroll'),
-          reverse: preferBottomVisible && mediaQuery.viewInsets.bottom > 0,
-          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.manual,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            mainAxisSize: MainAxisSize.min,
-            children: children,
-          ),
-        ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
+        children: children,
       ),
     );
   }

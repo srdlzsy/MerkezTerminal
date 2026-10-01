@@ -834,10 +834,6 @@ class _LabelDocumentCreateSheetState extends State<LabelDocumentCreateSheet> {
           const SizedBox(height: 4),
           TerminalCreateInputDock(
             padding: EdgeInsets.zero,
-            compactHeightFactor: 0.34,
-            regularHeightFactor: 0.36,
-            compactMaxHeight: 260,
-            regularMaxHeight: 320,
             children: <Widget>[_buildEntryLineCard()],
           ),
           const SizedBox(height: 4),

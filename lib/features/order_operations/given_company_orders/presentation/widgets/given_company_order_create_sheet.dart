@@ -873,30 +873,29 @@ class _GivenCompanyOrderCreateSheetState
                         title: 'Satirlar (${_activeLineCount()})',
                         breakpoint: 430,
                         actions: <Widget>[
-                          FilledButton.tonalIcon(
-                            onPressed:
-                                _isLoadingCustomerProducts ||
-                                    _selectedCustomer == null
-                                ? null
-                                : _loadCustomerProducts,
-                            icon: _isLoadingCustomerProducts
-                                ? const SizedBox(
-                                    width: 16,
-                                    height: 16,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
+                          if (_selectedCustomer != null)
+                            FilledButton.tonalIcon(
+                              onPressed: _isLoadingCustomerProducts
+                                  ? null
+                                  : _loadCustomerProducts,
+                              icon: _isLoadingCustomerProducts
+                                  ? const SizedBox(
+                                      width: 16,
+                                      height: 16,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                      ),
+                                    )
+                                  : const Icon(
+                                      Icons.playlist_add_rounded,
+                                      size: 18,
                                     ),
-                                  )
-                                : const Icon(
-                                    Icons.playlist_add_rounded,
-                                    size: 18,
-                                  ),
-                            label: Text(
-                              _isLoadingCustomerProducts
-                                  ? 'Yukleniyor'
-                                  : 'Firma urunleri',
+                              label: Text(
+                                _isLoadingCustomerProducts
+                                    ? 'Yukleniyor'
+                                    : 'Firma urunleri',
+                              ),
                             ),
-                          ),
                           if (_emptyQuantityLineCount > 0)
                             FilledButton.tonalIcon(
                               onPressed: _removeEmptyQuantityLines,
