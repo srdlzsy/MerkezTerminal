@@ -406,6 +406,28 @@ class _TerminalActionGrid extends StatelessWidget {
 
     final tooltip = data.label ?? 'Islem';
     final icon = data.icon ?? _fallbackActionIcon(tooltip);
+    final compactLabel = _criticalCompactLabel(tooltip);
+
+    if (compactLabel != null) {
+      final button = switch (data.style) {
+        _TerminalHeaderActionStyle.primary => FilledButton.icon(
+          onPressed: data.onPressed,
+          icon: icon,
+          label: Text(compactLabel),
+        ),
+        _TerminalHeaderActionStyle.tonal => FilledButton.tonalIcon(
+          onPressed: data.onPressed,
+          icon: icon,
+          label: Text(compactLabel),
+        ),
+        _TerminalHeaderActionStyle.outlined => OutlinedButton.icon(
+          onPressed: data.onPressed,
+          icon: icon,
+          label: Text(compactLabel),
+        ),
+      };
+      return Tooltip(message: tooltip, child: button);
+    }
 
     return switch (data.style) {
       _TerminalHeaderActionStyle.primary => IconButton.filled(
@@ -424,6 +446,26 @@ class _TerminalActionGrid extends StatelessWidget {
         icon: icon,
       ),
     };
+  }
+
+  String? _criticalCompactLabel(String label) {
+    final normalized = label.toLowerCase();
+    if (RegExp(r'(^|\s)yeni(\s|$)').hasMatch(normalized)) {
+      return 'Yeni';
+    }
+    if (normalized.contains('kaydet')) {
+      return 'Kaydet';
+    }
+    if (normalized.contains('gonder')) {
+      return 'Gonder';
+    }
+    if (normalized.contains('kabul')) {
+      return 'Kabul';
+    }
+    if (normalized.contains('olustur')) {
+      return 'Olustur';
+    }
+    return null;
   }
 
   Widget _fallbackActionIcon(String label) {
@@ -2320,12 +2362,36 @@ class TerminalCreateInputDock extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final mediaQuery = MediaQuery.of(context);
+    final usableHeight =
+        mediaQuery.size.height -
+        mediaQuery.padding.vertical -
+        mediaQuery.viewInsets.bottom;
+    final isCompact =
+        mediaQuery.size.width < 380 ||
+        usableHeight < 700 ||
+        mediaQuery.viewInsets.bottom > 0;
+    final heightFactor = isCompact ? compactHeightFactor : regularHeightFactor;
+    final configuredMaxHeight = isCompact ? compactMaxHeight : regularMaxHeight;
+    final maxHeight = (usableHeight * heightFactor).clamp(
+      120.0,
+      configuredMaxHeight,
+    );
+
     return Padding(
       padding: padding,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        mainAxisSize: MainAxisSize.min,
-        children: children,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxHeight: maxHeight),
+        child: SingleChildScrollView(
+          key: const ValueKey<String>('terminal-create-input-dock-scroll'),
+          reverse: preferBottomVisible && mediaQuery.viewInsets.bottom > 0,
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.manual,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            mainAxisSize: MainAxisSize.min,
+            children: children,
+          ),
+        ),
       ),
     );
   }

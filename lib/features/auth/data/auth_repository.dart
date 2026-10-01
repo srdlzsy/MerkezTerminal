@@ -16,10 +16,13 @@ class AuthRepository {
   final ApiClient _apiClient;
   final TokenStorage _tokenStorage;
 
+  static const String _clientType = 'terminal';
+
   Future<AuthSession> signIn({
     required String usernameOrEmail,
     required String password,
   }) async {
+    await _tokenStorage.ensureAuthClientProfile(_clientType);
     final deviceId = await _tokenStorage.readOrCreateDeviceId();
     final loginResponse = LoginResponse.fromJson(
       await _apiClient.postJsonMap(
@@ -27,7 +30,7 @@ class AuthRepository {
         body: LoginRequest(
           usernameOrEmail: usernameOrEmail,
           password: password,
-          clientType: 'terminal',
+          clientType: _clientType,
           deviceId: deviceId,
         ).toJson(),
       ),
@@ -47,6 +50,13 @@ class AuthRepository {
   }
 
   Future<AuthSession?> restoreSession() async {
+    final profileWasCurrent = await _tokenStorage.ensureAuthClientProfile(
+      _clientType,
+    );
+    if (!profileWasCurrent) {
+      return null;
+    }
+
     final storedTokens = await _readStoredTokens();
     final accessToken = storedTokens.accessToken;
     final cachedSession = await _readCachedSession(

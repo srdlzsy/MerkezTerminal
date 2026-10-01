@@ -26,6 +26,7 @@ void main() {
     'restoreSession refreshes tokens with default auth refresh route',
     () async {
       final storage = TokenStorage();
+      await storage.ensureAuthClientProfile('terminal');
       await storage.writeToken('stale-token');
       await storage.writeRefreshToken('refresh-1');
 
@@ -162,6 +163,36 @@ void main() {
     expect(loginBodies, hasLength(2));
     expect(loginBodies.last['deviceId'], firstDeviceId);
   });
+
+  test(
+    'restoreSession clears a cached session from the legacy profile',
+    () async {
+      final storage = TokenStorage();
+      await storage.writeToken('legacy-access-token');
+      await storage.writeRefreshToken('legacy-refresh-token');
+      await storage.writeCachedSessionJson('{"accessToken":"legacy"}');
+      var requestCount = 0;
+      final repository = AuthRepository(
+        tokenStorage: storage,
+        apiClient: ApiClient(
+          baseUrl: 'http://localhost:5228',
+          httpClient: MockClient((request) async {
+            requestCount += 1;
+            return http.Response('{"title":"Unexpected"}', 500);
+          }),
+        ),
+      );
+
+      final session = await repository.restoreSession();
+
+      expect(session, isNull);
+      expect(requestCount, 0);
+      expect(await storage.readToken(), isNull);
+      expect(await storage.readRefreshToken(), isNull);
+      expect(await storage.readCachedSessionJson(), isNull);
+      expect(await storage.ensureAuthClientProfile('terminal'), isTrue);
+    },
+  );
 
   test('fetchWarehouseContext reads lightweight warehouse context', () async {
     final repository = AuthRepository(

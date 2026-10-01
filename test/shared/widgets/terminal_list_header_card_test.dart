@@ -70,10 +70,12 @@ void main() {
     expect(find.text('Varsayilan depo'), findsNothing);
     expect(find.text('Kayit'), findsNothing);
     expect(_actionTop(tester, 'Listele'), _actionTop(tester, 'Temizle'));
-    expect(_actionTop(tester, 'Listele'), _actionTop(tester, 'Yeni Mal Kabul'));
+    expect(_actionCenterY(tester, 'Listele'), _buttonCenterY(tester, 'Yeni'));
     expect(tester.getSize(_actionFinder('Listele')).width, lessThan(56));
+    expect(find.text('Yeni'), findsOneWidget);
+    expect(tester.getSize(_buttonFinder('Yeni')).width, lessThan(100));
 
-    await tester.tap(_actionFinder('Yeni Mal Kabul'));
+    await tester.tap(_buttonFinder('Yeni'));
     await tester.pump();
 
     expect(createTapCount, 1);
@@ -121,14 +123,15 @@ void main() {
     expect(tester.takeException(), isNull);
     expect(_actionTop(tester, 'Listele'), _actionTop(tester, 'Temizle'));
     expect(
-      _actionTop(tester, 'Yeni Mal Kabul'),
-      _actionTop(tester, 'Offline Taslaklar'),
+      _buttonCenterY(tester, 'Yeni'),
+      _actionCenterY(tester, 'Offline Taslaklar'),
     );
-    expect(_actionTop(tester, 'Listele'), _actionTop(tester, 'Yeni Mal Kabul'));
+    expect(_actionCenterY(tester, 'Listele'), _buttonCenterY(tester, 'Yeni'));
     expect(
       tester.getSize(_actionFinder('Offline Taslaklar')).width,
       lessThan(56),
     );
+    expect(find.text('Yeni'), findsOneWidget);
   });
 
   testWidgets('keeps a single header action compact', (tester) async {
@@ -229,6 +232,14 @@ double _buttonTop(WidgetTester tester, String label) {
 
 double _actionTop(WidgetTester tester, String label) {
   return tester.getTopLeft(_actionFinder(label)).dy;
+}
+
+double _actionCenterY(WidgetTester tester, String label) {
+  return tester.getCenter(_actionFinder(label)).dy;
+}
+
+double _buttonCenterY(WidgetTester tester, String label) {
+  return tester.getCenter(_buttonFinder(label)).dy;
 }
 
 Finder _actionFinder(String label) {

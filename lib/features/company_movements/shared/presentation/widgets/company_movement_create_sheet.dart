@@ -1089,115 +1089,103 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
       );
     }
 
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: Theme.of(context).colorScheme.outlineVariant.withAlpha(90),
-          ),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            Row(
-              children: <Widget>[
-                Expanded(
-                  child: Text(
-                    isFreshEntry ? 'Giris satiri' : 'Satir $displayLineNo',
-                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
+    return TerminalPdaLineCard(
+      title: isFreshEntry ? 'Giris satiri' : 'Satir $displayLineNo',
+      subtitle: isFreshEntry ? 'Okutmaya hazir' : null,
+      isEntryLine: isFreshEntry,
+      leading: Icon(
+        isFreshEntry
+            ? Icons.qr_code_scanner_rounded
+            : Icons.inventory_2_rounded,
+        color: Theme.of(context).colorScheme.primary,
+      ),
+      trailing: !isFreshEntry && _lines.length > 1
+          ? IconButton(
+              onPressed: () => _removeLineAt(index),
+              icon: const Icon(Icons.delete_outline_rounded),
+              tooltip: 'Satiri sil',
+            )
+          : null,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          if (isFreshEntry)
+            TerminalResponsiveLookupRow(
+              field: ProductLookupField(
+                controller: line.lookupController,
+                focusNode: line.lookupFocusNode,
+                enabled: !line.isLookupStatusLoading,
+                onSubmit: () => _searchProduct(line),
+              ),
+              action: FilledButton.icon(
+                onPressed: line.isLookupStatusLoading
+                    ? null
+                    : () => _searchProduct(line),
+                icon: const Icon(Icons.search_rounded),
+                label: const Text('Urun'),
+              ),
+              trailingAction: IconButton.filledTonal(
+                onPressed: line.isLookupStatusLoading
+                    ? null
+                    : () => _scanProductWithCamera(line),
+                tooltip: 'Kamera ile oku',
+                icon: const Icon(Icons.photo_camera_back_rounded),
+              ),
+            )
+          else if (line.selectedProduct != null)
+            TerminalPdaInfoGrid(
+              minTileWidth: 92,
+              items: <TerminalPdaInfo>[
+                TerminalPdaInfo(
+                  label: 'Urun',
+                  value: line.selectedProduct!.stockName,
                 ),
-                if (!isFreshEntry && _lines.length > 1)
-                  IconButton(
-                    onPressed: () => _removeLineAt(index),
-                    icon: const Icon(Icons.delete_outline_rounded),
+                TerminalPdaInfo(
+                  label: 'Kod',
+                  value: line.selectedProduct!.stockCode,
+                ),
+                TerminalPdaInfo(
+                  label: 'Birim',
+                  value: line.selectedProduct!.unitName,
+                ),
+                TerminalPdaInfo(
+                  label: 'Fiyat',
+                  value: AppFormatters.currency(line.selectedProduct!.price),
+                ),
+                if (line.selectedProduct!.barcode.isNotEmpty)
+                  TerminalPdaInfo(
+                    label: 'Barkod',
+                    value: line.selectedProduct!.barcode,
                   ),
               ],
             ),
-            if (isFreshEntry)
-              TerminalResponsiveLookupRow(
-                field: ProductLookupField(
-                  controller: line.lookupController,
-                  focusNode: line.lookupFocusNode,
-                  enabled: !line.isLookupStatusLoading,
-                  onSubmit: () => _searchProduct(line),
-                ),
-                action: FilledButton.icon(
-                  onPressed: line.isLookupStatusLoading
-                      ? null
-                      : () => _searchProduct(line),
-                  icon: const Icon(Icons.search_rounded),
-                  label: const Text('Urun'),
-                ),
-                trailingAction: IconButton.filledTonal(
-                  onPressed: line.isLookupStatusLoading
-                      ? null
-                      : () => _scanProductWithCamera(line),
-                  tooltip: 'Kamera ile oku',
-                  icon: const Icon(Icons.photo_camera_back_rounded),
-                ),
-              )
-            else if (line.selectedProduct != null)
-              TerminalPdaInfoGrid(
-                minTileWidth: 92,
-                items: <TerminalPdaInfo>[
-                  TerminalPdaInfo(
-                    label: 'Urun',
-                    value: line.selectedProduct!.stockName,
-                  ),
-                  TerminalPdaInfo(
-                    label: 'Kod',
-                    value: line.selectedProduct!.stockCode,
-                  ),
-                  TerminalPdaInfo(
-                    label: 'Birim',
-                    value: line.selectedProduct!.unitName,
-                  ),
-                  TerminalPdaInfo(
-                    label: 'Fiyat',
-                    value: AppFormatters.currency(line.selectedProduct!.price),
-                  ),
-                  if (line.selectedProduct!.barcode.isNotEmpty)
-                    TerminalPdaInfo(
-                      label: 'Barkod',
-                      value: line.selectedProduct!.barcode,
-                    ),
-                ],
-              ),
-            if (isFreshEntry && line.lookupStatusMessage != null) ...<Widget>[
-              const SizedBox(height: 8),
-              if (line.isLookupStatusLoading)
-                TerminalMessageBlock.loading(message: line.lookupStatusMessage!)
-              else if (line.isLookupStatusError)
-                TerminalMessageBlock.error(message: line.lookupStatusMessage!)
-              else
-                TerminalMessageBlock.info(message: line.lookupStatusMessage!),
-            ],
-            if (!isFreshEntry) ...<Widget>[
-              const SizedBox(height: 10),
-              TerminalQuantityStepper(
-                controller: line.quantityController,
-                label: 'Miktar',
-                onMinimumReached: _lines.length > 1
-                    ? () => _removeLineAt(index)
-                    : null,
-                validator: (_) {
-                  if (line.quantity <= 0) {
-                    return 'Miktar > 0 olmali.';
-                  }
-
-                  return null;
-                },
-              ),
-            ],
+          if (isFreshEntry && line.lookupStatusMessage != null) ...<Widget>[
+            const SizedBox(height: 8),
+            if (line.isLookupStatusLoading)
+              TerminalMessageBlock.loading(message: line.lookupStatusMessage!)
+            else if (line.isLookupStatusError)
+              TerminalMessageBlock.error(message: line.lookupStatusMessage!)
+            else
+              TerminalMessageBlock.info(message: line.lookupStatusMessage!),
           ],
-        ),
+          if (!isFreshEntry) ...<Widget>[
+            const SizedBox(height: 10),
+            TerminalQuantityStepper(
+              controller: line.quantityController,
+              label: 'Miktar',
+              onMinimumReached: _lines.length > 1
+                  ? () => _removeLineAt(index)
+                  : null,
+              validator: (_) {
+                if (line.quantity <= 0) {
+                  return 'Miktar > 0 olmali.';
+                }
+
+                return null;
+              },
+            ),
+          ],
+        ],
       ),
     );
   }

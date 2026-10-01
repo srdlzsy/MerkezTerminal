@@ -200,7 +200,7 @@ class _LabelDocumentsPageState extends State<LabelDocumentsPage> {
       context: context,
       title: 'Yeni Etiket Belgesi',
       builder: (context) {
-        return _LabelDocumentCreateSheet(
+        return LabelDocumentCreateSheet(
           repository: widget.repository,
           accessToken: widget.accessToken,
           defaultWarehouseNo: widget.defaultWarehouseNo,
@@ -532,8 +532,9 @@ class _LabelDocumentProductCard extends StatelessWidget {
   }
 }
 
-class _LabelDocumentCreateSheet extends StatefulWidget {
-  const _LabelDocumentCreateSheet({
+class LabelDocumentCreateSheet extends StatefulWidget {
+  const LabelDocumentCreateSheet({
+    super.key,
     required this.repository,
     required this.accessToken,
     required this.defaultWarehouseNo,
@@ -548,11 +549,11 @@ class _LabelDocumentCreateSheet extends StatefulWidget {
   final CreateDraftRepository? draftRepository;
 
   @override
-  State<_LabelDocumentCreateSheet> createState() =>
+  State<LabelDocumentCreateSheet> createState() =>
       _LabelDocumentCreateSheetState();
 }
 
-class _LabelDocumentCreateSheetState extends State<_LabelDocumentCreateSheet> {
+class _LabelDocumentCreateSheetState extends State<LabelDocumentCreateSheet> {
   late final List<_LabelDocumentLineDraft> _lines;
   String? _errorMessage;
   late final CreateDraftSession _draftSession;

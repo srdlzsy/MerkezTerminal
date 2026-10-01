@@ -1612,7 +1612,15 @@ UI akisi:
 Token ve yetki notu:
 
 - Her sube icin tek hesap kullanilir: `{warehouseNo}.sube` (ornek `160.sube`). Ayni hesap web ve terminalde es zamanli oturum acabilir.
-- `clientType` kullanicinin rolu degil, acilan oturumun turudur. Kullanici ve permission seti aynidir; terminale ozel IP/depo kontrolu sadece `clientType=terminal` oturumunda calisir.
+- `clientType` kullanicinin DB'deki hesabi degil, acilan oturumun yetki profilini belirler. Ayni `{warehouseNo}.sube` hesabi kullanilsa da web ve terminal permission setleri birbirinden ayridir.
+- Etkin roller, kullanici ve istemci turu icin eslesme varsa Auth DB'deki `app_user_client_roles` tablosundan `user_id + client_type` ile okunur. Runtime kodu `Magazaci`, `Terminal`, `Et Depo` veya `Manav Depo` rol adina gore profil secmez.
+- Varsayilan eslesme normal subelerde `web -> Magazaci`, `terminal -> Terminal` seklindedir. `53` Et Depo ve `56` Manav Depo gibi ozel depolarda web eslesmesi migration tarafindan korunmus ozel role yazilir.
+- Ayni kullanici ve `clientType` icin birden fazla rol atanabilir. Etkin permission seti bu rollerin aktif permission'larinin tekillestirilmis birlesimidir.
+- Client-role eslesmesi bulunan her kullanicida ilgili oturum profili kullanilir; bu model yalniz `{warehouseNo}.sube` hesaplariyla sinirli degildir.
+- Birlesik sube kullanicisinda istenen `clientType` icin eslesme yoksa backend baska rolden tahmin veya fallback yapmaz; bos etkin rol/permission profili doner. Bu fail-closed davranis yanlis istemciye fazla yetki verilmesini engeller.
+- Client-role eslesmesi hic olmayan `50.muhasebe`, `01.icmal`, `Administrator` gibi klasik kullanicilar mevcut `app_user_roles` rolleriyle calismaya devam eder.
+- Login response ve `GET /api/auth/me` icindeki `roles`, `permissions` ve `modules` alanlari mevcut oturumun etkin profilini doner. UI yalniz bu response'u kullanmali; Auth DB'deki teknik `SubeKullanicisi` rolunu veya baska oturumun menu listesini onbellekten kullanmamalidir.
+- Terminale ozel IP/depo kontrolu sadece `clientType=terminal` oturumunda calisir.
 - Web ve terminal refresh token'lari birbirinden bagimsizdir. Bir cihazdaki logout yalniz o cihazda gonderilen refresh token'i iptal eder.
 - Refresh isteginde `clientType` tekrar gonderilmez. Backend oturum turunu, cihaz kimligini, ilk login IP'sini ve depoyu refresh token kaydindan devralir; refresh ile web oturumu terminale veya terminal oturumu web'e cevrilemez.
 - Access token icinde `client_type`, `session_id` ve verildiyse `device_id` claim'leri bulunur. UI bunlari yetki kaynagi olarak kullanmamalidir.
@@ -1663,6 +1671,10 @@ Alan kurallari:
 - `clientType=terminal` girisinde backend request IP'sini kullanicinin Auth DB deposu ve Furpa `BranchDetails.BranchIpAddress` tanimiyla kontrol eder. Uygun sube aginda degilse `401 Unauthorized` doner.
 - Web arayuzu kesinlikle `clientType=terminal` gondermemelidir. El terminali de terminal ag kontrolunun korunmasi icin kesinlikle `clientType=terminal` gondermelidir.
 - Eski `{warehouseNo}.magazaci` ve `{warehouseNo}.terminal` hesaplari yerine iki istemci de ayni `{warehouseNo}.sube` kullanici adini kullanmalidir.
+- Web ve terminal istemcileri login response'undaki `user.permissions` verisini ayri saklamalidir. Ayni kullanici adi nedeniyle bir istemcinin menu/permission cache'i diger istemcinin cache'ini ezmemelidir; cache anahtarinda en az `user.id + clientType` kullanilmalidir.
+- Eski access tokenlarla gecici olarak devam edilmemeli; bu surum canliya alindiktan sonra web ve terminal uygulamalari yeniden login olmalidir. Yeni tokenin `roles` ve permission claim'leri yalniz ilgili oturum profilinden uretilir.
+- Migration `20261001105720_AddUserClientRoleMappings`, mevcut `{warehouseNo}.sube` hesaplarinin web/terminal eslesmelerini olusturur. Kullanici adlari, sifre hash'leri ve normal kullanici rol kayitlari degismez.
+- Mikro depo senkronizasyonuyla sonradan otomatik olusan yeni `{warehouseNo}.sube` hesaplarina `web -> Magazaci` ve `terminal -> Terminal` eslesmeleri birlikte eklenir.
 
 Response:
 
@@ -1876,6 +1888,18 @@ Not:
 
 - Yetki, rol ve kullanici endpointlerinin `/api/kullanici-islemleri/...` alias route'lari da vardir.
 - Ana route ile alias route ayni response ve yetki davranisini kullanir.
+- Bu bolumdeki tum kullanici endpointleri `kullanici-islemleri.kullanicilar.manage`, rol endpointleri `kullanici-islemleri.roller.manage`, permission endpointleri `kullanici-islemleri.yetkiler.manage` policy'sini ister.
+
+Endpoint ozeti:
+
+| Endpoint | Response | Yetki |
+|---|---|---|
+| `GET /api/users` | `UserDto[]` | `kullanici-islemleri.kullanicilar.manage` |
+| `GET /api/users/{id}` | `UserDto` | `kullanici-islemleri.kullanicilar.manage` |
+| `PUT /api/users/{id}` | `UserDto` | `kullanici-islemleri.kullanicilar.manage` |
+| `POST /api/users/{id}/roles` | `UserDto` | `kullanici-islemleri.kullanicilar.manage` |
+| `GET /api/users/{id}/client-roles` | `UserClientRoleDto[]` | `kullanici-islemleri.kullanicilar.manage` |
+| `PUT /api/users/{id}/client-roles/{clientType}` | `UserClientRoleDto[]` | `kullanici-islemleri.kullanicilar.manage` |
 
 ### Permission Catalog
 
@@ -2075,7 +2099,9 @@ veya alias:
 Response modeli:
 
 - `UserDto[]` doner.
-- Dizideki her item `GET /api/auth/me` icindeki user modeliyle aynidir.
+- Dizideki her item alan sekli olarak `GET /api/auth/me` icindeki `UserDto` modeliyle aynidir.
+- Anlam farki vardir: kullanici yonetimi listesindeki `roles`, `permissions` ve `modules` genel/teknik `app_user_roles` kayitlarindan uretilir. Belirli bir web/terminal oturumunun etkin profilini temsil etmez.
+- Birlesik kullanicinin istemci bazli etkin rollerini gostermek icin satir secildiginde ayrica `GET /api/users/{id}/client-roles` cagrilmalidir.
 
 ### User Detail
 
@@ -2085,7 +2111,7 @@ veya alias:
 
 `GET /api/kullanici-islemleri/kullanicilar/{id}`
 
-Response modeli `GET /api/auth/me` icindeki user modeliyle aynidir.
+Response alan sekli `GET /api/auth/me` icindeki `UserDto` modeliyle aynidir; `roles`, `permissions` ve `modules` bu yonetim endpointinde genel/teknik atamalari gosterir. Web/terminal etkin rolleri `GET /api/users/{id}/client-roles` ile okunur.
 
 ### User Update
 
@@ -2141,6 +2167,87 @@ Response modeli:
 - `User Detail` ile ayni `UserDto` modeli doner.
 - `roles` koleksiyonu yeni haliyle response icinde gelir.
 - `200` basarili atama, `400` validation, `404` user veya role kaydi bulunamadi doner.
+
+Bu endpoint genel/teknik kullanici rollerini yonetir. Birlesik `{warehouseNo}.sube` hesaplarinin web ve terminalde kullanacagi etkin roller icin asagidaki client-role endpointleri kullanilmalidir.
+
+### User Client Role Liste
+
+`GET /api/users/{id}/client-roles`
+
+veya alias:
+
+`GET /api/kullanici-islemleri/kullanicilar/{id}/client-roles`
+
+Response:
+
+```json
+[
+  {
+    "clientType": "web",
+    "roleId": "2d5f7156-a332-497a-ba63-6194e56df746",
+    "roleName": "Magazaci"
+  },
+  {
+    "clientType": "terminal",
+    "roleId": "3c1daafe-5922-466e-9f79-6d2ca34ce84d",
+    "roleName": "Terminal"
+  }
+]
+```
+
+Notlar:
+
+- Response kullanicinin tanimli tum istemci-rol eslesmelerini doner.
+- Liste once `clientType`, sonra `roleName` ile siralidir.
+- Eslesme yoksa kullanici mevcutsa `200 OK` ve bos dizi doner.
+- Kullanici yoksa `404 Not Found` doner.
+
+### User Client Role Atama
+
+`PUT /api/users/{id}/client-roles/{clientType}`
+
+veya alias:
+
+`PUT /api/kullanici-islemleri/kullanicilar/{id}/client-roles/{clientType}`
+
+`clientType` su an `web` veya `terminal` olmalidir.
+
+Request:
+
+```json
+{
+  "roleIds": [
+    "2d5f7156-a332-497a-ba63-6194e56df746"
+  ]
+}
+```
+
+Kurallar:
+
+- En az bir aktif rol zorunludur.
+- Gonderilen liste ilgili `clientType` icin tam yeni rol setidir; diger istemci turunun eslesmeleri degismez.
+- Ayni istemci turune birden fazla rol atanabilir; permission'lar birlestirilir.
+- Bu endpoint yalnız `{warehouseNo}.sube` hesaplari icin degildir. Gerektiginde baska bir kullaniciya da web/terminal profili tanimlanabilir. Eslesme tanimlandiktan sonra ilgili istemci oturumu bu profili kullanir.
+- Degisiklikten sonra ilgili kullanicinin yalniz bu `clientType` degerindeki aktif refresh token'lari iptal edilir. UI kullanicidan bu istemcide yeniden login istemelidir.
+- Diger `clientType` oturumlari ve eslesmeleri etkilenmez.
+- Authorization permission cache'i kayit aninda temizlenir.
+- Yeni access token ve `GET /api/auth/me` response'u guncel client-role eslesmesinden uretilir.
+- `200` basarili atama, `400` gecersiz client type/rol, `404` user bulunamadi doner.
+
+UI yonetim akisi:
+
+1. Kullanici detayini `GET /api/users/{id}` ile al.
+2. Rol seceneklerini `GET /api/roles` ile doldur.
+3. Mevcut web/terminal eslesmelerini `GET /api/users/{id}/client-roles` ile al.
+4. Web ve terminal rollerini iki ayri coklu secim alani olarak goster.
+5. Yalniz degisen istemci icin `PUT /api/users/{id}/client-roles/{clientType}` cagir.
+6. Kayit basariliysa response listesini ekrana tekrar bas ve ilgili istemcide yeniden login gerektigini yoneticiye bildir.
+
+UI kritik kurali:
+
+- `POST /api/users/{id}/roles` ile `PUT /api/users/{id}/client-roles/{clientType}` ayni sey degildir. Birincisi kullanicinin genel/teknik rollerini, ikincisi belirli oturum turundaki etkin rollerini yonetir.
+- Birlesik sube hesabinda web/terminal ekran yetkisi degistirmek icin client-role endpointi kullanilmalidir.
+- `roleName` yalniz gosterim icindir; kaydetmede `roleId` gonderilmelidir.
 
 ## Ayar Islemleri
 
@@ -23360,6 +23467,7 @@ Bu bolumde yalnizca endpointlerin dogrudan baglandigi HTTP request modelleri yer
 - `AssignPermissionsBody`: `PermissionIds`
 - `UpdateUserBody`: `Username`, `Email`, `FirstName`, `LastName`, `WarehouseNo`, `WarehouseName`, `IsActive`, `NewPassword`
 - `AssignRolesBody`: `RoleIds`
+- `AssignClientRolesBody`: `RoleIds`; `clientType` path alanindan gelir
 
 ### Ortak Request Modelleri
 

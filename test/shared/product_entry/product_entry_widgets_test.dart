@@ -153,6 +153,78 @@ void main() {
     );
   });
 
+  testWidgets(
+    'selected product quantity and add actions stay tappable with keyboard',
+    (tester) async {
+      tester.view.physicalSize = const Size(320, 640);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final quantityController = TextEditingController(text: '12');
+      final lookupController = TextEditingController(text: '8690000000012');
+      addTearDown(quantityController.dispose);
+      addTearDown(lookupController.dispose);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: MediaQuery(
+            data: const MediaQueryData(
+              size: Size(320, 640),
+              viewInsets: EdgeInsets.only(bottom: 220),
+            ),
+            child: Scaffold(
+              body: Column(
+                children: <Widget>[
+                  const SizedBox(height: 36),
+                  TerminalCreateInputDock(
+                    padding: EdgeInsets.zero,
+                    children: <Widget>[
+                      const Text('Ust bilgiler'),
+                      ProductDraftEntryPanel(
+                        stockCode: 'STK-001',
+                        stockName: 'Klavye Acik Test Urunu',
+                        quantityController: quantityController,
+                        unitLabel: 'ADET',
+                        packageLabel: '12',
+                        scanRow: TerminalResponsiveLookupRow(
+                          field: ProductLookupField(
+                            controller: lookupController,
+                            onSubmit: () {},
+                          ),
+                          action: FilledButton.icon(
+                            onPressed: () {},
+                            icon: const Icon(Icons.search_rounded),
+                            label: const Text('Urun'),
+                          ),
+                        ),
+                        onConfirm: () {},
+                        onCancel: () {},
+                      ),
+                    ],
+                  ),
+                  const Expanded(child: SizedBox()),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+
+      expect(tester.takeException(), isNull);
+      final quantityField = find.byWidgetPredicate(
+        (widget) =>
+            widget is TextFormField &&
+            identical(widget.controller, quantityController),
+      );
+      expect(quantityField.hitTestable(), findsOneWidget);
+      expect(
+        find.widgetWithText(FilledButton, 'Ekle').hitTestable(),
+        findsOneWidget,
+      );
+    },
+  );
+
   testWidgets('product draft entry panel shows only the source type', (
     tester,
   ) async {
@@ -190,7 +262,7 @@ void main() {
     expect(find.text('TEST FIRMA'), findsNothing);
   });
 
-  testWidgets('terminal create input dock stays fixed without nested scroll', (
+  testWidgets('terminal create input dock keeps bottom actions reachable', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(320, 460);
@@ -229,8 +301,15 @@ void main() {
     );
 
     expect(tester.takeException(), isNull);
-    expect(find.byType(SingleChildScrollView), findsNothing);
+    expect(
+      find.byKey(const ValueKey<String>('terminal-create-input-dock-scroll')),
+      findsOneWidget,
+    );
     expect(find.text('Kaleme Ekle'), findsOneWidget);
+    expect(
+      find.widgetWithText(FilledButton, 'Kaleme Ekle').hitTestable(),
+      findsOneWidget,
+    );
     expect(
       tester
           .getBottomRight(find.widgetWithText(FilledButton, 'Kaleme Ekle'))

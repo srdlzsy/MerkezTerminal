@@ -18,6 +18,7 @@ class TokenStorage {
   static const String _refreshTokenKey = 'session.refreshToken';
   static const String _cachedSessionKey = 'session.cachedAuthSession';
   static const String _deviceIdKey = 'installation.deviceId';
+  static const String _authClientProfileKey = 'session.authClientProfile';
 
   Future<String?> readToken() async {
     return _readSecret(_tokenKey);
@@ -63,6 +64,30 @@ class TokenStorage {
     final deviceId = 'terminal-$suffix';
     await _preferences.setString(_deviceIdKey, deviceId);
     return deviceId;
+  }
+
+  Future<bool> ensureAuthClientProfile(String clientType) async {
+    final normalizedClientType = clientType.trim().toLowerCase();
+    final storedClientType =
+        (await _preferences.getString(
+          _authClientProfileKey,
+        ))?.trim().toLowerCase() ??
+        '';
+    if (storedClientType == normalizedClientType) {
+      return true;
+    }
+
+    final hasExistingSession =
+        (await _readSecret(_tokenKey))?.isNotEmpty == true ||
+        (await _readSecret(_refreshTokenKey))?.isNotEmpty == true ||
+        (await _preferences.getString(_cachedSessionKey))?.isNotEmpty == true;
+    if (hasExistingSession) {
+      await _deleteSecret(_tokenKey);
+      await _deleteSecret(_refreshTokenKey);
+      await _preferences.remove(_cachedSessionKey);
+    }
+    await _preferences.setString(_authClientProfileKey, normalizedClientType);
+    return !hasExistingSession;
   }
 
   Future<void> clear() async {

@@ -75,6 +75,12 @@ Future<void> expectPdaCreateScreenContract(
         reason: '${scenario.name}: giris satiri gorunur kalmali.',
       );
       expect(
+        entryRowFinder.hitTestable(),
+        findsWidgets,
+        reason:
+            '${scenario.name}: giris satiri ekranda gorunur ve dokunulabilir olmali.',
+      );
+      expect(
         find.byType(Scrollable),
         findsWidgets,
         reason:
@@ -93,6 +99,12 @@ Future<void> expectPdaCreateScreenContract(
         saveButtonFinder,
         findsWidgets,
         reason: '${scenario.name}: kaydet butonu erisilebilir olmali.',
+      );
+      expect(
+        saveButtonFinder.hitTestable(),
+        findsWidgets,
+        reason:
+            '${scenario.name}: kaydet butonu ekranda gorunur ve dokunulabilir olmali.',
       );
       expect(
         entryRowFinder,

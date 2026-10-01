@@ -99,7 +99,7 @@ class _OfflineInventoryCountsPageState
       context: context,
       title: 'Yeni Offline Sayim',
       builder: (context) {
-        return _OfflineInventoryCountCreateSheet(
+        return OfflineInventoryCountCreateSheet(
           onlineRepository: widget.onlineRepository,
           accessToken: widget.accessToken,
           currentUserId: widget.currentUserId,
@@ -409,8 +409,9 @@ class _OfflineInventoryCountsPageState
   }
 }
 
-class _OfflineInventoryCountCreateSheet extends StatefulWidget {
-  const _OfflineInventoryCountCreateSheet({
+class OfflineInventoryCountCreateSheet extends StatefulWidget {
+  const OfflineInventoryCountCreateSheet({
+    super.key,
     required this.onlineRepository,
     required this.accessToken,
     required this.currentUserId,
@@ -425,12 +426,12 @@ class _OfflineInventoryCountCreateSheet extends StatefulWidget {
   final MobileProductCatalogLocalRepository mobileProductCatalogRepository;
 
   @override
-  State<_OfflineInventoryCountCreateSheet> createState() =>
+  State<OfflineInventoryCountCreateSheet> createState() =>
       _OfflineInventoryCountCreateSheetState();
 }
 
 class _OfflineInventoryCountCreateSheetState
-    extends State<_OfflineInventoryCountCreateSheet>
+    extends State<OfflineInventoryCountCreateSheet>
     with CreateFormValidation {
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   final TextEditingController _nameController = TextEditingController();
