@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:furpa_merkez_terminal/core/network/api_client.dart';
 import 'package:furpa_merkez_terminal/core/storage/token_storage.dart';
 import 'package:furpa_merkez_terminal/features/auth/data/auth_repository.dart';
+import 'package:furpa_merkez_terminal/features/auth/data/models/auth_models.dart';
 import 'package:furpa_merkez_terminal/features/shell/presentation/view_models/app_session_controller.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -172,6 +173,122 @@ void main() {
     expect(session?.accessToken, 'fresh-token');
     expect(session?.user.warehouseNo, '110');
   });
+
+  test(
+    'shares one refresh request between concurrent recovery callers',
+    () async {
+      final storage = TokenStorage();
+      await storage.ensureAuthClientProfile('terminal');
+      await storage.writeToken('stale-token');
+      await storage.writeRefreshToken('refresh-1');
+      await storage.writeCachedSessionJson(
+        jsonEncode(<String, dynamic>{
+          'accessToken': 'stale-token',
+          'refreshToken': 'refresh-1',
+          'expiresAtUtc': DateTime.now()
+              .toUtc()
+              .add(const Duration(hours: 1))
+              .toIso8601String(),
+          'user': _currentUserJson(),
+        }),
+      );
+
+      var refreshRequestCount = 0;
+      final repository = AuthRepository(
+        tokenStorage: storage,
+        apiClient: ApiClient(
+          baseUrl: 'http://localhost:5228',
+          httpClient: MockClient((request) async {
+            if (request.url.path == '/api/auth/me') {
+              return http.Response('{"title":"Unauthorized"}', 401);
+            }
+
+            if (request.url.path == '/api/auth/refresh') {
+              refreshRequestCount += 1;
+              return http.Response(
+                jsonEncode(<String, dynamic>{
+                  'accessToken': 'fresh-token',
+                  'refreshToken': 'refresh-2',
+                  'expiresAtUtc': '2026-10-02T12:00:00Z',
+                }),
+                200,
+                headers: <String, String>{'content-type': 'application/json'},
+              );
+            }
+
+            return http.Response('{"title":"Unexpected"}', 500);
+          }),
+        ),
+      );
+
+      final unauthorizedRecovery = repository.recoverSessionAfterUnauthorized();
+      final secondRecovery = repository.recoverSessionAfterUnauthorized();
+
+      final sessions = await Future.wait(<Future<AuthSession?>>[
+        unauthorizedRecovery,
+        secondRecovery,
+      ]);
+
+      expect(refreshRequestCount, 1);
+      expect(sessions, everyElement(isNotNull));
+      expect(
+        sessions.map((session) => session?.accessToken),
+        everyElement('fresh-token'),
+      );
+      expect(await storage.readToken(), 'fresh-token');
+      expect(await storage.readRefreshToken(), 'refresh-2');
+    },
+  );
+
+  test(
+    'uses the stored newer session after a late refresh token 401',
+    () async {
+      final storage = TokenStorage();
+      await storage.ensureAuthClientProfile('terminal');
+      await storage.writeToken('stale-token');
+      await storage.writeRefreshToken('refresh-1');
+      await storage.writeCachedSessionJson(
+        jsonEncode(<String, dynamic>{
+          'accessToken': 'stale-token',
+          'refreshToken': 'refresh-1',
+          'expiresAtUtc': '2026-10-02T10:00:00Z',
+          'user': _currentUserJson(),
+        }),
+      );
+
+      var refreshRequestCount = 0;
+      final repository = AuthRepository(
+        tokenStorage: storage,
+        apiClient: ApiClient(
+          baseUrl: 'http://localhost:5228',
+          httpClient: MockClient((request) async {
+            if (request.url.path == '/api/auth/refresh') {
+              refreshRequestCount += 1;
+              await storage.writeToken('fresh-token');
+              await storage.writeRefreshToken('refresh-2');
+              await storage.writeCachedSessionJson(
+                jsonEncode(<String, dynamic>{
+                  'accessToken': 'fresh-token',
+                  'refreshToken': 'refresh-2',
+                  'expiresAtUtc': '2026-10-02T12:00:00Z',
+                  'user': _currentUserJson(),
+                }),
+              );
+              return http.Response('{"title":"Unauthorized"}', 401);
+            }
+
+            return http.Response('{"title":"Unexpected"}', 500);
+          }),
+        ),
+      );
+
+      final session = await repository.recoverSessionAfterUnauthorized();
+
+      expect(refreshRequestCount, 1);
+      expect(session?.accessToken, 'fresh-token');
+      expect(session?.refreshToken, 'refresh-2');
+    },
+  );
 
   test(
     'clearSession posts refresh token to logout and clears local tokens',

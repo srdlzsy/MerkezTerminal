@@ -1728,6 +1728,8 @@ Token ve yetki notu:
 - Periyodik depo/session kontrolu icin `GET /api/auth/me` yerine `GET /api/auth/warehouse-context` kullanilmalidir. Bu endpoint permission/menu agaci dondurmez ve hafif calisir.
 - `400 Bad Request - Request Too Long` gorulurse ilk kontrol `Authorization` header'idir; `Bearer eyJ...` disinda JSON/obje veya asiri uzun header gonderiliyor olabilir.
 - Refresh token rotate edilir: `/refresh` basarili olunca eski refresh token iptal olur, response'taki yeni `refreshToken` saklanir.
+- Ayni istemci oturumunda refresh istegi tekillestirilmelidir. Access token yenilenirken ikinci paralel `/api/auth/refresh` istegi atilmaz; devam eden ilk istek beklenir ve onun dondugu yeni token seti kullanilir.
+- Bir refresh token yalniz bir kez basarili kullanilabilir. Paralel veya gec kalmis ikinci refresh istegi `401 Unauthorized` alabilir; UI bu durumda eski tokenla tekrar denememeli, kendi sakladigi en yeni token seti yoksa normal login ekranina donmelidir.
 - Kullanici yonetiminde `newPassword` ile sifre degistirilirse kullanicinin aktif refresh token'lari iptal edilir. Access token suresi dolana kadar calisabilir; yeni token almak icin tekrar login gerekir.
 
 ## Auth Endpointleri

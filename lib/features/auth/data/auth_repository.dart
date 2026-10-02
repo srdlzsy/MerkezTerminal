@@ -7,7 +7,7 @@ import 'package:furpa_merkez_terminal/core/storage/token_storage.dart';
 import 'package:furpa_merkez_terminal/features/auth/data/models/auth_models.dart';
 
 class AuthRepository {
-  const AuthRepository({
+  AuthRepository({
     required ApiClient apiClient,
     required TokenStorage tokenStorage,
   }) : _apiClient = apiClient,
@@ -15,6 +15,7 @@ class AuthRepository {
 
   final ApiClient _apiClient;
   final TokenStorage _tokenStorage;
+  Future<AuthSession?>? _refreshInFlight;
 
   static const String _clientType = 'terminal';
   static const Duration _startupTokenSafetyWindow = Duration(minutes: 1);
@@ -278,7 +279,46 @@ class AuthRepository {
     required DateTime? fallbackExpiresAtUtc,
     required AuthSession? cachedSession,
   }) async {
-    final refreshedTokens = await _refreshTokens(refreshToken);
+    final activeRefresh = _refreshInFlight;
+    if (activeRefresh != null) {
+      return activeRefresh;
+    }
+
+    final refreshFuture = _tryRefreshSessionInternal(
+      refreshToken: refreshToken,
+      fallbackExpiresAtUtc: fallbackExpiresAtUtc,
+      cachedSession: cachedSession,
+    );
+    _refreshInFlight = refreshFuture;
+
+    try {
+      return await refreshFuture;
+    } finally {
+      if (identical(_refreshInFlight, refreshFuture)) {
+        _refreshInFlight = null;
+      }
+    }
+  }
+
+  Future<AuthSession?> _tryRefreshSessionInternal({
+    required String? refreshToken,
+    required DateTime? fallbackExpiresAtUtc,
+    required AuthSession? cachedSession,
+  }) async {
+    _StoredTokens? refreshedTokens;
+    try {
+      refreshedTokens = await _refreshTokens(refreshToken);
+    } on ApiException catch (error) {
+      if (error.statusCode == 401) {
+        final latestSession = await _readNewerStoredSession(refreshToken);
+        if (latestSession != null) {
+          return latestSession;
+        }
+      }
+
+      rethrow;
+    }
+
     if (refreshedTokens == null) {
       return null;
     }
@@ -313,6 +353,29 @@ class AuthRepository {
 
       rethrow;
     }
+  }
+
+  Future<AuthSession?> _readNewerStoredSession(
+    String? failedRefreshToken,
+  ) async {
+    final normalizedFailedToken = failedRefreshToken?.trim() ?? '';
+    if (normalizedFailedToken.isEmpty) {
+      return null;
+    }
+
+    final storedTokens = await _readStoredTokens();
+    final latestRefreshToken = storedTokens.refreshToken?.trim() ?? '';
+    final latestAccessToken = storedTokens.accessToken?.trim() ?? '';
+    if (latestAccessToken.isEmpty ||
+        latestRefreshToken.isEmpty ||
+        latestRefreshToken == normalizedFailedToken) {
+      return null;
+    }
+
+    return _readCachedSession(
+      storedTokens.accessToken,
+      storedTokens.refreshToken,
+    );
   }
 
   Future<_StoredTokens?> _refreshTokens(String? refreshToken) async {
