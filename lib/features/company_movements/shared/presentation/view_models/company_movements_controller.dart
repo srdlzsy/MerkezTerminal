@@ -36,6 +36,7 @@ class CompanyMovementsController extends ChangeNotifier
   String? _detailError;
   String? _createError;
   int? _createErrorStatusCode;
+  SafeCreateFailureKind _createFailureKind = SafeCreateFailureKind.notRetryable;
   String? _sendEDespatchError;
   String? _pdfError;
   List<CompanyMovementListItem> _movements = const <CompanyMovementListItem>[];
@@ -55,6 +56,7 @@ class CompanyMovementsController extends ChangeNotifier
   String? get detailError => _detailError;
   String? get createError => _createError;
   int? get createErrorStatusCode => _createErrorStatusCode;
+  SafeCreateFailureKind get createFailureKind => _createFailureKind;
   String? get sendEDespatchError => _sendEDespatchError;
   String? get pdfError => _pdfError;
   List<CompanyMovementListItem> get movements => _movements;
@@ -211,6 +213,7 @@ class CompanyMovementsController extends ChangeNotifier
     _isCreating = true;
     _createError = null;
     _createErrorStatusCode = null;
+    _createFailureKind = SafeCreateFailureKind.notRetryable;
     notifySafely();
 
     try {
@@ -232,6 +235,7 @@ class CompanyMovementsController extends ChangeNotifier
       _isCreating = false;
       _createError = safeCreateRetryErrorMessage(error);
       _createErrorStatusCode = error.statusCode;
+      _createFailureKind = classifySafeCreateException(error);
       notifySafely();
       return null;
     }

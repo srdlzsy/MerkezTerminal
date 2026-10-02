@@ -35,6 +35,7 @@ class StockReceiptsController extends ChangeNotifier with SafeChangeNotifier {
   String? _detailError;
   String? _createError;
   int? _createErrorStatusCode;
+  SafeCreateFailureKind _createFailureKind = SafeCreateFailureKind.notRetryable;
   List<StockReceiptListItem> _receipts = const <StockReceiptListItem>[];
   StockReceiptListItem? _selectedReceipt;
   StockReceiptDetail? _selectedReceiptDetail;
@@ -49,6 +50,7 @@ class StockReceiptsController extends ChangeNotifier with SafeChangeNotifier {
   String? get detailError => _detailError;
   String? get createError => _createError;
   int? get createErrorStatusCode => _createErrorStatusCode;
+  SafeCreateFailureKind get createFailureKind => _createFailureKind;
   List<StockReceiptListItem> get receipts => _receipts;
   StockReceiptListItem? get selectedReceipt => _selectedReceipt;
   StockReceiptDetail? get selectedReceiptDetail => _selectedReceiptDetail;
@@ -167,6 +169,7 @@ class StockReceiptsController extends ChangeNotifier with SafeChangeNotifier {
     _isCreating = true;
     _createError = null;
     _createErrorStatusCode = null;
+    _createFailureKind = SafeCreateFailureKind.notRetryable;
     notifySafely();
 
     try {
@@ -189,6 +192,7 @@ class StockReceiptsController extends ChangeNotifier with SafeChangeNotifier {
       _isCreating = false;
       _createError = safeCreateRetryErrorMessage(error);
       _createErrorStatusCode = error.statusCode;
+      _createFailureKind = classifySafeCreateException(error);
       notifySafely();
       return null;
     }

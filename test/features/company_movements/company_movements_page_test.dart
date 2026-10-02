@@ -119,6 +119,55 @@ void main() {
     expect(find.text('Kaydi Tekrar Dene'), findsOneWidget);
   });
 
+  testWidgets('locks a persisted create that requires manual review', (
+    tester,
+  ) async {
+    final database = MemoryLocalDatabase();
+    final pendingRepository = LocalPendingCreateRepository(database: database);
+    await pendingRepository.save(
+      _pendingCompanyMovement(failureKind: 'manualReview'),
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(home: _companyMovementsPage(pendingRepository)),
+    );
+    await tester.pumpAndSettle();
+
+    final action = tester.widget<FilledButton>(
+      find.widgetWithText(FilledButton, 'Inceleme Gerekli'),
+    );
+    expect(action.onPressed, isNull);
+  });
+
+  testWidgets('starts a new operation only from the explicit action', (
+    tester,
+  ) async {
+    final database = MemoryLocalDatabase();
+    final pendingRepository = LocalPendingCreateRepository(database: database);
+    await pendingRepository.save(
+      _pendingCompanyMovement(failureKind: 'payloadChanged'),
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(home: _companyMovementsPage(pendingRepository)),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Yeni Islem'), findsOneWidget);
+    await tester.tap(find.text('Yeni Islem'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Cari'), findsOneWidget);
+    expect(
+      await pendingRepository.read(
+        moduleKey: 'iade-islemleri.firma-iadeleri',
+        userId: 'user-1',
+        warehouseNo: '50',
+      ),
+      isNull,
+    );
+  });
+
   testWidgets('renders create sheet on 320px terminal width without overflow', (
     tester,
   ) async {
@@ -222,6 +271,61 @@ void main() {
 
 MobileCustomerCatalogLocalRepository _emptyCustomerCatalogRepository() {
   return MobileCustomerCatalogLocalRepository(database: MemoryLocalDatabase());
+}
+
+CompanyMovementsPage _companyMovementsPage(
+  PendingCreateRepository pendingRepository,
+) {
+  return CompanyMovementsPage(
+    repository: _FakeCompanyMovementsRepository(),
+    accessToken: 'token',
+    canCreate: true,
+    currentUserId: 'user-1',
+    draftModuleKey: 'iade-islemleri.firma-iadeleri',
+    pendingCreateRepository: pendingRepository,
+    defaultWarehouseNo: '50',
+    mobileCustomerCatalogRepository: _emptyCustomerCatalogRepository(),
+    userWarehouseName: 'MERKEZ DEPO',
+    title: 'Firma Iadeleri',
+    subtitle: 'Firma iade evraklari listelenir.',
+    createTitle: 'Yeni Iade',
+    createHelperText: 'Cari secildikten sonra iade satirlari eklenir.',
+    createButtonLabel: 'Yeni Iade',
+  );
+}
+
+PendingCreateOperation _pendingCompanyMovement({required String failureKind}) {
+  return PendingCreateOperation(
+    moduleKey: 'iade-islemleri.firma-iadeleri',
+    userId: 'user-1',
+    warehouseNo: '50',
+    payload: CompanyMovementCreateRequest(
+      clientRequestId: 'request-1',
+      customerCode: 'CARI-1',
+      movementDate: DateTime(2026, 10, 1),
+      documentDate: DateTime(2026, 10, 1),
+      documentNo: '',
+      description: '',
+      deliverer: '',
+      receiver: '',
+      lines: const <CompanyMovementCreateLine>[
+        CompanyMovementCreateLine(
+          stockCode: 'STOK-1',
+          quantity: 2,
+          unitPrice: 0,
+          unitPointer: 1,
+          description: '',
+          partyCode: '',
+          lotNo: 0,
+          projectCode: '',
+          customerResponsibilityCenter: '',
+          productResponsibilityCenter: '',
+        ),
+      ],
+    ).toJson(),
+    updatedAt: DateTime(2026, 10, 1),
+    failureKind: failureKind,
+  );
 }
 
 class _FakeCompanyMovementsRepository implements CompanyMovementsRepository {

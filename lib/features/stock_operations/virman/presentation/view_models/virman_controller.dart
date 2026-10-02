@@ -32,6 +32,7 @@ class VirmanController extends ChangeNotifier with SafeChangeNotifier {
   String? _detailError;
   String? _createError;
   int? _createErrorStatusCode;
+  SafeCreateFailureKind _createFailureKind = SafeCreateFailureKind.notRetryable;
   List<VirmanListItem> _virmans = const <VirmanListItem>[];
   VirmanListItem? _selectedVirman;
   VirmanDetail? _selectedVirmanDetail;
@@ -46,6 +47,7 @@ class VirmanController extends ChangeNotifier with SafeChangeNotifier {
   String? get detailError => _detailError;
   String? get createError => _createError;
   int? get createErrorStatusCode => _createErrorStatusCode;
+  SafeCreateFailureKind get createFailureKind => _createFailureKind;
   List<VirmanListItem> get virmans => _virmans;
   VirmanListItem? get selectedVirman => _selectedVirman;
   VirmanDetail? get selectedVirmanDetail => _selectedVirmanDetail;
@@ -160,6 +162,7 @@ class VirmanController extends ChangeNotifier with SafeChangeNotifier {
     _isCreating = true;
     _createError = null;
     _createErrorStatusCode = null;
+    _createFailureKind = SafeCreateFailureKind.notRetryable;
     notifySafely();
 
     try {
@@ -181,6 +184,7 @@ class VirmanController extends ChangeNotifier with SafeChangeNotifier {
       _isCreating = false;
       _createError = safeCreateRetryErrorMessage(error);
       _createErrorStatusCode = error.statusCode;
+      _createFailureKind = classifySafeCreateException(error);
       notifySafely();
       return null;
     }

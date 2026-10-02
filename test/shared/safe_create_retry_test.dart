@@ -3,43 +3,81 @@ import 'package:furpa_merkez_terminal/core/network/api_exception.dart';
 import 'package:furpa_merkez_terminal/shared/utils/safe_create_retry.dart';
 
 void main() {
-  test('safe create retry offers retry only for uncertain create statuses', () {
+  test('only uncertain transport and server failures can be retried', () {
     expect(shouldOfferSafeCreateRetry(0), isTrue);
-    expect(shouldOfferSafeCreateRetry(409), isTrue);
     expect(shouldOfferSafeCreateRetry(503), isTrue);
+    expect(shouldOfferSafeCreateRetry(409), isFalse);
     expect(shouldOfferSafeCreateRetry(400), isFalse);
     expect(shouldOfferSafeCreateRetry(null), isFalse);
   });
 
-  test(
-    'safe create retry explains conflict as a retry/new operation state',
-    () {
-      const conflict = ApiException(statusCode: 409, title: 'Conflict');
-      const validation = ApiException(statusCode: 400, title: 'Validation');
-
-      expect(
-        safeCreateRetryErrorMessage(conflict),
-        contains('yeni islem olarak tekrar kaydedin'),
-      );
-      expect(safeCreateRetryErrorMessage(validation), 'Validation');
-    },
-  );
-
-  test('classifies create conflicts without losing the pending operation', () {
+  test('maps safe create error codes to the documented actions', () {
     expect(
       classifySafeCreateFailure(
         statusCode: 409,
-        message: 'Request is already being processed',
+        errorCode: 'MIKRO_WRITE_IN_PROGRESS',
+        retryable: true,
       ),
       SafeCreateFailureKind.processing,
     );
     expect(
       classifySafeCreateFailure(
         statusCode: 409,
-        message: 'Same clientRequestId has different request payload',
+        errorCode: 'MIKRO_WRITE_OUTCOME_UNCONFIRMED',
+        retryable: true,
+      ),
+      SafeCreateFailureKind.uncertain,
+    );
+    expect(
+      classifySafeCreateFailure(
+        statusCode: 409,
+        errorCode: 'MIKRO_DOCUMENT_CONTENT_MISMATCH',
+        retryable: false,
+      ),
+      SafeCreateFailureKind.manualReview,
+    );
+    expect(
+      classifySafeCreateFailure(
+        statusCode: 409,
+        errorCode: 'CLIENT_REQUEST_PAYLOAD_MISMATCH',
+        retryable: false,
       ),
       SafeCreateFailureKind.payloadChanged,
     );
+  });
+
+  test('manual review is preserved but cannot create or retry', () {
+    const conflict = ApiException(
+      statusCode: 409,
+      title: 'Conflict',
+      detail: 'Belge icerigi uyusmuyor.',
+      errorCode: 'MIKRO_DOCUMENT_CONTENT_MISMATCH',
+      retryable: false,
+    );
+    final kind = classifySafeCreateException(conflict);
+
+    expect(shouldKeepSafeCreatePending(kind), isTrue);
+    expect(requiresSafeCreateReview(kind), isTrue);
+    expect(canRetrySafeCreate(kind), isFalse);
+    expect(canStartNewSafeCreate(kind), isFalse);
+    expect(safeCreatePendingActionLabel(kind), 'Inceleme Gerekli');
+    expect(safeCreateRetryErrorMessage(conflict), contains('yetkili'));
+  });
+
+  test('payload mismatch requires an explicit new operation', () {
+    final kind = classifySafeCreateFailure(
+      statusCode: 409,
+      errorCode: 'CLIENT_REQUEST_PAYLOAD_MISMATCH',
+      retryable: false,
+    );
+
+    expect(shouldKeepSafeCreatePending(kind), isTrue);
+    expect(canRetrySafeCreate(kind), isFalse);
+    expect(canStartNewSafeCreate(kind), isTrue);
+    expect(safeCreatePendingActionLabel(kind), 'Yeni Islem');
+  });
+
+  test('legacy multiple-document message still requires review', () {
     expect(
       classifySafeCreateFailure(
         statusCode: 409,
@@ -47,23 +85,5 @@ void main() {
       ),
       SafeCreateFailureKind.multipleDocuments,
     );
-  });
-
-  test('offers retry for processing and server uncertainty only', () {
-    expect(
-      shouldOfferSafeCreateRetry(
-        409,
-        message: 'Kayit Mikro tarafinda halen isleniyor.',
-      ),
-      isTrue,
-    );
-    expect(
-      shouldOfferSafeCreateRetry(
-        409,
-        message: 'Bu kayit denemesinin icerigi degismis.',
-      ),
-      isFalse,
-    );
-    expect(shouldOfferSafeCreateRetry(500), isTrue);
   });
 }

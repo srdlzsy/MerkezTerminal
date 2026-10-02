@@ -399,6 +399,9 @@ class ApiClient {
         statusCode: response.statusCode,
         title: title,
         detail: _problemDetail(decoded, title: title),
+        errorCode: _problemString(decoded, 'errorCode'),
+        retryable: _problemBool(decoded, 'retryable'),
+        correlationId: _problemString(decoded, 'correlationId'),
       );
     }
 
@@ -407,6 +410,38 @@ class ApiClient {
       title: 'Istek basarisiz',
       detail: response.body.isEmpty ? null : utf8.decode(response.bodyBytes),
     );
+  }
+
+  Object? _problemValue(JsonMap decoded, String key) {
+    if (decoded.containsKey(key)) {
+      return decoded[key];
+    }
+
+    final extensions = decoded['extensions'];
+    if (extensions is Map) {
+      return extensions[key];
+    }
+    return null;
+  }
+
+  String? _problemString(JsonMap decoded, String key) {
+    final value = _problemValue(decoded, key)?.toString().trim();
+    return value == null || value.isEmpty ? null : value;
+  }
+
+  bool? _problemBool(JsonMap decoded, String key) {
+    final value = _problemValue(decoded, key);
+    if (value is bool) {
+      return value;
+    }
+    if (value is String) {
+      return switch (value.trim().toLowerCase()) {
+        'true' => true,
+        'false' => false,
+        _ => null,
+      };
+    }
+    return null;
   }
 
   String _problemTitle(JsonMap decoded) {

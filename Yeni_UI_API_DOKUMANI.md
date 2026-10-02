@@ -43,7 +43,7 @@ E-irsaliye alici alias notu:
 - Depolar arasi sevk ve depo iadesinde hedef bir cari olmadigi icin bu alias cozumleme adimi calismaz.
 - Mikro API yazma audit kaydi istekten once `Pending` acilir. Kesin basari `Succeeded`, kesin is kurali hatasi `Failed`, timeout/baglanti kopmasi/istemci iptali gibi commit sonucu kanitlanamayan durumlar `Unknown`, Mikro DB readback ile evrak bulundugunda `Recovered` olur.
 - Istemci istegi iptal edilse bile audit kapanisi kullanici request token'ina bagli degildir; Auth DB yazimi kisa ve ayri bir timeout ile tamamlanmaya calisilir.
-- Arka plan uzlastirma islemi varsayilan olarak 5 dakikada bir calisir. 15 dakikadan eski `Pending` kayitlari `Unknown` yapar ve eski parser nedeniyle `Succeeded` yazilmis `MikroAPI - TimeOut` cevaplarini duzeltir. `Recovered` kayitlara dokunmaz.
+- Arka plan audit siniflandirma islemi varsayilan olarak 5 dakikada bir calisir. 15 dakikadan eski `Pending` kayitlari `Unknown` yapar ve eski parser nedeniyle `Succeeded` yazilmis `MikroAPI - TimeOut` cevaplarini duzeltir. Bu genel servis Mikro'ya yeniden yazma yapmaz ve tek basina business readback gerceklestirmez; gercek `Recovered` karari ilgili create servisinin belge/satir/trace kontrolleriyle verilir.
 - `Unknown`, evrakin Mikro'da kesinlikle olusmadigi anlamina gelmez. UI veya islem servisi ayni payload ile kontrolsuz yeni kayit acmamalidir; once readback/guvenli retry akisi calistirilmalidir.
 
 Route parametre notu:
@@ -91,6 +91,8 @@ Controller'da acik olan pratik alias/canonical route'lar:
 
 Eski arayuz kendi login sistemini kullandigi ve FurpaMerkezApi JWT token'i uretemedigi icin, e-irsaliye gonderimi icin dar kapsamli legacy kopru endpoint'i vardir. Normal JWT'li endpointler degismez; yeni ekranlar yine `/api/sevk-islemleri/.../e-irsaliye` ve `/api/iade-islemleri/.../e-irsaliye` route'larini kullanmalidir.
 
+Eski arayuz ekibi icin bagimsiz entegrasyon dokumani: `docs/LEGACY_E_IRSALIYE_API_DOKUMANI.md`
+
 Config:
 
 ```json
@@ -109,6 +111,9 @@ Kural:
 
 - `Enabled=false` ise endpoint `404 Not Found` doner.
 - `warehouseNo` query zorunludur; JWT olmadigi icin backend kullanici deposu cozemez.
+- `expectedLineCount` body alaninda zorunludur. Eski arayuz, kaydetmeye basladigi sevk/iade evrakindaki gercek toplam satir sayisini gondermelidir.
+- Backend Uyumsoft cagrisindan once Mikro'daki aktif belge satir sayisini `expectedLineCount` ile iki asamada karsilastirir. Eksik veya fazla satir varsa `409 Conflict` doner ve Uyumsoft'a hicbir belge gonderilmez.
+- `expectedLineCount`, Mikro'da o anda gorunen satir sayisindan uretilmemelidir. Eski arayuzde kullanicinin kaydettigi orijinal evrak satir listesinin sayisi olmalidir.
 - `AllowedOrigins` doluysa browser `Origin`/`Referer` bu listede olmalidir.
 - `AllowedWarehouseNos` doluysa sadece listedeki depolar adina gonderim yapilir.
 - Bu endpoint legacy uyumluluk icin anonim acilir. Canlida mumkunse `AllowedOrigins` ve `AllowedWarehouseNos` bos birakilmamalidir.
@@ -147,15 +152,49 @@ POST /api/legacy/e-irsaliye/firma-iadeleri/F56/125/gonder?warehouseNo=56
 
 Legacy durum ve PDF akisi:
 
+- `GET .../durum` Mikro DB'ye baglanmadan Auth DB'deki `e_despatch_submissions` ve `document_flows` kayitlarindan cevap verir. Mikro gecici olarak kapali veya yavas olsa bile daha once kaydedilmis gonderim durumu okunabilir.
+- Eski UI belge turunu `sevk` yerine `iade` veya `iade` yerine `sevk` olarak gondermisse durum endpointi ilgili karsi belge turunun Auth DB anahtarini da kontrol eder ve bulunan gercek `documentType` ile cevap verir.
+- `GET .../pdf` de once ayni Auth DB durum cozumlemesini kullanir. Onayli FRM/UUID bulunursa Mikro'ya bakmadan Uyumsoft PDF'ini getirir. Yalniz Auth DB'de izi olmayan cok eski belgelerde geriye uyumluluk icin Mikro satirlarindan belge turu/FRM/UUID fallback'i calisabilir.
+- `POST .../gonder` icin Mikro kontrolu devam eder. Gonderimden once belgenin gercek sevk/iade tipi ve hareket satirlari Mikro'dan dogrulanir; bu kontrol yanlis veya eksik belgeyi Uyumsoft'a gondermemek icin kaldirilmamalidir.
 - Eski arayuz e-irsaliye POST istegi `200 OK` dondugunde `isSentToUyumsoft=true` kabul etmelidir. `localMikroMetadataUpdateQueued=true` gelmesi Uyumsoft gonderiminin basarisiz oldugu anlamina gelmez.
-- Sayfa yenilendiginde veya liste tekrar acildiginda eski UI Mikro satirindaki FRM/ETTN alanina bakarak tek basina "gonderilmedi" karari vermemelidir. Bunun yerine `GET .../durum` endpointini cagirmalidir.
+- Eski listede belgenin tum aktif satirlari ayni gecerli FRM ve ETTN/UUID degerini tasiyorsa UI belgeyi dogrudan "gonderildi" gosterebilir; bu pozitif durumda ayrica `GET .../durum` cagirmak zorunlu degildir. Yalniz bir veya birkac satirda FRM bulunmasi belgenin tamaminin isaretlendigini kanitlamaz.
+- Mikro satirinda FRM/ETTN bos olmasi tek basina "gonderilmedi" kaniti degildir. Uyumsoft gonderimi tamamlanmis, Mikro isaretlemesi kuyrukta veya hatada kalmis olabilir. Yalniz bu belirsiz durumda UI `GET .../durum` ile Auth DB'deki kesin gonderim kaydini kontrol etmelidir.
 - `status=PendingMetadata` ve `isSentToUyumsoft=true`: ekranda `E-Irsaliye Gonderildi - Mikro Isaretlemesi Bekliyor` gosterilir. PDF butonu aktiftir; tekrar gonder butonu kapali kalir.
 - `status=Completed`: Uyumsoft gonderimi ve Mikro isaretlemesi tamamdir.
 - `status=NeedsReview`: Uyumsoft gonderimi basarilidir; Mikro tarafinda icerik/isaret uyusmazligi manuel inceleme bekler. PDF butonu aktiftir ve yeniden gonderim yapilmaz.
 - `status=Unknown`: Uyumsoft sonucu henuz dogrulaniyordur. UI yeni POST uretmez; kisa bir sure sonra yalnizca `GET .../durum` istegini tekrarlar.
 - `status=NotSent`: Auth DB'de onayli bir gonderim bulunamamistir. UI ancak kullanicinin acik aksiyonuyla normal gonderim akisini baslatabilir.
+- Uyumsoft outbox cevabi bazen UBL'de mevcut olan `SellersItemIdentification` stok kodunu response modelinde bos dondurebilir. Backend bu durumda FRM/UUID, satir sayisi, satir numarasi ve miktari dogrular; stok kodu Uyumsoft tarafindan dolu donerse ayrica birebir eslesme ister.
+- Uyumsoft satir sayisi Mikro snapshot'indan az/fazlaysa veya satir numarasi/miktari uyusmuyorsa otomatik Mikro isaretlemesi kesinlikle yapilmaz. Kayit `NeedsReview` durumuna alinir ve kalici icerik uyusmazligi icin sonsuz retry durdurulur.
 - PDF icin `GET .../pdf?warehouseNo=56` kullanilir. Endpoint `application/pdf` ve `inline` doner; browser yeni sekmede acabilir. PDF gecici olarak hazir degilse yalnizca PDF GET istegi tekrar edilir, `POST .../gonder` tekrar edilmez.
 - Durum ve PDF route'lari da gonderim route'u gibi `Enabled`, `AllowedOrigins` ve `AllowedWarehouseNos` kontrollerinden gecer. Eski arayuz JWT gondermez.
+
+Eski arayuzun uygulamasi gereken istek sirasi:
+
+```text
+1. Belgenin tum aktif satirlarinda ayni gecerli FRM ve ETTN/UUID varsa belgeyi "Gonderildi" goster; GET .../durum cagirma.
+2. Aktif satirlardan herhangi birinde FRM/ETTN bos veya diger satirlardan farkliysa belge belirsizdir; yalniz bu belge icin bir kez GET .../durum cagir.
+3. POST .../gonder daha once bu ekran oturumunda 200 donduyse response'taki FRM/UUID'yi kullan; yeniden durum sorgusu zorunlu degildir.
+4. isSentToUyumsoft=true ise "Gonder" butonunu kapat, FRM numarasini ve "PDF" butonunu goster.
+5. status=Unknown ise POST atma; 5 saniye sonra durum sorgusunu tekrar et.
+6. status=PendingMetadata ise belge gonderilmistir. PDF acilabilir; Mikro isaretlemesi arka planda tamamlanir.
+7. status=Completed ise gonderim ve Mikro isaretlemesi tamamlanmistir.
+8. status=NeedsReview ise yeniden gonderme yapma; PDF'yi acik tut ve manuel inceleme uyarisi goster.
+9. status=NotSent ise sadece kullanici "E-Irsaliye Gonder" dediginde bir kez POST .../gonder cagir.
+10. POST devam ederken butonu kilitle. Ayni belge icin paralel veya cift tik kaynakli ikinci POST olusturma.
+11. POST 200 donerse response'taki FRM/UUID'yi ekranda goster ve PDF butonunu ac.
+12. POST 409 donerse detail mesajini goster, otomatik tekrar POST etme ve GET .../durum ile son durumu yenile.
+13. POST 502/503/504 veya network timeout donerse sonucu belirsiz kabul et; yeni POST atmadan once GET .../durum sorgula.
+14. GET .../durum da 503 donerse veritabani gecici olarak erisilemiyordur. Ayni anda tum satirlari dongude sorgulama; 5, 10, 20, en fazla 30 saniyelik artan bekleme ile tekrar dene.
+15. PDF tiklandiginda GET .../pdf istegini blob/application/pdf olarak ac. PDF hatasi gonderim POST'unu tekrar etme sebebi degildir.
+```
+
+Polling/yuk kurali:
+
+- Liste acilisinda yalniz FRM/ETTN bilgisi eksik olan belirsiz evraklar icin `durum` istenir. Ayni evrak icin birden fazla paralel istek atilmaz; devam eden istek varken yenisi baslatilmaz.
+- Yalniz `Unknown` durumundaki veya onceki sorgusu gecici hata alan belgeler periyodik tekrar sorgulanir. `Completed`, `PendingMetadata` ve `NeedsReview` kayitlari surekli poll edilmez.
+- Gorunmeyen sayfa/grid satirlari icin durum sorgusu atilmamali; sayfalama veya gorunen satir grubu esas alinmalidir.
+- Kullanici sayfadan ayrildiginda timer ve bekleyen durum sorgulari iptal edilmelidir.
 
 Durum response ornegi:
 
@@ -180,6 +219,7 @@ Body:
 ```json
 {
   "driverId": "25a9f3ea-a55a-4558-bb82-8109c3f14cd4",
+  "expectedLineCount": 15,
   "plaque": "16BZU759",
   "driverNameSurname": "SINAN BERKER",
   "driverTckn": "11111111111",
@@ -190,6 +230,8 @@ Body:
 
 Not:
 
+- `expectedLineCount` zorunlu ve `1` veya daha buyuk olmalidir. Alan verilmezse veya gecersizse `400 Bad Request` doner.
+- Mikro'daki belge satir sayisi `expectedLineCount` ile ayni degilse `409 Conflict` doner. Eski UI bu durumda otomatik yeniden POST atmamalidir; sevk kaydinin tamamlanmasini bekleyip kullaniciya tekrar deneme sunmalidir.
 - `driverId` verilirse aktif sofor kaydindan plaka/ad soyad/TCKN doldurulur.
 - `driverId` verilmezse `plaque`, `driverNameSurname` ve `driverTckn` zorunludur.
 - `deliverer` ve `receiver` opsiyoneldir. Verilmezse once Mikro hareketindeki `sth_HareketGrupKodu2` ve `sth_HareketGrupKodu3` kullanilir; teslim alan da bos ise `driverNameSurname` kullanilir.
@@ -1181,7 +1223,7 @@ Guvenli retry destegi genisletilen diger kritik create akislari:
 Bu endpointler legacy UI gibi normal online da kullanilabilir. Ancak mobil uygulama veya web UI timeout/tekrar basma riskine karsi guvenli calisacaksa su kurallar uygulanmalidir:
 
 - Her yeni create denemesi icin istemci tarafinda bir `clientRequestId` uretilmelidir. Format `GUID` olmali ve ayni mantiksal fis boyunca degismemelidir.
-- `clientRequestId` teknik olarak opsiyoneldir, ama offline guvenli tekrar gonderim icin pratikte zorunludur.
+- `clientRequestId` request modelinde geriye uyumluluk nedeniyle nullable kalabilir; ancak sevk, iade, firma hareketi, zayiat, masraf ve virman create ekranlarinda guvenli tekrar gonderim icin UI tarafinda zorunlu kabul edilmelidir.
 - Kullanici ayni fis taslagini tekrar gonderiyorsa ayni `clientRequestId` kullanilmalidir.
 - Kullanici fis icerigini degistirdiyse yeni bir `clientRequestId` uretilmelidir.
 - Ayni kullanici, ayni islem ve ayni `clientRequestId` kombinasyonu backend tarafinda tekil kabul edilir.
@@ -1191,10 +1233,35 @@ Bu endpointler legacy UI gibi normal online da kullanilabilir. Ancak mobil uygul
 - POST cevabi cihaza ulasmadiysa mobil uygulama once ayni `clientRequestId` ile tekrar POST denemelidir.
 - Firma mal kabul ve sayim sonucunda durum hala belirsizse ilgili `offline-sync/{clientRequestId}` endpoint'i ile durum sorgulanabilir.
 - Sevk, iade, zayiat, masraf ve virman create akislarinda ayri durum endpoint'i yoktur; sonuc ayni `clientRequestId` ile tekrar POST edilerek toparlanir.
-- Depolar arasi sevk ve depo iadesi Mikro API yaziminda timeout/istemci iptali gibi sonucu belirsiz bir hata olursa ayni `clientRequestId` ile gelen tekrar POST, Mikro'ya ikinci kez yazma gondermez. Backend sadece trace ile readback yapar; tum satirlar tamamlandiysa mevcut evraki `Completed` olarak toparlar, henuz tamamlanmadiysa `409 Conflict` ile islemin surdugunu bildirir.
-- Bu iki akista belirsiz sonuc sonrasi `409 Conflict` alinmasi yeni `clientRequestId` uretilmesi gerektigi anlamina gelmez. UI ayni payload snapshot'ini ve ayni `clientRequestId` degerini korumali; yeni id ancak kullanici acikca yeni bir islem baslatirsa uretilmelidir.
+- Depolar arasi sevk, depo iadesi, firma sevki/iadesi, zayiat, masraf ve virman Mikro API yaziminda timeout/istemci iptali gibi sonucu belirsiz bir hata olursa backend once ayni cagrida Mikro DB readback yapar. Evrak tum satirlariyla bulunursa cevap basarili doner ve Mikro API audit kaydi `Recovered` olur.
+- Ilk readback sirasinda evrak henuz gorunmuyorsa ayni `clientRequestId` ile gelen tekrar POST Mikro'ya ikinci create yazisi gondermez. Backend sadece trace ile readback yapar; tum satirlar tamamlandiysa mevcut evraki toparlar, henuz tamamlanmadiysa `409 Conflict` ile islemin surdugunu bildirir.
+- Mikro API `evrak zaten mevcut`/duplicate document cevabi verirse backend bunu otomatik basari saymaz. Ayni seri/sira veya trace ile Mikro satirlarini okur; stok, miktar, birim ve satir butunlugu beklenen istekle tam eslesirse mevcut evraki dondurur ve audit kaydini `Recovered` yapar. Icerik eslesmezse yeni evrak yazmaz ve manuel inceleme hatasi verir.
+- Bu akislarin hicbirinde belirsiz sonuc sonrasi `409 Conflict` alinmasi yeni `clientRequestId` uretilmesi gerektigi anlamina gelmez. UI ayni payload snapshot'ini ve ayni `clientRequestId` degerini korumali; yeni id ancak kullanici acikca yeni bir islem baslatirsa uretilmelidir.
 - Stok hareketi yazan genisletilmis akislarda backend `clientRequestId` izini `FR` prefixli 24 karakterlik trace olarak Mikro `STOK_HAREKETLERI.sth_eticaret_kanal_kodu` alanina tasir. `MikroApi` rotasinda da ayni iz payload'a eklenir.
 - `FR` prefix'i bu alan ileride dolu goruldugunde kaydin Furpa guvenli retry izinden geldigini ayirt etmek icindir.
+
+Guvenli create `409 Conflict` response sozlesmesi:
+
+- Siniflandirilmis create cakismalarinda standart ProblemDetails alanlarina ek olarak `errorCode` ve `retryable` doner.
+- `MIKRO_WRITE_IN_PROGRESS`, `retryable=true`: ayni `clientRequestId` halen isleniyor veya onceki belirsiz yazmanin readback sonucu bekleniyor. UI payload snapshot'ini korur; yeni id uretmez.
+- `MIKRO_WRITE_OUTCOME_UNCONFIRMED`, `retryable=true`: Mikro yazma sonucu kanitlanamadi. UI ayni payload ve ayni `clientRequestId` ile guvenli retry yapabilir.
+- `MIKRO_DOCUMENT_CONTENT_MISMATCH`, `retryable=false`: Mikro'da ayni evrak anahtariyla kayit vardir fakat satir icerigi istekle tam eslesmemistir. UI `Tekrar Dene` aksiyonunu kapatip `Yetkili incelemesi gerekli` gostermelidir; otomatik veya yeni id ile POST yapmamalidir.
+- `CLIENT_REQUEST_PAYLOAD_MISMATCH`, `retryable=false`: ayni `clientRequestId` daha once farkli body ile kullanilmistir. Pending kayit degistirilmeden korunmali; kullanici gercekten yeni bir islem baslatacaksa yeni id ancak acik bir `Yeni islem` aksiyonuyla uretilmelidir.
+- `errorCode` bulunmayan eski/genel `409` cevaplari otomatik retry edilmemelidir; `detail` kullaniciya gosterilir.
+
+Ornek manuel inceleme response'u:
+
+```json
+{
+  "title": "Conflict",
+  "status": 409,
+  "detail": "The existing Mikro document does not match the requested document content. Manual review is required; do not retry with a new clientRequestId.",
+  "instance": "/api/stok-islemleri/zayiat-fisleri",
+  "correlationId": "603427248d4a4d969474d74febf76255",
+  "errorCode": "MIKRO_DOCUMENT_CONTENT_MISMATCH",
+  "retryable": false
+}
+```
 
 UI davranis kurali:
 
@@ -1205,8 +1272,8 @@ UI davranis kurali:
 - Timeout, network kopmasi veya belirsiz sonuc olursa UI ayni body snapshot'i ve ayni `clientRequestId` ile `Tekrar Dene` yapmalidir.
 - Timeout veya 500 cevabi sonrasi UI ayni fis icin yeni `clientRequestId` uretirse backend bunu yeni bir create islemi olarak kabul edebilir ve ayni icerikte ikinci evrak olusabilir.
 - Kullanici belirsiz kayit modundayken formu degistirmek isterse UI bunu yeni islem kabul etmeli, eski `clientRequestId` degerini birakip sonraki kaydetmede yeni `clientRequestId` uretmelidir.
-- Ayni `clientRequestId` ile farkli body gonderilip API `409 Conflict` donerse UI bunu teknik hata gibi degil, "Bu kayit denemesinin icerigi degismis; yeni islem olarak tekrar kaydedin." durumu gibi ele almalidir.
-- `409 Conflict` ayni id ile farkli payload kullanildigini soyluyorsa kullanici devam edecekse UI yeni `clientRequestId` uretmeli ve guncel body'yi yeni kaydetme denemesi olarak gondermelidir. `Already being processed`/belirsiz Mikro sonucu 409'unda yeni id uretilmemelidir.
+- Ayni `clientRequestId` ile farkli body gonderilip `CLIENT_REQUEST_PAYLOAD_MISMATCH` donerse UI bunu teknik retry gibi ele almamali; kullaniciya kayit denemesinin iceriginin degistigini anlatmalidir.
+- `CLIENT_REQUEST_PAYLOAD_MISMATCH` sonrasinda kullanici devam edecekse UI yeni `clientRequestId` degerini yalniz acik bir `Yeni islem olarak kaydet` aksiyonuyla uretmelidir. `MIKRO_WRITE_IN_PROGRESS` ve `MIKRO_WRITE_OUTCOME_UNCONFIRMED` durumlarinda yeni id uretilmemelidir.
 - En guvenli akista `Normal Edit Mode` alanlari degistirilebilir, `Pending/Retry Mode` alanlari kilitlidir; pending durumundan cikmak icin kullanici acikca `Yeni islem olarak duzenle` veya `Vazgec` aksiyonu secmelidir.
 
 UI state ornegi:
@@ -1263,7 +1330,7 @@ Ortak offline status response modeli:
 
 - `Processing`: istek backend tarafinda rezerve edildi, islem tamamlanmadi veya sonuc henuz toparlanamadi
 - `Completed`: istek basariyla tamamlandi; `result` alaninda asil business response bulunur
-- `Failed`: son deneme hata ile kapandi; `errorMessage` dolu olabilir. Ayni payload ile retry yapilabilir, ama payload degistiyse yeni `clientRequestId` kullanilmalidir. Depolar arasi sevk ve depo iadesinde timeout/iptal gibi belirsiz Mikro sonucunda retry yalnizca readback yapar; ayni id ile ikinci yazma baslatmaz.
+- `Failed`: son deneme hata ile kapandi; `errorMessage` dolu olabilir. U17, validasyon veya benzeri kesin is kurali hatasi duzeltilmeden tekrar edilmemelidir. Hata metni timeout/iptal/`write outcome could not be confirmed` ise sonuc belirsizdir; sevk, iade, firma hareketi, zayiat, masraf ve virman akislarinda ayni id ile retry yalnizca readback yapar ve ikinci yazma baslatmaz.
 
 ## Mobil Urun-Fiyat Katalog Sync
 

@@ -3,11 +3,17 @@ class ApiException implements Exception {
     required this.statusCode,
     required this.title,
     this.detail,
+    this.errorCode,
+    this.retryable,
+    this.correlationId,
   });
 
   final int statusCode;
   final String title;
   final String? detail;
+  final String? errorCode;
+  final bool? retryable;
+  final String? correlationId;
 
   String get message {
     final normalizedDetail = detail?.trim();

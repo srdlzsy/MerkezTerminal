@@ -141,6 +141,17 @@ class _CompanyMovementsPageState extends State<CompanyMovementsPage> {
     );
   }
 
+  Future<void> _startNewCreateFromPending() async {
+    await _clearPersistedPendingCreate();
+    if (!mounted) return;
+    setState(() {
+      _pendingCreateRequest = null;
+      _pendingCreateDraft = null;
+      _pendingCreateFailureKind = SafeCreateFailureKind.notRetryable;
+    });
+    await _openCreateSheet();
+  }
+
   @override
   void dispose() {
     _controller.dispose();
@@ -336,14 +347,8 @@ class _CompanyMovementsPageState extends State<CompanyMovementsPage> {
     messenger.hideCurrentSnackBar();
 
     if (result == null) {
-      final failureKind = classifySafeCreateFailure(
-        statusCode: _controller.createErrorStatusCode,
-        message: _controller.createError,
-      );
-      final keepsPending =
-          failureKind == SafeCreateFailureKind.uncertain ||
-          failureKind == SafeCreateFailureKind.processing ||
-          failureKind == SafeCreateFailureKind.multipleDocuments;
+      final failureKind = _controller.createFailureKind;
+      final keepsPending = shouldKeepSafeCreatePending(failureKind);
       if (keepsPending) {
         await _persistPendingCreate(request, draft, failureKind: failureKind);
         if (!mounted) {
@@ -364,7 +369,7 @@ class _CompanyMovementsPageState extends State<CompanyMovementsPage> {
       messenger.showSnackBar(
         SnackBar(
           content: Text(_controller.createError ?? 'Evrak olusturulamadi.'),
-          action: shouldOfferSafeCreateRetry(_controller.createErrorStatusCode)
+          action: canRetrySafeCreate(failureKind)
               ? SnackBarAction(
                   label: 'Tekrar Dene',
                   onPressed: () {
@@ -580,15 +585,18 @@ class _CompanyMovementsPageState extends State<CompanyMovementsPage> {
           FilledButton.tonalIcon(
             onPressed:
                 _controller.isCreating ||
-                    _pendingCreateFailureKind ==
-                        SafeCreateFailureKind.multipleDocuments
+                    requiresSafeCreateReview(_pendingCreateFailureKind)
                 ? null
                 : _pendingCreateRequest == null
                 ? _openCreateSheet
-                : () => _submitCreateRequest(
+                : canStartNewSafeCreate(_pendingCreateFailureKind)
+                ? _startNewCreateFromPending
+                : canRetrySafeCreate(_pendingCreateFailureKind)
+                ? () => _submitCreateRequest(
                     _pendingCreateRequest!,
                     _pendingCreateDraft,
-                  ),
+                  )
+                : null,
             icon: _controller.isCreating
                 ? const SizedBox(
                     height: 16,
@@ -596,7 +604,8 @@ class _CompanyMovementsPageState extends State<CompanyMovementsPage> {
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
                 : Icon(
-                    _pendingCreateRequest == null
+                    _pendingCreateRequest == null ||
+                            canStartNewSafeCreate(_pendingCreateFailureKind)
                         ? Icons.add_rounded
                         : Icons.refresh_rounded,
                   ),
@@ -605,10 +614,7 @@ class _CompanyMovementsPageState extends State<CompanyMovementsPage> {
                   ? 'Kaydediliyor...'
                   : _pendingCreateRequest == null
                   ? widget.createButtonLabel
-                  : _pendingCreateFailureKind ==
-                        SafeCreateFailureKind.multipleDocuments
-                  ? 'Inceleme Gerekli'
-                  : 'Kaydi Tekrar Dene',
+                  : safeCreatePendingActionLabel(_pendingCreateFailureKind),
             ),
           ),
       ],

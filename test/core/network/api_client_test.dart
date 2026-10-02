@@ -79,6 +79,41 @@ void main() {
     );
   });
 
+  test('ProblemDetails exposes safe create conflict metadata', () async {
+    final client = ApiClient(
+      baseUrl: 'http://localhost:5228',
+      httpClient: MockClient((request) async {
+        return http.Response(
+          '{"title":"Conflict","status":409,'
+          '"detail":"Mikro belge icerigi uyusmuyor",'
+          '"errorCode":"MIKRO_DOCUMENT_CONTENT_MISMATCH",'
+          '"retryable":false,"correlationId":"trace-123"}',
+          409,
+          headers: <String, String>{'content-type': 'application/problem+json'},
+        );
+      }),
+    );
+
+    await expectLater(
+      client.getJsonMap('/api/test', accessToken: 'token'),
+      throwsA(
+        isA<ApiException>()
+            .having((error) => error.statusCode, 'statusCode', 409)
+            .having(
+              (error) => error.errorCode,
+              'errorCode',
+              'MIKRO_DOCUMENT_CONTENT_MISMATCH',
+            )
+            .having((error) => error.retryable, 'retryable', isFalse)
+            .having(
+              (error) => error.correlationId,
+              'correlationId',
+              'trace-123',
+            ),
+      ),
+    );
+  });
+
   test('authorization header keeps only the compact access token', () async {
     final capturedAuthorizationHeaders = <String?>[];
     final client = ApiClient(

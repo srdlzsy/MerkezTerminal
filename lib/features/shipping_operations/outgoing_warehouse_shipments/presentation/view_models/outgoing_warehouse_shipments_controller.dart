@@ -234,10 +234,7 @@ class OutgoingWarehouseShipmentsController extends ChangeNotifier
       _isCreating = false;
       _createError = safeCreateRetryErrorMessage(error);
       _createErrorStatusCode = error.statusCode;
-      _createFailureKind = classifySafeCreateFailure(
-        statusCode: error.statusCode,
-        message: error.message,
-      );
+      _createFailureKind = classifySafeCreateException(error);
       notifySafely();
       return null;
     }
