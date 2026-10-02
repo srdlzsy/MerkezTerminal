@@ -133,16 +133,16 @@ class _CompanyMovementsPageState extends State<CompanyMovementsPage> {
     );
   }
 
-  Future<void> _clearPersistedPendingCreate() {
+  Future<void> _clearPersistedPendingCreate([String? clientRequestId]) {
     return widget.pendingCreateRepository.remove(
       moduleKey: widget.draftModuleKey,
       userId: widget.currentUserId,
       warehouseNo: widget.defaultWarehouseNo,
+      clientRequestId: clientRequestId,
     );
   }
 
   Future<void> _startNewCreateFromPending() async {
-    await _clearPersistedPendingCreate();
     if (!mounted) return;
     setState(() {
       _pendingCreateRequest = null;
@@ -356,7 +356,7 @@ class _CompanyMovementsPageState extends State<CompanyMovementsPage> {
         }
         setState(() => _pendingCreateFailureKind = failureKind);
       } else {
-        await _clearPersistedPendingCreate();
+        await _clearPersistedPendingCreate(request.clientRequestId);
         if (!mounted) {
           return;
         }
@@ -387,7 +387,7 @@ class _CompanyMovementsPageState extends State<CompanyMovementsPage> {
       _pendingCreateDraft = null;
       _pendingCreateFailureKind = SafeCreateFailureKind.notRetryable;
     });
-    await _clearPersistedPendingCreate();
+    await _clearPersistedPendingCreate(request.clientRequestId);
     if (!mounted) {
       return;
     }
@@ -583,9 +583,7 @@ class _CompanyMovementsPageState extends State<CompanyMovementsPage> {
         ),
         if (widget.canCreate && _controller.canCreate)
           FilledButton.tonalIcon(
-            onPressed:
-                _controller.isCreating ||
-                    requiresSafeCreateReview(_pendingCreateFailureKind)
+            onPressed: _controller.isCreating
                 ? null
                 : _pendingCreateRequest == null
                 ? _openCreateSheet

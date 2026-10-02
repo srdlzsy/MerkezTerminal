@@ -119,7 +119,7 @@ void main() {
     expect(find.text('Kaydi Tekrar Dene'), findsOneWidget);
   });
 
-  testWidgets('locks a persisted create that requires manual review', (
+  testWidgets('requires an explicit independent action after manual review', (
     tester,
   ) async {
     final database = MemoryLocalDatabase();
@@ -133,10 +133,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    final action = tester.widget<FilledButton>(
-      find.widgetWithText(FilledButton, 'Inceleme Gerekli'),
-    );
-    expect(action.onPressed, isNull);
+    expect(find.text('Yeni Bagimsiz Islem'), findsOneWidget);
   });
 
   testWidgets('starts a new operation only from the explicit action', (
@@ -153,8 +150,8 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Yeni Islem'), findsOneWidget);
-    await tester.tap(find.text('Yeni Islem'));
+    expect(find.text('Yeni Bagimsiz Islem'), findsOneWidget);
+    await tester.tap(find.text('Yeni Bagimsiz Islem'));
     await tester.pumpAndSettle();
 
     expect(find.text('Cari'), findsOneWidget);
@@ -164,7 +161,7 @@ void main() {
         userId: 'user-1',
         warehouseNo: '50',
       ),
-      isNull,
+      isNotNull,
     );
   });
 

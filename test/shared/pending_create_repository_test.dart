@@ -102,6 +102,48 @@ void main() {
       isNotNull,
     );
   });
+
+  test('keeps independent pending creates in the same scope', () async {
+    final repository = LocalPendingCreateRepository(
+      database: _MemoryLocalDatabase(),
+    );
+    for (final requestId in <String>['request-old', 'request-new']) {
+      await repository.save(
+        PendingCreateOperation(
+          moduleKey: 'sevk',
+          userId: 'user-1',
+          warehouseNo: '120',
+          payload: <String, dynamic>{'clientRequestId': requestId},
+          updatedAt: DateTime(2026, 10, requestId == 'request-old' ? 1 : 2),
+        ),
+      );
+    }
+
+    expect(
+      (await repository.readAll(
+        moduleKey: 'sevk',
+        userId: 'user-1',
+        warehouseNo: '120',
+      )).map((operation) => operation.clientRequestId),
+      <String>['request-new', 'request-old'],
+    );
+
+    await repository.remove(
+      moduleKey: 'sevk',
+      userId: 'user-1',
+      warehouseNo: '120',
+      clientRequestId: 'request-new',
+    );
+
+    expect(
+      (await repository.readAll(
+        moduleKey: 'sevk',
+        userId: 'user-1',
+        warehouseNo: '120',
+      )).map((operation) => operation.clientRequestId),
+      <String>['request-old'],
+    );
+  });
 }
 
 class _MemoryLocalDatabase implements LocalDatabase {

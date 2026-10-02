@@ -23,6 +23,11 @@ class PendingCreateOperation {
 
   String get scopeKey => '$moduleKey\u0000$userId\u0000$warehouseNo';
 
+  String get clientRequestId =>
+      payload['clientRequestId']?.toString().trim() ?? '';
+
+  String get operationKey => '$scopeKey\u0000$clientRequestId';
+
   PendingCreateOperation copyWith({String? failureKind}) {
     return PendingCreateOperation(
       moduleKey: moduleKey,
@@ -69,6 +74,12 @@ class PendingCreateOperation {
 }
 
 abstract class PendingCreateRepository {
+  Future<List<PendingCreateOperation>> readAll({
+    required String moduleKey,
+    required String userId,
+    required String warehouseNo,
+  });
+
   Future<PendingCreateOperation?> read({
     required String moduleKey,
     required String userId,
@@ -81,6 +92,7 @@ abstract class PendingCreateRepository {
     required String moduleKey,
     required String userId,
     required String warehouseNo,
+    String? clientRequestId,
   });
 }
 
@@ -97,15 +109,29 @@ class LocalPendingCreateRepository implements PendingCreateRepository {
     required String userId,
     required String warehouseNo,
   }) async {
+    final operations = await readAll(
+      moduleKey: moduleKey,
+      userId: userId,
+      warehouseNo: warehouseNo,
+    );
+    return operations.isEmpty ? null : operations.first;
+  }
+
+  @override
+  Future<List<PendingCreateOperation>> readAll({
+    required String moduleKey,
+    required String userId,
+    required String warehouseNo,
+  }) async {
     final expectedScope = _scopeKey(moduleKey, userId, warehouseNo);
     final rows = await _database.readTable(_storageKey);
-    for (final row in rows.reversed) {
-      final operation = PendingCreateOperation.fromJson(row);
-      if (operation.scopeKey == expectedScope) {
-        return operation;
-      }
-    }
-    return null;
+    final operations =
+        rows
+            .map(PendingCreateOperation.fromJson)
+            .where((operation) => operation.scopeKey == expectedScope)
+            .toList(growable: false)
+          ..sort((left, right) => right.updatedAt.compareTo(left.updatedAt));
+    return operations;
   }
 
   @override
@@ -113,7 +139,7 @@ class LocalPendingCreateRepository implements PendingCreateRepository {
     final rows = await _database.readTable(_storageKey);
     final retained = rows.where((row) {
       final existing = PendingCreateOperation.fromJson(row);
-      return existing.scopeKey != operation.scopeKey;
+      return existing.operationKey != operation.operationKey;
     });
     await _database.writeTable(_storageKey, <Map<String, dynamic>>[
       ...retained,
@@ -126,15 +152,23 @@ class LocalPendingCreateRepository implements PendingCreateRepository {
     required String moduleKey,
     required String userId,
     required String warehouseNo,
+    String? clientRequestId,
   }) async {
     final expectedScope = _scopeKey(moduleKey, userId, warehouseNo);
+    final normalizedClientRequestId = clientRequestId?.trim();
     final rows = await _database.readTable(_storageKey);
     await _database.writeTable(
       _storageKey,
       rows
           .where((row) {
             final existing = PendingCreateOperation.fromJson(row);
-            return existing.scopeKey != expectedScope;
+            if (existing.scopeKey != expectedScope) {
+              return true;
+            }
+            return normalizedClientRequestId == null ||
+                    normalizedClientRequestId.isEmpty
+                ? false
+                : existing.clientRequestId != normalizedClientRequestId;
           })
           .toList(growable: false),
     );

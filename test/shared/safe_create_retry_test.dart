@@ -46,23 +46,25 @@ void main() {
     );
   });
 
-  test('manual review is preserved but cannot create or retry', () {
-    const conflict = ApiException(
-      statusCode: 409,
-      title: 'Conflict',
-      detail: 'Belge icerigi uyusmuyor.',
-      errorCode: 'MIKRO_DOCUMENT_CONTENT_MISMATCH',
-      retryable: false,
-    );
-    final kind = classifySafeCreateException(conflict);
+  test(
+    'manual review is preserved and only allows an independent operation',
+    () {
+      const conflict = ApiException(
+        statusCode: 409,
+        title: 'Conflict',
+        detail: 'Belge icerigi uyusmuyor.',
+        errorCode: 'MIKRO_DOCUMENT_CONTENT_MISMATCH',
+        retryable: false,
+      );
+      final kind = classifySafeCreateException(conflict);
 
-    expect(shouldKeepSafeCreatePending(kind), isTrue);
-    expect(requiresSafeCreateReview(kind), isTrue);
+      expect(shouldKeepSafeCreatePending(kind), isTrue);
     expect(canRetrySafeCreate(kind), isFalse);
-    expect(canStartNewSafeCreate(kind), isFalse);
-    expect(safeCreatePendingActionLabel(kind), 'Inceleme Gerekli');
-    expect(safeCreateRetryErrorMessage(conflict), contains('yetkili'));
-  });
+      expect(canStartNewSafeCreate(kind), isTrue);
+      expect(safeCreatePendingActionLabel(kind), 'Yeni Bagimsiz Islem');
+      expect(safeCreateRetryErrorMessage(conflict), contains('yetkili'));
+    },
+  );
 
   test('payload mismatch requires an explicit new operation', () {
     final kind = classifySafeCreateFailure(
@@ -74,7 +76,7 @@ void main() {
     expect(shouldKeepSafeCreatePending(kind), isTrue);
     expect(canRetrySafeCreate(kind), isFalse);
     expect(canStartNewSafeCreate(kind), isTrue);
-    expect(safeCreatePendingActionLabel(kind), 'Yeni Islem');
+    expect(safeCreatePendingActionLabel(kind), 'Yeni Bagimsiz Islem');
   });
 
   test('legacy multiple-document message still requires review', () {

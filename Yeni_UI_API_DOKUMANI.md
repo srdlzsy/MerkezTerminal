@@ -2,9 +2,13 @@
 
 Bu dokuman, mevcut backend durumuna gore frontend/UI tasarimi ve entegrasyonu icin hazirlanmistir.
 
+Son hedefli kontrol: 2026-10-02, Mikro create/readback, firma e-irsaliye ve guvenli retry sozlesmeleri.
+Tum kayitli endpointlerin route, method, request/response ve yetki metadata referansi: [API Sozlesme Referansi](API_SOZLESME_REFERANSI.md). Makine formati: [OpenAPI Sozlesmesi](API_SOZLESMESI.json). Bu referans test ile koddan uretilir; anlatimdaki orneklerin yerine tam alan/alias listesi icin kullanilir.
+Bu kontrol tum endpointlerin uctan uca canli onayi degildir. Yayin oncesi migration, acik riskler ve smoke testleri icin [Canliya Gecis Kontrol Listesi](CANLIYA_GECIS_KONTROL_LISTESI.md) kullanilmalidir.
+
 ## Genel Bilgiler
 
-- API JSON dondurur.
+- API normalde JSON dondurur; PDF/dosya indirme endpointleri binary, 204 ve bazi 201 cevaplari govdesizdir.
 - JSON alanlari `camelCase` gelir.
 - Tarihler `ISO 8601` formatindadir.
 - Yetki sistemi `module > menu > action` mantigindadir.
@@ -117,6 +121,7 @@ Kural:
 - `AllowedOrigins` doluysa browser `Origin`/`Referer` bu listede olmalidir.
 - `AllowedWarehouseNos` doluysa sadece listedeki depolar adina gonderim yapilir.
 - Bu endpoint legacy uyumluluk icin anonim acilir. Canlida mumkunse `AllowedOrigins` ve `AllowedWarehouseNos` bos birakilmamalidir.
+- Guvenlik siniri: Origin/Referer ve CORS kimlik dogrulama degildir; browser disindan header taklit edilebilir. Bu kontroller tek basina guvenli yayin icin yeterli degildir. Kopru guvenilir ag/sunucu erisimiyle sinirlanmali; servis kimlik dogrulamasi eklenene kadar genel erisime acilmamalidir.
 - Iceride mevcut `EDespatchService.SendAsync` calisir; belge no, tekrar gonderim kontrolu, Mikro isaretleme ve document flow kaydi mevcut ana akisla aynidir.
 - Eski arayuzde sevk/iade ayrimi her zaman guvenilir olmadigi icin legacy kopru, gonderimden once Mikro `STOK_HAREKETLERI` satirlarindaki `sth_evraktip`, `sth_tip`, `sth_normal_iade` ve depo bilgisini kontrol eder. Istenen `documentKind` ile Mikro'daki gercek hareket tipi uyusmazsa sadece legacy akista belge tipi otomatik duzeltilir; yeni JWT'li endpointlerde bu otomatik duzeltme yoktur.
 - Ornek: `firma-iadeleri` olarak cagrilan bir belge Mikro'da `sth_normal_iade=0` firma sevki ise backend gonderimi `OutgoingCompanyShipment` olarak calistirir ve belge akis anahtari `CompanyShipment:{warehouseNo}:{documentSerie}:{documentOrderNo}` olur.
@@ -513,7 +518,7 @@ UI icin onerilen kullanim:
 - Kullanici bilgisi, depo no ve depo adi body'den alinmaz; JWT claim'lerinden backend tarafinda doldurulur.
 - Ayni create formu home disinda kullanicinin kendi sayfasinda da acilabilir; UI `POST /api/home/sikayet-oneri`, `POST /api/ortak-islemler/sikayet-oneri` veya `POST /api/yonetim/sikayet-oneri` route'larindan birini kullanabilir.
 - "Gecmisim" veya detay paneli icin `GET /api/home/sikayet-oneri/benim` kullanilir.
-- Yonetim ekrani menu olarak `OrtakIslemler > SikayetOneri` altinda acilabilir; `list` yetkisi yoksa ekran hic acilmamalidir.
+- Yonetim ekrani menu olarak `OrtakIslemler > SikayetOneri` altinda acilabilir; menu/route icin `ortak-islemler.sikayet-oneri.page`, liste istegi icin `ortak-islemler.sikayet-oneri.list` gerekir.
 - `list-all` yetkisi yoksa yonetim ekrani sadece kullanicinin kendi actigi kayitlari liste/detay olarak gosterir.
 - Yonetim gridinde tip, durum, oncelik, depo, olusturan kullanici, tarih ve admin notu kolonlari yeterlidir.
 - Durum degisiminde `PATCH /durum`, sadece okunduya alma icin `PATCH /okundu` kullanilmalidir; bu aksiyonlar UI'da sadece `ortak-islemler.sikayet-oneri.update` yetkisi varsa acilmalidir.
@@ -1225,7 +1230,7 @@ Bu endpointler legacy UI gibi normal online da kullanilabilir. Ancak mobil uygul
 - Her yeni create denemesi icin istemci tarafinda bir `clientRequestId` uretilmelidir. Format `GUID` olmali ve ayni mantiksal fis boyunca degismemelidir.
 - `clientRequestId` request modelinde geriye uyumluluk nedeniyle nullable kalabilir; ancak sevk, iade, firma hareketi, zayiat, masraf ve virman create ekranlarinda guvenli tekrar gonderim icin UI tarafinda zorunlu kabul edilmelidir.
 - Kullanici ayni fis taslagini tekrar gonderiyorsa ayni `clientRequestId` kullanilmalidir.
-- Kullanici fis icerigini degistirdiyse yeni bir `clientRequestId` uretilmelidir.
+- Henuz gonderilmemis taslak degisebilir; id ilk Kaydet'te uretilir. Gonderilmis ve sonucu belirsiz istegin icerigi/id'si degistirilmez. Yeni icerik ancak onceki islemin yerine gecmeyen bagimsiz yeni islem olarak yeni id alabilir.
 - Ayni kullanici, ayni islem ve ayni `clientRequestId` kombinasyonu backend tarafinda tekil kabul edilir.
 - Ayni `clientRequestId` ile ayni payload tekrar gelirse backend ayni is sonucunu donmeye calisir; boylece timeout veya kopan internet sonrasi guvenli retry yapilabilir.
 - Ayni `clientRequestId` ile farkli payload gelirse endpoint `409 Conflict` doner.
@@ -1246,6 +1251,9 @@ Guvenli create `409 Conflict` response sozlesmesi:
 - `MIKRO_WRITE_IN_PROGRESS`, `retryable=true`: ayni `clientRequestId` halen isleniyor veya onceki belirsiz yazmanin readback sonucu bekleniyor. UI payload snapshot'ini korur; yeni id uretmez.
 - `MIKRO_WRITE_OUTCOME_UNCONFIRMED`, `retryable=true`: Mikro yazma sonucu kanitlanamadi. UI ayni payload ve ayni `clientRequestId` ile guvenli retry yapabilir.
 - `MIKRO_DOCUMENT_CONTENT_MISMATCH`, `retryable=false`: Mikro'da ayni evrak anahtariyla kayit vardir fakat satir icerigi istekle tam eslesmemistir. UI `Tekrar Dene` aksiyonunu kapatip `Yetkili incelemesi gerekli` gostermelidir; otomatik veya yeni id ile POST yapmamalidir.
+- Bu manuel inceleme karari backend'de kalici saklanir. Ayni id tekrar gonderilse bile yeniden create veya otomatik recovery yapilmaz. Bu surum manuel incelemeyi kaldiran bir endpoint sunmaz; yetkili incelemesi ve kontrollu duzeltme gerekir.
+- Firma sevki/iadesi, zayiat/masraf ve virman readback'inde eksik satir seti basari sayilmaz. Eslesen fakat henuz tamamlanmamis set `MIKRO_WRITE_OUTCOME_UNCONFIRMED`, farkli stok/miktar/birim/trace veya fazla satir `MIKRO_DOCUMENT_CONTENT_MISMATCH` doner. Ham Mikro API cevabi tek basina basari kaniti degildir.
+- Bizim API'de trace ile olusturulan firma sevki/iadesinin e-irsaliyesi, create kaydi tamamlanmadan ve orijinal istek mevcut Mikro satirlariyla eslesmeden gonderilmez. JWT endpointlerinde yeni zorunlu request alani yoktur; legacy `expectedLineCount` zorunlulugu devam eder.
 - `CLIENT_REQUEST_PAYLOAD_MISMATCH`, `retryable=false`: ayni `clientRequestId` daha once farkli body ile kullanilmistir. Pending kayit degistirilmeden korunmali; kullanici gercekten yeni bir islem baslatacaksa yeni id ancak acik bir `Yeni islem` aksiyonuyla uretilmelidir.
 - `errorCode` bulunmayan eski/genel `409` cevaplari otomatik retry edilmemelidir; `detail` kullaniciya gosterilir.
 
@@ -1271,10 +1279,10 @@ UI davranis kurali:
 - Request devam ederken kaydet butonu ve form alanlari kilitlenmelidir.
 - Timeout, network kopmasi veya belirsiz sonuc olursa UI ayni body snapshot'i ve ayni `clientRequestId` ile `Tekrar Dene` yapmalidir.
 - Timeout veya 500 cevabi sonrasi UI ayni fis icin yeni `clientRequestId` uretirse backend bunu yeni bir create islemi olarak kabul edebilir ve ayni icerikte ikinci evrak olusabilir.
-- Kullanici belirsiz kayit modundayken formu degistirmek isterse UI bunu yeni islem kabul etmeli, eski `clientRequestId` degerini birakip sonraki kaydetmede yeni `clientRequestId` uretmelidir.
+- Kullanici belirsiz kayit modundayken eski payload ve `clientRequestId` korunmalidir. Sonuc kesinlesmeden ayni fisin yerine yeni id ile kaydetme yapilmaz; form degisikligi pending kaydi dusurmemelidir.
 - Ayni `clientRequestId` ile farkli body gonderilip `CLIENT_REQUEST_PAYLOAD_MISMATCH` donerse UI bunu teknik retry gibi ele almamali; kullaniciya kayit denemesinin iceriginin degistigini anlatmalidir.
 - `CLIENT_REQUEST_PAYLOAD_MISMATCH` sonrasinda kullanici devam edecekse UI yeni `clientRequestId` degerini yalniz acik bir `Yeni islem olarak kaydet` aksiyonuyla uretmelidir. `MIKRO_WRITE_IN_PROGRESS` ve `MIKRO_WRITE_OUTCOME_UNCONFIRMED` durumlarinda yeni id uretilmemelidir.
-- En guvenli akista `Normal Edit Mode` alanlari degistirilebilir, `Pending/Retry Mode` alanlari kilitlidir; pending durumundan cikmak icin kullanici acikca `Yeni islem olarak duzenle` veya `Vazgec` aksiyonu secmelidir.
+- `Normal Edit Mode` alanlari degistirilebilir; `Pending/Retry Mode` alanlari kilitlidir. Ekrani kapatmak veya `Vazgec` backend islemini iptal etmez ve saklanan pending kaydi silmemelidir. Yeni id yalniz onceki islemin yerine gecmeyen, acikca bagimsiz yeni islem icin kullanilir.
 
 UI state ornegi:
 
@@ -1282,7 +1290,7 @@ UI state ornegi:
 type PendingCreateState = {
   clientRequestId: string;
   payloadSnapshot: unknown;
-  status: "idle" | "sending" | "retryable" | "completed";
+  status: "idle" | "sending" | "retryable" | "needsReview" | "completed";
 };
 ```
 
@@ -1296,7 +1304,7 @@ Kaydetme akisi:
 5. Basarili response gelirse islem `completed` olur ve pending state temizlenir.
 6. Timeout, HTTP 0, network kopmasi veya belirsiz 500 durumunda islem `retryable` olur.
 7. Kullanici `Tekrar Dene` derse UI yeni body uretmez; saklanan snapshot'i ayni `clientRequestId` ile tekrar POST eder.
-8. Kullanici pending kaydi degistirmek isterse once `Yeni islem olarak duzenle` secilir; bu durumda sonraki Kaydet yeni `clientRequestId` ile yeni islem sayilir.
+8. retryable=false ve MIKRO_DOCUMENT_CONTENT_MISMATCH gelirse needsReview durumuna gec; snapshot/id korunur, tekrar gonderim kapatilir. Belirsiz veya incelemedeki fis yeni id ile yeniden kaydedilmez.
 ```
 
 Yanlis retry ornegi:
@@ -1625,7 +1633,9 @@ Root bilgi endpoint'i:
 GET /
 ```
 
-Response:
+`Hosting:ExposeDiagnosticsOnRoot=false` iken response yalniz `service` ve `status` alanlarini icerir. Asagidaki genis cevap sadece bu ayar `true` iken doner. `swagger` alani da `Hosting:EnableSwagger=false` iken bos string gelir; production'da Swagger'in acik oldugu varsayilmamalidir.
+
+Diagnostics acik response:
 
 ```json
 {
@@ -1637,6 +1647,24 @@ Response:
   "status": "Running"
 }
 ```
+
+### Saglik Kontrolleri
+
+- `GET /health/live`: anonim; yalniz uygulama prosesinin cevap verebildigini olcer. DB/dis servis kontrolu yapmaz; `checks` bostur.
+- `GET /health/ready`: anonim; `core_dependencies` ve `operations_export_path` kontrollerini calistirir. Hazirlik/servis izleme icindir; UI her satir veya ekran icin cagirmamalidir.
+- `Healthy` veya `Degraded` icin HTTP 200; `Unhealthy` icin HTTP 503 doner.
+- Bu middleware route'lari kodda HTTP method ile sinirlanmamistir. Istemciler GET kullanmalidir.
+- Govde normal JSON'dur, ProblemDetails degildir:
+
+```json
+{
+  "status": "Healthy",
+  "durationMilliseconds": 0.12,
+  "checks": {}
+}
+```
+
+`ready` cevabinda `checks` nesnesinin her anahtarinda `status`, `durationMilliseconds`, `description` ve `data` bulunur. Anonim saglik endpointlerini ag/proxy katmaninda yalniz izleme erisimine acmak onerilir.
 
 ## Standart Hata Formati
 
@@ -1686,6 +1714,7 @@ Token ve yetki notu:
 - Client-role eslesmesi bulunan her kullanicida ilgili oturum profili kullanilir; bu model yalniz `{warehouseNo}.sube` hesaplariyla sinirli degildir.
 - Birlesik sube kullanicisinda istenen `clientType` icin eslesme yoksa backend baska rolden tahmin veya fallback yapmaz; bos etkin rol/permission profili doner. Bu fail-closed davranis yanlis istemciye fazla yetki verilmesini engeller.
 - Client-role eslesmesi hic olmayan `50.muhasebe`, `01.icmal`, `Administrator` gibi klasik kullanicilar mevcut `app_user_roles` rolleriyle calismaya devam eder.
+- Bilinen sinir (2026-10-02): Mevcut resolver aktif istemci rolu kalmadiginda yalniz aktif `SubeKullanicisi` teknik rolu varsa bos profil doner. Diger hesaplarda genel rollere fallback olabilir. Bu nedenle rol pasife alma tum hesaplarda yetkiyi kapatir garantisi yoktur; ilgili inceleme bulgusu kapanmadan bu davranisa guvenilmemelidir.
 - Login response ve `GET /api/auth/me` icindeki `roles`, `permissions` ve `modules` alanlari mevcut oturumun etkin profilini doner. UI yalniz bu response'u kullanmali; Auth DB'deki teknik `SubeKullanicisi` rolunu veya baska oturumun menu listesini onbellekten kullanmamalidir.
 - Terminale ozel IP/depo kontrolu sadece `clientType=terminal` oturumunda calisir.
 - Web ve terminal refresh token'lari birbirinden bagimsizdir. Bir cihazdaki logout yalniz o cihazda gonderilen refresh token'i iptal eder.
@@ -1817,6 +1846,7 @@ Response:
 Amac:
 
 - yeni kullanici kaydi
+- `Auth:AllowSelfRegistration=false` ise endpoint anonim olmasina ragmen `403 Forbidden` doner. UI production'da kendiliginden kayit olusturma ekraninin acik oldugunu varsaymamalidir.
 
 Request:
 
@@ -10245,7 +10275,9 @@ Response:
 }
 ```
 
-`GET /api/kasa-islemleri/manav-mal-kabul-etiket/stocks/MNV001`
+`GET /api/kasa-islemleri/manav-mal-kabul-etiket/stocks/{stockCode}`
+
+Ornek: `GET /api/kasa-islemleri/manav-mal-kabul-etiket/stocks/MNV001`
 
 Path:
 
@@ -23519,10 +23551,11 @@ public sealed record AxataSynchronizationProbeDto(
 - E-irsaliye PDF endpointleri `application/pdf` binary response doner; JSON model yoktur.
 - `GET /api/entegrasyon-islemleri/uyumsoft/e-fatura/.../pdf` ve `GET /api/entegrasyon-islemleri/uyumsoft/e-irsaliye/.../pdf` route'lari binary degil, JSON `UyumsoftOperationResponseDto` doner.
 - Standart hata modeli `ProblemDetails` olarak dokumanin basinda tanimlidir.
+- `POST /api/operations/authorization-files` ve `POST /api/operations/saveauthorizationfile` basarida `201 Created` ve bos body doner; JSON parse edilmemelidir.
 
 ## Request Model Katalogu
 
-Bu bolumde yalnizca endpointlerin dogrudan baglandigi HTTP request modelleri yer alir. Alan adlari kaynak koddaki property adlariyla birebir yazilmistir.
+Bu bolum insan tarafindan okunacak ozet katalogdur. Tam ve surumlenmis alan, tip, zorunluluk ve sinir kaynagi [API Sozlesme Referansi](API_SOZLESME_REFERANSI.md) ile [OpenAPI Sozlesmesi](API_SOZLESMESI.json) dosyalaridir; her ikisi koddan uretilir ve contract testiyle dogrulanir. Ozellikle nested/patch modelleri, eski alias alanlari ve kosullu validasyonlar icin bu ozet yerine referans kullanilmalidir.
 
 ### Auth ve Yetki Request Modelleri
 
@@ -23549,13 +23582,13 @@ Bu bolumde yalnizca endpointlerin dogrudan baglandigi HTTP request modelleri yer
 - `AnnouncementManagementListHttpRequest`: `Status`, `TargetType`, `TargetWarehouseNo`, `TargetUserId`, `StartDate`, `EndDate`, `IncludeArchived`, `Take`
 - `AnnouncementTargetUserSearchHttpRequest`: `Search`, `WarehouseNo`, `Take`
 - `SaveAnnouncementHttpRequest`: `Title`, `Message`, `Priority`, `TargetType`, `TargetWarehouseNos`, `TargetUserIds`, `StartsAtUtc`, `ExpiresAtUtc`
-- `CreateCompanyMovementHttpRequest`: `WarehouseNo`, `CustomerCode`, `MovementDate`, `DocumentDate`, `DocumentNo`, `Description`, `Deliverer`, `Receiver`, `Lines`
+- `CreateCompanyMovementHttpRequest`: `ClientRequestId`, `WarehouseNo`, `CustomerCode`, `MovementDate`, `DocumentDate`, `DocumentNo`, `Description`, `Deliverer`, `Receiver`, `Lines`
 - `CreateCompanyMovementLineHttpRequest`: `StockCode`, `Quantity`, `UnitPrice`, `UnitPointer`, `Description`, `PartyCode`, `LotNo`, `ProjectCode`, `CustomerResponsibilityCenter`, `ProductResponsibilityCenter`, `OrderLineGuid`
-- `CreateStockReceiptHttpRequest`: `WarehouseNo`, `Creator`, `Acceptor`, `MovementDate`, `DocumentDate`, `DocumentNo`, `Description`, `Lines`
+- `CreateStockReceiptHttpRequest`: `ClientRequestId`, `WarehouseNo`, `Creator`, `Acceptor`, `MovementDate`, `DocumentDate`, `DocumentNo`, `Description`, `Lines`
 - `CreateStockReceiptLineHttpRequest`: `StockCode`, `Quantity`, `UnitPointer`, `Description`, `PartyCode`, `LotNo`, `ProjectCode`
 - `CreateInventoryCountHttpRequest`: `WarehouseNo`, `ClientRequestId`, `Name`, `DocumentDate`, `Lines`
 - `CreateInventoryCountLineHttpRequest`: `StockCode`, `Quantity`, `Barcode`, `UnitPointer`
-- `CreateVirmanHttpRequest`: `WarehouseNo`, `MovementDate`, `DocumentDate`, `DocumentNo`, `Description`, `Lines`
+- `CreateVirmanHttpRequest`: `ClientRequestId`, `WarehouseNo`, `MovementDate`, `DocumentDate`, `DocumentNo`, `Description`, `Lines`
 - `CreateVirmanLineHttpRequest`: `StockCode`, `MovementType`, `Quantity`, `UnitPointer`, `Description`, `PartyCode`, `LotNo`, `ProjectCode`
 
 ### GreenGrocer Request Modelleri
@@ -23564,7 +23597,7 @@ Bu bolumde yalnizca endpointlerin dogrudan baglandigi HTTP request modelleri yer
 - `DeleteGreenGrocerOrderHttpRequest`: `DocumentSerie`, `DocumentOrderNo`, `WarehouseNo`
 - `GreenGrocerProductCaseProfileListHttpRequest`: `Search`, `IncludeInactive`, `Take`
 - `SaveGreenGrocerProductCaseProfileHttpRequest`: `IsActive`, `InputMode`, `ConversionMode`, `ManualKgPerCase`, `ManualUnitsPerCase`, `MinExpectedKgPerCase`, `MaxExpectedKgPerCase`, `AverageWindowDays`, `MinAverageRecordCount`, `MinAverageCaseCount`, `MaxCoefficientOfVariation`, `RequiresManualApproval`, `AllowOrderLinking`, `OverDeliveryTolerancePercent`, `Notes`
-- `GreenGrocerProductCaseResolutionHttpRequest`: `StockCode`, `OrderDate`, `SourceWarehouseNo`, `InputQuantity`
+- `GreenGrocerProductCaseResolutionHttpRequest`: `StockCode`, `OrderDate`, `SourceWarehouseNo`, `TargetWarehouseNo`, `InputQuantity`
 - `GreenGrocerOperationsOverviewHttpRequest`: `StartDate`, `EndDate`, `WarehouseNo`, `TypeCode`, `Search`, `OnlyWithActivity`, `Take`
 - `GreenGrocerOperationsAdjustmentPreviewHttpRequest`: `WarehouseNo`, `Direction`, `MovementDate`, `DocumentSerie`, `ReasonCode`, `Lines`
 - `GreenGrocerOperationsAdjustmentApplyHttpRequest`: `ClientRequestId`, `WarehouseNo`, `Direction`, `MovementDate`, `DocumentDate`, `DocumentNo`, `DocumentSerie`, `CounterWarehouseNo`, `ReasonCode`, `Description`, `Creator`, `Acceptor`, `Lines`
@@ -23576,7 +23609,7 @@ Bu bolumde yalnizca endpointlerin dogrudan baglandigi HTTP request modelleri yer
 - `ProductBarcodePriceLookupHttpRequest`: `WarehouseNo`, `IncludeDelisted`, `Take`
 - `ProductAvailabilityHttpRequest`: `WarehouseNo`, `Barcode`, `StockCode`, `StockName`, `IncludeDelisted`, `Take`
 - `CustomerSearchHttpRequest`: `SearchText`, `Take`
-- `WarehouseSearchHttpRequest`: `SearchText`, `WarehouseNo`, `Take`
+- `WarehouseSearchHttpRequest`: HTTP query alanlari `searchText`, `warehouseNo`, `take`; backend ic property adi `LookupWarehouseNo` olsa da `[FromQuery(Name = "WarehouseNo")]` nedeniyle mevcut istemciler `warehouseNo` gondermeye devam etmelidir.
 - `BarcodeResolutionHttpRequest`: `WarehouseNo`, `OperationType`, `TargetWarehouseNo`, `SupplierCode`, `CompanyCode`, `IsRefund`, `ScreenCode`
 - `BarcodeCustomerLookupHttpRequest`: `Barcode`, `WarehouseNo`, `Take`
 - `BarcodeCustomerLookupByPathHttpRequest`: `WarehouseNo`, `Take`
@@ -23599,9 +23632,9 @@ Bu bolumde yalnizca endpointlerin dogrudan baglandigi HTTP request modelleri yer
 
 ### Sevk, Iade ve Mal Kabul Request Modelleri
 
-- `CreateInterWarehouseShipmentHttpRequest`: `SourceWarehouseNo`, `TargetWarehouseNo`, `TransitWarehouseNo`, `MovementDate`, `DocumentDate`, `DocumentNo`, `Description`, `Lines`
+- `CreateInterWarehouseShipmentHttpRequest`: `ClientRequestId`, `SourceWarehouseNo`, `TargetWarehouseNo`, `TransitWarehouseNo`, `MovementDate`, `DocumentDate`, `DocumentNo`, `Description`, `Lines`
 - `CreateInterWarehouseShipmentLineHttpRequest`: `StockCode`, `Quantity`, `WarehouseOrderLineGuid`, `UnitPrice`, `UnitPointer`, `Description`, `PartyCode`, `LotNo`, `ProjectCode`, `CustomerResponsibilityCenter`, `ProductResponsibilityCenter`
-- `CreateWarehouseReturnHttpRequest`: `SourceWarehouseNo`, `TargetWarehouseNo`, `TransitWarehouseNo`, `MovementDate`, `DocumentDate`, `DocumentNo`, `Description`, `Lines`
+- `CreateWarehouseReturnHttpRequest`: `ClientRequestId`, `SourceWarehouseNo`, `TargetWarehouseNo`, `TransitWarehouseNo`, `MovementDate`, `DocumentDate`, `DocumentNo`, `Description`, `Lines`
 - `CreateWarehouseReturnLineHttpRequest`: `StockCode`, `Quantity`, `UnitPrice`, `UnitPointer`, `Description`, `PartyCode`, `LotNo`, `ProjectCode`, `CustomerResponsibilityCenter`, `ProductResponsibilityCenter`
 - `AcceptWarehouseReceivingHttpRequest`: `WarehouseNo`, `AllowDiscrepancy`, `Lines`
 - `AcceptWarehouseReceivingLineHttpRequest`: `MovementGuid`, `ReceivedQuantity`
@@ -23661,7 +23694,7 @@ Bu bolumde yalnizca endpointlerin dogrudan baglandigi HTTP request modelleri yer
 - `WarehouseCardPatchHttpRequest`: `Name`, `GroupCode`, `WarehouseType`, `ShipmentAutoPriceType`, `MovementType`, `AccountingCode`, `ResponsibilityCenter`, `ProjectCode`, `Special1`, `Special2`, `Special3`, `ShipmentAppliedPriceNo`, `LockDate`, adres/telefon/GPS alanlari, `ExcludedFromInventory`, `DetailTrackingType`, `RegionCode`, `OutgoingEDespatchEnabled`, `IncomingEDespatchEnabled`, `IsPassive`, `IsHidden`, `IsLocked`
 - `CustomerCardPatchHttpRequest`: `Title1`, `Title2`, `Special1`, `Special2`, `Special3`, `MovementType`, `ConnectionType`, `PurchaseStockType`, `SalesStockType`, muhasebe/doviz/vergi alanlari, `SalesPriceListNo`, odeme/adres/grup/bolge/temsilci alanlari, `IsClosed`, `IsLocked`, e-fatura/e-irsaliye alanlari, iletisim alanlari, `RetailCustomer`
 - `MikroDocumentFieldCatalogDto`: `Sections[]`; her section icinde `Code`, `Title`, `Endpoint`, `RequestModel`, `Fields[]`; her field icinde `ApiField`, `DisplayName`, `Scope`, `ValueType`, `MikroTable`, `MikroColumn`, `Editable`, `Description`
-- `StockMovementDocumentLookupHttpRequest`: `DocumentSerie`, `DocumentOrderNo`, `DocumentType`, `MovementType`, `MovementKind`, `NormalReturn`, `WarehouseNo`
+- `StockMovementDocumentLookupHttpRequest`: `DocumentSerie`, `DocumentOrderNo`, `DocumentType`, `MovementType`, `MovementKind`, `NormalReturn`, `WarehouseNo`, `HardDelete`
 - `UpdateStockMovementDocumentHttpRequest`: `Lookup`, `Header`, `Lines`
 - `StockMovementHeaderPatchHttpRequest`: `MovementDate`, `DocumentDate`, `GoodsAcceptanceDate`, `DocumentNo`, `CustomerCode`, `InputWarehouseNo`, `OutputWarehouseNo`, `Description`, `MovementGroupCode1`, `MovementGroupCode2`, `MovementGroupCode3`, `CustomerResponsibilityCenter`, `StockResponsibilityCenter`, `ProjectCode`
 - `StockMovementLinePatchHttpRequest`: `MovementGuid`, `RowNo`, `GoodsAcceptanceDate`, `StockCode`, `UnitPointer`, `Quantity`, `SecondaryQuantity`, `Amount`, `Discount1..Discount6`, `Expense1..Expense4`, `ExpenseTaxPointer`, `ExpenseTaxAmount`, `TaxPointer`, `TaxAmount`, `NetWeight`, `GrossWeight`, `Description`, `Special1`, `Special2`, `Special3`, `PartyCode`, `LotNo`, `ProjectCode`, `CustomerResponsibilityCenter`, `StockResponsibilityCenter`, `InputWarehouseNo`, `OutputWarehouseNo`
@@ -23670,7 +23703,7 @@ Bu bolumde yalnizca endpointlerin dogrudan baglandigi HTTP request modelleri yer
 - `InventoryCountHeaderPatchHttpRequest`: `DocumentDate`, `WarehouseNo`, `Name`
 - `InventoryCountLinePatchHttpRequest`: `CountGuid`, `RowNo`, `StockCode`, `Barcode`, `UnitPointer`, `Quantity1`, `Quantity2`, `Quantity3`, `Quantity4`, `Quantity5`, `RayonCode`, `CorridorCode`, `ShelfCode`, `PartyCode`, `LotNo`, `SerialNo`, `Special1`, `Special2`, `Special3`
 - `BanknoteTrackPatchHttpRequest`: `BanknoteTrackDate`, `WarehouseNo`, `TotalAmount`, `DeliveryTotalAmount`, `Deliverer`, `Receiver`
-- `CustomerMovementDocumentLookupHttpRequest`: `DocumentSerie`, `DocumentOrderNo`, `DocumentType`, `MovementType`, `MovementKind`, `NormalReturn`, `CustomerCode`
+- `CustomerMovementDocumentLookupHttpRequest`: `DocumentSerie`, `DocumentOrderNo`, `DocumentType`, `MovementType`, `MovementKind`, `NormalReturn`, `CustomerCode`, `HardDelete`
 - `UpdateCustomerMovementDocumentHttpRequest`: `Lookup`, `Header`, `Lines`
 - `CustomerMovementHeaderPatchHttpRequest`: `MovementDate`, `DocumentDate`, `DocumentNo`, `CustomerCode`, `TurnoverCustomerCode`, `Description`, `SellerCode`, `ProjectCode`, `ResponsibilityCenter`
 - `CustomerMovementLinePatchHttpRequest`: `MovementGuid`, `RowNo`, `CustomerCode`, `TurnoverCustomerCode`, `Quantity`, `Amount`, `SubAmount`, `DueDay`, `Discount1..Discount6`, `Expense1..Expense4`, `Tax1..Tax5`, `Description`, `Special1`, `Special2`, `Special3`, `SellerCode`, `ProjectCode`, `ResponsibilityCenter`
@@ -23733,9 +23766,9 @@ Bu bolumde yalnizca endpointlerin dogrudan baglandigi HTTP request modelleri yer
 
 - `InvoiceSendingListHttpRequest`: `StartDate`, `EndDate`, `Scenario`, `SentState`, `IsSent`
 - `InvoiceSendingRenderHttpRequest`: `Scenario`, `Profile`, `PreferEmbeddedXslt`, `FallbackToDefaultXslt` (JSON body'de `fallbackToGeneral` olarak gonderilir)
-- `InvoiceSendingBatchHttpRequest`: `Scenario`, `Documents[]`
+- `InvoiceSendingBatchHttpRequest`: `Scenario`, `Documents`
 - `InvoiceSendingBatchDocumentHttpRequest`: `DocumentSerie`, `DocumentOrderNo`
-- `InvoiceViewingListHttpRequest`: `StartDate`, `EndDate`, `ProcessedState`, `IsProcessed`, `PrintedState`, `IsPrinted`, `SearchField`, `SearchText`, `InvoiceId`, `InvoiceNo`, `DespatchId`, `DespatchNo`, `CustomerTitle`, `CustomerTcknVkn`, `TcknVkn`, `DocumentId`, `Ettn`, `OrderDocumentId`, `Status`, `InvoiceType`, `MinInvoiceTotal`, `MaxInvoiceTotal`, `HasDespatchId`, `PageNumber`, `Page`, `PageSize`
+- `InvoiceViewingListHttpRequest`: `StartDate`, `EndDate`, `ProcessedState`, `IsProcessed`, `PrintedState`, `IsPrinted`, `SearchField`, `SearchText`, `InvoiceId`, `InvoiceNo`, `DespatchId`, `DespatchNo`, `CustomerTitle`, `CustomerTcknVkn`, `TcknVkn`, `DocumentId`, `Ettn`, `OrderDocumentId`, `Status`, `InvoiceType`, `MinInvoiceTotal`, `MaxInvoiceTotal`, `HasDespatchId`, `ApplyDateFilterWithSearch`, `UseDateFilterWithSearch`, `PageNumber`, `Page`, `PageSize`
 - `InvoiceViewingSynchronizationHttpRequest`: `StartDate`, `EndDate`, `IncludeStatuses`
 - `InvoiceViewingSynchronizationProgressResponse`: `IsRunning`, `Status`, `StartDate`, `EndDate`, `IncludeStatuses`, `QueryStartDate`, `QueryEndDate`, `PageIndex`, `PageNumber`, `PageSize`, `TotalCount`, `TotalPage`, `FetchedCount`, `MatchedCount`, `SkippedInvoiceDateOutOfRangeCount`, `SkippedDuplicateDocumentCount`, `InsertedCount`, `UpdatedCount`, `LastPageItemCount`, `LastPageMatchedCount`, `LastPageSkippedInvoiceDateOutOfRangeCount`, `LastPageSkippedDuplicateDocumentCount`, `LastPageInsertedCount`, `LastPageUpdatedCount`, `ProgressPercent`, `StartedAtUtc`, `LastUpdatedAtUtc`, `FinishedAtUtc`, `ElapsedMs`, `Message`, `AutomaticSynchronizationEnabled`, `SchedulerLastCheckedAtUtc`, `SchedulerLastCheckedLocal`, `SchedulerStatus`, `SchedulerMessage`, `SchedulerCurrentSlot`, `SchedulerNextSlot`, `SchedulerLastQueuedSlot`, `SchedulerLastQueuedAtUtc`, `SchedulerLastSkippedSlot`, `SchedulerLastSkippedAtUtc`, `SchedulerLastMissedSlot`, `SchedulerLastMissedAtUtc`
 - `InvoiceViewingRenderHttpRequest`: `Profile`, `PreferEmbeddedXslt`, `FallbackToDefaultXslt` (JSON body'de `fallbackToGeneral` olarak gonderilir)
@@ -23769,7 +23802,7 @@ Bu bolumde yalnizca endpointlerin dogrudan baglandigi HTTP request modelleri yer
 - `AxataSynchronizationExecuteHttpRequest`: `TaskCode`, `ExecutionMode`, `WarehouseNo`
 - `AxataSynchronizationExecuteTaskHttpRequest`: `ExecutionMode`, `WarehouseNo`
 - `AxataSynchronizationManualDocumentCandidatesHttpRequest`: `WarehouseNo`, `StartDate`, `EndDate`, `Skip`, `Take`
-- `AxataIntegrationAuditHttpRequest`: `StartDate`, `EndDate`, `WarehouseNo`, `Take`, `DocumentSerie`, `DocumentOrderNo`
+- `AxataIntegrationAuditHttpRequest`: `StartDate`, `EndDate`, `WarehouseNo`, `Take`, `DocumentSerie`, `DocumentOrderNo`, `Statuses`
 - `AxataOutboundDeliveryQueuePreviewHttpRequest`: `MovementType`, `Take`
 - `AxataOutboundDeliveriesByDateHttpRequest`: `Date`
 - `AxataOutboundDeliveryImportPreviewHttpRequest`: `Take`

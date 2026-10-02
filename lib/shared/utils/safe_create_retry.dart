@@ -79,20 +79,17 @@ bool shouldKeepSafeCreatePending(SafeCreateFailureKind kind) {
   return kind != SafeCreateFailureKind.notRetryable;
 }
 
-bool requiresSafeCreateReview(SafeCreateFailureKind kind) {
-  return kind == SafeCreateFailureKind.manualReview ||
-      kind == SafeCreateFailureKind.multipleDocuments;
-}
-
 bool canStartNewSafeCreate(SafeCreateFailureKind kind) {
-  return kind == SafeCreateFailureKind.payloadChanged;
+  return kind == SafeCreateFailureKind.payloadChanged ||
+      kind == SafeCreateFailureKind.manualReview ||
+      kind == SafeCreateFailureKind.multipleDocuments;
 }
 
 String safeCreatePendingActionLabel(SafeCreateFailureKind kind) {
   return switch (kind) {
     SafeCreateFailureKind.manualReview ||
-    SafeCreateFailureKind.multipleDocuments => 'Inceleme Gerekli',
-    SafeCreateFailureKind.payloadChanged => 'Yeni Islem',
+    SafeCreateFailureKind.multipleDocuments ||
+    SafeCreateFailureKind.payloadChanged => 'Yeni Bagimsiz Islem',
     SafeCreateFailureKind.notRetryable => 'Islem Kullanilamaz',
     _ => 'Kaydi Tekrar Dene',
   };
