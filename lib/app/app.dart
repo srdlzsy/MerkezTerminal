@@ -264,28 +264,35 @@ class _BootPlaceholderPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return const Scaffold(
-      backgroundColor: FurpaBrandColors.canvas,
+      backgroundColor: Color(0xFFF8FAFF),
       body: SafeArea(
         child: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: <Widget>[
-              FurpaBrandLockup(scale: 0.82, showCaption: true),
-              SizedBox(height: 28),
-              SizedBox(
-                width: 28,
-                height: 28,
-                child: CircularProgressIndicator(strokeWidth: 3),
-              ),
-              SizedBox(height: 12),
-              Text(
-                'Oturum hazirlaniyor...',
-                style: TextStyle(
-                  color: FurpaBrandColors.muted,
-                  fontWeight: FontWeight.w600,
+          child: Padding(
+            padding: EdgeInsets.symmetric(horizontal: 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                FurpaStartupLockup(),
+                SizedBox(height: 26),
+                SizedBox(
+                  width: 112,
+                  child: LinearProgressIndicator(
+                    minHeight: 3,
+                    borderRadius: BorderRadius.all(Radius.circular(2)),
+                    color: FurpaBrandColors.navy,
+                    backgroundColor: Color(0xFFDDE2EE),
+                  ),
                 ),
-              ),
-            ],
+                SizedBox(height: 12),
+                Text(
+                  'Oturum hazirlaniyor...',
+                  style: TextStyle(
+                    color: FurpaBrandColors.muted,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),

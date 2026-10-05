@@ -10,19 +10,28 @@ class SplashPage extends StatelessWidget {
 
     return Scaffold(
       body: DecoratedBox(
-        decoration: const BoxDecoration(color: Color(0xFFF6F8FC)),
+        decoration: const BoxDecoration(color: Color(0xFFF8FAFF)),
         child: Center(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: <Widget>[
-              const FurpaBrandLockup(scale: 1.08, showCaption: true),
-              const SizedBox(height: 20),
-              CircularProgressIndicator(color: theme.colorScheme.primary),
-              const SizedBox(height: 14),
+              const FurpaStartupLockup(markSize: 88),
+              const SizedBox(height: 24),
+              SizedBox(
+                width: 112,
+                child: LinearProgressIndicator(
+                  minHeight: 3,
+                  borderRadius: BorderRadius.circular(2),
+                  color: theme.colorScheme.primary,
+                  backgroundColor: const Color(0xFFDDE2EE),
+                ),
+              ),
+              const SizedBox(height: 12),
               Text(
-                'Furpa Merkez Terminal baslatiliyor...',
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w700,
+                'Uygulama hazirlaniyor...',
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: FurpaBrandColors.muted,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
             ],

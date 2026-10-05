@@ -12,6 +12,100 @@ abstract final class FurpaBrandAssets {
   static const String logo = 'assets/branding/furpa logo.png';
 }
 
+class FurpaStartupLockup extends StatelessWidget {
+  const FurpaStartupLockup({
+    super.key,
+    this.markSize = 82,
+    this.showProductName = true,
+  });
+
+  final double markSize;
+  final bool showProductName;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Semantics(
+      label: 'Furpa Merkez Terminal',
+      image: true,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          FurpaStartupMark(size: markSize),
+          const SizedBox(height: 14),
+          Text(
+            'FURPA',
+            style: theme.textTheme.headlineSmall?.copyWith(
+              color: FurpaBrandColors.navy,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 0,
+            ),
+          ),
+          if (showProductName) ...<Widget>[
+            const SizedBox(height: 2),
+            Text(
+              'MERKEZ TERMINAL',
+              style: theme.textTheme.labelMedium?.copyWith(
+                color: FurpaBrandColors.muted,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class FurpaStartupMark extends StatelessWidget {
+  const FurpaStartupMark({super.key, this.size = 82});
+
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox.square(
+      dimension: size,
+      child: CustomPaint(painter: const _FurpaStartupMarkPainter()),
+    );
+  }
+}
+
+class _FurpaStartupMarkPainter extends CustomPainter {
+  const _FurpaStartupMarkPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final scaleX = size.width / 108;
+    final scaleY = size.height / 108;
+    canvas.scale(scaleX, scaleY);
+
+    final backgroundPaint = Paint()..color = FurpaBrandColors.yellow;
+    final borderPaint = Paint()
+      ..color = FurpaBrandColors.navy.withAlpha(28)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.5;
+    final markBounds = RRect.fromRectAndRadius(
+      const Rect.fromLTWH(14, 14, 80, 80),
+      const Radius.circular(18),
+    );
+    canvas
+      ..drawRRect(markBounds, backgroundPaint)
+      ..drawRRect(markBounds, borderPaint);
+
+    final letterPaint = Paint()..color = FurpaBrandColors.navy;
+    canvas
+      ..drawRect(const Rect.fromLTWH(32, 28, 12, 52), letterPaint)
+      ..drawRect(const Rect.fromLTWH(44, 28, 32, 12), letterPaint)
+      ..drawRect(const Rect.fromLTWH(44, 48, 24, 12), letterPaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _FurpaStartupMarkPainter oldDelegate) => false;
+}
+
 class FurpaBrandLockup extends StatelessWidget {
   const FurpaBrandLockup({
     super.key,
