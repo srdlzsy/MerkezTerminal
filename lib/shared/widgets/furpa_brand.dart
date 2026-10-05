@@ -87,19 +87,16 @@ class _FurpaStartupMarkPainter extends CustomPainter {
       ..color = FurpaBrandColors.navy.withAlpha(28)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.5;
-    final markBounds = RRect.fromRectAndRadius(
-      const Rect.fromLTWH(14, 14, 80, 80),
-      const Radius.circular(18),
-    );
+    const markBounds = Rect.fromLTWH(10, 10, 88, 88);
     canvas
-      ..drawRRect(markBounds, backgroundPaint)
-      ..drawRRect(markBounds, borderPaint);
+      ..drawOval(markBounds, backgroundPaint)
+      ..drawOval(markBounds, borderPaint);
 
     final letterPaint = Paint()..color = FurpaBrandColors.navy;
     canvas
-      ..drawRect(const Rect.fromLTWH(32, 28, 12, 52), letterPaint)
-      ..drawRect(const Rect.fromLTWH(44, 28, 32, 12), letterPaint)
-      ..drawRect(const Rect.fromLTWH(44, 48, 24, 12), letterPaint);
+      ..drawRect(const Rect.fromLTWH(34, 28, 12, 52), letterPaint)
+      ..drawRect(const Rect.fromLTWH(46, 28, 30, 12), letterPaint)
+      ..drawRect(const Rect.fromLTWH(46, 48, 22, 12), letterPaint);
   }
 
   @override
