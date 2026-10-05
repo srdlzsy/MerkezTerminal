@@ -100,6 +100,70 @@ void main() {
   );
 
   test(
+    'checkForUpdate uses Android build number when manifest provides it',
+    () async {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, (call) async {
+            if (call.method == 'getAppVersionInfo') {
+              return <String, Object?>{
+                'versionName': '1.1.83',
+                'versionCode': 84,
+              };
+            }
+            return null;
+          });
+
+      final service = AppUpdateService(
+        httpClient: MockClient((_) async {
+          return http.Response(
+            '{"version":"1.1.83","buildNumber":85,'
+            '"apk":"http://updates.test/app-release.apk"}',
+            200,
+          );
+        }),
+        manifestUri: Uri.parse('http://updates.test/version.json'),
+        channel: channel,
+      );
+
+      final updateInfo = await service.checkForUpdate();
+
+      expect(updateInfo?.currentBuildNumber, 84);
+      expect(updateInfo?.buildNumber, 85);
+      expect(updateInfo?.version, '1.1.83');
+    },
+  );
+
+  test(
+    'checkForUpdate does not loop when build number is already installed',
+    () async {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, (call) async {
+            if (call.method == 'getAppVersionInfo') {
+              return <String, Object?>{
+                'versionName': '1.1.83',
+                'versionCode': 84,
+              };
+            }
+            return null;
+          });
+
+      final service = AppUpdateService(
+        httpClient: MockClient((_) async {
+          return http.Response(
+            '{"version":"1.1.99","buildNumber":84,'
+            '"apk":"http://updates.test/app-release.apk"}',
+            200,
+          );
+        }),
+        manifestUri: Uri.parse('http://updates.test/version.json'),
+        channel: channel,
+      );
+
+      expect(await service.checkForUpdate(), isNull);
+    },
+  );
+
+  test(
     'checkForUpdate falls back to universal APK without matching ABI',
     () async {
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
@@ -163,6 +227,8 @@ void main() {
           currentVersion: '1.1.20',
           version: '1.1.21 beta/terminal',
           apkUri: Uri.parse('http://updates.test/app-release.apk'),
+          currentBuildNumber: 20,
+          buildNumber: 21,
           apkAbi: 'arm64-v8a',
         ),
       );
@@ -175,6 +241,9 @@ void main() {
         'furpa-terminal-1.1.21_beta_terminal-arm64-v8a.apk',
       );
       expect(arguments['requestId'], isA<String>());
+      expect(arguments['expectedVersion'], '1.1.21 beta/terminal');
+      expect(arguments['expectedVersionCode'], 21);
+      expect(arguments['installedVersionCode'], 20);
     },
   );
 

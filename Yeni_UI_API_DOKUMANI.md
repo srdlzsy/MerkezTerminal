@@ -1250,6 +1250,7 @@ Guvenli create `409 Conflict` response sozlesmesi:
 
 - Siniflandirilmis create cakismalarinda standart ProblemDetails alanlarina ek olarak `errorCode` ve `retryable` doner.
 - `MIKRO_WRITE_IN_PROGRESS`, `retryable=true`: ayni `clientRequestId` halen isleniyor veya onceki belirsiz yazmanin readback sonucu bekleniyor. UI payload snapshot'ini korur; yeni id uretmez.
+- `MIKRO_WRITE_QUEUE_BUSY`, `retryable=true`: depolar arasi sevkte ayni belge serisinin onceki islemi devam ettigi icin 180 saniyelik kuyruk bekleme siniri dolmustur. Bu istegin Mikro yazimi baslamamistir; UI ayni payload ve ayni `clientRequestId` ile kisa bir sure sonra yeniden deneyebilir. Yeni id uretilmemelidir.
 - `MIKRO_WRITE_OUTCOME_UNCONFIRMED`, `retryable=true`: Mikro yazma sonucu kanitlanamadi. UI ayni payload ve ayni `clientRequestId` ile guvenli retry yapabilir.
 - `MIKRO_DOCUMENT_CONTENT_MISMATCH`, `retryable=false`: Mikro'da ayni evrak anahtariyla kayit vardir fakat satir icerigi istekle tam eslesmemistir. UI `Tekrar Dene` aksiyonunu kapatip `Yetkili incelemesi gerekli` gostermelidir; otomatik veya yeni id ile POST yapmamalidir.
 - Bu manuel inceleme karari backend'de kalici saklanir. Ayni id tekrar gonderilse bile yeniden create veya otomatik recovery yapilmaz. Bu surum manuel incelemeyi kaldiran bir endpoint sunmaz; yetkili incelemesi ve kontrollu duzeltme gerekir.
@@ -1282,7 +1283,7 @@ UI davranis kurali:
 - Timeout veya 500 cevabi sonrasi UI ayni fis icin yeni `clientRequestId` uretirse backend bunu yeni bir create islemi olarak kabul edebilir ve ayni icerikte ikinci evrak olusabilir.
 - Kullanici belirsiz kayit modundayken eski payload ve `clientRequestId` korunmalidir. Sonuc kesinlesmeden ayni fisin yerine yeni id ile kaydetme yapilmaz; form degisikligi pending kaydi dusurmemelidir.
 - Ayni `clientRequestId` ile farkli body gonderilip `CLIENT_REQUEST_PAYLOAD_MISMATCH` donerse UI bunu teknik retry gibi ele almamali; kullaniciya kayit denemesinin iceriginin degistigini anlatmalidir.
-- `CLIENT_REQUEST_PAYLOAD_MISMATCH` sonrasinda kullanici devam edecekse UI yeni `clientRequestId` degerini yalniz acik bir `Yeni islem olarak kaydet` aksiyonuyla uretmelidir. `MIKRO_WRITE_IN_PROGRESS` ve `MIKRO_WRITE_OUTCOME_UNCONFIRMED` durumlarinda yeni id uretilmemelidir.
+- `CLIENT_REQUEST_PAYLOAD_MISMATCH` sonrasinda kullanici devam edecekse UI yeni `clientRequestId` degerini yalniz acik bir `Yeni islem olarak kaydet` aksiyonuyla uretmelidir. `MIKRO_WRITE_QUEUE_BUSY`, `MIKRO_WRITE_IN_PROGRESS` ve `MIKRO_WRITE_OUTCOME_UNCONFIRMED` durumlarinda yeni id uretilmemelidir.
 - `Normal Edit Mode` alanlari degistirilebilir; `Pending/Retry Mode` alanlari kilitlidir. Ekrani kapatmak veya `Vazgec` backend islemini iptal etmez ve saklanan pending kaydi silmemelidir. Yeni id yalniz onceki islemin yerine gecmeyen, acikca bagimsiz yeni islem icin kullanilir.
 
 UI state ornegi:

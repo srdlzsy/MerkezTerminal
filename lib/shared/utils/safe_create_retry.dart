@@ -8,6 +8,7 @@ enum SafeCreateFailureKind {
   notRetryable,
   uncertain,
   processing,
+  queueBusy,
   payloadChanged,
   multipleDocuments,
   manualReview,
@@ -22,6 +23,8 @@ SafeCreateFailureKind classifySafeCreateFailure({
   switch ((errorCode ?? '').trim().toUpperCase()) {
     case 'MIKRO_WRITE_IN_PROGRESS':
       return SafeCreateFailureKind.processing;
+    case 'MIKRO_WRITE_QUEUE_BUSY':
+      return SafeCreateFailureKind.queueBusy;
     case 'MIKRO_WRITE_OUTCOME_UNCONFIRMED':
       return SafeCreateFailureKind.uncertain;
     case 'MIKRO_DOCUMENT_CONTENT_MISMATCH':
@@ -72,7 +75,8 @@ SafeCreateFailureKind classifySafeCreateException(ApiException error) {
 
 bool canRetrySafeCreate(SafeCreateFailureKind kind) {
   return kind == SafeCreateFailureKind.uncertain ||
-      kind == SafeCreateFailureKind.processing;
+      kind == SafeCreateFailureKind.processing ||
+      kind == SafeCreateFailureKind.queueBusy;
 }
 
 bool shouldKeepSafeCreatePending(SafeCreateFailureKind kind) {
@@ -114,6 +118,10 @@ bool shouldOfferSafeCreateRetry(
 String safeCreateRetryErrorMessage(ApiException error) {
   final kind = classifySafeCreateException(error);
   final message = switch (kind) {
+    SafeCreateFailureKind.queueBusy =>
+      'Ayni belge serisindeki onceki islem halen devam ediyor. Bu kaydin '
+          'Mikro yazimi baslamadi. Kisa bir sure sonra ayni kayitla Tekrar '
+          'Dene kullanin; yeni bir islem baslatmayin.',
     SafeCreateFailureKind.processing =>
       'Kayit Mikro tarafinda halen isleniyor. Ayni kaydi yeni bir '
           'islem olarak gondermeyin; kisa bir sure sonra Tekrar Dene kullanin.',

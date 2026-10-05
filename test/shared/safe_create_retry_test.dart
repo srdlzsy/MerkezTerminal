@@ -23,6 +23,14 @@ void main() {
     expect(
       classifySafeCreateFailure(
         statusCode: 409,
+        errorCode: 'MIKRO_WRITE_QUEUE_BUSY',
+        retryable: true,
+      ),
+      SafeCreateFailureKind.queueBusy,
+    );
+    expect(
+      classifySafeCreateFailure(
+        statusCode: 409,
         errorCode: 'MIKRO_WRITE_OUTCOME_UNCONFIRMED',
         retryable: true,
       ),
@@ -44,6 +52,22 @@ void main() {
       ),
       SafeCreateFailureKind.payloadChanged,
     );
+  });
+
+  test('queue busy preserves the request and allows the same retry', () {
+    const conflict = ApiException(
+      statusCode: 409,
+      title: 'Conflict',
+      errorCode: 'MIKRO_WRITE_QUEUE_BUSY',
+      retryable: true,
+    );
+    final kind = classifySafeCreateException(conflict);
+
+    expect(shouldKeepSafeCreatePending(kind), isTrue);
+    expect(canRetrySafeCreate(kind), isTrue);
+    expect(canStartNewSafeCreate(kind), isFalse);
+    expect(safeCreatePendingActionLabel(kind), 'Kaydi Tekrar Dene');
+    expect(safeCreateRetryErrorMessage(conflict), contains('yazimi baslamadi'));
   });
 
   test(

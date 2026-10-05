@@ -2,6 +2,7 @@ package com.furpa.furpa_merkez_terminal
 
 import android.content.ActivityNotFoundException
 import android.content.Intent
+import android.content.pm.PackageInfo
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
@@ -15,6 +16,7 @@ import java.io.FileOutputStream
 import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
+import java.security.MessageDigest
 import kotlin.concurrent.thread
 
 class MainActivity : FlutterActivity() {
@@ -31,11 +33,20 @@ class MainActivity : FlutterActivity() {
         updateChannel.setMethodCallHandler { call, result ->
             when (call.method) {
                 "getAppVersion" -> result.success(appVersionName())
+                "getAppVersionInfo" -> result.success(
+                    mapOf(
+                        "versionName" to appVersionName(),
+                        "versionCode" to appVersionCode(),
+                    ),
+                )
                 "getSupportedAbis" -> result.success(Build.SUPPORTED_ABIS.toList())
                 "downloadAndInstallApk" -> {
                     val url = call.argument<String>("url")
                     val fileName = call.argument<String>("fileName")
                     val requestId = call.argument<String>("requestId")
+                    val expectedVersion = call.argument<String>("expectedVersion")
+                    val expectedVersionCode =
+                        call.argument<Number>("expectedVersionCode")?.toLong()
                     if (url.isNullOrBlank()) {
                         result.error(
                             "INVALID_URL",
@@ -49,6 +60,8 @@ class MainActivity : FlutterActivity() {
                         url,
                         sanitizedFileName(fileName ?: DEFAULT_APK_FILE_NAME),
                         requestId,
+                        expectedVersion,
+                        expectedVersionCode,
                         result,
                     )
                 }
@@ -69,34 +82,33 @@ class MainActivity : FlutterActivity() {
     }
 
     private fun appVersionName(): String {
-        val packageInfo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            packageManager.getPackageInfo(
-                packageName,
-                PackageManager.PackageInfoFlags.of(0),
-            )
-        } else {
-            @Suppress("DEPRECATION")
-            packageManager.getPackageInfo(packageName, 0)
-        }
-
+        val packageInfo = installedPackageInfo(0)
         return packageInfo.versionName ?: "0.0.0"
     }
+
+    private fun appVersionCode(): Long = packageVersionCode(installedPackageInfo(0))
 
     private fun downloadAndInstallApk(
         url: String,
         fileName: String,
         requestId: String?,
+        expectedVersion: String?,
+        expectedVersionCode: Long?,
         result: MethodChannel.Result,
     ) {
         thread(name = "furpa-apk-download") {
             var connection: HttpURLConnection? = null
+            var downloadedApkFile: File? = null
             try {
                 val apkUrl = URL(url)
                 connection = apkUrl.openConnection() as HttpURLConnection
                 connection.connectTimeout = CONNECT_TIMEOUT_MS
                 connection.readTimeout = READ_TIMEOUT_MS
                 connection.instanceFollowRedirects = true
+                connection.useCaches = false
                 connection.requestMethod = "GET"
+                connection.setRequestProperty("Cache-Control", "no-cache, no-store")
+                connection.setRequestProperty("Pragma", "no-cache")
                 connection.connect()
 
                 val statusCode = connection.responseCode
@@ -109,8 +121,10 @@ class MainActivity : FlutterActivity() {
                 if (!updateDir.exists() && !updateDir.mkdirs()) {
                     throw IOException("Guncelleme klasoru hazirlanamadi.")
                 }
+                ensureEnoughStorage(updateDir, totalBytes)
 
                 val apkFile = File(updateDir, fileName)
+                downloadedApkFile = apkFile
                 if (apkFile.exists() && !apkFile.delete()) {
                     throw IOException("Eski guncelleme dosyasi silinemedi.")
                 }
@@ -144,6 +158,19 @@ class MainActivity : FlutterActivity() {
                     }
                 }
                 emitDownloadProgress(requestId, bytesDownloaded, totalBytes)
+                if (bytesDownloaded <= 0L) {
+                    throw ApkValidationException("Indirilen APK dosyasi bos.")
+                }
+                if (totalBytes > 0L && bytesDownloaded != totalBytes) {
+                    throw ApkValidationException(
+                        "APK eksik indirildi ($bytesDownloaded / $totalBytes bayt).",
+                    )
+                }
+                validateDownloadedApk(
+                    apkFile,
+                    expectedVersion,
+                    expectedVersionCode,
+                )
 
                 runOnUiThread {
                     try {
@@ -156,7 +183,26 @@ class MainActivity : FlutterActivity() {
                         )
                     }
                 }
+            } catch (error: InsufficientStorageException) {
+                downloadedApkFile?.delete()
+                runOnUiThread {
+                    result.error(
+                        "INSUFFICIENT_STORAGE",
+                        error.localizedMessage,
+                        null,
+                    )
+                }
+            } catch (error: ApkValidationException) {
+                downloadedApkFile?.delete()
+                runOnUiThread {
+                    result.error(
+                        "INVALID_APK",
+                        error.localizedMessage,
+                        null,
+                    )
+                }
             } catch (error: Exception) {
+                downloadedApkFile?.delete()
                 runOnUiThread {
                     result.error(
                         "DOWNLOAD_FAILED",
@@ -168,6 +214,142 @@ class MainActivity : FlutterActivity() {
                 connection?.disconnect()
             }
         }
+    }
+
+    private fun ensureEnoughStorage(updateDir: File, totalBytes: Long) {
+        if (totalBytes <= 0L) {
+            return
+        }
+
+        val requiredBytes = totalBytes * 2L + MIN_FREE_STORAGE_RESERVE_BYTES
+        if (updateDir.usableSpace < requiredBytes) {
+            val requiredMb = requiredBytes / BYTES_PER_MB
+            val availableMb = updateDir.usableSpace / BYTES_PER_MB
+            throw InsufficientStorageException(
+                "Guncelleme icin yeterli bos alan yok. Gerekli: yaklasik " +
+                    "$requiredMb MB, kullanilabilir: $availableMb MB.",
+            )
+        }
+    }
+
+    private fun validateDownloadedApk(
+        apkFile: File,
+        expectedVersion: String?,
+        expectedVersionCode: Long?,
+    ) {
+        val signingFlags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            PackageManager.GET_SIGNING_CERTIFICATES
+        } else {
+            @Suppress("DEPRECATION")
+            PackageManager.GET_SIGNATURES
+        }
+        val archiveInfo = archivePackageInfo(apkFile, signingFlags)
+            ?: throw ApkValidationException(
+                "Indirilen dosya gecerli bir Android APK'si degil.",
+            )
+        if (archiveInfo.packageName != packageName) {
+            throw ApkValidationException(
+                "Indirilen APK bu uygulamaya ait degil (${archiveInfo.packageName}).",
+            )
+        }
+
+        val archiveVersion = archiveInfo.versionName.orEmpty()
+        if (
+            !expectedVersion.isNullOrBlank() &&
+            normalizeVersion(archiveVersion) != normalizeVersion(expectedVersion)
+        ) {
+            throw ApkValidationException(
+                "Sunucudaki APK surumu beklenen surumle uyusmuyor. " +
+                    "Beklenen: $expectedVersion, APK: $archiveVersion. " +
+                    "APK dosyasini yeniden yayinlayin.",
+            )
+        }
+
+        val archiveVersionCode = packageVersionCode(archiveInfo)
+        if (expectedVersionCode != null && archiveVersionCode != expectedVersionCode) {
+            throw ApkValidationException(
+                "Sunucudaki APK yapi numarasi uyusmuyor. " +
+                    "Beklenen: $expectedVersionCode, APK: $archiveVersionCode.",
+            )
+        }
+
+        val installedInfo = installedPackageInfo(signingFlags)
+        val installedVersionCode = packageVersionCode(installedInfo)
+        if (archiveVersionCode <= installedVersionCode) {
+            throw ApkValidationException(
+                "Indirilen APK yeni degil. Kurulu yapi: $installedVersionCode, " +
+                    "APK yapisi: $archiveVersionCode. Sunucudaki dosyayi kontrol edin.",
+            )
+        }
+
+        val installedSignatures = signingDigests(installedInfo)
+        val archiveSignatures = signingDigests(archiveInfo)
+        if (
+            installedSignatures.isNotEmpty() &&
+            archiveSignatures.isNotEmpty() &&
+            installedSignatures.intersect(archiveSignatures).isEmpty()
+        ) {
+            throw ApkValidationException(
+                "Guncelleme APK'sinin imzasi kurulu uygulamayla uyusmuyor.",
+            )
+        }
+    }
+
+    private fun installedPackageInfo(flags: Int): PackageInfo {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            packageManager.getPackageInfo(
+                packageName,
+                PackageManager.PackageInfoFlags.of(flags.toLong()),
+            )
+        } else {
+            @Suppress("DEPRECATION")
+            packageManager.getPackageInfo(packageName, flags)
+        }
+    }
+
+    private fun archivePackageInfo(apkFile: File, flags: Int): PackageInfo? {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            packageManager.getPackageArchiveInfo(
+                apkFile.absolutePath,
+                PackageManager.PackageInfoFlags.of(flags.toLong()),
+            )
+        } else {
+            @Suppress("DEPRECATION")
+            packageManager.getPackageArchiveInfo(apkFile.absolutePath, flags)
+        }
+    }
+
+    private fun packageVersionCode(packageInfo: PackageInfo): Long {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            packageInfo.longVersionCode
+        } else {
+            @Suppress("DEPRECATION")
+            packageInfo.versionCode.toLong()
+        }
+    }
+
+    private fun signingDigests(packageInfo: PackageInfo): Set<String> {
+        val signatures = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            val signingInfo = packageInfo.signingInfo ?: return emptySet()
+            if (signingInfo.hasMultipleSigners()) {
+                signingInfo.apkContentsSigners
+            } else {
+                signingInfo.signingCertificateHistory
+            }
+        } else {
+            @Suppress("DEPRECATION")
+            packageInfo.signatures
+        }
+
+        return signatures.orEmpty().map { signature ->
+            MessageDigest.getInstance("SHA-256")
+                .digest(signature.toByteArray())
+                .joinToString("") { byte -> "%02x".format(byte) }
+        }.toSet()
+    }
+
+    private fun normalizeVersion(version: String): String {
+        return version.trim().removePrefix("v").substringBefore("+")
     }
 
     private fun emitDownloadProgress(
@@ -249,5 +431,11 @@ class MainActivity : FlutterActivity() {
         const val CONNECT_TIMEOUT_MS = 15_000
         const val READ_TIMEOUT_MS = 60_000
         const val PROGRESS_EMIT_INTERVAL_MS = 250L
+        const val BYTES_PER_MB = 1024L * 1024L
+        const val MIN_FREE_STORAGE_RESERVE_BYTES = 32L * BYTES_PER_MB
     }
 }
+
+private class InsufficientStorageException(message: String) : IOException(message)
+
+private class ApkValidationException(message: String) : IOException(message)

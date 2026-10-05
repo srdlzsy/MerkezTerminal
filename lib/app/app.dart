@@ -81,14 +81,21 @@ class _FurpaMerkezAppState extends State<FurpaMerkezApp> {
         return;
       }
 
+      final currentVersionLabel = updateInfo.currentBuildNumber == null
+          ? updateInfo.currentVersion
+          : '${updateInfo.currentVersion} (${updateInfo.currentBuildNumber})';
+      final newVersionLabel = updateInfo.buildNumber == null
+          ? updateInfo.version
+          : '${updateInfo.version} (${updateInfo.buildNumber})';
+
       final shouldDownload = await showDialog<bool>(
         context: dialogContext,
         builder: (context) {
           return AlertDialog(
             title: const Text('Yeni surum var'),
             content: Text(
-              'Mevcut surum: ${updateInfo.currentVersion}\n'
-              'Yeni surum: ${updateInfo.version}\n\n'
+              'Mevcut surum: $currentVersionLabel\n'
+              'Yeni surum: $newVersionLabel\n\n'
               'Guncellemeyi indirelim mi?',
             ),
             actions: <Widget>[
@@ -193,6 +200,11 @@ class _FurpaMerkezAppState extends State<FurpaMerkezApp> {
         _showMessage(
           'Kurulum izni sayfasi acildi. Izin verilince kurulum ekrani '
           'otomatik acilacak.',
+        );
+      } else {
+        _showMessage(
+          'APK dogrulandi. Kurulum ekraninda Kur secenegine basin; '
+          'kurulumu iptal ederseniz guncelleme yeniden gosterilir.',
         );
       }
     } on PlatformException catch (error) {

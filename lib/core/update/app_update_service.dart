@@ -11,12 +11,16 @@ class AppUpdateInfo {
     required this.currentVersion,
     required this.version,
     required this.apkUri,
+    this.currentBuildNumber,
+    this.buildNumber,
     this.apkAbi,
   });
 
   final String currentVersion;
   final String version;
   final Uri apkUri;
+  final int? currentBuildNumber;
+  final int? buildNumber;
   final String? apkAbi;
 }
 
@@ -71,8 +75,8 @@ class AppUpdateService {
       return null;
     }
 
-    final currentVersion = await _currentVersion();
-    if (currentVersion == null || currentVersion.trim().isEmpty) {
+    final installed = await _currentVersionInfo();
+    if (installed == null || installed.version.trim().isEmpty) {
       return null;
     }
 
@@ -96,19 +100,26 @@ class AppUpdateService {
       throw const AppUpdateException('Guncelleme bilgisi eksik.');
     }
 
+    final remoteBuildNumber = _readManifestBuildNumber(decoded);
     final apkSelection = await _selectApk(decoded);
     if (apkSelection == null || !_isAbsoluteHttpUri(apkSelection.uri)) {
       throw const AppUpdateException('APK adresi gecersiz.');
     }
 
-    if (_compareVersions(remoteVersion, currentVersion) <= 0) {
+    final hasNewerBuild =
+        remoteBuildNumber != null && installed.buildNumber != null
+        ? remoteBuildNumber > installed.buildNumber!
+        : _compareVersions(remoteVersion, installed.version) > 0;
+    if (!hasNewerBuild) {
       return null;
     }
 
     return AppUpdateInfo(
-      currentVersion: currentVersion,
+      currentVersion: installed.version,
       version: remoteVersion.trim(),
       apkUri: apkSelection.uri,
+      currentBuildNumber: installed.buildNumber,
+      buildNumber: remoteBuildNumber,
       apkAbi: apkSelection.abi,
     );
   }
@@ -128,6 +139,9 @@ class AppUpdateService {
           'url': updateInfo.apkUri.toString(),
           'fileName': _updateFileName(updateInfo.version, updateInfo.apkAbi),
           'requestId': requestId,
+          'expectedVersion': updateInfo.version,
+          'expectedVersionCode': updateInfo.buildNumber,
+          'installedVersionCode': updateInfo.currentBuildNumber,
         })
         .whenComplete(() {
           _progressCallbacks.remove(requestId);
@@ -164,9 +178,30 @@ class AppUpdateService {
     );
   }
 
-  Future<String?> _currentVersion() async {
+  Future<_InstalledAppVersion?> _currentVersionInfo() async {
     try {
-      return await _channel.invokeMethod<String>('getAppVersion');
+      final response = await _channel.invokeMapMethod<String, Object?>(
+        'getAppVersionInfo',
+      );
+      final version = response?['versionName']?.toString().trim() ?? '';
+      if (version.isNotEmpty) {
+        return _InstalledAppVersion(
+          version: version,
+          buildNumber: _readNullableInt(response?['versionCode']),
+        );
+      }
+    } on MissingPluginException {
+      // Eski native katman ile geriye uyumluluk icin devam et.
+    } on PlatformException {
+      // Eski native katman ile geriye uyumluluk icin devam et.
+    }
+
+    try {
+      final version = await _channel.invokeMethod<String>('getAppVersion');
+      if (version == null || version.trim().isEmpty) {
+        return null;
+      }
+      return _InstalledAppVersion(version: version.trim());
     } on MissingPluginException {
       return null;
     } on PlatformException {
@@ -259,6 +294,16 @@ class AppUpdateService {
     return manifest['apk'];
   }
 
+  static int? _readManifestBuildNumber(Map<String, Object?> manifest) {
+    final android = manifest['android'];
+    return _readNullableInt(manifest['buildNumber']) ??
+        _readNullableInt(manifest['versionCode']) ??
+        (android is Map
+            ? _readNullableInt(android['buildNumber']) ??
+                  _readNullableInt(android['versionCode'])
+            : null);
+  }
+
   static Uri? _readHttpUri(Object? value) {
     if (value is! String || value.trim().isEmpty) {
       return null;
@@ -335,6 +380,26 @@ class AppUpdateService {
 
     return int.tryParse(value?.toString() ?? '') ?? 0;
   }
+
+  static int? _readNullableInt(Object? value) {
+    if (value == null) {
+      return null;
+    }
+    if (value is int) {
+      return value;
+    }
+    if (value is num) {
+      return value.toInt();
+    }
+    return int.tryParse(value.toString().trim());
+  }
+}
+
+class _InstalledAppVersion {
+  const _InstalledAppVersion({required this.version, this.buildNumber});
+
+  final String version;
+  final int? buildNumber;
 }
 
 class _SelectedUpdateApk {

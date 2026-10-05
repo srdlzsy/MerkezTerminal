@@ -55,33 +55,42 @@ Olusan dosya:
 build/app/outputs/flutter-apk/app-release.apk
 ```
 
-## 5. Sunucuya Kopyala
+## 5. Sunucuya Surumlu Adla Kopyala
 
-Sunucu klasorunu kendi ortamina gore degistir.
+Ayni URL altinda eski APK'nin cache'ten gelmemesi icin her yayin farkli dosya
+adi kullanmalidir. Sunucu klasorunu kendi ortamina gore degistir.
 
 ```powershell
 $ServerPath = "\\10.0.0.100\Terminal"
+$VersionName = "1.1.42"
+$BuildNumber = "43"
+$ReleaseId = "$VersionName-$BuildNumber"
 
-Copy-Item "build/app/outputs/flutter-apk/app-arm64-v8a-release.apk" "$ServerPath\app-arm64-v8a-release.apk" -Force
-Copy-Item "build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk" "$ServerPath\app-armeabi-v7a-release.apk" -Force
-Copy-Item "build/app/outputs/flutter-apk/app-x86_64-release.apk" "$ServerPath\app-x86_64-release.apk" -Force
-Copy-Item "build/app/outputs/flutter-apk/app-release.apk" "$ServerPath\app-release.apk" -Force
+Copy-Item "build/app/outputs/flutter-apk/app-arm64-v8a-release.apk" "$ServerPath\furpa-terminal-$ReleaseId-arm64-v8a.apk" -Force
+Copy-Item "build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk" "$ServerPath\furpa-terminal-$ReleaseId-armeabi-v7a.apk" -Force
+Copy-Item "build/app/outputs/flutter-apk/app-x86_64-release.apk" "$ServerPath\furpa-terminal-$ReleaseId-x86_64.apk" -Force
+Copy-Item "build/app/outputs/flutter-apk/app-release.apk" "$ServerPath\furpa-terminal-$ReleaseId-universal.apk" -Force
 ```
 
 ## 6. version.json Guncelle
 
-Ornek yeni manifest:
+APK dosyalarini sunucuya kopyalayip URL'lerini kontrol ettikten sonra
+`version.json` dosyasini en son yayinla. `buildNumber`, `pubspec.yaml` icindeki
+`+` isaretinden sonraki Android `versionCode` degeriyle ayni olmalidir.
+
+Ornek yeni manifest (`version: 1.1.42+43` icin):
 
 ```json
 {
   "version": "1.1.42",
-  "apk": "http://10.0.0.100:802/Terminal/app-release.apk",
+  "buildNumber": 43,
+  "apk": "http://10.0.0.100:802/Terminal/furpa-terminal-1.1.42-43-universal.apk",
   "android": {
-    "universalUrl": "http://10.0.0.100:802/Terminal/app-release.apk",
+    "universalUrl": "http://10.0.0.100:802/Terminal/furpa-terminal-1.1.42-43-universal.apk",
     "apks": {
-      "arm64-v8a": "http://10.0.0.100:802/Terminal/app-arm64-v8a-release.apk",
-      "armeabi-v7a": "http://10.0.0.100:802/Terminal/app-armeabi-v7a-release.apk",
-      "x86_64": "http://10.0.0.100:802/Terminal/app-x86_64-release.apk"
+      "arm64-v8a": "http://10.0.0.100:802/Terminal/furpa-terminal-1.1.42-43-arm64-v8a.apk",
+      "armeabi-v7a": "http://10.0.0.100:802/Terminal/furpa-terminal-1.1.42-43-armeabi-v7a.apk",
+      "x86_64": "http://10.0.0.100:802/Terminal/furpa-terminal-1.1.42-43-x86_64.apk"
     }
   }
 }
@@ -89,13 +98,25 @@ Ornek yeni manifest:
 
 Eski uygulamalar sadece `apk` alanini okur. Yeni uygulamalar cihaz ABI'sine uygun APK'yi `android.apks` icinden secer.
 
+Yeni uygulama indirdigi APK'nin paket adini, imzasini, `version` ve
+`buildNumber` degerlerini kurulumdan once dogrular. Yanlis/eski APK sunulursa
+kurulum ekrani acilmaz ve kullaniciya Turkce hata gosterilir.
+
 ## 7. Sunucudan Kontrol Et
 
 ```powershell
 Invoke-WebRequest "http://10.0.0.100:802/Terminal/version.json" | Select-Object -ExpandProperty Content
-Invoke-WebRequest "http://10.0.0.100:802/Terminal/app-arm64-v8a-release.apk" -Method Head
-Invoke-WebRequest "http://10.0.0.100:802/Terminal/app-armeabi-v7a-release.apk" -Method Head
+Invoke-WebRequest "http://10.0.0.100:802/Terminal/furpa-terminal-1.1.42-43-arm64-v8a.apk" -Method Head
+Invoke-WebRequest "http://10.0.0.100:802/Terminal/furpa-terminal-1.1.42-43-armeabi-v7a.apk" -Method Head
 ```
+
+Kontrol listesi:
+
+- APK URL'leri `200` donuyor mu?
+- `Content-Length` sifirdan buyuk mu?
+- APK release anahtariyla imzalandi mi?
+- `version.json` icindeki `version/buildNumber`, APK ile ayni mi?
+- `version.json`, tum APK dosyalari kopyalandiktan sonra mi yayinlandi?
 
 ## 8. Hizli Tek Komut Akisi
 
@@ -106,5 +127,19 @@ flutter build apk --release --split-per-abi
 flutter build apk --release
 ```
 
-Sonra APK dosyalarini sunucuya kopyala ve `version.json` icindeki `version` degerini yeni surume cek.
+Sonra APK dosyalarini surumlu adlarla sunucuya kopyala. URL'leri kontrol et ve
+`version.json` dosyasini en son yeni `version/buildNumber` ile yayinla.
+
+## 9. Guncelleme Tekrar Gorunuyorsa
+
+Kurulumdan sonra ayni guncelleme tekrar cikiyorsa su noktalari kontrol et:
+
+1. Android kurulum ekraninda `Kur` secenegine basildi mi? Sadece ekranin
+   acilmasi kurulumun tamamlandigi anlamina gelmez.
+2. Cihazda yeterli bos alan var mi? Uygulama artik indirmeden once alan kontrolu
+   yapar ve yetersizse gerekli/kullanilabilir MB bilgisini gosterir.
+3. Sunucudaki APK gercekten yeni `versionCode` degerini tasiyor mu?
+4. APK ayni release sertifikasiyla imzalandi mi?
+5. Sabit/eski bir APK URL'si cache'ten donuyor mu? Her yayin icin yukaridaki
+   surumlu dosya adlarini kullan.
 
