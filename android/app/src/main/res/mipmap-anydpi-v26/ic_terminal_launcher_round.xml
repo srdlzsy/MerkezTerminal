@@ -3,7 +3,7 @@
     <background android:drawable="@color/ic_launcher_background" />
     <foreground>
         <inset
-            android:drawable="@drawable/launch_brand_mark"
+            android:drawable="@drawable/ic_launcher_foreground"
             android:inset="16%" />
     </foreground>
     <monochrome android:drawable="@drawable/ic_launcher_monochrome" />

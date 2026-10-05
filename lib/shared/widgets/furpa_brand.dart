@@ -10,6 +10,7 @@ abstract final class FurpaBrandColors {
 
 abstract final class FurpaBrandAssets {
   static const String logo = 'assets/branding/furpa logo.png';
+  static const String appIcon = 'assets/branding/furpa_92x92.png';
 }
 
 class FurpaStartupLockup extends StatelessWidget {
@@ -66,41 +67,14 @@ class FurpaStartupMark extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox.square(
-      dimension: size,
-      child: CustomPaint(painter: const _FurpaStartupMarkPainter()),
+    return Image.asset(
+      FurpaBrandAssets.appIcon,
+      width: size,
+      height: size,
+      fit: BoxFit.contain,
+      filterQuality: FilterQuality.high,
     );
   }
-}
-
-class _FurpaStartupMarkPainter extends CustomPainter {
-  const _FurpaStartupMarkPainter();
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final scaleX = size.width / 108;
-    final scaleY = size.height / 108;
-    canvas.scale(scaleX, scaleY);
-
-    final backgroundPaint = Paint()..color = FurpaBrandColors.yellow;
-    final borderPaint = Paint()
-      ..color = FurpaBrandColors.navy.withAlpha(28)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.5;
-    const markBounds = Rect.fromLTWH(10, 10, 88, 88);
-    canvas
-      ..drawOval(markBounds, backgroundPaint)
-      ..drawOval(markBounds, borderPaint);
-
-    final letterPaint = Paint()..color = FurpaBrandColors.navy;
-    canvas
-      ..drawRect(const Rect.fromLTWH(34, 28, 12, 52), letterPaint)
-      ..drawRect(const Rect.fromLTWH(46, 28, 30, 12), letterPaint)
-      ..drawRect(const Rect.fromLTWH(46, 48, 22, 12), letterPaint);
-  }
-
-  @override
-  bool shouldRepaint(covariant _FurpaStartupMarkPainter oldDelegate) => false;
 }
 
 class FurpaBrandLockup extends StatelessWidget {
