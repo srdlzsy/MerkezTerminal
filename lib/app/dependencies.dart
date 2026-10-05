@@ -71,6 +71,7 @@ class AppDependencies {
     apiClient.configureAuthentication(
       accessTokenProvider: () => sessionController.accessToken,
       unauthorizedRecoveryHandler: sessionController.handleUnauthorized,
+      mutationRequestGuard: sessionController.ensureWarehouseContextForMutation,
     );
     final inventoryCountsRepository = ApiInventoryCountsRepository(
       apiClient: apiClient,

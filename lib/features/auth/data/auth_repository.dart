@@ -29,6 +29,7 @@ class AuthRepository {
     final loginResponse = LoginResponse.fromJson(
       await _apiClient.postJsonMap(
         '/api/auth/login',
+        verifyWarehouseContext: false,
         body: LoginRequest(
           usernameOrEmail: usernameOrEmail,
           password: password,
@@ -392,6 +393,7 @@ class AuthRepository {
           refreshPath,
           body: <String, dynamic>{'refreshToken': normalizedRefreshToken},
           allowUnauthorizedRecovery: false,
+          verifyWarehouseContext: false,
         ),
       );
 
@@ -440,6 +442,7 @@ class AuthRepository {
         logoutPath,
         body: <String, dynamic>{'refreshToken': refreshToken},
         allowUnauthorizedRecovery: false,
+        verifyWarehouseContext: false,
       );
     } on ApiException {
       // Lokal cikis server logout hatasina takilmamali.

@@ -69,6 +69,45 @@ void main() {
       expect(find.textContaining('Kaleme Ekle'), findsNothing);
     },
   );
+
+  testWidgets(
+    'shows the updated total when the same barcode is scanned again',
+    (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: InventoryCountCreateSheet(
+              repository: _FakeInventoryCountsRepository(),
+              accessToken: 'token',
+              defaultWarehouseNo: '110',
+              mobileProductCatalogRepository:
+                  MobileProductCatalogLocalRepository(
+                    database: MemoryLocalDatabase(),
+                  ),
+            ),
+          ),
+        ),
+      );
+
+      final firstLookup = find.widgetWithText(
+        TextFormField,
+        'Barkod / stok kodu / urun adi',
+      );
+      await tester.enterText(firstLookup, '8690000000012');
+      await tester.tap(find.widgetWithText(FilledButton, 'Urun').first);
+      await tester.pumpAndSettle();
+
+      final pendingLookup = find.widgetWithText(
+        TextFormField,
+        'Barkod okut / urun degistir',
+      );
+      await tester.enterText(pendingLookup, '8690000000012');
+      await tester.tap(find.widgetWithText(FilledButton, 'Urun').first);
+      await tester.pump();
+
+      expect(find.text('Test Urun: toplam 2 AD sayildi.'), findsOneWidget);
+    },
+  );
 }
 
 class _FakeInventoryCountsRepository implements InventoryCountsRepository {

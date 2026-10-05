@@ -28,6 +28,41 @@ void main() {
       saveButtonFinder: find.widgetWithText(FilledButton, 'Taslagi Kaydet'),
     );
   });
+
+  testWidgets('shows the updated total after an offline repeat scan', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: OfflineInventoryCountCreateSheet(
+            onlineRepository: _FakeInventoryCountsRepository(),
+            accessToken: 'token',
+            currentUserId: 'user-1',
+            defaultWarehouseNo: '110',
+            mobileProductCatalogRepository: MobileProductCatalogLocalRepository(
+              database: MemoryLocalDatabase(),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final firstLookup = find.widgetWithText(TextField, 'Online urun ara');
+    await tester.enterText(firstLookup, '8690000000012');
+    await tester.tap(find.widgetWithText(FilledButton, 'Bul').first);
+    await tester.pumpAndSettle();
+
+    final pendingLookup = find.widgetWithText(
+      TextField,
+      'Barkod okut / urun degistir',
+    );
+    await tester.enterText(pendingLookup, '8690000000012');
+    await tester.tap(find.widgetWithText(FilledButton, 'Bul').first);
+    await tester.pump();
+
+    expect(find.text('Test Urun: toplam 2 AD sayildi.'), findsOneWidget);
+  });
 }
 
 class _FakeInventoryCountsRepository implements InventoryCountsRepository {
@@ -69,5 +104,15 @@ class _FakeInventoryCountsRepository implements InventoryCountsRepository {
     required String warehouseNo,
     required String query,
     bool includeDelisted = true,
-  }) async => const <InventoryCountProductLookupItem>[];
+  }) async => const <InventoryCountProductLookupItem>[
+    InventoryCountProductLookupItem(
+      warehouseNo: 110,
+      barcode: '8690000000012',
+      stockCode: '015792',
+      stockName: 'Test Urun',
+      unitName: 'AD',
+      price: 125,
+      isGoodsAcceptanceBlocked: false,
+    ),
+  ];
 }

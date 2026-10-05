@@ -227,9 +227,7 @@ class _HomeShellPageState extends State<HomeShellPage>
 
     if (!_isWarehouseContextVerified) {
       final result = await _refreshWarehouseContext(showProgress: true);
-      if (!mounted ||
-          result == WarehouseContextGuardResult.signedOut ||
-          result == WarehouseContextGuardResult.notAuthenticated) {
+      if (!mounted || result != WarehouseContextGuardResult.verified) {
         return;
       }
     }
@@ -381,8 +379,8 @@ class _HomeShellPageState extends State<HomeShellPage>
       if (result == WarehouseContextGuardResult.verified) {
         _isWarehouseContextVerified = true;
         _isWarehouseContextUnavailable = false;
-      } else if (result == WarehouseContextGuardResult.unavailable &&
-          !_isWarehouseContextVerified) {
+      } else if (result == WarehouseContextGuardResult.unavailable) {
+        _isWarehouseContextVerified = false;
         _isWarehouseContextUnavailable = true;
       }
     });

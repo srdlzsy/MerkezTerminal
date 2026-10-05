@@ -59,7 +59,7 @@ void main() {
       final kind = classifySafeCreateException(conflict);
 
       expect(shouldKeepSafeCreatePending(kind), isTrue);
-    expect(canRetrySafeCreate(kind), isFalse);
+      expect(canRetrySafeCreate(kind), isFalse);
       expect(canStartNewSafeCreate(kind), isTrue);
       expect(safeCreatePendingActionLabel(kind), 'Yeni Bagimsiz Islem');
       expect(safeCreateRetryErrorMessage(conflict), contains('yetkili'));
@@ -86,6 +86,22 @@ void main() {
         message: 'multiple Mikro documents: F120/1, F120/2',
       ),
       SafeCreateFailureKind.multipleDocuments,
+    );
+  });
+
+  test('preserves correlation id in classified create errors', () {
+    const conflict = ApiException(
+      statusCode: 409,
+      title: 'Conflict',
+      detail: 'Belge icerigi uyusmuyor.',
+      errorCode: 'MIKRO_DOCUMENT_CONTENT_MISMATCH',
+      retryable: false,
+      correlationId: 'trace-789',
+    );
+
+    expect(
+      safeCreateRetryErrorMessage(conflict),
+      contains('Destek kodu: trace-789'),
     );
   });
 }

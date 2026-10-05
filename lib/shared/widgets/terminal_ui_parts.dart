@@ -2688,28 +2688,35 @@ class TerminalMessageBlock extends StatelessWidget {
     : backgroundColor = const Color(0xFFFFE5E5),
       borderColor = const Color(0xFFEAA3A3),
       foregroundColor = const Color(0xFF7A1818),
+      canCopySupportCode = true,
       isLoading = false;
 
   const TerminalMessageBlock.info({super.key, required this.message})
     : backgroundColor = const Color(0xFFF7F9FD),
       borderColor = const Color(0xFFD8DFEC),
       foregroundColor = const Color(0xFF35506D),
+      canCopySupportCode = false,
       isLoading = false;
 
   const TerminalMessageBlock.loading({super.key, required this.message})
     : backgroundColor = const Color(0xFFF7F9FD),
       borderColor = const Color(0xFFD8DFEC),
       foregroundColor = const Color(0xFF35506D),
+      canCopySupportCode = false,
       isLoading = true;
 
   final String message;
   final Color backgroundColor;
   final Color borderColor;
   final Color foregroundColor;
+  final bool canCopySupportCode;
   final bool isLoading;
 
   @override
   Widget build(BuildContext context) {
+    final supportCode = canCopySupportCode
+        ? RegExp(r'Destek kodu:\s*([^\s]+)').firstMatch(message)?.group(1)
+        : null;
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
@@ -2738,9 +2745,40 @@ class TerminalMessageBlock extends StatelessWidget {
                 ),
               ],
             )
-          : _TerminalMessageText(
-              message: message,
-              foregroundColor: foregroundColor,
+          : Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: <Widget>[
+                Expanded(
+                  child: _TerminalMessageText(
+                    message: message,
+                    foregroundColor: foregroundColor,
+                  ),
+                ),
+                if (supportCode != null) ...<Widget>[
+                  const SizedBox(width: 4),
+                  IconButton(
+                    visualDensity: VisualDensity.compact,
+                    tooltip: 'Destek kodunu kopyala',
+                    onPressed: () async {
+                      await Clipboard.setData(ClipboardData(text: supportCode));
+                      if (!context.mounted) {
+                        return;
+                      }
+                      ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+                        const SnackBar(
+                          content: Text('Destek kodu kopyalandi.'),
+                          duration: Duration(seconds: 2),
+                        ),
+                      );
+                    },
+                    icon: Icon(
+                      Icons.copy_rounded,
+                      size: 19,
+                      color: foregroundColor,
+                    ),
+                  ),
+                ],
+              ],
             ),
     );
   }

@@ -727,12 +727,14 @@ class _OfflineInventoryCountCreateSheetState
     }
 
     final increment = _unitMultiplierQuantity(product.unitMultiplier);
+    final totalQuantity = line.quantity + increment;
     setState(() {
-      line.quantityController.text = _formatQuantity(line.quantity + increment);
+      line.quantityController.text = _formatQuantity(totalQuantity);
       line.lookupController.clear();
       _errorMessage = null;
     });
     unawaited(TerminalFeedback.success());
+    _showCountedTotal(product, totalQuantity);
     return true;
   }
 
@@ -801,13 +803,16 @@ class _OfflineInventoryCountCreateSheetState
     }
 
     unawaited(TerminalFeedback.warning());
+    final existingQuantity = existingLine.quantity;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) {
         return AlertDialog(
           title: const Text('Urun listede var'),
           content: Text(
-            '${product.stockName} daha once eklenmis. Miktar artirilsin mi?',
+            '${product.stockName} daha once eklenmis. Mevcut toplam '
+            '${AppFormatters.quantity(existingQuantity)} ${product.unitName}. '
+            'Miktar artirilsin mi?',
           ),
           actions: <Widget>[
             TextButton(
@@ -824,6 +829,25 @@ class _OfflineInventoryCountCreateSheetState
     );
 
     return confirmed == true;
+  }
+
+  double _totalQuantityForProduct(InventoryCountProductLookupItem product) {
+    return _lines.fold<double>(0, (total, candidate) {
+      if (!_isSameProduct(candidate, product)) {
+        return total;
+      }
+      return total + candidate.quantity;
+    });
+  }
+
+  void _showCountedTotal(
+    InventoryCountProductLookupItem product,
+    double totalQuantity,
+  ) {
+    _showFeedback(
+      '${product.stockName}: toplam '
+      '${AppFormatters.quantity(totalQuantity)} ${product.unitName} sayildi.',
+    );
   }
 
   void _rememberAddedProduct(InventoryCountProductLookupItem product) {
@@ -868,7 +892,7 @@ class _OfflineInventoryCountCreateSheetState
     _rememberAddedProduct(product);
     unawaited(TerminalFeedback.success());
     if (mergedIntoExisting) {
-      _showFeedback('Ayni barkod mevcut satira eklendi; miktar artirildi.');
+      _showCountedTotal(product, _totalQuantityForProduct(product));
     }
   }
 
@@ -892,7 +916,7 @@ class _OfflineInventoryCountCreateSheetState
       stockCode: line.stockCodeController.text.trim(),
       stockName: line.stockNameController.text.trim(),
       barcode: line.barcodeController.text.trim(),
-      unitName: 'Birim ${line.unitPointer}',
+      unitName: line.unitName,
       unitMultiplier: line.unitMultiplier,
       warehouseNo: int.tryParse(widget.defaultWarehouseNo) ?? 0,
       price: 0,
@@ -1127,7 +1151,7 @@ class _OfflineInventoryCountCreateSheetState
             ? 'Urun secilmedi'
             : line.stockNameController.text.trim(),
         quantityController: line.quantityController,
-        unitLabel: 'Birim ${line.unitPointer}',
+        unitLabel: line.unitName,
         packageLabel: line.unitMultiplier > 1
             ? AppFormatters.quantity(line.unitMultiplier)
             : null,
@@ -1136,7 +1160,8 @@ class _OfflineInventoryCountCreateSheetState
           if (existingQuantity != null)
             TerminalPdaInfo(
               label: 'Listede',
-              value: AppFormatters.quantity(existingQuantity),
+              value:
+                  '${AppFormatters.quantity(existingQuantity)} ${line.unitName}',
             ),
         ],
         onConfirm: () => _commitEntryLine(line),
@@ -1182,7 +1207,7 @@ class _OfflineInventoryCountCreateSheetState
             ? 'Urun secilmedi'
             : line.stockNameController.text.trim(),
         quantityController: line.quantityController,
-        unitLabel: 'Birim ${line.unitPointer}',
+        unitLabel: line.unitName,
         packageLabel: line.unitMultiplier > 1
             ? AppFormatters.quantity(line.unitMultiplier)
             : null,
@@ -1260,6 +1285,7 @@ class _OfflineLineDraft {
   final TextEditingController unitPointerController;
   final TextEditingController unitMultiplierController;
   final FocusNode lookupFocusNode = FocusNode();
+  String unitName = 'ADET';
 
   double get quantity => _readDouble(quantityController.text, fallback: 0);
   int get unitPointer => _readInt(unitPointerController.text, fallback: 1);
@@ -1270,6 +1296,7 @@ class _OfflineLineDraft {
     stockCodeController.text = product.stockCode;
     stockNameController.text = product.stockName;
     barcodeController.text = product.barcode;
+    unitName = product.unitName.trim().isEmpty ? 'ADET' : product.unitName;
     unitPointerController.text = '1';
     unitMultiplierController.text = _formatQuantity(
       _unitMultiplierQuantity(product.unitMultiplier),
@@ -1288,6 +1315,7 @@ class _OfflineLineDraft {
     stockNameController.clear();
     barcodeController.clear();
     quantityController.clear();
+    unitName = 'ADET';
     unitPointerController.text = '1';
     unitMultiplierController.text = '1';
   }

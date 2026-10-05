@@ -23,6 +23,7 @@ class ApiGreenGrocerProductCasesRepository
       '/api/green-grocer/product-case-profiles/resolution-preview',
       accessToken: accessToken,
       body: request.toJson(),
+      verifyWarehouseContext: false,
     );
 
     return GreenGrocerProductCaseResolutionResult.fromJson(response);

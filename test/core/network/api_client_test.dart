@@ -114,6 +114,39 @@ void main() {
     );
   });
 
+  test('uses response header as correlation id fallback', () async {
+    final client = ApiClient(
+      baseUrl: 'http://localhost:5228',
+      httpClient: MockClient((request) async {
+        return http.Response(
+          '{"title":"Server Error","detail":"Kayit tamamlanamadi"}',
+          500,
+          headers: <String, String>{
+            'content-type': 'application/problem+json',
+            'x-correlation-id': 'header-trace-456',
+          },
+        );
+      }),
+    );
+
+    await expectLater(
+      client.getJsonMap('/api/test', accessToken: 'token'),
+      throwsA(
+        isA<ApiException>()
+            .having(
+              (error) => error.correlationId,
+              'correlationId',
+              'header-trace-456',
+            )
+            .having(
+              (error) => error.message,
+              'message',
+              contains('Destek kodu: header-trace-456'),
+            ),
+      ),
+    );
+  });
+
   test('authorization header keeps only the compact access token', () async {
     final capturedAuthorizationHeaders = <String?>[];
     final client = ApiClient(
@@ -159,5 +192,94 @@ void main() {
     await client.getJsonMap('/api/test', accessToken: 'token with spaces');
 
     expect(capturedAuthorizationHeaders, <String?>[null, null]);
+  });
+
+  test(
+    'post request is not sent when warehouse mutation guard fails',
+    () async {
+      var requestCount = 0;
+      var guardCount = 0;
+      final client = ApiClient(
+        baseUrl: 'http://localhost:5228',
+        httpClient: MockClient((request) async {
+          requestCount += 1;
+          return http.Response('{"ok":true}', 200);
+        }),
+      );
+      client.configureAuthentication(
+        mutationRequestGuard: () async {
+          guardCount += 1;
+          throw const ApiException(
+            statusCode: 0,
+            title: 'Depo Bilgisi Dogrulanamadi',
+          );
+        },
+      );
+
+      await expectLater(
+        client.postJsonMap('/api/test', body: <String, dynamic>{'value': 1}),
+        throwsA(
+          isA<ApiException>().having(
+            (error) => error.title,
+            'title',
+            'Depo Bilgisi Dogrulanamadi',
+          ),
+        ),
+      );
+
+      expect(guardCount, 1);
+      expect(requestCount, 0);
+    },
+  );
+
+  test(
+    'post request runs once after warehouse mutation guard succeeds',
+    () async {
+      var requestCount = 0;
+      var guardCount = 0;
+      final client = ApiClient(
+        baseUrl: 'http://localhost:5228',
+        httpClient: MockClient((request) async {
+          requestCount += 1;
+          return http.Response('{"ok":true}', 200);
+        }),
+      );
+      client.configureAuthentication(
+        mutationRequestGuard: () async {
+          guardCount += 1;
+        },
+      );
+
+      final response = await client.postJsonMap(
+        '/api/test',
+        body: <String, dynamic>{'value': 1},
+      );
+
+      expect(response['ok'], isTrue);
+      expect(guardCount, 1);
+      expect(requestCount, 1);
+    },
+  );
+
+  test('post request can explicitly bypass warehouse mutation guard', () async {
+    var requestCount = 0;
+    var guardCount = 0;
+    final client = ApiClient(
+      baseUrl: 'http://localhost:5228',
+      httpClient: MockClient((request) async {
+        requestCount += 1;
+        return http.Response('{"ok":true}', 200);
+      }),
+    );
+    client.configureAuthentication(
+      mutationRequestGuard: () async {
+        guardCount += 1;
+      },
+    );
+
+    await client.postJsonMap('/api/auth/login', verifyWarehouseContext: false);
+
+    expect(guardCount, 0);
+    expect(requestCount, 1);
   });
 }

@@ -19,8 +19,9 @@ class AppSessionController extends ChangeNotifier {
 
   static const String _sessionExpiredMessage =
       'Oturum suresi doldu. Lutfen tekrar giris yapin.';
-  static const String _warehouseContextChangedMessage =
-      'Depo/IP bilginiz degisti. Hatali depo kaydi olusmamasi icin lutfen tekrar giris yapin.';
+  static const String _warehouseContextUnavailableMessage =
+      'Aktif depo bilgisi dogrulanamadi. Hatali depoya kayit gitmemesi icin '
+      'islem gonderilmedi. Baglantiyi kontrol edip tekrar deneyin.';
 
   final AuthRepository _authRepository;
 
@@ -131,6 +132,32 @@ class AppSessionController extends ChangeNotifier {
     });
   }
 
+  Future<void> ensureWarehouseContextForMutation() async {
+    final result = await refreshWarehouseContextGuard();
+    switch (result) {
+      case WarehouseContextGuardResult.verified:
+        return;
+      case WarehouseContextGuardResult.unavailable:
+        throw const ApiException(
+          statusCode: 0,
+          title: 'Depo Bilgisi Dogrulanamadi',
+          detail: _warehouseContextUnavailableMessage,
+        );
+      case WarehouseContextGuardResult.signedOut:
+        throw ApiException(
+          statusCode: 401,
+          title: 'Depo Degisikligi Algilandi',
+          detail: _errorMessage ?? _sessionExpiredMessage,
+        );
+      case WarehouseContextGuardResult.notAuthenticated:
+        throw const ApiException(
+          statusCode: 401,
+          title: 'Oturum Gerekli',
+          detail: _sessionExpiredMessage,
+        );
+    }
+  }
+
   Future<WarehouseContextGuardResult> _performWarehouseContextGuard() async {
     if (_status != AppSessionStatus.authenticated) {
       return WarehouseContextGuardResult.notAuthenticated;
@@ -152,7 +179,7 @@ class AppSessionController extends ChangeNotifier {
 
       await _setUnauthenticated(
         clearStoredSession: true,
-        errorMessage: _warehouseContextChangedMessage,
+        errorMessage: _warehouseContextChangedMessage(context),
       );
       return WarehouseContextGuardResult.signedOut;
     } on ApiException catch (error) {
@@ -270,5 +297,34 @@ class AppSessionController extends ChangeNotifier {
     }
 
     return error.message;
+  }
+
+  String _warehouseContextChangedMessage(WarehouseContext context) {
+    final previousWarehouse = _warehouseLabel(
+      context.tokenWarehouseNo,
+      context.tokenWarehouseName,
+    );
+    final currentWarehouse = _warehouseLabel(
+      context.currentWarehouseNo,
+      context.currentWarehouseName,
+    );
+    final transition = currentWarehouse.isEmpty
+        ? previousWarehouse
+        : '$previousWarehouse -> $currentWarehouse';
+
+    return 'Depo/IP bilginiz degisti ($transition). Hatali depoya kayit '
+        'olusmamasi icin oturum kapatildi. Lutfen tekrar giris yapin.';
+  }
+
+  String _warehouseLabel(String? warehouseNo, String? warehouseName) {
+    final no = warehouseNo?.trim() ?? '';
+    final name = warehouseName?.trim() ?? '';
+    if (no.isEmpty) {
+      return name;
+    }
+    if (name.isEmpty || name == no) {
+      return no;
+    }
+    return '$no $name';
   }
 }

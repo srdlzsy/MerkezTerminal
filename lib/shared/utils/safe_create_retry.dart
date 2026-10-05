@@ -113,26 +113,24 @@ bool shouldOfferSafeCreateRetry(
 
 String safeCreateRetryErrorMessage(ApiException error) {
   final kind = classifySafeCreateException(error);
-  switch (kind) {
-    case SafeCreateFailureKind.processing:
-      return 'Kayit Mikro tarafinda halen isleniyor. Ayni kaydi yeni bir '
-          'islem olarak gondermeyin; kisa bir sure sonra Tekrar Dene kullanin.';
-    case SafeCreateFailureKind.payloadChanged:
-      return 'Bu kayit denemesinin icerigi degismis. Devam etmek icin acikca '
-          'Yeni Islem olarak kaydedin.';
-    case SafeCreateFailureKind.multipleDocuments:
-      return 'Ayni kayit iziyle birden fazla Mikro evraki bulundu. Tekrar '
+  final message = switch (kind) {
+    SafeCreateFailureKind.processing =>
+      'Kayit Mikro tarafinda halen isleniyor. Ayni kaydi yeni bir '
+          'islem olarak gondermeyin; kisa bir sure sonra Tekrar Dene kullanin.',
+    SafeCreateFailureKind.payloadChanged =>
+      'Bu kayit denemesinin icerigi degismis. Devam etmek icin acikca '
+          'Yeni Islem olarak kaydedin.',
+    SafeCreateFailureKind.multipleDocuments =>
+      'Ayni kayit iziyle birden fazla Mikro evraki bulundu. Tekrar '
               'kaydetmeyin ve e-irsaliye gondermeyin. ${error.detail ?? ''}'
-          .trim();
-    case SafeCreateFailureKind.manualReview:
-      return 'Mikro evrak icerigi bu kayitla eslesmiyor. Tekrar kaydetmeyin; '
+          .trim(),
+    SafeCreateFailureKind.manualReview =>
+      'Mikro evrak icerigi bu kayitla eslesmiyor. Tekrar kaydetmeyin; '
               'yetkili incelemesi gerekli. ${error.detail ?? ''}'
-          .trim();
-    case SafeCreateFailureKind.uncertain:
-      return error.statusCode == 409
-          ? safeCreateRetryConflictMessage
-          : error.message;
-    case SafeCreateFailureKind.notRetryable:
-      return error.message;
-  }
+          .trim(),
+    SafeCreateFailureKind.uncertain =>
+      error.statusCode == 409 ? safeCreateRetryConflictMessage : error.message,
+    SafeCreateFailureKind.notRetryable => error.message,
+  };
+  return error.messageWithSupportCode(message);
 }

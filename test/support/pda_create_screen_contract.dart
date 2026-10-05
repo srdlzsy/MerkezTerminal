@@ -6,11 +6,13 @@ class PdaCreateScreenScenario {
     required this.name,
     required this.size,
     this.keyboardInset = 0,
+    this.textScale = 1,
   });
 
   final String name;
   final Size size;
   final double keyboardInset;
+  final double textScale;
 }
 
 const List<PdaCreateScreenScenario> defaultPdaCreateScreenScenarios =
@@ -21,6 +23,11 @@ const List<PdaCreateScreenScenario> defaultPdaCreateScreenScenarios =
         name: '320x640 keyboard',
         size: Size(320, 640),
         keyboardInset: 220,
+      ),
+      PdaCreateScreenScenario(
+        name: '320x640 buyuk yazi',
+        size: Size(320, 640),
+        textScale: 1.2,
       ),
     ];
 
@@ -45,6 +52,7 @@ Future<void> expectPdaCreateScreenContract(
             data: MediaQueryData(
               size: scenario.size,
               viewInsets: EdgeInsets.only(bottom: keyboardInset),
+              textScaler: TextScaler.linear(scenario.textScale),
             ),
             child: Scaffold(body: subject),
           ),
@@ -81,6 +89,18 @@ Future<void> expectPdaCreateScreenContract(
             '${scenario.name}: giris satiri ekranda gorunur ve dokunulabilir olmali.',
       );
       expect(
+        find.ancestor(
+          of: entryRowFinder.first,
+          matching: find.byType(Scrollable),
+        ),
+        findsNothing,
+        reason:
+            '${scenario.name}: giris paneli kaydirma alaninin disinda sabit kalmali.',
+      );
+      final entryTopBeforeListScroll = tester
+          .getTopLeft(entryRowFinder.first)
+          .dy;
+      expect(
         find.byType(Scrollable),
         findsWidgets,
         reason:
@@ -107,10 +127,16 @@ Future<void> expectPdaCreateScreenContract(
             '${scenario.name}: kaydet butonu ekranda gorunur ve dokunulabilir olmali.',
       );
       expect(
-        entryRowFinder,
+        entryRowFinder.hitTestable(),
         findsWidgets,
         reason:
-            '${scenario.name}: scroll/klavye sonrasinda giris satiri kaybolmamali.',
+            '${scenario.name}: scroll/klavye sonrasinda giris satiri gorunur ve dokunulabilir kalmali.',
+      );
+      expect(
+        tester.getTopLeft(entryRowFinder.first).dy,
+        closeTo(entryTopBeforeListScroll, 1),
+        reason:
+            '${scenario.name}: kalem listesi kayarken giris paneli yer degistirmemeli.',
       );
     }
   } finally {

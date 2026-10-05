@@ -17,12 +17,21 @@ class ApiException implements Exception {
 
   String get message {
     final normalizedDetail = detail?.trim();
+    final baseMessage = normalizedDetail == null || normalizedDetail.isEmpty
+        ? title
+        : '$title: $normalizedDetail';
 
-    if (normalizedDetail == null || normalizedDetail.isEmpty) {
-      return title;
+    return messageWithSupportCode(baseMessage);
+  }
+
+  String messageWithSupportCode(String value) {
+    final normalizedCorrelationId = correlationId?.trim() ?? '';
+    if (normalizedCorrelationId.isEmpty ||
+        value.contains('Destek kodu: $normalizedCorrelationId')) {
+      return value;
     }
 
-    return '$title: $normalizedDetail';
+    return '$value\nDestek kodu: $normalizedCorrelationId';
   }
 
   @override

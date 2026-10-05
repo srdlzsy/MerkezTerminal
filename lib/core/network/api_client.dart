@@ -10,6 +10,7 @@ typedef JsonMap = Map<String, dynamic>;
 typedef JsonList = List<dynamic>;
 typedef AccessTokenProvider = String? Function();
 typedef UnauthorizedRecoveryHandler = Future<String?> Function();
+typedef MutationRequestGuard = Future<void> Function();
 
 class ApiBinaryResponse {
   const ApiBinaryResponse({
@@ -35,13 +36,16 @@ class ApiClient {
   final http.Client _httpClient;
   AccessTokenProvider? _accessTokenProvider;
   UnauthorizedRecoveryHandler? _unauthorizedRecoveryHandler;
+  MutationRequestGuard? _mutationRequestGuard;
 
   void configureAuthentication({
     AccessTokenProvider? accessTokenProvider,
     UnauthorizedRecoveryHandler? unauthorizedRecoveryHandler,
+    MutationRequestGuard? mutationRequestGuard,
   }) {
     _accessTokenProvider = accessTokenProvider;
     _unauthorizedRecoveryHandler = unauthorizedRecoveryHandler;
+    _mutationRequestGuard = mutationRequestGuard;
   }
 
   Future<JsonMap> getJsonMap(
@@ -86,7 +90,9 @@ class ApiClient {
     Object? body,
     Map<String, String>? queryParameters,
     bool allowUnauthorizedRecovery = true,
+    bool verifyWarehouseContext = true,
   }) async {
+    await _guardMutationRequest(verifyWarehouseContext);
     final response = await _send(
       accessToken: accessToken,
       allowUnauthorizedRecovery: allowUnauthorizedRecovery,
@@ -106,7 +112,9 @@ class ApiClient {
     Object? body,
     Map<String, String>? queryParameters,
     bool allowUnauthorizedRecovery = true,
+    bool verifyWarehouseContext = true,
   }) async {
+    await _guardMutationRequest(verifyWarehouseContext);
     final response = await _send(
       accessToken: accessToken,
       allowUnauthorizedRecovery: allowUnauthorizedRecovery,
@@ -279,6 +287,17 @@ class ApiClient {
     return normalized;
   }
 
+  Future<void> _guardMutationRequest(bool verifyWarehouseContext) async {
+    if (!verifyWarehouseContext) {
+      return;
+    }
+
+    final guard = _mutationRequestGuard;
+    if (guard != null) {
+      await guard();
+    }
+  }
+
   String? _normalizeAccessToken(String? value) {
     var normalized = value?.trim() ?? '';
     if (normalized.isEmpty) {
@@ -401,7 +420,9 @@ class ApiClient {
         detail: _problemDetail(decoded, title: title),
         errorCode: _problemString(decoded, 'errorCode'),
         retryable: _problemBool(decoded, 'retryable'),
-        correlationId: _problemString(decoded, 'correlationId'),
+        correlationId:
+            _problemString(decoded, 'correlationId') ??
+            _responseCorrelationId(response),
       );
     }
 
@@ -409,7 +430,16 @@ class ApiClient {
       statusCode: response.statusCode,
       title: 'Istek basarisiz',
       detail: response.body.isEmpty ? null : utf8.decode(response.bodyBytes),
+      correlationId: _responseCorrelationId(response),
     );
+  }
+
+  String? _responseCorrelationId(http.Response response) {
+    final value =
+        response.headers['x-correlation-id']?.trim() ??
+        response.headers['correlation-id']?.trim() ??
+        '';
+    return value.isEmpty ? null : value;
   }
 
   Object? _problemValue(JsonMap decoded, String key) {

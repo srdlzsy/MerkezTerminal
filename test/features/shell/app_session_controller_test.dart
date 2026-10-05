@@ -122,6 +122,62 @@ void main() {
       expect(repository.clearSessionCallCount, 0);
     },
   );
+
+  test(
+    'mutation guard blocks save when warehouse context is unavailable',
+    () async {
+      final repository = _FakeAuthRepository();
+      final controller = AppSessionController(authRepository: repository);
+      repository.signInResult = _buildSession(accessToken: 'token-1');
+      repository.warehouseContextError = const ApiException(
+        statusCode: 0,
+        title: 'Baglanti Hatasi',
+        detail: 'offline',
+      );
+
+      await controller.signIn(usernameOrEmail: 'demo', password: '1234');
+
+      await expectLater(
+        controller.ensureWarehouseContextForMutation(),
+        throwsA(
+          isA<ApiException>()
+              .having((error) => error.statusCode, 'statusCode', 0)
+              .having(
+                (error) => error.message,
+                'message',
+                contains('islem gonderilmedi'),
+              ),
+        ),
+      );
+      expect(controller.status, AppSessionStatus.authenticated);
+    },
+  );
+
+  test('mutation guard signs out and reports old and new warehouse', () async {
+    final repository = _FakeAuthRepository();
+    final controller = AppSessionController(authRepository: repository);
+    repository.signInResult = _buildSession(accessToken: 'token-1');
+    repository.warehouseContextResult = _warehouseContext(
+      requiresRelogin: true,
+    );
+
+    await controller.signIn(usernameOrEmail: 'demo', password: '1234');
+
+    await expectLater(
+      controller.ensureWarehouseContextForMutation(),
+      throwsA(
+        isA<ApiException>()
+            .having((error) => error.statusCode, 'statusCode', 401)
+            .having(
+              (error) => error.message,
+              'message',
+              allOf(contains('110 KESTEL 1'), contains('160 SUBE 160')),
+            ),
+      ),
+    );
+    expect(controller.status, AppSessionStatus.unauthenticated);
+    expect(repository.clearSessionCallCount, 1);
+  });
 }
 
 class _FakeAuthRepository extends AuthRepository {

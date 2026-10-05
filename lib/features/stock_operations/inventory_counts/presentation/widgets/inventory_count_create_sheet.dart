@@ -398,18 +398,21 @@ class _InventoryCountCreateSheetState extends State<InventoryCountCreateSheet>
     final increment =
         addedQuantity ??
         productEntryController.unitMultiplierQuantity(product.unitMultiplier);
+    final totalQuantity =
+        productEntryController.readQuantity(
+          line.quantityController.text,
+          fallback: 0,
+        ) +
+        increment;
     setState(() {
       line.quantityController.text = productEntryController.formatQuantity(
-        productEntryController.readQuantity(
-              line.quantityController.text,
-              fallback: 0,
-            ) +
-            increment,
+        totalQuantity,
       );
       line.barcodeController.clear();
       _validationMessage = null;
     });
     unawaited(TerminalFeedback.success());
+    _showCountedTotal(product, totalQuantity);
     return true;
   }
 
@@ -474,13 +477,19 @@ class _InventoryCountCreateSheetState extends State<InventoryCountCreateSheet>
     }
 
     unawaited(TerminalFeedback.warning());
+    final existingQuantity = productEntryController.readQuantity(
+      existingLine.quantityController.text,
+      fallback: 0,
+    );
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) {
         return AlertDialog(
           title: const Text('Urun listede var'),
           content: Text(
-            '${product.stockName} daha once eklenmis. Miktar artirilsin mi?',
+            '${product.stockName} daha once eklenmis. Mevcut toplam '
+            '${AppFormatters.quantity(existingQuantity)} ${product.unitName}. '
+            'Miktar artirilsin mi?',
           ),
           actions: <Widget>[
             TextButton(
@@ -540,6 +549,31 @@ class _InventoryCountCreateSheetState extends State<InventoryCountCreateSheet>
     );
   }
 
+  double _totalQuantityForProduct(InventoryCountProductLookupItem product) {
+    return _lines.fold<double>(0, (total, candidate) {
+      final candidateProduct = candidate.selectedProduct;
+      if (candidateProduct == null ||
+          !_isSameProduct(candidateProduct, product)) {
+        return total;
+      }
+      return total +
+          productEntryController.readQuantity(
+            candidate.quantityController.text,
+            fallback: 0,
+          );
+    });
+  }
+
+  void _showCountedTotal(
+    InventoryCountProductLookupItem product,
+    double totalQuantity,
+  ) {
+    _showFeedback(
+      '${product.stockName}: toplam '
+      '${AppFormatters.quantity(totalQuantity)} ${product.unitName} sayildi.',
+    );
+  }
+
   bool get _hasPendingEntryLine =>
       _lines.isNotEmpty && !_isBlankLine(_lines.first);
 
@@ -576,7 +610,7 @@ class _InventoryCountCreateSheetState extends State<InventoryCountCreateSheet>
     _rememberAddedProduct(product);
     unawaited(TerminalFeedback.success());
     if (mergedIntoExisting) {
-      _showFeedback('Ayni barkod mevcut satira eklendi; miktar artirildi.');
+      _showCountedTotal(product, _totalQuantityForProduct(product));
     }
   }
 

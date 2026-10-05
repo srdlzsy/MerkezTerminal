@@ -2,7 +2,7 @@
 
 Bu dokuman, mevcut backend durumuna gore frontend/UI tasarimi ve entegrasyonu icin hazirlanmistir.
 
-Son hedefli kontrol: 2026-10-02, Mikro create/readback, firma e-irsaliye ve guvenli retry sozlesmeleri.
+Son hedefli kontrol: 2026-10-05. Kayitli 714 method/route ve 643 JSON modeli koddan uretilen sozlesmeyle; auth, CORS, dogrudan IIS barindirma, Mikro create/readback, firma e-irsaliye ve guvenli retry anlatimlari kaynak kod ve Production ayarlariyla karsilastirildi.
 Tum kayitli endpointlerin route, method, request/response ve yetki metadata referansi: [API Sozlesme Referansi](API_SOZLESME_REFERANSI.md). Makine formati: [OpenAPI Sozlesmesi](API_SOZLESMESI.json). Bu referans test ile koddan uretilir; anlatimdaki orneklerin yerine tam alan/alias listesi icin kullanilir.
 Bu kontrol tum endpointlerin uctan uca canli onayi degildir. Yayin oncesi migration, acik riskler ve smoke testleri icin [Canliya Gecis Kontrol Listesi](CANLIYA_GECIS_KONTROL_LISTESI.md) kullanilmalidir.
 
@@ -25,7 +25,8 @@ Bu kontrol tum endpointlerin uctan uca canli onayi degildir. Yayin oncesi migrat
 - Icmal Kaydi Girisi create ozelinde `kasa-islemleri.icmal-kaydi-girisi.all-warehouses` yetkisi olan kullanici hedef subeyi secmeli ve body'de `warehouseNo` gondermelidir; bos gonderirse API `400 Bad Request` doner.
 - Ilgili `*.all-warehouses` yetkisi olmayan kullanici farkli `WarehouseNo`, `BranchNo` veya islem deposu gonderirse API `403 Forbidden` doner.
 - Tarih aralikli liste endpointlerinde `StartDate` ve `EndDate` zorunludur; depo yetkisi yoksa `WarehouseNo` verilmez ve backend JWT icindeki depoyu kullanir.
-- Development CORS originleri su an `http://localhost:5176`, `http://localhost:5173` ve `http://localhost:4200` icin aciktir.
+- CORS originleri ortama gore konfigurasyondan okunur. Development icin `appsettings.Development.json`, canli icin `appsettings.Production.json` altindaki `Cors:AllowedOrigins` listesi esas alinmalidir; kaynak koddaki veya bu dokumandaki eski origin listelerine guvenilmemelidir.
+- Canli web UI origin'i `http://10.0.0.100:7575`, API adresi `http://10.0.0.100:7508` olarak tanimlidir. Eski arayuz `http://10.0.0.100:5002` ayri legacy origin'idir.
 
 Timeout ve tekrar deneme notu:
 
@@ -1621,11 +1622,21 @@ Development:
 http://localhost:5228
 ```
 
+Production / kurum ici ag:
+
+```text
+http://10.0.0.100:7508
+```
+
+Canli API dogrudan IIS/Kestrel yayinindadir; onunde Nginx, YARP veya load balancer yoktur. Bu nedenle Production ayarinda `ReverseProxy.Enabled=false` ve `TrustAllNetworks=false` kullanilir. UI `X-Forwarded-For` veya benzeri proxy header'lari olusturmamali; backend istemci IP'sini dogrudan baglantidan alir. Ileride gercek bir reverse proxy eklenirse bu ayarlar yalniz guvenilen proxy adresleriyle birlikte yeniden duzenlenmelidir.
+
 Swagger:
 
 ```text
 http://localhost:5228/swagger
 ```
+
+Canli konfigurasyonda Swagger su an aciktir ve `http://10.0.0.100:7508/swagger` adresindedir. UI runtime calismasini Swagger'in acik olmasina baglamamali; `Hosting:EnableSwagger=false` yapildiginda business endpointleri calismaya devam eder.
 
 Root bilgi endpoint'i:
 
@@ -1652,6 +1663,7 @@ Diagnostics acik response:
 
 - `GET /health/live`: anonim; yalniz uygulama prosesinin cevap verebildigini olcer. DB/dis servis kontrolu yapmaz; `checks` bostur.
 - `GET /health/ready`: anonim; `core_dependencies` ve `operations_export_path` kontrollerini calistirir. Hazirlik/servis izleme icindir; UI her satir veya ekran icin cagirmamalidir.
+- `GET /health/ready` veritabani baglantilarini kontrol eder ancak Auth DB'de bekleyen EF Core migration bulunup bulunmadigini su an kontrol etmez. `Healthy` sonucu migration'larin guncel oldugunu kanitlamaz; migration kontrolu deployment adiminda ayrica yapilmalidir.
 - `Healthy` veya `Degraded` icin HTTP 200; `Unhealthy` icin HTTP 503 doner.
 - Bu middleware route'lari kodda HTTP method ile sinirlanmamistir. Istemciler GET kullanmalidir.
 - Govde normal JSON'dur, ProblemDetails degildir:
@@ -1677,9 +1689,13 @@ Ornek:
   "status": 404,
   "title": "Not Found",
   "detail": "Warehouse order detail was not found.",
-  "instance": "/api/siparis-islemleri/verilen-depo-siparisleri/D110/1915"
+  "instance": "/api/siparis-islemleri/verilen-depo-siparisleri/D110/1915",
+  "correlationId": "603427248d4a4d969474d74febf76255"
 }
 ```
+
+- `correlationId` middleware tarafindan response header'inda ve ProblemDetails extension alaninda uretilir. UI destek/hata ekraninda bu degeri saklamali veya kopyalanabilir gostermelidir.
+- Siniflandirilmis `409 Conflict` cevaplarinda ek olarak `errorCode` ve `retryable` alanlari bulunabilir. UI metin eslestirmek yerine bu alanlari kullanmalidir.
 
 Olasi durumlar:
 
@@ -1688,8 +1704,13 @@ Olasi durumlar:
 - `403` yetki yok
 - `404` kayit bulunamadi
 - `409` conflict/is kurali cakisiyor
+- `500` beklenmeyen backend hatasi; ayni create istegi yeni kimlikle otomatik tekrar edilmemelidir
+- `502` bagimli dis servisle iletisim/HTTP hatasi; create sonucu belirsiz olabilecegi icin once ilgili durum/readback akisi uygulanmalidir
 - `501` route acik ama backend henuz implement edilmedi
 - `503` SQL Server/veritabani servisine gecici olarak ulasilamiyor; create retry gerekiyorsa UI ayni payload ve ayni `clientRequestId` ile tekrar denemelidir
+- `504` dis servis zaman asimi; create isteginde yeni `clientRequestId` uretilmeden guvenli retry/durum kontrolu yapilmalidir
+
+API su an genel bir `429 Too Many Requests` rate-limit sozlesmesi uygulamaz. Ileride rate limit eklendiginde `Retry-After` ve UI bekleme davranisi bu bolume eklenmeden istemcide sabit bir 429 varsayimi yapilmamalidir.
 
 ## Kimlik Akisi
 
@@ -1724,6 +1745,8 @@ Token ve yetki notu:
 - `Authorization` header'inda sadece `accessToken` gonderilir. Tum login response'u, `user` objesi veya `permissions/modules` listesi header'a konmaz.
 - `refreshToken` header'a konmaz; sadece `/api/auth/refresh` ve `/api/auth/logout` body alaninda kullanilir.
 - Backend JWT'yi header limitlerine takilmamak icin kompakt tutar. Token icinde tum permission listesi garanti edilmez.
+- Canli ayarda access token omru `120` dakika, refresh token omru `14` gundur. UI sureleri sabit kodlamamali; login/refresh response'undaki `expiresAtUtc` ve `refreshTokenExpiresAtUtc` alanlarini esas almalidir.
+- Mevcut backend access tokeni her istekte refresh-token/session kaydiyla tekrar dogrulamaz. Logout, kullaniciyi pasife alma, sifre veya rol/yetki degisikligi refresh tokenlarini etkileyebilir; ancak daha once verilmis access token kendi suresi dolana kadar calisabilir. UI logout sirasinda local access tokenini mutlaka silmeli ve yetki degisikligi sonrasinda yeniden login istemelidir.
 - UI, JWT decode ederek menu/buton yetkisi uretmemelidir. Full yetki listesi icin `login.user.permissions` veya `GET /api/auth/me` cevabindaki `permissions` kullanilir.
 - Periyodik depo/session kontrolu icin `GET /api/auth/me` yerine `GET /api/auth/warehouse-context` kullanilmalidir. Bu endpoint permission/menu agaci dondurmez ve hafif calisir.
 - `400 Bad Request - Request Too Long` gorulurse ilk kontrol `Authorization` header'idir; `Bearer eyJ...` disinda JSON/obje veya asiri uzun header gonderiliyor olabilir.
@@ -11875,8 +11898,8 @@ Notlar:
 - Ayni gonderime ait kismen isaretli satirlar hata sebebi degildir: satir icerigi ve FRM/UUID dogrulanir, sadece eksik/kilitsiz satirlar Mikro API ile tamamlanir.
 - Uyumsoft cevabi kaybolursa veya basari Auth DB'ye yazilamadan surec kapanirsa kayit `Unknown` kalir. Worker kayitli UUID ile Uyumsoft'tan belge numarasini ve satirlarini sorgular. Dogrulanana kadar yeni e-irsaliye gonderilmez; UI otomatik yeni POST uretmemelidir. Servis belgeyi dogrulayamazsa durum belirsiz kalir ve operasyonel inceleme gerekir.
 - Belge bazli kilit ayni evraga cift tiklamayi engeller. Ortak numara kilidi yalniz FRM ayirma/kalici kayit adimindadir; Uyumsoft gonderimleri farkli belgeler icin ortak kilitte beklemez.
-- Dagitimda `AddDurableEDespatchSubmissions` Auth DB migration'i uygulanmalidir. `StartupTasks:ApplyAuthMigrations=true` ise acilista uygulanir; aksi halde dagitim adiminda uygulanmadan yeni surum baslatilmamalidir.
-- Mevcut Production ayarinda `ApplyAuthMigrations=false` oldugundan yeni surum yayinlanmadan once Auth DB'ye `docs/DEPLOY_EDESPATCH_SUBMISSIONS.sql` uygulanmalidir. Script sadece bu yeni migration'i icerir; Mikro DB'ye uygulanmaz. Eski uygulama durdurulup script uygulandiktan sonra yeni uygulama baslatilmalidir.
+- Yeni kurulumda `AddDurableEDespatchSubmissions` dahil tum Auth DB migration zinciri uygulanmalidir. `StartupTasks:ApplyAuthMigrations=true` ise acilista uygulanir; aksi halde migration deployment adiminda yeni binary baslatilmadan once uygulanmalidir.
+- Mevcut Production ayarinda `ApplyAuthMigrations=false` oldugundan yalniz DLL yayinlamak schema'yi guncellemez. `docs/DEPLOY_EDESPATCH_SUBMISSIONS.sql` sadece 2026-09-30 tarihli e-irsaliye tablosu gecisi icin tarihsel/tek migration scriptidir; guncel kurulumun tam migration araci olarak kullanilmamalidir. Guncel Auth DB seviyesi EF migration history ile kontrol edilmeli ve `20261002111146_HardenOfflineCreateRecovery` ile `20261002132927_HardenRefreshTokenRotation` dahil bekleyen migration'lar sirayla uygulanmalidir. Bu iki migration 2026-10-02'de mevcut canli Auth DB'ye uygulanmistir; baska ortamlarda ayrica dogrulanmalidir.
 
 #### Sevkten PDF'ye Adim Adim Akis
 
@@ -14477,6 +14500,13 @@ Kisa response ornekleri:
 ```json
 [
   {
+    "value": 1,
+    "quantity": 0,
+    "total": 0,
+    "giftCheckType": 11,
+    "giftCheckTypeName": "Birlik Premium Kart"
+  },
+  {
     "value": 25,
     "quantity": 0,
     "total": 0,
@@ -14492,6 +14522,8 @@ Kisa response ornekleri:
   }
 ]
 ```
+
+`giftCheckType=11` Mikro'da parasal 1 TL hediye ceki degil, `Birlik Premium Kart` tipidir. UI gorunen adi her zaman response'taki `giftCheckTypeName` alanindan almalidir.
 
 `odeme-tipleri/banka` response ornegi:
 
@@ -14818,6 +14850,8 @@ Hediye ceki update response modeli:
 - `totalAmount`
 
 Legacy detay update request:
+
+Bu eski request `paymentTypeID` alias'ini kabul eder. Yeni UI ve yeni entegrasyonlar canonical alan olarak yalniz `paymentTypeId` kullanmalidir. Iki alan ayni body icinde birlikte gonderilmemelidir; bazi JSON istemcileri alan adlarini buyuk/kucuk harfe duyarsiz eslestirir.
 
 ```json
 {
