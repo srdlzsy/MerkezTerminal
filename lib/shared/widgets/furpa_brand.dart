@@ -67,14 +67,36 @@ class FurpaStartupMark extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Image.asset(
-      FurpaBrandAssets.appIcon,
-      width: size,
-      height: size,
-      fit: BoxFit.contain,
-      filterQuality: FilterQuality.high,
+    return SizedBox.square(
+      dimension: size,
+      child: CustomPaint(painter: const _FurpaOfficialMarkPainter()),
     );
   }
+}
+
+class _FurpaOfficialMarkPainter extends CustomPainter {
+  const _FurpaOfficialMarkPainter();
+
+  static const Color _yellow = Color(0xFFF9FC18);
+  static const Color _purple = Color(0xFF210DA0);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final scaleX = size.width / 108;
+    final scaleY = size.height / 108;
+    canvas.scale(scaleX, scaleY);
+
+    canvas.drawCircle(const Offset(54, 54), 54, Paint()..color = _yellow);
+
+    final letterPaint = Paint()..color = _purple;
+    canvas
+      ..drawRect(const Rect.fromLTWH(30, 18, 18, 72), letterPaint)
+      ..drawRect(const Rect.fromLTWH(48, 18, 36, 18), letterPaint)
+      ..drawRect(const Rect.fromLTWH(48, 48, 26, 16), letterPaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _FurpaOfficialMarkPainter oldDelegate) => false;
 }
 
 class FurpaBrandLockup extends StatelessWidget {
