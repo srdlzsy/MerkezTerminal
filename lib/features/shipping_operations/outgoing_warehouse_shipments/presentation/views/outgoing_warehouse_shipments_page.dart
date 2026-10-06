@@ -350,12 +350,12 @@ class _OutgoingWarehouseShipmentsPageState
   }
 
   Future<void> _toggleSelection(WarehouseShipmentListItem item) async {
-    await _controller.selectShipment(item);
+    final detailLoad = _controller.selectShipment(item);
     if (!mounted) {
       return;
     }
 
-    await Navigator.of(context).push(
+    final navigation = Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (context) {
           return ListenableBuilder(
@@ -396,6 +396,8 @@ class _OutgoingWarehouseShipmentsPageState
         },
       ),
     );
+    await detailLoad;
+    await navigation;
 
     if (mounted) {
       _controller.clearSelection();
@@ -678,8 +680,9 @@ class _ShipmentAccordionPanel extends StatelessWidget {
                       child: _ShipmentAccordionCard(
                         item: item,
                         isExpanded:
+                            (ModalRoute.of(context)?.isCurrent ?? true) &&
                             controller.selectedShipment?.documentNoLabel ==
-                            item.documentNoLabel,
+                                item.documentNoLabel,
                         detail:
                             controller.selectedShipment?.documentNoLabel ==
                                 item.documentNoLabel

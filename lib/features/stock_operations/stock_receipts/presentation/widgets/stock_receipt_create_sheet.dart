@@ -746,12 +746,10 @@ class _StockReceiptCreateSheetState extends State<StockReceiptCreateSheet>
               padding: EdgeInsets.zero,
               children: <Widget>[
                 _buildReceiptSetupSection(),
-                const SizedBox(height: 4),
                 TerminalSectionToolbar(
                   title: 'Satirlar',
                   actions: const <Widget>[],
                 ),
-                const SizedBox(height: 4),
                 _buildEntryLineCard(),
               ],
             ),

@@ -284,12 +284,12 @@ class _InventoryCountsPageState extends State<InventoryCountsPage> {
   }
 
   Future<void> _toggleSelection(InventoryCountListItem item) async {
-    await _controller.selectCount(item);
+    final detailLoad = _controller.selectCount(item);
     if (!mounted) {
       return;
     }
 
-    await Navigator.of(context).push(
+    final navigation = Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (context) {
           return ListenableBuilder(
@@ -323,6 +323,8 @@ class _InventoryCountsPageState extends State<InventoryCountsPage> {
         },
       ),
     );
+    await detailLoad;
+    await navigation;
 
     if (mounted) {
       _controller.clearSelection();
@@ -465,6 +467,7 @@ class _InventoryCountsAccordionPanel extends StatelessWidget {
                       child: _InventoryCountAccordionCard(
                         item: item,
                         isExpanded:
+                            (ModalRoute.of(context)?.isCurrent ?? true) &&
                             controller.selectedCount?.documentNo ==
                                 item.documentNo &&
                             controller.selectedCount?.documentDate ==

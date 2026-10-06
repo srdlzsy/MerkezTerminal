@@ -2129,7 +2129,7 @@ class TerminalQuantityStepper extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final buttonSize = dense ? 36.0 : 44.0;
+    final buttonSize = dense ? 40.0 : 44.0;
     final iconSize = dense ? 18.0 : 20.0;
     final gap = dense ? 3.0 : 6.0;
     final verticalPadding = dense ? 5.0 : 8.0;

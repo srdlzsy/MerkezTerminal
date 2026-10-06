@@ -127,12 +127,12 @@ class _CompanyAcceptancesPageState extends State<CompanyAcceptancesPage> {
   }
 
   Future<void> _toggleSelection(CompanyMovementListItem item) async {
-    await _controller.selectAcceptance(item);
+    final detailLoad = _controller.selectAcceptance(item);
     if (!mounted) {
       return;
     }
 
-    await Navigator.of(context).push(
+    final navigation = Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (context) {
           return ListenableBuilder(
@@ -174,6 +174,8 @@ class _CompanyAcceptancesPageState extends State<CompanyAcceptancesPage> {
         },
       ),
     );
+    await detailLoad;
+    await navigation;
 
     if (mounted) {
       _controller.clearSelection();
@@ -492,8 +494,9 @@ class _CompanyAcceptancesPageState extends State<CompanyAcceptancesPage> {
               children: _controller.acceptances
                   .map((item) {
                     final isExpanded =
+                        (ModalRoute.of(context)?.isCurrent ?? true) &&
                         _controller.selectedAcceptance?.documentNoLabel ==
-                        item.documentNoLabel;
+                            item.documentNoLabel;
                     final detail = isExpanded
                         ? _controller.selectedAcceptanceDetail
                         : null;

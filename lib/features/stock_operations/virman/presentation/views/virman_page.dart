@@ -179,12 +179,12 @@ class _VirmanPageState extends State<VirmanPage> {
   }
 
   Future<void> _toggleSelection(VirmanListItem item) async {
-    await _controller.selectVirman(item);
+    final detailLoad = _controller.selectVirman(item);
     if (!mounted) {
       return;
     }
 
-    await Navigator.of(context).push(
+    final navigation = Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (context) {
           return ListenableBuilder(
@@ -226,6 +226,8 @@ class _VirmanPageState extends State<VirmanPage> {
         },
       ),
     );
+    await detailLoad;
+    await navigation;
 
     if (mounted) {
       _controller.clearSelection();
@@ -512,8 +514,9 @@ class _VirmanPageState extends State<VirmanPage> {
               children: _controller.virmans
                   .map((item) {
                     final isExpanded =
+                        (ModalRoute.of(context)?.isCurrent ?? true) &&
                         _controller.selectedVirman?.documentNoLabel ==
-                        item.documentNoLabel;
+                            item.documentNoLabel;
                     final detail = isExpanded
                         ? _controller.selectedVirmanDetail
                         : null;

@@ -104,12 +104,12 @@ class _WarehouseAcceptancesPageState extends State<WarehouseAcceptancesPage> {
   }
 
   Future<void> _toggleSelection(WarehouseAcceptanceListItem item) async {
-    await _controller.selectAcceptance(item);
+    final detailLoad = _controller.selectAcceptance(item);
     if (!mounted) {
       return;
     }
 
-    await Navigator.of(context).push(
+    final navigation = Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (context) {
           return ListenableBuilder(
@@ -147,6 +147,8 @@ class _WarehouseAcceptancesPageState extends State<WarehouseAcceptancesPage> {
         },
       ),
     );
+    await detailLoad;
+    await navigation;
 
     if (mounted) {
       _controller.clearSelection();
@@ -319,8 +321,9 @@ class _AcceptanceAccordionPanel extends StatelessWidget {
                       child: _AcceptanceAccordionCard(
                         item: item,
                         isExpanded:
+                            (ModalRoute.of(context)?.isCurrent ?? true) &&
                             controller.selectedAcceptance?.documentNoLabel ==
-                            item.documentNoLabel,
+                                item.documentNoLabel,
                         detail:
                             controller.selectedAcceptance?.documentNoLabel ==
                                 item.documentNoLabel

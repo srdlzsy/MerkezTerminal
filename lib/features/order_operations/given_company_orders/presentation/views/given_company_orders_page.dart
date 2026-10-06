@@ -203,12 +203,12 @@ class _GivenCompanyOrdersPageState extends State<GivenCompanyOrdersPage> {
   }
 
   Future<void> _toggleOrderSelection(CompanyOrderListItem item) async {
-    await _controller.selectOrder(item);
+    final detailLoad = _controller.selectOrder(item);
     if (!mounted) {
       return;
     }
 
-    await Navigator.of(context).push(
+    final navigation = Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (context) {
           return ListenableBuilder(
@@ -242,6 +242,8 @@ class _GivenCompanyOrdersPageState extends State<GivenCompanyOrdersPage> {
         },
       ),
     );
+    await detailLoad;
+    await navigation;
 
     if (mounted) {
       _controller.clearSelection();
@@ -380,8 +382,9 @@ class _CompanyOrdersAccordionPanel extends StatelessWidget {
                       child: _CompanyOrderAccordionCard(
                         item: item,
                         isExpanded:
+                            (ModalRoute.of(context)?.isCurrent ?? true) &&
                             controller.selectedOrder?.documentKey ==
-                            item.documentKey,
+                                item.documentKey,
                         detail:
                             controller.selectedOrder?.documentKey ==
                                 item.documentKey

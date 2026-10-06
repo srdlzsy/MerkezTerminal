@@ -189,12 +189,12 @@ class _WarehouseReturnsPageState extends State<WarehouseReturnsPage> {
   }
 
   Future<void> _toggleSelection(WarehouseReturnListItem item) async {
-    await _controller.selectReturn(item);
+    final detailLoad = _controller.selectReturn(item);
     if (!mounted) {
       return;
     }
 
-    await Navigator.of(context).push(
+    final navigation = Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (context) {
           return ListenableBuilder(
@@ -236,6 +236,8 @@ class _WarehouseReturnsPageState extends State<WarehouseReturnsPage> {
         },
       ),
     );
+    await detailLoad;
+    await navigation;
 
     if (mounted) {
       _controller.clearSelection();
@@ -668,8 +670,9 @@ class _ReturnsAccordionPanel extends StatelessWidget {
                         item: item,
                         direction: direction,
                         isExpanded:
+                            (ModalRoute.of(context)?.isCurrent ?? true) &&
                             controller.selectedReturn?.documentNoLabel ==
-                            item.documentNoLabel,
+                                item.documentNoLabel,
                         detail:
                             controller.selectedReturn?.documentNoLabel ==
                                 item.documentNoLabel

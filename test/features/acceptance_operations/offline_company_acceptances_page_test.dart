@@ -234,10 +234,14 @@ Future<void> _openOfflineCompanyAcceptanceLines(WidgetTester tester) async {
     find.widgetWithText(TextFormField, 'Evrak Sirasi*'),
     '1001',
   );
+  FocusManager.instance.primaryFocus?.unfocus();
+  tester.testTextInput.hide();
+  await tester.pump();
   final nextButton = find.widgetWithText(FilledButton, 'Kalemlere Gec');
   await tester.ensureVisible(nextButton);
   await tester.tap(nextButton);
   await tester.pumpAndSettle();
+  expect(find.text('Giris satiri'), findsOneWidget);
 }
 
 class _FakeOfflineCompanyAcceptancesRepository

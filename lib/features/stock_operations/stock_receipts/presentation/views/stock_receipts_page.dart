@@ -184,12 +184,12 @@ class _StockReceiptsPageState extends State<StockReceiptsPage> {
   }
 
   Future<void> _toggleSelection(StockReceiptListItem item) async {
-    await _controller.selectReceipt(item);
+    final detailLoad = _controller.selectReceipt(item);
     if (!mounted) {
       return;
     }
 
-    await Navigator.of(context).push(
+    final navigation = Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (context) {
           return ListenableBuilder(
@@ -231,6 +231,8 @@ class _StockReceiptsPageState extends State<StockReceiptsPage> {
         },
       ),
     );
+    await detailLoad;
+    await navigation;
 
     if (mounted) {
       _controller.clearSelection();
@@ -529,8 +531,9 @@ class _StockReceiptsPageState extends State<StockReceiptsPage> {
               children: _controller.receipts
                   .map((item) {
                     final isExpanded =
+                        (ModalRoute.of(context)?.isCurrent ?? true) &&
                         _controller.selectedReceipt?.documentNoLabel ==
-                        item.documentNoLabel;
+                            item.documentNoLabel;
                     final detail = isExpanded
                         ? _controller.selectedReceiptDetail
                         : null;

@@ -204,12 +204,12 @@ class _CompanyMovementsPageState extends State<CompanyMovementsPage> {
   }
 
   Future<void> _toggleSelection(CompanyMovementListItem item) async {
-    await _controller.selectMovement(item);
+    final detailLoad = _controller.selectMovement(item);
     if (!mounted) {
       return;
     }
 
-    await Navigator.of(context).push(
+    final navigation = Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (context) {
           return ListenableBuilder(
@@ -250,6 +250,8 @@ class _CompanyMovementsPageState extends State<CompanyMovementsPage> {
         },
       ),
     );
+    await detailLoad;
+    await navigation;
 
     if (mounted) {
       _controller.clearSelection();
@@ -654,8 +656,9 @@ class _CompanyMovementsPageState extends State<CompanyMovementsPage> {
               children: _controller.movements
                   .map((item) {
                     final isExpanded =
+                        (ModalRoute.of(context)?.isCurrent ?? true) &&
                         _controller.selectedMovement?.documentNoLabel ==
-                        item.documentNoLabel;
+                            item.documentNoLabel;
                     return Padding(
                       padding: const EdgeInsets.only(bottom: 12),
                       child: _MovementCard(

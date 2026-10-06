@@ -156,7 +156,7 @@ void main() {
   testWidgets(
     'selected product quantity and add actions stay tappable with keyboard',
     (tester) async {
-      tester.view.physicalSize = const Size(320, 640);
+      tester.view.physicalSize = const Size(320, 568);
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);
@@ -170,8 +170,8 @@ void main() {
         MaterialApp(
           home: MediaQuery(
             data: const MediaQueryData(
-              size: Size(320, 640),
-              viewInsets: EdgeInsets.only(bottom: 220),
+              size: Size(320, 568),
+              viewInsets: EdgeInsets.only(bottom: 200),
             ),
             child: Scaffold(
               body: Column(
@@ -218,10 +218,19 @@ void main() {
             identical(widget.controller, quantityController),
       );
       expect(quantityField.hitTestable(), findsOneWidget);
+      await tester.tap(quantityField);
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(quantityField.hitTestable(), findsOneWidget);
       expect(
         find.widgetWithText(FilledButton, 'Ekle').hitTestable(),
         findsOneWidget,
       );
+      for (final tooltip in <String>['Azalt', 'Artir']) {
+        final button = find.byTooltip(tooltip);
+        expect(button.hitTestable(), findsOneWidget);
+        expect(tester.getSize(button).width, greaterThanOrEqualTo(40));
+        expect(tester.getSize(button).height, greaterThanOrEqualTo(40));
+      }
     },
   );
 

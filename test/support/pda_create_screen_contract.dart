@@ -7,12 +7,14 @@ class PdaCreateScreenScenario {
     required this.size,
     this.keyboardInset = 0,
     this.textScale = 1,
+    this.hideKeyboardBeforeSave = false,
   });
 
   final String name;
   final Size size;
   final double keyboardInset;
   final double textScale;
+  final bool hideKeyboardBeforeSave;
 }
 
 const List<PdaCreateScreenScenario> defaultPdaCreateScreenScenarios =
@@ -23,6 +25,12 @@ const List<PdaCreateScreenScenario> defaultPdaCreateScreenScenarios =
         name: '320x640 keyboard',
         size: Size(320, 640),
         keyboardInset: 220,
+      ),
+      PdaCreateScreenScenario(
+        name: '320x568 keyboard',
+        size: Size(320, 568),
+        keyboardInset: 200,
+        hideKeyboardBeforeSave: true,
       ),
       PdaCreateScreenScenario(
         name: '320x640 buyuk yazi',
@@ -72,8 +80,9 @@ Future<void> expectPdaCreateScreenContract(
         await tester.pumpAndSettle();
       }
 
+      final layoutException = tester.takeException();
       expect(
-        tester.takeException(),
+        layoutException,
         isNull,
         reason: '${scenario.name}: create ekrani overflow/hata vermemeli.',
       );
@@ -97,15 +106,33 @@ Future<void> expectPdaCreateScreenContract(
         reason:
             '${scenario.name}: giris paneli kaydirma alaninin disinda sabit kalmali.',
       );
-      final entryTopBeforeListScroll = tester
-          .getTopLeft(entryRowFinder.first)
-          .dy;
       expect(
         find.byType(Scrollable),
         findsWidgets,
         reason:
             '${scenario.name}: kalem/kaydet bolgesi scroll edilebilir olmali.',
       );
+
+      if (scenario.hideKeyboardBeforeSave && scenario.keyboardInset > 0) {
+        await tester.pumpWidget(buildFrame(0));
+        await tester.pumpAndSettle();
+        expect(
+          tester.takeException(),
+          isNull,
+          reason:
+              '${scenario.name}: klavye kapandiktan sonra create ekrani hata vermemeli.',
+        );
+        expect(
+          entryRowFinder.hitTestable(),
+          findsWidgets,
+          reason:
+              '${scenario.name}: klavye kapandiktan sonra giris satiri kullanilabilir kalmali.',
+        );
+      }
+
+      final entryTopBeforeListScroll = tester
+          .getTopLeft(entryRowFinder.first)
+          .dy;
 
       await tester.ensureVisible(saveButtonFinder);
       await tester.pumpAndSettle();

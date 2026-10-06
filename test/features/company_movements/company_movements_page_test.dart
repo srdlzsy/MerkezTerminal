@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -18,6 +19,75 @@ import '../../support/memory_local_database.dart';
 import '../../support/pda_create_screen_contract.dart';
 
 void main() {
+  testWidgets('opens detail page before detail request completes', (
+    tester,
+  ) async {
+    final detailCompleter = Completer<CompanyMovementDetail>();
+    final item = CompanyMovementListItem.fromJson(<String, dynamic>{
+      'documentSerie': 'F50',
+      'documentOrderNo': 42,
+      'customerCode': 'CARI-1',
+      'customerDisplayName': 'Test Cari',
+      'warehouseNo': 50,
+      'warehouseName': 'MERKEZ DEPO',
+      'lineCount': 1,
+      'totalQuantity': 2,
+    });
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: CompanyMovementsPage(
+          repository: _FakeCompanyMovementsRepository(
+            movements: <CompanyMovementListItem>[item],
+            detailCompleter: detailCompleter,
+          ),
+          accessToken: 'token',
+          canCreate: false,
+          pendingCreateRepository: LocalPendingCreateRepository(
+            database: MemoryLocalDatabase(),
+          ),
+          defaultWarehouseNo: '50',
+          mobileCustomerCatalogRepository: _emptyCustomerCatalogRepository(),
+          userWarehouseName: 'MERKEZ DEPO',
+          title: 'Firma Iadeleri',
+          subtitle: 'Firma iade evraklari listelenir.',
+          createTitle: 'Yeni Iade',
+          createHelperText: 'Cari secildikten sonra iade satirlari eklenir.',
+          createButtonLabel: 'Yeni Iade',
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final documentFinder = find.text('F50.42').hitTestable();
+    await tester.ensureVisible(find.text('F50.42'));
+    await tester.pumpAndSettle();
+    expect(documentFinder, findsOneWidget);
+
+    await tester.tap(documentFinder);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+
+    expect(
+      find.descendant(of: find.byType(AppBar), matching: find.text('F50.42')),
+      findsOneWidget,
+    );
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+
+    detailCompleter.complete(
+      CompanyMovementDetail.fromJson(<String, dynamic>{
+        'header': <String, dynamic>{
+          'documentSerie': 'F50',
+          'documentOrderNo': 42,
+        },
+        'items': <dynamic>[],
+      }),
+    );
+    await tester.pumpAndSettle();
+    Navigator.of(tester.element(find.byType(AppBar))).pop();
+    await tester.pumpAndSettle();
+  });
+
   testWidgets('opens company return create sheet from header action', (
     tester,
   ) async {
@@ -326,6 +396,14 @@ PendingCreateOperation _pendingCompanyMovement({required String failureKind}) {
 }
 
 class _FakeCompanyMovementsRepository implements CompanyMovementsRepository {
+  _FakeCompanyMovementsRepository({
+    this.movements = const <CompanyMovementListItem>[],
+    this.detailCompleter,
+  });
+
+  final List<CompanyMovementListItem> movements;
+  final Completer<CompanyMovementDetail>? detailCompleter;
+
   @override
   bool get supportsCreate => true;
 
@@ -360,6 +438,9 @@ class _FakeCompanyMovementsRepository implements CompanyMovementsRepository {
     required int documentOrderNo,
     required String warehouseNo,
   }) {
+    if (detailCompleter case final completer?) {
+      return completer.future;
+    }
     throw UnimplementedError();
   }
 
@@ -368,7 +449,7 @@ class _FakeCompanyMovementsRepository implements CompanyMovementsRepository {
     required String accessToken,
     required CompanyMovementListFilter filter,
   }) async {
-    return const <CompanyMovementListItem>[];
+    return movements;
   }
 
   @override
