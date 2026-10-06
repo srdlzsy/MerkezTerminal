@@ -140,6 +140,8 @@ void main() {
     expect(tester.takeException(), isNull);
     expect(find.text('Barkod / stok kodu / urun adi'), findsOneWidget);
     expect(find.text('Koli ici: 12 ADET'), findsOneWidget);
+    expect(find.text('Barkod: 8690000000012'), findsOneWidget);
+    expect(find.text('Fiyat: 10,00'), findsOneWidget);
     expect(find.text('DEPO'), findsOneWidget);
     expect(
       find.byKey(const ValueKey<String>('product-source-badge')),
@@ -343,6 +345,7 @@ void main() {
               unitLabel: 'ADET',
               packageLabel: '12',
               barcode: '8690000000012',
+              highlightOnMount: true,
             ),
           ),
         ),
@@ -358,6 +361,12 @@ void main() {
     expect(find.textContaining('Koli ici 12 ADET'), findsOneWidget);
     expect(find.text('01'), findsOneWidget);
     expect(find.byTooltip('Satiri sil'), findsOneWidget);
+    final highlight = tester.widget<TweenAnimationBuilder<double>>(
+      find.byKey(const ValueKey<String>('terminal-product-line-highlight')),
+    );
+    expect(highlight.tween.begin, 1);
+    expect(highlight.tween.end, 0);
+    await tester.pump(const Duration(milliseconds: 900));
     final productName = tester.widget<Text>(
       find.byKey(const ValueKey<String>('terminal-product-line-name')),
     );

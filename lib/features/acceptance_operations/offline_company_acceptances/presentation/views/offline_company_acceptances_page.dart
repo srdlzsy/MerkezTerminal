@@ -1889,6 +1889,7 @@ class _OfflineCompanyAcceptanceCreateSheetState
             _buildProductLookupRow(line)
           else ...<Widget>[
             TerminalCompactProductLineSummary(
+              key: ObjectKey(line),
               lineNo: displayLineNo,
               stockCode: line.stockCodeController.text.trim(),
               stockName: line.stockNameController.text.trim(),
@@ -1902,6 +1903,7 @@ class _OfflineCompanyAcceptanceCreateSheetState
               priceLabel: line.unitPrice > 0
                   ? AppFormatters.currency(line.unitPrice)
                   : null,
+              highlightOnMount: displayLineNo == 1,
             ),
             const SizedBox(height: 10),
             _buildQuantityFields(line),

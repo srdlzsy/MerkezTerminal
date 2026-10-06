@@ -2019,6 +2019,7 @@ class _CompanyAcceptanceCreateSheetState
               _buildProductLookupRow(line)
             else
               TerminalCompactProductLineSummary(
+                key: ObjectKey(line),
                 lineNo: displayLineNo,
                 stockCode: line.stockCodeController.text.trim(),
                 stockName:
@@ -2036,6 +2037,7 @@ class _CompanyAcceptanceCreateSheetState
                 priceLabel: line.unitPrice > 0
                     ? AppFormatters.currency(line.unitPrice)
                     : null,
+                highlightOnMount: displayLineNo == 1,
               ),
             if (isFreshEntry && line.lookupStatusMessage != null) ...<Widget>[
               const SizedBox(height: 8),

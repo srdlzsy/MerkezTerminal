@@ -970,6 +970,7 @@ class _StockReceiptCreateSheetState extends State<StockReceiptCreateSheet>
 
     if (!isFreshEntry && product != null) {
       return TerminalCompactProductLineCard(
+        key: ObjectKey(line),
         lineNo: displayLineNo,
         stockCode: product.stockCode,
         stockName: product.stockName,
@@ -979,6 +980,7 @@ class _StockReceiptCreateSheetState extends State<StockReceiptCreateSheet>
             ? AppFormatters.quantity(product.unitMultiplier)
             : null,
         barcode: product.barcode,
+        highlightOnMount: displayLineNo == 1,
         canDelete: _lines.length > 1,
         onDelete: () => _removeLineAt(index),
         onMinimumReached: _lines.length > 1 ? () => _removeLineAt(index) : null,

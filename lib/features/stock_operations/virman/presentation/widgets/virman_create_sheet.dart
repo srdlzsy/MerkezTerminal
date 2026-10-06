@@ -959,6 +959,7 @@ class _VirmanDraftLineCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: <Widget>[
           TerminalCompactProductLineCard(
+            key: ObjectKey(line),
             lineNo: lineNumber,
             stockCode: product.stockCode,
             stockName: product.stockName,
@@ -967,6 +968,7 @@ class _VirmanDraftLineCard extends StatelessWidget {
             packageLabel: packageLabel,
             barcode: product.barcode,
             priceLabel: movementSubtitle,
+            highlightOnMount: lineNumber == 1,
             canDelete: canRemove,
             onDelete: onRemove,
             onMinimumReached: canRemove ? onRemove : null,

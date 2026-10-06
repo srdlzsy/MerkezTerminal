@@ -1101,6 +1101,7 @@ class _WarehouseReturnCreateSheetState extends State<WarehouseReturnCreateSheet>
 
     if (!isFreshEntry && product != null) {
       return TerminalCompactProductLineCard(
+        key: ObjectKey(line),
         lineNo: displayLineNo,
         stockCode: product.stockCode,
         stockName: product.stockName,
@@ -1110,6 +1111,7 @@ class _WarehouseReturnCreateSheetState extends State<WarehouseReturnCreateSheet>
             ? AppFormatters.quantity(product.unitMultiplier)
             : null,
         barcode: product.barcode,
+        highlightOnMount: displayLineNo == 1,
         canDelete: _lines.length > 1,
         onDelete: () => _removeLine(line),
         onMinimumReached: _lines.length > 1 ? () => _removeLine(line) : null,

@@ -1579,6 +1579,7 @@ class _GivenWarehouseOrderCreateSheetState
 
     if (!isFreshEntry && product != null) {
       return TerminalCompactProductLineCard(
+        key: ObjectKey(line),
         lineNo: displayLineNo,
         stockCode: product.stockCode,
         stockName: product.stockName,
@@ -1588,6 +1589,7 @@ class _GivenWarehouseOrderCreateSheetState
         barcode: product.barcode,
         priceLabel: _greenGrocerMetaLabel(line),
         warningLabel: _greenGrocerWarningLabel(line, product),
+        highlightOnMount: displayLineNo == 1,
         canDelete: _lines.length > 1,
         onDelete: () => _removeLine(line),
         onMinimumReached: _lines.length > 1 ? () => _removeLine(line) : null,

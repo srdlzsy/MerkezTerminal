@@ -225,6 +225,10 @@ class ProductDraftEntryPanel extends StatelessWidget {
           value: _packageInfoValue,
           isPackage: true,
         ),
+      if ((barcode ?? '').trim().isNotEmpty)
+        _CompactProductInfo(label: 'Barkod', value: barcode!.trim()),
+      if ((priceLabel ?? '').trim().isNotEmpty)
+        _CompactProductInfo(label: 'Fiyat', value: priceLabel!.trim()),
       for (final item in extraInfo)
         if (item.value.trim().isNotEmpty)
           _CompactProductInfo(label: item.label, value: item.value),
@@ -522,38 +526,47 @@ class _CompactProductInfoStrip extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return Wrap(
-      spacing: 4,
-      runSpacing: 3,
-      children: <Widget>[
-        for (final item in items)
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-            decoration: BoxDecoration(
-              color: item.isPackage
-                  ? const Color(0xFFFFF4D6)
-                  : theme.colorScheme.surface.withAlpha(190),
-              borderRadius: BorderRadius.circular(6),
-              border: Border.all(
-                color: item.isPackage
-                    ? const Color(0xFFE5B84F).withAlpha(150)
-                    : theme.colorScheme.outlineVariant.withAlpha(95),
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        alignment: Alignment.centerLeft,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            for (var index = 0; index < items.length; index++) ...<Widget>[
+              if (index > 0) const SizedBox(width: 4),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                decoration: BoxDecoration(
+                  color: items[index].isPackage
+                      ? const Color(0xFFFFF4D6)
+                      : theme.colorScheme.surface.withAlpha(190),
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(
+                    color: items[index].isPackage
+                        ? const Color(0xFFE5B84F).withAlpha(150)
+                        : theme.colorScheme.outlineVariant.withAlpha(95),
+                  ),
+                ),
+                child: Text(
+                  '${items[index].label}: ${items[index].value}',
+                  maxLines: 1,
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    height: 1.05,
+                    color: items[index].isPackage
+                        ? const Color(0xFF7A4A00)
+                        : const Color(0xFF4B5F73),
+                    fontWeight: items[index].isPackage
+                        ? FontWeight.w900
+                        : FontWeight.w800,
+                  ),
+                ),
               ),
-            ),
-            child: Text(
-              '${item.label}: ${item.value}',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: theme.textTheme.labelSmall?.copyWith(
-                height: 1.05,
-                color: item.isPackage
-                    ? const Color(0xFF7A4A00)
-                    : const Color(0xFF4B5F73),
-                fontWeight: item.isPackage ? FontWeight.w900 : FontWeight.w800,
-              ),
-            ),
-          ),
-      ],
+            ],
+          ],
+        ),
+      ),
     );
   }
 }

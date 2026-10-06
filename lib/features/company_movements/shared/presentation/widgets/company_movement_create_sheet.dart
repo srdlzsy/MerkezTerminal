@@ -1073,6 +1073,7 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
 
     if (!isFreshEntry && product != null) {
       return TerminalCompactProductLineCard(
+        key: ObjectKey(line),
         lineNo: displayLineNo,
         stockCode: product.stockCode,
         stockName: product.stockName,
@@ -1083,6 +1084,7 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
             : null,
         priceLabel: AppFormatters.currency(product.price),
         barcode: product.barcode,
+        highlightOnMount: displayLineNo == 1,
         canDelete: _lines.length > 1,
         onDelete: _lines.length > 1 ? () => _removeLineAt(index) : null,
         onMinimumReached: _lines.length > 1 ? () => _removeLineAt(index) : null,

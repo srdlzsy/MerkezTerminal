@@ -2307,6 +2307,7 @@ class _ManualShipmentLineCard extends StatelessWidget {
 
     if (!isFreshEntry && product != null) {
       return TerminalCompactProductLineCard(
+        key: ObjectKey(line),
         lineNo: lineNumber,
         stockCode: product.stockCode,
         stockName: product.stockName,
@@ -2320,6 +2321,7 @@ class _ManualShipmentLineCard extends StatelessWidget {
         maximumQuantity: _maxShipmentLineQuantity,
         quantityInputFormatters: _shipmentQuantityInputFormatters,
         quantityValidator: _shipmentQuantityFieldError,
+        highlightOnMount: lineNumber == 1,
         canDelete: canRemove,
         onDelete: onRemove,
         onMinimumReached: canRemove ? onRemove : null,
@@ -2525,6 +2527,7 @@ class _LinkedShipmentLineCard extends StatelessWidget {
 
     if (!isFreshEntry) {
       return TerminalCompactProductLineCard(
+        key: ObjectKey(line),
         lineNo: lineNumber,
         stockCode: line.stockCode,
         stockName: line.stockName,
@@ -2553,6 +2556,7 @@ class _LinkedShipmentLineCard extends StatelessWidget {
           maximum: isQuantityLimited ? line.maxQuantity : null,
           maximumMessage: 'Kalan asildi',
         ),
+        highlightOnMount: lineNumber == 1,
         canDelete: canRemove,
         onDelete: onRemove,
         onMinimumReached: canRemove ? onRemove : null,

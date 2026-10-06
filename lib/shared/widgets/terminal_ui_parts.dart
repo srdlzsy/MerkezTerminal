@@ -1333,6 +1333,7 @@ class TerminalCompactProductLineCard extends StatelessWidget {
     this.packageLabel,
     this.packageFactor,
     this.warningLabel,
+    this.highlightOnMount = false,
     this.canDelete = true,
     this.onDelete,
     this.onMinimumReached,
@@ -1352,6 +1353,7 @@ class TerminalCompactProductLineCard extends StatelessWidget {
   final String? packageLabel;
   final double? packageFactor;
   final String? warningLabel;
+  final bool highlightOnMount;
   final bool canDelete;
   final VoidCallback? onDelete;
   final VoidCallback? onMinimumReached;
@@ -1364,17 +1366,35 @@ class TerminalCompactProductLineCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return Container(
-      width: double.infinity,
-      margin: const EdgeInsets.only(bottom: 4),
-      padding: const EdgeInsets.fromLTRB(6, 5, 6, 5),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: theme.colorScheme.outlineVariant.withAlpha(96),
-        ),
-      ),
+    return TweenAnimationBuilder<double>(
+      key: const ValueKey<String>('terminal-product-line-highlight'),
+      tween: Tween<double>(begin: highlightOnMount ? 1 : 0, end: 0),
+      duration: const Duration(milliseconds: 900),
+      curve: Curves.easeOutCubic,
+      builder: (context, emphasis, child) {
+        return Container(
+          width: double.infinity,
+          margin: const EdgeInsets.only(bottom: 4),
+          padding: const EdgeInsets.fromLTRB(6, 5, 6, 5),
+          decoration: BoxDecoration(
+            color: Color.lerp(
+              theme.colorScheme.surface,
+              theme.colorScheme.secondaryContainer,
+              emphasis * 0.7,
+            ),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: Color.lerp(
+                theme.colorScheme.outlineVariant.withAlpha(96),
+                theme.colorScheme.secondary,
+                emphasis,
+              )!,
+              width: 1 + (emphasis * 0.5),
+            ),
+          ),
+          child: child,
+        );
+      },
       child: LayoutBuilder(
         builder: (context, constraints) {
           // PDA ekranlarinda urun kimligi miktar kontrollerinden once okunur.
@@ -1544,6 +1564,7 @@ class TerminalCompactProductLineSummary extends StatelessWidget {
     this.packageLabel,
     this.warningLabel,
     this.trailing,
+    this.highlightOnMount = false,
   });
 
   final int lineNo;
@@ -1555,19 +1576,39 @@ class TerminalCompactProductLineSummary extends StatelessWidget {
   final String? packageLabel;
   final String? warningLabel;
   final Widget? trailing;
+  final bool highlightOnMount;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(6, 5, 6, 5),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: Theme.of(context).colorScheme.outlineVariant.withAlpha(96),
-        ),
-      ),
+    final theme = Theme.of(context);
+    return TweenAnimationBuilder<double>(
+      key: const ValueKey<String>('terminal-product-line-summary-highlight'),
+      tween: Tween<double>(begin: highlightOnMount ? 1 : 0, end: 0),
+      duration: const Duration(milliseconds: 900),
+      curve: Curves.easeOutCubic,
+      builder: (context, emphasis, child) {
+        return Container(
+          width: double.infinity,
+          padding: const EdgeInsets.fromLTRB(6, 5, 6, 5),
+          decoration: BoxDecoration(
+            color: Color.lerp(
+              theme.colorScheme.surface,
+              theme.colorScheme.secondaryContainer,
+              emphasis * 0.7,
+            ),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: Color.lerp(
+                theme.colorScheme.outlineVariant.withAlpha(96),
+                theme.colorScheme.secondary,
+                emphasis,
+              )!,
+              width: 1 + (emphasis * 0.5),
+            ),
+          ),
+          child: child,
+        );
+      },
       child: LayoutBuilder(
         builder: (context, constraints) => Row(
           crossAxisAlignment: CrossAxisAlignment.center,

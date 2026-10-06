@@ -1201,6 +1201,7 @@ class _OfflineInventoryCountCreateSheetState
 
     if (!isFreshEntry) {
       return TerminalCompactProductLineCard(
+        key: ObjectKey(line),
         lineNo: displayLineNo,
         stockCode: line.stockCodeController.text.trim(),
         stockName: line.stockNameController.text.trim().isEmpty
@@ -1212,6 +1213,7 @@ class _OfflineInventoryCountCreateSheetState
             ? AppFormatters.quantity(line.unitMultiplier)
             : null,
         barcode: line.barcodeController.text.trim(),
+        highlightOnMount: displayLineNo == 1,
         canDelete: _lines.length > 1,
         onDelete: _lines.length > 1 ? () => _removeLineAt(index) : null,
         onMinimumReached: _lines.length > 1 ? () => _removeLineAt(index) : null,
