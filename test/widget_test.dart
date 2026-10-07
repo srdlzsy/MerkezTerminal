@@ -94,6 +94,7 @@ void main() {
     ];
 
     for (final width in <double>[320, 360]) {
+      var installPressed = false;
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
@@ -103,6 +104,9 @@ void main() {
               child: HomeDashboard(
                 user: user,
                 menus: menus,
+                installedVersionLabel: '1.1.89 (90)',
+                availableVersionLabel: '1.1.90 (91)',
+                onInstallUpdate: () => installPressed = true,
                 onSelectMenu: (_) {},
               ),
             ),
@@ -113,6 +117,10 @@ void main() {
       expect(tester.takeException(), isNull);
       expect(find.text('Tum Menuler'), findsOneWidget);
       expect(find.text('Sayim Sonuclari'), findsOneWidget);
+      expect(find.text('Surum 1.1.89 (90)'), findsOneWidget);
+      expect(find.text('Yeni: 1.1.90 (91)'), findsOneWidget);
+      await tester.tap(find.text('Guncelle'));
+      expect(installPressed, isTrue);
       expect(
         find.text(
           'Islem yapmak icin asagidaki menu listesinden bir ekran secin.',

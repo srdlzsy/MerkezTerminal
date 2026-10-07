@@ -143,3 +143,16 @@ Kurulumdan sonra ayni guncelleme tekrar cikiyorsa su noktalari kontrol et:
 5. Sabit/eski bir APK URL'si cache'ten donuyor mu? Her yayin icin yukaridaki
    surumlu dosya adlarini kullan.
 
+## 10. Terminalde Guncelleme Akisi
+
+- Home ekraninda kurulu `versionName` ve Android `versionCode` birlikte
+  gosterilir: `Surum 1.1.89 (90)`.
+- `Kontrol` dugmesiyle sunucu manifesti elle yeniden kontrol edilebilir.
+- Yeni surum varsa hedef surum Home ekraninda gorunur ve `Guncelle` dugmesi
+  aktif olur.
+- Indirme boyunca yuzde ve indirilen boyut gosterilir. APK paket adi, surumu,
+  yapi numarasi ve imzasi dogrulanmadan Android kurulum ekrani acilmaz.
+- Kurulum iptal edilirse Home ekraninda durum acikca belirtilir ve ayni gecerli
+  APK tekrar indirilmeden kurulum yeniden acilir.
+- Sonraki surum indirilirken eski APK cache dosyalari otomatik temizlenir.
+

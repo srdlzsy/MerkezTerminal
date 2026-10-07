@@ -22,6 +22,21 @@ class AppUpdateInfo {
   final int? currentBuildNumber;
   final int? buildNumber;
   final String? apkAbi;
+
+  String get currentVersionLabel =>
+      _versionLabel(version: currentVersion, buildNumber: currentBuildNumber);
+
+  String get versionLabel =>
+      _versionLabel(version: version, buildNumber: buildNumber);
+}
+
+class InstalledAppVersion {
+  const InstalledAppVersion({required this.version, this.buildNumber});
+
+  final String version;
+  final int? buildNumber;
+
+  String get label => _versionLabel(version: version, buildNumber: buildNumber);
 }
 
 typedef AppUpdateProgressCallback =
@@ -75,7 +90,7 @@ class AppUpdateService {
       return null;
     }
 
-    final installed = await _currentVersionInfo();
+    final installed = await getInstalledVersion();
     if (installed == null || installed.version.trim().isEmpty) {
       return null;
     }
@@ -122,6 +137,14 @@ class AppUpdateService {
       buildNumber: remoteBuildNumber,
       apkAbi: apkSelection.abi,
     );
+  }
+
+  Future<InstalledAppVersion?> getInstalledVersion() async {
+    if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) {
+      return null;
+    }
+
+    return _currentVersionInfo();
   }
 
   Future<bool> downloadAndInstall(
@@ -178,14 +201,14 @@ class AppUpdateService {
     );
   }
 
-  Future<_InstalledAppVersion?> _currentVersionInfo() async {
+  Future<InstalledAppVersion?> _currentVersionInfo() async {
     try {
       final response = await _channel.invokeMapMethod<String, Object?>(
         'getAppVersionInfo',
       );
       final version = response?['versionName']?.toString().trim() ?? '';
       if (version.isNotEmpty) {
-        return _InstalledAppVersion(
+        return InstalledAppVersion(
           version: version,
           buildNumber: _readNullableInt(response?['versionCode']),
         );
@@ -201,7 +224,7 @@ class AppUpdateService {
       if (version == null || version.trim().isEmpty) {
         return null;
       }
-      return _InstalledAppVersion(version: version.trim());
+      return InstalledAppVersion(version: version.trim());
     } on MissingPluginException {
       return null;
     } on PlatformException {
@@ -395,13 +418,6 @@ class AppUpdateService {
   }
 }
 
-class _InstalledAppVersion {
-  const _InstalledAppVersion({required this.version, this.buildNumber});
-
-  final String version;
-  final int? buildNumber;
-}
-
 class _SelectedUpdateApk {
   const _SelectedUpdateApk({required this.uri, this.abi});
 
@@ -416,4 +432,11 @@ class AppUpdateException implements Exception {
 
   @override
   String toString() => message;
+}
+
+String _versionLabel({required String version, required int? buildNumber}) {
+  final normalizedVersion = version.trim().isEmpty ? '-' : version.trim();
+  return buildNumber == null
+      ? normalizedVersion
+      : '$normalizedVersion ($buildNumber)';
 }

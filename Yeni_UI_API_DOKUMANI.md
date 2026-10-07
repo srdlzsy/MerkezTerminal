@@ -305,6 +305,7 @@ Bu tablo UI icin ana permission referansidir. Kaynak kod tarafi `PermissionCatal
 | `operasyon-islemleri` | `operations` (`Operasyonlar`) | `operasyon-islemleri.operations.page` | `operasyon-islemleri.operations.list`<br>`operasyon-islemleri.operations.detail`<br>`operasyon-islemleri.operations.create`<br>`operasyon-islemleri.operations.update` | `operasyon-islemleri.operations.all-warehouses` |
 | `operasyon-islemleri` | `belge-akis-takibi` | `operasyon-islemleri.belge-akis-takibi.page` | `operasyon-islemleri.belge-akis-takibi.list`<br>`operasyon-islemleri.belge-akis-takibi.detail` | `operasyon-islemleri.belge-akis-takibi.all-warehouses` |
 | `operasyon-islemleri` | `depo-operasyon-paneli` | `operasyon-islemleri.depo-operasyon-paneli.page` | `operasyon-islemleri.depo-operasyon-paneli.list` | `operasyon-islemleri.depo-operasyon-paneli.all-warehouses` |
+| `operasyon-islemleri` | `firma-evrak-takibi` | `operasyon-islemleri.firma-evrak-takibi.page` | `operasyon-islemleri.firma-evrak-takibi.list` | `operasyon-islemleri.firma-evrak-takibi.all-warehouses` |
 | `operasyon-islemleri` | `urun-dagilimlari` | `operasyon-islemleri.urun-dagilimlari.page` | `operasyon-islemleri.urun-dagilimlari.list`<br>`operasyon-islemleri.urun-dagilimlari.detail`<br>`operasyon-islemleri.urun-dagilimlari.create`<br>`operasyon-islemleri.urun-dagilimlari.update`<br>`operasyon-islemleri.urun-dagilimlari.delete` | `operasyon-islemleri.urun-dagilimlari.all-warehouses` |
 | `duzeltme-islemleri` | `mikro-evrak-duzenleme` | `duzeltme-islemleri.mikro-evrak-duzenleme.page` | `duzeltme-islemleri.mikro-evrak-duzenleme.list`<br>`duzeltme-islemleri.mikro-evrak-duzenleme.detail`<br>`duzeltme-islemleri.mikro-evrak-duzenleme.update`<br>`duzeltme-islemleri.mikro-evrak-duzenleme.delete` | `duzeltme-islemleri.mikro-evrak-duzenleme.all-warehouses` |
 | `entegrasyon-islemleri` | `axata-senkronizasyonu` | `entegrasyon-islemleri.axata-senkronizasyonu.page` | `entegrasyon-islemleri.axata-senkronizasyonu.list`<br>`entegrasyon-islemleri.axata-senkronizasyonu.detail`<br>`entegrasyon-islemleri.axata-senkronizasyonu.create`<br>`entegrasyon-islemleri.axata-senkronizasyonu.update` | `entegrasyon-islemleri.axata-senkronizasyonu.all-warehouses` |
@@ -7641,6 +7642,7 @@ Bu modul Mikro tarafinda var olan kayitlari kontrollu sekilde duzeltmek icin ekl
 - `STOK_SATIS_FIYAT_LISTELERI` depo bazli stok satis fiyatlari
 - `DEPOLAR` depo kartlari
 - `CARI_HESAPLAR` cari kartlari
+- `CARI_HESAP_ADRESLERI` cari adresleri
 - `SIPARISLER` firma siparis evraklari
 - `DEPOLAR_ARASI_SIPARISLER` depo siparis evraklari
 
@@ -7670,6 +7672,7 @@ Genel kurallar:
 - Siparis satir guncellemeleri `orderGuid` ile yapilir. UI detay response'undaki `lines[].orderGuid` degerini satir modelinde gizli anahtar olarak saklamalidir.
 - Request body'de `null` gelen alanlar degismez. Bos string gonderilirse ilgili metin alani bosaltma istegi olarak islenir.
 - `MikroWriteRouting:MicroDocumentEditing=MikroApi` iken stok/cari/depo karti, stok-depo override ve satis fiyati yazmalari Mikro API uzerinden yapilir. UI endpointleri ve response modelleri degismez.
+- Cari adresi guncelleme Mikro API'de ayri ve dogrulanmis bir adres update metodu olmadigi icin genel `MicroDocumentEditing` routing degerinden bagimsiz olarak `MikroWriteConnection` uzerinden kontrollu DB update yapar. Yalniz mevcut `customerCode + addressNo` satiri guncellenir; yeni adres olusturulmaz.
 - Generic Mikro API tablo eslemeleri `*_fileid` degerleriyle aynidir: `STOK_DEPO_DETAYLARI=10`, `STOKLAR=13`, `CARI_HESAPLAR=31`, `CARI_HESAP_HAREKETLERI=51`, `DEPOLAR=111`, `SUBELER=112`, `STOK_SATIS_FIYAT_LISTELERI=228`.
 - API update/delete cagrilarinda backend DB'den okudugu mevcut `lastup_date` degerini concurrency anahtari olarak kullanir; UI'nin bu alani body'de gondermesi gerekmez.
 - `KayitKaydetTopluV2` atomik olmadigi icin backend kart/override/fiyat yazmalarini tek kayitlik isteklerle yapar ve sonucu Mikro DB'den geri okur.
@@ -7712,6 +7715,8 @@ Endpoint ozeti:
 | `GET /api/duzeltme-islemleri/mikro-evrak-duzenleme/cariler` | query | `CustomerCardSearchHttpRequest` | `CustomerCardListItemDto[]` | `list` |
 | `GET /api/duzeltme-islemleri/mikro-evrak-duzenleme/cariler/{customerCode}` | path | `customerCode` | `CustomerCardDetailDto` | `detail` |
 | `PUT /api/duzeltme-islemleri/mikro-evrak-duzenleme/cariler/{customerCode}` | path + body | `CustomerCardPatchHttpRequest` | `CustomerCardUpdateResponse` | `update` |
+| `GET /api/duzeltme-islemleri/mikro-evrak-duzenleme/cariler/{customerCode}/adresler` | path | `customerCode` | `CustomerAddressDto[]` | `detail` |
+| `PUT /api/duzeltme-islemleri/mikro-evrak-duzenleme/cariler/{customerCode}/adresler/{addressNo}` | path + body | `CustomerAddressPatchHttpRequest` | `CustomerAddressUpdateResponse` | `update` |
 | `GET /api/duzeltme-islemleri/mikro-evrak-duzenleme/stok-hareketleri` | query | `StockMovementDocumentLookupHttpRequest` | `StockMovementDocumentDto` | `detail` |
 | `PUT /api/duzeltme-islemleri/mikro-evrak-duzenleme/stok-hareketleri` | body | `UpdateStockMovementDocumentHttpRequest` | `StockMovementDocumentUpdateResponse` | `update` |
 | `DELETE /api/duzeltme-islemleri/mikro-evrak-duzenleme/stok-hareketleri` | query | `StockMovementDocumentLookupHttpRequest` | `MikroDocumentDeleteResponse` | `delete` |
@@ -8339,6 +8344,110 @@ Response:
     "customerCode": "120.01.03106",
     "title1": "ORNEK CARI",
     "taxNo": "1234567890"
+  }
+}
+```
+
+### Cari Adreslerini Getir
+
+`GET /api/duzeltme-islemleri/mikro-evrak-duzenleme/cariler/32006414/adresler`
+
+Cari kartina bagli adresleri `addressNo` sirasiyla dondurur. Cari bulunamazsa `404`, cari mevcut fakat adresi yoksa bos dizi doner.
+
+Response:
+
+```json
+[
+  {
+    "addressGuid": "8dc423d4-4015-4afb-aee5-909e457e2f81",
+    "customerCode": "32006414",
+    "addressNo": 1,
+    "isPrintEnabled": true,
+    "street": "ORNEK CADDE",
+    "neighborhood": "ORNEK MAHALLE",
+    "avenue": "",
+    "quarter": "",
+    "apartmentNo": "10",
+    "apartmentUnitNo": "",
+    "postalCode": "16000",
+    "district": "NILUFER",
+    "city": "BURSA",
+    "country": "TURKIYE",
+    "addressCode": "",
+    "phoneCountryCode": "90",
+    "phoneAreaCode": "224",
+    "phoneNo1": "0000000",
+    "phoneNo2": "",
+    "faxNo": "",
+    "representativeCode": "",
+    "note": "",
+    "latitude": 0,
+    "longitude": 0,
+    "eInvoiceAlias": "",
+    "eDespatchAlias": "",
+    "isPassive": false,
+    "isHidden": false,
+    "isLocked": false,
+    "createdAt": "2026-01-01T09:00:00",
+    "lastUpdatedAt": "2026-10-06T10:30:00"
+  }
+]
+```
+
+### Cari Adresi Guncelle
+
+`PUT /api/duzeltme-islemleri/mikro-evrak-duzenleme/cariler/32006414/adresler/1`
+
+Body'de sadece degistirilecek alanlar gonderilir. Firma sevki/iadesi e-irsaliye hatasinda `Target=customer 32006414 address 1` yaziyorsa UI once bu endpoint ile cari `32006414`, adres `1` satirini acmalidir.
+
+Yalniz posta kodu duzeltme ornegi:
+
+```json
+{
+  "postalCode": "16000"
+}
+```
+
+Adres ve iletisim alanlarini birlikte duzeltme ornegi:
+
+```json
+{
+  "street": "ORNEK CADDE",
+  "neighborhood": "ORNEK MAHALLE",
+  "apartmentNo": "10",
+  "postalCode": "16000",
+  "district": "NILUFER",
+  "city": "BURSA",
+  "country": "TURKIYE"
+}
+```
+
+Kurallar:
+
+- `addressNo` sifir veya pozitif olabilir ve Mikro'daki mevcut `adr_adres_no` ile birebir eslesir.
+- Endpoint yeni adres satiri olusturmaz. Cari/adres kombinasyonu yoksa `404 Not Found` doner.
+- Body'de `null` veya hic gonderilmeyen alan degismez; bos string ilgili metin alanini temizler.
+- `postalCode` en fazla 8 karakterdir. Turkiye adreslerinde UI bos degerle e-irsaliye gonderimine devam etmemelidir.
+- GPS icin `latitude` -90..90, `longitude` -180..180 araliginda olmalidir.
+- Guncellenebilir alanlar: `isPrintEnabled`, `street`, `neighborhood`, `avenue`, `quarter`, `apartmentNo`, `apartmentUnitNo`, `postalCode`, `district`, `city`, `country`, `addressCode`, telefon alanlari, `representativeCode`, `note`, GPS alanlari, e-belge alias alanlari ve pasif/gizli/kilitli bayraklari.
+- Guncelleme basarili olduktan sonra daha once posta kodu nedeniyle duran e-irsaliye icin ayni belge gonderim endpoint'i kullanici aksiyonuyla yeniden cagrilabilir. Yeni sevk/iade evragi olusturulmaz.
+
+Response:
+
+```json
+{
+  "summary": {
+    "target": "cariler/32006414/adresler/1",
+    "updatedRowCount": 1,
+    "updatedAt": "2026-10-06T10:30:00",
+    "updateUser": 149
+  },
+  "address": {
+    "customerCode": "32006414",
+    "addressNo": 1,
+    "postalCode": "16000",
+    "district": "NILUFER",
+    "city": "BURSA"
   }
 }
 ```
@@ -9872,6 +9981,8 @@ Not:
 - `warehouseNo` verilmezse JWT icindeki kullanici deposu kullanilir
 - response modeli `LabelDocumentProductDto` doner
 - backend once Furpa tarafinda belge detaylarini okur, sonra her satiri Mikro urun karti ile zenginlestirir
+- `promotion` alani, urunun PLU numarasi icin secili depoda aktif Birlik Premium Kart/Furpara promosyonu varsa dolar; promosyon yoksa `null` gelir
+- Promosyon sorgusu urun basina ayri istekle degil, belgedeki tum PLU numaralari icin tek toplu Mayday sorgusuyla yapilir
 - response satir sirasi Furpa `LabelDocumentDetails.DetailId` sirasi ile gelir; bu sira pratikte create anindaki insert sirasi kabul edilir
 - UI yazdirirken response'u urun adi, stok kodu veya fiyata gore yeniden siralamamali; gelen sirayi korumalidir
 
@@ -9888,7 +9999,20 @@ Response:
     "unitName": "ADET",
     "quantity": 0,
     "documentOrderNo": 0,
-    "categoryCode": "GIDA"
+    "categoryCode": "GIDA",
+    "promotion": {
+      "isActive": true,
+      "promotionCode": "PRM-2026-101",
+      "promotionType": "P2",
+      "promotionName": "Birlik Premium Kart",
+      "description": "Birlik Premium Kart indirimi",
+      "normalPrice": 125.5,
+      "promotionPrice": 112.95,
+      "discountRate": 10,
+      "discountAmount": 0,
+      "startDate": "2026-10-01T00:00:00",
+      "expirationDate": "2026-10-15T23:59:59"
+    }
   }
 ]
 ```
@@ -11047,6 +11171,15 @@ Not:
 - `barcode` UI'in varsayilan basacagi barkoddur. `barcodes` ayni urunun tum aktif barkod seceneklerini oncelik sirasiyla dondurur; UI isterse detay/dropdown olarak gosterebilir ama liste satir sayisini bu diziye gore cogaltmamalidir.
 - `priceChangeDate` kullaniciya gosterilecek son fiyat degisikligi zamanidir ve `dd.MM.yyyy HH:mm` formatindadir.
 - `alternativeUnitName` ve `unitPriceFactor` eski etiket mantigiyla Mikro `sto_birim4_ad` / `sto_birim4_katsayi` uzerinden hesaplanir. Ornek 1440 ml urunde fiyat `199.50`, katsayi `1.44` ise birim fiyat `138.54 TL/LITRE` olur.
+- `promotion`, Shopigo `promotions` kaydinda aktif ve tarih araliginda olan `PUF1` urun kampanyasi stok koduyla eslesirse dolar; eslesme yoksa `null` gelir.
+- Shopigo urun anahtari `inventory_code`, Mikro tarafindaki `STOKLAR.sto_kod` ile eslestirilir. PLU numarasi promosyon eslestirme anahtari degildir.
+- `promotion_branches` kaydi olmayan kampanya tum subelerde gecerlidir. Kayit varsa yalniz `branches.depo_id = warehouseNo` eslesen subede doner.
+- Shopigo `inventory.is_promotable=false`, silinmis urunler ve `promosyon_yapilmayacak_urunler` tablosundaki stoklar response'a promosyon olarak eklenmez.
+- `PTI1` gibi toplam tutar/musteri kampanyalari tek bir urun etiketi kampanyasi sayilmaz ve bu alanda donmez.
+- Promosyonlar tum stok kodlari icin tek toplu SQL sorgusuyla okunur; urun basina ek API veya SQL istegi uretilmez.
+- Ayni urun icin birden fazla aktif promosyon varsa hesaplanabilen en dusuk `effectiveUnitPrice`, sonra en yakin bitis tarihi esas alinir.
+- Ayni urunun `2 adet al, 1 adedi %100 indirimli` kampanyasinda `promotionPrice` ve `effectiveUnitPrice` normal birim fiyatinin yarisi olur. Farkli bir urunun hediye edildigi kampanyalarda yapay bir efektif fiyat uretilmez; `effectiveUnitPrice=null`, `promotionPrice=normalPrice` gelir ve UI kampanya metnini gostermelidir.
+- Shopigo promosyon verisi gecici olarak okunamazsa hata loglanir, ana Mikro urun listesi yine doner ve ilgili satirlarda `promotion: null` olur.
 - UI bu endpointi "son kontrol zamanindan sonra degisen urunler" icin kullanmali; kullanici belgeye eklemeden once gerekirse etiket belgesi detayinda urunu tekrar okutabilir.
 
 Response:
@@ -11054,23 +11187,103 @@ Response:
 ```json
 [
   {
-    "productCode": "046460",
-    "productName": "YUMOS EXTRA 1440ML LILYUM",
-    "pluNo": 0,
-    "alternativeUnitName": "LITRE",
-    "barcode": "08690637712128",
+    "productCode": "016222",
+    "productName": "VILEDA POWER INOX PAD COLORS 2+1",
+    "pluNo": 168037,
+    "alternativeUnitName": "",
+    "barcode": "4023103246638",
     "barcodes": [
-      "08690637712128",
-      "8690637563348",
-      "8690637712111"
+      "4023103246638"
     ],
     "isDomestic": 1,
-    "oldPrice": 229,
+    "oldPrice": 299.5,
     "origin": "TURKIYE",
-    "price": 199.5,
+    "price": 299.5,
     "priceChangeDate": "11.08.2026 16:27",
-    "unitPriceFactor": 138.54,
-    "unitName": "ADET"
+    "unitPriceFactor": 0,
+    "unitName": "ADET",
+    "promotion": {
+      "source": "Shopigo",
+      "isActive": true,
+      "promotionCode": "68",
+      "promotionType": "PUF1",
+      "promotionName": "VILEDA POWER INOX PAD 1 ALN 1 BDV",
+      "description": "Su urunden su kadar alana su urun su kadar.",
+      "campaignText": "VILEDA POWER INOX PAD 1 ALN 1 BDV",
+      "productRole": "Both",
+      "requiredProductCode": "016222",
+      "requiredQuantity": 2,
+      "discountedProductCode": "016222",
+      "discountedQuantity": 1,
+      "discountType": "PERCENTAGE",
+      "discountValue": 100,
+      "normalPrice": 299.5,
+      "promotionPrice": 149.75,
+      "effectiveUnitPrice": 149.75,
+      "discountRate": 100,
+      "discountAmount": 0,
+      "startDate": "2026-09-24T12:26:50",
+      "expirationDate": "2026-10-08T00:00:00"
+    }
+  }
+]
+```
+
+### Aktif Promosyonlu Etiket Urunleri
+
+Fiyati degismemis olsa bile secili depoda Shopigo urun kampanyasi aktif olan etiket urunlerini getirir.
+
+`GET /api/kasa-islemleri/etiket-belgeleri/aktif-promosyonlu-urunler?warehouseNo=120`
+
+Yetki:
+
+- `kasa-islemleri.etiket-belgeleri.list`
+
+Not:
+
+- Depo kapsam kurali `fiyati-degisen-urunler` ile aynidir. `all-warehouses` yoksa backend JWT deposunu kullanir.
+- Endpoint yalniz urun etiketine uygulanabilen Shopigo `PUF1` kampanyalarini listeler; `PTI1` sepet/musteri kampanyalari listeye girmez.
+- Kampanya urun kodlari Shopigo `inventory_code` ile Mikro `sto_kod` uzerinden eslestirilir. Urun adi, barkodlar, normal satis fiyati ve birim bilgileri Mikro'dan okunur.
+- Fiyat degisikligi tarihi aranmaz. Bu nedenle aktif kampanyasi bulunan ancak son kontrol zamanindan sonra fiyati degismeyen urun de listelenir.
+- UI etiket ekraninda `Fiyati Degisenler` ve `Aktif Promosyonlar` gorunumlarini ayri sunmalidir. Bu endpointin sonucunu fiyat degisikligi listesine otomatik ekleyip tumunu kullanici secmeden yazdirmamalidir.
+- Shopigo okunamazsa endpoint bos dizi doner ve hata loglanir.
+
+Response:
+
+```json
+[
+  {
+    "productCode": "016222",
+    "productName": "VILEDA POWER INOX PAD COLORS 2+1",
+    "pluNo": 168037,
+    "barcode": "4023103246638",
+    "barcodes": ["4023103246638"],
+    "price": 299.5,
+    "unitName": "ADET",
+    "alternativeUnitName": "",
+    "unitPriceFactor": 0,
+    "promotion": {
+      "source": "Shopigo",
+      "isActive": true,
+      "promotionCode": "68",
+      "promotionType": "PUF1",
+      "promotionName": "VILEDA POWER INOX PAD 1 ALN 1 BDV",
+      "campaignText": "VILEDA POWER INOX PAD 1 ALN 1 BDV",
+      "productRole": "Both",
+      "requiredProductCode": "016222",
+      "requiredQuantity": 2,
+      "discountedProductCode": "016222",
+      "discountedQuantity": 1,
+      "discountType": "PERCENTAGE",
+      "discountValue": 100,
+      "normalPrice": 299.5,
+      "promotionPrice": 149.75,
+      "effectiveUnitPrice": 149.75,
+      "discountRate": 100,
+      "discountAmount": 0,
+      "startDate": "2026-09-24T12:26:50",
+      "expirationDate": "2026-10-08T00:00:00"
+    }
   }
 ]
 ```
@@ -15195,6 +15408,8 @@ Stok Islemleri / Sayim Sonuclari
 Kasa Islemleri / Etiket Belgeleri
   -> son belgeler icin GET /api/kasa-islemleri/etiket-belgeleri veya /son
   -> tum gecmis istenirse GET /api/kasa-islemleri/etiket-belgeleri/tumu
+  -> son kontrolden sonra fiyati degisenler icin GET /api/kasa-islemleri/etiket-belgeleri/fiyati-degisen-urunler?dateTimeFilter=...
+  -> fiyati degismese de Shopigo kampanyasi aktif urunler icin GET /api/kasa-islemleri/etiket-belgeleri/aktif-promosyonlu-urunler
   -> liste satirlarini LabelDocumentListItemDto ile goster
   -> kullanici satira tiklar
   -> GET /api/kasa-islemleri/etiket-belgeleri/{documentId}
@@ -17125,6 +17340,85 @@ Response ornegi:
 ```
 
 UI ekraninda ustte `summary` sayaclari, altta `warehouses` tablosu gosterilebilir. Depo satirina tiklandiginda ayni depo numarasiyla belge akis liste endpointine gidilerek ilgili belgeler acilabilir.
+
+### Firma Evrak Takibi
+
+Bu endpoint eski sube uygulamasindaki Firma Evrak Takibi ekraninin yeni API karsiligidir. Secilen gundeki firma mal kabul fislerini ve firma iadelerini tek listede dondurur. Endpoint salt okunurdur; Mikro'ya veya Auth DB'ye kayit yazmaz.
+
+```http
+GET /api/operasyon-islemleri/firma-evrak-takibi?date=2026-10-06&warehouseNo=149
+```
+
+Yetki kodlari:
+
+- Menu/route: `operasyon-islemleri.firma-evrak-takibi.page`
+- Liste endpointi: `operasyon-islemleri.firma-evrak-takibi.list`
+- Baska depo veya tum depolar: `operasyon-islemleri.firma-evrak-takibi.all-warehouses`
+
+Query:
+
+```text
+date         zorunlu; yyyy-MM-dd
+warehouseNo  opsiyonel; all-warehouses yoksa backend JWT deposunu uygular
+```
+
+Tarih kurali eski ekranla uyumludur:
+
+- `CompanyReceiving` firma mal kabul kayitlari secilen gundeki Mikro `sth_create_date` degerine gore bulunur. Tedarikci belge tarihi daha eski olsa bile evrak o gun sisteme girildiyse listelenir.
+- `CompanyReturn` firma iade kayitlari secilen gundeki Mikro `sth_belge_tarih` degerine gore bulunur.
+- Iptal edilmis Mikro hareketleri listeye alinmaz.
+- Eski uygulamadaki `sth_create_user = 39` / `>= 100` kontrolleri uygulanmaz. Evrakin hangi Mikro kullanicisi tarafindan acildigi listeye girme kosulu degildir.
+- Cari adresi veya `addressNo = 1` kaydi bulunmasi aranmaz. Bu ekran evrak takibi yaptigi icin eksik cari adresi evraki listeden dusurmez.
+
+Response:
+
+```json
+{
+  "date": "2026-10-06",
+  "generatedAtUtc": "2026-10-06T09:30:00Z",
+  "warehouseNo": 149,
+  "documentCount": 2,
+  "companyReceivingCount": 1,
+  "companyReturnCount": 1,
+  "items": [
+    {
+      "documentKind": "CompanyReceiving",
+      "documentKindName": "Firma Mal Kabul",
+      "documentSerie": "F149",
+      "documentOrderNo": 5375,
+      "documentNo": "F149/5375",
+      "customerCode": "32006414",
+      "customerName": "ENDERER MESRUBAT SATIS DAGITIM",
+      "customerTitle": "SAN.TIC.A.S. EVYAP",
+      "customerDisplayName": "ENDERER MESRUBAT SATIS DAGITIM SAN.TIC.A.S. EVYAP",
+      "documentDate": "2026-10-04T00:00:00",
+      "movementCreateDate": "2026-10-06T08:42:10",
+      "deliverer": "ALI VELI",
+      "receiver": "SUBE SORUMLUSU",
+      "warehouseNo": 149,
+      "warehouseName": "DEPO 149",
+      "lineCount": 8,
+      "totalQuantity": 42.5
+    }
+  ]
+}
+```
+
+Alan notlari:
+
+- `documentKind`: `CompanyReceiving` veya `CompanyReturn` gelir.
+- `documentNo`: Mikro `sth_belge_no` doluysa bu degerdir; bos ise `{documentSerie}/{documentOrderNo}` olarak uretilir.
+- `deliverer` ve `receiver`: Mikro hareketlerindeki `sth_HareketGrupKodu2` ve `sth_HareketGrupKodu3` alanlaridir. Bos olabilir.
+- `movementCreateDate`: evrakin ilk satirinin Mikro olusturma tarihidir.
+- `lineCount` ve `totalQuantity`: evrakin aktif satirlarinin kontrol ozetidir.
+- Liste once `movementCreateDate`, sonra seri ve sira numarasina gore siralanir.
+
+UI kullanim notu:
+
+- Liste ekraninda tarih, evrak turu, seri/sira, cari, belge tarihi, sisteme giris tarihi ve teslim eden/alan kolonlari gosterilebilir.
+- Yazdirma formunda depo, cari, evrak, teslim eden, teslim alan ve imza alanlari kullanilabilir.
+- `all-warehouses` yoksa depo secici gosterilmemeli; kullanici yalniz kendi deposunun evraklarini gorur.
+- Bu endpoint parasal merkez raporu degildir. Firma/depo bazli tutar toplamlari ayri bir rapor endpointi olarak ele alinmalidir.
 
 ### Urun Dagilimlari
 
@@ -21866,6 +22160,7 @@ public sealed record LabelDocumentProductDto
     public double DeliveredQuantity { get; init; }
     public int DocumentOrderNo { get; init; }
     public string CategoryCode { get; init; } = string.Empty;
+    public LabelPromotionDto? Promotion { get; init; }
 }
 
 public sealed record LabelPriceChangedProductDto
@@ -21883,6 +22178,22 @@ public sealed record LabelPriceChangedProductDto
     public string PriceChangeDate { get; init; } = string.Empty;
     public double UnitPriceFactor { get; init; }
     public string UnitName { get; init; } = string.Empty;
+    public LabelPromotionDto? Promotion { get; init; }
+}
+
+public sealed record LabelPromotionDto
+{
+    public bool IsActive { get; init; }
+    public string PromotionCode { get; init; } = string.Empty;
+    public string PromotionType { get; init; } = string.Empty;
+    public string PromotionName { get; init; } = string.Empty;
+    public string Description { get; init; } = string.Empty;
+    public double NormalPrice { get; init; }
+    public double PromotionPrice { get; init; }
+    public double DiscountRate { get; init; }
+    public double DiscountAmount { get; init; }
+    public DateTime? StartDate { get; init; }
+    public DateTime? ExpirationDate { get; init; }
 }
 
 public sealed record LabelTagDto

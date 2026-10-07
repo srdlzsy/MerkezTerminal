@@ -20,20 +20,42 @@ class FurpaMerkezApp extends StatefulWidget {
   State<FurpaMerkezApp> createState() => _FurpaMerkezAppState();
 }
 
-class _FurpaMerkezAppState extends State<FurpaMerkezApp> {
+class _FurpaMerkezAppState extends State<FurpaMerkezApp>
+    with WidgetsBindingObserver {
   final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
   final GlobalKey<ScaffoldMessengerState> _scaffoldMessengerKey =
       GlobalKey<ScaffoldMessengerState>();
 
-  bool _updateCheckStarted = false;
+  bool _automaticUpdateCheckStarted = false;
+  bool _isCheckingUpdate = false;
+  bool _isDownloadingUpdate = false;
+  bool _isAwaitingInstallation = false;
+  InstalledAppVersion? _installedVersion;
+  AppUpdateInfo? _availableUpdate;
+  AppUpdateDownloadProgress? _updateProgress;
+  String? _updateStatusMessage;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      unawaited(_checkForUpdate());
+      unawaited(_initializeUpdateState());
     });
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      unawaited(_verifyInstalledVersionAfterResume());
+    }
   }
 
   @override
@@ -55,6 +77,16 @@ class _FurpaMerkezAppState extends State<FurpaMerkezApp> {
             AppSessionStatus.authenticated => HomeShellPage(
               sessionController: widget.dependencies.sessionController,
               moduleRegistry: widget.dependencies.moduleRegistry,
+              installedVersionLabel: _installedVersion?.label ?? 'Okunuyor...',
+              availableVersionLabel: _availableUpdate?.versionLabel,
+              isCheckingUpdate: _isCheckingUpdate,
+              isDownloadingUpdate: _isDownloadingUpdate,
+              updateProgress: _updateProgress?.fraction,
+              updateStatusMessage: _updateStatusMessage,
+              onCheckForUpdate: () => unawaited(_checkForUpdate(manual: true)),
+              onInstallUpdate: _availableUpdate == null
+                  ? null
+                  : () => unawaited(_downloadAndInstall(_availableUpdate!)),
             ),
           },
         );
@@ -62,17 +94,56 @@ class _FurpaMerkezAppState extends State<FurpaMerkezApp> {
     );
   }
 
-  Future<void> _checkForUpdate() async {
-    if (_updateCheckStarted) {
+  Future<void> _initializeUpdateState() async {
+    await _refreshInstalledVersion();
+    await _checkForUpdate();
+  }
+
+  Future<void> _checkForUpdate({bool manual = false}) async {
+    if (_isCheckingUpdate || _isDownloadingUpdate) {
+      if (manual) {
+        _showMessage('Guncelleme islemi zaten devam ediyor.');
+      }
       return;
     }
 
-    _updateCheckStarted = true;
+    if (!manual && _automaticUpdateCheckStarted) {
+      return;
+    }
+
+    if (!manual) {
+      _automaticUpdateCheckStarted = true;
+    }
+
+    setState(() {
+      _isCheckingUpdate = true;
+      _updateStatusMessage = 'Guncelleme kontrol ediliyor...';
+    });
 
     try {
       final updateInfo = await widget.dependencies.updateService
           .checkForUpdate();
-      if (!mounted || updateInfo == null) {
+      if (!mounted) {
+        return;
+      }
+
+      await _refreshInstalledVersion();
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _isCheckingUpdate = false;
+        _availableUpdate = updateInfo;
+        _updateStatusMessage = updateInfo == null
+            ? 'Uygulama guncel.'
+            : '${updateInfo.versionLabel} surumu hazir.';
+      });
+
+      if (updateInfo == null) {
+        if (manual) {
+          _showMessage('Uygulama guncel: ${_installedVersion?.label ?? '-'}');
+        }
         return;
       }
 
@@ -81,21 +152,14 @@ class _FurpaMerkezAppState extends State<FurpaMerkezApp> {
         return;
       }
 
-      final currentVersionLabel = updateInfo.currentBuildNumber == null
-          ? updateInfo.currentVersion
-          : '${updateInfo.currentVersion} (${updateInfo.currentBuildNumber})';
-      final newVersionLabel = updateInfo.buildNumber == null
-          ? updateInfo.version
-          : '${updateInfo.version} (${updateInfo.buildNumber})';
-
       final shouldDownload = await showDialog<bool>(
         context: dialogContext,
         builder: (context) {
           return AlertDialog(
             title: const Text('Yeni surum var'),
             content: Text(
-              'Mevcut surum: $currentVersionLabel\n'
-              'Yeni surum: $newVersionLabel\n\n'
+              'Mevcut surum: ${updateInfo.currentVersionLabel}\n'
+              'Yeni surum: ${updateInfo.versionLabel}\n\n'
               'Guncellemeyi indirelim mi?',
             ),
             actions: <Widget>[
@@ -119,13 +183,35 @@ class _FurpaMerkezAppState extends State<FurpaMerkezApp> {
 
       await _downloadAndInstall(updateInfo);
     } on AppUpdateException catch (error) {
+      if (mounted) {
+        setState(() {
+          _isCheckingUpdate = false;
+          _updateStatusMessage = 'Guncelleme kontrol edilemedi.';
+        });
+      }
+      if (manual) {
+        _showMessage(error.message);
+      }
       debugPrint('Guncelleme kontrolu atlandi: ${error.message}');
     } on Object catch (error) {
+      if (mounted) {
+        setState(() {
+          _isCheckingUpdate = false;
+          _updateStatusMessage = 'Guncelleme kontrol edilemedi.';
+        });
+      }
+      if (manual) {
+        _showMessage('Guncelleme kontrol edilemedi: $error');
+      }
       debugPrint('Guncelleme kontrolu atlandi: $error');
     }
   }
 
   Future<void> _downloadAndInstall(AppUpdateInfo updateInfo) async {
+    if (_isDownloadingUpdate) {
+      return;
+    }
+
     final dialogContext = _navigatorKey.currentContext;
     if (dialogContext == null) {
       return;
@@ -137,6 +223,11 @@ class _FurpaMerkezAppState extends State<FurpaMerkezApp> {
       totalBytes: 0,
     );
     StateSetter? updateProgressDialog;
+    setState(() {
+      _isDownloadingUpdate = true;
+      _updateProgress = downloadProgress;
+      _updateStatusMessage = '${updateInfo.versionLabel} indiriliyor...';
+    });
     final progressDialog =
         showDialog<void>(
           context: dialogContext,
@@ -184,6 +275,14 @@ class _FurpaMerkezAppState extends State<FurpaMerkezApp> {
             updateInfo,
             onProgress: (progress) {
               downloadProgress = progress;
+              if (mounted) {
+                setState(() {
+                  _updateProgress = progress;
+                  _updateStatusMessage = progress.fraction == null
+                      ? 'Guncelleme indiriliyor...'
+                      : 'Guncelleme %${(progress.fraction! * 100).round()} indirildi.';
+                });
+              }
               final updateDialog = updateProgressDialog;
               if (progressDialogVisible && updateDialog != null) {
                 updateDialog(() {});
@@ -195,6 +294,15 @@ class _FurpaMerkezAppState extends State<FurpaMerkezApp> {
       }
 
       _closeProgressDialog(isVisible: progressDialogVisible);
+
+      setState(() {
+        _isDownloadingUpdate = false;
+        _isAwaitingInstallation = true;
+        _updateProgress = null;
+        _updateStatusMessage = installerOpened
+            ? 'Kurulum ekrani acildi. Kur secenegine basin.'
+            : 'Kurulum iznini verin; kurulum ekrani acilacak.';
+      });
 
       if (!installerOpened) {
         _showMessage(
@@ -213,6 +321,11 @@ class _FurpaMerkezAppState extends State<FurpaMerkezApp> {
       }
 
       _closeProgressDialog(isVisible: progressDialogVisible);
+      setState(() {
+        _isDownloadingUpdate = false;
+        _updateProgress = null;
+        _updateStatusMessage = error.message ?? 'Guncelleme indirilemedi.';
+      });
       _showMessage(error.message ?? 'Guncelleme indirilemedi.');
     } on Object catch (error) {
       if (!mounted) {
@@ -220,8 +333,60 @@ class _FurpaMerkezAppState extends State<FurpaMerkezApp> {
       }
 
       _closeProgressDialog(isVisible: progressDialogVisible);
+      setState(() {
+        _isDownloadingUpdate = false;
+        _updateProgress = null;
+        _updateStatusMessage = 'Guncelleme indirilemedi.';
+      });
       _showMessage('Guncelleme indirilemedi: $error');
     }
+  }
+
+  Future<void> _refreshInstalledVersion() async {
+    final installed = await widget.dependencies.updateService
+        .getInstalledVersion();
+    if (!mounted || installed == null) {
+      return;
+    }
+
+    setState(() => _installedVersion = installed);
+  }
+
+  Future<void> _verifyInstalledVersionAfterResume() async {
+    final expectedUpdate = _availableUpdate;
+    await Future<void>.delayed(const Duration(milliseconds: 450));
+    if (WidgetsBinding.instance.lifecycleState != AppLifecycleState.resumed) {
+      return;
+    }
+    await _refreshInstalledVersion();
+    if (!mounted || expectedUpdate == null || !_isAwaitingInstallation) {
+      return;
+    }
+
+    final installed = _installedVersion;
+    final installedBuild = installed?.buildNumber;
+    final expectedBuild = expectedUpdate.buildNumber;
+    final installationCompleted =
+        expectedBuild != null && installedBuild != null
+        ? installedBuild >= expectedBuild
+        : installed?.version.trim() == expectedUpdate.version.trim();
+
+    setState(() {
+      _isAwaitingInstallation = false;
+      if (installationCompleted) {
+        _availableUpdate = null;
+        _updateStatusMessage = 'Guncelleme tamamlandi.';
+      } else {
+        _updateStatusMessage =
+            'Kurulum tamamlanmadi. Guncelle ile yeniden deneyin.';
+      }
+    });
+
+    _showMessage(
+      installationCompleted
+          ? 'Guncelleme tamamlandi: ${installed?.label ?? expectedUpdate.versionLabel}'
+          : 'Kurulum tamamlanmadi. Home ekranindan yeniden deneyebilirsiniz.',
+    );
   }
 
   String _formatUpdateProgress(AppUpdateDownloadProgress progress) {

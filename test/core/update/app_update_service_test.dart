@@ -133,6 +133,31 @@ void main() {
     },
   );
 
+  test('getInstalledVersion exposes version and Android build label', () async {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, (call) async {
+          if (call.method == 'getAppVersionInfo') {
+            return <String, Object?>{
+              'versionName': '1.1.89',
+              'versionCode': 90,
+            };
+          }
+          return null;
+        });
+
+    final service = AppUpdateService(
+      httpClient: MockClient((_) async => http.Response('{}', 200)),
+      manifestUri: Uri.parse('http://updates.test/version.json'),
+      channel: channel,
+    );
+
+    final installed = await service.getInstalledVersion();
+
+    expect(installed?.version, '1.1.89');
+    expect(installed?.buildNumber, 90);
+    expect(installed?.label, '1.1.89 (90)');
+  });
+
   test(
     'checkForUpdate does not loop when build number is already installed',
     () async {

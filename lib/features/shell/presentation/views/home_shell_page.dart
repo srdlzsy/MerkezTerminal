@@ -15,10 +15,26 @@ class HomeShellPage extends StatefulWidget {
     super.key,
     required this.sessionController,
     required this.moduleRegistry,
+    this.installedVersionLabel = 'Okunuyor...',
+    this.availableVersionLabel,
+    this.isCheckingUpdate = false,
+    this.isDownloadingUpdate = false,
+    this.updateProgress,
+    this.updateStatusMessage,
+    this.onCheckForUpdate,
+    this.onInstallUpdate,
   });
 
   final AppSessionController sessionController;
   final ShellModuleRegistry moduleRegistry;
+  final String installedVersionLabel;
+  final String? availableVersionLabel;
+  final bool isCheckingUpdate;
+  final bool isDownloadingUpdate;
+  final double? updateProgress;
+  final String? updateStatusMessage;
+  final VoidCallback? onCheckForUpdate;
+  final VoidCallback? onInstallUpdate;
 
   @override
   State<HomeShellPage> createState() => _HomeShellPageState();
@@ -128,6 +144,14 @@ class _HomeShellPageState extends State<HomeShellPage>
             menus: availableMenus,
             offlineQueueCount: _offlineQueueSummary.total,
             offlineFailedCount: _offlineQueueSummary.failed,
+            installedVersionLabel: widget.installedVersionLabel,
+            availableVersionLabel: widget.availableVersionLabel,
+            isCheckingUpdate: widget.isCheckingUpdate,
+            isDownloadingUpdate: widget.isDownloadingUpdate,
+            updateProgress: widget.updateProgress,
+            updateStatusMessage: widget.updateStatusMessage,
+            onCheckForUpdate: widget.onCheckForUpdate,
+            onInstallUpdate: widget.onInstallUpdate,
             onSelectMenu: (menu) => unawaited(_openMenu(menu)),
           )
         : _buildContent(

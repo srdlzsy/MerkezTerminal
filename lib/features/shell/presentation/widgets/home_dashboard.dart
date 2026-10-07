@@ -11,6 +11,14 @@ class HomeDashboard extends StatelessWidget {
     required this.onSelectMenu,
     this.offlineQueueCount = 0,
     this.offlineFailedCount = 0,
+    this.installedVersionLabel = 'Okunuyor...',
+    this.availableVersionLabel,
+    this.isCheckingUpdate = false,
+    this.isDownloadingUpdate = false,
+    this.updateProgress,
+    this.updateStatusMessage,
+    this.onCheckForUpdate,
+    this.onInstallUpdate,
   });
 
   final CurrentUser user;
@@ -18,6 +26,14 @@ class HomeDashboard extends StatelessWidget {
   final ValueChanged<MenuEntry> onSelectMenu;
   final int offlineQueueCount;
   final int offlineFailedCount;
+  final String installedVersionLabel;
+  final String? availableVersionLabel;
+  final bool isCheckingUpdate;
+  final bool isDownloadingUpdate;
+  final double? updateProgress;
+  final String? updateStatusMessage;
+  final VoidCallback? onCheckForUpdate;
+  final VoidCallback? onInstallUpdate;
 
   @override
   Widget build(BuildContext context) {
@@ -35,6 +51,14 @@ class HomeDashboard extends StatelessWidget {
           user: user,
           offlineQueueCount: offlineQueueCount,
           offlineFailedCount: offlineFailedCount,
+          installedVersionLabel: installedVersionLabel,
+          availableVersionLabel: availableVersionLabel,
+          isCheckingUpdate: isCheckingUpdate,
+          isDownloadingUpdate: isDownloadingUpdate,
+          updateProgress: updateProgress,
+          updateStatusMessage: updateStatusMessage,
+          onCheckForUpdate: onCheckForUpdate,
+          onInstallUpdate: onInstallUpdate,
         ),
         const SizedBox(height: 8),
         SectionCard(
@@ -90,11 +114,27 @@ class _UserSummary extends StatelessWidget {
     required this.user,
     required this.offlineQueueCount,
     required this.offlineFailedCount,
+    required this.installedVersionLabel,
+    required this.availableVersionLabel,
+    required this.isCheckingUpdate,
+    required this.isDownloadingUpdate,
+    required this.updateProgress,
+    required this.updateStatusMessage,
+    required this.onCheckForUpdate,
+    required this.onInstallUpdate,
   });
 
   final CurrentUser user;
   final int offlineQueueCount;
   final int offlineFailedCount;
+  final String installedVersionLabel;
+  final String? availableVersionLabel;
+  final bool isCheckingUpdate;
+  final bool isDownloadingUpdate;
+  final double? updateProgress;
+  final String? updateStatusMessage;
+  final VoidCallback? onCheckForUpdate;
+  final VoidCallback? onInstallUpdate;
 
   @override
   Widget build(BuildContext context) {
@@ -175,10 +215,134 @@ class _UserSummary extends StatelessWidget {
                   offlineFailedCount: offlineFailedCount,
                 ),
               ],
+              const SizedBox(height: 7),
+              _UpdateStatusRow(
+                installedVersionLabel: installedVersionLabel,
+                availableVersionLabel: availableVersionLabel,
+                isChecking: isCheckingUpdate,
+                isDownloading: isDownloadingUpdate,
+                progress: updateProgress,
+                statusMessage: updateStatusMessage,
+                onCheck: onCheckForUpdate,
+                onInstall: onInstallUpdate,
+              ),
             ],
           ),
         );
       },
+    );
+  }
+}
+
+class _UpdateStatusRow extends StatelessWidget {
+  const _UpdateStatusRow({
+    required this.installedVersionLabel,
+    required this.availableVersionLabel,
+    required this.isChecking,
+    required this.isDownloading,
+    required this.progress,
+    required this.statusMessage,
+    required this.onCheck,
+    required this.onInstall,
+  });
+
+  final String installedVersionLabel;
+  final String? availableVersionLabel;
+  final bool isChecking;
+  final bool isDownloading;
+  final double? progress;
+  final String? statusMessage;
+  final VoidCallback? onCheck;
+  final VoidCallback? onInstall;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final hasUpdate = availableVersionLabel != null;
+    final progressPercent = progress == null
+        ? null
+        : (progress! * 100).clamp(0, 100).round();
+    final status = isDownloading
+        ? progressPercent == null
+              ? 'Guncelleme indiriliyor'
+              : 'Guncelleme indiriliyor: %$progressPercent'
+        : isChecking
+        ? 'Guncelleme kontrol ediliyor'
+        : statusMessage ??
+              (hasUpdate ? 'Yeni: $availableVersionLabel' : 'Guncel surum');
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(8, 6, 6, 6),
+      decoration: BoxDecoration(
+        color: Colors.white.withAlpha(hasUpdate ? 34 : 20),
+        borderRadius: BorderRadius.circular(7),
+        border: Border.all(color: Colors.white.withAlpha(38)),
+      ),
+      child: Row(
+        children: <Widget>[
+          Icon(
+            hasUpdate
+                ? Icons.system_update_alt_rounded
+                : Icons.verified_outlined,
+            color: hasUpdate ? const Color(0xFFFFE082) : Colors.white,
+            size: 18,
+          ),
+          const SizedBox(width: 7),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(
+                  'Surum $installedVersionLabel',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                Text(
+                  status,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: Colors.white.withAlpha(210),
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 6),
+          TextButton.icon(
+            onPressed: isChecking || isDownloading
+                ? null
+                : hasUpdate
+                ? onInstall
+                : onCheck,
+            style: TextButton.styleFrom(
+              foregroundColor: Colors.white,
+              disabledForegroundColor: Colors.white54,
+              visualDensity: VisualDensity.compact,
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+              minimumSize: const Size(0, 36),
+            ),
+            icon: isChecking || isDownloading
+                ? const SizedBox.square(
+                    dimension: 15,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
+                  )
+                : Icon(
+                    hasUpdate ? Icons.download_rounded : Icons.refresh_rounded,
+                    size: 17,
+                  ),
+            label: Text(hasUpdate ? 'Guncelle' : 'Kontrol'),
+          ),
+        ],
+      ),
     );
   }
 }

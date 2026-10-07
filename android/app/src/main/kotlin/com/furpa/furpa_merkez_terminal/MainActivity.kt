@@ -121,10 +121,36 @@ class MainActivity : FlutterActivity() {
                 if (!updateDir.exists() && !updateDir.mkdirs()) {
                     throw IOException("Guncelleme klasoru hazirlanamadi.")
                 }
-                ensureEnoughStorage(updateDir, totalBytes)
-
                 val apkFile = File(updateDir, fileName)
                 downloadedApkFile = apkFile
+                deleteStaleUpdateFiles(updateDir, apkFile)
+
+                if (apkFile.exists()) {
+                    try {
+                        validateDownloadedApk(
+                            apkFile,
+                            expectedVersion,
+                            expectedVersionCode,
+                        )
+                        emitDownloadProgress(requestId, apkFile.length(), apkFile.length())
+                        runOnUiThread {
+                            try {
+                                result.success(openInstaller(apkFile))
+                            } catch (error: Exception) {
+                                result.error(
+                                    "INSTALL_FAILED",
+                                    error.localizedMessage ?: "Kurulum baslatilamadi.",
+                                    null,
+                                )
+                            }
+                        }
+                        return@thread
+                    } catch (_: ApkValidationException) {
+                        apkFile.delete()
+                    }
+                }
+
+                ensureEnoughStorage(updateDir, totalBytes)
                 if (apkFile.exists() && !apkFile.delete()) {
                     throw IOException("Eski guncelleme dosyasi silinemedi.")
                 }
@@ -229,6 +255,14 @@ class MainActivity : FlutterActivity() {
                 "Guncelleme icin yeterli bos alan yok. Gerekli: yaklasik " +
                     "$requiredMb MB, kullanilabilir: $availableMb MB.",
             )
+        }
+    }
+
+    private fun deleteStaleUpdateFiles(updateDir: File, currentApkFile: File) {
+        updateDir.listFiles()?.forEach { file ->
+            if (file.isFile && file.absolutePath != currentApkFile.absolutePath) {
+                file.delete()
+            }
         }
     }
 
