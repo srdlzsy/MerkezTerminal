@@ -381,6 +381,9 @@ class _FurpaMerkezAppState extends State<FurpaMerkezApp>
             'Kurulum tamamlanmadi. Guncelle ile yeniden deneyin.';
       }
     });
+    if (installationCompleted) {
+      widget.dependencies.sessionController.reportHeartbeatAfterUpdate();
+    }
 
     _showMessage(
       installationCompleted

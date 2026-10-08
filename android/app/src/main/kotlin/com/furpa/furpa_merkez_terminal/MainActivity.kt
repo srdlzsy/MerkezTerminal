@@ -40,6 +40,17 @@ class MainActivity : FlutterActivity() {
                     ),
                 )
                 "getSupportedAbis" -> result.success(Build.SUPPORTED_ABIS.toList())
+                "getTerminalDeviceInfo" -> result.success(
+                    mapOf(
+                        "appVersion" to appVersionName(),
+                        "buildNumber" to appVersionCode(),
+                        "manufacturer" to Build.MANUFACTURER,
+                        "deviceModel" to Build.MODEL,
+                        "androidVersion" to Build.VERSION.RELEASE,
+                        "androidSdk" to Build.VERSION.SDK_INT,
+                        "supportedAbis" to Build.SUPPORTED_ABIS.toList(),
+                    ),
+                )
                 "downloadAndInstallApk" -> {
                     val url = call.argument<String>("url")
                     val fileName = call.argument<String>("fileName")

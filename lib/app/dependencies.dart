@@ -2,6 +2,7 @@ import 'package:furpa_merkez_terminal/core/config/app_config.dart';
 import 'package:furpa_merkez_terminal/core/network/api_client.dart';
 import 'package:furpa_merkez_terminal/core/storage/local_sqlite_database.dart';
 import 'package:furpa_merkez_terminal/core/storage/token_storage.dart';
+import 'package:furpa_merkez_terminal/core/telemetry/terminal_heartbeat_service.dart';
 import 'package:furpa_merkez_terminal/core/update/app_update_service.dart';
 import 'package:furpa_merkez_terminal/features/acceptance_operations/company_acceptances/data/company_acceptances_repository.dart';
 import 'package:furpa_merkez_terminal/features/acceptance_operations/offline_company_acceptances/data/offline_company_acceptances_repository.dart';
@@ -65,8 +66,10 @@ class AppDependencies {
       apiClient: apiClient,
       tokenStorage: tokenStorage,
     );
+    final heartbeatService = TerminalHeartbeatService(apiClient: apiClient);
     final sessionController = AppSessionController(
       authRepository: authRepository,
+      heartbeatService: heartbeatService,
     );
     apiClient.configureAuthentication(
       accessTokenProvider: () => sessionController.accessToken,
@@ -205,6 +208,7 @@ class AppDependencies {
 
     return AppDependencies._(
       updateService: updateService,
+      heartbeatService: heartbeatService,
       sessionController: sessionController,
       moduleRegistry: moduleRegistry,
       givenCompanyOrdersRepository: givenCompanyOrdersRepository,
@@ -246,6 +250,7 @@ class AppDependencies {
 
   AppDependencies._({
     required this.updateService,
+    required this.heartbeatService,
     required this.sessionController,
     required this.moduleRegistry,
     required this.givenCompanyOrdersRepository,
@@ -281,6 +286,7 @@ class AppDependencies {
   });
 
   final AppUpdateService updateService;
+  final TerminalHeartbeatService heartbeatService;
   final AppSessionController sessionController;
   final ShellModuleRegistry moduleRegistry;
   final GivenCompanyOrdersRepository givenCompanyOrdersRepository;

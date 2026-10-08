@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:furpa_merkez_terminal/core/network/api_exception.dart';
+import 'package:furpa_merkez_terminal/core/telemetry/terminal_heartbeat_service.dart';
 import 'package:furpa_merkez_terminal/features/auth/data/auth_repository.dart';
 import 'package:furpa_merkez_terminal/features/auth/data/models/auth_models.dart';
 import 'package:furpa_merkez_terminal/features/shell/domain/menu_entry.dart';
@@ -14,8 +17,11 @@ enum WarehouseContextGuardResult {
 }
 
 class AppSessionController extends ChangeNotifier {
-  AppSessionController({required AuthRepository authRepository})
-    : _authRepository = authRepository;
+  AppSessionController({
+    required AuthRepository authRepository,
+    TerminalHeartbeatService? heartbeatService,
+  }) : _authRepository = authRepository,
+       _heartbeatService = heartbeatService;
 
   static const String _sessionExpiredMessage =
       'Oturum suresi doldu. Lutfen tekrar giris yapin.';
@@ -24,6 +30,7 @@ class AppSessionController extends ChangeNotifier {
       'islem gonderilmedi. Baglantiyi kontrol edip tekrar deneyin.';
 
   final AuthRepository _authRepository;
+  final TerminalHeartbeatService? _heartbeatService;
 
   AppSessionStatus _status = AppSessionStatus.booting;
   AuthSession? _session;
@@ -55,6 +62,9 @@ class AppSessionController extends ChangeNotifier {
   Future<void> restoreSession() async {
     _status = AppSessionStatus.booting;
     notifyListeners();
+    if (_status == AppSessionStatus.authenticated) {
+      _reportHeartbeat();
+    }
 
     try {
       _session = await _authRepository.restoreSession();
@@ -85,12 +95,14 @@ class AppSessionController extends ChangeNotifier {
       _errorMessage = null;
       _status = AppSessionStatus.authenticated;
       notifyListeners();
+      _reportHeartbeat(force: true);
       return true;
     } on ApiException catch (error) {
       _session = null;
       _status = AppSessionStatus.unauthenticated;
       _errorMessage = error.message;
       notifyListeners();
+      _reportHeartbeat();
       return false;
     }
   }
@@ -174,6 +186,7 @@ class AppSessionController extends ChangeNotifier {
       );
 
       if (!context.requiresRelogin) {
+        _reportHeartbeat();
         return WarehouseContextGuardResult.verified;
       }
 
@@ -267,6 +280,7 @@ class AppSessionController extends ChangeNotifier {
       _errorMessage = null;
       _status = AppSessionStatus.authenticated;
       notifyListeners();
+      _reportHeartbeat();
       return refreshedSession.accessToken;
     } on ApiException catch (error) {
       await _setUnauthenticated(
@@ -326,5 +340,14 @@ class AppSessionController extends ChangeNotifier {
       return no;
     }
     return '$no $name';
+  }
+
+  void reportHeartbeatAfterUpdate() => _reportHeartbeat(force: true);
+
+  void _reportHeartbeat({bool force = false}) {
+    final heartbeatService = _heartbeatService;
+    if (heartbeatService != null) {
+      unawaited(heartbeatService.sendIfDue(force: force));
+    }
   }
 }
