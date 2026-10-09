@@ -73,6 +73,34 @@ void main() {
     expect(item.companyAcceptanceUnitPrice, 75);
   });
 
+  test('barcode resolution keeps package and variable weight metadata', () {
+    final resolution = BarcodeResolutionResult.fromJson(<String, dynamic>{
+      'isFound': true,
+      'barcode': '2700174041103',
+      'lookupBarcode': '2700174',
+      'stockCode': '015550',
+      'stockName': 'SEFTALI KG',
+      'matchedUnitName': 'KG',
+      'matchedUnitMultiplier': 1,
+      'unitsPerCase': 12,
+      'isVariableWeightBarcode': true,
+      'embeddedQuantity': 4.11,
+      'embeddedQuantityUnit': 'KG',
+      'isBarcodeCheckDigitValid': true,
+    });
+
+    final item = SearchProductLookupItem.fromBarcodeResolution(resolution);
+
+    expect(item.unitMultiplier, 12);
+    expect(item.secondaryUnitName, 'KOLI');
+    expect(item.secondaryUnitMultiplier, 12);
+    expect(item.requestedBarcode, '2700174041103');
+    expect(item.lookupBarcode, '2700174');
+    expect(item.isVariableWeightBarcode, isTrue);
+    expect(item.embeddedQuantity, 4.11);
+    expect(item.embeddedQuantityUnit, 'KG');
+  });
+
   test('product lookup reads passive and delisted status', () {
     final item = SearchProductLookupItem.fromJson(<String, dynamic>{
       'stockCode': '000001',

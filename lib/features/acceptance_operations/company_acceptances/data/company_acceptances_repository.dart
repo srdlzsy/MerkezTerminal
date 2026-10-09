@@ -2,6 +2,8 @@ import 'package:furpa_merkez_terminal/core/network/api_client.dart';
 import 'package:furpa_merkez_terminal/features/acceptance_operations/company_acceptances/data/models/company_acceptance_models.dart';
 import 'package:furpa_merkez_terminal/features/company_movements/shared/data/models/company_movement_models.dart';
 import 'package:furpa_merkez_terminal/features/order_operations/given_company_orders/data/models/given_company_order_models.dart';
+import 'package:furpa_merkez_terminal/shared/data/barcode_resolution_models.dart';
+import 'package:furpa_merkez_terminal/shared/data/barcode_resolution_repository.dart';
 import 'package:furpa_merkez_terminal/shared/data/search_lookup_models.dart';
 
 abstract class CompanyAcceptancesRepository {
@@ -45,6 +47,11 @@ abstract class CompanyAcceptancesRepository {
     String? customerCode,
     bool includeDelisted = true,
   });
+
+  Future<BarcodeResolutionResult> resolveBarcode({
+    required String accessToken,
+    required BarcodeResolutionRequest request,
+  });
 }
 
 class ApiCompanyAcceptancesRepository implements CompanyAcceptancesRepository {
@@ -52,6 +59,9 @@ class ApiCompanyAcceptancesRepository implements CompanyAcceptancesRepository {
     : _apiClient = apiClient;
 
   final ApiClient _apiClient;
+
+  BarcodeResolutionRepository get _barcodeResolutionRepository =>
+      ApiBarcodeResolutionRepository(apiClient: _apiClient);
 
   @override
   Future<List<CompanyMovementListItem>> fetchAcceptances({
@@ -203,5 +213,16 @@ class ApiCompanyAcceptancesRepository implements CompanyAcceptancesRepository {
           ),
         )
         .toList(growable: false);
+  }
+
+  @override
+  Future<BarcodeResolutionResult> resolveBarcode({
+    required String accessToken,
+    required BarcodeResolutionRequest request,
+  }) {
+    return _barcodeResolutionRepository.resolveBarcode(
+      accessToken: accessToken,
+      request: request,
+    );
   }
 }

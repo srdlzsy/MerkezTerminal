@@ -1,17 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:furpa_merkez_terminal/core/network/api_exception.dart';
 import 'package:furpa_merkez_terminal/features/acceptance_operations/company_acceptances/data/company_acceptances_repository.dart';
 import 'package:furpa_merkez_terminal/features/acceptance_operations/company_acceptances/data/models/company_acceptance_models.dart';
 import 'package:furpa_merkez_terminal/features/acceptance_operations/company_acceptances/presentation/widgets/company_acceptance_create_sheet.dart';
 import 'package:furpa_merkez_terminal/features/company_movements/shared/data/models/company_movement_models.dart';
 import 'package:furpa_merkez_terminal/features/order_operations/given_company_orders/data/given_company_orders_repository.dart';
 import 'package:furpa_merkez_terminal/features/order_operations/given_company_orders/data/models/given_company_order_models.dart';
+import 'package:furpa_merkez_terminal/shared/data/barcode_resolution_models.dart';
 import 'package:furpa_merkez_terminal/shared/data/search_lookup_models.dart';
 import 'package:furpa_merkez_terminal/shared/drafts/create_draft.dart';
 import 'package:furpa_merkez_terminal/shared/drafts/create_draft_repository.dart';
 import 'package:furpa_merkez_terminal/shared/offline/mobile_customer_catalog_repository.dart';
 import 'package:furpa_merkez_terminal/shared/offline/mobile_product_catalog_repository.dart';
 
+import '../../support/barcode_resolution_test_data.dart';
 import '../../support/memory_local_database.dart';
 import '../../support/pda_create_screen_contract.dart';
 
@@ -154,9 +157,95 @@ void main() {
       await _pickProduct(tester);
 
       expect(find.text('Test Urun'), findsOneWidget);
-      expect(find.text('4'), findsNWidgets(2));
+      expect(find.text('2'), findsNWidgets(2));
     },
   );
+
+  testWidgets('starts product name selection from one base unit', (
+    tester,
+  ) async {
+    final repository = _FakeCompanyAcceptancesRepository()
+      ..products = <SearchProductLookupItem>[_buildProduct(unitMultiplier: 12)];
+
+    await _pumpCompanyAcceptance(tester, repository);
+    await _goToLineStepIfNeeded(tester);
+
+    final lookup = find.widgetWithText(
+      TextFormField,
+      'Barkod / stok kodu / urun adi',
+    );
+    await tester.enterText(lookup.first, 'Test Urun');
+    await tester.tap(find.widgetWithText(FilledButton, 'Urun').first);
+    await tester.pumpAndSettle();
+
+    expect(_quantityText(tester, 'Irsaliye Miktari*'), '1');
+    expect(_quantityText(tester, 'Fiili Kabul*'), '1');
+    expect(find.text('Koli ici'), findsOneWidget);
+    expect(find.text('12 KL'), findsOneWidget);
+  });
+
+  testWidgets('uses case barcode quantity and step for company acceptance', (
+    tester,
+  ) async {
+    final repository = _FakeCompanyAcceptancesRepository()
+      ..barcodeResolution = buildBarcodeResolutionResult(
+        barcode: '18690000000012',
+        unitName: 'ADET',
+        unitMultiplier: 12,
+        isCaseBarcode: true,
+        matchedUnitsPerCase: 12,
+      );
+
+    await _pumpCompanyAcceptance(tester, repository);
+    await _goToLineStepIfNeeded(tester);
+
+    final lookup = find.widgetWithText(
+      TextFormField,
+      'Barkod / stok kodu / urun adi',
+    );
+    await tester.enterText(lookup.first, '18690000000012');
+    await tester.tap(find.widgetWithText(FilledButton, 'Urun').first);
+    await tester.pumpAndSettle();
+
+    expect(_quantityText(tester, 'Irsaliye Miktari*'), '12');
+    expect(_quantityText(tester, 'Fiili Kabul*'), '12');
+    expect(repository.lastBarcodeRequest?.operationType, 'receiving');
+    expect(repository.lastBarcodeRequest?.companyCode, 'CR001');
+    expect(repository.lastBarcodeRequest?.screenCode, 'firma-mal-kabulleri');
+
+    await tester.tap(find.byIcon(Icons.add_rounded).first);
+    await tester.pump();
+
+    expect(_quantityText(tester, 'Irsaliye Miktari*'), '24');
+    expect(_quantityText(tester, 'Fiili Kabul*'), '24');
+  });
+
+  testWidgets('uses embedded quantity from variable weight barcode', (
+    tester,
+  ) async {
+    final repository = _FakeCompanyAcceptancesRepository()
+      ..barcodeResolution = buildBarcodeResolutionResult(
+        barcode: '2700174041103',
+        unitName: 'KG',
+        isVariableWeightBarcode: true,
+        embeddedQuantity: 4.11,
+        embeddedQuantityUnit: 'KG',
+      );
+
+    await _pumpCompanyAcceptance(tester, repository);
+    await _goToLineStepIfNeeded(tester);
+
+    final lookup = find.widgetWithText(
+      TextFormField,
+      'Barkod / stok kodu / urun adi',
+    );
+    await tester.enterText(lookup.first, '2700174041103');
+    await tester.tap(find.widgetWithText(FilledButton, 'Urun').first);
+    await tester.pumpAndSettle();
+
+    expect(_quantityText(tester, 'Irsaliye Miktari*'), '4,11');
+    expect(_quantityText(tester, 'Fiili Kabul*'), '4,11');
+  });
 
   testWidgets('does not add a delisted product to company acceptance', (
     tester,
@@ -682,6 +771,42 @@ Future<void> _pickProduct(WidgetTester tester) async {
   await _confirmPendingProduct(tester);
 }
 
+Future<void> _pumpCompanyAcceptance(
+  WidgetTester tester,
+  _FakeCompanyAcceptancesRepository repository,
+) async {
+  tester.view.physicalSize = const Size(390, 1000);
+  tester.view.devicePixelRatio = 1;
+  addTearDown(tester.view.resetPhysicalSize);
+  addTearDown(tester.view.resetDevicePixelRatio);
+
+  await tester.pumpWidget(
+    MaterialApp(
+      home: Scaffold(
+        body: CompanyAcceptanceCreateSheet(
+          repository: repository,
+          ordersRepository: _FakeGivenCompanyOrdersRepository(),
+          accessToken: 'token',
+          defaultWarehouseNo: '110',
+          mobileCustomerCatalogRepository: MobileCustomerCatalogLocalRepository(
+            database: MemoryLocalDatabase(),
+          ),
+          mobileProductCatalogRepository: MobileProductCatalogLocalRepository(
+            database: MemoryLocalDatabase(),
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
+String? _quantityText(WidgetTester tester, String label) {
+  return tester
+      .widget<TextFormField>(find.widgetWithText(TextFormField, label))
+      .controller
+      ?.text;
+}
+
 Future<void> _selectProductWithoutConfirm(WidgetTester tester) async {
   await _goToLineStepIfNeeded(tester);
 
@@ -784,11 +909,35 @@ CustomerLookupItem _buildCustomer({
   );
 }
 
+SearchProductLookupItem _buildProduct({double unitMultiplier = 1}) {
+  return SearchProductLookupItem(
+    warehouseNo: 110,
+    barcode: '8690000000012',
+    stockCode: '015792',
+    stockName: 'Test Urun',
+    price: 125,
+    priceTypeCode: 0,
+    unitName: 'KL',
+    unitMultiplier: unitMultiplier,
+    secondaryUnitName: unitMultiplier > 1 ? 'KOLI' : '',
+    secondaryUnitMultiplier: unitMultiplier,
+    salesBlockCode: null,
+    orderBlockCode: null,
+    goodsAcceptanceBlockCode: null,
+    isSalesBlocked: false,
+    isOrderBlocked: false,
+    isGoodsAcceptanceBlocked: false,
+    productManagerCode: '',
+  );
+}
+
 class _FakeCompanyAcceptancesRepository
     implements CompanyAcceptancesRepository {
   CompanyAcceptanceEDespatchPrefill? eDocumentPrefill;
   List<CustomerLookupItem> customers = const <CustomerLookupItem>[];
   List<SearchProductLookupItem>? products;
+  BarcodeResolutionResult? barcodeResolution;
+  BarcodeResolutionRequest? lastBarcodeRequest;
 
   @override
   Future<CompanyAcceptanceCreateResult> createAcceptance({
@@ -876,6 +1025,28 @@ class _FakeCompanyAcceptancesRepository
             productManagerCode: '',
           ),
         ];
+  }
+
+  @override
+  Future<BarcodeResolutionResult> resolveBarcode({
+    required String accessToken,
+    required BarcodeResolutionRequest request,
+  }) async {
+    lastBarcodeRequest = request;
+    final resolution = barcodeResolution;
+    if (resolution != null) {
+      return resolution;
+    }
+    if (products != null) {
+      throw const ApiException(statusCode: 404, title: 'Bulunamadi');
+    }
+    return buildBarcodeResolutionResult(
+      barcode: request.barcode,
+      unitName: 'KL',
+      unitMultiplier: 2,
+      operationType: request.operationType ?? '',
+      screenCode: request.screenCode ?? '',
+    );
   }
 }
 

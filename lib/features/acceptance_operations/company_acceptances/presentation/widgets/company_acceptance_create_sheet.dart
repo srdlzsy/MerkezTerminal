@@ -7,6 +7,7 @@ import 'package:furpa_merkez_terminal/features/acceptance_operations/company_acc
 import 'package:furpa_merkez_terminal/features/acceptance_operations/company_acceptances/data/models/company_acceptance_models.dart';
 import 'package:furpa_merkez_terminal/features/order_operations/given_company_orders/data/given_company_orders_repository.dart';
 import 'package:furpa_merkez_terminal/features/order_operations/given_company_orders/data/models/given_company_order_models.dart';
+import 'package:furpa_merkez_terminal/shared/data/barcode_resolution_models.dart';
 import 'package:furpa_merkez_terminal/shared/data/search_lookup_models.dart';
 import 'package:furpa_merkez_terminal/shared/drafts/create_draft.dart';
 import 'package:furpa_merkez_terminal/shared/drafts/create_draft_repository.dart';
@@ -566,6 +567,10 @@ class _CompanyAcceptanceCreateSheetState
       return;
     }
 
+    if (await _tryResolveBarcode(line, query)) {
+      return;
+    }
+
     List<SearchProductLookupItem> products;
     try {
       setState(() {
@@ -677,6 +682,133 @@ class _CompanyAcceptanceCreateSheetState
     _refocusLine(entryLine.lookupFocusNode);
   }
 
+  Future<bool> _tryResolveBarcode(
+    _AcceptanceLineDraft line,
+    String query,
+  ) async {
+    if (!looksLikeDirectBarcodeInput(query)) {
+      return false;
+    }
+
+    setState(() {
+      line.setLookupStatus('Barkod cozumleniyor: $query', isLoading: true);
+      _lookupError = null;
+    });
+
+    BarcodeResolutionResult resolution;
+    try {
+      resolution = await widget.repository.resolveBarcode(
+        accessToken: widget.accessToken,
+        request: BarcodeResolutionRequest(
+          barcode: query,
+          warehouseNo: widget.defaultWarehouseNo,
+          operationType: 'receiving',
+          companyCode: _customerCodeController.text.trim(),
+          screenCode: 'firma-mal-kabulleri',
+        ),
+      );
+    } on ApiException catch (error) {
+      if (error.statusCode == 0 || error.statusCode == 404) {
+        if (mounted) {
+          setState(() {
+            line.clearLookupStatus();
+            _lookupError = null;
+          });
+        }
+        return false;
+      }
+
+      if (!mounted) {
+        return true;
+      }
+      final message = error.detail ?? error.title;
+      setState(() {
+        line.setLookupStatus(message, isError: true);
+        _lookupError = null;
+      });
+      unawaited(TerminalFeedback.error());
+      _refocusLine(line.lookupFocusNode);
+      return true;
+    }
+
+    if (!mounted) {
+      return true;
+    }
+
+    if (!resolution.isFound) {
+      final message = resolution.quickErrorMessage;
+      setState(() {
+        line.setLookupStatus(message, isError: true);
+        _lookupError = null;
+      });
+      unawaited(TerminalFeedback.error());
+      _refocusLine(line.lookupFocusNode);
+      return true;
+    }
+
+    final product = SearchProductLookupItem.fromBarcodeResolution(resolution);
+    if (_rejectDelistedProduct(line, product)) {
+      return true;
+    }
+
+    if (!resolution.isUsableInOperation) {
+      final message = resolution.quickErrorMessage;
+      setState(() {
+        line.setLookupStatus(message, isError: true);
+        _lookupError = null;
+      });
+      unawaited(TerminalFeedback.error());
+      _refocusLine(line.lookupFocusNode);
+      return true;
+    }
+
+    final addedQuantity = resolution.suggestedQuantity;
+    if (_increasePendingQuantityIfSameProduct(
+      line,
+      product,
+      addedQuantity: addedQuantity,
+    )) {
+      _draftSession.scheduleSave();
+      _refocusLine(line.lookupFocusNode);
+      return true;
+    }
+
+    final entryLine = await _commitPendingEntryBeforeNextProduct(line);
+    if (entryLine == null) {
+      return true;
+    }
+
+    setState(() {
+      entryLine.applyProduct(
+        product,
+        initialQuantity: addedQuantity,
+        quantityStep: addedQuantity,
+      );
+      entryLine.lookupController.clear();
+      entryLine.setLookupStatus(_resolvedBarcodeMessage(resolution));
+      _lookupError = null;
+    });
+    _draftSession.scheduleSave();
+    _refocusLine(entryLine.lookupFocusNode);
+    if (resolution.quickWarningMessage.isNotEmpty) {
+      unawaited(TerminalFeedback.warning());
+    } else {
+      unawaited(TerminalFeedback.success());
+    }
+    return true;
+  }
+
+  String _resolvedBarcodeMessage(BarcodeResolutionResult resolution) {
+    final quantity = AppFormatters.quantity(resolution.suggestedQuantity);
+    if (resolution.isVariableWeightBarcode) {
+      return 'Terazi barkodu | $quantity ${resolution.embeddedQuantityUnit}';
+    }
+    if (resolution.isCaseBarcode) {
+      return 'Koli barkodu | Koli ici $quantity ${resolution.matchedUnitName}';
+    }
+    return 'Urun barkodu | Miktar $quantity ${resolution.matchedUnitName}';
+  }
+
   Future<void> _scanProductWithCamera(_AcceptanceLineDraft line) async {
     if (!supportsCameraBarcodeScanning) {
       setState(() {
@@ -713,14 +845,15 @@ class _CompanyAcceptanceCreateSheetState
 
   bool _increasePendingQuantityIfSameProduct(
     _AcceptanceLineDraft line,
-    SearchProductLookupItem product,
-  ) {
+    SearchProductLookupItem product, {
+    double? addedQuantity,
+  }) {
     final selectedProduct = line.selectedProduct;
     if (selectedProduct == null || !_isSameProduct(selectedProduct, product)) {
       return false;
     }
 
-    final increment = _unitMultiplierQuantity(product.unitMultiplier);
+    final increment = addedQuantity ?? 1;
     setState(() {
       line.dispatchQuantityController.text = _formatDraftQuantity(
         line.dispatchQuantity + increment,
@@ -729,6 +862,7 @@ class _CompanyAcceptanceCreateSheetState
         line.acceptedQuantity + increment,
       );
       line.previousDispatchQuantity = line.dispatchQuantity;
+      line.quantityStep = increment > 0 ? increment : 1;
       line.lookupController.clear();
       line.setLookupStatus(
         'Ayni barkod okutuldu. +${AppFormatters.quantity(increment)} eklendi.',
@@ -928,19 +1062,20 @@ class _CompanyAcceptanceCreateSheetState
 
     existingLine.dispatchQuantityController.text = _formatQuantity(
       _readDouble(existingLine.dispatchQuantityController.text, fallback: 0) +
-          _quantityInputOrUnitMultiplier(
+          _quantityInputOrStep(
             line.dispatchQuantityController.text,
-            product.unitMultiplier,
+            line.quantityStep,
           ),
     );
     existingLine.acceptedQuantityController.text = _formatQuantity(
       _readDouble(existingLine.acceptedQuantityController.text, fallback: 0) +
-          _quantityInputOrUnitMultiplier(
+          _quantityInputOrStep(
             line.acceptedQuantityController.text,
-            product.unitMultiplier,
+            line.quantityStep,
           ),
     );
     existingLine.previousDispatchQuantity = existingLine.dispatchQuantity;
+    existingLine.quantityStep = line.quantityStep;
 
     if (_readDouble(existingLine.unitPriceController.text, fallback: 0) <= 0) {
       line.applyProduct(product);
@@ -1944,6 +2079,7 @@ class _CompanyAcceptanceCreateSheetState
         quantityController: line.dispatchQuantityController,
         title: 'Secilen urun',
         quantityLabel: 'Irsaliye Miktari*',
+        quantityStep: line.quantityStep,
         unitLabel: selectedProduct.unitName,
         barcode: selectedProduct.barcode,
         packageLabel: selectedProduct.unitMultiplier > 1
@@ -1968,6 +2104,7 @@ class _CompanyAcceptanceCreateSheetState
         onQuantityChanged: (_) => _handleDispatchQuantityChanged(line),
         secondaryQuantityController: line.acceptedQuantityController,
         secondaryQuantityLabel: 'Fiili Kabul*',
+        secondaryQuantityStep: line.quantityStep,
         secondaryMaximumQuantity: line.dispatchQuantity,
         onSecondaryQuantityChanged: (_) => _handleAcceptedQuantityChanged(line),
         secondaryQuantityValidator: (_) {
@@ -2460,6 +2597,7 @@ class _CompanyAcceptanceCreateSheetState
       return TerminalQuantityStepper(
         controller: line.dispatchQuantityController,
         label: 'Irsaliye Miktari*',
+        step: line.quantityStep,
         onMinimumReached: () {
           final index = _lines.indexOf(line);
           if (index < 0 || _lines.length <= 1) {
@@ -2485,6 +2623,7 @@ class _CompanyAcceptanceCreateSheetState
       return TerminalQuantityStepper(
         controller: line.acceptedQuantityController,
         label: 'Fiili Kabul*',
+        step: line.quantityStep,
         maximum: line.dispatchQuantity,
         onChanged: (_) => _handleAcceptedQuantityChanged(line),
         validator: (_) {
@@ -2641,18 +2780,14 @@ class _CompanyAcceptanceCreateSheetState
   }
 }
 
-double _unitMultiplierQuantity(double unitMultiplier) {
-  return productEntryController.unitMultiplierQuantity(unitMultiplier);
-}
-
 bool _quantitiesEqual(double first, double second) {
   return (first - second).abs() < 0.000001;
 }
 
-double _quantityInputOrUnitMultiplier(String raw, double unitMultiplier) {
+double _quantityInputOrStep(String raw, double quantityStep) {
   return productEntryController.quantityInputOrUnitMultiplier(
     raw,
-    unitMultiplier,
+    quantityStep,
   );
 }
 
@@ -2795,6 +2930,13 @@ class _AcceptanceLineDraft {
       productRcController.text = draft['productRc']?.toString() ?? '';
       lastConsumingDateController.text =
           draft['lastConsumingDate']?.toString() ?? '';
+      quantityStep = _readDouble(
+        draft['quantityStep']?.toString() ?? '',
+        fallback: 1,
+      );
+      if (quantityStep <= 0) {
+        quantityStep = 1;
+      }
       orderGuid = draft['orderGuid']?.toString().trim().isEmpty ?? true
           ? null
           : draft['orderGuid']?.toString();
@@ -2888,6 +3030,7 @@ class _AcceptanceLineDraft {
   int unitPointer = 1;
   bool acceptedQuantityManuallyChanged = false;
   double previousDispatchQuantity = 0;
+  double quantityStep = 1;
 
   List<TextEditingController> get _controllers => <TextEditingController>[
     lookupController,
@@ -2940,19 +3083,25 @@ class _AcceptanceLineDraft {
     return DateTime.tryParse(raw);
   }
 
-  void applyProduct(SearchProductLookupItem product) {
+  void applyProduct(
+    SearchProductLookupItem product, {
+    double initialQuantity = 1,
+    double quantityStep = 1,
+  }) {
     selectedProduct = product;
     lookupController.clear();
     stockCodeController.text = product.stockCode;
     acceptedQuantityManuallyChanged = false;
+    final safeInitialQuantity = initialQuantity > 0 ? initialQuantity : 1.0;
+    this.quantityStep = quantityStep > 0 ? quantityStep : 1.0;
     if (dispatchQuantityController.text.trim().isEmpty) {
       dispatchQuantityController.text = _formatDraftQuantity(
-        _unitMultiplierQuantity(product.unitMultiplier),
+        safeInitialQuantity,
       );
     }
     if (acceptedQuantityController.text.trim().isEmpty) {
       acceptedQuantityController.text = _formatDraftQuantity(
-        _unitMultiplierQuantity(product.unitMultiplier),
+        safeInitialQuantity,
       );
     }
     previousDispatchQuantity = dispatchQuantity;
@@ -2996,6 +3145,7 @@ class _AcceptanceLineDraft {
     unitPointer = 1;
     acceptedQuantityManuallyChanged = false;
     previousDispatchQuantity = 0;
+    quantityStep = 1;
     clearLookupStatus();
   }
 
@@ -3023,6 +3173,7 @@ class _AcceptanceLineDraft {
       'acceptedQuantity': acceptedQuantityController.text,
       'unitPrice': unitPriceController.text,
       'unitPointer': unitPointer,
+      'quantityStep': quantityStep,
       'description': descriptionController.text,
       'partyCode': partyCodeController.text,
       'lotNo': lotNoController.text,

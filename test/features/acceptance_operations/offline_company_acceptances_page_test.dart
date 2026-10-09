@@ -217,6 +217,95 @@ void main() {
     );
     expect(find.text('Satir 1'), findsNothing);
   });
+
+  testWidgets('starts offline catalog product from one base unit', (
+    tester,
+  ) async {
+    final database = MemoryLocalDatabase();
+    final productCatalog = MobileProductCatalogLocalRepository(
+      database: database,
+    );
+    await productCatalog.applyCatalogDelta(
+      warehouseNo: 110,
+      items: const <MobileProductCatalogItem>[
+        MobileProductCatalogItem(
+          warehouseNo: 110,
+          barcode: '8690000000012',
+          lookupSource: 'barcode',
+          stockCode: '015792',
+          stockName: 'Koli Test Urun',
+          price: 0,
+          priceTypeCode: 0,
+          unitPointer: 1,
+          unitName: 'ADET',
+          unitMultiplier: 12,
+          secondaryUnitName: 'KOLI',
+          secondaryUnitMultiplier: 12,
+          salesBlockCode: null,
+          orderBlockCode: null,
+          goodsAcceptanceBlockCode: null,
+          isSalesBlocked: false,
+          isOrderBlocked: false,
+          isGoodsAcceptanceBlocked: false,
+          isPassive: false,
+          isDelisted: false,
+          delistReason: '',
+          isDeleted: false,
+          productManagerCode: '',
+        ),
+      ],
+      deletedBarcodes: const <String>[],
+    );
+    final offlineRepository = _FakeOfflineCompanyAcceptancesRepository();
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: OfflineCompanyAcceptancesPage(
+          offlineRepository: offlineRepository,
+          onlineRepository: _FakeCompanyAcceptancesRepository(
+            productSearchError: const ApiException(
+              statusCode: 0,
+              title: 'Baglanti Hatasi',
+            ),
+          ),
+          ordersRepository: _FakeGivenCompanyOrdersRepository(),
+          accessToken: 'token',
+          offlineSyncService: OfflineSyncService(
+            inventoryRepository: _FakeInventoryCountsRepository(),
+            companyAcceptanceRepository: _FakeCompanyAcceptancesRepository(),
+            offlineInventoryRepository: _FakeOfflineInventoryCountsRepository(),
+            offlineCompanyAcceptanceRepository: offlineRepository,
+          ),
+          mobileCustomerCatalogRepository: MobileCustomerCatalogLocalRepository(
+            database: database,
+          ),
+          mobileProductCatalogRepository: productCatalog,
+          currentUserId: 'u1',
+          defaultWarehouseNo: '110',
+          userWarehouseName: 'TEST DEPO',
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await _openOfflineCompanyAcceptanceLines(tester);
+
+    final lookup = find.widgetWithText(
+      TextFormField,
+      'Barkod / stok kodu / urun adi',
+    );
+    await tester.enterText(lookup.first, '8690000000012');
+    await tester.tap(find.widgetWithText(FilledButton, 'Urun').first);
+    await tester.pumpAndSettle();
+
+    final dispatch = tester.widget<TextFormField>(
+      find.widgetWithText(TextFormField, 'Irsaliye Miktari*'),
+    );
+    final accepted = tester.widget<TextFormField>(
+      find.widgetWithText(TextFormField, 'Fiili Kabul*'),
+    );
+    expect(dispatch.controller?.text, '1');
+    expect(accepted.controller?.text, '1');
+  });
 }
 
 Future<void> _openOfflineCompanyAcceptanceLines(WidgetTester tester) async {
@@ -355,6 +444,14 @@ class _FakeCompanyAcceptancesRepository
       throw error;
     }
     return <SearchProductLookupItem>[];
+  }
+
+  @override
+  Future<BarcodeResolutionResult> resolveBarcode({
+    required String accessToken,
+    required BarcodeResolutionRequest request,
+  }) {
+    throw UnsupportedError('Offline testinde barkod cozumleme kullanilmaz.');
   }
 }
 

@@ -842,7 +842,7 @@ class _OfflineCompanyAcceptanceCreateSheetState
       return false;
     }
 
-    final increment = _unitMultiplierQuantity(product.unitMultiplier);
+    const increment = 1.0;
     setState(() {
       line.dispatchQuantityController.text = _formatQuantity(
         line.dispatchQuantity + increment,
@@ -1040,17 +1040,11 @@ class _OfflineCompanyAcceptanceCreateSheetState
 
     existingLine.dispatchQuantityController.text = _formatQuantity(
       _readDouble(existingLine.dispatchQuantityController.text, fallback: 0) +
-          _quantityInputOrUnitMultiplier(
-            line.dispatchQuantityController.text,
-            product.unitMultiplier,
-          ),
+          _quantityInputOrOne(line.dispatchQuantityController.text),
     );
     existingLine.acceptedQuantityController.text = _formatQuantity(
       _readDouble(existingLine.acceptedQuantityController.text, fallback: 0) +
-          _quantityInputOrUnitMultiplier(
-            line.acceptedQuantityController.text,
-            product.unitMultiplier,
-          ),
+          _quantityInputOrOne(line.acceptedQuantityController.text),
     );
 
     if (_readDouble(existingLine.unitPriceController.text, fallback: 0) <= 0) {
@@ -2319,14 +2313,10 @@ class _OfflineCompanyAcceptanceLineDraft {
     stockNameController.text = product.stockName;
     barcodeController.text = product.barcode;
     if (dispatchQuantityController.text.trim().isEmpty) {
-      dispatchQuantityController.text = _formatQuantity(
-        _unitMultiplierQuantity(product.unitMultiplier),
-      );
+      dispatchQuantityController.text = _formatQuantity(1);
     }
     if (acceptedQuantityController.text.trim().isEmpty) {
-      acceptedQuantityController.text = _formatQuantity(
-        _unitMultiplierQuantity(product.unitMultiplier),
-      );
+      acceptedQuantityController.text = _formatQuantity(1);
     }
     unitPriceController.text = _formatQuantity(
       product.companyAcceptanceUnitPrice,
@@ -2376,15 +2366,8 @@ String? _productIdentity({required String barcode, required String stockCode}) {
   );
 }
 
-double _unitMultiplierQuantity(double unitMultiplier) {
-  return productEntryController.unitMultiplierQuantity(unitMultiplier);
-}
-
-double _quantityInputOrUnitMultiplier(String raw, double unitMultiplier) {
-  return productEntryController.quantityInputOrUnitMultiplier(
-    raw,
-    unitMultiplier,
-  );
+double _quantityInputOrOne(String raw) {
+  return productEntryController.quantityInputOrUnitMultiplier(raw, 1);
 }
 
 String _formatQuantity(double value) {
