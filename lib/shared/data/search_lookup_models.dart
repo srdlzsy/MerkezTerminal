@@ -19,6 +19,7 @@ class SearchProductLookupItem {
     this.hasPurchaseRequirement = false,
     required this.unitName,
     required this.unitMultiplier,
+    this.matchedUnitMultiplier = 1,
     required this.secondaryUnitName,
     required this.secondaryUnitMultiplier,
     required this.salesBlockCode,
@@ -58,6 +59,7 @@ class SearchProductLookupItem {
   final bool hasPurchaseRequirement;
   final String unitName;
   final double unitMultiplier;
+  final double matchedUnitMultiplier;
   final String secondaryUnitName;
   final double secondaryUnitMultiplier;
   final int? salesBlockCode;
@@ -140,6 +142,10 @@ class SearchProductLookupItem {
       hasPurchaseRequirement: _readBool(json['hasPurchaseRequirement']),
       unitName: _readString(json['unitName']),
       unitMultiplier: _readProductUnitMultiplier(json),
+      matchedUnitMultiplier: _readPositiveMagnitude(
+        json['matchedUnitMultiplier'],
+        fallback: 1,
+      ),
       secondaryUnitName: _readString(json['secondaryUnitName']),
       secondaryUnitMultiplier: _readPositiveMagnitude(
         json['secondaryUnitMultiplier'],
@@ -191,6 +197,7 @@ class SearchProductLookupItem {
       unitMultiplier: resolution.unitsPerCase > 0
           ? resolution.unitsPerCase
           : resolution.matchedUnitMultiplier,
+      matchedUnitMultiplier: resolution.matchedUnitMultiplier,
       secondaryUnitName: resolution.unitsPerCase > 1 ? 'KOLI' : '',
       secondaryUnitMultiplier: resolution.unitsPerCase,
       salesBlockCode: null,

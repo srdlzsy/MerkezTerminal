@@ -1215,6 +1215,7 @@ class TerminalPdaLineCard extends StatelessWidget {
     this.leading,
     this.trailing,
     this.isEntryLine = false,
+    this.showFullTitle = false,
   });
 
   final String title;
@@ -1223,6 +1224,7 @@ class TerminalPdaLineCard extends StatelessWidget {
   final Widget? trailing;
   final Widget child;
   final bool isEntryLine;
+  final bool showFullTitle;
 
   @override
   Widget build(BuildContext context) {
@@ -1270,8 +1272,10 @@ class TerminalPdaLineCard extends StatelessWidget {
                       Flexible(
                         child: Text(
                           title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
+                          maxLines: showFullTitle ? null : 1,
+                          overflow: showFullTitle
+                              ? TextOverflow.visible
+                              : TextOverflow.ellipsis,
                           style: theme.textTheme.titleSmall?.copyWith(
                             height: 1.05,
                             fontWeight: FontWeight.w900,

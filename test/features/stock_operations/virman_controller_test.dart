@@ -197,6 +197,15 @@ class _FakeVirmanRepository implements VirmanRepository {
   ];
 
   @override
+  Future<VirmanConversionSuggestion> fetchConversionSuggestion({
+    required String accessToken,
+    required String sourceStockCode,
+    required double sourceQuantity,
+  }) {
+    throw UnimplementedError();
+  }
+
+  @override
   Future<List<VirmanListItem>> fetchVirmans({
     required String accessToken,
     required VirmanListFilter filter,

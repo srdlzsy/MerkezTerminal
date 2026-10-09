@@ -642,7 +642,7 @@ class _OfflineInventoryCountCreateSheetState
         .mergedQuantityText(
           existingQuantityText: existingLine.quantityController.text,
           incomingQuantityText: line.quantityController.text,
-          unitMultiplier: product.unitMultiplier,
+          unitMultiplier: product.matchedUnitMultiplier,
         );
     _recycleMergedLine(line);
     return true;
@@ -726,7 +726,7 @@ class _OfflineInventoryCountCreateSheetState
       return false;
     }
 
-    final increment = _unitMultiplierQuantity(product.unitMultiplier);
+    final increment = _unitMultiplierQuantity(product.matchedUnitMultiplier);
     final totalQuantity = line.quantity + increment;
     setState(() {
       line.quantityController.text = _formatQuantity(totalQuantity);
@@ -918,6 +918,7 @@ class _OfflineInventoryCountCreateSheetState
       barcode: line.barcodeController.text.trim(),
       unitName: line.unitName,
       unitMultiplier: line.unitMultiplier,
+      matchedUnitMultiplier: line.matchedUnitMultiplier,
       warehouseNo: int.tryParse(widget.defaultWarehouseNo) ?? 0,
       price: 0,
       isGoodsAcceptanceBlocked: false,
@@ -1277,7 +1278,8 @@ class _OfflineLineDraft {
       barcodeController = TextEditingController(),
       quantityController = TextEditingController(),
       unitPointerController = TextEditingController(text: '1'),
-      unitMultiplierController = TextEditingController(text: '1');
+      unitMultiplierController = TextEditingController(text: '1'),
+      matchedUnitMultiplierController = TextEditingController(text: '1');
 
   final TextEditingController lookupController;
   final TextEditingController stockCodeController;
@@ -1286,6 +1288,7 @@ class _OfflineLineDraft {
   final TextEditingController quantityController;
   final TextEditingController unitPointerController;
   final TextEditingController unitMultiplierController;
+  final TextEditingController matchedUnitMultiplierController;
   final FocusNode lookupFocusNode = FocusNode();
   String unitName = 'ADET';
 
@@ -1293,6 +1296,8 @@ class _OfflineLineDraft {
   int get unitPointer => _readInt(unitPointerController.text, fallback: 1);
   double get unitMultiplier =>
       _readDouble(unitMultiplierController.text, fallback: 1);
+  double get matchedUnitMultiplier =>
+      _readDouble(matchedUnitMultiplierController.text, fallback: 1);
 
   void applyLookup(InventoryCountProductLookupItem product) {
     stockCodeController.text = product.stockCode;
@@ -1303,10 +1308,13 @@ class _OfflineLineDraft {
     unitMultiplierController.text = _formatQuantity(
       _unitMultiplierQuantity(product.unitMultiplier),
     );
+    matchedUnitMultiplierController.text = _formatQuantity(
+      _unitMultiplierQuantity(product.matchedUnitMultiplier),
+    );
     lookupController.clear();
     if (quantityController.text.trim().isEmpty) {
       quantityController.text = _formatQuantity(
-        _unitMultiplierQuantity(product.unitMultiplier),
+        _unitMultiplierQuantity(product.matchedUnitMultiplier),
       );
     }
   }
@@ -1320,6 +1328,7 @@ class _OfflineLineDraft {
     unitName = 'ADET';
     unitPointerController.text = '1';
     unitMultiplierController.text = '1';
+    matchedUnitMultiplierController.text = '1';
   }
 
   void dispose() {
@@ -1331,6 +1340,7 @@ class _OfflineLineDraft {
     quantityController.dispose();
     unitPointerController.dispose();
     unitMultiplierController.dispose();
+    matchedUnitMultiplierController.dispose();
   }
 }
 

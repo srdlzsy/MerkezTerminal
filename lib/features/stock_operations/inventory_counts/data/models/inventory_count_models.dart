@@ -317,6 +317,7 @@ class InventoryCountProductLookupItem {
     required this.stockName,
     required this.unitName,
     this.unitMultiplier = 1,
+    this.matchedUnitMultiplier = 1,
     required this.price,
     this.isPassive = false,
     this.isDelisted = false,
@@ -330,6 +331,7 @@ class InventoryCountProductLookupItem {
   final String stockName;
   final String unitName;
   final double unitMultiplier;
+  final double matchedUnitMultiplier;
   final double price;
   final bool isPassive;
   final bool isDelisted;
@@ -361,6 +363,7 @@ class InventoryCountProductLookupItem {
       stockName: _readString(json['stockName']),
       unitName: _readString(json['unitName']),
       unitMultiplier: _readPositiveDouble(json['unitMultiplier']),
+      matchedUnitMultiplier: _readPositiveDouble(json['matchedUnitMultiplier']),
       price: _readDouble(json['price']),
       isPassive: _readBool(json['isPassive']),
       isDelisted: _readBool(json['isDelisted']),
@@ -379,6 +382,7 @@ class InventoryCountProductLookupItem {
       stockName: resolution.stockName,
       unitName: resolution.matchedUnitName,
       unitMultiplier: resolution.matchedUnitMultiplier,
+      matchedUnitMultiplier: resolution.matchedUnitMultiplier,
       price: resolution.salesPrice,
       isPassive: resolution.isPassive,
       isDelisted: resolution.isDelisted,

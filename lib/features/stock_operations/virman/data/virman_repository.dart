@@ -20,6 +20,12 @@ abstract class VirmanRepository {
     required VirmanCreateRequest request,
   });
 
+  Future<VirmanConversionSuggestion> fetchConversionSuggestion({
+    required String accessToken,
+    required String sourceStockCode,
+    required double sourceQuantity,
+  });
+
   Future<List<SearchProductLookupItem>> searchProducts({
     required String accessToken,
     required String warehouseNo,
@@ -81,6 +87,24 @@ class ApiVirmanRepository implements VirmanRepository {
     );
 
     return VirmanCreateResult.fromJson(response);
+  }
+
+  @override
+  Future<VirmanConversionSuggestion> fetchConversionSuggestion({
+    required String accessToken,
+    required String sourceStockCode,
+    required double sourceQuantity,
+  }) async {
+    final response = await _apiClient.getJsonMap(
+      '/api/stok-islemleri/virmanlar/donusum-onerisi',
+      accessToken: accessToken,
+      queryParameters: <String, String>{
+        'sourceStockCode': sourceStockCode.trim(),
+        'sourceQuantity': sourceQuantity.toString(),
+      },
+    );
+
+    return VirmanConversionSuggestion.fromJson(response);
   }
 
   @override

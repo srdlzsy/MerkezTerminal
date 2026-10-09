@@ -236,6 +236,94 @@ class VirmanLineItem {
   }
 }
 
+class VirmanConversionSuggestion {
+  const VirmanConversionSuggestion({
+    required this.sourceStockCode,
+    required this.sourceStockName,
+    required this.sourceUnitName,
+    required this.sourceQuantity,
+    required this.targetStockCode,
+    required this.targetStockName,
+    required this.targetUnitName,
+    required this.multiplier,
+    required this.targetQuantity,
+    required this.sampleCount,
+    required this.targetMatchCount,
+    required this.multiplierMatchCount,
+    required this.targetConfidencePercent,
+    required this.multiplierConfidencePercent,
+    required this.confidencePercent,
+    required this.isReliable,
+    required this.suggestionSource,
+    required this.lookbackStartDate,
+    required this.lookbackEndDate,
+    required this.minimumSampleCount,
+    required this.maximumSampleCount,
+    required this.minimumConfidencePercent,
+    required this.warning,
+  });
+
+  final String sourceStockCode;
+  final String sourceStockName;
+  final String sourceUnitName;
+  final double sourceQuantity;
+  final String? targetStockCode;
+  final String? targetStockName;
+  final String? targetUnitName;
+  final double? multiplier;
+  final double? targetQuantity;
+  final int sampleCount;
+  final int targetMatchCount;
+  final int multiplierMatchCount;
+  final double targetConfidencePercent;
+  final double multiplierConfidencePercent;
+  final double confidencePercent;
+  final bool isReliable;
+  final String suggestionSource;
+  final DateTime? lookbackStartDate;
+  final DateTime? lookbackEndDate;
+  final int minimumSampleCount;
+  final int maximumSampleCount;
+  final double minimumConfidencePercent;
+  final String? warning;
+
+  bool get hasUsableTarget =>
+      isReliable &&
+      (targetStockCode?.trim().isNotEmpty ?? false) &&
+      (multiplier ?? 0) > 0 &&
+      (targetQuantity ?? 0) > 0;
+
+  factory VirmanConversionSuggestion.fromJson(JsonMap json) {
+    return VirmanConversionSuggestion(
+      sourceStockCode: _readString(json['sourceStockCode']),
+      sourceStockName: _readString(json['sourceStockName']),
+      sourceUnitName: _readString(json['sourceUnitName']),
+      sourceQuantity: _readDouble(json['sourceQuantity']),
+      targetStockCode: _readNullableString(json['targetStockCode']),
+      targetStockName: _readNullableString(json['targetStockName']),
+      targetUnitName: _readNullableString(json['targetUnitName']),
+      multiplier: _readNullableDouble(json['multiplier']),
+      targetQuantity: _readNullableDouble(json['targetQuantity']),
+      sampleCount: _readInt(json['sampleCount']),
+      targetMatchCount: _readInt(json['targetMatchCount']),
+      multiplierMatchCount: _readInt(json['multiplierMatchCount']),
+      targetConfidencePercent: _readDouble(json['targetConfidencePercent']),
+      multiplierConfidencePercent: _readDouble(
+        json['multiplierConfidencePercent'],
+      ),
+      confidencePercent: _readDouble(json['confidencePercent']),
+      isReliable: _readBool(json['isReliable']),
+      suggestionSource: _readString(json['suggestionSource']),
+      lookbackStartDate: _readDate(json['lookbackStartDate']),
+      lookbackEndDate: _readDate(json['lookbackEndDate']),
+      minimumSampleCount: _readInt(json['minimumSampleCount']),
+      maximumSampleCount: _readInt(json['maximumSampleCount']),
+      minimumConfidencePercent: _readDouble(json['minimumConfidencePercent']),
+      warning: _readNullableString(json['warning']),
+    );
+  }
+}
+
 class VirmanCreateRequest {
   const VirmanCreateRequest({
     required this.movementDate,
@@ -415,6 +503,16 @@ double _readDouble(Object? value) {
   return double.tryParse(value?.toString() ?? '') ?? 0;
 }
 
+double? _readNullableDouble(Object? value) {
+  if (value == null) {
+    return null;
+  }
+  if (value is num) {
+    return value.toDouble();
+  }
+  return double.tryParse(value.toString());
+}
+
 int _readInt(Object? value) {
   if (value is num) {
     return value.toInt();
@@ -424,6 +522,22 @@ int _readInt(Object? value) {
 
 String _readString(Object? value) {
   return value?.toString() ?? '';
+}
+
+String? _readNullableString(Object? value) {
+  final normalized = value?.toString().trim() ?? '';
+  return normalized.isEmpty ? null : normalized;
+}
+
+bool _readBool(Object? value) {
+  if (value is bool) {
+    return value;
+  }
+  if (value is num) {
+    return value != 0;
+  }
+  final normalized = value?.toString().trim().toLowerCase();
+  return normalized == 'true' || normalized == '1';
 }
 
 List<int> _readIntList(Object? value) {

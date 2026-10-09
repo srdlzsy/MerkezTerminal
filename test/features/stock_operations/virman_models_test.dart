@@ -47,4 +47,34 @@ void main() {
     expect(item.incomingQuantity, 6);
     expect(item.outgoingQuantity, 2);
   });
+
+  test('VirmanConversionSuggestion reads reliable conversion data', () {
+    final suggestion = VirmanConversionSuggestion.fromJson(<String, dynamic>{
+      'sourceStockCode': '015550',
+      'sourceStockName': "SODA 6'LI",
+      'sourceUnitName': 'ADET',
+      'sourceQuantity': 6,
+      'targetStockCode': '015733',
+      'targetStockName': 'SODA TEKLI',
+      'targetUnitName': 'ADET',
+      'multiplier': 6,
+      'targetQuantity': 36,
+      'sampleCount': 500,
+      'targetMatchCount': 500,
+      'multiplierMatchCount': 492,
+      'targetConfidencePercent': 100,
+      'multiplierConfidencePercent': 98.4,
+      'confidencePercent': 98.4,
+      'isReliable': true,
+      'suggestionSource': 'VirmanHistory',
+      'minimumSampleCount': 10,
+      'maximumSampleCount': 500,
+      'minimumConfidencePercent': 95,
+    });
+
+    expect(suggestion.hasUsableTarget, isTrue);
+    expect(suggestion.targetStockCode, '015733');
+    expect(suggestion.multiplier, 6);
+    expect(suggestion.targetQuantity, 36);
+  });
 }

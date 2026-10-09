@@ -842,7 +842,9 @@ class _OfflineCompanyAcceptanceCreateSheetState
       return false;
     }
 
-    const increment = 1.0;
+    final increment = productEntryController.unitMultiplierQuantity(
+      product.matchedUnitMultiplier,
+    );
     setState(() {
       line.dispatchQuantityController.text = _formatQuantity(
         line.dispatchQuantity + increment,
@@ -2313,10 +2315,18 @@ class _OfflineCompanyAcceptanceLineDraft {
     stockNameController.text = product.stockName;
     barcodeController.text = product.barcode;
     if (dispatchQuantityController.text.trim().isEmpty) {
-      dispatchQuantityController.text = _formatQuantity(1);
+      dispatchQuantityController.text = _formatQuantity(
+        productEntryController.unitMultiplierQuantity(
+          product.matchedUnitMultiplier,
+        ),
+      );
     }
     if (acceptedQuantityController.text.trim().isEmpty) {
-      acceptedQuantityController.text = _formatQuantity(1);
+      acceptedQuantityController.text = _formatQuantity(
+        productEntryController.unitMultiplierQuantity(
+          product.matchedUnitMultiplier,
+        ),
+      );
     }
     unitPriceController.text = _formatQuantity(
       product.companyAcceptanceUnitPrice,

@@ -4,6 +4,41 @@ import 'package:furpa_merkez_terminal/shared/offline/mobile_product_catalog_repo
 import '../../support/memory_local_database.dart';
 
 void main() {
+  test(
+    'catalog item keeps package and matched barcode multipliers separate',
+    () {
+      final item = MobileProductCatalogItem.fromJson(<String, dynamic>{
+        'warehouseNo': 110,
+        'barcode': '8690000000012',
+        'stockCode': '001',
+        'stockName': 'Test urunu',
+        'unitName': 'ADET',
+        'unitMultiplier': 12,
+        'matchedUnitMultiplier': 1,
+        'secondaryUnitMultiplier': 12,
+      });
+
+      expect(item.unitMultiplier, 12);
+      expect(item.matchedUnitMultiplier, 1);
+      expect(item.toSearchProductLookupItem().matchedUnitMultiplier, 1);
+      expect(item.toInventoryCountProductLookupItem().matchedUnitMultiplier, 1);
+
+      final caseBarcodeItem =
+          MobileProductCatalogItem.fromJson(<String, dynamic>{
+            'warehouseNo': 110,
+            'barcode': '18690000000019',
+            'stockCode': '001',
+            'stockName': 'Test urunu',
+            'unitName': 'ADET',
+            'unitMultiplier': 12,
+            'matchedUnitMultiplier': 12,
+            'secondaryUnitMultiplier': 12,
+          });
+      expect(caseBarcodeItem.unitMultiplier, 12);
+      expect(caseBarcodeItem.matchedUnitMultiplier, 12);
+    },
+  );
+
   test('full sync follows cursor pages and stores final sync token', () async {
     final localRepository = MobileProductCatalogLocalRepository(
       database: MemoryLocalDatabase(),
@@ -113,6 +148,45 @@ void main() {
       expect(deleted, isNull);
     },
   );
+
+  test('old catalog schema forces one full synchronization', () async {
+    final database = MemoryLocalDatabase();
+    await database.writeDocument(
+      'mobile_product_catalog.metadata.v1.110',
+      <String, dynamic>{
+        'warehouseNo': 110,
+        'syncToken': '2026-06-08T10:30:00',
+        'lastCompletedAt': '2026-06-08T10:30:00',
+        'itemCount': 1,
+      },
+    );
+    final localRepository = MobileProductCatalogLocalRepository(
+      database: database,
+    );
+    final remoteDataSource = _FakeCatalogRemoteDataSource(
+      pages: <MobileProductCatalogPage>[
+        _page(
+          hasMore: false,
+          syncToken: '2026-10-09T10:00:00',
+          items: <MobileProductCatalogItem>[
+            _item(barcode: '8690000000001', stockCode: '001'),
+          ],
+        ),
+      ],
+    );
+
+    final result = await MobileProductCatalogSyncService(
+      remoteDataSource: remoteDataSource,
+      localRepository: localRepository,
+    ).syncCatalog(accessToken: 'token', warehouseNo: '110');
+
+    expect(result.wasFullSync, isTrue);
+    expect(remoteDataSource.requests.single.since, isNull);
+    expect(
+      result.metadata.schemaVersion,
+      MobileProductCatalogMetadata.currentSchemaVersion,
+    );
+  });
 }
 
 MobileProductCatalogPage _page({
@@ -151,6 +225,7 @@ MobileProductCatalogItem _item({
     unitPointer: 1,
     unitName: 'AD',
     unitMultiplier: 1,
+    matchedUnitMultiplier: 1,
     secondaryUnitName: 'KOLI',
     secondaryUnitMultiplier: 12,
     salesBlockCode: 0,

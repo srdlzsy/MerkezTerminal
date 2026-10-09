@@ -841,7 +841,7 @@ class _AcceptanceLineCard extends StatelessWidget {
 
     return TerminalPdaLineCard(
       title: draft.stockName,
-      subtitle: 'Kod ${draft.stockCode}',
+      showFullTitle: true,
       trailing: _DifferenceBadge(type: draft.differenceType),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -849,6 +849,7 @@ class _AcceptanceLineCard extends StatelessWidget {
           TerminalPdaInfoGrid(
             minTileWidth: 90,
             items: <TerminalPdaInfo>[
+              TerminalPdaInfo(label: 'Stok Kodu', value: draft.stockCode),
               TerminalPdaInfo(
                 label: 'Evrak',
                 value: AppFormatters.quantity(draft.shippedQuantity),

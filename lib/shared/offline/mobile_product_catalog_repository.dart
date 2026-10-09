@@ -17,6 +17,7 @@ class MobileProductCatalogItem {
     required this.unitPointer,
     required this.unitName,
     required this.unitMultiplier,
+    this.matchedUnitMultiplier = 1,
     required this.secondaryUnitName,
     required this.secondaryUnitMultiplier,
     required this.salesBlockCode,
@@ -44,6 +45,7 @@ class MobileProductCatalogItem {
   final int unitPointer;
   final String unitName;
   final double unitMultiplier;
+  final double matchedUnitMultiplier;
   final String secondaryUnitName;
   final double secondaryUnitMultiplier;
   final int? salesBlockCode;
@@ -72,6 +74,7 @@ class MobileProductCatalogItem {
       priceTypeCode: priceTypeCode,
       unitName: unitName,
       unitMultiplier: unitMultiplier,
+      matchedUnitMultiplier: matchedUnitMultiplier,
       secondaryUnitName: secondaryUnitName,
       secondaryUnitMultiplier: secondaryUnitMultiplier,
       salesBlockCode: salesBlockCode,
@@ -95,6 +98,7 @@ class MobileProductCatalogItem {
       stockName: stockName,
       unitName: unitName,
       unitMultiplier: unitMultiplier,
+      matchedUnitMultiplier: matchedUnitMultiplier,
       price: price,
       isPassive: isPassive,
       isDelisted: isDelisted || isDeleted,
@@ -115,6 +119,7 @@ class MobileProductCatalogItem {
       unitPointer: unitPointer,
       unitName: unitName,
       unitMultiplier: unitMultiplier,
+      matchedUnitMultiplier: matchedUnitMultiplier,
       secondaryUnitName: secondaryUnitName,
       secondaryUnitMultiplier: secondaryUnitMultiplier,
       salesBlockCode: salesBlockCode,
@@ -145,6 +150,7 @@ class MobileProductCatalogItem {
       'unitPointer': unitPointer,
       'unitName': unitName,
       'unitMultiplier': unitMultiplier,
+      'matchedUnitMultiplier': matchedUnitMultiplier,
       'secondaryUnitName': secondaryUnitName,
       'secondaryUnitMultiplier': secondaryUnitMultiplier,
       'salesBlockCode': salesBlockCode,
@@ -175,6 +181,7 @@ class MobileProductCatalogItem {
       unitPointer: _readInt(json['unitPointer']),
       unitName: _readString(json['unitName']),
       unitMultiplier: _readDouble(json['unitMultiplier']).abs(),
+      matchedUnitMultiplier: _readPositiveDouble(json['matchedUnitMultiplier']),
       secondaryUnitName: _readString(json['secondaryUnitName']),
       secondaryUnitMultiplier: _readDouble(
         json['secondaryUnitMultiplier'],
@@ -253,19 +260,24 @@ class MobileProductCatalogMetadata {
     required this.generatedAt,
     required this.lastCompletedAt,
     required this.itemCount,
+    this.schemaVersion = currentSchemaVersion,
   });
+
+  static const int currentSchemaVersion = 2;
 
   final int warehouseNo;
   final String syncToken;
   final DateTime? generatedAt;
   final DateTime lastCompletedAt;
   final int itemCount;
+  final int schemaVersion;
 
   MobileProductCatalogMetadata copyWith({
     String? syncToken,
     DateTime? generatedAt,
     DateTime? lastCompletedAt,
     int? itemCount,
+    int? schemaVersion,
   }) {
     return MobileProductCatalogMetadata(
       warehouseNo: warehouseNo,
@@ -273,6 +285,7 @@ class MobileProductCatalogMetadata {
       generatedAt: generatedAt ?? this.generatedAt,
       lastCompletedAt: lastCompletedAt ?? this.lastCompletedAt,
       itemCount: itemCount ?? this.itemCount,
+      schemaVersion: schemaVersion ?? this.schemaVersion,
     );
   }
 
@@ -283,6 +296,7 @@ class MobileProductCatalogMetadata {
       'generatedAt': generatedAt?.toIso8601String(),
       'lastCompletedAt': lastCompletedAt.toIso8601String(),
       'itemCount': itemCount,
+      'schemaVersion': schemaVersion,
     };
   }
 
@@ -295,6 +309,7 @@ class MobileProductCatalogMetadata {
           _readDate(json['lastCompletedAt']) ??
           DateTime.fromMillisecondsSinceEpoch(0),
       itemCount: _readInt(json['itemCount']),
+      schemaVersion: _readInt(json['schemaVersion']),
     );
   }
 }
@@ -849,7 +864,12 @@ class MobileProductCatalogSyncService {
         warehouseNo: normalizedWarehouseNo,
       );
       final currentSyncToken = currentMetadata?.syncToken.trim() ?? '';
-      final wasFullSync = forceFull || currentSyncToken.isEmpty;
+      final requiresSchemaRefresh =
+          currentMetadata != null &&
+          currentMetadata.schemaVersion <
+              MobileProductCatalogMetadata.currentSchemaVersion;
+      final wasFullSync =
+          forceFull || currentSyncToken.isEmpty || requiresSchemaRefresh;
       final fullSyncItems = <MobileProductCatalogItem>[];
       final fullSyncDeletedBarcodes = <String>[];
       var cursor = '';
@@ -916,6 +936,7 @@ class MobileProductCatalogSyncService {
         generatedAt: completedPage.generatedAt,
         lastCompletedAt: now,
         itemCount: 0,
+        schemaVersion: MobileProductCatalogMetadata.currentSchemaVersion,
       );
 
       if (wasFullSync) {
@@ -992,6 +1013,11 @@ double _readDouble(Object? value) {
   }
 
   return double.tryParse(value?.toString() ?? '') ?? 0;
+}
+
+double _readPositiveDouble(Object? value, {double fallback = 1}) {
+  final parsed = _readDouble(value).abs();
+  return parsed > 0 ? parsed : fallback;
 }
 
 int _readInt(Object? value) {

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:furpa_merkez_terminal/features/stock_operations/virman/data/models/virman_models.dart';
 import 'package:furpa_merkez_terminal/features/stock_operations/virman/data/virman_repository.dart';
@@ -44,6 +46,7 @@ class _VirmanCreateSheetState extends State<VirmanCreateSheet>
   late DateTime _movementDate;
   late DateTime _documentDate;
   String? _errorMessage;
+  String? _conversionSuggestionMessage;
   late final CreateDraftSession _draftSession;
   String? _lastAddedProductKey;
 
@@ -95,11 +98,14 @@ class _VirmanCreateSheetState extends State<VirmanCreateSheet>
     Map<String, dynamic>? draft,
     int initialMovementType = 1,
   ]) {
-    return _VirmanDraftLine(
+    late final _VirmanDraftLine line;
+    line = _VirmanDraftLine(
       draft: draft,
       initialMovementType: initialMovementType,
       onChanged: _draftSession.scheduleSave,
+      onQuantityChanged: () => _handleLineQuantityChanged(line),
     );
+    return line;
   }
 
   bool _hasDraftContent() {
@@ -151,10 +157,208 @@ class _VirmanCreateSheetState extends State<VirmanCreateSheet>
     }
 
     setState(() {
+      if (line.movementType == 1) {
+        line.suggestionRequestId += 1;
+        _removeGeneratedTargetsFor(line.stockCodeController.text);
+      }
       _lines.remove(line);
       line.dispose();
     });
     _draftSession.scheduleSave();
+  }
+
+  void _handleLineQuantityChanged(_VirmanDraftLine line) {
+    if (line.movementType != 1 || _lines.indexOf(line) <= 0) {
+      return;
+    }
+
+    final sourceStockCode = line.stockCodeController.text.trim();
+    final sourceQuantity = productEntryController.readQuantity(
+      line.quantityController.text,
+      fallback: 0,
+    );
+    if (sourceStockCode.isEmpty || sourceQuantity <= 0) {
+      return;
+    }
+
+    for (final target in _lines.where(
+      (candidate) =>
+          candidate.isConversionSuggestion &&
+          candidate.conversionSourceStockCode.toUpperCase() ==
+              sourceStockCode.toUpperCase() &&
+          candidate.conversionMultiplier > 0,
+    )) {
+      target.quantityController.text = productEntryController.formatQuantity(
+        sourceQuantity * target.conversionMultiplier,
+      );
+    }
+  }
+
+  void _handleMovementTypeChanged(_VirmanDraftLine line) {
+    setState(() {
+      if (line.isConversionSuggestion) {
+        line
+          ..isConversionSuggestion = false
+          ..conversionSourceStockCode = ''
+          ..conversionMultiplier = 0;
+      }
+      if (line.movementType != 1) {
+        line.suggestionRequestId += 1;
+        _removeGeneratedTargetsFor(line.stockCodeController.text);
+      }
+    });
+    _draftSession.scheduleSave();
+
+    if (line.movementType == 1 && _lines.indexOf(line) > 0) {
+      unawaited(_loadConversionSuggestion(line));
+    }
+  }
+
+  void _removeGeneratedTargetsFor(String sourceStockCode) {
+    final normalizedSource = sourceStockCode.trim().toUpperCase();
+    if (normalizedSource.isEmpty) {
+      return;
+    }
+    final generatedTargets = _lines
+        .where(
+          (candidate) =>
+              candidate.isConversionSuggestion &&
+              candidate.conversionSourceStockCode.toUpperCase() ==
+                  normalizedSource,
+        )
+        .toList(growable: false);
+    for (final target in generatedTargets) {
+      _lines.remove(target);
+      target.dispose();
+    }
+  }
+
+  Future<void> _loadConversionSuggestion(_VirmanDraftLine sourceLine) async {
+    final sourceProduct = sourceLine.selectedProduct;
+    final sourceQuantity = productEntryController.readQuantity(
+      sourceLine.quantityController.text,
+      fallback: 0,
+    );
+    if (sourceProduct == null ||
+        sourceLine.movementType != 1 ||
+        sourceQuantity <= 0) {
+      return;
+    }
+
+    final requestId = ++sourceLine.suggestionRequestId;
+    setState(() {
+      _conversionSuggestionMessage =
+          '${sourceProduct.stockName} icin donusum onerisi araniyor...';
+    });
+
+    try {
+      final suggestion = await widget.repository.fetchConversionSuggestion(
+        accessToken: widget.accessToken,
+        sourceStockCode: sourceProduct.stockCode,
+        sourceQuantity: sourceQuantity,
+      );
+      if (!mounted ||
+          !_lines.contains(sourceLine) ||
+          requestId != sourceLine.suggestionRequestId) {
+        return;
+      }
+
+      if (!suggestion.hasUsableTarget) {
+        setState(() {
+          _conversionSuggestionMessage =
+              suggestion.warning?.trim().isNotEmpty == true
+              ? suggestion.warning!.trim()
+              : 'Guvenilir otomatik donusum bulunamadi; giris urununu manuel secin.';
+        });
+        return;
+      }
+
+      final manualIncomingExists = _committedLines().any(
+        (line) => line.movementType == 0 && !line.isConversionSuggestion,
+      );
+      final targetStockCode = suggestion.targetStockCode!.trim();
+      final multiplier = suggestion.multiplier!;
+      final currentSourceQuantity = productEntryController.readQuantity(
+        sourceLine.quantityController.text,
+        fallback: 0,
+      );
+      if (currentSourceQuantity <= 0) {
+        return;
+      }
+      final targetQuantity = currentSourceQuantity * multiplier;
+
+      if (manualIncomingExists) {
+        setState(() {
+          _conversionSuggestionMessage =
+              'Gecmis virman onerisi: ${suggestion.targetStockName ?? targetStockCode} '
+              '${AppFormatters.quantity(targetQuantity)} ${suggestion.targetUnitName ?? ''}. '
+              'Mevcut giris satiri degistirilmedi.';
+        });
+        return;
+      }
+
+      final normalizedSource = sourceProduct.stockCode.trim().toUpperCase();
+      _VirmanDraftLine? targetLine;
+      for (final candidate in _committedLines()) {
+        if (candidate.isConversionSuggestion &&
+            candidate.conversionSourceStockCode.toUpperCase() ==
+                normalizedSource) {
+          targetLine = candidate;
+          break;
+        }
+      }
+
+      final targetProduct = SearchProductLookupItem(
+        warehouseNo: int.tryParse(widget.defaultWarehouseNo) ?? 0,
+        barcode: '',
+        stockCode: targetStockCode,
+        stockName: suggestion.targetStockName?.trim() ?? targetStockCode,
+        price: 0,
+        priceTypeCode: 0,
+        unitName: suggestion.targetUnitName?.trim() ?? '',
+        unitMultiplier: 1,
+        secondaryUnitName: '',
+        secondaryUnitMultiplier: 0,
+        salesBlockCode: null,
+        orderBlockCode: null,
+        goodsAcceptanceBlockCode: null,
+        isSalesBlocked: false,
+        isOrderBlocked: false,
+        isGoodsAcceptanceBlocked: false,
+        productManagerCode: '',
+      );
+
+      setState(() {
+        targetLine ??= _createLine(null, 0);
+        targetLine!
+          ..applyProduct(targetProduct)
+          ..movementTypeController.text = '0'
+          ..quantityController.text = productEntryController.formatQuantity(
+            targetQuantity,
+          )
+          ..isConversionSuggestion = true
+          ..conversionSourceStockCode = sourceProduct.stockCode.trim()
+          ..conversionMultiplier = multiplier;
+        if (!_lines.contains(targetLine)) {
+          _lines.add(targetLine!);
+        }
+        _conversionSuggestionMessage =
+            'Gecmis virmanlardan onerildi: ${targetProduct.stockName} '
+            '${AppFormatters.quantity(targetQuantity)} ${targetProduct.unitName} '
+            '(%${AppFormatters.quantity(suggestion.confidencePercent)} guven).';
+      });
+      _draftSession.scheduleSave();
+    } catch (_) {
+      if (!mounted ||
+          !_lines.contains(sourceLine) ||
+          requestId != sourceLine.suggestionRequestId) {
+        return;
+      }
+      setState(() {
+        _conversionSuggestionMessage =
+            'Donusum onerisi alinamadi; giris urununu manuel secebilirsiniz.';
+      });
+    }
   }
 
   Future<void> _searchProduct(_VirmanDraftLine line) async {
@@ -462,6 +666,15 @@ class _VirmanCreateSheetState extends State<VirmanCreateSheet>
     if (mergedIntoExisting) {
       _showFeedback('Ayni barkod mevcut satira eklendi; miktar artirildi.');
     }
+    if (nextMovementType == 1) {
+      final sourceLine = _committedLines().firstWhere(
+        (candidate) =>
+            candidate.movementType == 1 &&
+            candidate.stockCodeController.text.trim().toUpperCase() ==
+                product.stockCode.trim().toUpperCase(),
+      );
+      unawaited(_loadConversionSuggestion(sourceLine));
+    }
   }
 
   void _cancelPendingEntryLine(_VirmanDraftLine line) {
@@ -763,6 +976,15 @@ class _VirmanCreateSheetState extends State<VirmanCreateSheet>
             Expanded(
               child: CustomScrollView(
                 slivers: <Widget>[
+                  if (_conversionSuggestionMessage != null)
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.only(bottom: 6),
+                        child: TerminalMessageBlock.info(
+                          message: _conversionSuggestionMessage!,
+                        ),
+                      ),
+                    ),
                   _buildLazyLineSliver(),
                   SliverToBoxAdapter(
                     child: Column(
@@ -849,10 +1071,7 @@ class _VirmanCreateSheetState extends State<VirmanCreateSheet>
         onConfirmPending: () => _commitEntryLine(line),
         onCancelPending: () => _cancelPendingEntryLine(line),
         onRemove: () => _removeLine(line),
-        onMovementTypeChanged: () {
-          setState(() {});
-          _draftSession.scheduleSave();
-        },
+        onMovementTypeChanged: () => _handleMovementTypeChanged(line),
       ),
     );
   }
@@ -1227,6 +1446,7 @@ class _VirmanDraftLine {
     Map<String, dynamic>? draft,
     int initialMovementType = 1,
     this.onChanged,
+    this.onQuantityChanged,
   }) : lookupController = TextEditingController(),
        stockCodeController = TextEditingController(),
        movementTypeController = TextEditingController(
@@ -1255,10 +1475,16 @@ class _VirmanDraftLine {
         selectedProduct = SearchProductLookupItem.fromJson(productJson);
         lookupController.clear();
       }
+      isConversionSuggestion = draft['isConversionSuggestion'] == true;
+      conversionSourceStockCode =
+          draft['conversionSourceStockCode']?.toString() ?? '';
+      conversionMultiplier =
+          double.tryParse(draft['conversionMultiplier']?.toString() ?? '') ?? 0;
     }
     for (final controller in _controllers) {
       controller.addListener(_notifyChanged);
     }
+    quantityController.addListener(_notifyQuantityChanged);
   }
 
   final TextEditingController lookupController;
@@ -1272,7 +1498,12 @@ class _VirmanDraftLine {
   final TextEditingController projectCodeController;
   final FocusNode lookupFocusNode = FocusNode();
   final VoidCallback? onChanged;
+  final VoidCallback? onQuantityChanged;
   SearchProductLookupItem? selectedProduct;
+  bool isConversionSuggestion = false;
+  String conversionSourceStockCode = '';
+  double conversionMultiplier = 0;
+  int suggestionRequestId = 0;
 
   String get barcode => selectedProduct?.barcode ?? '';
 
@@ -1325,6 +1556,9 @@ class _VirmanDraftLine {
     lotNoController.text = '0';
     projectCodeController.clear();
     selectedProduct = null;
+    isConversionSuggestion = false;
+    conversionSourceStockCode = '';
+    conversionMultiplier = 0;
   }
 
   void dispose() {
@@ -1351,6 +1585,9 @@ class _VirmanDraftLine {
       'partyCode': partyCodeController.text,
       'lotNo': lotNoController.text,
       'projectCode': projectCodeController.text,
+      'isConversionSuggestion': isConversionSuggestion,
+      'conversionSourceStockCode': conversionSourceStockCode,
+      'conversionMultiplier': conversionMultiplier,
       'selectedProduct': selectedProduct == null
           ? null
           : _virmanProductJson(selectedProduct!),
@@ -1358,6 +1595,8 @@ class _VirmanDraftLine {
   }
 
   void _notifyChanged() => onChanged?.call();
+
+  void _notifyQuantityChanged() => onQuantityChanged?.call();
 }
 
 DateTime _normalizeDate(DateTime value) {

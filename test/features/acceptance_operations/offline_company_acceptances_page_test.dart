@@ -239,6 +239,7 @@ void main() {
           unitPointer: 1,
           unitName: 'ADET',
           unitMultiplier: 12,
+          matchedUnitMultiplier: 1,
           secondaryUnitName: 'KOLI',
           secondaryUnitMultiplier: 12,
           salesBlockCode: null,

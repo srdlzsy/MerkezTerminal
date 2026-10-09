@@ -2,7 +2,7 @@
 
 Bu dokuman, mevcut backend durumuna gore frontend/UI tasarimi ve entegrasyonu icin hazirlanmistir.
 
-Son hedefli kontrol: 2026-10-07. Kayitli 723 method/route ve 660 JSON modeli koddan uretilen sozlesmeyle; auth, CORS, dogrudan IIS barindirma, Mikro create/readback, firma e-irsaliye, guvenli retry ve veritabani izleme anlatimlari kaynak kod ve Production ayarlariyla karsilastirildi.
+Son hedefli kontrol: 2026-10-09. Kayitli 728 method/route ve 666 JSON modeli koddan uretilen sozlesmeyle; auth, CORS, dogrudan IIS barindirma, Mikro create/readback, firma e-irsaliye, guvenli retry ve veritabani izleme anlatimlari kaynak kod ve Production ayarlariyla karsilastirildi.
 Tum kayitli endpointlerin route, method, request/response ve yetki metadata referansi: [API Sozlesme Referansi](API_SOZLESME_REFERANSI.md). Makine formati: [OpenAPI Sozlesmesi](API_SOZLESMESI.json). Bu referans test ile koddan uretilir; anlatimdaki orneklerin yerine tam alan/alias listesi icin kullanilir.
 Bu kontrol tum endpointlerin uctan uca canli onayi degildir. Yayin oncesi migration, acik riskler ve smoke testleri icin [Canliya Gecis Kontrol Listesi](CANLIYA_GECIS_KONTROL_LISTESI.md) kullanilmalidir.
 
@@ -34,7 +34,7 @@ Timeout ve tekrar deneme notu:
 - `MikroReadSeconds` liste/detay/rapor okumalari, `MikroWriteSeconds` create/update/delete yazma islemleri icin kullanilir. `AuthSeconds`, `FurpaSeconds`, `AxataSeconds`, `PuanSeconds` ve `ShopigoCiroSeconds` ilgili DB context'leri icindir.
 - Raw SQL ile yazilmis liste/arama/rapor komutlari da genel olarak `300` saniye bekleyecek sekilde ayarlanmistir.
 - `MikroApi:TimeoutSeconds` varsayilan appsettings'te `300` saniyedir. Yazma rotasi `MikroApi` ise UI bu sureyi de dikkate almalidir.
-- Manav mal kabul Mikro aktarimi `GreenGrocerGoodsReceipt`, POS muhasebe ERP aktarimi `PosAccountingSlip` routing ayariyla opsiyonel olarak Mikro API uzerinden calisir. Bu secim UI request modelini degistirmez; backend API sonrasi Mikro DB readback yapmadan islemi basarili saymaz.
+- Yazma yollari `MikroWriteRouting` ile secilir. Mevcut Production ayarinda `GreenGrocerGoodsReceipt`, `PosAccountingSlip` dahil tum yazma rotalari `Database` degerindedir; UI request modeli degismez. Bir rota ileride `MikroApi` yapilirsa backend Mikro DB readback yapmadan islemi basarili saymaz.
 - Terminal, mobil ve web istemcileri liste ve create isteklerinde HTTP client timeout degerini en az `300` saniye yapmalidir. Subede internet zayifsa API islemi devam ederken istemci 30-60 saniyede vazgecerse kullanici timeout gorur ve kontrolsuz tekrar basabilir.
 - POST/create timeout gorurse UI hemen yeni istek kimligi veya farkli body uretmemeli; mumkunse ayni payload ile guvenli retry yapmali veya liste/detay yenileyerek evrakin olusup olusmadigini kontrol etmelidir.
 
@@ -1410,7 +1410,8 @@ Response:
       "priceTypeCode": 1,
       "unitPointer": 1,
       "unitName": "AD",
-      "unitMultiplier": 1,
+      "unitMultiplier": 12,
+      "matchedUnitMultiplier": 1,
       "secondaryUnitName": "KOLI",
       "secondaryUnitMultiplier": 12,
       "salesBlockCode": 0,
@@ -1439,6 +1440,10 @@ Paging ve sync token kurali:
 - `deletedBarcodes` icindeki barkodlar local DB'den silinmeli veya pasif isaretlenmelidir.
 - Offline okutma sirasinda bulunan fiyat son basarili sync anindaki fiyattir; UI'da "son guncelleme" bilgisi gosterilmelidir.
 - Sync tekrarinda ayni barkodlar tekrar gelebilir; mobil upsert islemi idempotent olmalidir.
+- `unitMultiplier`, urunun standart koli/ikinci birim katsayisidir ve yeni UI'da koli ici gosterim icin kullanilir. Mikro'daki negatif katsayi isaretleri API tarafinda pozitiflestirilir; ornek `-4` degeri `4` doner.
+- `matchedUnitMultiplier`, bu katalog satirindaki `barcode` hangi birime bagliysa o birimin katsayisidir. Tekli barkodda `1`, koli barkodunda ornegin `12` olabilir. Barkoddan miktar hesabi yapilacaksa bu alan; genel `Koli ici` etiketi icin `unitMultiplier` kullanilmalidir.
+- `secondaryUnitMultiplier` geriye uyumluluk icin ikinci birim katsayisini pozitif olarak tasir ve normal durumda `unitMultiplier` ile aynidir.
+- Bu duzeltmenin yayinlandigi ilk terminal surumunde mevcut local urun katalogu bir kez tam senkronize edilmelidir. Eski `syncToken` ile yalniz delta istenirse, Mikro'da son guncelleme tarihi degismeyen eski local satirlar yeni katsayi alanlarini hemen alamayabilir.
 
 Mobil offline okuma akisi:
 
@@ -5006,6 +5011,7 @@ Onemli not:
 - `caseBarcode`, `unitsPerCase` ve `matchedUnitsPerCase` alanlari koli/master barkod tespitinde kullanilir.
 - `unitMultiplier`, UI'in koli ici miktar icin kullanacagi standart alandir. Koli barkodu okutulmasa bile stok kartinda koli/ikinci birim katsayisi varsa dolu gelir.
 - `matchedUnitsPerCase`, sadece okutulan barkod koli barkoduysa doludur; miktar panelinde genel koli ici gosterimi icin `unitMultiplier` tercih edilmelidir.
+- Barkodun Mikro'da `bar_birimpntr > 1` olmasi tek basina koli barkodu kaniti degildir. Backend ancak ilgili birim katsayisi `1`den buyukse `isCaseBarcode=true` ve `matchedUnitsPerCase` dondurur; hatali/eksik ikinci birim tanimi tekli barkodu koliye cevirmemelidir.
 - `isSalesBlocked`, `isOrderBlocked`, `isGoodsAcceptanceBlocked` ve `isPassive` depo detay degerleri varsa depo ozelinden, yoksa stok kartindan hesaplanir.
 - `isAllowedForTargetWarehouse` hedef depo verilirse `DEPOLAR.dep_barkod_yazici_yolu` icindeki model kod listesine gore hesaplanir.
 - `operationType=shipment` icin hedef depo model kod sonucu bilgi olarak donebilir; fakat hedef depo model kodu sevkte `isUsableInOperation=false` yapmaz.
@@ -11703,6 +11709,93 @@ Not:
 - Canli ornek mantik: `6'li soda` cikis satiri, `tekil soda` giris satiri. Bu nedenle detay UI'i satirlari tek gridde renk/etiketle ayirabilir veya "Cikislar" ve "Girisler" olarak iki bolumde gosterebilir.
 - bu endpoint Mikro veritabaninda sadece SELECT yapar; insert/update/delete yoktur
 
+### Virman Donusum Onerisi
+
+Kullanici cikis urununu ve miktarini sectiginde, son 365 gundeki guvenilir virman gecmisinden hedef urun ve miktar onerir.
+
+`GET /api/stok-islemleri/virmanlar/donusum-onerisi?sourceStockCode=015550&sourceQuantity=6`
+
+Yetki:
+
+- `stok-islemleri.virmanlar.create`
+
+Kural:
+
+- Endpoint yalnizca Mikro `STOK_HAREKETLERI` gecmisini okur; yeni eslestirme tablosu olusturmaz ve `URUN_RECETELERI` kullanmaz.
+- Ayni virman evrakinda art arda bulunan `sth_tip=1` cikis ve `sth_tip=0` giris satirlari eslestirilir. Iki satirin islem deposu ayni olmalidir.
+- Kaynakla ayni stok koduna giden hareketler oneriden cikartilir.
+- En az `10` gecerli ornek, hedef stok icin en az `%95` ve katsayi icin en az `%95` tutarlilik gerekir.
+- Sistem bir yillik aralikta indeks uzerinden en guncel `500` kaynak hareketi inceler; tum tabloyu veya ayni stokun sinirsiz gecmisini uygulamaya tasimaz.
+- Kaynak veya hedef stok pasifse ya da stok adi `DLS` ile basliyorsa otomatik oneri verilmez.
+- Sonuc stok kodu bazinda `6` saat cache'lenir. `targetQuantity`, her istekte `sourceQuantity * multiplier` olarak yeniden hesaplanir.
+- Bu endpoint veri yazmaz. Asil kayit mevcut `POST /api/stok-islemleri/virmanlar` akisi ve mevcut `clientRequestId` guvenli retry kurallariyla yapilir.
+
+Guvenilir response ornegi:
+
+```json
+{
+  "sourceStockCode": "015550",
+  "sourceStockName": "SODA SADE 6'LI",
+  "sourceUnitName": "ADET",
+  "sourceQuantity": 6,
+  "targetStockCode": "015733",
+  "targetStockName": "SODA SADE TEKLI",
+  "targetUnitName": "ADET",
+  "multiplier": 6,
+  "targetQuantity": 36,
+  "sampleCount": 500,
+  "targetMatchCount": 500,
+  "multiplierMatchCount": 492,
+  "targetConfidencePercent": 100,
+  "multiplierConfidencePercent": 98.4,
+  "confidencePercent": 98.4,
+  "isReliable": true,
+  "suggestionSource": "VirmanHistory",
+  "lookbackStartDate": "2025-10-09T00:00:00",
+  "lookbackEndDate": "2026-10-09T00:00:00",
+  "minimumSampleCount": 10,
+  "maximumSampleCount": 500,
+  "minimumConfidencePercent": 95,
+  "warning": null
+}
+```
+
+Guvenilir eslesme yoksa endpoint yine `200 OK` doner; hedef alanlari bos olur:
+
+```json
+{
+  "sourceStockCode": "099999",
+  "sourceStockName": "ORNEK URUN",
+  "sourceUnitName": "ADET",
+  "sourceQuantity": 6,
+  "targetStockCode": null,
+  "targetStockName": null,
+  "targetUnitName": null,
+  "multiplier": null,
+  "targetQuantity": null,
+  "sampleCount": 3,
+  "targetMatchCount": 2,
+  "multiplierMatchCount": 2,
+  "targetConfidencePercent": 66.67,
+  "multiplierConfidencePercent": 100,
+  "confidencePercent": 66.67,
+  "isReliable": false,
+  "suggestionSource": "None",
+  "minimumSampleCount": 10,
+  "maximumSampleCount": 500,
+  "minimumConfidencePercent": 95,
+  "warning": "Guvenilir otomatik donusum bulunamadi; hedef urun ve miktari manuel secin."
+}
+```
+
+UI akisi:
+
+1. Kaynak stok secilip miktar sifirdan buyuk oldugunda endpoint cagrilir.
+2. `isReliable=true` ise hedef stok ve `targetQuantity` forma otomatik basilir; kullaniciya bunun gecmis virmanlardan uretilen bir oneri oldugu gosterilir.
+3. Kaynak miktar degisirse, kaynak stok degismedigi surece UI `targetQuantity = sourceQuantity * multiplier` hesabini anlik yenileyebilir.
+4. `isReliable=false` ise otomatik hedef secilmez; `warning` gosterilir ve kullanici hedef urun ile miktari manuel secer.
+5. Kayitta kaynak satir `movementType=1`, hedef satir `movementType=0` olarak mevcut virman POST body'sine eklenir.
+
 ### Virman Olustur
 
 Secili kullanici deposu icin yeni virman evragi yazar. Virman, canli eski sistemdeki gibi ayni depo icinde stok donusumu/duzeltmesi mantigiyla calisir.
@@ -17529,7 +17622,7 @@ Config:
 - Mikro login cagrisi audit kapsaminda degildir.
 - Yalnizca `MikroApiClient` uzerinden yapilan POST yazma cagrilari kaydedilir.
 - `MikroWriteRouting` ilgili islem icin `Database` ise Mikro API cagrisi yapilmayacagindan audit kaydi da olusmaz.
-- Mevcut development ve production config'te standart belge yazma rotalari `MikroApi` secilidir; bu POST cagrilari audit kaydi uretir.
+- Mevcut Production config'te tum standart belge yazma rotalari `Database` secilidir; bu nedenle Production'da bu islemler Mikro API POST audit kaydi uretmez. Bir rota ortam ayariyla `MikroApi` yapilirsa ilgili POST cagrilari audit kaydi uretir.
 - `MikroApi` secimi yalnizca standart Mikro tablo yazma yolunu degistirir. Liste/detay/readback sorgulari ile Auth, Furpa, B2B, audit, offline retry, belge akis ve `STOK_DAGILIM` gibi uygulamaya ozel tablolar SQL/EF uzerinden calismaya devam eder.
 - `MicroDocumentEditing=MikroApi` modunda stok hareketi, cari hareket, firma siparisi, depo siparisi ve sayim update/sil aileleri Mikro API kullanir. Stok/cari/depo karti, depo-stok override ve satis fiyati duzeltmeleri icin dogrulanmis V17 contract bulunmadigindan backend bu islemleri sessizce DB'ye yazmaz; acik desteklenmiyor hatasi dondurur.
 
@@ -25265,6 +25358,7 @@ Bu bolum test hostundaki ApiExplorer ve Swagger metadata'sindan otomatik uretili
 | POST | `/api/stok-islemleri/stok-anomali-merkezi/{id}/durum` | JWT + stok-islemleri.stok-anomali-merkezi.update | path: id / string (uuid) (zorunlu)<br>body: request / ChangeStockAnomalyStatusHttpRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: StockAnomalyDetailDto<br>404: ProblemDetails<br>400: ProblemDetails |
 | GET | `/api/stok-islemleri/virmanlar` | JWT + stok-islemleri.virmanlar.list | query: WarehouseNo / integer (int32)<br>query: StartDate / string (date-time) (zorunlu)<br>query: EndDate / string (date-time) (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: IReadOnlyCollection&lt;VirmanListItemDto&gt;<br>400: ProblemDetails |
 | POST | `/api/stok-islemleri/virmanlar` | JWT + stok-islemleri.virmanlar.create | body: request / CreateVirmanHttpRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>201: CreateVirmanResponse<br>400: ProblemDetails |
+| GET | `/api/stok-islemleri/virmanlar/donusum-onerisi` | JWT + stok-islemleri.virmanlar.create | query: SourceStockCode / string (zorunlu)<br>query: SourceQuantity / number (double) (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: VirmanConversionSuggestionDto<br>400: ProblemDetails<br>404: ProblemDetails |
 | GET | `/api/stok-islemleri/virmanlar/{documentSerie}/{documentOrderNo}` | JWT + stok-islemleri.virmanlar.detail | path: documentSerie / string (zorunlu)<br>path: documentOrderNo / integer (int32) (zorunlu)<br>query: warehouseNo / integer (int32) | 401: ProblemDetails<br>403: ProblemDetails<br>200: VirmanDetailDto<br>400: ProblemDetails<br>404: ProblemDetails |
 | PUT | `/api/stok-islemleri/virmanlar/{id}` | JWT + stok-islemleri.virmanlar.update | path: id / string (zorunlu)<br>body: request / ModuleActionRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>501: ModuleActionScaffoldResponse |
 | GET | `/api/stok-islemleri/zayiat-fisleri` | JWT + stok-islemleri.zayiat-fisleri.list | query: WarehouseNo / integer (int32)<br>query: StartDate / string (date-time) (zorunlu)<br>query: EndDate / string (date-time) (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: IReadOnlyCollection&lt;StockReceiptListItemDto&gt;<br>400: ProblemDetails |
@@ -30798,6 +30892,7 @@ Enum degerleri JSON sozlesmesinde bulunur.
 | `isPassive` | boolean | Hayir |  |
 | `isSalesBlocked` | boolean | Hayir |  |
 | `lookupSource` | string | Hayir | nullable |
+| `matchedUnitMultiplier` | number (double) | Hayir |  |
 | `orderBlockCode` | integer (int32) | Hayir | nullable |
 | `price` | number (double) | Hayir |  |
 | `priceTypeCode` | integer (int32) | Hayir |  |
@@ -32820,6 +32915,34 @@ Enum degerleri JSON sozlesmesinde bulunur.
 | `ignoredCount` | integer (int32) | Hayir |  |
 | `openCount` | integer (int32) | Hayir |  |
 | `resolvedCount` | integer (int32) | Hayir |  |
+
+### FurpaMerkezApi.Application.Modules.StokIslemleri.Virmanlar.ConversionSuggestion.VirmanConversionSuggestionDto
+
+| JSON alani | Tip | Zorunlu | Sinirlar |
+|---|---|---|---|
+| `confidencePercent` | number (double) | Hayir |  |
+| `isReliable` | boolean | Hayir |  |
+| `lookbackEndDate` | string (date-time) | Hayir |  |
+| `lookbackStartDate` | string (date-time) | Hayir |  |
+| `maximumSampleCount` | integer (int32) | Hayir |  |
+| `minimumConfidencePercent` | number (double) | Hayir |  |
+| `minimumSampleCount` | integer (int32) | Hayir |  |
+| `multiplier` | number (double) | Hayir | nullable |
+| `multiplierConfidencePercent` | number (double) | Hayir |  |
+| `multiplierMatchCount` | integer (int32) | Hayir |  |
+| `sampleCount` | integer (int32) | Hayir |  |
+| `sourceQuantity` | number (double) | Hayir |  |
+| `sourceStockCode` | string | Hayir | nullable |
+| `sourceStockName` | string | Hayir | nullable |
+| `sourceUnitName` | string | Hayir | nullable |
+| `suggestionSource` | string | Hayir | nullable |
+| `targetConfidencePercent` | number (double) | Hayir |  |
+| `targetMatchCount` | integer (int32) | Hayir |  |
+| `targetQuantity` | number (double) | Hayir | nullable |
+| `targetStockCode` | string | Hayir | nullable |
+| `targetStockName` | string | Hayir | nullable |
+| `targetUnitName` | string | Hayir | nullable |
+| `warning` | string | Hayir | nullable |
 
 ### FurpaMerkezApi.Application.Modules.StokIslemleri.Virmanlar.CreateVirmanResponse
 
