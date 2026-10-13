@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:furpa_merkez_terminal/core/network/api_exception.dart';
 import 'package:furpa_merkez_terminal/features/company_movements/shared/data/company_movements_repository.dart';
 import 'package:furpa_merkez_terminal/features/company_movements/shared/data/models/company_movement_models.dart';
 import 'package:furpa_merkez_terminal/features/company_movements/shared/presentation/views/company_movements_page.dart';
@@ -13,6 +14,7 @@ import 'package:furpa_merkez_terminal/shared/data/search_lookup_models.dart';
 import 'package:furpa_merkez_terminal/shared/drafts/create_draft.dart';
 import 'package:furpa_merkez_terminal/shared/drafts/create_draft_repository.dart';
 import 'package:furpa_merkez_terminal/shared/offline/mobile_customer_catalog_repository.dart';
+import 'package:furpa_merkez_terminal/shared/offline/offline_sync_status.dart';
 import 'package:furpa_merkez_terminal/shared/pending_create/pending_create_repository.dart';
 
 import '../../support/memory_local_database.dart';
@@ -130,6 +132,14 @@ void main() {
   ) async {
     final database = MemoryLocalDatabase();
     final pendingRepository = LocalPendingCreateRepository(database: database);
+    final repository = _FakeCompanyMovementsRepository(
+      createError: const ApiException(
+        statusCode: 409,
+        title: 'Islem devam ediyor',
+        errorCode: 'MIKRO_WRITE_IN_PROGRESS',
+        retryable: true,
+      ),
+    );
     await pendingRepository.save(
       PendingCreateOperation(
         moduleKey: 'iade-islemleri.firma-iadeleri',
@@ -166,28 +176,84 @@ void main() {
 
     await tester.pumpWidget(
       MaterialApp(
-        home: CompanyMovementsPage(
-          repository: _FakeCompanyMovementsRepository(),
-          accessToken: 'token',
-          canCreate: true,
-          currentUserId: 'user-1',
-          draftModuleKey: 'iade-islemleri.firma-iadeleri',
-          pendingCreateRepository: pendingRepository,
-          defaultWarehouseNo: '50',
-          mobileCustomerCatalogRepository: _emptyCustomerCatalogRepository(),
-          userWarehouseName: 'MERKEZ DEPO',
-          title: 'Firma Iadeleri',
-          subtitle: 'Firma iade evraklari listelenir.',
-          createTitle: 'Yeni Iade',
-          createHelperText: 'Cari secildikten sonra iade satirlari eklenir.',
-          createButtonLabel: 'Yeni Iade',
+        home: Scaffold(
+          body: CompanyMovementsPage(
+            repository: repository,
+            accessToken: 'token',
+            canCreate: true,
+            currentUserId: 'user-1',
+            draftModuleKey: 'iade-islemleri.firma-iadeleri',
+            pendingCreateRepository: pendingRepository,
+            defaultWarehouseNo: '50',
+            mobileCustomerCatalogRepository: _emptyCustomerCatalogRepository(),
+            userWarehouseName: 'MERKEZ DEPO',
+            title: 'Firma Iadeleri',
+            subtitle: 'Firma iade evraklari listelenir.',
+            createTitle: 'Yeni Iade',
+            createHelperText: 'Cari secildikten sonra iade satirlari eklenir.',
+            createButtonLabel: 'Yeni Iade',
+          ),
         ),
       ),
     );
     await tester.pumpAndSettle();
 
     expect(find.text('Kaydi Tekrar Dene'), findsOneWidget);
+    expect(repository.createRequests, hasLength(1));
+    expect(repository.createRequests.single.clientRequestId, 'request-1');
   });
+
+  testWidgets(
+    'automatically reconciles and clears a completed pending create',
+    (tester) async {
+      final database = MemoryLocalDatabase();
+      final pendingRepository = LocalPendingCreateRepository(
+        database: database,
+      );
+      await pendingRepository.save(
+        _pendingCompanyMovement(failureKind: 'processing'),
+      );
+      final repository = _FakeCompanyMovementsRepository(
+        createResult: CompanyMovementCreateResult(
+          documentSerie: 'F50',
+          documentOrderNo: 87990,
+          movementDate: DateTime(2026, 10, 1),
+          documentDate: DateTime(2026, 10, 1),
+          documentNo: '',
+          warehouseNo: 50,
+          customerCode: 'CARI-1',
+          lineCount: 1,
+          totalQuantity: 2,
+          totalAmount: 0,
+          writeConnectionName: 'Mikro',
+        ),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: _companyMovementsPage(
+              pendingRepository,
+              repository: repository,
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(repository.createRequests, hasLength(1));
+      expect(repository.createRequests.single.clientRequestId, 'request-1');
+      expect(find.text('Yeni Iade'), findsOneWidget);
+      expect(
+        await pendingRepository.read(
+          moduleKey: 'iade-islemleri.firma-iadeleri',
+          userId: 'user-1',
+          warehouseNo: '50',
+        ),
+        isNull,
+      );
+    },
+  );
 
   testWidgets('requires an explicit independent action after manual review', (
     tester,
@@ -205,6 +271,69 @@ void main() {
 
     expect(find.text('Yeni Bagimsiz Islem'), findsOneWidget);
   });
+
+  testWidgets(
+    'keeps retryable failed create pending and allows an independent create',
+    (tester) async {
+      final database = MemoryLocalDatabase();
+      final pendingRepository = LocalPendingCreateRepository(
+        database: database,
+      );
+      await pendingRepository.save(
+        _pendingCompanyMovement(failureKind: 'uncertain'),
+      );
+      final repository = _FakeCompanyMovementsRepository(
+        createError: const ApiException(
+          statusCode: 409,
+          title: 'Sonuc dogrulanamadi',
+          errorCode: 'MIKRO_WRITE_OUTCOME_UNCONFIRMED',
+          retryable: true,
+        ),
+        offlineSyncStatus: OfflineSyncStatus<CompanyMovementCreateResult>(
+          clientRequestId: 'request-1',
+          operationCode: 'iade-islemleri.firma-iadeleri.create',
+          status: 'Failed',
+          createdAtUtc: DateTime.utc(2026, 10, 13, 8),
+          completedAtUtc: null,
+          errorMessage: 'Mikro yazim sonucu dogrulanamadi.',
+          errorCode: 'MIKRO_WRITE_OUTCOME_UNCONFIRMED',
+          retryable: true,
+          retryAfterSeconds: 60,
+          result: null,
+        ),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: _companyMovementsPage(
+              pendingRepository,
+              repository: repository,
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(repository.createRequests, hasLength(1));
+      expect(repository.fetchOfflineSyncStatusCallCount, 1);
+      expect(find.text('Kaydi Tekrar Dene'), findsOneWidget);
+      expect(find.text('Yeni Iade'), findsOneWidget);
+
+      await tester.tap(find.text('Kaydi Tekrar Dene'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(repository.createRequests, hasLength(1));
+      expect(
+        find.textContaining('saniye sonra tekrar deneyin'),
+        findsOneWidget,
+      );
+
+      await tester.tap(find.text('Yeni Iade'));
+      await tester.pumpAndSettle();
+      expect(find.text('Cari'), findsOneWidget);
+    },
+  );
 
   testWidgets('starts a new operation only from the explicit action', (
     tester,
@@ -341,10 +470,11 @@ MobileCustomerCatalogLocalRepository _emptyCustomerCatalogRepository() {
 }
 
 CompanyMovementsPage _companyMovementsPage(
-  PendingCreateRepository pendingRepository,
-) {
+  PendingCreateRepository pendingRepository, {
+  CompanyMovementsRepository? repository,
+}) {
   return CompanyMovementsPage(
-    repository: _FakeCompanyMovementsRepository(),
+    repository: repository ?? _FakeCompanyMovementsRepository(),
     accessToken: 'token',
     canCreate: true,
     currentUserId: 'user-1',
@@ -395,14 +525,26 @@ PendingCreateOperation _pendingCompanyMovement({required String failureKind}) {
   );
 }
 
-class _FakeCompanyMovementsRepository implements CompanyMovementsRepository {
+class _FakeCompanyMovementsRepository
+    implements
+        CompanyMovementsRepository,
+        OfflineSyncStatusProvider<CompanyMovementCreateResult> {
   _FakeCompanyMovementsRepository({
     this.movements = const <CompanyMovementListItem>[],
     this.detailCompleter,
+    this.createResult,
+    this.createError,
+    this.offlineSyncStatus,
   });
 
   final List<CompanyMovementListItem> movements;
   final Completer<CompanyMovementDetail>? detailCompleter;
+  final CompanyMovementCreateResult? createResult;
+  final ApiException? createError;
+  final OfflineSyncStatus<CompanyMovementCreateResult>? offlineSyncStatus;
+  int fetchOfflineSyncStatusCallCount = 0;
+  final List<CompanyMovementCreateRequest> createRequests =
+      <CompanyMovementCreateRequest>[];
 
   @override
   bool get supportsCreate => true;
@@ -414,8 +556,27 @@ class _FakeCompanyMovementsRepository implements CompanyMovementsRepository {
   Future<CompanyMovementCreateResult> createMovement({
     required String accessToken,
     required CompanyMovementCreateRequest request,
-  }) {
+  }) async {
+    createRequests.add(request);
+    if (createError case final error?) {
+      throw error;
+    }
+    if (createResult case final result?) {
+      return result;
+    }
     throw UnimplementedError();
+  }
+
+  @override
+  Future<OfflineSyncStatus<CompanyMovementCreateResult>>
+  fetchOfflineSyncStatus({
+    required String accessToken,
+    required String clientRequestId,
+  }) async {
+    fetchOfflineSyncStatusCallCount += 1;
+    final status = offlineSyncStatus;
+    if (status != null) return status;
+    throw const ApiException(statusCode: 404, title: 'Kayit bulunamadi');
   }
 
   @override

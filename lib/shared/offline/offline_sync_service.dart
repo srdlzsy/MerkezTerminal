@@ -101,6 +101,21 @@ class OfflineSyncService {
             status: OfflineSubmissionStatus.processing,
           );
         }
+        if (recovery.status == _CreateRecoveryStatus.retryable) {
+          await _offlineInventoryRepository.saveDraft(
+            OfflineInventoryCountDraft.fromCreateRequest(
+              request,
+              userId: userId,
+              warehouseNo: warehouseNo,
+              status: OfflineRecordStatus.pending,
+              lastSyncAttemptAt: DateTime.now(),
+              lastError: recovery.message,
+            ),
+          );
+          return const InventoryCountSubmissionResult(
+            status: OfflineSubmissionStatus.queued,
+          );
+        }
       }
 
       if (!_shouldQueueAfterCreate(error)) {
@@ -169,6 +184,23 @@ class OfflineSyncService {
             status: OfflineSubmissionStatus.processing,
           );
         }
+        if (recovery.status == _CreateRecoveryStatus.retryable) {
+          await _offlineCompanyAcceptanceRepository.saveDraft(
+            OfflineCompanyAcceptanceDraft.fromCreateRequest(
+              request,
+              userId: userId,
+              warehouseNo: warehouseNo,
+              customerDisplayName: customerDisplayName ?? '',
+              createdAt: createdAt ?? DateTime.now(),
+              status: OfflineRecordStatus.pending,
+              lastSyncAttemptAt: DateTime.now(),
+              lastError: recovery.message,
+            ),
+          );
+          return const CompanyAcceptanceSubmissionResult(
+            status: OfflineSubmissionStatus.queued,
+          );
+        }
       }
 
       if (!_shouldQueueAfterCreate(error)) {
@@ -234,6 +266,18 @@ class OfflineSyncService {
         return OfflineDraftSyncResult(
           status: OfflineDraftSyncResultStatus.processing,
           message: recovery.message ?? 'Kayit sunucuda isleniyor.',
+        );
+      }
+      if (recovery.status == _CreateRecoveryStatus.retryable) {
+        await _offlineInventoryRepository.saveDraft(
+          syncingDraft.copyWith(
+            status: OfflineRecordStatus.pending,
+            lastError: recovery.message,
+          ),
+        );
+        return OfflineDraftSyncResult(
+          status: OfflineDraftSyncResultStatus.deferred,
+          message: recovery.message,
         );
       }
       if (recovery.status == _CreateRecoveryStatus.failed) {
@@ -328,6 +372,18 @@ class OfflineSyncService {
         return OfflineDraftSyncResult(
           status: OfflineDraftSyncResultStatus.processing,
           message: recovery.message ?? 'Kayit sunucuda isleniyor.',
+        );
+      }
+      if (recovery.status == _CreateRecoveryStatus.retryable) {
+        await _offlineCompanyAcceptanceRepository.saveDraft(
+          syncingDraft.copyWith(
+            status: OfflineRecordStatus.pending,
+            lastError: recovery.message,
+          ),
+        );
+        return OfflineDraftSyncResult(
+          status: OfflineDraftSyncResultStatus.deferred,
+          message: recovery.message,
         );
       }
       if (recovery.status == _CreateRecoveryStatus.failed) {
@@ -465,12 +521,30 @@ class OfflineSyncService {
         );
       }
       if (status.isFailed) {
+        if (status.retryable == true) {
+          return _CreateRecovery(
+            status: _CreateRecoveryStatus.retryable,
+            message: _retryableRecoveryMessage(
+              status.errorMessage,
+              status.retryAfterSeconds,
+            ),
+          );
+        }
         return _CreateRecovery(
           status: _CreateRecoveryStatus.failed,
           message: status.errorMessage,
         );
       }
-    } on ApiException {
+    } on ApiException catch (error) {
+      if (error.retryable == true) {
+        return _CreateRecovery(
+          status: _CreateRecoveryStatus.retryable,
+          message: _retryableRecoveryMessage(
+            error.message,
+            error.retryAfterSeconds,
+          ),
+        );
+      }
       return const _CreateRecovery(status: _CreateRecoveryStatus.unknown);
     }
 
@@ -504,12 +578,30 @@ class OfflineSyncService {
         );
       }
       if (status.isFailed) {
+        if (status.retryable == true) {
+          return _CreateRecovery(
+            status: _CreateRecoveryStatus.retryable,
+            message: _retryableRecoveryMessage(
+              status.errorMessage,
+              status.retryAfterSeconds,
+            ),
+          );
+        }
         return _CreateRecovery(
           status: _CreateRecoveryStatus.failed,
           message: status.errorMessage,
         );
       }
-    } on ApiException {
+    } on ApiException catch (error) {
+      if (error.retryable == true) {
+        return _CreateRecovery(
+          status: _CreateRecoveryStatus.retryable,
+          message: _retryableRecoveryMessage(
+            error.message,
+            error.retryAfterSeconds,
+          ),
+        );
+      }
       return const _CreateRecovery(status: _CreateRecoveryStatus.unknown);
     }
 
@@ -517,7 +609,15 @@ class OfflineSyncService {
   }
 }
 
-enum _CreateRecoveryStatus { completed, processing, failed, unknown }
+String _retryableRecoveryMessage(String? message, int? retryAfterSeconds) {
+  final normalized = message?.trim() ?? '';
+  final wait = retryAfterSeconds != null && retryAfterSeconds > 0
+      ? ' $retryAfterSeconds saniye sonra ayni kayitla tekrar deneyin.'
+      : ' Ayni kayitla daha sonra tekrar deneyin.';
+  return '${normalized.isEmpty ? 'Kayit sonucu henuz kesinlesmedi.' : normalized}$wait';
+}
+
+enum _CreateRecoveryStatus { completed, processing, retryable, failed, unknown }
 
 class _CreateRecovery<T> {
   const _CreateRecovery({required this.status, this.result, this.message});

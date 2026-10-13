@@ -3,6 +3,7 @@ import 'package:furpa_merkez_terminal/features/stock_operations/stock_receipts/d
 import 'package:furpa_merkez_terminal/shared/data/barcode_resolution_models.dart';
 import 'package:furpa_merkez_terminal/shared/data/barcode_resolution_repository.dart';
 import 'package:furpa_merkez_terminal/shared/data/search_lookup_models.dart';
+import 'package:furpa_merkez_terminal/shared/offline/offline_sync_status.dart';
 
 abstract class StockReceiptsRepository {
   Future<List<StockReceiptListItem>> fetchReceipts({
@@ -38,7 +39,17 @@ abstract class StockReceiptsRepository {
   });
 }
 
-class ApiStockReceiptsRepository implements StockReceiptsRepository {
+abstract interface class StockReceiptOfflineSyncStatusProvider {
+  Future<OfflineSyncStatus<StockReceiptCreateResult>>
+  fetchReceiptOfflineSyncStatus({
+    required String accessToken,
+    required StockReceiptKind kind,
+    required String clientRequestId,
+  });
+}
+
+class ApiStockReceiptsRepository
+    implements StockReceiptsRepository, StockReceiptOfflineSyncStatusProvider {
   const ApiStockReceiptsRepository({required ApiClient apiClient})
     : _apiClient = apiClient;
 
@@ -98,6 +109,23 @@ class ApiStockReceiptsRepository implements StockReceiptsRepository {
     );
 
     return StockReceiptCreateResult.fromJson(response);
+  }
+
+  @override
+  Future<OfflineSyncStatus<StockReceiptCreateResult>>
+  fetchReceiptOfflineSyncStatus({
+    required String accessToken,
+    required StockReceiptKind kind,
+    required String clientRequestId,
+  }) async {
+    final response = await _apiClient.getJsonMap(
+      '/api/stok-islemleri/${kind.pathSegment}/offline-sync/$clientRequestId',
+      accessToken: accessToken,
+    );
+    return OfflineSyncStatus<StockReceiptCreateResult>.fromJson(
+      response,
+      resultParser: StockReceiptCreateResult.fromJson,
+    );
   }
 
   @override

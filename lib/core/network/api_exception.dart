@@ -5,6 +5,7 @@ class ApiException implements Exception {
     this.detail,
     this.errorCode,
     this.retryable,
+    this.retryAfterSeconds,
     this.correlationId,
   });
 
@@ -13,6 +14,7 @@ class ApiException implements Exception {
   final String? detail;
   final String? errorCode;
   final bool? retryable;
+  final int? retryAfterSeconds;
   final String? correlationId;
 
   String get message {

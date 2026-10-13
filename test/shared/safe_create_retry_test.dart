@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:furpa_merkez_terminal/core/network/api_exception.dart';
+import 'package:furpa_merkez_terminal/shared/offline/offline_sync_status.dart';
 import 'package:furpa_merkez_terminal/shared/utils/safe_create_retry.dart';
 
 void main() {
@@ -126,6 +127,70 @@ void main() {
     expect(
       safeCreateRetryErrorMessage(conflict),
       contains('Destek kodu: trace-789'),
+    );
+  });
+
+  test('builds retry gate only for retryable responses', () {
+    final now = DateTime(2026, 10, 13, 12);
+
+    expect(
+      safeCreateRetryNotBefore(retryable: true, retryAfterSeconds: 5, now: now),
+      now.add(const Duration(seconds: 5)),
+    );
+    expect(
+      safeCreateRetryNotBefore(
+        retryable: false,
+        retryAfterSeconds: 5,
+        now: now,
+      ),
+      isNull,
+    );
+  });
+
+  test(
+    'status errors need decision metadata before replacing pending state',
+    () {
+      expect(
+        hasSafeCreateDecisionMetadata(
+          const ApiException(statusCode: 404, title: 'Kayit bulunamadi'),
+        ),
+        isFalse,
+      );
+      expect(
+        hasSafeCreateDecisionMetadata(
+          const ApiException(
+            statusCode: 409,
+            title: 'Islem devam ediyor',
+            errorCode: 'MIKRO_WRITE_IN_PROGRESS',
+            retryable: true,
+          ),
+        ),
+        isTrue,
+      );
+    },
+  );
+
+  test('offline status keeps non-retryable review decisions pending', () {
+    final status = OfflineSyncStatus<Object>(
+      clientRequestId: 'request-review',
+      operationCode: 'test.create',
+      status: 'Failed',
+      createdAtUtc: null,
+      completedAtUtc: null,
+      errorMessage: 'Document content mismatch.',
+      errorCode: 'MIKRO_DOCUMENT_CONTENT_MISMATCH',
+      retryable: false,
+      retryAfterSeconds: null,
+      result: null,
+    );
+
+    final kind = classifyOfflineSyncStatus(status);
+    expect(kind, SafeCreateFailureKind.manualReview);
+    expect(shouldKeepSafeCreatePending(kind), isTrue);
+    expect(canRetrySafeCreate(kind), isFalse);
+    expect(
+      safeCreateOfflineSyncErrorMessage(status, fallback: 'Kayit basarisiz.'),
+      contains('yetkili incelemesi gerekli'),
     );
   });
 }

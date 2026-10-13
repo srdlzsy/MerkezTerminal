@@ -4,6 +4,7 @@ import 'package:furpa_merkez_terminal/features/return_operations/warehouse_retur
 import 'package:furpa_merkez_terminal/features/shipping_operations/outgoing_warehouse_shipments/data/models/outgoing_warehouse_shipment_models.dart';
 import 'package:furpa_merkez_terminal/shared/data/barcode_resolution_models.dart';
 import 'package:furpa_merkez_terminal/shared/data/barcode_resolution_repository.dart';
+import 'package:furpa_merkez_terminal/shared/offline/offline_sync_status.dart';
 
 abstract class WarehouseReturnsRepository {
   Future<List<WarehouseReturnListItem>> fetchReturns({
@@ -65,7 +66,10 @@ abstract class WarehouseReturnsRepository {
   });
 }
 
-class ApiWarehouseReturnsRepository implements WarehouseReturnsRepository {
+class ApiWarehouseReturnsRepository
+    implements
+        WarehouseReturnsRepository,
+        OfflineSyncStatusProvider<WarehouseReturnCreateResult> {
   const ApiWarehouseReturnsRepository({required ApiClient apiClient})
     : _apiClient = apiClient;
 
@@ -125,6 +129,23 @@ class ApiWarehouseReturnsRepository implements WarehouseReturnsRepository {
     );
 
     return WarehouseReturnCreateResult.fromJson(response);
+  }
+
+  @override
+  Future<OfflineSyncStatus<WarehouseReturnCreateResult>>
+  fetchOfflineSyncStatus({
+    required String accessToken,
+    required String clientRequestId,
+  }) async {
+    final response = await _apiClient.getJsonMap(
+      '/api/iade-islemleri/depo-iadeleri/giden/offline-sync/'
+      '$clientRequestId',
+      accessToken: accessToken,
+    );
+    return OfflineSyncStatus<WarehouseReturnCreateResult>.fromJson(
+      response,
+      resultParser: WarehouseReturnCreateResult.fromJson,
+    );
   }
 
   @override

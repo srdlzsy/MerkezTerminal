@@ -1,9 +1,18 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:furpa_merkez_terminal/core/storage/local_database.dart';
 import 'package:furpa_merkez_terminal/features/shipping_operations/outgoing_warehouse_shipments/data/models/outgoing_warehouse_shipment_models.dart';
+import 'package:furpa_merkez_terminal/shared/pending_create/pending_create_guard.dart';
 import 'package:furpa_merkez_terminal/shared/pending_create/pending_create_repository.dart';
 
 void main() {
+  test('pending create capacity uses graduated safety levels', () {
+    expect(pendingCreateCapacityLevel(9), PendingCreateCapacityLevel.normal);
+    expect(pendingCreateCapacityLevel(10), PendingCreateCapacityLevel.warning);
+    expect(pendingCreateCapacityLevel(25), PendingCreateCapacityLevel.critical);
+    expect(pendingCreateCapacityLevel(50), PendingCreateCapacityLevel.blocked);
+    expect(maxPendingCreateOperationsPerScope, 50);
+  });
+
   test('persists and restores the exact create payload in its scope', () async {
     final repository = LocalPendingCreateRepository(
       database: _MemoryLocalDatabase(),
@@ -143,6 +152,33 @@ void main() {
       )).map((operation) => operation.clientRequestId),
       <String>['request-old'],
     );
+  });
+
+  test('persists retry gate with the pending request', () async {
+    final repository = LocalPendingCreateRepository(
+      database: _MemoryLocalDatabase(),
+    );
+    final retryNotBefore = DateTime(2026, 10, 13, 12, 30, 5);
+
+    await repository.save(
+      PendingCreateOperation(
+        moduleKey: 'sevk',
+        userId: 'user-1',
+        warehouseNo: '120',
+        payload: const <String, dynamic>{'clientRequestId': 'request-retry'},
+        updatedAt: DateTime(2026, 10, 13, 12, 30),
+        failureKind: 'uncertain',
+        retryNotBefore: retryNotBefore,
+      ),
+    );
+
+    final restored = await repository.read(
+      moduleKey: 'sevk',
+      userId: 'user-1',
+      warehouseNo: '120',
+    );
+
+    expect(restored?.retryNotBefore, retryNotBefore);
   });
 }
 

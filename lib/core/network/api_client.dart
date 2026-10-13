@@ -420,6 +420,7 @@ class ApiClient {
         detail: _problemDetail(decoded, title: title),
         errorCode: _problemString(decoded, 'errorCode'),
         retryable: _problemBool(decoded, 'retryable'),
+        retryAfterSeconds: _problemInt(decoded, 'retryAfterSeconds'),
         correlationId:
             _problemString(decoded, 'correlationId') ??
             _responseCorrelationId(response),
@@ -472,6 +473,13 @@ class ApiClient {
       };
     }
     return null;
+  }
+
+  int? _problemInt(JsonMap decoded, String key) {
+    final value = _problemValue(decoded, key);
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    return int.tryParse(value?.toString() ?? '');
   }
 
   String _problemTitle(JsonMap decoded) {

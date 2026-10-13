@@ -1,6 +1,7 @@
 import 'package:furpa_merkez_terminal/core/network/api_client.dart';
 import 'package:furpa_merkez_terminal/features/stock_operations/virman/data/models/virman_models.dart';
 import 'package:furpa_merkez_terminal/shared/data/search_lookup_models.dart';
+import 'package:furpa_merkez_terminal/shared/offline/offline_sync_status.dart';
 
 abstract class VirmanRepository {
   Future<List<VirmanListItem>> fetchVirmans({
@@ -34,7 +35,8 @@ abstract class VirmanRepository {
   });
 }
 
-class ApiVirmanRepository implements VirmanRepository {
+class ApiVirmanRepository
+    implements VirmanRepository, OfflineSyncStatusProvider<VirmanCreateResult> {
   const ApiVirmanRepository({required ApiClient apiClient})
     : _apiClient = apiClient;
 
@@ -87,6 +89,21 @@ class ApiVirmanRepository implements VirmanRepository {
     );
 
     return VirmanCreateResult.fromJson(response);
+  }
+
+  @override
+  Future<OfflineSyncStatus<VirmanCreateResult>> fetchOfflineSyncStatus({
+    required String accessToken,
+    required String clientRequestId,
+  }) async {
+    final response = await _apiClient.getJsonMap(
+      '/api/stok-islemleri/virmanlar/offline-sync/$clientRequestId',
+      accessToken: accessToken,
+    );
+    return OfflineSyncStatus<VirmanCreateResult>.fromJson(
+      response,
+      resultParser: VirmanCreateResult.fromJson,
+    );
   }
 
   @override

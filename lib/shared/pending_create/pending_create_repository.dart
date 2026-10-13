@@ -10,6 +10,7 @@ class PendingCreateOperation {
     required this.payload,
     required this.updatedAt,
     this.failureKind,
+    this.retryNotBefore,
     this.draft,
   });
 
@@ -19,6 +20,7 @@ class PendingCreateOperation {
   final Map<String, dynamic> payload;
   final DateTime updatedAt;
   final String? failureKind;
+  final DateTime? retryNotBefore;
   final CreateDraft? draft;
 
   String get scopeKey => '$moduleKey\u0000$userId\u0000$warehouseNo';
@@ -28,7 +30,10 @@ class PendingCreateOperation {
 
   String get operationKey => '$scopeKey\u0000$clientRequestId';
 
-  PendingCreateOperation copyWith({String? failureKind}) {
+  PendingCreateOperation copyWith({
+    String? failureKind,
+    DateTime? retryNotBefore,
+  }) {
     return PendingCreateOperation(
       moduleKey: moduleKey,
       userId: userId,
@@ -36,6 +41,7 @@ class PendingCreateOperation {
       payload: payload,
       updatedAt: DateTime.now(),
       failureKind: failureKind,
+      retryNotBefore: retryNotBefore ?? this.retryNotBefore,
       draft: draft,
     );
   }
@@ -47,6 +53,8 @@ class PendingCreateOperation {
     'payload': payload,
     'updatedAt': updatedAt.toUtc().toIso8601String(),
     if (failureKind != null) 'failureKind': failureKind,
+    if (retryNotBefore != null)
+      'retryNotBefore': retryNotBefore!.toUtc().toIso8601String(),
     if (draft != null) 'draft': draft!.toJson(),
   };
 
@@ -64,6 +72,9 @@ class PendingCreateOperation {
           DateTime.tryParse(json['updatedAt']?.toString() ?? '')?.toLocal() ??
           DateTime.now(),
       failureKind: json['failureKind']?.toString(),
+      retryNotBefore: DateTime.tryParse(
+        json['retryNotBefore']?.toString() ?? '',
+      )?.toLocal(),
       draft: rawDraft is Map
           ? CreateDraft.fromJson(
               rawDraft.map((key, value) => MapEntry(key.toString(), value)),

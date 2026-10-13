@@ -3,6 +3,7 @@ import 'package:furpa_merkez_terminal/features/company_movements/shared/data/mod
 import 'package:furpa_merkez_terminal/features/order_operations/given_company_orders/data/models/given_company_order_models.dart';
 import 'package:furpa_merkez_terminal/features/return_operations/warehouse_returns/data/models/warehouse_return_models.dart';
 import 'package:furpa_merkez_terminal/shared/data/search_lookup_models.dart';
+import 'package:furpa_merkez_terminal/shared/offline/offline_sync_status.dart';
 
 abstract class CompanyMovementsRepository {
   bool get supportsCreate;
@@ -54,7 +55,10 @@ abstract class CompanyMovementsRepository {
   });
 }
 
-class ApiCompanyMovementsRepository implements CompanyMovementsRepository {
+class ApiCompanyMovementsRepository
+    implements
+        CompanyMovementsRepository,
+        OfflineSyncStatusProvider<CompanyMovementCreateResult> {
   const ApiCompanyMovementsRepository({
     required ApiClient apiClient,
     required String listPath,
@@ -131,6 +135,25 @@ class ApiCompanyMovementsRepository implements CompanyMovementsRepository {
     );
 
     return CompanyMovementCreateResult.fromJson(response);
+  }
+
+  @override
+  Future<OfflineSyncStatus<CompanyMovementCreateResult>>
+  fetchOfflineSyncStatus({
+    required String accessToken,
+    required String clientRequestId,
+  }) async {
+    if (!_supportsCreate) {
+      throw UnsupportedError('Bu ekranda create durum sorgusu desteklenmiyor.');
+    }
+    final response = await _apiClient.getJsonMap(
+      '$_listPath/offline-sync/$clientRequestId',
+      accessToken: accessToken,
+    );
+    return OfflineSyncStatus<CompanyMovementCreateResult>.fromJson(
+      response,
+      resultParser: CompanyMovementCreateResult.fromJson,
+    );
   }
 
   @override

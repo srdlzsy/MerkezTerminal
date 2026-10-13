@@ -135,6 +135,9 @@ class InventoryCountOfflineSyncStatus {
     required this.createdAtUtc,
     required this.completedAtUtc,
     required this.errorMessage,
+    this.errorCode,
+    this.retryable,
+    this.retryAfterSeconds,
     required this.result,
   });
 
@@ -144,6 +147,9 @@ class InventoryCountOfflineSyncStatus {
   final DateTime? createdAtUtc;
   final DateTime? completedAtUtc;
   final String? errorMessage;
+  final String? errorCode;
+  final bool? retryable;
+  final int? retryAfterSeconds;
   final InventoryCountCreateResult? result;
 
   bool get isProcessing => status.toLowerCase() == 'processing';
@@ -165,6 +171,13 @@ class InventoryCountOfflineSyncStatus {
       errorMessage: _readString(json['errorMessage']).trim().isEmpty
           ? null
           : _readString(json['errorMessage']),
+      errorCode: _readString(json['errorCode']).trim().isEmpty
+          ? null
+          : _readString(json['errorCode']),
+      retryable: json['retryable'] is bool ? json['retryable'] as bool : null,
+      retryAfterSeconds: json['retryAfterSeconds'] is num
+          ? (json['retryAfterSeconds'] as num).toInt()
+          : int.tryParse(json['retryAfterSeconds']?.toString() ?? ''),
       result: mappedResult,
     );
   }

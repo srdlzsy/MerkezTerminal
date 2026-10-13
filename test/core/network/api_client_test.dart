@@ -87,7 +87,8 @@ void main() {
           '{"title":"Conflict","status":409,'
           '"detail":"Mikro belge icerigi uyusmuyor",'
           '"errorCode":"MIKRO_DOCUMENT_CONTENT_MISMATCH",'
-          '"retryable":false,"correlationId":"trace-123"}',
+          '"retryable":false,"retryAfterSeconds":5,'
+          '"correlationId":"trace-123"}',
           409,
           headers: <String, String>{'content-type': 'application/problem+json'},
         );
@@ -105,6 +106,7 @@ void main() {
               'MIKRO_DOCUMENT_CONTENT_MISMATCH',
             )
             .having((error) => error.retryable, 'retryable', isFalse)
+            .having((error) => error.retryAfterSeconds, 'retryAfterSeconds', 5)
             .having(
               (error) => error.correlationId,
               'correlationId',

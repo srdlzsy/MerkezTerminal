@@ -2,7 +2,7 @@
 
 Bu dokuman, mevcut backend durumuna gore frontend/UI tasarimi ve entegrasyonu icin hazirlanmistir.
 
-Son hedefli kontrol: 2026-10-09. Kayitli 728 method/route ve 666 JSON modeli koddan uretilen sozlesmeyle; auth, CORS, dogrudan IIS barindirma, Mikro create/readback, firma e-irsaliye, guvenli retry ve veritabani izleme anlatimlari kaynak kod ve Production ayarlariyla karsilastirildi.
+Son hedefli kontrol: 2026-10-13. Kayitli 742 method/route ve 674 JSON modeli koddan uretilen sozlesmeyle; auth, CORS, dogrudan IIS barindirma, Mikro create/readback, firma e-irsaliye, guvenli retry ve veritabani izleme anlatimlari kaynak kod ve Production ayarlariyla karsilastirildi.
 Tum kayitli endpointlerin route, method, request/response ve yetki metadata referansi: [API Sozlesme Referansi](API_SOZLESME_REFERANSI.md). Makine formati: [OpenAPI Sozlesmesi](API_SOZLESMESI.json). Bu referans test ile koddan uretilir; anlatimdaki orneklerin yerine tam alan/alias listesi icin kullanilir.
 Bu kontrol tum endpointlerin uctan uca canli onayi degildir. Yayin oncesi migration, acik riskler ve smoke testleri icin [Canliya Gecis Kontrol Listesi](CANLIYA_GECIS_KONTROL_LISTESI.md) kullanilmalidir.
 
@@ -1214,13 +1214,10 @@ Yetki ve kapsam:
 
 Bu bolum mobil uygulamanin offline iken olusturdugu fisleri internet geldiginde guvenli sekilde backend'e gondermesi icin create retry kurallarini anlatir.
 
-Offline durum sorgusu olan pilot create akislari:
+Kalici guvenli retry ve durum sorgusu olan create/yazma akislari:
 
 - `POST /api/mal-kabul-islemleri/firma-mal-kabulleri`
 - `POST /api/stok-islemleri/sayim-sonuclari`
-
-Guvenli retry destegi genisletilen diger kritik create akislari:
-
 - `POST /api/sevk-islemleri/depolar-arasi-sevkler/giden`
 - `POST /api/sevk-islemleri/firma-sevkleri/giden`
 - `POST /api/iade-islemleri/depo-iadeleri/giden`
@@ -1228,6 +1225,7 @@ Guvenli retry destegi genisletilen diger kritik create akislari:
 - `POST /api/stok-islemleri/zayiat-fisleri`
 - `POST /api/stok-islemleri/masraf-fisleri`
 - `POST /api/stok-islemleri/virmanlar`
+- `POST /api/green-grocer/operations/adjustments`
 
 Bu endpointler legacy UI gibi normal online da kullanilabilir. Ancak mobil uygulama veya web UI timeout/tekrar basma riskine karsi guvenli calisacaksa su kurallar uygulanmalidir:
 
@@ -1240,8 +1238,7 @@ Bu endpointler legacy UI gibi normal online da kullanilabilir. Ancak mobil uygul
 - Ayni `clientRequestId` ile farkli payload gelirse endpoint `409 Conflict` doner.
 - Ayni `clientRequestId` halen isleniyorsa endpoint `409 Conflict` doner.
 - POST cevabi cihaza ulasmadiysa mobil uygulama once ayni `clientRequestId` ile tekrar POST denemelidir.
-- Firma mal kabul ve sayim sonucunda durum hala belirsizse ilgili `offline-sync/{clientRequestId}` endpoint'i ile durum sorgulanabilir.
-- Sevk, iade, zayiat, masraf ve virman create akislarinda ayri durum endpoint'i yoktur; sonuc ayni `clientRequestId` ile tekrar POST edilerek toparlanir.
+- Desteklenen tum akislar ilgili `offline-sync/{clientRequestId}` endpoint'iyle sorgulanabilir. Durum sorgusu yeni create yazisi baslatmaz; kayitli request snapshot'i ile Mikro readback yapar ve bulunan kesin sonucu kalici kayda isler.
 - Depolar arasi sevk, depo iadesi, firma sevki/iadesi, zayiat, masraf ve virman Mikro API yaziminda timeout/istemci iptali gibi sonucu belirsiz bir hata olursa backend once ayni cagrida Mikro DB readback yapar. Evrak tum satirlariyla bulunursa cevap basarili doner ve Mikro API audit kaydi `Recovered` olur.
 - Ilk readback sirasinda evrak henuz gorunmuyorsa ayni `clientRequestId` ile gelen tekrar POST Mikro'ya ikinci create yazisi gondermez. Backend sadece trace ile readback yapar; tum satirlar tamamlandiysa mevcut evraki toparlar, henuz tamamlanmadiysa `409 Conflict` ile islemin surdugunu bildirir.
 - Mikro API `evrak zaten mevcut`/duplicate document cevabi verirse backend bunu otomatik basari saymaz. Ayni seri/sira veya trace ile Mikro satirlarini okur; stok, miktar, birim ve satir butunlugu beklenen istekle tam eslesirse mevcut evraki dondurur ve audit kaydini `Recovered` yapar. Icerik eslesmezse yeni evrak yazmaz ve manuel inceleme hatasi verir.
@@ -1312,6 +1309,19 @@ Kaydetme akisi:
 8. retryable=false ve MIKRO_DOCUMENT_CONTENT_MISMATCH gelirse needsReview durumuna gec; snapshot/id korunur, tekrar gonderim kapatilir. Belirsiz veya incelemedeki fis yeni id ile yeniden kaydedilmez.
 ```
 
+Kalici pending state ve uygulama acilisi:
+
+- Pending kayit yalniz bellek/canli ekran state'inde degil, uygulama kapanip acilsa da ayni `clientRequestId` ve body snapshot'i korunacak sekilde yerel depoda tutulabilir. Yerel anahtar en az `userId + clientType + warehouseNo + operationCode + clientRequestId` veya ayni kimligi tasiyan bir taslak anahtari kapsaminda olmalidir. Tek bir eski pending kayit ayni islem turundeki diger bagimsiz taslaklari ya da `Yeni Ekle` butonunu global olarak kilitlememelidir.
+- Create istegi `200 OK` donup `documentSerie/documentOrderNo` gibi kesin business sonucunu verdiginde UI once kalici pending kaydi atomik olarak silmeli, sonra listeye yonelmeli veya formu sifirlamalidir. Yalniz ekran state'ini `completed` yapmak yeterli degildir.
+- Terminal yeniden acildiginda yerelde pending kayit varsa UI bunu sonsuza kadar dogrudan `isleniyor` kabul etmemelidir. Saklanan ayni payload ve ayni `clientRequestId` ile bir kez guvenli recovery POST'u yaparak backend sonucunu uzlastirmalidir; yeni GUID veya yeniden olusturulmus body kullanilmamalidir.
+- Recovery POST'u `200 OK` donerse yerel pending kayit silinir, form kilidi kaldirilir ve `Yeni Ekle` yeniden acilir. Response mevcut Mikro evrakini recovery ile bulmus olsa da UI acisindan normal basarili create response'udur.
+- `409` ve `retryable=true` (`MIKRO_WRITE_IN_PROGRESS`, `MIKRO_WRITE_QUEUE_BUSY`, `MIKRO_WRITE_OUTCOME_UNCONFIRMED`) donerse ilgili pending kayit korunur ve o kaydin formu/snapshot'i icin `Tekrar Dene` sunulur. Bu durum ayni mantiksal fisin yeni kimlikle gonderilmesini engeller; API farkli `clientRequestId` tasiyan gercekten bagimsiz yeni bir islemi global olarak engellemez. UI pending kaydi ayri bir bekleyen islemler listesinde gosterebilir ve `Yeni Ekle` butonunu sonsuza kadar kapatmamalidir.
+- Recovery readback sorgusu timeout, SQL baglanti hatasi veya gecici iptal nedeniyle tamamlanamazsa backend kaydi `Processing` durumunda sahipsiz birakmaz; `Failed + MIKRO_WRITE_OUTCOME_UNCONFIRMED + retryable=true` olarak saklar. Durum endpointi `retryAfterSeconds` ile tekrar kontrol zamanini bildirir. Bu siniflandirma ikinci yazmayi otomatik baslatmaz.
+- `Processing` kaydi 5 dakikalik islem suresini astigi halde recovery readback tamamlanmis belge bulamazsa da kayit ayni sekilde `Failed + MIKRO_WRITE_OUTCOME_UNCONFIRMED + retryable=true` olur. UI bu kaydi sonsuza kadar `isleniyor` gostermemeli; bekleyen islem olarak saklayip ayni kimlikle tekrar kontrol etmelidir.
+- `retryable=false` donerse kayit sessizce silinmez. UI `needsReview` veya duzeltilebilir hata durumuna gecer, hata kodunu gosterir ve ilgili kurala gore kullanici aksiyonu bekler.
+- HTTP timeout, HTTP `0`, `502`, `503`, `504` veya sonucu belirsiz `500` durumunda yerel pending kayit silinmez. Onbellegi/uygulama verisini elle temizlemek normal is akisi olarak kullanilmamalidir; bu islem guvenli retry kimligini ve body snapshot'ini kaybettirebilir.
+- Uygulama basarili create response'u aldigi halde yerel pending kaydi silinemezse bunu loglamali ve sonraki acilista ayni recovery uzlastirmasini tekrar yapmalidir. Eski bir local kayit tum create ekranlarini global olarak kilitlememelidir.
+
 Yanlis retry ornegi:
 
 ```text
@@ -1324,6 +1334,20 @@ Offline durum sorgu endpointleri:
 
 - `GET /api/mal-kabul-islemleri/firma-mal-kabulleri/offline-sync/{clientRequestId}`
 - `GET /api/stok-islemleri/sayim-sonuclari/offline-sync/{clientRequestId}`
+- `GET /api/sevk-islemleri/depolar-arasi-sevkler/offline-sync/{clientRequestId}`
+- `GET /api/sevk-islemleri/depolar-arasi-sevkler/giden/offline-sync/{clientRequestId}`
+- `GET /api/sevk-islemleri/firma-sevkleri/offline-sync/{clientRequestId}`
+- `GET /api/sevk-islemleri/firma-sevkleri/giden/offline-sync/{clientRequestId}`
+- `GET /api/iade-islemleri/depo-iadeleri/offline-sync/{clientRequestId}`
+- `GET /api/iade-islemleri/depo-iadeleri/giden/offline-sync/{clientRequestId}`
+- `GET /api/iade-islemleri/firma-iadeleri/offline-sync/{clientRequestId}`
+- `GET /api/stok-islemleri/zayiat-fisleri/offline-sync/{clientRequestId}`
+- `GET /api/stok-islemleri/masraf-fisleri/offline-sync/{clientRequestId}`
+- `GET /api/stok-islemleri/virmanlar/offline-sync/{clientRequestId}`
+- `GET /api/green-grocer/operations/adjustments/offline-sync/{clientRequestId}`
+- `GET /api/green-grocer/operations/duzeltmeler/offline-sync/{clientRequestId}`
+
+Canonical ve alias route'lar ayni operasyon kaydini okur. Endpoint create yetkisini ister ve kaydi `requestedByUserId + operationCode + clientRequestId` ile sinirlar; baska kullanicinin ayni GUID degerli kaydi gorulemez.
 
 Ortak offline status response modeli:
 
@@ -1335,6 +1359,9 @@ Ortak offline status response modeli:
   "createdAtUtc": "2026-05-06T13:20:11Z",
   "completedAtUtc": "2026-05-06T13:20:13Z",
   "errorMessage": null,
+  "errorCode": null,
+  "retryable": null,
+  "retryAfterSeconds": null,
   "result": {}
 }
 ```
@@ -1344,6 +1371,8 @@ Ortak offline status response modeli:
 - `Processing`: istek backend tarafinda rezerve edildi, islem tamamlanmadi veya sonuc henuz toparlanamadi
 - `Completed`: istek basariyla tamamlandi; `result` alaninda asil business response bulunur
 - `Failed`: son deneme hata ile kapandi; `errorMessage` dolu olabilir. U17, validasyon veya benzeri kesin is kurali hatasi duzeltilmeden tekrar edilmemelidir. Hata metni timeout/iptal/`write outcome could not be confirmed` ise sonuc belirsizdir; sevk, iade, firma hareketi, zayiat, masraf ve virman akislarinda ayni id ile retry yalnizca readback yapar ve ikinci yazma baslatmaz.
+- `errorCode` ve `retryable`, siniflandirilmis hata kararini ProblemDetails ile ayni makine-okunur alanlarla tasir. `retryable=true` ise `retryAfterSeconds` su an `5` doner; UI bu sure dolmadan ayni durumu veya ayni payload POST'unu tekrar etmemelidir.
+- `Completed` durumda `errorCode`, `retryable` ve `retryAfterSeconds` null; `result` asil create response'udur.
 
 ## Mobil Urun-Fiyat Katalog Sync
 
@@ -2411,6 +2440,7 @@ Endpointler:
 ```text
 GET  /api/ayar-islemleri/veritabani-izleme/anlik
 GET  /api/ayar-islemleri/veritabani-izleme/olaylar?take=100
+GET  /api/ayar-islemleri/veritabani-izleme/guvenli-yazmalar?includeCompleted=false&take=100
 GET  /api/ayar-islemleri/veritabani-izleme/oturum-sonlandirma-gecmisi?take=100
 POST /api/ayar-islemleri/veritabani-izleme/oturumlar/{sessionId}/sonlandir
 GET  /api/ayar-islemleri/veritabani-izleme/oturumlar/{sessionId}/rollback-durumu
@@ -2522,6 +2552,48 @@ Alan notlari:
 - `openTransactions`: acik kullanici transaction'laridir; aktif request olmasa da listede bulunabilir.
 - `canTerminate=true` teknik olarak sonlandirilabilir kullanici SPID'i oldugunu belirtir. Buton icin ayrica `terminate-session` permission'i zorunludur.
 - `sqlText`, `blockedSqlText` ve `lastSqlText` icindeki string literal degerler backend tarafinda `***` ile maskelenir.
+
+#### Guvenli Yazma Izleme
+
+`GET /api/ayar-islemleri/veritabani-izleme/guvenli-yazmalar`
+
+Yetki: `ayar-islemleri.veritabani-izleme.detail`
+
+Query:
+
+```text
+status            opsiyonel; Processing, Completed veya Failed
+operationCode     opsiyonel; tam operasyon kodu
+warehouseNo       opsiyonel; depo filtresi
+retryable         opsiyonel; true/false
+includeCompleted  opsiyonel; default false
+take              opsiyonel; default 100, max 500
+```
+
+Response item:
+
+```json
+{
+  "id": "3cff6fab-9cff-441d-8f18-a3c66692fb31",
+  "operationCode": "sevk-islemleri.giden-depolar-arasi-sevkler.create",
+  "requestedByUserId": "58ac6266-8c7a-4ff5-a16e-2229ef31a111",
+  "warehouseNo": 110,
+  "clientRequestId": "7c9b31f6-1ab4-4ed1-b02b-2a90e5e7d3fd",
+  "status": "Processing",
+  "errorCode": "MIKRO_WRITE_OUTCOME_UNCONFIRMED",
+  "retryable": true,
+  "errorMessage": "Mikro write outcome could not be confirmed.",
+  "createdAtUtc": "2026-10-13T08:10:00Z",
+  "updatedAtUtc": "2026-10-13T08:11:00Z",
+  "completedAtUtc": null,
+  "ageSeconds": 120
+}
+```
+
+- Varsayilan `includeCompleted=false` aktif, basarisiz veya sonucu belirsiz yazmalari one cikarir.
+- Siralama once `Processing`, sonra son guncelleme tarihi azalan bicimdedir.
+- Endpoint request/response payload snapshot'larini dondurmez ve Mikro readback/recovery tetiklemez; yalniz Auth DB izleme kayitlarini okur.
+- Tek bir istegin kesin sonucunu uzlastirmak icin ilgili operasyonun `offline-sync/{clientRequestId}` endpoint'i kullanilir.
 
 #### Olay Gecmisi Response
 
@@ -6409,6 +6481,12 @@ Onemli not:
 
 - Yazma yolu `MikroWriteRouting:InterWarehouseShipment` ile secilir; mevcut config'te varsayilan deger `Database`tir.
 - `Database` modunda EF Core uzerinden ayri `MikroWriteDbContext` ile yazma yapar. Write hedefi canli `MikroConnection` degil; `MikroWriteConnection` yoksa `testMikroConnection` kullanilir.
+- `MikroWriteBatching:InterWarehouseShipmentEnabled`, `CompanyReceivingEnabled` ve `CompanyReturnEnabled` ayarlari ilgili `Database` yazma yollarini birbirinden bagimsiz acip kapatir. Ayar acikken bir evrakin `STOK_HAREKETLERI` satirlari mevcut transaction icinde tek SQL bulk batch olarak yazilir. Mikro trigger ve constraint kontrolleri acik kalir; hedef, cok satirli evrakta trigger'i satir basina degil belge batch'i basina bir kez calistirmaktir.
+- Firma mal kabulde normal kabul hareketleri tek batch, otomatik olusan firma iade evraki varsa onun satirlari ayri bir batch olarak yazilir. Boylece her belge kendi trigger calismasini bir kez yapar ve iki belge ayni transaction icinde birlikte commit/rollback olur.
+- Bulk yazma yalniz satirlarin SQL'e gonderilme seklini degistirir. `clientRequestId`, trace, duplicate kontrolu, belge numarasi, transaction, rollback, readback ve recovery davranisi aynen korunur.
+- Bulk yolunun timeout degeri `MikroWriteBatching:BulkCopyTimeoutSeconds` ile belirlenir; varsayilan `300` saniyedir. Ozellik kapatilirsa ayni endpoint ve response korunarak eski EF insert yoluna donulur.
+- Mevcut Production ayarinda uc akis da aktiftir. Sorun halinde ilgili akis `MikroWriteBatching__InterWarehouseShipmentEnabled=false`, `MikroWriteBatching__CompanyReceivingEnabled=false` veya `MikroWriteBatching__CompanyReturnEnabled=false` ortam degiskeniyle ya da ayni appsettings alaniyla tek basina eski EF insert yoluna dondurulebilir; ayar degisikliginden sonra API yeniden baslatilmalidir.
+- Production loglarinda EF Core `Database.Command`, `Database.Transaction` ve `Update` kategorileri `Critical` seviyesine alinmistir. Boylece ayni deadlock/SQL hatasinin EF tarafindan buyuk SQL metniyle birden fazla kez yazilmasi engellenir; uygulama use-case, retry/recovery ve exception middleware hata kayitlari tutulmaya devam eder.
 - `MikroApi` modunda `POST /Api/apiMethods/DahiliStokHareketKaydetV2` kullanilir ve olusan hareketler response/geri okuma ile mevcut response modeline cevrilir.
 - `MikroApi` modunda otomatik depo siparisi gerekiyorsa once `POST /Api/apiMethods/DepolarArasiSiparisKaydetV2` ile siparis olusturulur, olusan `ssip_Guid` degerleri geri okunur ve sevk satirlarina `sth_subesip_uid` olarak eklenir. Bu yolun API-only kalmasi icin `MikroWriteRouting:IssuedWarehouseOrder` de `MikroApi` olmalidir; aksi halde backend hata dondurur.
 - `STOK_HAREKETLERI` icin `sth_evraktip = 17`, `sth_tip = 2`, `sth_cins = 6` kullanilir.
@@ -6425,6 +6503,8 @@ Onemli not:
 - `MikroApi` yazma yolunda Mikro `MikroAPI - TimeOut` dondurse bile ERP arka planda satirlari yazmaya devam edebilir. Bu nedenle timeout cevabi "evrak olusmadi" anlamina gelmez.
 - Depolar arasi sevkte timeout/iptal gibi sonucu belirsiz bir create sonrasi ayni `clientRequestId` tekrar gonderildiginde backend Mikro'ya ikinci create POST'u atmaz. Once trace readback yapar; tum satirlar tamamsa mevcut evraki `200 OK` ile dondurur, satirlar henuz tam degilse `409 Conflict` ile islemin devam ettigini bildirir.
 - `409 Conflict` detail mesaji `already being processed` anlamindaysa UI pending state'i korumali, formu ve e-irsaliye butonunu kilitli tutmali, yeni GUID uretmemelidir. Kullanici ayni snapshot ile daha sonra tekrar deneyebilir; otomatik kontrol yapilacaksa sik ve sinirsiz polling yerine 5-10 saniye aralikli sinirli retry kullanilmalidir.
+- Depolar arasi sevk terminalinde cozulmemis yerel pending kayit yalniz kendi taslagini ve ayni mantiksal fisin tekrar kaydini kilitlemelidir. Ayni kullanici/depo/create akisi icindeki bagimsiz `Yeni Ekle` aksiyonu global olarak sonsuza kadar kapatilmamalidir. Ayni payload ve `clientRequestId` ile yapilan recovery POST'u `200 OK` dondugunda kalici pending kayit hemen silinmeli ve ilgili taslak kilidi uygulama onbellegi elle temizlenmeden acilmalidir.
+- Terminal uygulamasi yeniden baslatildiginda eski pending kaydi bulursa once yukaridaki guvenli recovery POST'unu yapmalidir. Liste ekraninda evrakin gorunmesi tek basina yerel pending state'i temizlemek icin kullanilmaz; kesin temizleme kaniti create/recovery POST'unun basarili response'udur.
 - Create endpointinden `200 OK` ve `documentSerie/documentOrderNo` alinmadan UI liste satirindan tahmin edilen evrak numarasiyla e-irsaliye endpointini cagirmamalidir.
 - UI ayni sevk icerigini yeni `clientRequestId` ile tekrar gonderirse backend bunu yeni evrak olarak yorumlayabilir. Bu durumda ayni stok/miktar satirlari farkli `documentOrderNo` ile ikinci kez olusur; ornek risk `F120/3496` ve `F120/3497` gibi ayni icerikli iki sevktir.
 - Kullanici pending/retry durumundaki sevk formunu degistirmek isterse UI bunu acikca yeni islem saymali; eski pending state'i kullanmadan yeni `clientRequestId` uretmelidir.
@@ -15248,6 +15328,55 @@ Not:
 - `documentSerie` bos veya parse edilemezse backend dogrudan `warehouseNo` ile sube path bilgisini cozer
 - dosya bulunamazsa, config bos ise veya `NET CIRO` parse edilemezse `-1` doner
 - backend sube IP ve POS klasor bilgisini `BranchDetails` kaydindan okur
+
+### Kayitli Icmal Z Rapor Toplami
+
+Kasa sayimi/icmal detay ekraninda, belge kaydedilirken Mikro `CARI_HESAP_HAREKETLERI`
+tablosuna yazilan Z toplamini getirir. Bu endpoint fiziksel `ZRAP` dosyasini yeniden
+okumaz; create ekranindaki dosya okuma akisi yukaridaki endpoint ile aynen devam eder.
+
+`GET /api/kasa-islemleri/kasa-sayimlari/{documentSerie}/{documentOrderNo}/z-rapor-toplam?warehouseNo=116`
+
+Yetki:
+
+- `kasa-islemleri.kasa-sayimlari.detail`
+
+Ornek:
+
+`GET /api/kasa-islemleri/kasa-sayimlari/F116.238/256/z-rapor-toplam?warehouseNo=116`
+
+Response:
+
+```json
+{
+  "zTotalValue": 10000
+}
+```
+
+Kayitli Z hareketi bulunamazsa `200 OK`:
+
+```json
+{
+  "zTotalValue": null
+}
+```
+
+HTTP response'lari:
+
+| Status | Response | UI davranisi |
+|---|---|---|
+| `200 OK` | `CashSummaryZReportTotalDto` | `zTotalValue` doluysa detay ekraninda kayitli Z toplami olarak gosterilir. |
+| `400 Bad Request` | `ProblemDetails` | Gecersiz depo/belge parametresi mesaji gosterilir; ayni istek otomatik tekrarlanmaz. |
+| `401 Unauthorized` | `ProblemDetails` | Oturum yenileme/login akisi uygulanir. |
+| `403 Forbidden` | `ProblemDetails` | Kullanici belge deposuna veya detay yetkisine sahip degildir. |
+| `404 Not Found` | `ProblemDetails` | Belge bulunamadi mesaji gosterilir. |
+
+Not:
+
+- Deger, ilgili belgenin `CARI_HESAP_HAREKETLERI` kaydindan okunur.
+- Belge varsa ancak eski/eksik kayit nedeniyle Z hareketi bulunamazsa `zTotalValue: null` doner.
+- Belge bulunamazsa `404 Not Found` doner.
+- UI detay ekraninda query bazli `/z-rapor-toplam?zReportNo=...` endpointini degil bu belge bazli endpointi kullanmalidir.
 
 ### Icmal Kaydi Girisi / Olustur
 
@@ -24716,6 +24845,7 @@ Bu bolum test hostundaki ApiExplorer ve Swagger metadata'sindan otomatik uretili
 | GET | `/api/ayar-islemleri/terminal-cihazlari/ozet` | JWT + ayar-islemleri.terminal-cihazlari.list | query: warehouseNo / integer (int32) | 401: ProblemDetails<br>403: ProblemDetails<br>200: TerminalInstallationSummaryDto |
 | GET | `/api/ayar-islemleri/terminal-cihazlari/{id}` | JWT + ayar-islemleri.terminal-cihazlari.detail | path: id / string (uuid) (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: TerminalInstallationDto<br>404: ProblemDetails |
 | GET | `/api/ayar-islemleri/veritabani-izleme/anlik` | JWT + ayar-islemleri.veritabani-izleme.list |  | 401: ProblemDetails<br>403: ProblemDetails<br>200: DatabaseMonitoringSnapshotDto |
+| GET | `/api/ayar-islemleri/veritabani-izleme/guvenli-yazmalar` | JWT + ayar-islemleri.veritabani-izleme.detail | query: Status / string<br>query: OperationCode / string<br>query: WarehouseNo / integer (int32)<br>query: Retryable / boolean<br>query: IncludeCompleted / boolean<br>query: Take / integer (int32) | 401: ProblemDetails<br>403: ProblemDetails<br>200: IReadOnlyCollection&lt;SafeWriteMonitoringItemDto&gt;<br>400: ProblemDetails |
 | GET | `/api/ayar-islemleri/veritabani-izleme/olaylar` | JWT + ayar-islemleri.veritabani-izleme.detail | query: take / integer (int32) | 401: ProblemDetails<br>403: ProblemDetails<br>200: IReadOnlyCollection&lt;DatabaseMonitoringIncidentDto&gt; |
 | GET | `/api/ayar-islemleri/veritabani-izleme/oturum-sonlandirma-gecmisi` | JWT + ayar-islemleri.veritabani-izleme.detail | query: take / integer (int32) | 401: ProblemDetails<br>403: ProblemDetails<br>200: IReadOnlyCollection&lt;DatabaseSessionTerminationDto&gt; |
 | GET | `/api/ayar-islemleri/veritabani-izleme/oturumlar/{sessionId}/rollback-durumu` | JWT + ayar-islemleri.veritabani-izleme.detail | path: sessionId / integer (int32) (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: DatabaseRollbackStatusDto |
@@ -24866,8 +24996,10 @@ Bu bolum test hostundaki ApiExplorer ve Swagger metadata'sindan otomatik uretili
 | PATCH | `/api/fatura-islemleri/fatura-goruntuleme/{documentId}/printed` | JWT + fatura-islemleri.fatura-goruntuleme.update | path: documentId / string (zorunlu)<br>body: request / InvoiceViewingPrintedStateHttpRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: InvoiceViewingPrintedStateResponse<br>400: ProblemDetails<br>404: ProblemDetails |
 | POST | `/api/fatura-islemleri/fatura-goruntuleme/{documentId}/render` | JWT + fatura-islemleri.fatura-goruntuleme.detail | path: documentId / string (zorunlu)<br>body: request / InvoiceViewingRenderHttpRequest | 401: ProblemDetails<br>403: ProblemDetails<br>200: InvoiceViewingDetailDto<br>400: ProblemDetails<br>404: ProblemDetails |
 | POST | `/api/green-grocer/operations/adjustments` | JWT + green-grocer.operations.create | body: request / GreenGrocerOperationsAdjustmentApplyHttpRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>201: GreenGrocerOperationsAdjustmentApplyResponse<br>200: GreenGrocerOperationsAdjustmentApplyResponse<br>400: ProblemDetails<br>409: ProblemDetails |
+| GET | `/api/green-grocer/operations/adjustments/offline-sync/{clientRequestId}` | JWT + green-grocer.operations.create | path: clientRequestId / string (uuid) (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: OfflineSyncStatusDto&lt;GreenGrocerOperationsAdjustmentApplyResponse&gt;<br>404: ProblemDetails<br>409: ProblemDetails |
 | POST | `/api/green-grocer/operations/adjustments/preview` | JWT + green-grocer.operations.list | body: request / GreenGrocerOperationsAdjustmentPreviewHttpRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: GreenGrocerOperationsAdjustmentPreviewDto<br>400: ProblemDetails |
 | POST | `/api/green-grocer/operations/duzeltmeler` | JWT + green-grocer.operations.create | body: request / GreenGrocerOperationsAdjustmentApplyHttpRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>201: GreenGrocerOperationsAdjustmentApplyResponse<br>200: GreenGrocerOperationsAdjustmentApplyResponse<br>400: ProblemDetails<br>409: ProblemDetails |
+| GET | `/api/green-grocer/operations/duzeltmeler/offline-sync/{clientRequestId}` | JWT + green-grocer.operations.create | path: clientRequestId / string (uuid) (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: OfflineSyncStatusDto&lt;GreenGrocerOperationsAdjustmentApplyResponse&gt;<br>404: ProblemDetails<br>409: ProblemDetails |
 | POST | `/api/green-grocer/operations/duzeltmeler/onizleme` | JWT + green-grocer.operations.list | body: request / GreenGrocerOperationsAdjustmentPreviewHttpRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: GreenGrocerOperationsAdjustmentPreviewDto<br>400: ProblemDetails |
 | GET | `/api/green-grocer/operations/overview` | JWT + green-grocer.operations.list | query: StartDate / string (date-time)<br>query: EndDate / string (date-time)<br>query: WarehouseNo / integer (int32)<br>query: TypeCode / string<br>query: Search / string<br>query: OnlyWithActivity / boolean<br>query: Take / integer (int32) | 401: ProblemDetails<br>403: ProblemDetails<br>200: GreenGrocerOperationsOverviewDto<br>400: ProblemDetails |
 | GET | `/api/green-grocer/operations/ozet` | JWT + green-grocer.operations.list | query: StartDate / string (date-time)<br>query: EndDate / string (date-time)<br>query: WarehouseNo / integer (int32)<br>query: TypeCode / string<br>query: Search / string<br>query: OnlyWithActivity / boolean<br>query: Take / integer (int32) | 401: ProblemDetails<br>403: ProblemDetails<br>200: GreenGrocerOperationsOverviewDto<br>400: ProblemDetails |
@@ -24903,11 +25035,13 @@ Bu bolum test hostundaki ApiExplorer ve Swagger metadata'sindan otomatik uretili
 | GET | `/api/iade-islemleri/depo-iadeleri/gelen/{documentSerie}/{documentOrderNo}` | JWT + iade-islemleri.gelen-depo-iadeleri.detail | path: documentSerie / string (zorunlu)<br>path: documentOrderNo / integer (int32) (zorunlu)<br>query: warehouseNo / integer (int32) | 401: ProblemDetails<br>403: ProblemDetails<br>200: WarehouseShippingDetailDto<br>400: ProblemDetails<br>404: ProblemDetails |
 | GET | `/api/iade-islemleri/depo-iadeleri/giden` | JWT + iade-islemleri.giden-depo-iadeleri.list | query: WarehouseNo / integer (int32)<br>query: StartDate / string (date-time) (zorunlu)<br>query: EndDate / string (date-time) (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: IReadOnlyCollection&lt;WarehouseShippingListItemDto&gt;<br>400: ProblemDetails |
 | POST | `/api/iade-islemleri/depo-iadeleri/giden` | JWT + iade-islemleri.giden-depo-iadeleri.create | body: request / CreateWarehouseReturnHttpRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>201: CreateWarehouseReturnResponse<br>400: ProblemDetails |
+| GET | `/api/iade-islemleri/depo-iadeleri/giden/offline-sync/{clientRequestId}` | JWT + iade-islemleri.giden-depo-iadeleri.create | path: clientRequestId / string (uuid) (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: OfflineSyncStatusDto&lt;CreateWarehouseReturnResponse&gt;<br>404: ProblemDetails<br>409: ProblemDetails |
 | GET | `/api/iade-islemleri/depo-iadeleri/giden/{documentSerie}/{documentOrderNo}` | JWT + iade-islemleri.giden-depo-iadeleri.detail | path: documentSerie / string (zorunlu)<br>path: documentOrderNo / integer (int32) (zorunlu)<br>query: warehouseNo / integer (int32) | 401: ProblemDetails<br>403: ProblemDetails<br>200: WarehouseShippingDetailDto<br>400: ProblemDetails<br>404: ProblemDetails |
 | PUT | `/api/iade-islemleri/depo-iadeleri/giden/{documentSerie}/{documentOrderNo}` | JWT + iade-islemleri.giden-depo-iadeleri.update | path: documentSerie / string (zorunlu)<br>path: documentOrderNo / integer (int32) (zorunlu)<br>query: warehouseNo / integer (int32)<br>body: request / UpdateWarehouseShippingDocumentHttpRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: UpdateWarehouseShippingDocumentResponse<br>400: ProblemDetails<br>404: ProblemDetails<br>409: ProblemDetails |
 | POST | `/api/iade-islemleri/depo-iadeleri/giden/{documentSerie}/{documentOrderNo}/e-irsaliye` | JWT + iade-islemleri.giden-depo-iadeleri.detail | path: documentSerie / string (zorunlu)<br>path: documentOrderNo / integer (int32) (zorunlu)<br>query: warehouseNo / integer (int32)<br>body: request / SendEDespatchHttpRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: SendEDespatchResponse<br>400: ProblemDetails<br>404: ProblemDetails<br>409: ProblemDetails |
 | GET | `/api/iade-islemleri/depo-iadeleri/giden/{documentSerie}/{documentOrderNo}/e-irsaliye/pdf` | JWT + iade-islemleri.giden-depo-iadeleri.detail | path: documentSerie / string (zorunlu)<br>path: documentOrderNo / integer (int32) (zorunlu)<br>query: warehouseNo / integer (int32) | 401: ProblemDetails<br>403: ProblemDetails<br>200: bildirilmemis<br>400: ProblemDetails<br>404: ProblemDetails<br>409: ProblemDetails |
 | GET | `/api/iade-islemleri/depo-iadeleri/iade-edilebilir-urunler` | JWT + iade-islemleri.giden-depo-iadeleri.create | query: WarehouseNo / integer (int32)<br>query: TargetWarehouseNo / integer (int32)<br>query: Search / string | 401: ProblemDetails<br>403: ProblemDetails<br>200: WarehouseReturnEligibleProductsDto<br>400: ProblemDetails |
+| GET | `/api/iade-islemleri/depo-iadeleri/offline-sync/{clientRequestId}` | JWT + iade-islemleri.giden-depo-iadeleri.create | path: clientRequestId / string (uuid) (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: OfflineSyncStatusDto&lt;CreateWarehouseReturnResponse&gt;<br>404: ProblemDetails<br>409: ProblemDetails |
 | GET | `/api/iade-islemleri/depo-iadeleri/{documentSerie}/{documentOrderNo}` | JWT + iade-islemleri.giden-depo-iadeleri.detail | path: documentSerie / string (zorunlu)<br>path: documentOrderNo / integer (int32) (zorunlu)<br>query: warehouseNo / integer (int32) | 401: ProblemDetails<br>403: ProblemDetails<br>200: WarehouseShippingDetailDto<br>400: ProblemDetails<br>404: ProblemDetails |
 | PUT | `/api/iade-islemleri/depo-iadeleri/{documentSerie}/{documentOrderNo}` | JWT + iade-islemleri.giden-depo-iadeleri.update | path: documentSerie / string (zorunlu)<br>path: documentOrderNo / integer (int32) (zorunlu)<br>query: warehouseNo / integer (int32)<br>body: request / UpdateWarehouseShippingDocumentHttpRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: UpdateWarehouseShippingDocumentResponse<br>400: ProblemDetails<br>404: ProblemDetails<br>409: ProblemDetails |
 | POST | `/api/iade-islemleri/depo-iadeleri/{documentSerie}/{documentOrderNo}/e-irsaliye` | JWT + iade-islemleri.giden-depo-iadeleri.detail | path: documentSerie / string (zorunlu)<br>path: documentOrderNo / integer (int32) (zorunlu)<br>query: warehouseNo / integer (int32)<br>body: request / SendEDespatchHttpRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: SendEDespatchResponse<br>400: ProblemDetails<br>404: ProblemDetails<br>409: ProblemDetails |
@@ -24915,6 +25049,7 @@ Bu bolum test hostundaki ApiExplorer ve Swagger metadata'sindan otomatik uretili
 | PUT | `/api/iade-islemleri/depo-iadeleri/{id}` | JWT + iade-islemleri.giden-depo-iadeleri.update | path: id / string (zorunlu)<br>body: request / ModuleActionRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>501: ModuleActionScaffoldResponse |
 | GET | `/api/iade-islemleri/firma-iadeleri` | JWT + iade-islemleri.firma-iadeleri.list | query: WarehouseNo / integer (int32)<br>query: StartDate / string (date-time) (zorunlu)<br>query: EndDate / string (date-time) (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: IReadOnlyCollection&lt;CompanyMovementListItemDto&gt;<br>400: ProblemDetails |
 | POST | `/api/iade-islemleri/firma-iadeleri` | JWT + iade-islemleri.firma-iadeleri.create | body: request / CreateCompanyMovementHttpRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>201: CreateCompanyMovementResponse<br>400: ProblemDetails<br>404: ProblemDetails |
+| GET | `/api/iade-islemleri/firma-iadeleri/offline-sync/{clientRequestId}` | JWT + iade-islemleri.firma-iadeleri.create | path: clientRequestId / string (uuid) (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: OfflineSyncStatusDto&lt;CreateCompanyMovementResponse&gt;<br>404: ProblemDetails<br>409: ProblemDetails |
 | GET | `/api/iade-islemleri/firma-iadeleri/{documentSerie}/{documentOrderNo}` | JWT + iade-islemleri.firma-iadeleri.detail | path: documentSerie / string (zorunlu)<br>path: documentOrderNo / integer (int32) (zorunlu)<br>query: warehouseNo / integer (int32) | 401: ProblemDetails<br>403: ProblemDetails<br>200: CompanyMovementDetailDto<br>400: ProblemDetails<br>404: ProblemDetails |
 | POST | `/api/iade-islemleri/firma-iadeleri/{documentSerie}/{documentOrderNo}/e-irsaliye` | JWT + iade-islemleri.firma-iadeleri.detail | path: documentSerie / string (zorunlu)<br>path: documentOrderNo / integer (int32) (zorunlu)<br>query: warehouseNo / integer (int32)<br>body: request / SendEDespatchHttpRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: SendEDespatchResponse<br>400: ProblemDetails<br>404: ProblemDetails<br>409: ProblemDetails |
 | GET | `/api/iade-islemleri/firma-iadeleri/{documentSerie}/{documentOrderNo}/e-irsaliye/pdf` | JWT + iade-islemleri.firma-iadeleri.detail | path: documentSerie / string (zorunlu)<br>path: documentOrderNo / integer (int32) (zorunlu)<br>query: warehouseNo / integer (int32) | 401: ProblemDetails<br>403: ProblemDetails<br>200: bildirilmemis<br>400: ProblemDetails<br>404: ProblemDetails<br>409: ProblemDetails |
@@ -25113,6 +25248,7 @@ Bu bolum test hostundaki ApiExplorer ve Swagger metadata'sindan otomatik uretili
 | PUT | `/api/kasa-islemleri/kasa-sayimlari/{documentSerie}/{documentOrderNo}/detaylar` | JWT + kasa-islemleri.kasa-sayimlari.update | path: documentSerie / string (zorunlu)<br>path: documentOrderNo / integer (int32) (zorunlu)<br>body: request / UpdateCashSummaryDetailsHttpRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: UpdateCashSummaryDetailsResponse<br>400: ProblemDetails<br>404: ProblemDetails |
 | GET | `/api/kasa-islemleri/kasa-sayimlari/{documentSerie}/{documentOrderNo}/hediye-ceki-hareketleri` | JWT + kasa-islemleri.kasa-sayimlari.detail | path: documentSerie / string (zorunlu)<br>path: documentOrderNo / integer (int32) (zorunlu)<br>query: warehouseNo / integer (int32) | 401: ProblemDetails<br>403: ProblemDetails<br>200: IReadOnlyCollection&lt;GiftCheckMovementItemDto&gt;<br>400: ProblemDetails |
 | PUT | `/api/kasa-islemleri/kasa-sayimlari/{documentSerie}/{documentOrderNo}/hediye-ceki-hareketleri` | JWT + kasa-islemleri.kasa-sayimlari.update | path: documentSerie / string (zorunlu)<br>path: documentOrderNo / integer (int32) (zorunlu)<br>body: request / UpdateCashSummaryGiftChecksHttpRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: UpdateCashSummaryGiftChecksResponse<br>400: ProblemDetails<br>404: ProblemDetails |
+| GET | `/api/kasa-islemleri/kasa-sayimlari/{documentSerie}/{documentOrderNo}/z-rapor-toplam` | JWT + kasa-islemleri.kasa-sayimlari.detail | path: documentSerie / string (zorunlu)<br>path: documentOrderNo / integer (int32) (zorunlu)<br>query: warehouseNo / integer (int32) | 401: ProblemDetails<br>403: ProblemDetails<br>200: CashSummaryZReportTotalDto<br>400: ProblemDetails<br>404: ProblemDetails |
 | GET | `/api/kasa-islemleri/kunye-etiket-yazdirma` | JWT + kasa-islemleri.kunye-etiket-yazdirma.list | query: DateToGet / string (date-time) (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: IReadOnlyCollection&lt;LabelTagDto&gt;<br>400: ProblemDetails |
 | GET | `/api/kasa-islemleri/manav-kunye-etiket-yazdirma/detayli-etiketler` | Anonim | query: WarehouseNo / integer (int32) (zorunlu)<br>query: DateToGet / string (date-time) | 200: IReadOnlyCollection&lt;KunyeLabelTagDto&gt;<br>400: ProblemDetails |
 | GET | `/api/kasa-islemleri/manav-mal-kabul-etiket/acceptance-records` | JWT + kasa-islemleri.manav-mal-kabul-etiket.list | query: Date / string (date-time) (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: IReadOnlyCollection&lt;ManavMalKabulVeEtiketAcceptanceRecordDto&gt;<br>400: ProblemDetails |
@@ -25172,7 +25308,7 @@ Bu bolum test hostundaki ApiExplorer ve Swagger metadata'sindan otomatik uretili
 | GET | `/api/mal-kabul-islemleri/firma-mal-kabulleri` | JWT + mal-kabul-islemleri.firma-mal-kabulleri.list | query: WarehouseNo / integer (int32)<br>query: StartDate / string (date-time) (zorunlu)<br>query: EndDate / string (date-time) (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: IReadOnlyCollection&lt;CompanyMovementListItemDto&gt;<br>400: ProblemDetails |
 | POST | `/api/mal-kabul-islemleri/firma-mal-kabulleri` | JWT + mal-kabul-islemleri.firma-mal-kabulleri.create | body: request / CreateCompanyReceivingHttpRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>201: CreateCompanyReceivingResponse<br>200: CreateCompanyReceivingResponse<br>400: ProblemDetails<br>404: ProblemDetails<br>409: ProblemDetails |
 | GET | `/api/mal-kabul-islemleri/firma-mal-kabulleri/e-irsaliye/ettn/{ettn}` | JWT + mal-kabul-islemleri.firma-mal-kabulleri.create | path: ettn / string (zorunlu)<br>query: warehouseNo / integer (int32) | 401: ProblemDetails<br>403: ProblemDetails<br>200: InboundDespatchLookupResponse<br>400: ProblemDetails |
-| GET | `/api/mal-kabul-islemleri/firma-mal-kabulleri/offline-sync/{clientRequestId}` | JWT + mal-kabul-islemleri.firma-mal-kabulleri.create | path: clientRequestId / string (uuid) (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: OfflineSyncStatusDto&lt;CreateCompanyReceivingResponse&gt;<br>404: ProblemDetails |
+| GET | `/api/mal-kabul-islemleri/firma-mal-kabulleri/offline-sync/{clientRequestId}` | JWT + mal-kabul-islemleri.firma-mal-kabulleri.create | path: clientRequestId / string (uuid) (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: OfflineSyncStatusDto&lt;CreateCompanyReceivingResponse&gt;<br>404: ProblemDetails<br>409: ProblemDetails |
 | GET | `/api/mal-kabul-islemleri/firma-mal-kabulleri/resmi-belge/ettn/{ettn}` | JWT + mal-kabul-islemleri.firma-mal-kabulleri.create | path: ettn / string (zorunlu)<br>query: warehouseNo / integer (int32)<br>query: documentKind / string | 401: ProblemDetails<br>403: ProblemDetails<br>200: InboundDespatchLookupResponse<br>400: ProblemDetails |
 | GET | `/api/mal-kabul-islemleri/firma-mal-kabulleri/{documentSerie}/{documentOrderNo}` | JWT + mal-kabul-islemleri.firma-mal-kabulleri.detail | path: documentSerie / string (zorunlu)<br>path: documentOrderNo / integer (int32) (zorunlu)<br>query: warehouseNo / integer (int32) | 401: ProblemDetails<br>403: ProblemDetails<br>200: CompanyMovementDetailDto<br>400: ProblemDetails<br>404: ProblemDetails |
 | PUT | `/api/mal-kabul-islemleri/firma-mal-kabulleri/{id}` | JWT + mal-kabul-islemleri.firma-mal-kabulleri.update | path: id / string (zorunlu)<br>body: request / ModuleActionRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>501: ModuleActionScaffoldResponse |
@@ -25290,11 +25426,13 @@ Bu bolum test hostundaki ApiExplorer ve Swagger metadata'sindan otomatik uretili
 | GET | `/api/sevk-islemleri/depolar-arasi-sevkler/gelen/{documentSerie}/{documentOrderNo}` | JWT + sevk-islemleri.gelen-depolar-arasi-sevkler.detail | path: documentSerie / string (zorunlu)<br>path: documentOrderNo / integer (int32) (zorunlu)<br>query: warehouseNo / integer (int32) | 401: ProblemDetails<br>403: ProblemDetails<br>200: WarehouseShippingDetailDto<br>400: ProblemDetails<br>404: ProblemDetails |
 | GET | `/api/sevk-islemleri/depolar-arasi-sevkler/giden` | JWT + sevk-islemleri.giden-depolar-arasi-sevkler.list | query: WarehouseNo / integer (int32)<br>query: StartDate / string (date-time) (zorunlu)<br>query: EndDate / string (date-time) (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: IReadOnlyCollection&lt;WarehouseShippingListItemDto&gt;<br>400: ProblemDetails |
 | POST | `/api/sevk-islemleri/depolar-arasi-sevkler/giden` | JWT + sevk-islemleri.giden-depolar-arasi-sevkler.create | body: request / CreateInterWarehouseShipmentHttpRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>201: CreateInterWarehouseShipmentResponse<br>400: ProblemDetails<br>404: ProblemDetails |
+| GET | `/api/sevk-islemleri/depolar-arasi-sevkler/giden/offline-sync/{clientRequestId}` | JWT + sevk-islemleri.giden-depolar-arasi-sevkler.create | path: clientRequestId / string (uuid) (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: OfflineSyncStatusDto&lt;CreateInterWarehouseShipmentResponse&gt;<br>404: ProblemDetails<br>409: ProblemDetails |
 | DELETE | `/api/sevk-islemleri/depolar-arasi-sevkler/giden/{documentSerie}/{documentOrderNo}` | JWT + sevk-islemleri.giden-depolar-arasi-sevkler.delete | path: documentSerie / string (zorunlu)<br>path: documentOrderNo / integer (int32) (zorunlu)<br>query: warehouseNo / integer (int32) | 401: ProblemDetails<br>403: ProblemDetails<br>200: DeleteWarehouseShippingDocumentResponse<br>400: ProblemDetails<br>404: ProblemDetails<br>409: ProblemDetails |
 | GET | `/api/sevk-islemleri/depolar-arasi-sevkler/giden/{documentSerie}/{documentOrderNo}` | JWT + sevk-islemleri.giden-depolar-arasi-sevkler.detail | path: documentSerie / string (zorunlu)<br>path: documentOrderNo / integer (int32) (zorunlu)<br>query: warehouseNo / integer (int32) | 401: ProblemDetails<br>403: ProblemDetails<br>200: WarehouseShippingDetailDto<br>400: ProblemDetails<br>404: ProblemDetails |
 | PUT | `/api/sevk-islemleri/depolar-arasi-sevkler/giden/{documentSerie}/{documentOrderNo}` | JWT + sevk-islemleri.giden-depolar-arasi-sevkler.update | path: documentSerie / string (zorunlu)<br>path: documentOrderNo / integer (int32) (zorunlu)<br>query: warehouseNo / integer (int32)<br>body: request / UpdateWarehouseShippingDocumentHttpRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: UpdateWarehouseShippingDocumentResponse<br>400: ProblemDetails<br>404: ProblemDetails<br>409: ProblemDetails |
 | POST | `/api/sevk-islemleri/depolar-arasi-sevkler/giden/{documentSerie}/{documentOrderNo}/e-irsaliye` | JWT + sevk-islemleri.giden-depolar-arasi-sevkler.detail | path: documentSerie / string (zorunlu)<br>path: documentOrderNo / integer (int32) (zorunlu)<br>query: warehouseNo / integer (int32)<br>body: request / SendEDespatchHttpRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: SendEDespatchResponse<br>400: ProblemDetails<br>404: ProblemDetails<br>409: ProblemDetails |
 | GET | `/api/sevk-islemleri/depolar-arasi-sevkler/giden/{documentSerie}/{documentOrderNo}/e-irsaliye/pdf` | JWT + sevk-islemleri.giden-depolar-arasi-sevkler.detail | path: documentSerie / string (zorunlu)<br>path: documentOrderNo / integer (int32) (zorunlu)<br>query: warehouseNo / integer (int32) | 401: ProblemDetails<br>403: ProblemDetails<br>200: bildirilmemis<br>400: ProblemDetails<br>404: ProblemDetails<br>409: ProblemDetails |
+| GET | `/api/sevk-islemleri/depolar-arasi-sevkler/offline-sync/{clientRequestId}` | JWT + sevk-islemleri.giden-depolar-arasi-sevkler.create | path: clientRequestId / string (uuid) (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: OfflineSyncStatusDto&lt;CreateInterWarehouseShipmentResponse&gt;<br>404: ProblemDetails<br>409: ProblemDetails |
 | DELETE | `/api/sevk-islemleri/depolar-arasi-sevkler/{documentSerie}/{documentOrderNo}` | JWT + sevk-islemleri.giden-depolar-arasi-sevkler.delete | path: documentSerie / string (zorunlu)<br>path: documentOrderNo / integer (int32) (zorunlu)<br>query: warehouseNo / integer (int32) | 401: ProblemDetails<br>403: ProblemDetails<br>200: DeleteWarehouseShippingDocumentResponse<br>400: ProblemDetails<br>404: ProblemDetails<br>409: ProblemDetails |
 | GET | `/api/sevk-islemleri/depolar-arasi-sevkler/{documentSerie}/{documentOrderNo}` | JWT + sevk-islemleri.giden-depolar-arasi-sevkler.detail | path: documentSerie / string (zorunlu)<br>path: documentOrderNo / integer (int32) (zorunlu)<br>query: warehouseNo / integer (int32) | 401: ProblemDetails<br>403: ProblemDetails<br>200: WarehouseShippingDetailDto<br>400: ProblemDetails<br>404: ProblemDetails |
 | PUT | `/api/sevk-islemleri/depolar-arasi-sevkler/{documentSerie}/{documentOrderNo}` | JWT + sevk-islemleri.giden-depolar-arasi-sevkler.update | path: documentSerie / string (zorunlu)<br>path: documentOrderNo / integer (int32) (zorunlu)<br>query: warehouseNo / integer (int32)<br>body: request / UpdateWarehouseShippingDocumentHttpRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: UpdateWarehouseShippingDocumentResponse<br>400: ProblemDetails<br>404: ProblemDetails<br>409: ProblemDetails |
@@ -25307,9 +25445,11 @@ Bu bolum test hostundaki ApiExplorer ve Swagger metadata'sindan otomatik uretili
 | GET | `/api/sevk-islemleri/firma-sevkleri/gelen/{documentSerie}/{documentOrderNo}` | JWT + sevk-islemleri.gelen-firma-sevkleri.detail | path: documentSerie / string (zorunlu)<br>path: documentOrderNo / integer (int32) (zorunlu)<br>query: warehouseNo / integer (int32) | 401: ProblemDetails<br>403: ProblemDetails<br>200: CompanyMovementDetailDto<br>400: ProblemDetails<br>404: ProblemDetails |
 | GET | `/api/sevk-islemleri/firma-sevkleri/giden` | JWT + sevk-islemleri.giden-firma-sevkleri.list | query: WarehouseNo / integer (int32)<br>query: StartDate / string (date-time) (zorunlu)<br>query: EndDate / string (date-time) (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: IReadOnlyCollection&lt;CompanyMovementListItemDto&gt;<br>400: ProblemDetails |
 | POST | `/api/sevk-islemleri/firma-sevkleri/giden` | JWT + sevk-islemleri.giden-firma-sevkleri.create | body: request / CreateCompanyMovementHttpRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>201: CreateCompanyMovementResponse<br>400: ProblemDetails<br>404: ProblemDetails |
+| GET | `/api/sevk-islemleri/firma-sevkleri/giden/offline-sync/{clientRequestId}` | JWT + sevk-islemleri.giden-firma-sevkleri.create | path: clientRequestId / string (uuid) (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: OfflineSyncStatusDto&lt;CreateCompanyMovementResponse&gt;<br>404: ProblemDetails<br>409: ProblemDetails |
 | GET | `/api/sevk-islemleri/firma-sevkleri/giden/{documentSerie}/{documentOrderNo}` | JWT + sevk-islemleri.giden-firma-sevkleri.detail | path: documentSerie / string (zorunlu)<br>path: documentOrderNo / integer (int32) (zorunlu)<br>query: warehouseNo / integer (int32) | 401: ProblemDetails<br>403: ProblemDetails<br>200: CompanyMovementDetailDto<br>400: ProblemDetails<br>404: ProblemDetails |
 | POST | `/api/sevk-islemleri/firma-sevkleri/giden/{documentSerie}/{documentOrderNo}/e-irsaliye` | JWT + sevk-islemleri.giden-firma-sevkleri.detail | path: documentSerie / string (zorunlu)<br>path: documentOrderNo / integer (int32) (zorunlu)<br>query: warehouseNo / integer (int32)<br>body: request / SendEDespatchHttpRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: SendEDespatchResponse<br>400: ProblemDetails<br>404: ProblemDetails<br>409: ProblemDetails |
 | GET | `/api/sevk-islemleri/firma-sevkleri/giden/{documentSerie}/{documentOrderNo}/e-irsaliye/pdf` | JWT + sevk-islemleri.giden-firma-sevkleri.detail | path: documentSerie / string (zorunlu)<br>path: documentOrderNo / integer (int32) (zorunlu)<br>query: warehouseNo / integer (int32) | 401: ProblemDetails<br>403: ProblemDetails<br>200: bildirilmemis<br>400: ProblemDetails<br>404: ProblemDetails<br>409: ProblemDetails |
+| GET | `/api/sevk-islemleri/firma-sevkleri/offline-sync/{clientRequestId}` | JWT + sevk-islemleri.giden-firma-sevkleri.create | path: clientRequestId / string (uuid) (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: OfflineSyncStatusDto&lt;CreateCompanyMovementResponse&gt;<br>404: ProblemDetails<br>409: ProblemDetails |
 | GET | `/api/sevk-islemleri/firma-sevkleri/{documentSerie}/{documentOrderNo}` | JWT + sevk-islemleri.giden-firma-sevkleri.detail | path: documentSerie / string (zorunlu)<br>path: documentOrderNo / integer (int32) (zorunlu)<br>query: warehouseNo / integer (int32) | 401: ProblemDetails<br>403: ProblemDetails<br>200: CompanyMovementDetailDto<br>400: ProblemDetails<br>404: ProblemDetails |
 | POST | `/api/sevk-islemleri/firma-sevkleri/{documentSerie}/{documentOrderNo}/e-irsaliye` | JWT + sevk-islemleri.giden-firma-sevkleri.detail | path: documentSerie / string (zorunlu)<br>path: documentOrderNo / integer (int32) (zorunlu)<br>query: warehouseNo / integer (int32)<br>body: request / SendEDespatchHttpRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: SendEDespatchResponse<br>400: ProblemDetails<br>404: ProblemDetails<br>409: ProblemDetails |
 | GET | `/api/sevk-islemleri/firma-sevkleri/{documentSerie}/{documentOrderNo}/e-irsaliye/pdf` | JWT + sevk-islemleri.giden-firma-sevkleri.detail | path: documentSerie / string (zorunlu)<br>path: documentOrderNo / integer (int32) (zorunlu)<br>query: warehouseNo / integer (int32) | 401: ProblemDetails<br>403: ProblemDetails<br>200: bildirilmemis<br>400: ProblemDetails<br>404: ProblemDetails<br>409: ProblemDetails |
@@ -25344,11 +25484,12 @@ Bu bolum test hostundaki ApiExplorer ve Swagger metadata'sindan otomatik uretili
 | PUT | `/api/siparis-islemleri/verilen-firma-siparisleri/{id}` | JWT + siparis-islemleri.verilen-firma-siparisleri.update | path: id / string (zorunlu)<br>body: request / ModuleActionRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>501: ModuleActionScaffoldResponse |
 | GET | `/api/stok-islemleri/masraf-fisleri` | JWT + stok-islemleri.masraf-fisleri.list | query: WarehouseNo / integer (int32)<br>query: StartDate / string (date-time) (zorunlu)<br>query: EndDate / string (date-time) (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: IReadOnlyCollection&lt;StockReceiptListItemDto&gt;<br>400: ProblemDetails |
 | POST | `/api/stok-islemleri/masraf-fisleri` | JWT + stok-islemleri.masraf-fisleri.create | body: request / CreateStockReceiptHttpRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>201: CreateStockReceiptResponse<br>400: ProblemDetails |
+| GET | `/api/stok-islemleri/masraf-fisleri/offline-sync/{clientRequestId}` | JWT + stok-islemleri.masraf-fisleri.create | path: clientRequestId / string (uuid) (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: OfflineSyncStatusDto&lt;CreateStockReceiptResponse&gt;<br>404: ProblemDetails<br>409: ProblemDetails |
 | GET | `/api/stok-islemleri/masraf-fisleri/{documentSerie}/{documentOrderNo}` | JWT + stok-islemleri.masraf-fisleri.detail | path: documentSerie / string (zorunlu)<br>path: documentOrderNo / integer (int32) (zorunlu)<br>query: warehouseNo / integer (int32) | 401: ProblemDetails<br>403: ProblemDetails<br>200: StockReceiptDetailDto<br>400: ProblemDetails<br>404: ProblemDetails |
 | PUT | `/api/stok-islemleri/masraf-fisleri/{id}` | JWT + stok-islemleri.masraf-fisleri.update | path: id / string (zorunlu)<br>body: request / ModuleActionRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>501: ModuleActionScaffoldResponse |
 | GET | `/api/stok-islemleri/sayim-sonuclari` | JWT + stok-islemleri.sayim-sonuclari.list | query: WarehouseNo / integer (int32)<br>query: StartDate / string (date-time) (zorunlu)<br>query: EndDate / string (date-time) (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: IReadOnlyCollection&lt;InventoryCountListItemDto&gt;<br>400: ProblemDetails |
 | POST | `/api/stok-islemleri/sayim-sonuclari` | JWT + stok-islemleri.sayim-sonuclari.create | body: request / CreateInventoryCountHttpRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>201: CreateInventoryCountResponse<br>200: CreateInventoryCountResponse<br>400: ProblemDetails<br>409: ProblemDetails |
-| GET | `/api/stok-islemleri/sayim-sonuclari/offline-sync/{clientRequestId}` | JWT + stok-islemleri.sayim-sonuclari.create | path: clientRequestId / string (uuid) (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: OfflineSyncStatusDto&lt;CreateInventoryCountResponse&gt;<br>404: ProblemDetails |
+| GET | `/api/stok-islemleri/sayim-sonuclari/offline-sync/{clientRequestId}` | JWT + stok-islemleri.sayim-sonuclari.create | path: clientRequestId / string (uuid) (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: OfflineSyncStatusDto&lt;CreateInventoryCountResponse&gt;<br>404: ProblemDetails<br>409: ProblemDetails |
 | GET | `/api/stok-islemleri/sayim-sonuclari/{documentNo}` | JWT + stok-islemleri.sayim-sonuclari.detail | path: documentNo / integer (int32) (zorunlu)<br>query: documentDate / string (date-time) (zorunlu)<br>query: warehouseNo / integer (int32) | 401: ProblemDetails<br>403: ProblemDetails<br>200: InventoryCountDetailDto<br>400: ProblemDetails<br>404: ProblemDetails |
 | PUT | `/api/stok-islemleri/sayim-sonuclari/{id}` | JWT + stok-islemleri.sayim-sonuclari.update | path: id / string (zorunlu)<br>body: request / ModuleActionRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>501: ModuleActionScaffoldResponse |
 | GET | `/api/stok-islemleri/stok-anomali-merkezi` | JWT + stok-islemleri.stok-anomali-merkezi.list | query: WarehouseNo / integer (int32)<br>query: Type / FurpaMerkezApi.Domain.Entities.StockAnomalyType<br>query: Status / FurpaMerkezApi.Domain.Entities.StockAnomalyStatus<br>query: Severity / FurpaMerkezApi.Domain.Entities.StockAnomalySeverity<br>query: ProductManagerCode / string<br>query: HasProductManager / boolean<br>query: StartDate / string (date-time)<br>query: EndDate / string (date-time)<br>query: Search / string<br>query: Take / integer (int32) | 401: ProblemDetails<br>403: ProblemDetails<br>200: StockAnomalyListResponse<br>400: ProblemDetails |
@@ -25359,10 +25500,12 @@ Bu bolum test hostundaki ApiExplorer ve Swagger metadata'sindan otomatik uretili
 | GET | `/api/stok-islemleri/virmanlar` | JWT + stok-islemleri.virmanlar.list | query: WarehouseNo / integer (int32)<br>query: StartDate / string (date-time) (zorunlu)<br>query: EndDate / string (date-time) (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: IReadOnlyCollection&lt;VirmanListItemDto&gt;<br>400: ProblemDetails |
 | POST | `/api/stok-islemleri/virmanlar` | JWT + stok-islemleri.virmanlar.create | body: request / CreateVirmanHttpRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>201: CreateVirmanResponse<br>400: ProblemDetails |
 | GET | `/api/stok-islemleri/virmanlar/donusum-onerisi` | JWT + stok-islemleri.virmanlar.create | query: SourceStockCode / string (zorunlu)<br>query: SourceQuantity / number (double) (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: VirmanConversionSuggestionDto<br>400: ProblemDetails<br>404: ProblemDetails |
+| GET | `/api/stok-islemleri/virmanlar/offline-sync/{clientRequestId}` | JWT + stok-islemleri.virmanlar.create | path: clientRequestId / string (uuid) (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: OfflineSyncStatusDto&lt;CreateVirmanResponse&gt;<br>404: ProblemDetails<br>409: ProblemDetails |
 | GET | `/api/stok-islemleri/virmanlar/{documentSerie}/{documentOrderNo}` | JWT + stok-islemleri.virmanlar.detail | path: documentSerie / string (zorunlu)<br>path: documentOrderNo / integer (int32) (zorunlu)<br>query: warehouseNo / integer (int32) | 401: ProblemDetails<br>403: ProblemDetails<br>200: VirmanDetailDto<br>400: ProblemDetails<br>404: ProblemDetails |
 | PUT | `/api/stok-islemleri/virmanlar/{id}` | JWT + stok-islemleri.virmanlar.update | path: id / string (zorunlu)<br>body: request / ModuleActionRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>501: ModuleActionScaffoldResponse |
 | GET | `/api/stok-islemleri/zayiat-fisleri` | JWT + stok-islemleri.zayiat-fisleri.list | query: WarehouseNo / integer (int32)<br>query: StartDate / string (date-time) (zorunlu)<br>query: EndDate / string (date-time) (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: IReadOnlyCollection&lt;StockReceiptListItemDto&gt;<br>400: ProblemDetails |
 | POST | `/api/stok-islemleri/zayiat-fisleri` | JWT + stok-islemleri.zayiat-fisleri.create | body: request / CreateStockReceiptHttpRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>201: CreateStockReceiptResponse<br>400: ProblemDetails |
+| GET | `/api/stok-islemleri/zayiat-fisleri/offline-sync/{clientRequestId}` | JWT + stok-islemleri.zayiat-fisleri.create | path: clientRequestId / string (uuid) (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: OfflineSyncStatusDto&lt;CreateStockReceiptResponse&gt;<br>404: ProblemDetails<br>409: ProblemDetails |
 | GET | `/api/stok-islemleri/zayiat-fisleri/{documentSerie}/{documentOrderNo}` | JWT + stok-islemleri.zayiat-fisleri.detail | path: documentSerie / string (zorunlu)<br>path: documentOrderNo / integer (int32) (zorunlu)<br>query: warehouseNo / integer (int32) | 401: ProblemDetails<br>403: ProblemDetails<br>200: StockReceiptDetailDto<br>400: ProblemDetails<br>404: ProblemDetails |
 | PUT | `/api/stok-islemleri/zayiat-fisleri/{id}` | JWT + stok-islemleri.zayiat-fisleri.update | path: id / string (zorunlu)<br>body: request / ModuleActionRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>501: ModuleActionScaffoldResponse |
 | POST | `/api/terminal-installations/heartbeat` | JWT | body: request / TerminalHeartbeatHttpRequest (zorunlu) | 200: TerminalInstallationDto<br>400: ProblemDetails<br>401: ProblemDetails<br>403: ProblemDetails |
@@ -26222,6 +26365,24 @@ Enum degerleri JSON sozlesmesinde bulunur.
 | `sessionId` | integer (int32) | Hayir |  |
 | `sqlText` | string | Hayir | nullable |
 
+### FurpaMerkezApi.Application.Modules.AyarIslemleri.VeritabaniIzleme.SafeWriteMonitoringItemDto
+
+| JSON alani | Tip | Zorunlu | Sinirlar |
+|---|---|---|---|
+| `ageSeconds` | integer (int64) | Hayir |  |
+| `clientRequestId` | string (uuid) | Hayir |  |
+| `completedAtUtc` | string (date-time) | Hayir | nullable |
+| `createdAtUtc` | string (date-time) | Hayir |  |
+| `errorCode` | string | Hayir | nullable |
+| `errorMessage` | string | Hayir | nullable |
+| `id` | string (uuid) | Hayir |  |
+| `operationCode` | string | Hayir | nullable |
+| `requestedByUserId` | string (uuid) | Hayir |  |
+| `retryable` | boolean | Hayir | nullable |
+| `status` | string | Hayir | nullable |
+| `updatedAtUtc` | string (date-time) | Hayir | nullable |
+| `warehouseNo` | integer (int32) | Hayir |  |
+
 ### FurpaMerkezApi.Application.Modules.Common.CompanyMovements.CompanyMovementDetailDto
 
 | JSON alani | Tip | Zorunlu | Sinirlar |
@@ -26328,6 +26489,51 @@ Enum degerleri JSON sozlesmesinde bulunur.
 | `warehouseNo` | integer (int32) | Hayir |  |
 | `writeConnectionName` | string | Hayir | nullable |
 
+### FurpaMerkezApi.Application.Modules.Common.OfflineSync.OfflineSyncStatusDto.Of.FurpaMerkezApi.Application.Modules.Common.CompanyMovements.CreateCompanyMovementResponse
+
+| JSON alani | Tip | Zorunlu | Sinirlar |
+|---|---|---|---|
+| `clientRequestId` | string (uuid) | Hayir |  |
+| `completedAtUtc` | string (date-time) | Hayir | nullable |
+| `createdAtUtc` | string (date-time) | Hayir |  |
+| `errorCode` | string | Hayir | nullable |
+| `errorMessage` | string | Hayir | nullable |
+| `operationCode` | string | Hayir | nullable |
+| `result` | FurpaMerkezApi.Application.Modules.Common.CompanyMovements.CreateCompanyMovementResponse | Hayir |  |
+| `retryAfterSeconds` | integer (int32) | Hayir | nullable |
+| `retryable` | boolean | Hayir | nullable |
+| `status` | string | Hayir | nullable |
+
+### FurpaMerkezApi.Application.Modules.Common.OfflineSync.OfflineSyncStatusDto.Of.FurpaMerkezApi.Application.Modules.GreenGrocer.Operations.GreenGrocerOperationsAdjustmentApplyResponse
+
+| JSON alani | Tip | Zorunlu | Sinirlar |
+|---|---|---|---|
+| `clientRequestId` | string (uuid) | Hayir |  |
+| `completedAtUtc` | string (date-time) | Hayir | nullable |
+| `createdAtUtc` | string (date-time) | Hayir |  |
+| `errorCode` | string | Hayir | nullable |
+| `errorMessage` | string | Hayir | nullable |
+| `operationCode` | string | Hayir | nullable |
+| `result` | FurpaMerkezApi.Application.Modules.GreenGrocer.Operations.GreenGrocerOperationsAdjustmentApplyResponse | Hayir |  |
+| `retryAfterSeconds` | integer (int32) | Hayir | nullable |
+| `retryable` | boolean | Hayir | nullable |
+| `status` | string | Hayir | nullable |
+
+### FurpaMerkezApi.Application.Modules.Common.OfflineSync.OfflineSyncStatusDto.Of.FurpaMerkezApi.Application.Modules.IadeIslemleri.DepoIadeleri.Create.CreateWarehouseReturnResponse
+
+| JSON alani | Tip | Zorunlu | Sinirlar |
+|---|---|---|---|
+| `clientRequestId` | string (uuid) | Hayir |  |
+| `completedAtUtc` | string (date-time) | Hayir | nullable |
+| `createdAtUtc` | string (date-time) | Hayir |  |
+| `errorCode` | string | Hayir | nullable |
+| `errorMessage` | string | Hayir | nullable |
+| `operationCode` | string | Hayir | nullable |
+| `result` | FurpaMerkezApi.Application.Modules.IadeIslemleri.DepoIadeleri.Create.CreateWarehouseReturnResponse | Hayir |  |
+| `retryAfterSeconds` | integer (int32) | Hayir | nullable |
+| `retryable` | boolean | Hayir | nullable |
+| `status` | string | Hayir | nullable |
+
 ### FurpaMerkezApi.Application.Modules.Common.OfflineSync.OfflineSyncStatusDto.Of.FurpaMerkezApi.Application.Modules.MalKabulIslemleri.MalKabuller.CompanyReceiving.CreateCompanyReceivingResponse
 
 | JSON alani | Tip | Zorunlu | Sinirlar |
@@ -26335,9 +26541,42 @@ Enum degerleri JSON sozlesmesinde bulunur.
 | `clientRequestId` | string (uuid) | Hayir |  |
 | `completedAtUtc` | string (date-time) | Hayir | nullable |
 | `createdAtUtc` | string (date-time) | Hayir |  |
+| `errorCode` | string | Hayir | nullable |
 | `errorMessage` | string | Hayir | nullable |
 | `operationCode` | string | Hayir | nullable |
 | `result` | FurpaMerkezApi.Application.Modules.MalKabulIslemleri.MalKabuller.CompanyReceiving.CreateCompanyReceivingResponse | Hayir |  |
+| `retryAfterSeconds` | integer (int32) | Hayir | nullable |
+| `retryable` | boolean | Hayir | nullable |
+| `status` | string | Hayir | nullable |
+
+### FurpaMerkezApi.Application.Modules.Common.OfflineSync.OfflineSyncStatusDto.Of.FurpaMerkezApi.Application.Modules.SevkIslemleri.DepolarArasiSevkler.Create.CreateInterWarehouseShipmentResponse
+
+| JSON alani | Tip | Zorunlu | Sinirlar |
+|---|---|---|---|
+| `clientRequestId` | string (uuid) | Hayir |  |
+| `completedAtUtc` | string (date-time) | Hayir | nullable |
+| `createdAtUtc` | string (date-time) | Hayir |  |
+| `errorCode` | string | Hayir | nullable |
+| `errorMessage` | string | Hayir | nullable |
+| `operationCode` | string | Hayir | nullable |
+| `result` | FurpaMerkezApi.Application.Modules.SevkIslemleri.DepolarArasiSevkler.Create.CreateInterWarehouseShipmentResponse | Hayir |  |
+| `retryAfterSeconds` | integer (int32) | Hayir | nullable |
+| `retryable` | boolean | Hayir | nullable |
+| `status` | string | Hayir | nullable |
+
+### FurpaMerkezApi.Application.Modules.Common.OfflineSync.OfflineSyncStatusDto.Of.FurpaMerkezApi.Application.Modules.StokIslemleri.Common.CreateStockReceiptResponse
+
+| JSON alani | Tip | Zorunlu | Sinirlar |
+|---|---|---|---|
+| `clientRequestId` | string (uuid) | Hayir |  |
+| `completedAtUtc` | string (date-time) | Hayir | nullable |
+| `createdAtUtc` | string (date-time) | Hayir |  |
+| `errorCode` | string | Hayir | nullable |
+| `errorMessage` | string | Hayir | nullable |
+| `operationCode` | string | Hayir | nullable |
+| `result` | FurpaMerkezApi.Application.Modules.StokIslemleri.Common.CreateStockReceiptResponse | Hayir |  |
+| `retryAfterSeconds` | integer (int32) | Hayir | nullable |
+| `retryable` | boolean | Hayir | nullable |
 | `status` | string | Hayir | nullable |
 
 ### FurpaMerkezApi.Application.Modules.Common.OfflineSync.OfflineSyncStatusDto.Of.FurpaMerkezApi.Application.Modules.StokIslemleri.SayimSonuclari.CreateInventoryCountResponse
@@ -26347,9 +26586,27 @@ Enum degerleri JSON sozlesmesinde bulunur.
 | `clientRequestId` | string (uuid) | Hayir |  |
 | `completedAtUtc` | string (date-time) | Hayir | nullable |
 | `createdAtUtc` | string (date-time) | Hayir |  |
+| `errorCode` | string | Hayir | nullable |
 | `errorMessage` | string | Hayir | nullable |
 | `operationCode` | string | Hayir | nullable |
 | `result` | FurpaMerkezApi.Application.Modules.StokIslemleri.SayimSonuclari.CreateInventoryCountResponse | Hayir |  |
+| `retryAfterSeconds` | integer (int32) | Hayir | nullable |
+| `retryable` | boolean | Hayir | nullable |
+| `status` | string | Hayir | nullable |
+
+### FurpaMerkezApi.Application.Modules.Common.OfflineSync.OfflineSyncStatusDto.Of.FurpaMerkezApi.Application.Modules.StokIslemleri.Virmanlar.CreateVirmanResponse
+
+| JSON alani | Tip | Zorunlu | Sinirlar |
+|---|---|---|---|
+| `clientRequestId` | string (uuid) | Hayir |  |
+| `completedAtUtc` | string (date-time) | Hayir | nullable |
+| `createdAtUtc` | string (date-time) | Hayir |  |
+| `errorCode` | string | Hayir | nullable |
+| `errorMessage` | string | Hayir | nullable |
+| `operationCode` | string | Hayir | nullable |
+| `result` | FurpaMerkezApi.Application.Modules.StokIslemleri.Virmanlar.CreateVirmanResponse | Hayir |  |
+| `retryAfterSeconds` | integer (int32) | Hayir | nullable |
+| `retryable` | boolean | Hayir | nullable |
 | `status` | string | Hayir | nullable |
 
 ### FurpaMerkezApi.Application.Modules.DuzeltmeIslemleri.MikroEvrakDuzenleme.BanknoteTrackUpdateResponse
@@ -30055,6 +30312,12 @@ Enum degerleri JSON sozlesmesinde bulunur.
 | `yapiKrediQuantity` | integer (int32) | Hayir |  |
 | `ziraatBankasi` | number (double) | Hayir |  |
 | `ziraatBankasiQuantity` | integer (int32) | Hayir |  |
+
+### FurpaMerkezApi.Application.Modules.KasaIslemleri.KasaSayimlari.CashSummaryZReportTotalDto
+
+| JSON alani | Tip | Zorunlu | Sinirlar |
+|---|---|---|---|
+| `zTotalValue` | number (double) | Hayir | nullable |
 
 ### FurpaMerkezApi.Application.Modules.KasaIslemleri.KasaSayimlari.CashierItemDto
 

@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:furpa_merkez_terminal/core/network/api_exception.dart';
 import 'package:furpa_merkez_terminal/core/utils/default_filter_dates.dart';
 import 'package:furpa_merkez_terminal/features/stock_operations/stock_receipts/data/models/stock_receipt_models.dart';
 import 'package:furpa_merkez_terminal/features/stock_operations/stock_receipts/data/stock_receipts_repository.dart';
@@ -11,6 +12,7 @@ import 'package:furpa_merkez_terminal/shared/drafts/create_draft_picker.dart';
 import 'package:furpa_merkez_terminal/shared/drafts/create_draft_repository.dart';
 import 'package:furpa_merkez_terminal/shared/form_memory/remembered_form_values.dart';
 import 'package:furpa_merkez_terminal/shared/formatters/app_formatters.dart';
+import 'package:furpa_merkez_terminal/shared/pending_create/pending_create_guard.dart';
 import 'package:furpa_merkez_terminal/shared/pending_create/pending_create_repository.dart';
 import 'package:furpa_merkez_terminal/shared/utils/safe_create_retry.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/section_card.dart';
@@ -53,6 +55,9 @@ class _StockReceiptsPageState extends State<StockReceiptsPage> {
   CreateDraft? _pendingCreateDraft;
   SafeCreateFailureKind _pendingCreateFailureKind =
       SafeCreateFailureKind.notRetryable;
+  DateTime? _pendingRetryNotBefore;
+  bool _isRestoringPendingCreate = false;
+  bool _hasPendingCreateStorageError = false;
   late DateTime _startDate;
   late DateTime _endDate;
 
@@ -68,12 +73,13 @@ class _StockReceiptsPageState extends State<StockReceiptsPage> {
     _startDate = _controller.startDate;
     _endDate = _controller.endDate;
     if (widget.canCreate) {
+      _isRestoringPendingCreate = true;
       unawaited(_restorePendingCreate());
     }
     unawaited(_controller.loadReceipts());
   }
 
-  Future<void> _restorePendingCreate() async {
+  Future<void> _restorePendingCreate({bool autoRecover = true}) async {
     try {
       final pending = await widget.pendingCreateRepository.read(
         moduleKey: widget.draftModuleKey,
@@ -83,15 +89,37 @@ class _StockReceiptsPageState extends State<StockReceiptsPage> {
       if (!mounted || pending == null) {
         return;
       }
+      final request = StockReceiptCreateRequest.fromJson(pending.payload);
+      final failureKind = _failureKindFromName(pending.failureKind);
       setState(() {
-        _pendingCreateRequest = StockReceiptCreateRequest.fromJson(
-          pending.payload,
-        );
+        _hasPendingCreateStorageError = false;
+        _pendingCreateRequest = request;
         _pendingCreateDraft = pending.draft;
-        _pendingCreateFailureKind = _failureKindFromName(pending.failureKind);
+        _pendingCreateFailureKind = failureKind;
+        _pendingRetryNotBefore = pending.retryNotBefore;
       });
+
+      if (autoRecover &&
+          canRetrySafeCreate(failureKind) &&
+          safeCreateRetryWait(pending.retryNotBefore) == Duration.zero) {
+        await _submitCreateRequest(request, pending.draft);
+      }
     } on Object {
-      await _clearPersistedPendingCreate();
+      if (mounted) {
+        setState(() => _hasPendingCreateStorageError = true);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Bekleyen guvenli fis kaydi okunamadi. Uygulama verisini '
+              'temizlemeden once destek birimine bildirin.',
+            ),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isRestoringPendingCreate = false);
+      }
     }
   }
 
@@ -99,6 +127,7 @@ class _StockReceiptsPageState extends State<StockReceiptsPage> {
     StockReceiptCreateRequest request,
     CreateDraft? draft, {
     SafeCreateFailureKind? failureKind,
+    DateTime? retryNotBefore,
   }) {
     return widget.pendingCreateRepository.save(
       PendingCreateOperation(
@@ -108,6 +137,7 @@ class _StockReceiptsPageState extends State<StockReceiptsPage> {
         payload: request.toJson(),
         updatedAt: DateTime.now(),
         failureKind: failureKind?.name,
+        retryNotBefore: retryNotBefore,
         draft: draft,
       ),
     );
@@ -123,13 +153,21 @@ class _StockReceiptsPageState extends State<StockReceiptsPage> {
   }
 
   Future<void> _startNewCreateFromPending() async {
-    if (!mounted) return;
-    setState(() {
-      _pendingCreateRequest = null;
-      _pendingCreateDraft = null;
-      _pendingCreateFailureKind = SafeCreateFailureKind.notRetryable;
-    });
     await _openCreateSheet();
+  }
+
+  Future<void> _retryPendingCreate() async {
+    final request = _pendingCreateRequest;
+    if (request == null) return;
+    final wait = safeCreateRetryWait(_pendingRetryNotBefore);
+    if (wait > Duration.zero) {
+      final messenger = ScaffoldMessenger.of(context)..hideCurrentSnackBar();
+      messenger.showSnackBar(
+        SnackBar(content: Text(safeCreateRetryWaitMessage(wait))),
+      );
+      return;
+    }
+    await _submitCreateRequest(request, _pendingCreateDraft);
   }
 
   @override
@@ -240,6 +278,15 @@ class _StockReceiptsPageState extends State<StockReceiptsPage> {
   }
 
   Future<void> _openCreateSheet() async {
+    final hasCapacity = await ensurePendingCreateCapacity(
+      context: context,
+      repository: widget.pendingCreateRepository,
+      moduleKey: widget.draftModuleKey,
+      userId: widget.currentUserId,
+      warehouseNo: widget.defaultWarehouseNo,
+    );
+    if (!hasCapacity || !mounted) return;
+
     final moduleKey = 'stok-islemleri.${widget.kind.pathSegment}';
     CreateDraft? draft;
     if (widget.draftRepository != null) {
@@ -313,9 +360,10 @@ class _StockReceiptsPageState extends State<StockReceiptsPage> {
       _pendingCreateRequest = request;
       _pendingCreateDraft = draft;
       _pendingCreateFailureKind = SafeCreateFailureKind.notRetryable;
+      _pendingRetryNotBefore = null;
     });
 
-    final result = await _controller.createReceipt(request);
+    var result = await _controller.createReceipt(request);
 
     if (!mounted) {
       return;
@@ -325,47 +373,121 @@ class _StockReceiptsPageState extends State<StockReceiptsPage> {
     messenger.hideCurrentSnackBar();
 
     if (result == null) {
-      final failureKind = _controller.createFailureKind;
-      final keepsPending = shouldKeepSafeCreatePending(failureKind);
-      if (keepsPending) {
-        await _persistPendingCreate(request, draft, failureKind: failureKind);
-        if (!mounted) {
-          return;
+      var failureKind = _controller.createFailureKind;
+      var failureMessage = _controller.createError ?? 'Fis kaydedilemedi.';
+      DateTime? retryNotBefore;
+      final provider = widget.repository;
+      final statusProvider = provider is StockReceiptOfflineSyncStatusProvider
+          ? provider as StockReceiptOfflineSyncStatusProvider
+          : null;
+      if (canRetrySafeCreate(failureKind) && statusProvider != null) {
+        try {
+          final status = await statusProvider.fetchReceiptOfflineSyncStatus(
+            accessToken: widget.accessToken,
+            kind: widget.kind,
+            clientRequestId: request.clientRequestId ?? '',
+          );
+          if (status.isCompleted && status.result != null) {
+            result = status.result;
+          } else {
+            failureKind = classifyOfflineSyncStatus(status);
+            failureMessage = safeCreateOfflineSyncErrorMessage(
+              status,
+              fallback: failureMessage,
+            );
+            retryNotBefore = status.retryNotBefore();
+          }
+        } on ApiException catch (error) {
+          if (hasSafeCreateDecisionMetadata(error)) {
+            failureKind = classifySafeCreateException(error);
+            failureMessage = safeCreateRetryErrorMessage(error);
+            retryNotBefore = safeCreateRetryNotBefore(
+              retryable: error.retryable,
+              retryAfterSeconds: error.retryAfterSeconds,
+            );
+          }
+        } on Object {
+          // POST sonucu belirsiz kalir; yerel snapshot korunur.
         }
-        setState(() => _pendingCreateFailureKind = failureKind);
-      } else {
-        await _clearPersistedPendingCreate(request.clientRequestId);
-        if (!mounted) {
-          return;
-        }
-        setState(() {
-          _pendingCreateRequest = null;
-          _pendingCreateDraft = null;
-          _pendingCreateFailureKind = SafeCreateFailureKind.notRetryable;
-        });
       }
+      if (result == null) {
+        final keepsPending = shouldKeepSafeCreatePending(failureKind);
+        if (keepsPending) {
+          await _persistPendingCreate(
+            request,
+            draft,
+            failureKind: failureKind,
+            retryNotBefore: retryNotBefore,
+          );
+          if (!mounted) {
+            return;
+          }
+          setState(() {
+            _pendingCreateFailureKind = failureKind;
+            _pendingRetryNotBefore = retryNotBefore;
+          });
+        } else {
+          await _clearPersistedPendingCreate(request.clientRequestId);
+          if (!mounted) {
+            return;
+          }
+          setState(() {
+            _pendingCreateRequest = null;
+            _pendingCreateDraft = null;
+            _pendingCreateFailureKind = SafeCreateFailureKind.notRetryable;
+            _pendingRetryNotBefore = null;
+          });
+        }
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text(failureMessage),
+            action: canRetrySafeCreate(failureKind)
+                ? SnackBarAction(
+                    label: 'Tekrar Dene',
+                    onPressed: () {
+                      unawaited(_retryPendingCreate());
+                    },
+                  )
+                : null,
+          ),
+        );
+        return;
+      }
+    }
+
+    try {
+      await _clearPersistedPendingCreate(request.clientRequestId);
+    } on Object {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _pendingCreateRequest = request;
+        _pendingCreateDraft = draft;
+        _pendingCreateFailureKind = SafeCreateFailureKind.uncertain;
+        _pendingRetryNotBefore = null;
+      });
       messenger.showSnackBar(
         SnackBar(
-          content: Text(_controller.createError ?? 'Fis kaydedilemedi.'),
-          action: canRetrySafeCreate(failureKind)
-              ? SnackBarAction(
-                  label: 'Tekrar Dene',
-                  onPressed: () {
-                    unawaited(_submitCreateRequest(request, draft));
-                  },
-                )
-              : null,
+          content: Text(
+            '${result.documentNoLabel} kaydedildi ancak cihazdaki guvenli '
+            'kayit temizlenemedi. Ayni kayitla Tekrar Dene kullanin.',
+          ),
         ),
       );
       return;
     }
 
+    if (!mounted) {
+      return;
+    }
     setState(() {
       _pendingCreateRequest = null;
       _pendingCreateDraft = null;
       _pendingCreateFailureKind = SafeCreateFailureKind.notRetryable;
+      _pendingRetryNotBefore = null;
     });
-    await _clearPersistedPendingCreate(request.clientRequestId);
+    await _restorePendingCreate(autoRecover: false);
     if (!mounted) {
       return;
     }
@@ -457,37 +579,56 @@ class _StockReceiptsPageState extends State<StockReceiptsPage> {
         ),
         if (widget.canCreate)
           FilledButton.tonalIcon(
-            onPressed: _controller.isCreating
+            onPressed:
+                _controller.isCreating ||
+                    _isRestoringPendingCreate ||
+                    _hasPendingCreateStorageError
                 ? null
                 : _pendingCreateRequest == null
                 ? _openCreateSheet
                 : canStartNewSafeCreate(_pendingCreateFailureKind)
                 ? _startNewCreateFromPending
                 : canRetrySafeCreate(_pendingCreateFailureKind)
-                ? () => _submitCreateRequest(
-                    _pendingCreateRequest!,
-                    _pendingCreateDraft,
-                  )
+                ? _retryPendingCreate
                 : null,
-            icon: _controller.isCreating
+            icon: _controller.isCreating || _isRestoringPendingCreate
                 ? const SizedBox(
                     height: 16,
                     width: 16,
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
                 : Icon(
-                    _pendingCreateRequest == null ||
-                            canStartNewSafeCreate(_pendingCreateFailureKind)
+                    _hasPendingCreateStorageError
+                        ? Icons.error_outline_rounded
+                        : _pendingCreateRequest == null ||
+                              canStartNewSafeCreate(_pendingCreateFailureKind)
                         ? Icons.add_circle_outline_rounded
                         : Icons.refresh_rounded,
                   ),
             label: Text(
               _controller.isCreating
                   ? 'Kaydediliyor...'
+                  : _isRestoringPendingCreate
+                  ? 'Kayit kontrol ediliyor...'
+                  : _hasPendingCreateStorageError
+                  ? 'Destek gerekli'
                   : _pendingCreateRequest == null
                   ? widget.kind.createButtonLabel
                   : safeCreatePendingActionLabel(_pendingCreateFailureKind),
             ),
+          ),
+        if (widget.canCreate &&
+            _pendingCreateRequest != null &&
+            canRetrySafeCreate(_pendingCreateFailureKind))
+          FilledButton.icon(
+            onPressed:
+                _controller.isCreating ||
+                    _isRestoringPendingCreate ||
+                    _hasPendingCreateStorageError
+                ? null
+                : _openCreateSheet,
+            icon: const Icon(Icons.add_rounded),
+            label: Text(widget.kind.createButtonLabel),
           ),
       ],
     );

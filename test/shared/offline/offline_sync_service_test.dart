@@ -91,6 +91,46 @@ void main() {
     },
   );
 
+  test('submitInventoryCount keeps retryable failed status pending', () async {
+    inventoryRepository
+      ..createError = const ApiException(
+        statusCode: 409,
+        title: 'Sonuc dogrulanamadi',
+        errorCode: 'MIKRO_WRITE_OUTCOME_UNCONFIRMED',
+        retryable: true,
+      )
+      ..offlineSyncStatus = InventoryCountOfflineSyncStatus(
+        clientRequestId: 'request-retryable',
+        operationCode: 'inventory-count-create',
+        status: 'failed',
+        createdAtUtc: DateTime.utc(2026, 10, 13, 8),
+        completedAtUtc: null,
+        errorMessage: 'Mikro yazim sonucu dogrulanamadi.',
+        errorCode: 'MIKRO_WRITE_OUTCOME_UNCONFIRMED',
+        retryable: true,
+        retryAfterSeconds: 5,
+        result: null,
+      );
+
+    final result = await service.submitInventoryCount(
+      accessToken: 'token',
+      userId: 'user-1',
+      warehouseNo: '110',
+      request: _buildRequest(clientRequestId: 'request-retryable'),
+    );
+
+    expect(result.status, OfflineSubmissionStatus.queued);
+    expect(offlineInventoryRepository.savedDrafts, hasLength(1));
+    expect(
+      offlineInventoryRepository.savedDrafts.single.status,
+      OfflineRecordStatus.pending,
+    );
+    expect(
+      offlineInventoryRepository.savedDrafts.single.lastError,
+      contains('5 saniye sonra'),
+    );
+  });
+
   test('submitInventoryCount does not queue backend errors', () async {
     inventoryRepository.createError = const ApiException(
       statusCode: 400,
