@@ -1363,6 +1363,16 @@
             }
           },
           {
+            "name": "SourceWarehouseNo",
+            "in": "query",
+            "schema": {
+              "maximum": 2147483647,
+              "minimum": 1,
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
             "name": "IncludeDelisted",
             "in": "query",
             "schema": {
@@ -1511,6 +1521,16 @@
             }
           },
           {
+            "name": "SourceWarehouseNo",
+            "in": "query",
+            "schema": {
+              "maximum": 2147483647,
+              "minimum": 1,
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
             "name": "IncludeDelisted",
             "in": "query",
             "schema": {
@@ -1645,6 +1665,16 @@
           },
           {
             "name": "WarehouseNo",
+            "in": "query",
+            "schema": {
+              "maximum": 2147483647,
+              "minimum": 1,
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "SourceWarehouseNo",
             "in": "query",
             "schema": {
               "maximum": 2147483647,

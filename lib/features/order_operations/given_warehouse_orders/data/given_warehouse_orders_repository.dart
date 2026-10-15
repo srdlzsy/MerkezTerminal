@@ -115,6 +115,7 @@ class ApiGivenWarehouseOrdersRepository
     required String accessToken,
     required String warehouseNo,
     required String query,
+    int? sourceWarehouseNo,
     bool includeDelisted = true,
   }) async {
     final normalizedQuery = query.trim();
@@ -125,6 +126,8 @@ class ApiGivenWarehouseOrdersRepository
         !normalizedQuery.contains(' ');
     final queryParameters = <String, String>{
       'warehouseNo': warehouseNo,
+      if (sourceWarehouseNo != null && sourceWarehouseNo > 0)
+        'sourceWarehouseNo': sourceWarehouseNo.toString(),
       'take': '150',
       if (!includeDelisted) 'includeDelisted': 'false',
       if (isBarcodeQuery)

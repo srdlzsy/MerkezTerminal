@@ -1252,6 +1252,7 @@ Bu endpointler legacy UI gibi normal online da kullanilabilir. Ancak mobil uygul
 Guvenli create `409 Conflict` response sozlesmesi:
 
 - Siniflandirilmis create cakismalarinda standart ProblemDetails alanlarina ek olarak `errorCode` ve `retryable` doner.
+- Siniflandirilmis guvenli yazma/readback mesajlari API tarafinda kullaniciya acik Turkce metne cevrilir. Ayni ceviri `409 detail`, `offline-sync errorMessage` ve guvenli yazma izleme response'unda kullanilir; UI yine metin eslestirmemeli, kararini `errorCode` ve `retryable` alanlariyla vermelidir.
 - `MIKRO_WRITE_IN_PROGRESS`, `retryable=true`: ayni `clientRequestId` halen isleniyor veya onceki belirsiz yazmanin readback sonucu bekleniyor. UI payload snapshot'ini korur; yeni id uretmez.
 - `MIKRO_WRITE_QUEUE_BUSY`, `retryable=true`: depolar arasi sevkte ayni belge serisinin onceki islemi devam ettigi icin 180 saniyelik kuyruk bekleme siniri dolmustur. Bu istegin Mikro yazimi baslamamistir; UI ayni payload ve ayni `clientRequestId` ile kisa bir sure sonra yeniden deneyebilir. Yeni id uretilmemelidir.
 - `MIKRO_WRITE_OUTCOME_UNCONFIRMED`, `retryable=true`: Mikro yazma sonucu kanitlanamadi. UI ayni payload ve ayni `clientRequestId` ile guvenli retry yapabilir.
@@ -1270,7 +1271,7 @@ Ornek manuel inceleme response'u:
 {
   "title": "Conflict",
   "status": 409,
-  "detail": "The existing Mikro document does not match the requested document content. Manual review is required; do not retry with a new clientRequestId.",
+  "detail": "Mikro'daki belge ile gonderilen kaydin satirlari eslesmiyor. Tekrar gondermeyin; yetkili incelemesi gerekiyor.",
   "instance": "/api/stok-islemleri/zayiat-fisleri",
   "correlationId": "603427248d4a4d969474d74febf76255",
   "errorCode": "MIKRO_DOCUMENT_CONTENT_MISMATCH",
@@ -2699,7 +2700,7 @@ Response item:
   "status": "Failed",
   "errorCode": "MIKRO_WRITE_OUTCOME_UNCONFIRMED",
   "retryable": true,
-  "errorMessage": "Mikro write outcome could not be confirmed.",
+  "errorMessage": "Kaydin Mikro'ya yazilip yazilmadigi henuz kesinlestirilemedi. Yeni bir kayit olusturmayin; mevcut islem icin durum kontrolu yapin veya guvenli tekrar deneyin.",
   "createdAtUtc": "2026-10-13T08:10:00Z",
   "updatedAtUtc": "2026-10-13T08:11:00Z",
   "completedAtUtc": "2026-10-13T08:11:00Z",
@@ -4928,6 +4929,10 @@ Firma/cari kodu ile:
 
 `GET /api/arama-islemleri/urunler?warehouseNo=110&companyCode=120.01.03106&stockName=sut`
 
+Merkez depo siparisi icin yalniz kaynak depodan tedarik edilebilen urunlerle:
+
+`GET /api/arama-islemleri/urunler?stockName=sleepy&sourceWarehouseNo=50&take=20`
+
 Query:
 
 ```text
@@ -4937,6 +4942,7 @@ stockCode      opsiyonel; stok kodu ile exact arama
 stockName      opsiyonel; stok adinda contains arama, en az 2 karakter
 companyCode    opsiyonel; secilen firma/cari kodu filtresi
 supplierCode   opsiyonel; companyCode ile ayni filtre icin geriye uyum alias'i
+sourceWarehouseNo opsiyonel; verilirse yalniz bu kaynak depoda aktif ve siparise acik stok-depo tanimi bulunan urunler doner
 includeDelisted opsiyonel; default true. true ise pasif veya DLS prefixli urunler de doner; false ise bu urunler listeden gizlenir
 take           opsiyonel; default 150, max 150
 ```
@@ -4949,9 +4955,12 @@ Kural:
 - UI "delistleri/pasifleri gizle" toggle'i aciksa ayni istege `includeDelisted=false` eklemelidir. Toggle kapaliysa alan gonderilmeyebilir; default `true` kabul edilir.
 - UI sadece kendi icinde filtre yapmamalidir; gizleme karari backend tarafinda calismalidir ki web, terminal ve mobil ayni sonucu gorsun.
 - `warehouseNo`, fiyat/stok/blok bilgisinin hangi islem deposuna gore okunacagini belirler. Bu alan kaynak depo secimi icin kullanilmaz.
-- Merkez depoya siparis verme ekraninda kullanici deposu `56`, kaynak depo `50` ise urun arama istegi `warehouseNo=50` ile degil, `warehouseNo=56` ile veya `warehouseNo` bos gonderilerek yapilmalidir.
+- `sourceWarehouseNo`, depo siparisinde urunun hangi kaynak depodan istenecegini belirtir. Bu filtre anlik stok miktarini degil, kaynak deponun model kapsaminda bulunan aktif ve siparise acik `STOK_DEPO_DETAYLARI` tanimini esas alir. Bu nedenle kaynak depoda gecici olarak sifir stoklu fakat depodan tedarik edilen urun kaybolmaz.
+- Merkez depoya siparis verme ekraninda kullanici deposu `56`, kaynak depo `50` ise urun arama istegi `warehouseNo=50` ile degil, `warehouseNo=56&sourceWarehouseNo=50` ile veya `warehouseNo` bos birakilip `sourceWarehouseNo=50` ile yapilmalidir.
 - Ornek yanlis kullanim: `GET /api/arama-islemleri/urunler?warehouseNo=50&stockName=aytac`. Kullanici token deposu `56` ise ve tum depo yetkisi yoksa backend `403 Forbidden` dondurur.
-- Ornek dogru kullanim: `GET /api/arama-islemleri/urunler?stockName=aytac&take=20` veya `GET /api/arama-islemleri/urunler?warehouseNo=56&stockName=aytac&take=20`.
+- Ornek dogru kullanim: `GET /api/arama-islemleri/urunler?stockName=aytac&sourceWarehouseNo=50&take=20` veya `GET /api/arama-islemleri/urunler?warehouseNo=56&sourceWarehouseNo=50&stockName=aytac&take=20`.
+- `sourceWarehouseNo` verildiginde yalniz secilen kaynak depoyla eslesen `Warehouse` ve o depoyu iceren `Mixed` urunler kalir. Yalniz firma satin alma baglantisi bulunan `Company` ve kaynak tanimi olmayan `Unassigned` urunler depo siparisi arama sonucuna girmez.
+- Kaynak depo filtresi sonuc limiti uygulandiktan sonra UI tarafinda yapilmaz. Backend firma urunlerini sonuc sayacina dahil etmeden atar; boylece kalabalik marka aramalarinda gercek depo urunleri ilk `take` sinirinin disinda kalmaz.
 - Barkod okutulduysa UI mumkunse degeri `barcode` alaninda gondermelidir. 27/29 terazi barkodunda backend ilk 7 haneyi arar; sonuc bulunamazsa ayni urun/PLU kismi icin `27`/`29` alternatif prefix'ini de dener. Ornek: `2700740000008` okutulursa `2700740`, sonra `2900740`, sonra orijinal barkod denenir.
 - Kullanici barkodu elle ve eksik yazarsa, en az 6 rakamlik degerlerde backend once tam barkod dener; sonuc yoksa `BARKOD_TANIMLARI.bar_kodu` son hanelerine gore arama yapar. Ornek `barcode=321158` istegi `...321158` ile biten barkodlari bulabilir. Bu fallback birden fazla urun dondurebilir; UI liste olarak gostermelidir.
 - Genel arama kutusunda kullanici sadece numerik metin yazarsa backend ayni degeri tam stok kodu ve tam barkod olarak arar. Iki arama farkli urunlere denk gelirse ikisini de dondurur; tam stok kodu eslesmesi ilk sirada olur. UI bu durumda kullaniciya secim yaptirmalidir.
@@ -5021,7 +5030,8 @@ UI kullanim notu:
 - `procurementType`, urunun bilgi amacli tedarik sinifidir: `Warehouse`, `Company`, `Mixed` veya `Unassigned`.
 - `sourceWarehouses`, urunun model kodu kaynak deponun model listesiyle eslesen ve ilgili stok-depo kaydi siparise acik olan kaynak depolari gosterir. Bos dizi urunun tanimli bir kaynak depoyla eslesmedigini belirtir.
 - `hasPurchaseRequirement`, stok kartinda varsayilan tedarikci veya aktif satin alma sarti bulunup bulunmadigini belirtir. `true` olmasi urunun kaynak depodan da alinmasina engel degildir; bu durumda `procurementType=Mixed` gelebilir.
-- Bu alanlar UI'da bilgi/etiket amaclidir. Urunu gizlemek veya satira eklemeyi pasif yapmak icin kullanilmamalidir. Ornek etiketler: `Model 01`, `Merkez Depo 50`, `Firma Urunu`, `Karisik Kaynak`.
+- `sourceWarehouseNo` verilmemis genel aramalarda bu alanlar UI'da bilgi/etiket amaclidir. Ornek etiketler: `Model 01`, `Merkez Depo 50`, `Firma Urunu`, `Karisik Kaynak`.
+- Depo siparisi ekraninda UI secilen kaynak depoyu `sourceWarehouseNo` olarak backend'e gondermeli; mevcut response'u kendi icinde `procurementType` etiketine gore sonradan filtrelememelidir. Istenirse ayri bir `Tum urunler` secenegiyle `sourceWarehouseNo` gondermeden genel arama yapilabilir.
 - Tedarikci isimleri bu response'a eklenmez; kullanicinin yalnizca kaynak turunu gormesi icin ek bir `cari-onerileri` cagrisi gerekmez.
 - `purchasePrice` sadece `companyCode/supplierCode` ile cari baglamli aramada dolabilir; son `SATINALMA_SARTLARI` kaydindan iskonto sonrasi alis birim fiyatidir. Firma mal kabulde e-belge satirindan `netUnitPrice` gelmiyorsa UI `unitPrice` icin sadece `purchasePrice` alanini kullanmalidir.
 - Firma mal kabul ekraninda kullaniciya alis fiyati elle yazdirilmamalidir. `netUnitPrice` veya `purchasePrice` yoksa UI satiri durdurmadan `unitPrice=0` gondermelidir; satis fiyati fallback olarak kullanilmamalidir.
@@ -25009,13 +25019,13 @@ Bu bolum test hostundaki ApiExplorer ve Swagger metadata'sindan otomatik uretili
 | GET | `/` | Anonim |  | 200: bildirilmemis |
 | GET | `/api/arama-islemleri/barkodlar/{barcode}/cariler` | JWT + arama-islemleri.cari-bul.list | path: barcode / string (zorunlu)<br>query: WarehouseNo / integer (int32)<br>query: Take / integer (int32) | 401: ProblemDetails<br>200: BarcodeCustomerSuggestionResponse<br>400: ProblemDetails<br>403: ProblemDetails |
 | GET | `/api/arama-islemleri/barkodlar/{barcode}/cozumle` | JWT | path: barcode / string (zorunlu)<br>query: WarehouseNo / integer (int32)<br>query: OperationType / string<br>query: TargetWarehouseNo / integer (int32)<br>query: SupplierCode / string<br>query: CompanyCode / string<br>query: IsRefund / boolean<br>query: ScreenCode / string | 401: ProblemDetails<br>200: BarcodeResolutionDto<br>400: ProblemDetails |
-| GET | `/api/arama-islemleri/barkodlar/{barcode}/fiyat` | JWT + arama-islemleri.fiyat-gor.list | path: barcode / string (zorunlu)<br>query: WarehouseNo / integer (int32)<br>query: IncludeDelisted / boolean<br>query: Take / integer (int32) | 401: ProblemDetails<br>200: IReadOnlyCollection&lt;ProductLookupItemDto&gt;<br>400: ProblemDetails<br>403: ProblemDetails |
+| GET | `/api/arama-islemleri/barkodlar/{barcode}/fiyat` | JWT + arama-islemleri.fiyat-gor.list | path: barcode / string (zorunlu)<br>query: WarehouseNo / integer (int32)<br>query: SourceWarehouseNo / integer (int32)<br>query: IncludeDelisted / boolean<br>query: Take / integer (int32) | 401: ProblemDetails<br>200: IReadOnlyCollection&lt;ProductLookupItemDto&gt;<br>400: ProblemDetails<br>403: ProblemDetails |
 | GET | `/api/arama-islemleri/cari-bul` | JWT + arama-islemleri.cari-bul.list | query: Barcode / string (zorunlu)<br>query: WarehouseNo / integer (int32)<br>query: Take / integer (int32) | 401: ProblemDetails<br>200: BarcodeCustomerSuggestionResponse<br>400: ProblemDetails<br>403: ProblemDetails |
 | GET | `/api/arama-islemleri/cariler` | JWT | query: SearchText / string (zorunlu)<br>query: Take / integer (int32) | 401: ProblemDetails<br>200: IReadOnlyCollection&lt;CustomerLookupItemDto&gt;<br>400: ProblemDetails |
 | GET | `/api/arama-islemleri/depolar` | JWT | query: SearchText / string<br>query: WarehouseNo / integer (int32)<br>query: Take / integer (int32) | 401: ProblemDetails<br>200: IReadOnlyCollection&lt;WarehouseLookupItemDto&gt;<br>400: ProblemDetails |
 | GET | `/api/arama-islemleri/depolar/kaynaklar` | JWT | query: SearchText / string<br>query: Take / integer (int32) | 401: ProblemDetails<br>200: IReadOnlyCollection&lt;SourceWarehouseLookupItemDto&gt; |
-| GET | `/api/arama-islemleri/fiyat-gor` | JWT + arama-islemleri.fiyat-gor.list | query: WarehouseNo / integer (int32)<br>query: Barcode / string<br>query: StockCode / string<br>query: StockName / string<br>query: SupplierCode / string<br>query: CompanyCode / string<br>query: IncludeDelisted / boolean<br>query: Take / integer (int32) | 401: ProblemDetails<br>200: IReadOnlyCollection&lt;ProductLookupItemDto&gt;<br>400: ProblemDetails<br>403: ProblemDetails |
-| GET | `/api/arama-islemleri/urunler` | JWT | query: WarehouseNo / integer (int32)<br>query: Barcode / string<br>query: StockCode / string<br>query: StockName / string<br>query: SupplierCode / string<br>query: CompanyCode / string<br>query: IncludeDelisted / boolean<br>query: Take / integer (int32) | 401: ProblemDetails<br>200: IReadOnlyCollection&lt;ProductLookupItemDto&gt;<br>400: ProblemDetails |
+| GET | `/api/arama-islemleri/fiyat-gor` | JWT + arama-islemleri.fiyat-gor.list | query: WarehouseNo / integer (int32)<br>query: Barcode / string<br>query: StockCode / string<br>query: StockName / string<br>query: SupplierCode / string<br>query: CompanyCode / string<br>query: SourceWarehouseNo / integer (int32)<br>query: IncludeDelisted / boolean<br>query: Take / integer (int32) | 401: ProblemDetails<br>200: IReadOnlyCollection&lt;ProductLookupItemDto&gt;<br>400: ProblemDetails<br>403: ProblemDetails |
+| GET | `/api/arama-islemleri/urunler` | JWT | query: WarehouseNo / integer (int32)<br>query: Barcode / string<br>query: StockCode / string<br>query: StockName / string<br>query: SupplierCode / string<br>query: CompanyCode / string<br>query: SourceWarehouseNo / integer (int32)<br>query: IncludeDelisted / boolean<br>query: Take / integer (int32) | 401: ProblemDetails<br>200: IReadOnlyCollection&lt;ProductLookupItemDto&gt;<br>400: ProblemDetails |
 | GET | `/api/arama-islemleri/urunler/{stockCode}/cari-onerileri` | JWT | path: stockCode / string (zorunlu)<br>query: WarehouseNo / integer (int32)<br>query: Take / integer (int32) | 401: ProblemDetails<br>200: ProductCustomerSuggestionResponse<br>400: ProblemDetails |
 | GET | `/api/arama-islemleri/urunler/{stockCode}/son-kunye` | Anonim | path: stockCode / string (zorunlu)<br>query: WarehouseNo / integer (int32) | 401: ProblemDetails<br>200: ProductLatestTagDto<br>400: ProblemDetails |
 | GET | `/api/arama-islemleri/var-yok` | JWT + arama-islemleri.var-yok.list | query: WarehouseNo / integer (int32)<br>query: Barcode / string<br>query: StockCode / string<br>query: StockName / string<br>query: IncludeDelisted / boolean<br>query: Take / integer (int32) | 401: ProblemDetails<br>200: IReadOnlyCollection&lt;ProductAvailabilityItemDto&gt;<br>400: ProblemDetails<br>403: ProblemDetails |

@@ -388,6 +388,7 @@ class _GivenWarehouseOrderCreateSheetState
           accessToken: widget.accessToken,
           warehouseNo: productWarehouseNo,
           query: query,
+          sourceWarehouseNo: _selectedSourceWarehouseNo,
         );
         if (products.length == 1) {
           product = products.single;
@@ -410,6 +411,7 @@ class _GivenWarehouseOrderCreateSheetState
         repository: widget.repository,
         accessToken: widget.accessToken,
         warehouseNo: productWarehouseNo,
+        sourceWarehouseNo: _selectedSourceWarehouseNo,
         initialQuery: line.barcodeController.text,
       ),
     );
@@ -2031,12 +2033,14 @@ class _ProductLookupSheet extends StatefulWidget {
     required this.repository,
     required this.accessToken,
     required this.warehouseNo,
+    required this.sourceWarehouseNo,
     required this.initialQuery,
   });
 
   final WarehouseOrdersRepository repository;
   final String accessToken;
   final String warehouseNo;
+  final int? sourceWarehouseNo;
   final String initialQuery;
 
   @override
@@ -2084,6 +2088,7 @@ class _ProductLookupSheetState extends State<_ProductLookupSheet> {
         accessToken: widget.accessToken,
         warehouseNo: widget.warehouseNo,
         query: _queryController.text,
+        sourceWarehouseNo: widget.sourceWarehouseNo,
         includeDelisted: !_hideDelistedProducts,
       );
       if (!mounted) {

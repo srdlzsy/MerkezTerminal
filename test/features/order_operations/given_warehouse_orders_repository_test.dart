@@ -46,6 +46,37 @@ void main() {
   });
 
   test(
+    'searchProducts sends operation and source warehouse separately',
+    () async {
+      Uri? requestedUri;
+      final repository = ApiGivenWarehouseOrdersRepository(
+        apiClient: ApiClient(
+          baseUrl: 'https://terminal.test',
+          httpClient: MockClient((request) async {
+            requestedUri = request.url;
+            return http.Response('[]', 200);
+          }),
+        ),
+      );
+
+      await repository.searchProducts(
+        accessToken: 'token',
+        warehouseNo: '56',
+        sourceWarehouseNo: 50,
+        query: 'aytac',
+        includeDelisted: false,
+      );
+
+      expect(requestedUri?.path, '/api/arama-islemleri/urunler');
+      expect(requestedUri?.queryParameters['warehouseNo'], '56');
+      expect(requestedUri?.queryParameters['sourceWarehouseNo'], '50');
+      expect(requestedUri?.queryParameters['stockName'], 'aytac');
+      expect(requestedUri?.queryParameters['includeDelisted'], 'false');
+      expect(requestedUri?.queryParameters['take'], '150');
+    },
+  );
+
+  test(
     'fetchSourceWarehouseProducts normalizes negative package factor',
     () async {
       Uri? requestedUri;

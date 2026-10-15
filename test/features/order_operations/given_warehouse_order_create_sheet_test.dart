@@ -151,7 +151,7 @@ void main() {
     );
   });
 
-  testWidgets('uses user warehouse for product search after source selection', (
+  testWidgets('uses user and source warehouses for filtered product search', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(390, 1000);
@@ -181,6 +181,7 @@ void main() {
     await _pickWarehouseOrderProduct(tester);
 
     expect(repository.lastSearchWarehouseNo, '56');
+    expect(repository.lastSearchSourceWarehouseNo, 50);
     expect(repository.lastSourceWarehouseNo, isNull);
   });
 
@@ -704,6 +705,7 @@ class _FakeWarehouseOrdersRepository
   final Map<int, List<ProductLookupItem>> sourceProductsByWarehouse;
   int? lastSourceWarehouseNo;
   String? lastSearchWarehouseNo;
+  int? lastSearchSourceWarehouseNo;
 
   @override
   bool get supportsCreate => true;
@@ -739,9 +741,11 @@ class _FakeWarehouseOrdersRepository
     required String accessToken,
     required String warehouseNo,
     required String query,
+    int? sourceWarehouseNo,
     bool includeDelisted = true,
   }) async {
     lastSearchWarehouseNo = warehouseNo;
+    lastSearchSourceWarehouseNo = sourceWarehouseNo;
     return <ProductLookupItem>[product];
   }
 

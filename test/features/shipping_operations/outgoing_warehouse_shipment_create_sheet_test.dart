@@ -955,6 +955,7 @@ class _FakeOutgoingWarehouseShipmentsRepository
     required String accessToken,
     required String warehouseNo,
     required String query,
+    int? sourceWarehouseNo,
     bool includeDelisted = true,
   }) async {
     return const <ProductLookupItem>[
@@ -1083,6 +1084,7 @@ class _GreenGrocerReceivedWarehouseOrdersRepository
     required String accessToken,
     required String warehouseNo,
     required String query,
+    int? sourceWarehouseNo,
     bool includeDelisted = true,
   }) async {
     return const <ProductLookupItem>[];
@@ -1191,6 +1193,7 @@ class _FakeReceivedWarehouseOrdersRepository
     required String accessToken,
     required String warehouseNo,
     required String query,
+    int? sourceWarehouseNo,
     bool includeDelisted = true,
   }) async {
     return const <ProductLookupItem>[];
