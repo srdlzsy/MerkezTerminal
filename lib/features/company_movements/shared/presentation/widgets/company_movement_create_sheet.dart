@@ -5,6 +5,8 @@ import 'package:furpa_merkez_terminal/core/network/api_exception.dart';
 import 'package:furpa_merkez_terminal/features/company_movements/shared/data/company_movements_repository.dart';
 import 'package:furpa_merkez_terminal/features/company_movements/shared/data/models/company_movement_models.dart';
 import 'package:furpa_merkez_terminal/features/order_operations/given_company_orders/data/models/given_company_order_models.dart';
+import 'package:furpa_merkez_terminal/shared/data/barcode_resolution_models.dart';
+import 'package:furpa_merkez_terminal/shared/data/barcode_resolution_repository.dart';
 import 'package:furpa_merkez_terminal/shared/data/search_lookup_models.dart';
 import 'package:furpa_merkez_terminal/shared/drafts/create_draft.dart';
 import 'package:furpa_merkez_terminal/shared/drafts/create_draft_repository.dart';
@@ -29,6 +31,8 @@ class CompanyMovementCreateSheet extends StatefulWidget {
     required this.title,
     required this.helperText,
     required this.submitLabel,
+    this.barcodeOperationType = 'shipment',
+    this.barcodeScreenCode = 'giden-firma-sevkleri',
     this.showDocumentNoField = true,
     this.draft,
     this.draftRepository,
@@ -41,6 +45,8 @@ class CompanyMovementCreateSheet extends StatefulWidget {
   final String title;
   final String helperText;
   final String submitLabel;
+  final String barcodeOperationType;
+  final String barcodeScreenCode;
   final bool showDocumentNoField;
   final CreateDraft? draft;
   final CreateDraftRepository? draftRepository;
@@ -357,6 +363,10 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
       return;
     }
 
+    if (await _tryResolveBarcode(line, query)) {
+      return;
+    }
+
     List<SearchProductLookupItem> products;
     try {
       setState(() {
@@ -456,7 +466,7 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
     }
 
     setState(() {
-      entryLine.applyProduct(pickedProduct);
+      entryLine.applyProduct(pickedProduct, initialQuantity: 1);
       entryLine.lookupController.clear();
       entryLine.setLookupStatus(
         'Secildi: ${pickedProduct.stockCode} | ${pickedProduct.stockName}',
@@ -465,6 +475,107 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
     });
     _scheduleDraftSave();
     _refocusLine(entryLine.lookupFocusNode);
+  }
+
+  Future<bool> _tryResolveBarcode(_MovementLineDraft line, String query) async {
+    final repository = widget.repository;
+    if (!looksLikeDirectBarcodeInput(query) ||
+        repository is! BarcodeResolutionRepository) {
+      return false;
+    }
+    final resolver = repository as BarcodeResolutionRepository;
+
+    setState(() {
+      line.setLookupStatus('Barkod cozumleniyor: $query', isLoading: true);
+      _lookupError = null;
+    });
+
+    BarcodeResolutionResult resolution;
+    try {
+      resolution = await resolver.resolveBarcode(
+        accessToken: widget.accessToken,
+        request: BarcodeResolutionRequest(
+          barcode: query,
+          warehouseNo: widget.defaultWarehouseNo,
+          operationType: widget.barcodeOperationType,
+          companyCode: _selectedCustomer?.customerCode,
+          isRefund: widget.barcodeOperationType == 'return',
+          screenCode: widget.barcodeScreenCode,
+        ),
+      );
+    } on ApiException catch (error) {
+      if (error.statusCode == 0 || error.statusCode == 404) {
+        if (mounted) {
+          setState(line.clearLookupStatus);
+        }
+        return false;
+      }
+      if (!mounted) {
+        return true;
+      }
+      final message = error.detail ?? error.title;
+      setState(() => line.setLookupStatus(message, isError: true));
+      unawaited(TerminalFeedback.error());
+      _refocusLine(line.lookupFocusNode);
+      return true;
+    }
+
+    if (!mounted) {
+      return true;
+    }
+    if (!resolution.isFound || !resolution.isUsableInOperation) {
+      final message = resolution.quickErrorMessage;
+      setState(() => line.setLookupStatus(message, isError: true));
+      unawaited(TerminalFeedback.error());
+      _refocusLine(line.lookupFocusNode);
+      return true;
+    }
+
+    final product = SearchProductLookupItem.fromBarcodeResolution(resolution);
+    final addedQuantity = resolution.suggestedQuantity;
+    if (_increasePendingQuantityIfSameProduct(
+      line,
+      product,
+      addedQuantity: addedQuantity,
+    )) {
+      _scheduleDraftSave();
+      _refocusLine(line.lookupFocusNode);
+      return true;
+    }
+
+    final entryLine = await _commitPendingEntryBeforeNextProduct(line);
+    if (entryLine == null) {
+      return true;
+    }
+    setState(() {
+      entryLine.applyProduct(
+        product,
+        initialQuantity: addedQuantity,
+        quantityStep: addedQuantity,
+      );
+      entryLine.lookupController.clear();
+      entryLine.setLookupStatus(_resolvedBarcodeMessage(resolution));
+      _lookupError = null;
+    });
+    _scheduleDraftSave();
+    _refocusLine(entryLine.lookupFocusNode);
+    unawaited(
+      resolution.quickWarningMessage.isEmpty
+          ? TerminalFeedback.success()
+          : TerminalFeedback.warning(),
+    );
+    return true;
+  }
+
+  String _resolvedBarcodeMessage(BarcodeResolutionResult resolution) {
+    final quantity = AppFormatters.quantity(resolution.suggestedQuantity);
+    if (resolution.isVariableWeightBarcode) {
+      return 'Terazi barkodu | $quantity ${resolution.embeddedQuantityUnit}';
+    }
+    if (resolution.isCaseBarcode) {
+      return 'Koli barkodu | Koli ici $quantity ${resolution.matchedUnitName}';
+    }
+    return 'Urun barkodu | Miktar $quantity ${resolution.matchedUnitName}';
   }
 
   Future<void> _scanProductWithCamera(_MovementLineDraft line) async {
@@ -640,21 +751,20 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
 
   bool _increasePendingQuantityIfSameProduct(
     _MovementLineDraft line,
-    SearchProductLookupItem product,
-  ) {
+    SearchProductLookupItem product, {
+    double addedQuantity = 1,
+  }) {
     final selectedProduct = line.selectedProduct;
     if (selectedProduct == null || !_isSameProduct(selectedProduct, product)) {
       return false;
     }
 
-    final addedQuantity = productEntryController.unitMultiplierQuantity(
-      product.unitMultiplier,
-    );
     setState(() {
       line.quantityController.text = productEntryController.formatQuantity(
         line.quantity + addedQuantity,
       );
       line.lookupController.clear();
+      line.quantityStep = addedQuantity;
       line.setLookupStatus(
         'Ayni barkod okutuldu. +${AppFormatters.quantity(addedQuantity)} eklendi.',
       );
@@ -1026,6 +1136,7 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
         stockCode: product.stockCode,
         stockName: product.stockName,
         quantityController: line.quantityController,
+        quantityStep: line.quantityStep,
         unitLabel: product.unitName,
         barcode: product.barcode,
         packageLabel: product.unitMultiplier > 1
@@ -1078,6 +1189,7 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
         stockCode: product.stockCode,
         stockName: product.stockName,
         quantityController: line.quantityController,
+        quantityStep: line.quantityStep,
         unitLabel: product.unitName,
         packageLabel: product.unitMultiplier > 1
             ? AppFormatters.quantity(product.unitMultiplier)
@@ -1225,6 +1337,10 @@ class _MovementLineDraft {
     if (draft != null) {
       lookupController.text = draft['lookup']?.toString() ?? '';
       quantityController.text = draft['quantity']?.toString() ?? '';
+      quantityStep = productEntryController.readQuantity(
+        draft['quantityStep']?.toString() ?? '',
+        fallback: 1,
+      );
       unitPriceController.text = draft['unitPrice']?.toString() ?? '0';
       unitPointerController.text = draft['unitPointer']?.toString() ?? '1';
       descriptionController.text = draft['description']?.toString() ?? '';
@@ -1262,6 +1378,7 @@ class _MovementLineDraft {
   String? lookupStatusMessage;
   bool isLookupStatusLoading = false;
   bool isLookupStatusError = false;
+  double quantityStep = 1;
 
   double get quantity =>
       productEntryController.readQuantity(quantityController.text, fallback: 0);
@@ -1298,12 +1415,17 @@ class _MovementLineDraft {
     productRcController,
   ];
 
-  void applyProduct(SearchProductLookupItem product) {
+  void applyProduct(
+    SearchProductLookupItem product, {
+    double initialQuantity = 1,
+    double quantityStep = 1,
+  }) {
     selectedProduct = product;
     lookupController.clear();
+    this.quantityStep = quantityStep > 0 ? quantityStep : 1;
     if (quantityController.text.trim().isEmpty) {
       quantityController.text = productEntryController.formatQuantity(
-        productEntryController.unitMultiplierQuantity(product.unitMultiplier),
+        initialQuantity > 0 ? initialQuantity : 1,
       );
     }
     unitPriceController.text = product.price.toString();
@@ -1322,6 +1444,7 @@ class _MovementLineDraft {
     customerRcController.clear();
     productRcController.clear();
     selectedProduct = null;
+    quantityStep = 1;
     lookupStatusMessage = null;
     isLookupStatusLoading = false;
     isLookupStatusError = false;
@@ -1347,6 +1470,7 @@ class _MovementLineDraft {
     return <String, dynamic>{
       'lookup': lookupController.text,
       'quantity': quantityController.text,
+      'quantityStep': quantityStep,
       'unitPrice': unitPriceController.text,
       'unitPointer': unitPointerController.text,
       'description': descriptionController.text,

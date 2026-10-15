@@ -116,7 +116,7 @@ class ApiOutgoingWarehouseShipmentsRepository
     required String accessToken,
     required WarehouseShipmentCreateRequest request,
   }) async {
-    final response = await _apiClient.postJsonMap(
+    final response = await _apiClient.postCreateJsonMap(
       '/api/sevk-islemleri/depolar-arasi-sevkler/giden',
       accessToken: accessToken,
       body: request.toJson(),

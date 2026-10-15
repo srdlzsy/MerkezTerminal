@@ -101,6 +101,24 @@ void main() {
     expect(item.embeddedQuantityUnit, 'KG');
   });
 
+  test('barcode resolution reads standard unit multiplier field', () {
+    final resolution = BarcodeResolutionResult.fromJson(<String, dynamic>{
+      'isFound': true,
+      'stockCode': '008748',
+      'stockName': 'TEST URUN',
+      'matchedUnitName': 'ADET',
+      'matchedUnitMultiplier': 1,
+      'unitMultiplier': 12,
+    });
+
+    expect(resolution.unitsPerCase, 12);
+    expect(resolution.suggestedQuantity, 1);
+    expect(
+      SearchProductLookupItem.fromBarcodeResolution(resolution).unitMultiplier,
+      12,
+    );
+  });
+
   test('product lookup reads passive and delisted status', () {
     final item = SearchProductLookupItem.fromJson(<String, dynamic>{
       'stockCode': '000001',

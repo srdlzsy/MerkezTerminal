@@ -28,12 +28,20 @@ class ApiBinaryResponse {
 }
 
 class ApiClient {
-  ApiClient({required String baseUrl, required http.Client httpClient})
-    : _baseUri = Uri.parse(baseUrl),
-      _httpClient = httpClient;
+  ApiClient({
+    required String baseUrl,
+    required http.Client httpClient,
+    Duration requestTimeout = AppConfig.requestTimeout,
+    Duration createRequestTimeout = AppConfig.createRequestTimeout,
+  }) : _baseUri = Uri.parse(baseUrl),
+       _httpClient = httpClient,
+       _requestTimeout = requestTimeout,
+       _createRequestTimeout = createRequestTimeout;
 
   final Uri _baseUri;
   final http.Client _httpClient;
+  final Duration _requestTimeout;
+  final Duration _createRequestTimeout;
   AccessTokenProvider? _accessTokenProvider;
   UnauthorizedRecoveryHandler? _unauthorizedRecoveryHandler;
   MutationRequestGuard? _mutationRequestGuard;
@@ -91,11 +99,13 @@ class ApiClient {
     Map<String, String>? queryParameters,
     bool allowUnauthorizedRecovery = true,
     bool verifyWarehouseContext = true,
+    Duration? timeout,
   }) async {
     await _guardMutationRequest(verifyWarehouseContext);
     final response = await _send(
       accessToken: accessToken,
       allowUnauthorizedRecovery: allowUnauthorizedRecovery,
+      timeout: timeout,
       request: (resolvedAccessToken) => _httpClient.post(
         _buildUri(path, queryParameters: queryParameters),
         headers: _buildHeaders(accessToken: resolvedAccessToken),
@@ -104,6 +114,25 @@ class ApiClient {
     );
 
     return _decodeJsonMap(response);
+  }
+
+  Future<JsonMap> postCreateJsonMap(
+    String path, {
+    String? accessToken,
+    Object? body,
+    Map<String, String>? queryParameters,
+    bool allowUnauthorizedRecovery = true,
+    bool verifyWarehouseContext = true,
+  }) {
+    return postJsonMap(
+      path,
+      accessToken: accessToken,
+      body: body,
+      queryParameters: queryParameters,
+      allowUnauthorizedRecovery: allowUnauthorizedRecovery,
+      verifyWarehouseContext: verifyWarehouseContext,
+      timeout: _createRequestTimeout,
+    );
   }
 
   Future<JsonMap> putJsonMap(
@@ -197,6 +226,7 @@ class ApiClient {
   Future<http.Response> _send({
     required String? accessToken,
     required bool allowUnauthorizedRecovery,
+    Duration? timeout,
     required Future<http.Response> Function(String? resolvedAccessToken)
     request,
   }) async {
@@ -204,6 +234,7 @@ class ApiClient {
       accessToken: accessToken,
       allowUnauthorizedRecovery: allowUnauthorizedRecovery,
       hasRetriedUnauthorized: false,
+      timeout: timeout ?? _requestTimeout,
       request: request,
     );
   }
@@ -212,15 +243,14 @@ class ApiClient {
     required String? accessToken,
     required bool allowUnauthorizedRecovery,
     required bool hasRetriedUnauthorized,
+    required Duration timeout,
     required Future<http.Response> Function(String? resolvedAccessToken)
     request,
   }) async {
     final resolvedAccessToken = _resolveAccessToken(accessToken);
 
     try {
-      final response = await request(
-        resolvedAccessToken,
-      ).timeout(AppConfig.requestTimeout);
+      final response = await request(resolvedAccessToken).timeout(timeout);
 
       if (response.statusCode == 401 &&
           allowUnauthorizedRecovery &&
@@ -237,6 +267,7 @@ class ApiClient {
             accessToken: retriedAccessToken,
             allowUnauthorizedRecovery: false,
             hasRetriedUnauthorized: true,
+            timeout: timeout,
             request: request,
           );
         }

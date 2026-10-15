@@ -55,7 +55,7 @@ class ApiSuggestedWarehouseOrdersRepository
     required String accessToken,
     required SuggestedWarehouseOrderConvertRequest request,
   }) async {
-    final response = await _apiClient.postJsonMap(
+    final response = await _apiClient.postCreateJsonMap(
       '/api/siparis-islemleri/onerilen-depo-siparisleri/convert-to-order',
       accessToken: accessToken,
       body: request.toJson(),

@@ -6,6 +6,8 @@ import 'package:furpa_merkez_terminal/core/network/api_exception.dart';
 import 'package:furpa_merkez_terminal/features/green_grocer/product_cases/data/green_grocer_product_cases_repository.dart';
 import 'package:furpa_merkez_terminal/features/order_operations/shared/data/models/warehouse_order_models.dart';
 import 'package:furpa_merkez_terminal/features/order_operations/shared/data/warehouse_orders_repository.dart';
+import 'package:furpa_merkez_terminal/shared/data/barcode_resolution_models.dart';
+import 'package:furpa_merkez_terminal/shared/data/barcode_resolution_repository.dart';
 import 'package:furpa_merkez_terminal/shared/drafts/create_draft.dart';
 import 'package:furpa_merkez_terminal/shared/drafts/create_draft_repository.dart';
 import 'package:furpa_merkez_terminal/shared/drafts/create_draft_session.dart';
@@ -377,6 +379,9 @@ class _GivenWarehouseOrderCreateSheetState
     ProductLookupItem? product;
     final query = line.barcodeController.text.trim();
     final productWarehouseNo = _productLookupWarehouseNo;
+    if (await _tryResolveBarcode(line, query, productWarehouseNo)) {
+      return;
+    }
     if (query.length >= 2) {
       try {
         final products = await widget.repository.searchProducts(
@@ -429,7 +434,7 @@ class _GivenWarehouseOrderCreateSheetState
     }
 
     setState(() {
-      entryLine.applyProduct(pickedProduct);
+      entryLine.applyProduct(pickedProduct, initialQuantity: 1);
       _validationMessage = null;
     });
     _draftSession.scheduleSave();
@@ -445,6 +450,118 @@ class _GivenWarehouseOrderCreateSheetState
         ),
       );
     }
+  }
+
+  Future<bool> _tryResolveBarcode(
+    _CreateLineDraft line,
+    String query,
+    String warehouseNo,
+  ) async {
+    final repository = widget.repository;
+    if (!looksLikeDirectBarcodeInput(query) ||
+        repository is! BarcodeResolutionRepository) {
+      return false;
+    }
+    final resolver = repository as BarcodeResolutionRepository;
+
+    setState(() {
+      line.setProductCaseStatus('Barkod cozumleniyor: $query', isLoading: true);
+      _validationMessage = null;
+    });
+
+    BarcodeResolutionResult resolution;
+    try {
+      resolution = await resolver.resolveBarcode(
+        accessToken: widget.accessToken,
+        request: BarcodeResolutionRequest(
+          barcode: query,
+          warehouseNo: warehouseNo,
+          operationType: 'order',
+          screenCode: 'verilen-depo-siparisleri',
+        ),
+      );
+    } on ApiException catch (error) {
+      if (error.statusCode == 0 || error.statusCode == 404) {
+        if (mounted) {
+          setState(line.clearProductCaseStatus);
+        }
+        return false;
+      }
+      if (!mounted) {
+        return true;
+      }
+      final message = error.detail ?? error.title;
+      setState(() => line.setProductCaseStatus(message, isError: true));
+      unawaited(TerminalFeedback.error());
+      _refocusLine(line.barcodeFocusNode);
+      return true;
+    }
+
+    if (!mounted) {
+      return true;
+    }
+    if (!resolution.isFound || !resolution.isUsableInOperation) {
+      final message = resolution.quickErrorMessage;
+      setState(() => line.setProductCaseStatus(message, isError: true));
+      unawaited(TerminalFeedback.error());
+      _refocusLine(line.barcodeFocusNode);
+      return true;
+    }
+
+    final product = ProductLookupItem.fromBarcodeResolution(resolution);
+    final addedQuantity = resolution.suggestedQuantity;
+    if (_increasePendingQuantityIfSameProduct(
+      line,
+      product,
+      addedQuantity: addedQuantity,
+    )) {
+      _draftSession.scheduleSave();
+      _refocusLine(line.barcodeFocusNode);
+      return true;
+    }
+
+    final entryLine = await _commitPendingEntryBeforeNextProduct(line);
+    if (entryLine == null) {
+      return true;
+    }
+    setState(() {
+      entryLine.applyProduct(
+        product,
+        initialQuantity: addedQuantity,
+        quantityStep: addedQuantity,
+      );
+      entryLine.setProductCaseStatus(_resolvedBarcodeMessage(resolution));
+      _validationMessage = null;
+    });
+    _draftSession.scheduleSave();
+    _refocusLine(entryLine.barcodeFocusNode);
+    final sourceWarehouseNo = _selectedSourceWarehouseNo;
+    if (sourceWarehouseNo != null && sourceWarehouseNo > 0) {
+      unawaited(
+        _resolveGreenGrocerLineResolution(
+          entryLine,
+          outWarehouseNo: sourceWarehouseNo,
+          showWarnings: false,
+        ),
+      );
+    }
+    unawaited(
+      resolution.quickWarningMessage.isEmpty
+          ? TerminalFeedback.success()
+          : TerminalFeedback.warning(),
+    );
+    return true;
+  }
+
+  String _resolvedBarcodeMessage(BarcodeResolutionResult resolution) {
+    final quantity = AppFormatters.quantity(resolution.suggestedQuantity);
+    if (resolution.isVariableWeightBarcode) {
+      return 'Terazi barkodu | $quantity ${resolution.embeddedQuantityUnit}';
+    }
+    if (resolution.isCaseBarcode) {
+      return 'Koli barkodu | Koli ici $quantity ${resolution.matchedUnitName}';
+    }
+    return 'Urun barkodu | Miktar $quantity ${resolution.matchedUnitName}';
   }
 
   Future<void> _scanProductWithCamera(_CreateLineDraft line) async {
@@ -487,16 +604,14 @@ class _GivenWarehouseOrderCreateSheetState
 
   bool _increasePendingQuantityIfSameProduct(
     _CreateLineDraft line,
-    ProductLookupItem product,
-  ) {
+    ProductLookupItem product, {
+    double addedQuantity = 1,
+  }) {
     final selectedProduct = line.selectedProduct;
     if (selectedProduct == null || !_isSameProduct(selectedProduct, product)) {
       return false;
     }
 
-    final addedQuantity = productEntryController.unitMultiplierQuantity(
-      product.unitMultiplier,
-    );
     setState(() {
       line.quantityController.text = productEntryController.formatQuantity(
         productEntryController.readQuantity(
@@ -506,6 +621,7 @@ class _GivenWarehouseOrderCreateSheetState
             addedQuantity,
       );
       line.barcodeController.clear();
+      line.quantityStep = addedQuantity;
       _validationMessage = null;
     });
     unawaited(TerminalFeedback.success());
@@ -1534,6 +1650,7 @@ class _GivenWarehouseOrderCreateSheetState
         stockCode: product.stockCode,
         stockName: product.stockName,
         quantityController: line.quantityController,
+        quantityStep: line.quantityStep,
         unitLabel: _greenGrocerUnitLabel(line, product),
         packageLabel: _productPackageLabel(product),
         barcode: product.barcode,
@@ -1584,6 +1701,7 @@ class _GivenWarehouseOrderCreateSheetState
         stockCode: product.stockCode,
         stockName: product.stockName,
         quantityController: line.quantityController,
+        quantityStep: line.quantityStep,
         unitLabel: _greenGrocerUnitLabel(line, product),
         packageLabel: _productPackageLabel(product),
         barcode: product.barcode,
@@ -2107,6 +2225,10 @@ class _CreateLineDraft {
       stockCodeController.text = draft['stockCode']?.toString() ?? '';
       barcodeController.text = draft['barcode']?.toString() ?? '';
       quantityController.text = draft['quantity']?.toString() ?? '';
+      quantityStep = productEntryController.readQuantity(
+        draft['quantityStep']?.toString() ?? '',
+        fallback: 1,
+      );
       final productJson = _warehouseOrderDraftMap(draft['selectedProduct']);
       if (productJson != null) {
         selectedProduct = ProductLookupItem.fromJson(productJson);
@@ -2129,6 +2251,7 @@ class _CreateLineDraft {
   bool isProductCaseStatusLoading = false;
   bool isProductCaseStatusError = false;
   bool isProductCaseStatusWarning = false;
+  double quantityStep = 1;
 
   List<TextEditingController> get _controllers => <TextEditingController>[
     stockCodeController,
@@ -2142,14 +2265,19 @@ class _CreateLineDraft {
       barcodeController.text.trim().isNotEmpty ||
       quantityController.text.trim().isNotEmpty;
 
-  void applyProduct(ProductLookupItem product) {
+  void applyProduct(
+    ProductLookupItem product, {
+    double initialQuantity = 1,
+    double quantityStep = 1,
+  }) {
     selectedProduct = product;
     stockCodeController.text = product.stockCode;
     barcodeController.clear();
+    this.quantityStep = quantityStep > 0 ? quantityStep : 1;
     clearProductCaseStatus(notify: false);
     if (quantityController.text.trim().isEmpty) {
       quantityController.text = productEntryController.formatQuantity(
-        productEntryController.unitMultiplierQuantity(product.unitMultiplier),
+        initialQuantity > 0 ? initialQuantity : 1,
       );
     }
   }
@@ -2199,6 +2327,7 @@ class _CreateLineDraft {
     stockCodeController.clear();
     barcodeController.clear();
     quantityController.clear();
+    quantityStep = 1;
     clearProductCaseStatus(notify: false);
     onChanged?.call();
   }
@@ -2215,6 +2344,7 @@ class _CreateLineDraft {
       'stockCode': stockCodeController.text,
       'barcode': barcodeController.text,
       'quantity': quantityController.text,
+      'quantityStep': quantityStep,
       'selectedProduct': selectedProduct == null
           ? null
           : _warehouseOrderProductJson(selectedProduct!),

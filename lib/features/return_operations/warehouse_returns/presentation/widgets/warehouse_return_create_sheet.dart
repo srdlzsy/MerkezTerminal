@@ -609,9 +609,7 @@ class _WarehouseReturnCreateSheetState extends State<WarehouseReturnCreateSheet>
       return false;
     }
 
-    final increment =
-        addedQuantity ??
-        productEntryController.unitMultiplierQuantity(product.unitMultiplier);
+    final increment = addedQuantity ?? 1;
     setState(() {
       line.quantityController.text = productEntryController.formatQuantity(
         line.quantity + increment,
@@ -1306,9 +1304,7 @@ class _ReturnLineDraft {
     lookupController.clear();
     stockCodeController.text = product.stockCode;
     if (quantityController.text.trim().isEmpty) {
-      quantityController.text = productEntryController.formatQuantity(
-        productEntryController.unitMultiplierQuantity(product.unitMultiplier),
-      );
+      quantityController.text = productEntryController.formatQuantity(1);
     }
     if (unitPrice == 0 && product.price > 0) {
       unitPriceController.text = _formatDouble(product.price);

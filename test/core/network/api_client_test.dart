@@ -284,4 +284,28 @@ void main() {
     expect(guardCount, 0);
     expect(requestCount, 1);
   });
+
+  test('create requests use their dedicated longer timeout', () async {
+    final client = ApiClient(
+      baseUrl: 'http://localhost:5228',
+      httpClient: MockClient((request) async {
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+        return http.Response('{"ok":true}', 200);
+      }),
+      requestTimeout: const Duration(milliseconds: 50),
+      createRequestTimeout: const Duration(milliseconds: 5),
+    );
+
+    final regularResponse = await client.postJsonMap('/api/test');
+    expect(regularResponse['ok'], isTrue);
+
+    await expectLater(
+      client.postCreateJsonMap('/api/test'),
+      throwsA(
+        isA<ApiException>()
+            .having((error) => error.statusCode, 'statusCode', 0)
+            .having((error) => error.title, 'title', 'Timeout'),
+      ),
+    );
+  });
 }

@@ -838,9 +838,7 @@ class _OutgoingWarehouseShipmentCreateSheetState
       return false;
     }
 
-    final increment =
-        addedQuantity ??
-        productEntryController.unitMultiplierQuantity(product.unitMultiplier);
+    final increment = addedQuantity ?? 1;
     setState(() {
       line.quantityController.text = productEntryController.formatQuantity(
         productEntryController.readQuantity(
@@ -871,9 +869,7 @@ class _OutgoingWarehouseShipmentCreateSheetState
       return false;
     }
 
-    final increment =
-        addedQuantity ??
-        productEntryController.unitMultiplierQuantity(product.unitMultiplier);
+    final increment = addedQuantity ?? 1;
     setState(() {
       line.quantityController.text = productEntryController.formatQuantity(
         productEntryController.readQuantity(
@@ -3422,9 +3418,7 @@ class _ManualShipmentLineDraft {
     stockCodeController.text = product.stockCode;
     barcodeController.clear();
     if (quantityController.text.trim().isEmpty) {
-      quantityController.text = productEntryController.formatQuantity(
-        productEntryController.unitMultiplierQuantity(product.unitMultiplier),
-      );
+      quantityController.text = productEntryController.formatQuantity(1);
     }
   }
 
@@ -3637,9 +3631,7 @@ class _LinkedShipmentLineDraft {
   void applyProduct(ProductLookupItem product) {
     applyScannedProduct(product);
     if (quantityController.text.trim().isEmpty) {
-      quantityController.text = productEntryController.formatQuantity(
-        productEntryController.unitMultiplierQuantity(product.unitMultiplier),
-      );
+      quantityController.text = productEntryController.formatQuantity(1);
     }
   }
 

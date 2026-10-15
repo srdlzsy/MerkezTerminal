@@ -51,7 +51,7 @@ class ApiSuggestedCompanyOrdersRepository
     required String accessToken,
     required SuggestedCompanyOrderConvertRequest request,
   }) async {
-    final response = await _apiClient.postJsonMap(
+    final response = await _apiClient.postCreateJsonMap(
       '/api/siparis-islemleri/onerilen-firma-siparisleri/convert-to-order',
       accessToken: accessToken,
       body: request.toJson(),

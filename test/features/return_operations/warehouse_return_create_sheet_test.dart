@@ -81,7 +81,7 @@ void main() {
 
     expect(find.text('1 kalem'), findsOneWidget);
     expect(productInfo, findsOneWidget);
-    expect(find.text('4'), findsOneWidget);
+    expect(find.text('2'), findsOneWidget);
   });
 
   testWidgets('selects returnable product and assigns its return warehouse', (

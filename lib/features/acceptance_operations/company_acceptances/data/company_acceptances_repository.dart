@@ -105,7 +105,7 @@ class ApiCompanyAcceptancesRepository implements CompanyAcceptancesRepository {
     required String accessToken,
     required CompanyAcceptanceCreateRequest request,
   }) async {
-    final response = await _apiClient.postJsonMap(
+    final response = await _apiClient.postCreateJsonMap(
       '/api/mal-kabul-islemleri/firma-mal-kabulleri',
       accessToken: accessToken,
       body: request.toJson(),

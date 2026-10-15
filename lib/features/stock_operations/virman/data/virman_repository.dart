@@ -1,5 +1,7 @@
 import 'package:furpa_merkez_terminal/core/network/api_client.dart';
 import 'package:furpa_merkez_terminal/features/stock_operations/virman/data/models/virman_models.dart';
+import 'package:furpa_merkez_terminal/shared/data/barcode_resolution_models.dart';
+import 'package:furpa_merkez_terminal/shared/data/barcode_resolution_repository.dart';
 import 'package:furpa_merkez_terminal/shared/data/search_lookup_models.dart';
 import 'package:furpa_merkez_terminal/shared/offline/offline_sync_status.dart';
 
@@ -36,11 +38,28 @@ abstract class VirmanRepository {
 }
 
 class ApiVirmanRepository
-    implements VirmanRepository, OfflineSyncStatusProvider<VirmanCreateResult> {
+    implements
+        VirmanRepository,
+        BarcodeResolutionRepository,
+        OfflineSyncStatusProvider<VirmanCreateResult> {
   const ApiVirmanRepository({required ApiClient apiClient})
     : _apiClient = apiClient;
 
   final ApiClient _apiClient;
+
+  BarcodeResolutionRepository get _barcodeResolutionRepository =>
+      ApiBarcodeResolutionRepository(apiClient: _apiClient);
+
+  @override
+  Future<BarcodeResolutionResult> resolveBarcode({
+    required String accessToken,
+    required BarcodeResolutionRequest request,
+  }) {
+    return _barcodeResolutionRepository.resolveBarcode(
+      accessToken: accessToken,
+      request: request,
+    );
+  }
 
   @override
   Future<List<VirmanListItem>> fetchVirmans({
@@ -82,7 +101,7 @@ class ApiVirmanRepository
     required String accessToken,
     required VirmanCreateRequest request,
   }) async {
-    final response = await _apiClient.postJsonMap(
+    final response = await _apiClient.postCreateJsonMap(
       '/api/stok-islemleri/virmanlar',
       accessToken: accessToken,
       body: request.toJson(),

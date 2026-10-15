@@ -116,6 +116,9 @@ class OfflineSyncService {
             status: OfflineSubmissionStatus.queued,
           );
         }
+        if (recovery.status == _CreateRecoveryStatus.failed) {
+          rethrow;
+        }
       }
 
       if (!_shouldQueueAfterCreate(error)) {
@@ -129,7 +132,7 @@ class OfflineSyncService {
           warehouseNo: warehouseNo,
           status: OfflineRecordStatus.pending,
           lastSyncAttemptAt: DateTime.now(),
-          lastError: error.message,
+          lastError: _pendingCreateMessage(error),
         ),
       );
       return const InventoryCountSubmissionResult(
@@ -201,6 +204,9 @@ class OfflineSyncService {
             status: OfflineSubmissionStatus.queued,
           );
         }
+        if (recovery.status == _CreateRecoveryStatus.failed) {
+          rethrow;
+        }
       }
 
       if (!_shouldQueueAfterCreate(error)) {
@@ -216,7 +222,7 @@ class OfflineSyncService {
           createdAt: createdAt ?? DateTime.now(),
           status: OfflineRecordStatus.pending,
           lastSyncAttemptAt: DateTime.now(),
-          lastError: error.message,
+          lastError: _pendingCreateMessage(error),
         ),
       );
       return const CompanyAcceptanceSubmissionResult(
@@ -471,15 +477,34 @@ class OfflineSyncService {
   }
 
   bool _shouldQueueAfterCreate(ApiException error) {
-    return _isConnectionFailure(error);
+    return _isConnectionFailure(error) ||
+        error.retryable == true ||
+        _isUncertainServerFailure(error);
   }
 
   bool _shouldTryCreateRecovery(ApiException error) {
-    return error.statusCode == 409 || error.statusCode == 0;
+    return error.statusCode == 409 ||
+        error.statusCode == 0 ||
+        error.retryable == true ||
+        _isUncertainServerFailure(error);
   }
 
   bool _shouldDeferSync(ApiException error) {
-    return _isConnectionFailure(error) || error.statusCode == 401;
+    return _isConnectionFailure(error) ||
+        error.statusCode == 401 ||
+        error.retryable == true ||
+        _isUncertainServerFailure(error);
+  }
+
+  bool _isUncertainServerFailure(ApiException error) {
+    return error.statusCode >= 500 && error.statusCode < 600;
+  }
+
+  String _pendingCreateMessage(ApiException error) {
+    if (_isConnectionFailure(error)) {
+      return error.message;
+    }
+    return _retryableRecoveryMessage(error.message, error.retryAfterSeconds);
   }
 
   bool _isConnectionFailure(ApiException error) {
@@ -611,10 +636,23 @@ class OfflineSyncService {
 
 String _retryableRecoveryMessage(String? message, int? retryAfterSeconds) {
   final normalized = message?.trim() ?? '';
+  final displayMessage = _isLegacyCancellationMessage(normalized)
+      ? 'Kayit sonucu henuz kesinlesmedi.'
+      : normalized;
   final wait = retryAfterSeconds != null && retryAfterSeconds > 0
       ? ' $retryAfterSeconds saniye sonra ayni kayitla tekrar deneyin.'
       : ' Ayni kayitla daha sonra tekrar deneyin.';
-  return '${normalized.isEmpty ? 'Kayit sonucu henuz kesinlesmedi.' : normalized}$wait';
+  return '${displayMessage.isEmpty ? 'Kayit sonucu henuz kesinlesmedi.' : displayMessage}$wait';
+}
+
+bool _isLegacyCancellationMessage(String message) {
+  final normalized = message.toLowerCase();
+  return normalized.contains('task was canceled') ||
+      normalized.contains('task was cancelled') ||
+      normalized.contains('operation was canceled') ||
+      normalized.contains('operation was cancelled') ||
+      normalized.contains('request was canceled') ||
+      normalized.contains('request was cancelled');
 }
 
 enum _CreateRecoveryStatus { completed, processing, retryable, failed, unknown }

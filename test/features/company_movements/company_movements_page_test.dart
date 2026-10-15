@@ -10,6 +10,8 @@ import 'package:furpa_merkez_terminal/features/company_movements/shared/presenta
 import 'package:furpa_merkez_terminal/features/company_movements/shared/presentation/widgets/company_movement_create_sheet.dart';
 import 'package:furpa_merkez_terminal/features/order_operations/given_company_orders/data/models/given_company_order_models.dart';
 import 'package:furpa_merkez_terminal/features/return_operations/warehouse_returns/data/models/warehouse_return_models.dart';
+import 'package:furpa_merkez_terminal/shared/data/barcode_resolution_models.dart';
+import 'package:furpa_merkez_terminal/shared/data/barcode_resolution_repository.dart';
 import 'package:furpa_merkez_terminal/shared/data/search_lookup_models.dart';
 import 'package:furpa_merkez_terminal/shared/drafts/create_draft.dart';
 import 'package:furpa_merkez_terminal/shared/drafts/create_draft_repository.dart';
@@ -17,6 +19,7 @@ import 'package:furpa_merkez_terminal/shared/offline/mobile_customer_catalog_rep
 import 'package:furpa_merkez_terminal/shared/offline/offline_sync_status.dart';
 import 'package:furpa_merkez_terminal/shared/pending_create/pending_create_repository.dart';
 
+import '../../support/barcode_resolution_test_data.dart';
 import '../../support/memory_local_database.dart';
 import '../../support/pda_create_screen_contract.dart';
 
@@ -412,6 +415,45 @@ void main() {
     );
   });
 
+  testWidgets('unit barcode starts from one even when package factor is 12', (
+    tester,
+  ) async {
+    final repository = _FakeCompanyMovementsRepository(
+      barcodeResolution: buildBarcodeResolutionResult(
+        unitMultiplier: 12,
+        operationType: 'shipment',
+        screenCode: 'giden-firma-sevkleri',
+      ),
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: CompanyMovementCreateSheet(
+            repository: repository,
+            accessToken: 'token',
+            defaultWarehouseNo: '50',
+            mobileCustomerCatalogRepository: _emptyCustomerCatalogRepository(),
+            title: 'Yeni Firma Sevki',
+            helperText: 'Sevk satirlari eklenir.',
+            submitLabel: 'Kaydet',
+          ),
+        ),
+      ),
+    );
+
+    final lookup = find.byType(TextFormField).last;
+    await tester.enterText(lookup, '8690000000012');
+    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await tester.pumpAndSettle();
+
+    expect(repository.barcodeRequests, hasLength(1));
+    final hasQuantityOne = tester
+        .widgetList<TextFormField>(find.byType(TextFormField))
+        .any((field) => field.controller?.text == '1');
+    expect(hasQuantityOne, isTrue);
+  });
+
   testWidgets('autosaves and restores company movement draft fields', (
     tester,
   ) async {
@@ -528,6 +570,7 @@ PendingCreateOperation _pendingCompanyMovement({required String failureKind}) {
 class _FakeCompanyMovementsRepository
     implements
         CompanyMovementsRepository,
+        BarcodeResolutionRepository,
         OfflineSyncStatusProvider<CompanyMovementCreateResult> {
   _FakeCompanyMovementsRepository({
     this.movements = const <CompanyMovementListItem>[],
@@ -535,6 +578,7 @@ class _FakeCompanyMovementsRepository
     this.createResult,
     this.createError,
     this.offlineSyncStatus,
+    this.barcodeResolution,
   });
 
   final List<CompanyMovementListItem> movements;
@@ -542,6 +586,9 @@ class _FakeCompanyMovementsRepository
   final CompanyMovementCreateResult? createResult;
   final ApiException? createError;
   final OfflineSyncStatus<CompanyMovementCreateResult>? offlineSyncStatus;
+  final BarcodeResolutionResult? barcodeResolution;
+  final List<BarcodeResolutionRequest> barcodeRequests =
+      <BarcodeResolutionRequest>[];
   int fetchOfflineSyncStatusCallCount = 0;
   final List<CompanyMovementCreateRequest> createRequests =
       <CompanyMovementCreateRequest>[];
@@ -551,6 +598,19 @@ class _FakeCompanyMovementsRepository
 
   @override
   bool get supportsEDespatch => true;
+
+  @override
+  Future<BarcodeResolutionResult> resolveBarcode({
+    required String accessToken,
+    required BarcodeResolutionRequest request,
+  }) async {
+    barcodeRequests.add(request);
+    final resolution = barcodeResolution;
+    if (resolution == null) {
+      throw const ApiException(statusCode: 404, title: 'Bulunamadi');
+    }
+    return resolution;
+  }
 
   @override
   Future<CompanyMovementCreateResult> createMovement({

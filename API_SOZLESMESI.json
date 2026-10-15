@@ -80143,6 +80143,218 @@
         ]
       }
     },
+    "/api/entegrasyon-islemleri/trendyol-go/catalog/preview": {
+      "get": {
+        "tags": [
+          "TrendyolGo"
+        ],
+        "parameters": [
+          {
+            "name": "storeId",
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "view",
+            "in": "query",
+            "schema": {
+              "pattern": "^(?i:actionable|all|issues|existing)$",
+              "type": "string",
+              "default": "actionable"
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "schema": {
+              "maxLength": 100,
+              "type": "string"
+            }
+          },
+          {
+            "name": "take",
+            "in": "query",
+            "schema": {
+              "maximum": 5000,
+              "minimum": 1,
+              "type": "integer",
+              "format": "int32",
+              "default": 500
+            }
+          }
+        ],
+        "responses": {
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/Microsoft.AspNetCore.Mvc.ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Microsoft.AspNetCore.Mvc.ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Microsoft.AspNetCore.Mvc.ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/Microsoft.AspNetCore.Mvc.ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Microsoft.AspNetCore.Mvc.ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Microsoft.AspNetCore.Mvc.ProblemDetails"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/FurpaMerkezApi.Application.Modules.EntegrasyonIslemleri.TrendyolGo.TrendyolGoCatalogPreview"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FurpaMerkezApi.Application.Modules.EntegrasyonIslemleri.TrendyolGo.TrendyolGoCatalogPreview"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FurpaMerkezApi.Application.Modules.EntegrasyonIslemleri.TrendyolGo.TrendyolGoCatalogPreview"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ],
+        "x-permissions": [
+          "entegrasyon-islemleri.trendyol-go.list"
+        ]
+      }
+    },
+    "/api/entegrasyon-islemleri/trendyol-go/catalog/dispatch": {
+      "post": {
+        "tags": [
+          "TrendyolGo"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FurpaMerkezApi.WebApi.Controllers.Modules.EntegrasyonIslemleri.TrendyolGo.TrendyolGoCatalogDispatchHttpRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FurpaMerkezApi.WebApi.Controllers.Modules.EntegrasyonIslemleri.TrendyolGo.TrendyolGoCatalogDispatchHttpRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/FurpaMerkezApi.WebApi.Controllers.Modules.EntegrasyonIslemleri.TrendyolGo.TrendyolGoCatalogDispatchHttpRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/Microsoft.AspNetCore.Mvc.ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Microsoft.AspNetCore.Mvc.ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Microsoft.AspNetCore.Mvc.ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/Microsoft.AspNetCore.Mvc.ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Microsoft.AspNetCore.Mvc.ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Microsoft.AspNetCore.Mvc.ProblemDetails"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/FurpaMerkezApi.Application.Modules.EntegrasyonIslemleri.TrendyolGo.TrendyolGoCatalogDispatch"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FurpaMerkezApi.Application.Modules.EntegrasyonIslemleri.TrendyolGo.TrendyolGoCatalogDispatch"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FurpaMerkezApi.Application.Modules.EntegrasyonIslemleri.TrendyolGo.TrendyolGoCatalogDispatch"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ],
+        "x-permissions": [
+          "entegrasyon-islemleri.trendyol-go.update"
+        ]
+      }
+    },
     "/api/entegrasyon-islemleri/trendyol-go/products/batch-requests/{batchRequestId}": {
       "get": {
         "tags": [
@@ -88332,6 +88544,83 @@
         ]
       }
     },
+    "/api/ayar-islemleri/veritabani-izleme/genel-bakis": {
+      "get": {
+        "tags": [
+          "VeritabaniIzleme"
+        ],
+        "responses": {
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/Microsoft.AspNetCore.Mvc.ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Microsoft.AspNetCore.Mvc.ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Microsoft.AspNetCore.Mvc.ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/Microsoft.AspNetCore.Mvc.ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Microsoft.AspNetCore.Mvc.ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Microsoft.AspNetCore.Mvc.ProblemDetails"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/FurpaMerkezApi.Application.Modules.AyarIslemleri.VeritabaniIzleme.MonitoringOverviewDto"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FurpaMerkezApi.Application.Modules.AyarIslemleri.VeritabaniIzleme.MonitoringOverviewDto"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FurpaMerkezApi.Application.Modules.AyarIslemleri.VeritabaniIzleme.MonitoringOverviewDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ],
+        "x-permissions": [
+          "ayar-islemleri.veritabani-izleme.list"
+        ]
+      }
+    },
     "/api/ayar-islemleri/veritabani-izleme/anlik": {
       "get": {
         "tags": [
@@ -88394,6 +88683,83 @@
               "text/json": {
                 "schema": {
                   "$ref": "#/components/schemas/FurpaMerkezApi.Application.Modules.AyarIslemleri.VeritabaniIzleme.DatabaseMonitoringSnapshotDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ],
+        "x-permissions": [
+          "ayar-islemleri.veritabani-izleme.list"
+        ]
+      }
+    },
+    "/api/ayar-islemleri/veritabani-izleme/workerlar": {
+      "get": {
+        "tags": [
+          "VeritabaniIzleme"
+        ],
+        "responses": {
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/Microsoft.AspNetCore.Mvc.ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Microsoft.AspNetCore.Mvc.ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Microsoft.AspNetCore.Mvc.ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/Microsoft.AspNetCore.Mvc.ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Microsoft.AspNetCore.Mvc.ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Microsoft.AspNetCore.Mvc.ProblemDetails"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/FurpaMerkezApi.Application.Modules.AyarIslemleri.VeritabaniIzleme.WorkerMonitoringSnapshotDto"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FurpaMerkezApi.Application.Modules.AyarIslemleri.VeritabaniIzleme.WorkerMonitoringSnapshotDto"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FurpaMerkezApi.Application.Modules.AyarIslemleri.VeritabaniIzleme.WorkerMonitoringSnapshotDto"
                 }
               }
             }
@@ -94616,6 +94982,29 @@
         },
         "additionalProperties": false
       },
+      "FurpaMerkezApi.Application.Modules.AyarIslemleri.VeritabaniIzleme.DatabaseIncidentOverviewDto": {
+        "type": "object",
+        "properties": {
+          "openCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "criticalCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "warningCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "lastSeenAtUtc": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
       "FurpaMerkezApi.Application.Modules.AyarIslemleri.VeritabaniIzleme.DatabaseMonitoringIncidentDto": {
         "type": "object",
         "properties": {
@@ -94688,6 +95077,32 @@
             "type": "string",
             "format": "date-time",
             "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "FurpaMerkezApi.Application.Modules.AyarIslemleri.VeritabaniIzleme.DatabaseMonitoringOverviewDto": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "nullable": true
+          },
+          "activeRequestCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "blockedRequestCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "longRunningRequestCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "openTransactionCount": {
+            "type": "integer",
+            "format": "int32"
           }
         },
         "additionalProperties": false
@@ -94979,6 +95394,40 @@
         },
         "additionalProperties": false
       },
+      "FurpaMerkezApi.Application.Modules.AyarIslemleri.VeritabaniIzleme.MonitoringOverviewDto": {
+        "type": "object",
+        "properties": {
+          "generatedAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "overallStatus": {
+            "type": "string",
+            "nullable": true
+          },
+          "overallStatusName": {
+            "type": "string",
+            "nullable": true
+          },
+          "headline": {
+            "type": "string",
+            "nullable": true
+          },
+          "database": {
+            "$ref": "#/components/schemas/FurpaMerkezApi.Application.Modules.AyarIslemleri.VeritabaniIzleme.DatabaseMonitoringOverviewDto"
+          },
+          "workers": {
+            "$ref": "#/components/schemas/FurpaMerkezApi.Application.Modules.AyarIslemleri.VeritabaniIzleme.WorkerMonitoringSnapshotDto"
+          },
+          "incidents": {
+            "$ref": "#/components/schemas/FurpaMerkezApi.Application.Modules.AyarIslemleri.VeritabaniIzleme.DatabaseIncidentOverviewDto"
+          },
+          "safeWrites": {
+            "$ref": "#/components/schemas/FurpaMerkezApi.Application.Modules.AyarIslemleri.VeritabaniIzleme.SafeWriteMonitoringOverviewDto"
+          }
+        },
+        "additionalProperties": false
+      },
       "FurpaMerkezApi.Application.Modules.AyarIslemleri.VeritabaniIzleme.SafeWriteMonitoringItemDto": {
         "type": "object",
         "properties": {
@@ -95035,6 +95484,153 @@
           "ageSeconds": {
             "type": "integer",
             "format": "int64"
+          }
+        },
+        "additionalProperties": false
+      },
+      "FurpaMerkezApi.Application.Modules.AyarIslemleri.VeritabaniIzleme.SafeWriteMonitoringOverviewDto": {
+        "type": "object",
+        "properties": {
+          "windowHours": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "processingCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "staleProcessingCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "retryableFailureCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "manualReviewCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "unclassifiedFailureCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "completedCount": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false
+      },
+      "FurpaMerkezApi.Application.Modules.AyarIslemleri.VeritabaniIzleme.WorkerMonitoringItemDto": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "nullable": true
+          },
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "isCritical": {
+            "type": "boolean"
+          },
+          "isEnabled": {
+            "type": "boolean"
+          },
+          "status": {
+            "type": "string",
+            "nullable": true
+          },
+          "statusName": {
+            "type": "string",
+            "nullable": true
+          },
+          "activity": {
+            "type": "string",
+            "nullable": true
+          },
+          "registeredAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "lastHeartbeatAtUtc": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "heartbeatAgeSeconds": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          },
+          "lastSuccessAtUtc": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "lastFailureAtUtc": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "lastError": {
+            "type": "string",
+            "nullable": true
+          },
+          "hasUnresolvedFailure": {
+            "type": "boolean"
+          },
+          "requiresAttention": {
+            "type": "boolean"
+          },
+          "recommendation": {
+            "type": "string",
+            "nullable": true
+          },
+          "queuedCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "runningCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "oldestQueuedAtUtc": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "oldestQueuedAgeSeconds": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          },
+          "staleAfterSeconds": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false
+      },
+      "FurpaMerkezApi.Application.Modules.AyarIslemleri.VeritabaniIzleme.WorkerMonitoringSnapshotDto": {
+        "type": "object",
+        "properties": {
+          "generatedAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "overallStatus": {
+            "type": "string",
+            "nullable": true
+          },
+          "workers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FurpaMerkezApi.Application.Modules.AyarIslemleri.VeritabaniIzleme.WorkerMonitoringItemDto"
+            },
+            "nullable": true
           }
         },
         "additionalProperties": false
@@ -102323,6 +102919,148 @@
           },
           "isSent": {
             "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "FurpaMerkezApi.Application.Modules.EntegrasyonIslemleri.TrendyolGo.TrendyolGoCatalogDispatch": {
+        "type": "object",
+        "properties": {
+          "storeId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "warehouseNo": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "sentCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "batchCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "nextStep": {
+            "type": "string",
+            "nullable": true
+          },
+          "upstreamResponses": {
+            "type": "array",
+            "items": { },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "FurpaMerkezApi.Application.Modules.EntegrasyonIslemleri.TrendyolGo.TrendyolGoCatalogPreview": {
+        "type": "object",
+        "properties": {
+          "storeId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "warehouseNo": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "storeName": {
+            "type": "string",
+            "nullable": true
+          },
+          "previewHash": {
+            "type": "string",
+            "nullable": true
+          },
+          "totalCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "existingCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "readyCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "mappingRequiredCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "skippedCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "view": {
+            "type": "string",
+            "nullable": true
+          },
+          "visibleCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FurpaMerkezApi.Application.Modules.EntegrasyonIslemleri.TrendyolGo.TrendyolGoCatalogRow"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "FurpaMerkezApi.Application.Modules.EntegrasyonIslemleri.TrendyolGo.TrendyolGoCatalogRow": {
+        "type": "object",
+        "properties": {
+          "stockCode": {
+            "type": "string",
+            "nullable": true
+          },
+          "productName": {
+            "type": "string",
+            "nullable": true
+          },
+          "barcode": {
+            "type": "string",
+            "nullable": true
+          },
+          "mikroBrandCode": {
+            "type": "string",
+            "nullable": true
+          },
+          "trendyolBrandId": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          },
+          "mikroCategoryCode": {
+            "type": "string",
+            "nullable": true
+          },
+          "trendyolCategoryId": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          },
+          "vatRate": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "mikroPrice": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "status": {
+            "type": "string",
+            "nullable": true
+          },
+          "reason": {
+            "type": "string",
+            "nullable": true
           }
         },
         "additionalProperties": false
@@ -122236,6 +122974,35 @@
         },
         "additionalProperties": false
       },
+      "FurpaMerkezApi.WebApi.Controllers.Modules.EntegrasyonIslemleri.TrendyolGo.TrendyolGoCatalogDispatchHttpRequest": {
+        "required": [
+          "previewHash"
+        ],
+        "type": "object",
+        "properties": {
+          "storeId": {
+            "minimum": 1,
+            "type": "integer",
+            "format": "int64"
+          },
+          "previewHash": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "sendAll": {
+            "type": "boolean"
+          },
+          "barcodes": {
+            "maxItems": 10000,
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
       "FurpaMerkezApi.WebApi.Controllers.Modules.EntegrasyonIslemleri.TrendyolGo.TrendyolGoInvoiceHttpRequest": {
         "type": "object",
         "properties": {
@@ -122286,6 +123053,11 @@
           },
           "sendAll": {
             "type": "boolean"
+          },
+          "mode": {
+            "pattern": "^(?i:selected|changed|all-existing)$",
+            "type": "string",
+            "nullable": true
           },
           "barcodes": {
             "maxItems": 10000,

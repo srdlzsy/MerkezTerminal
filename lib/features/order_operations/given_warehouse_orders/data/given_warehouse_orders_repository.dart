@@ -1,6 +1,8 @@
 import 'package:furpa_merkez_terminal/core/network/api_client.dart';
 import 'package:furpa_merkez_terminal/features/order_operations/shared/data/models/warehouse_order_models.dart';
 import 'package:furpa_merkez_terminal/features/order_operations/shared/data/warehouse_orders_repository.dart';
+import 'package:furpa_merkez_terminal/shared/data/barcode_resolution_models.dart';
+import 'package:furpa_merkez_terminal/shared/data/barcode_resolution_repository.dart';
 
 abstract class GivenWarehouseOrdersRepository
     implements WarehouseOrdersRepository {}
@@ -8,11 +10,26 @@ abstract class GivenWarehouseOrdersRepository
 class ApiGivenWarehouseOrdersRepository
     implements
         GivenWarehouseOrdersRepository,
+        BarcodeResolutionRepository,
         SourceWarehouseProductsRepository {
   const ApiGivenWarehouseOrdersRepository({required ApiClient apiClient})
     : _apiClient = apiClient;
 
   final ApiClient _apiClient;
+
+  BarcodeResolutionRepository get _barcodeResolutionRepository =>
+      ApiBarcodeResolutionRepository(apiClient: _apiClient);
+
+  @override
+  Future<BarcodeResolutionResult> resolveBarcode({
+    required String accessToken,
+    required BarcodeResolutionRequest request,
+  }) {
+    return _barcodeResolutionRepository.resolveBarcode(
+      accessToken: accessToken,
+      request: request,
+    );
+  }
 
   @override
   bool get supportsCreate => true;
@@ -59,7 +76,7 @@ class ApiGivenWarehouseOrdersRepository
     required String accessToken,
     required WarehouseOrderCreateRequest request,
   }) async {
-    final response = await _apiClient.postJsonMap(
+    final response = await _apiClient.postCreateJsonMap(
       '/api/siparis-islemleri/verilen-depo-siparisleri',
       accessToken: accessToken,
       body: request.toJson(),

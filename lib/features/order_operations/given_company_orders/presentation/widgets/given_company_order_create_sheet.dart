@@ -5,6 +5,8 @@ import 'package:flutter/services.dart';
 import 'package:furpa_merkez_terminal/core/network/api_exception.dart';
 import 'package:furpa_merkez_terminal/features/order_operations/given_company_orders/data/models/given_company_order_models.dart';
 import 'package:furpa_merkez_terminal/features/order_operations/shared/data/company_orders_repository.dart';
+import 'package:furpa_merkez_terminal/shared/data/barcode_resolution_models.dart';
+import 'package:furpa_merkez_terminal/shared/data/barcode_resolution_repository.dart';
 import 'package:furpa_merkez_terminal/shared/drafts/create_draft.dart';
 import 'package:furpa_merkez_terminal/shared/drafts/create_draft_repository.dart';
 import 'package:furpa_merkez_terminal/shared/drafts/create_draft_session.dart';
@@ -314,6 +316,9 @@ class _GivenCompanyOrderCreateSheetState
 
     CompanyOrderProductLookupItem? product;
     final query = line.barcodeController.text.trim();
+    if (await _tryResolveBarcode(line, query, customer.customerCode)) {
+      return;
+    }
     if (query.length >= 2) {
       try {
         final products = await widget.repository.searchProducts(
@@ -371,7 +376,7 @@ class _GivenCompanyOrderCreateSheetState
     }
 
     setState(() {
-      entryLine.applyProduct(pickedProduct);
+      entryLine.applyProduct(pickedProduct, initialQuantity: 1);
       entryLine.setLookupStatus(
         'Secildi: ${pickedProduct.stockCode} | ${pickedProduct.stockName}',
       );
@@ -379,6 +384,111 @@ class _GivenCompanyOrderCreateSheetState
     });
     _draftSession.scheduleSave();
     _refocusLine(entryLine.barcodeFocusNode);
+  }
+
+  Future<bool> _tryResolveBarcode(
+    _CompanyOrderLineDraft line,
+    String query,
+    String customerCode,
+  ) async {
+    final repository = widget.repository;
+    if (!looksLikeDirectBarcodeInput(query) ||
+        repository is! BarcodeResolutionRepository) {
+      return false;
+    }
+    final resolver = repository as BarcodeResolutionRepository;
+
+    setState(() {
+      line.setLookupStatus('Barkod cozumleniyor: $query', isLoading: true);
+      _validationMessage = null;
+    });
+
+    BarcodeResolutionResult resolution;
+    try {
+      resolution = await resolver.resolveBarcode(
+        accessToken: widget.accessToken,
+        request: BarcodeResolutionRequest(
+          barcode: query,
+          warehouseNo: widget.defaultWarehouseNo,
+          operationType: 'order',
+          companyCode: customerCode,
+          screenCode: 'verilen-firma-siparisleri',
+        ),
+      );
+    } on ApiException catch (error) {
+      if (error.statusCode == 0 || error.statusCode == 404) {
+        if (mounted) {
+          setState(line.clearLookupStatus);
+        }
+        return false;
+      }
+      if (!mounted) {
+        return true;
+      }
+      final message = error.detail ?? error.title;
+      setState(() => line.setLookupStatus(message, isError: true));
+      unawaited(TerminalFeedback.error());
+      _refocusLine(line.barcodeFocusNode);
+      return true;
+    }
+
+    if (!mounted) {
+      return true;
+    }
+    if (!resolution.isFound || !resolution.isUsableInOperation) {
+      final message = resolution.quickErrorMessage;
+      setState(() => line.setLookupStatus(message, isError: true));
+      unawaited(TerminalFeedback.error());
+      _refocusLine(line.barcodeFocusNode);
+      return true;
+    }
+
+    final product = CompanyOrderProductLookupItem.fromBarcodeResolution(
+      resolution,
+    );
+    final addedQuantity = resolution.suggestedQuantity;
+    if (_increasePendingQuantityIfSameProduct(
+      line,
+      product,
+      addedQuantity: addedQuantity,
+    )) {
+      _draftSession.scheduleSave();
+      _refocusLine(line.barcodeFocusNode);
+      return true;
+    }
+
+    final entryLine = await _commitPendingEntryBeforeNextProduct(line);
+    if (entryLine == null) {
+      return true;
+    }
+    setState(() {
+      entryLine.applyProduct(
+        product,
+        initialQuantity: addedQuantity,
+        quantityStep: addedQuantity,
+      );
+      entryLine.setLookupStatus(_resolvedBarcodeMessage(resolution));
+      _validationMessage = null;
+    });
+    _draftSession.scheduleSave();
+    _refocusLine(entryLine.barcodeFocusNode);
+    unawaited(
+      resolution.quickWarningMessage.isEmpty
+          ? TerminalFeedback.success()
+          : TerminalFeedback.warning(),
+    );
+    return true;
+  }
+
+  String _resolvedBarcodeMessage(BarcodeResolutionResult resolution) {
+    final quantity = AppFormatters.quantity(resolution.suggestedQuantity);
+    if (resolution.isVariableWeightBarcode) {
+      return 'Terazi barkodu | $quantity ${resolution.embeddedQuantityUnit}';
+    }
+    if (resolution.isCaseBarcode) {
+      return 'Koli barkodu | Koli ici $quantity ${resolution.matchedUnitName}';
+    }
+    return 'Urun barkodu | Miktar $quantity ${resolution.matchedUnitName}';
   }
 
   Future<void> _scanProductWithCamera(_CompanyOrderLineDraft line) async {
@@ -493,16 +603,14 @@ class _GivenCompanyOrderCreateSheetState
 
   bool _increasePendingQuantityIfSameProduct(
     _CompanyOrderLineDraft line,
-    CompanyOrderProductLookupItem product,
-  ) {
+    CompanyOrderProductLookupItem product, {
+    double addedQuantity = 1,
+  }) {
     final selectedProduct = line.selectedProduct;
     if (selectedProduct == null || !_isSameProduct(selectedProduct, product)) {
       return false;
     }
 
-    final addedQuantity = productEntryController.unitMultiplierQuantity(
-      product.unitMultiplier,
-    );
     setState(() {
       line.quantityController.text = productEntryController.formatQuantity(
         productEntryController.readQuantity(
@@ -512,6 +620,7 @@ class _GivenCompanyOrderCreateSheetState
             addedQuantity,
       );
       line.barcodeController.clear();
+      line.quantityStep = addedQuantity;
       line.setLookupStatus(
         'Ayni barkod okutuldu. +${AppFormatters.quantity(addedQuantity)} eklendi.',
       );
@@ -1168,6 +1277,7 @@ class _GivenCompanyOrderCreateSheetState
         stockCode: product.stockCode,
         stockName: product.stockName,
         quantityController: line.quantityController,
+        quantityStep: line.quantityStep,
         unitLabel: product.unitName,
         barcode: product.barcode,
         packageLabel: product.unitMultiplier > 1
@@ -1225,6 +1335,7 @@ class _GivenCompanyOrderCreateSheetState
         stockCode: product.stockCode,
         stockName: product.stockName,
         quantityController: line.quantityController,
+        quantityStep: line.quantityStep,
         unitLabel: product.unitName,
         packageLabel: product.unitMultiplier > 1
             ? AppFormatters.quantity(product.unitMultiplier)
@@ -1393,6 +1504,10 @@ class _CompanyOrderLineDraft {
       barcodeController.text = draft['barcode']?.toString() ?? '';
       stockCodeController.text = draft['stockCode']?.toString() ?? '';
       quantityController.text = draft['quantity']?.toString() ?? '';
+      quantityStep = productEntryController.readQuantity(
+        draft['quantityStep']?.toString() ?? '',
+        fallback: 1,
+      );
       unitPriceController.text = draft['unitPrice']?.toString() ?? '0';
       final productJson = _draftMap(draft['selectedProduct']);
       if (productJson != null) {
@@ -1409,6 +1524,7 @@ class _CompanyOrderLineDraft {
   String? lookupStatusMessage;
   bool isLookupStatusLoading = false;
   bool isLookupStatusError = false;
+  double quantityStep = 1;
   final TextEditingController barcodeController;
   final TextEditingController stockCodeController;
   final TextEditingController quantityController;
@@ -1433,13 +1549,16 @@ class _CompanyOrderLineDraft {
   void applyProduct(
     CompanyOrderProductLookupItem product, {
     bool fillDefaultQuantity = true,
+    double initialQuantity = 1,
+    double quantityStep = 1,
   }) {
     selectedProduct = product;
     barcodeController.clear();
     stockCodeController.text = product.stockCode;
+    this.quantityStep = quantityStep > 0 ? quantityStep : 1;
     if (fillDefaultQuantity && quantityController.text.trim().isEmpty) {
       quantityController.text = productEntryController.formatQuantity(
-        productEntryController.unitMultiplierQuantity(product.unitMultiplier),
+        initialQuantity > 0 ? initialQuantity : 1,
       );
     }
     if (productEntryController.readQuantity(
@@ -1457,6 +1576,7 @@ class _CompanyOrderLineDraft {
     barcodeController.clear();
     stockCodeController.clear();
     unitPriceController.text = '0';
+    quantityStep = 1;
     lookupStatusMessage = null;
     isLookupStatusLoading = false;
     isLookupStatusError = false;
@@ -1488,6 +1608,7 @@ class _CompanyOrderLineDraft {
       'barcode': barcodeController.text,
       'stockCode': stockCodeController.text,
       'quantity': quantityController.text,
+      'quantityStep': quantityStep,
       'unitPrice': unitPriceController.text,
       'selectedProduct': selectedProduct == null
           ? null

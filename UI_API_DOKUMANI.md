@@ -2,7 +2,7 @@
 
 Bu dokuman, mevcut backend durumuna gore frontend/UI tasarimi ve entegrasyonu icin hazirlanmistir.
 
-Son hedefli kontrol: 2026-10-13. Kayitli 742 method/route ve 674 JSON modeli koddan uretilen sozlesmeyle; auth, CORS, dogrudan IIS barindirma, Mikro create/readback, firma e-irsaliye, guvenli retry ve veritabani izleme anlatimlari kaynak kod ve Production ayarlariyla karsilastirildi.
+Son hedefli kontrol: 2026-10-14. Kayitli 746 method/route ve 684 JSON modeli koddan uretilen sozlesmeyle; auth, CORS, dogrudan IIS barindirma, Mikro create/readback, firma e-irsaliye, guvenli retry, worker heartbeat/backlog ve veritabani izleme anlatimlari kaynak kod ve Production ayarlariyla karsilastirildi.
 Tum kayitli endpointlerin route, method, request/response ve yetki metadata referansi: [API Sozlesme Referansi](API_SOZLESME_REFERANSI.md). Makine formati: [OpenAPI Sozlesmesi](API_SOZLESMESI.json). Bu referans test ile koddan uretilir; anlatimdaki orneklerin yerine tam alan/alias listesi icin kullanilir.
 Bu kontrol tum endpointlerin uctan uca canli onayi degildir. Yayin oncesi migration, acik riskler ve smoke testleri icin [Canliya Gecis Kontrol Listesi](CANLIYA_GECIS_KONTROL_LISTESI.md) kullanilmalidir.
 
@@ -34,8 +34,10 @@ Timeout ve tekrar deneme notu:
 - `MikroReadSeconds` liste/detay/rapor okumalari, `MikroWriteSeconds` create/update/delete yazma islemleri icin kullanilir. `AuthSeconds`, `FurpaSeconds`, `AxataSeconds`, `PuanSeconds` ve `ShopigoCiroSeconds` ilgili DB context'leri icindir.
 - Raw SQL ile yazilmis liste/arama/rapor komutlari da genel olarak `300` saniye bekleyecek sekilde ayarlanmistir.
 - `MikroApi:TimeoutSeconds` varsayilan appsettings'te `300` saniyedir. Yazma rotasi `MikroApi` ise UI bu sureyi de dikkate almalidir.
-- Yazma yollari `MikroWriteRouting` ile secilir. Mevcut Production ayarinda `GreenGrocerGoodsReceipt`, `PosAccountingSlip` dahil tum yazma rotalari `Database` degerindedir; UI request modeli degismez. Bir rota ileride `MikroApi` yapilirsa backend Mikro DB readback yapmadan islemi basarili saymaz.
-- Terminal, mobil ve web istemcileri liste ve create isteklerinde HTTP client timeout degerini en az `300` saniye yapmalidir. Subede internet zayifsa API islemi devam ederken istemci 30-60 saniyede vazgecerse kullanici timeout gorur ve kontrolsuz tekrar basabilir.
+- Yazma yollari `MikroWriteRouting` ile secilir. Mevcut calisma profilinde belge/siparis olusturan insert rotalari (`InventoryCount`, `IssuedWarehouseOrder`, `IssuedCompanyOrder`, `StockReceipt`, `Virman`, `InterWarehouseShipment`, `WarehouseReturn`, `CompanyMovement`, `CompanyReceiving`, `GreenGrocerOperations`, `ProductDistribution`, `GreenGrocerGoodsReceipt`, `PosAccountingSlip`, `AxataDynamicCensus`) `MikroApi` degerindedir. Mevcut kaydi guncelleyen, isaretleyen veya silen rotalar `Database` kalir; bunlara `WarehouseOrderSentFlag`, `CompanyOrderSentFlag`, `WarehouseReceivingAcceptance`, `WarehouseShippingUpdate`, `GreenGrocerOrderDelete`, `MicroDocumentEditing`, `ProductDistributionStockUpdate`, fatura/e-irsaliye marker ve iade referans rotalari dahildir. UI request modeli degismez.
+- Mikro API create cevabi tek basina basari kaniti degildir. Backend olusan aktif Mikro satirlarini stok, miktar, depo, satir sayisi ve akisa ozel trace/link alanlariyla DB'den geri okumadan create islemini tamamlanmis saymaz. Normal basarida kisa readback uygulanir; timeout, baglanti kopmasi veya duplicate cevabinda ayni belge 180 saniyeye kadar readback ile aranir ve ikinci create yazisi uretilmez.
+- Mikro API'de guvenilir bir karsiligi bulunmayan yardimci/ozel tablo insertleri bu profile zorlanmaz. Kasa sayimi alt tablolari, cihaz/terminal tanimlari ve AXATA C04 legacy tablo yazimi gibi akislar kontrollu DB yolu ile devam eder.
+- Terminal, mobil ve web istemcileri liste isteklerinde HTTP client timeout degerini en az `300` saniye yapmalidir. `MikroApi` yazma rotasindaki create istekleri, konfigurasyondaki 300 saniyelik ust Mikro API timeout ile sonrasindaki 180 saniyelik readback penceresini ve ag payini kapsayabilmek icin en az `540` saniye beklemelidir. Canlida Mikro kendi icinden yaklasik 130 saniyede timeout dondururse istek daha erken tamamlanir. Subede internet zayifsa istemci erken vazgecerse kullanici timeout gorur ve kontrolsuz tekrar basabilir.
 - POST/create timeout gorurse UI hemen yeni istek kimligi veya farkli body uretmemeli; mumkunse ayni payload ile guvenli retry yapmali veya liste/detay yenileyerek evrakin olusup olusmadigini kontrol etmelidir.
 
 E-irsaliye alici alias notu:
@@ -1239,7 +1241,8 @@ Bu endpointler legacy UI gibi normal online da kullanilabilir. Ancak mobil uygul
 - Ayni `clientRequestId` halen isleniyorsa endpoint `409 Conflict` doner.
 - POST cevabi cihaza ulasmadiysa mobil uygulama once ayni `clientRequestId` ile tekrar POST denemelidir.
 - Desteklenen tum akislar ilgili `offline-sync/{clientRequestId}` endpoint'iyle sorgulanabilir. Durum sorgusu yeni create yazisi baslatmaz; kayitli request snapshot'i ile Mikro readback yapar ve bulunan kesin sonucu kalici kayda isler.
-- Depolar arasi sevk, depo iadesi, firma sevki/iadesi, zayiat, masraf ve virman Mikro API yaziminda timeout/istemci iptali gibi sonucu belirsiz bir hata olursa backend once ayni cagrida Mikro DB readback yapar. Evrak tum satirlariyla bulunursa cevap basarili doner ve Mikro API audit kaydi `Recovered` olur.
+- Firma mal kabul, verilen depo siparisi, depolar arasi sevk, depo iadesi, firma sevki/iadesi, zayiat, masraf ve virman Mikro API yaziminda timeout/istemci iptali gibi sonucu belirsiz bir hata olursa backend ayni cagrida Mikro DB readback yapar. Normal basarili Mikro cevaplarinda hizli readback penceresi 2,5 saniyedir. Timeout veya duplicate belge cevabinda Mikro satirlari gec gorunebilecegi icin readback artan araliklarla toplam 180 saniyeye kadar devam eder; bu uzun pencere normal basarili isteklere uygulanmaz. Evrak tum satirlari ve beklenen icerigiyle bulunursa cevap basarili doner ve Mikro API audit kaydi `RecoveredAfterUnknown` olur.
+- Verilen depo siparisi readback'i ayrilan seri/sira altindaki satirlarin tamamini stok kodu, miktar, birim, fiyat, hedef/kaynak depo ve temel satir alanlariyla karsilastirir. Eksik satir seti tamamlanana kadar beklenir; farkli veya fazla satir kalici `MIKRO_DOCUMENT_CONTENT_MISMATCH` kabul edilir.
 - Ilk readback sirasinda evrak henuz gorunmuyorsa ayni `clientRequestId` ile gelen tekrar POST Mikro'ya ikinci create yazisi gondermez. Backend sadece trace ile readback yapar; tum satirlar tamamlandiysa mevcut evraki toparlar, henuz tamamlanmadiysa `409 Conflict` ile islemin surdugunu bildirir.
 - Mikro API `evrak zaten mevcut`/duplicate document cevabi verirse backend bunu otomatik basari saymaz. Ayni seri/sira veya trace ile Mikro satirlarini okur; stok, miktar, birim ve satir butunlugu beklenen istekle tam eslesirse mevcut evraki dondurur ve audit kaydini `Recovered` yapar. Icerik eslesmezse yeni evrak yazmaz ve manuel inceleme hatasi verir.
 - Bu akislarin hicbirinde belirsiz sonuc sonrasi `409 Conflict` alinmasi yeni `clientRequestId` uretilmesi gerektigi anlamina gelmez. UI ayni payload snapshot'ini ve ayni `clientRequestId` degerini korumali; yeni id ancak kullanici acikca yeni bir islem baslatirsa uretilmelidir.
@@ -1255,6 +1258,8 @@ Guvenli create `409 Conflict` response sozlesmesi:
 - `MIKRO_DOCUMENT_CONTENT_MISMATCH`, `retryable=false`: Mikro'da ayni evrak anahtariyla kayit vardir fakat satir icerigi istekle tam eslesmemistir. UI `Tekrar Dene` aksiyonunu kapatip `Yetkili incelemesi gerekli` gostermelidir; otomatik veya yeni id ile POST yapmamalidir.
 - Bu manuel inceleme karari backend'de kalici saklanir. Ayni id tekrar gonderilse bile yeniden create veya otomatik recovery yapilmaz. Bu surum manuel incelemeyi kaldiran bir endpoint sunmaz; yetkili incelemesi ve kontrollu duzeltme gerekir.
 - Firma sevki/iadesi, zayiat/masraf ve virman readback'inde eksik satir seti basari sayilmaz. Eslesen fakat henuz tamamlanmamis set `MIKRO_WRITE_OUTCOME_UNCONFIRMED`, farkli stok/miktar/birim/trace veya fazla satir `MIKRO_DOCUMENT_CONTENT_MISMATCH` doner. Ham Mikro API cevabi tek basina basari kaniti degildir.
+- Firma sevki/iadesi, depolar arasi sevk, depo iadesi, zayiat/masraf, virman, sayim sonucu, firma mal kabul ve manav MNV duzeltmesi `Database` yazma yolunda transaction commit sonrasi Mikro'dan geri okunur. Belge anahtari, satir sayisi, stok, miktar, birim, tutar ve akisa ozgu trace/baglanti alanlari request snapshot'iyla dogrulanmadan offline kayit `Completed` olmaz; belge akis olayi basari olarak yazilmaz.
+- Bu kritik akislarin eski bir `Completed` kaydi ayni `clientRequestId` ile POST veya durum sorgusunda tekrar kullanildiginda Mikro readback yeniden dogrulanir. Belge Mikro'da yoksa veya eski basari artik birebir dogrulanamiyorsa response oynatilmaz; kayit `MIKRO_DOCUMENT_CONTENT_MISMATCH`, `retryable=false` ile manuel incelemeye alinir. Yeni/sonucu belirsiz yazmanin readback'inde satirlar gecici olarak eksikse `MIKRO_WRITE_OUTCOME_UNCONFIRMED`, `retryable=true`; satir icerigi farkliysa `MIKRO_DOCUMENT_CONTENT_MISMATCH`, `retryable=false` doner.
 - Bizim API'de trace ile olusturulan firma sevki/iadesinin e-irsaliyesi, create kaydi tamamlanmadan ve orijinal istek mevcut Mikro satirlariyla eslesmeden gonderilmez. JWT endpointlerinde yeni zorunlu request alani yoktur; legacy `expectedLineCount` zorunlulugu devam eder.
 - `CLIENT_REQUEST_PAYLOAD_MISMATCH`, `retryable=false`: ayni `clientRequestId` daha once farkli body ile kullanilmistir. Pending kayit degistirilmeden korunmali; kullanici gercekten yeni bir islem baslatacaksa yeni id ancak acik bir `Yeni islem` aksiyonuyla uretilmelidir.
 - `errorCode` bulunmayan eski/genel `409` cevaplari otomatik retry edilmemelidir; `detail` kullaniciya gosterilir.
@@ -1370,9 +1375,9 @@ Ortak offline status response modeli:
 
 - `Processing`: istek backend tarafinda rezerve edildi, islem tamamlanmadi veya sonuc henuz toparlanamadi
 - `Completed`: istek basariyla tamamlandi; `result` alaninda asil business response bulunur
-- `Failed`: son deneme hata ile kapandi; `errorMessage` dolu olabilir. U17, validasyon veya benzeri kesin is kurali hatasi duzeltilmeden tekrar edilmemelidir. Hata metni timeout/iptal/`write outcome could not be confirmed` ise sonuc belirsizdir; sevk, iade, firma hareketi, zayiat, masraf ve virman akislarinda ayni id ile retry yalnizca readback yapar ve ikinci yazma baslatmaz.
+- `Failed`: son deneme hata ile kapandi; `errorMessage` dolu olabilir. U17, validasyon veya benzeri kesin is kurali hatasi duzeltilmeden tekrar edilmemelidir. Hata metni timeout/iptal/`write outcome could not be confirmed` ise sonuc belirsizdir; sevk, iade, firma hareketi, zayiat, masraf ve virman akislarinda ayni id ile retry once readback yapar. Firma mal kabul `Database` rotasinda readback belge bulamaz ve onceki transaction'in geri alindigi kesinlesmisse ayni id ile yazma yeniden baslatilabilir; `MikroApi` rotasinda ikinci create yazisi baslatilmaz.
 - `errorCode` ve `retryable`, siniflandirilmis hata kararini ProblemDetails ile ayni makine-okunur alanlarla tasir. `retryable=true` ise `retryAfterSeconds` su an `5` doner; UI bu sure dolmadan ayni durumu veya ayni payload POST'unu tekrar etmemelidir.
-- `Completed` durumda `errorCode`, `retryable` ve `retryAfterSeconds` null; `result` asil create response'udur.
+- `Completed` durumda `errorCode`, `retryable` ve `retryAfterSeconds` null; `result` asil create response'udur. Firma sevki/iadesi durum endpointleri bu kaydi donmeden once Mikro belgesini tekrar dogrular; dogrulama basarisizsa durum artik `Completed` olarak sunulmaz.
 
 ## Mobil Urun-Fiyat Katalog Sync
 
@@ -1700,7 +1705,7 @@ Diagnostics acik response:
 ### Saglik Kontrolleri
 
 - `GET /health/live`: anonim; yalniz uygulama prosesinin cevap verebildigini olcer. DB/dis servis kontrolu yapmaz; `checks` bostur.
-- `GET /health/ready`: anonim; `core_dependencies` ve `operations_export_path` kontrollerini calistirir. Hazirlik/servis izleme icindir; UI her satir veya ekran icin cagirmamalidir.
+- `GET /health/ready`: anonim; `core_dependencies`, `operations_export_path` ve `background_workers` kontrollerini calistirir. `background_workers` su anda kritik AXATA kuyruk worker'ini ve AXATA scheduler'ini heartbeat/backlog bilgisiyle izler. Hazirlik/servis izleme icindir; UI her satir veya ekran icin cagirmamalidir.
 - `GET /health/ready` veritabani baglantilarini kontrol eder ancak Auth DB'de bekleyen EF Core migration bulunup bulunmadigini su an kontrol etmez. `Healthy` sonucu migration'larin guncel oldugunu kanitlamaz; migration kontrolu deployment adiminda ayrica yapilmalidir.
 - `Healthy` veya `Degraded` icin HTTP 200; `Unhealthy` icin HTTP 503 doner.
 - Bu middleware route'lari kodda HTTP method ile sinirlanmamistir. Istemciler GET kullanmalidir.
@@ -2438,13 +2443,70 @@ Bu ekran Mikro SQL Server uzerindeki aktif istekleri, kilit zincirlerini, uzun a
 Endpointler:
 
 ```text
+GET  /api/ayar-islemleri/veritabani-izleme/genel-bakis
 GET  /api/ayar-islemleri/veritabani-izleme/anlik
+GET  /api/ayar-islemleri/veritabani-izleme/workerlar
 GET  /api/ayar-islemleri/veritabani-izleme/olaylar?take=100
 GET  /api/ayar-islemleri/veritabani-izleme/guvenli-yazmalar?includeCompleted=false&take=100
 GET  /api/ayar-islemleri/veritabani-izleme/oturum-sonlandirma-gecmisi?take=100
 POST /api/ayar-islemleri/veritabani-izleme/oturumlar/{sessionId}/sonlandir
 GET  /api/ayar-islemleri/veritabani-izleme/oturumlar/{sessionId}/rollback-durumu
 ```
+
+#### Izleme Genel Bakis
+
+`GET /api/ayar-islemleri/veritabani-izleme/genel-bakis`
+
+Yetki: `ayar-islemleri.veritabani-izleme.list`
+
+Ekranin ilk istegidir. Canli SQL durumunu, worker heartbeat/backlog bilgisini, acik olay
+sayilarini ve guvenli yazma ozetini tek response'ta toplar. Ayrinti listeleri kendi
+endpointlerinden alinmaya devam eder.
+
+```json
+{
+  "generatedAtUtc": "2026-10-15T06:40:00Z",
+  "overallStatus": "warning",
+  "overallStatusName": "Dikkat Gerekiyor",
+  "headline": "1 izleme basligi dikkat bekliyor.",
+  "database": {
+    "status": "healthy",
+    "activeRequestCount": 2,
+    "blockedRequestCount": 0,
+    "longRunningRequestCount": 0,
+    "openTransactionCount": 0
+  },
+  "workers": {
+    "generatedAtUtc": "2026-10-15T06:40:00Z",
+    "overallStatus": "warning",
+    "workers": []
+  },
+  "incidents": {
+    "openCount": 0,
+    "criticalCount": 0,
+    "warningCount": 0,
+    "lastSeenAtUtc": null
+  },
+  "safeWrites": {
+    "windowHours": 24,
+    "processingCount": 0,
+    "staleProcessingCount": 0,
+    "retryableFailureCount": 0,
+    "manualReviewCount": 0,
+    "unclassifiedFailureCount": 0,
+    "completedCount": 125
+  }
+}
+```
+
+Ekran yerlesimi:
+
+- Ust bantta `overallStatusName`, `headline`, SQL durumu, worker durumu, acik olay ve dikkat bekleyen guvenli yazma sayilari gosterilir.
+- Alt gorunumler `Canli SQL`, `Workerlar`, `Olaylar`, `Guvenli Yazmalar` ve `Oturum Sonlandirma Gecmisi` sekmelerine ayrilir.
+- `genel-bakis`, `anlik` ve `workerlar` ekran gorunurken 10 saniyede bir yenilenebilir. Onceki istek bitmeden yenisi baslatilmaz.
+- `olaylar` ve `guvenli-yazmalar` varsayilan olarak 30 saniyede bir veya kullanici yenilediginde sorgulanir.
+- `safeWrites` hata sayilari son 24 saati, `processingCount` ve `staleProcessingCount` tum halen Processing kayitlarini kapsar.
+- `overallStatus=warning` uygulamanin durdugu anlamina gelmez; ilgili bolumdeki `recommendation` ve sayaclar incelenir.
 
 #### Anlik Izleme Response
 
@@ -2552,6 +2614,61 @@ Alan notlari:
 - `openTransactions`: acik kullanici transaction'laridir; aktif request olmasa da listede bulunabilir.
 - `canTerminate=true` teknik olarak sonlandirilabilir kullanici SPID'i oldugunu belirtir. Buton icin ayrica `terminate-session` permission'i zorunludur.
 - `sqlText`, `blockedSqlText` ve `lastSqlText` icindeki string literal degerler backend tarafinda `***` ile maskelenir.
+
+#### Worker Heartbeat ve Backlog
+
+`GET /api/ayar-islemleri/veritabani-izleme/workerlar`
+
+Yetki: `ayar-islemleri.veritabani-izleme.list`
+
+Bu endpoint su anda oncelikli olarak AXATA altyapisindaki iki sureci izler:
+
+- `axata-synchronization-worker`: kuyruktaki gorevleri calistiran kritik worker
+- `axata-synchronization-scheduler`: zamanli AXATA gorevlerini kuyruga alan scheduler
+
+Response her surec icin `status`, `statusName`, son heartbeat/basari/hata zamanlarini,
+`heartbeatAgeSeconds`, son hata metnini, o anki aktiviteyi, `hasUnresolvedFailure`,
+`requiresAttention`, kullaniciya gosterilecek `recommendation`, `queuedCount`,
+`runningCount`, en eski bekleyen isin zamanini/yasini ve heartbeat esigini dondurur.
+Durumlar `Healthy`, `Degraded`, `Unhealthy` veya konfigurasyonla kapaliysa `Disabled`
+olabilir.
+
+Worker satiri ornegi:
+
+```json
+{
+  "code": "axata-synchronization-worker",
+  "name": "AXATA Synchronization Worker",
+  "isCritical": true,
+  "isEnabled": true,
+  "status": "Degraded",
+  "statusName": "Dikkat Gerekiyor",
+  "activity": "Waiting for work",
+  "lastHeartbeatAtUtc": "2026-10-15T06:39:48Z",
+  "heartbeatAgeSeconds": 7,
+  "lastSuccessAtUtc": "2026-10-15T06:37:33Z",
+  "lastFailureAtUtc": "2026-10-15T06:37:47Z",
+  "lastError": "AXATA G02 aktariminda 17 belge basarisiz oldu.",
+  "hasUnresolvedFailure": true,
+  "requiresAttention": true,
+  "recommendation": "Worker calisiyor; son basarisiz gorevin detayini inceleyin. Eski worker'i yeniden acmayin.",
+  "queuedCount": 0,
+  "runningCount": 0,
+  "oldestQueuedAtUtc": null,
+  "oldestQueuedAgeSeconds": null,
+  "staleAfterSeconds": 60
+}
+```
+
+Kurallar:
+
+- Kritik AXATA worker'i 60 saniye heartbeat vermezse `Unhealthy` olur ve `/health/ready` HTTP `503` doner.
+- AXATA scheduler'i 3 dakika heartbeat vermezse kritik worker'i dusurmeden `Degraded` olur.
+- En eski AXATA isi 5 dakikayi asarsa `Degraded`, 30 dakikayi asarsa kritik worker `Unhealthy` olur.
+- Worker veya scheduler konfigurasyonla kapaliysa `Disabled` bilgi durumudur; tek basina readiness hatasi olusturmaz.
+- `Degraded + activity=Waiting for work + guncel heartbeat`, worker'in calistigini fakat son gorevin hata verdigini anlatir. UI bunu `Worker durdu` olarak gostermemelidir.
+- `requiresAttention=true` ise UI `recommendation` metnini gosterir. Eski worker'i yeniden baslatmak otomatik cozum olarak sunulmaz.
+- Heartbeat bellek ici runtime bilgisidir. Uygulama yeniden basladiginda zamanlar sifirdan baslar; kalici is/audit gecmisi yerine gecmez.
 
 #### Guvenli Yazma Izleme
 
@@ -6527,7 +6644,7 @@ Yetki:
 
 Onemli not:
 
-- Yazma yolu `MikroWriteRouting:InterWarehouseShipment` ile secilir; mevcut config'te varsayilan deger `Database`tir.
+- Yazma yolu `MikroWriteRouting:InterWarehouseShipment` ile secilir; mevcut config'te deger `MikroApi`dir.
 - `Database` modunda EF Core uzerinden ayri `MikroWriteDbContext` ile yazma yapar. Write hedefi canli `MikroConnection` degil; `MikroWriteConnection` yoksa `testMikroConnection` kullanilir.
 - `MikroWriteBatching:InterWarehouseShipmentEnabled`, `CompanyReceivingEnabled` ve `CompanyReturnEnabled` ayarlari ilgili `Database` yazma yollarini birbirinden bagimsiz acip kapatir. Ayar acikken bir evrakin `STOK_HAREKETLERI` satirlari mevcut transaction icinde tek SQL bulk batch olarak yazilir. Mikro trigger ve constraint kontrolleri acik kalir; hedef, cok satirli evrakta trigger'i satir basina degil belge batch'i basina bir kez calistirmaktir.
 - Firma mal kabulde normal kabul hareketleri tek batch, otomatik olusan firma iade evraki varsa onun satirlari ayri bir batch olarak yazilir. Boylece her belge kendi trigger calismasini bir kez yapar ve iki belge ayni transaction icinde birlikte commit/rollback olur.
@@ -6998,8 +7115,8 @@ Yetki:
 
 Onemli not:
 
-- Yazma yolu `MikroWriteRouting:CompanyMovement` ile belirlenir; mevcut config'te varsayilan deger `Database`tir.
-- `Database` modunda EF Core uzerinden ayri `MikroWriteDbContext` ile `STOK_HAREKETLERI` yazilir.
+- Yazma yolu `MikroWriteRouting:CompanyMovement` ile belirlenir; mevcut config'te deger `MikroApi`dir.
+- `Database` modunda EF Core uzerinden ayri `MikroWriteDbContext` ile `STOK_HAREKETLERI` yazilir. Commit sonrasinda ayni write DB'den tum belge satirlari geri okunur; satir icerigi ve olusturulan `sth_Guid` kumesi dogrulanmadan create basarili sayilmaz.
 - `MikroApi` modunda `POST /Api/apiMethods/IrsaliyeKaydetV2` kullanilir ve olusan hareketler response/geri okuma ile mevcut response modeline cevrilir.
 - Firma giden sevki hareketi `sth_evraktip = 1`, `sth_tip = 1`, `sth_cins = 0`, `sth_normal_iade = 0` olarak olusur.
 - `*.all-warehouses` yoksa `warehouseNo` sorulmaz; backend JWT icindeki kullanici deposunu kullanir. Ilgili sevk menusunde `all-warehouses` yetkisi olan kullanici baska depo adina sevk olusturacaksa body'de opsiyonel `warehouseNo` gonderebilir.
@@ -7807,6 +7924,10 @@ Onemli not:
 - Ayni `clientRequestId` ile ayni payload tekrar gonderilirse backend ayni business response'u dondurmeye calisir.
 - Ayni `clientRequestId` ile farkli payload gonderilirse `409 Conflict` doner.
 - Ayni `clientRequestId` halen isleniyorsa `409 Conflict` doner.
+- `clientRequestId` kaydi Auth DB'de rezerve edildikten sonra terminalin HTTP baglantisinin kopmasi veya request'i iptal etmesi baslamis Mikro transaction'ini iptal etmez. Yazma kendi SQL/Mikro command timeout sinirlari icinde tamamlanir ve sonucu offline kaydina yazilir.
+- Eski kayitlarda ham `A task was canceled.` gibi siniflandirilmamis bir hata varsa durum veya ayni kimlikle retry akisi once trace readback yapar. Belge bulunamazsa kayit `MIKRO_WRITE_OUTCOME_UNCONFIRMED`, `retryable=true` olarak makine-okunur bicimde guncellenir.
+- `MikroWriteRouting:CompanyReceiving=Database` iken onceki deneme transaction rollback ile kapanmis ve trace readback hic hareket bulamamissa ayni payload + ayni `clientRequestId` yeniden yazilabilir. Bu yeni bir mantiksal fis degildir ve yeni GUID uretilmez.
+- `MikroWriteRouting:CompanyReceiving=MikroApi` iken belirsiz sonuc sonrasi ayni kimlik yeni Mikro API create cagrisi baslatmaz; yalniz readback ile kesin sonuc aranir ve bulunamiyorsa islem kontrol bekleyen durumda kalir.
 
 Create body validasyonlari:
 
@@ -8013,6 +8134,8 @@ Onemli not:
 - Bu endpoint sadece ayni kullanicinin daha once acmis oldugu offline create kaydini sorgular.
 - Kayit bulunamazsa `404 Not Found` doner.
 - Sonuc ilk POST cevabinda cihaza donemediyse backend kaydi `sth_eticaret_kanal_kodu` izinden tekrar toparlayabilir.
+- Eski `Failed + A task was canceled. + errorCode=null` kaydi readback sonucunda belge bulunamazsa `Failed + MIKRO_WRITE_OUTCOME_UNCONFIRMED + retryable=true` olarak kalici siniflandirilir; ham iptal mesaji UI karar kaynagi olmamalidir.
+- Durum sorgusu tek basina yeni create yazisi baslatmaz. `Database` rotasinda readback belge bulamadiysa ayni body ve ayni `clientRequestId` ile yapilan sonraki POST kontrollu yeniden yazmayi baslatabilir.
 - `status = Completed` ise `result` icinde asagidaki `CreateCompanyReceivingResponse` modeli bulunur.
 
 Ornek response:
@@ -18803,6 +18926,8 @@ Endpointler:
 | `GET /api/entegrasyon-islemleri/trendyol-go/price-stock/preview?storeId=402535&view=actionable` | query | `TrendyolGoPriceStockPreview` | `list` |
 | `POST /api/entegrasyon-islemleri/trendyol-go/price-stock/preview/refresh?storeId=402535` | query | `202` + `TrendyolGoPriceStockRefreshStatus` | `list` |
 | `POST /api/entegrasyon-islemleri/trendyol-go/price-stock/dispatch` | `TrendyolGoPriceStockDispatchHttpRequest` | `TrendyolGoPriceStockDispatch` | `update` |
+| `GET /api/entegrasyon-islemleri/trendyol-go/catalog/preview?storeId=402535&view=actionable` | query | `TrendyolGoCatalogPreview` | `list` |
+| `POST /api/entegrasyon-islemleri/trendyol-go/catalog/dispatch` | `TrendyolGoCatalogDispatchHttpRequest` | `TrendyolGoCatalogDispatch` | `update` |
 | `GET /api/entegrasyon-islemleri/trendyol-go/products/batch-requests/{batchRequestId}` | path | batch sonucu | `detail` |
 | `PUT /api/entegrasyon-islemleri/trendyol-go/products/sale-on` | `{ items: [...] }` | batch response veya `204` | `update` |
 | `PUT /api/entegrasyon-islemleri/trendyol-go/products/sale-off` | `{ items: [...] }` | batch response veya `204` | `update` |
@@ -18873,7 +18998,7 @@ Mikro'dan barkod girmeden fiyat/stok gonderme:
 6. Sorun inceleme ekrani gerekiyorsa GET istegine `view=issues`; tum katalog denetimi gerekiyorsa `view=all` eklenir. Onizleme endpointinde kullaniciya acik sayfalama yoktur; katalog sayfalari backend tarafinda yonetilir.
 7. Secilen barkodlar ve onizleme `previewHash` degeriyle `price-stock/dispatch` cagrilir. Gonderimde tum katalog tekrar okunmaz; secilen satirlar Mikro'dan yeniden dogrulanir. Secilen urunun fiyati/stoku degismisse veya worker yeni snapshot yayinlayip hash'i degistirmisse `409 Conflict` doner ve UI guncel onizlemeyi alir.
 8. Gonderim response'undaki `upstreamResponses[].batchRequestId` degerleriyle mevcut `products/batch-requests/{batchRequestId}` sonucu kontrol edilir. POST'un kabul edilmesi, tum satirlarin islendigi anlamina gelmez.
-9. Kullanici ister tek tek secim yapar, ister `sendAll=true` ile tum `Ready` farklarini gonderir. Backend Trendyol limitine uygun olarak gonderimi kendi icinde en fazla 1000 satirlik paketlere ayirir; UI paket veya sayfa yonetmez.
+9. UI `mode=selected` ile secili `Ready` satirlari, `mode=changed` ile tum `Ready` farklarini veya `mode=all-existing` ile TGO'da mevcut ve Mikro'da gecerli `Ready + Unchanged` urunlerin tamamini yeniden gonderebilir. Eski `sendAll=true` istegi geriye uyum icin `mode=changed` kabul edilir. Backend Trendyol limitine uygun olarak gonderimi kendi icinde en fazla 1000 satirlik paketlere ayirir; UI paket veya sayfa yonetmez.
 
 Snapshot durumlari:
 
@@ -18958,10 +19083,35 @@ Gonderim body:
 
 
   "previewHash": "A1B2...",
+  "mode": "all-existing",
+  "barcodes": []
+}
+```
+
+`mode` degerleri:
+
+```text
+selected      Yalniz barcodes listesindeki Ready farklarini gonderir.
+changed       Tum Ready fiyat/stok farklarini gonderir.
+all-existing  TGO'da mevcut, Mikro'da gecerli Ready ve Unchanged urunlerin tamamini yeniden gonderir.
+```
+
+`all-existing` sorunlu `Skipped` satirlari gondermez ve TGO'da bulunmayan Mikro urunlerini olusturmaz. Mikro'daki tum katalogun ilk kez aktarimi ayri urun olusturma akisidir; TGO `brandId`, `categoryId` ve `vatRate` alanlari tamamlanmadan otomatik gonderim yapilmamalidir.
+
+Mikro'daki TGO'da bulunmayan urunler icin `GET /catalog/preview` kullanilir. Backend mevcut TGO urunlerinden Mikro marka ve kategori kodu bazinda tekil ID eslemesi ogrenmeye calisir; konfigurasyondaki `TrendyolGo:Catalog:BrandMappings` ve `CategoryMappings` degerleri bu eslemeyi ezer. Satirlar `Existing`, `Ready`, `MappingRequired` veya `Skipped` doner. Desteklenmeyen KDV orani, gecersiz barkod, sifir fiyat, bloklu/pasif stok veya duplicate barkod gonderilmez ve `Skipped` sebebiyle birlikte doner. `POST /catalog/dispatch` yalniz `Ready` satirlari urun olusturma servisine gonderir. Batch sonucu tamamlanip urunler katalogda gorunmeden fiyat/stok gonderilmemelidir.
+
+Katalog gonderim body:
+
+```json
+{
+  "storeId": 402535,
+  "previewHash": "KATALOG-ONIZLEMESINDEN-GELEN-HASH",
   "sendAll": true,
   "barcodes": []
 }
 ```
+
+Katalog urunleri supplier genelinde olusturulur. Kabul sonrasinda her sube icin fiyat/stok ayri ele alinir; ilgili magazada `mode=all-existing` ilk tam yuklemeyi yapar.
 
 Bu akis sadece TGO katalogunda bulunan urunleri kapsar. Mikro satis fiyati sifir/bos, barkod eslesmesi yok, urun pasif veya satisa kapali ise satir `Skipped` olur. Negatif stok `0` kabul edilir; kesirli stok tam sayiya asagi yuvarlanir. `storeId` tum subeler yerine sadece secilen TGO magazasina gonderilir. Tekrar gonderimden once batch sonucunu ve guncel onizlemeyi kontrol edin; TGO ayni body'nin 15 dakika icinde tekrarini reddedebilir.
 
@@ -19127,6 +19277,12 @@ Desteklenen task kodlari:
 - `warehouse-inbound-order-sync`
 - `company-receiving-sync`
 - `inventory-count-sync`
+- `c01-outbound-delivery-import`
+- `c02-outbound-delivery-import`
+- `c03-outbound-delivery-import`
+- `c04-outbound-delivery-import`
+- `g01-inbound-atf-import`
+- `g02-inbound-delivery-import`
 
 Execution mode:
 
@@ -19244,7 +19400,7 @@ Not: Bu listede eski teknik route'lar da bulunabilir. Yeni UI icin oncelikli rou
   - response `AxataSynchronizationManualDispatchDto`
   - su an `issued-warehouse-order-sync`, `warehouse-inbound-order-sync` ve `company-receiving-sync` icin tanimlidir
   - `issued-warehouse-order-sync` worker parity icin `C01` hareket kodu ile `addOutboundOrder*` operasyonunu kullanir
-  - `issued-warehouse-order-sync` basarili donerse `ssip_special1=1` bayragi `MikroWriteRouting:IssuedWarehouseOrder=Database` iken DB update ile, `MikroApi` iken `POST /Api/apiMethods/DepolarArasiSiparisDuzeltV2` ile satir `ssip_Guid` degerleri uzerinden yazilir; MikroApi modunda DB fallback yoktur ve yazim read-only geri okuma ile dogrulanir
+  - `issued-warehouse-order-sync` basarili donerse `ssip_special1=1` bayragi ayri `MikroWriteRouting:WarehouseOrderSentFlag` ayarina gore yazilir. Mevcut profilde bu update rotasi `Database`tir; `IssuedWarehouseOrder=MikroApi` yalniz yeni depo siparisi insertini belirler
   - `warehouse-inbound-order-sync` worker parity icin `G02` hareket kodu ile `addInboundOrder*` operasyonunu kullanir; basarili donerse `ssip_special1=1` bayragi `ssip_girdepo = warehouseNo` evreninde isaretlenir
   - `company-receiving-sync` worker parity icin verilen firma/satinalma siparisini `G01` hareket kodu ile `addInboundOrder*` operasyonuna gonderir; basarili donerse `sip_special1=1` bayragi isaretlenir
 - `POST /api/integrations/axata-sync/manual/tasks/{taskCode}/documents/dispatch-batch`
@@ -19746,6 +19902,12 @@ Task bazli UI buton kurali:
 | `warehouse-inbound-order-sync` | Var | Var | Var | Var | Yok | Yok |
 | `company-receiving-sync` | Var | Var | Var | Var | Yok | Yok |
 | `inventory-count-sync` | Var | Var | Var | Yok | Yok | Var, task Live veya DynamicCensus route |
+| `c01-outbound-delivery-import` | AXATA kuyrugu | Var | Var | Yok | Var | Var, task Live veya C01 route |
+| `c02-outbound-delivery-import` | AXATA kuyrugu | Var | Var | Yok | Var | Var, task Live veya C02 route |
+| `c03-outbound-delivery-import` | AXATA kuyrugu | Var | Var | Yok | Var | Var, task Live veya C03 route |
+| `c04-outbound-delivery-import` | AXATA kuyrugu | Var | Var | Yok | Var | Var, task Live veya C4 route |
+| `g01-inbound-atf-import` | AXATA ATF kuyrugu | Var | Var | Yok | Var | Var, task Live veya G01 route |
+| `g02-inbound-delivery-import` | AXATA G02 kuyrugu | Var | Var | Yok | Var | Var, task Live veya G02 route |
 | `C01 outbound delivery` | AXATA kuyrugu + belge bazli rescue | Var | Yok | Yok | Var | Var |
 | `C02 outbound delivery` | AXATA kuyrugu | Var | Yok | Yok | Var | Var |
 | `C03 outbound delivery` | AXATA kuyrugu | Var | Yok | Yok | Var | Var |
@@ -20135,7 +20297,7 @@ Entegrasyon modulu notlari:
 - `live/axata/outbound-deliveries/preview` endpoint'i C01/C02/C03/C4 AXATA pending kuyrugunu canli okur; Mikro veya AXATA verisi yazmaz
 - `live/axata/outbound-deliveries/c01|c02|c03|c04/*` endpoint'leri AXATA'dan canli outbound delivery cekip Mikro'ya yazar; AXATA ack sadece Mikro kaydi basarili olursa atilir
 - `live/axata/inbound-atf/g01/*`, `live/axata/inbound-deliveries/g02/*` ve `live/axata/dynamic-census/*` endpoint'leri AXATA -> Mikro canli import endpointleridir
-- `inventory-count-sync` Live execution otomatik scheduler acilirsa DynamicCensus importu calistirir; diger live import endpointleri manuel operasyon aksiyonudur
+- `inventory-count-sync` ile `c01/c02/c03/c04/g01/g02` import task'lari Live execution ve otomatik scheduler uzerinden AXATA bekleyen kuyruklarini Mikro'ya isler
 - toplu endpoint'lerde `ContinueOnError = true` ise HTTP 200 donup basarisiz item'lari `Failures` listesinde raporlar
 - `Outbox` modu su an gercek WCF dispatch degil, payload uretim ve dosyalama asamasidir
 - canli AXATA import/ack adapter'i C01/C02/C03/C4 outbound delivery, G01 inbound ATF, G02 inbound delivery ve DynamicCensus icin aktiftir
@@ -20144,7 +20306,7 @@ Entegrasyon modulu notlari:
 
 Bu modulun tasarim hedefi:
 
-- eski worker'i birebir tasimak degil
+- eski worker'in aktif 13 akisinin tamamini task/handler/queue mantigiyla guvenli ve izlenebilir bicimde karsilamak
 - eski AXATA altyapisini task/handler/queue mantigiyla normalize etmek
 - ileride yeni worker rahat yazilsin diye preview, scheduler, queue ve dispatch omurgasini sabitlemek
 - ayni anda operasyon ekibine manuel kurtarma ve manuel aktarim ekranlari vermek
@@ -20160,6 +20322,12 @@ UI task/aksiyon matrisi:
 | `warehouse-inbound-order-sync` | Var | Var | Var | Var | Mikro -> AXATA G02 giris siparisi icin ana task |
 | `company-receiving-sync` | Var | Var | Var | Var | Mikro -> AXATA G01 verilen firma/satinalma siparisi |
 | `inventory-count-sync` | Var | Var | Var | Var | DryRun/Outbox Mikro sayim payload; Live AXATA DynamicCensus import |
+| `c01-outbound-delivery-import` | Var | Yok | Yok | Var | AXATA C01 bekleyen sevklerini Mikro'ya aktarir ve basari sonrasi acknowledge eder |
+| `c02-outbound-delivery-import` | Var | Yok | Yok | Var | AXATA C02 bekleyen sevklerini Mikro'ya aktarir ve basari sonrasi acknowledge eder |
+| `c03-outbound-delivery-import` | Var | Yok | Yok | Var | AXATA C03 bekleyen depo iadelerini Mikro'ya aktarir ve basari sonrasi acknowledge eder |
+| `c04-outbound-delivery-import` | Var | Yok | Yok | Var | AXATA C4 bekleyen firma iadelerini Mikro'ya aktarir ve basari sonrasi acknowledge eder |
+| `g01-inbound-atf-import` | Var | Yok | Yok | Var | AXATA G01 ATF kayitlarini Mikro firma mal kabule aktarir ve acknowledge eder |
+| `g02-inbound-delivery-import` | Var | Yok | Yok | Var | AXATA G02 kayitlarini Mikro depo mal kabule aktarir ve acknowledge eder |
 
 UI manuel aktarim senaryolari:
 
@@ -24896,11 +25064,13 @@ Bu bolum test hostundaki ApiExplorer ve Swagger metadata'sindan otomatik uretili
 | GET | `/api/ayar-islemleri/terminal-cihazlari/ozet` | JWT + ayar-islemleri.terminal-cihazlari.list | query: warehouseNo / integer (int32) | 401: ProblemDetails<br>403: ProblemDetails<br>200: TerminalInstallationSummaryDto |
 | GET | `/api/ayar-islemleri/terminal-cihazlari/{id}` | JWT + ayar-islemleri.terminal-cihazlari.detail | path: id / string (uuid) (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: TerminalInstallationDto<br>404: ProblemDetails |
 | GET | `/api/ayar-islemleri/veritabani-izleme/anlik` | JWT + ayar-islemleri.veritabani-izleme.list |  | 401: ProblemDetails<br>403: ProblemDetails<br>200: DatabaseMonitoringSnapshotDto |
+| GET | `/api/ayar-islemleri/veritabani-izleme/genel-bakis` | JWT + ayar-islemleri.veritabani-izleme.list |  | 401: ProblemDetails<br>403: ProblemDetails<br>200: MonitoringOverviewDto |
 | GET | `/api/ayar-islemleri/veritabani-izleme/guvenli-yazmalar` | JWT + ayar-islemleri.veritabani-izleme.detail | query: Status / string<br>query: OperationCode / string<br>query: WarehouseNo / integer (int32)<br>query: Retryable / boolean<br>query: IncludeCompleted / boolean<br>query: Take / integer (int32) | 401: ProblemDetails<br>403: ProblemDetails<br>200: IReadOnlyCollection&lt;SafeWriteMonitoringItemDto&gt;<br>400: ProblemDetails |
 | GET | `/api/ayar-islemleri/veritabani-izleme/olaylar` | JWT + ayar-islemleri.veritabani-izleme.detail | query: take / integer (int32) | 401: ProblemDetails<br>403: ProblemDetails<br>200: IReadOnlyCollection&lt;DatabaseMonitoringIncidentDto&gt; |
 | GET | `/api/ayar-islemleri/veritabani-izleme/oturum-sonlandirma-gecmisi` | JWT + ayar-islemleri.veritabani-izleme.detail | query: take / integer (int32) | 401: ProblemDetails<br>403: ProblemDetails<br>200: IReadOnlyCollection&lt;DatabaseSessionTerminationDto&gt; |
 | GET | `/api/ayar-islemleri/veritabani-izleme/oturumlar/{sessionId}/rollback-durumu` | JWT + ayar-islemleri.veritabani-izleme.detail | path: sessionId / integer (int32) (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: DatabaseRollbackStatusDto |
 | POST | `/api/ayar-islemleri/veritabani-izleme/oturumlar/{sessionId}/sonlandir` | JWT + ayar-islemleri.veritabani-izleme.terminate-session | path: sessionId / integer (int32) (zorunlu)<br>body: request / TerminateDatabaseSessionHttpRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: DatabaseSessionTerminationDto<br>400: ProblemDetails<br>404: ProblemDetails<br>409: ProblemDetails |
+| GET | `/api/ayar-islemleri/veritabani-izleme/workerlar` | JWT + ayar-islemleri.veritabani-izleme.list |  | 401: ProblemDetails<br>403: ProblemDetails<br>200: WorkerMonitoringSnapshotDto |
 | GET | `/api/duzeltme-islemleri/mikro-evrak-duzenleme/alan-haritasi` | JWT + duzeltme-islemleri.mikro-evrak-duzenleme.list |  | 401: ProblemDetails<br>403: ProblemDetails<br>200: MikroDocumentFieldCatalogDto |
 | DELETE | `/api/duzeltme-islemleri/mikro-evrak-duzenleme/banknot-takipleri/{banknoteTrackId}` | JWT + duzeltme-islemleri.mikro-evrak-duzenleme.delete | path: banknoteTrackId / string (uuid) (zorunlu)<br>query: warehouseNo / integer (int32) | 401: ProblemDetails<br>403: ProblemDetails<br>200: MikroDocumentDeleteResponse<br>400: ProblemDetails<br>404: ProblemDetails |
 | GET | `/api/duzeltme-islemleri/mikro-evrak-duzenleme/banknot-takipleri/{banknoteTrackId}` | JWT + duzeltme-islemleri.mikro-evrak-duzenleme.detail | path: banknoteTrackId / string (uuid) (zorunlu)<br>query: warehouseNo / integer (int32) | 401: ProblemDetails<br>403: ProblemDetails<br>200: BanknoteTrackDto<br>400: ProblemDetails<br>404: ProblemDetails |
@@ -24959,6 +25129,8 @@ Bu bolum test hostundaki ApiExplorer ve Swagger metadata'sindan otomatik uretili
 | GET | `/api/entegrasyon-islemleri/pos-muhasebe-aktarimi/z-raporlari/{totalId}` | JWT + entegrasyon-islemleri.pos-muhasebe-aktarimi.detail | path: totalId / integer (int32) (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: ZReportDetailDto<br>404: ProblemDetails |
 | GET | `/api/entegrasyon-islemleri/trendyol-go` | JWT + entegrasyon-islemleri.trendyol-go.list |  | 401: ProblemDetails<br>403: ProblemDetails<br>200: TrendyolGoConnectionStatusDto |
 | GET | `/api/entegrasyon-islemleri/trendyol-go/brands` | JWT + entegrasyon-islemleri.trendyol-go.list | query: page / integer (int32)<br>query: size / integer (int32)<br>query: name / string | 401: ProblemDetails<br>403: ProblemDetails |
+| POST | `/api/entegrasyon-islemleri/trendyol-go/catalog/dispatch` | JWT + entegrasyon-islemleri.trendyol-go.update | body: request / TrendyolGoCatalogDispatchHttpRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: TrendyolGoCatalogDispatch |
+| GET | `/api/entegrasyon-islemleri/trendyol-go/catalog/preview` | JWT + entegrasyon-islemleri.trendyol-go.list | query: storeId / integer (int64)<br>query: view / string<br>query: search / string<br>query: take / integer (int32) | 401: ProblemDetails<br>403: ProblemDetails<br>200: TrendyolGoCatalogPreview |
 | GET | `/api/entegrasyon-islemleri/trendyol-go/claims` | JWT + entegrasyon-islemleri.trendyol-go.list | query: ClaimItemStatus / string<br>query: StartDate / integer (int64)<br>query: EndDate / integer (int64)<br>query: Page / integer (int32)<br>query: Size / integer (int32) | 401: ProblemDetails<br>403: ProblemDetails |
 | PUT | `/api/entegrasyon-islemleri/trendyol-go/claims/{claimId}/accept` | JWT + entegrasyon-islemleri.trendyol-go.update | path: claimId / string (zorunlu)<br>body: payload / JsonElement (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails |
 | GET | `/api/entegrasyon-islemleri/trendyol-go/claims/{claimId}/items/objectionable` | JWT + entegrasyon-islemleri.trendyol-go.detail | path: claimId / string (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails |
@@ -26304,6 +26476,15 @@ Enum degerleri JSON sozlesmesinde bulunur.
 | `waitMilliseconds` | integer (int64) | Hayir |  |
 | `waitType` | string | Hayir | nullable |
 
+### FurpaMerkezApi.Application.Modules.AyarIslemleri.VeritabaniIzleme.DatabaseIncidentOverviewDto
+
+| JSON alani | Tip | Zorunlu | Sinirlar |
+|---|---|---|---|
+| `criticalCount` | integer (int32) | Hayir |  |
+| `lastSeenAtUtc` | string (date-time) | Hayir | nullable |
+| `openCount` | integer (int32) | Hayir |  |
+| `warningCount` | integer (int32) | Hayir |  |
+
 ### FurpaMerkezApi.Application.Modules.AyarIslemleri.VeritabaniIzleme.DatabaseMonitoringIncidentDto
 
 | JSON alani | Tip | Zorunlu | Sinirlar |
@@ -26325,6 +26506,16 @@ Enum degerleri JSON sozlesmesinde bulunur.
 | `sqlText` | string | Hayir | nullable |
 | `type` | string | Hayir | nullable |
 | `waitType` | string | Hayir | nullable |
+
+### FurpaMerkezApi.Application.Modules.AyarIslemleri.VeritabaniIzleme.DatabaseMonitoringOverviewDto
+
+| JSON alani | Tip | Zorunlu | Sinirlar |
+|---|---|---|---|
+| `activeRequestCount` | integer (int32) | Hayir |  |
+| `blockedRequestCount` | integer (int32) | Hayir |  |
+| `longRunningRequestCount` | integer (int32) | Hayir |  |
+| `openTransactionCount` | integer (int32) | Hayir |  |
+| `status` | string | Hayir | nullable |
 
 ### FurpaMerkezApi.Application.Modules.AyarIslemleri.VeritabaniIzleme.DatabaseMonitoringSnapshotDto
 
@@ -26416,6 +26607,19 @@ Enum degerleri JSON sozlesmesinde bulunur.
 | `sessionId` | integer (int32) | Hayir |  |
 | `sqlText` | string | Hayir | nullable |
 
+### FurpaMerkezApi.Application.Modules.AyarIslemleri.VeritabaniIzleme.MonitoringOverviewDto
+
+| JSON alani | Tip | Zorunlu | Sinirlar |
+|---|---|---|---|
+| `database` | FurpaMerkezApi.Application.Modules.AyarIslemleri.VeritabaniIzleme.DatabaseMonitoringOverviewDto | Hayir |  |
+| `generatedAtUtc` | string (date-time) | Hayir |  |
+| `headline` | string | Hayir | nullable |
+| `incidents` | FurpaMerkezApi.Application.Modules.AyarIslemleri.VeritabaniIzleme.DatabaseIncidentOverviewDto | Hayir |  |
+| `overallStatus` | string | Hayir | nullable |
+| `overallStatusName` | string | Hayir | nullable |
+| `safeWrites` | FurpaMerkezApi.Application.Modules.AyarIslemleri.VeritabaniIzleme.SafeWriteMonitoringOverviewDto | Hayir |  |
+| `workers` | FurpaMerkezApi.Application.Modules.AyarIslemleri.VeritabaniIzleme.WorkerMonitoringSnapshotDto | Hayir |  |
+
 ### FurpaMerkezApi.Application.Modules.AyarIslemleri.VeritabaniIzleme.SafeWriteMonitoringItemDto
 
 | JSON alani | Tip | Zorunlu | Sinirlar |
@@ -26433,6 +26637,52 @@ Enum degerleri JSON sozlesmesinde bulunur.
 | `status` | string | Hayir | nullable |
 | `updatedAtUtc` | string (date-time) | Hayir | nullable |
 | `warehouseNo` | integer (int32) | Hayir |  |
+
+### FurpaMerkezApi.Application.Modules.AyarIslemleri.VeritabaniIzleme.SafeWriteMonitoringOverviewDto
+
+| JSON alani | Tip | Zorunlu | Sinirlar |
+|---|---|---|---|
+| `completedCount` | integer (int32) | Hayir |  |
+| `manualReviewCount` | integer (int32) | Hayir |  |
+| `processingCount` | integer (int32) | Hayir |  |
+| `retryableFailureCount` | integer (int32) | Hayir |  |
+| `staleProcessingCount` | integer (int32) | Hayir |  |
+| `unclassifiedFailureCount` | integer (int32) | Hayir |  |
+| `windowHours` | integer (int32) | Hayir |  |
+
+### FurpaMerkezApi.Application.Modules.AyarIslemleri.VeritabaniIzleme.WorkerMonitoringItemDto
+
+| JSON alani | Tip | Zorunlu | Sinirlar |
+|---|---|---|---|
+| `activity` | string | Hayir | nullable |
+| `code` | string | Hayir | nullable |
+| `hasUnresolvedFailure` | boolean | Hayir |  |
+| `heartbeatAgeSeconds` | integer (int64) | Hayir | nullable |
+| `isCritical` | boolean | Hayir |  |
+| `isEnabled` | boolean | Hayir |  |
+| `lastError` | string | Hayir | nullable |
+| `lastFailureAtUtc` | string (date-time) | Hayir | nullable |
+| `lastHeartbeatAtUtc` | string (date-time) | Hayir | nullable |
+| `lastSuccessAtUtc` | string (date-time) | Hayir | nullable |
+| `name` | string | Hayir | nullable |
+| `oldestQueuedAgeSeconds` | integer (int64) | Hayir | nullable |
+| `oldestQueuedAtUtc` | string (date-time) | Hayir | nullable |
+| `queuedCount` | integer (int32) | Hayir |  |
+| `recommendation` | string | Hayir | nullable |
+| `registeredAtUtc` | string (date-time) | Hayir |  |
+| `requiresAttention` | boolean | Hayir |  |
+| `runningCount` | integer (int32) | Hayir |  |
+| `staleAfterSeconds` | integer (int32) | Hayir |  |
+| `status` | string | Hayir | nullable |
+| `statusName` | string | Hayir | nullable |
+
+### FurpaMerkezApi.Application.Modules.AyarIslemleri.VeritabaniIzleme.WorkerMonitoringSnapshotDto
+
+| JSON alani | Tip | Zorunlu | Sinirlar |
+|---|---|---|---|
+| `generatedAtUtc` | string (date-time) | Hayir |  |
+| `overallStatus` | string | Hayir | nullable |
+| `workers` | FurpaMerkezApi.Application.Modules.AyarIslemleri.VeritabaniIzleme.WorkerMonitoringItemDto[] | Hayir | nullable |
 
 ### FurpaMerkezApi.Application.Modules.Common.CompanyMovements.CompanyMovementDetailDto
 
@@ -28682,6 +28932,50 @@ Enum degerleri JSON sozlesmesinde bulunur.
 | `isSent` | boolean | Hayir |  |
 | `totalId` | integer (int32) | Hayir |  |
 | `zNo` | integer (int32) | Hayir |  |
+
+### FurpaMerkezApi.Application.Modules.EntegrasyonIslemleri.TrendyolGo.TrendyolGoCatalogDispatch
+
+| JSON alani | Tip | Zorunlu | Sinirlar |
+|---|---|---|---|
+| `batchCount` | integer (int32) | Hayir |  |
+| `nextStep` | string | Hayir | nullable |
+| `sentCount` | integer (int32) | Hayir |  |
+| `storeId` | integer (int64) | Hayir |  |
+| `upstreamResponses` | [] | Hayir | nullable |
+| `warehouseNo` | integer (int32) | Hayir |  |
+
+### FurpaMerkezApi.Application.Modules.EntegrasyonIslemleri.TrendyolGo.TrendyolGoCatalogPreview
+
+| JSON alani | Tip | Zorunlu | Sinirlar |
+|---|---|---|---|
+| `existingCount` | integer (int32) | Hayir |  |
+| `items` | FurpaMerkezApi.Application.Modules.EntegrasyonIslemleri.TrendyolGo.TrendyolGoCatalogRow[] | Hayir | nullable |
+| `mappingRequiredCount` | integer (int32) | Hayir |  |
+| `previewHash` | string | Hayir | nullable |
+| `readyCount` | integer (int32) | Hayir |  |
+| `skippedCount` | integer (int32) | Hayir |  |
+| `storeId` | integer (int64) | Hayir |  |
+| `storeName` | string | Hayir | nullable |
+| `totalCount` | integer (int32) | Hayir |  |
+| `view` | string | Hayir | nullable |
+| `visibleCount` | integer (int32) | Hayir |  |
+| `warehouseNo` | integer (int32) | Hayir |  |
+
+### FurpaMerkezApi.Application.Modules.EntegrasyonIslemleri.TrendyolGo.TrendyolGoCatalogRow
+
+| JSON alani | Tip | Zorunlu | Sinirlar |
+|---|---|---|---|
+| `barcode` | string | Hayir | nullable |
+| `mikroBrandCode` | string | Hayir | nullable |
+| `mikroCategoryCode` | string | Hayir | nullable |
+| `mikroPrice` | number (double) | Hayir | nullable |
+| `productName` | string | Hayir | nullable |
+| `reason` | string | Hayir | nullable |
+| `status` | string | Hayir | nullable |
+| `stockCode` | string | Hayir | nullable |
+| `trendyolBrandId` | integer (int64) | Hayir | nullable |
+| `trendyolCategoryId` | integer (int64) | Hayir | nullable |
+| `vatRate` | integer (int32) | Hayir | nullable |
 
 ### FurpaMerkezApi.Application.Modules.EntegrasyonIslemleri.TrendyolGo.TrendyolGoConnectionStatusDto
 
@@ -34571,6 +34865,15 @@ Enum degerleri JSON sozlesmesinde bulunur.
 | `documentNo` | string | Hayir | minLength=0; maxLength=50; nullable |
 | `paymentType` | string | Hayir | minLength=0; maxLength=30; nullable |
 
+### FurpaMerkezApi.WebApi.Controllers.Modules.EntegrasyonIslemleri.TrendyolGo.TrendyolGoCatalogDispatchHttpRequest
+
+| JSON alani | Tip | Zorunlu | Sinirlar |
+|---|---|---|---|
+| `barcodes` | string[] | Hayir | nullable |
+| `previewHash` | string | Evet | minLength=1 |
+| `sendAll` | boolean | Hayir |  |
+| `storeId` | integer (int64) | Hayir | min=1 |
+
 ### FurpaMerkezApi.WebApi.Controllers.Modules.EntegrasyonIslemleri.TrendyolGo.TrendyolGoInvoiceHttpRequest
 
 | JSON alani | Tip | Zorunlu | Sinirlar |
@@ -34585,6 +34888,7 @@ Enum degerleri JSON sozlesmesinde bulunur.
 | JSON alani | Tip | Zorunlu | Sinirlar |
 |---|---|---|---|
 | `barcodes` | string[] | Hayir | nullable |
+| `mode` | string | Hayir | pattern=^(?i:selected\|changed\|all-existing)$; nullable |
 | `previewHash` | string | Evet | minLength=1 |
 | `sendAll` | boolean | Hayir |  |
 | `storeId` | integer (int64) | Hayir | min=1 |

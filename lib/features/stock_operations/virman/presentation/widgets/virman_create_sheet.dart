@@ -1,8 +1,11 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:furpa_merkez_terminal/core/network/api_exception.dart';
 import 'package:furpa_merkez_terminal/features/stock_operations/virman/data/models/virman_models.dart';
 import 'package:furpa_merkez_terminal/features/stock_operations/virman/data/virman_repository.dart';
+import 'package:furpa_merkez_terminal/shared/data/barcode_resolution_models.dart';
+import 'package:furpa_merkez_terminal/shared/data/barcode_resolution_repository.dart';
 import 'package:furpa_merkez_terminal/shared/data/search_lookup_models.dart';
 import 'package:furpa_merkez_terminal/shared/drafts/create_draft.dart';
 import 'package:furpa_merkez_terminal/shared/drafts/create_draft_repository.dart';
@@ -371,6 +374,10 @@ class _VirmanCreateSheetState extends State<VirmanCreateSheet>
       return;
     }
 
+    if (await _tryResolveBarcode(line, query)) {
+      return;
+    }
+
     Future<List<SearchProductLookupItem>> loadProducts({
       bool includeDelisted = true,
     }) async {
@@ -448,12 +455,87 @@ class _VirmanCreateSheetState extends State<VirmanCreateSheet>
     }
 
     setState(() {
-      entryLine.applyProduct(pickedProduct);
+      entryLine.applyProduct(pickedProduct, initialQuantity: 1);
       entryLine.lookupController.clear();
       _errorMessage = null;
     });
     _draftSession.scheduleSave();
     _refocusLine(entryLine.lookupFocusNode);
+  }
+
+  Future<bool> _tryResolveBarcode(_VirmanDraftLine line, String query) async {
+    final repository = widget.repository;
+    if (!looksLikeDirectBarcodeInput(query) ||
+        repository is! BarcodeResolutionRepository) {
+      return false;
+    }
+    final resolver = repository as BarcodeResolutionRepository;
+
+    setState(() {
+      _errorMessage = null;
+    });
+
+    BarcodeResolutionResult resolution;
+    try {
+      resolution = await resolver.resolveBarcode(
+        accessToken: widget.accessToken,
+        request: BarcodeResolutionRequest(
+          barcode: query,
+          warehouseNo: widget.defaultWarehouseNo,
+          screenCode: 'virmanlar',
+        ),
+      );
+    } on ApiException catch (error) {
+      if (error.statusCode == 0 || error.statusCode == 404) {
+        return false;
+      }
+      if (!mounted) {
+        return true;
+      }
+      setState(() => _errorMessage = error.detail ?? error.title);
+      _refocusLine(line.lookupFocusNode);
+      return true;
+    }
+
+    if (!mounted) {
+      return true;
+    }
+    if (!resolution.isFound || !resolution.isUsableInOperation) {
+      setState(() => _errorMessage = resolution.quickErrorMessage);
+      _refocusLine(line.lookupFocusNode);
+      return true;
+    }
+
+    final product = SearchProductLookupItem.fromBarcodeResolution(resolution);
+    final addedQuantity = resolution.suggestedQuantity;
+    if (_increasePendingQuantityIfSameProduct(
+      line,
+      product,
+      addedQuantity: addedQuantity,
+    )) {
+      _draftSession.scheduleSave();
+      _refocusLine(line.lookupFocusNode);
+      return true;
+    }
+
+    final entryLine = await _commitPendingEntryBeforeNextProduct(line);
+    if (entryLine == null) {
+      return true;
+    }
+    setState(() {
+      entryLine.applyProduct(
+        product,
+        initialQuantity: addedQuantity,
+        quantityStep: addedQuantity,
+      );
+      entryLine.lookupController.clear();
+      _errorMessage = resolution.quickWarningMessage.isEmpty
+          ? null
+          : resolution.quickWarningMessage;
+    });
+    _draftSession.scheduleSave();
+    _refocusLine(entryLine.lookupFocusNode);
+    return true;
   }
 
   Future<void> _scanProductWithCamera(_VirmanDraftLine line) async {
@@ -568,25 +650,24 @@ class _VirmanCreateSheetState extends State<VirmanCreateSheet>
 
   bool _increasePendingQuantityIfSameProduct(
     _VirmanDraftLine line,
-    SearchProductLookupItem product,
-  ) {
+    SearchProductLookupItem product, {
+    double addedQuantity = 1,
+  }) {
     final selectedProduct = line.selectedProduct;
     if (selectedProduct == null || !_isSameProduct(selectedProduct, product)) {
       return false;
     }
 
-    final increment = productEntryController.unitMultiplierQuantity(
-      product.unitMultiplier,
-    );
     setState(() {
       line.quantityController.text = productEntryController.formatQuantity(
         productEntryController.readQuantity(
               line.quantityController.text,
               fallback: 0,
             ) +
-            increment,
+            addedQuantity,
       );
       line.lookupController.clear();
+      line.quantityStep = addedQuantity;
       _errorMessage = null;
     });
     return true;
@@ -1123,6 +1204,7 @@ class _VirmanDraftLineCard extends StatelessWidget {
             stockCode: product.stockCode,
             stockName: product.stockName,
             quantityController: line.quantityController,
+            quantityStep: line.quantityStep,
             unitLabel: '${product.unitName} | $movementTitle',
             packageLabel: packageLabel,
             barcode: product.barcode,
@@ -1183,6 +1265,7 @@ class _VirmanDraftLineCard extends StatelessWidget {
             stockCode: product.stockCode,
             stockName: product.stockName,
             quantityController: line.quantityController,
+            quantityStep: line.quantityStep,
             unitLabel: '${product.unitName} | $movementTitle',
             packageLabel: packageLabel,
             barcode: product.barcode,
@@ -1465,6 +1548,10 @@ class _VirmanDraftLine {
           ? '0'
           : '1';
       quantityController.text = draft['quantity']?.toString() ?? '';
+      quantityStep = productEntryController.readQuantity(
+        draft['quantityStep']?.toString() ?? '',
+        fallback: 1,
+      );
       unitPointerController.text = draft['unitPointer']?.toString() ?? '1';
       descriptionController.text = draft['description']?.toString() ?? '';
       partyCodeController.text = draft['partyCode']?.toString() ?? '';
@@ -1503,6 +1590,7 @@ class _VirmanDraftLine {
   bool isConversionSuggestion = false;
   String conversionSourceStockCode = '';
   double conversionMultiplier = 0;
+  double quantityStep = 1;
   int suggestionRequestId = 0;
 
   String get barcode => selectedProduct?.barcode ?? '';
@@ -1534,13 +1622,18 @@ class _VirmanDraftLine {
           lotNoController.text.trim() != '0') ||
       projectCodeController.text.trim().isNotEmpty;
 
-  void applyProduct(SearchProductLookupItem product) {
+  void applyProduct(
+    SearchProductLookupItem product, {
+    double initialQuantity = 1,
+    double quantityStep = 1,
+  }) {
     selectedProduct = product;
     lookupController.clear();
     stockCodeController.text = product.stockCode;
+    this.quantityStep = quantityStep > 0 ? quantityStep : 1;
     if (quantityController.text.trim().isEmpty) {
       quantityController.text = productEntryController.formatQuantity(
-        productEntryController.unitMultiplierQuantity(product.unitMultiplier),
+        initialQuantity > 0 ? initialQuantity : 1,
       );
     }
   }
@@ -1559,6 +1652,7 @@ class _VirmanDraftLine {
     isConversionSuggestion = false;
     conversionSourceStockCode = '';
     conversionMultiplier = 0;
+    quantityStep = 1;
   }
 
   void dispose() {
@@ -1580,6 +1674,7 @@ class _VirmanDraftLine {
       'stockCode': stockCodeController.text,
       'movementType': movementTypeController.text,
       'quantity': quantityController.text,
+      'quantityStep': quantityStep,
       'unitPointer': unitPointerController.text,
       'description': descriptionController.text,
       'partyCode': partyCodeController.text,

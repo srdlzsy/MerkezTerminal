@@ -227,7 +227,7 @@ class BarcodeResolutionResult {
       matchedBarcode: _readString(json['matchedBarcode']),
       primaryBarcode: _readString(json['primaryBarcode']),
       caseBarcode: _readString(json['caseBarcode']),
-      unitsPerCase: _readDouble(json['unitsPerCase']).abs(),
+      unitsPerCase: _readCaseMultiplier(json),
       matchedUnitPointer: _readInt(json['matchedUnitPointer']),
       matchedUnitName: _readString(json['matchedUnitName']),
       matchedUnitMultiplier: _readPositiveDouble(json['matchedUnitMultiplier']),
@@ -290,6 +290,15 @@ bool looksLikeDirectBarcodeInput(String value) {
   }
 
   return normalized.contains(RegExp(r'\d'));
+}
+
+double _readCaseMultiplier(JsonMap json) {
+  final standardValue = _readDouble(json['unitMultiplier']).abs();
+  if (standardValue > 0) {
+    return standardValue;
+  }
+
+  return _readDouble(json['unitsPerCase']).abs();
 }
 
 bool _readBool(Object? value) {

@@ -102,7 +102,7 @@ class ApiStockReceiptsRepository
     required StockReceiptKind kind,
     required StockReceiptCreateRequest request,
   }) async {
-    final response = await _apiClient.postJsonMap(
+    final response = await _apiClient.postCreateJsonMap(
       '/api/stok-islemleri/${kind.pathSegment}',
       accessToken: accessToken,
       body: request.toJson(),

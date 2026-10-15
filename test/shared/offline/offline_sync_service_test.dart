@@ -363,6 +363,46 @@ void main() {
     },
   );
 
+  test('submitCompanyAcceptance preserves retryable server failures', () async {
+    companyAcceptanceRepository
+      ..createError = const ApiException(
+        statusCode: 500,
+        title: 'A task was canceled.',
+        errorCode: 'MIKRO_WRITE_OUTCOME_UNCONFIRMED',
+        retryable: true,
+        retryAfterSeconds: 5,
+      )
+      ..offlineSyncStatus = CompanyAcceptanceOfflineSyncStatus(
+        clientRequestId: 'acceptance-uncertain',
+        operationCode: 'company-acceptance-create',
+        status: 'failed',
+        createdAtUtc: DateTime.utc(2026, 10, 13, 7, 44),
+        completedAtUtc: DateTime.utc(2026, 10, 13, 7, 45),
+        errorMessage: 'A task was canceled.',
+        errorCode: 'MIKRO_WRITE_OUTCOME_UNCONFIRMED',
+        retryable: true,
+        retryAfterSeconds: 5,
+        result: null,
+      );
+
+    final result = await service.submitCompanyAcceptance(
+      accessToken: 'token',
+      userId: 'user-1',
+      warehouseNo: '165',
+      request: _buildCompanyAcceptanceRequest(
+        clientRequestId: 'acceptance-uncertain',
+      ),
+    );
+
+    expect(result.status, OfflineSubmissionStatus.queued);
+    expect(companyAcceptanceRepository.fetchOfflineSyncStatusCallCount, 1);
+    final savedDraft = offlineCompanyAcceptanceRepository.savedDrafts.single;
+    expect(savedDraft.clientRequestId, 'acceptance-uncertain');
+    expect(savedDraft.status, OfflineRecordStatus.pending);
+    expect(savedDraft.lastError, contains('Kayit sonucu henuz kesinlesmedi'));
+    expect(savedDraft.lastError, isNot(contains('A task was canceled')));
+  });
+
   test('submitCompanyAcceptance does not queue backend errors', () async {
     companyAcceptanceRepository.createError = const ApiException(
       statusCode: 400,
@@ -502,6 +542,30 @@ void main() {
       OfflineRecordStatus.pending,
     );
   });
+
+  test(
+    'syncCompanyAcceptanceDraft defers an unresolved server failure',
+    () async {
+      companyAcceptanceRepository.createError = const ApiException(
+        statusCode: 503,
+        title: 'Servis gecici olarak kullanilamiyor',
+      );
+
+      final result = await service.syncCompanyAcceptanceDraft(
+        accessToken: 'token',
+        draft: _buildCompanyAcceptanceDraft(
+          clientRequestId: 'draft-server-failure',
+        ),
+      );
+
+      expect(result.status, OfflineDraftSyncResultStatus.deferred);
+      expect(companyAcceptanceRepository.fetchOfflineSyncStatusCallCount, 1);
+      expect(
+        offlineCompanyAcceptanceRepository.savedDrafts.single.status,
+        OfflineRecordStatus.pending,
+      );
+    },
+  );
 
   test(
     'syncCompanyAcceptanceDraft fails non-network status zero errors',

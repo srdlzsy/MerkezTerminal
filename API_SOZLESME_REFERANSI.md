@@ -7,9 +7,9 @@ Kapsam: kayitli HTTP method/route ve alias'lar, binding kaynagi, request alanlar
 
 `bildirilmemis` response tipi, runtime cevabinin bos oldugu anlamina gelmez. Anonim endpointler konfigurasyon/ag/servis kontrollerine tabi olabilir. JWT fallback policy, acik Authorize olmasa da uygulanir.
 
-Endpoint sayisi (method + route): 742. Model sayisi: 674.
+Endpoint sayisi (method + route): 746. Model sayisi: 684.
 
-Bunlara ek olarak EndpointDataSource uzerinden dogrulanan iki health route'u vardir: `/health/live`, `/health/ready`. Bu middleware route'larinda method kisiti yoktur; istemci GET kullanmalidir. Anonimdir, JSON dondurur; Healthy/Degraded=200, Unhealthy=503. `live` yalniz prosesi, `ready` core_dependencies ve operations_export_path kontrollerini olcer. Alanlar: status (string), durationMilliseconds (number), checks (ad -> status/durationMilliseconds/description/data). Tum runtime route'lari envanterde yer alir; yeni ve ApiExplorer disinda kalan route eklenirse test basarisiz olur.
+Bunlara ek olarak EndpointDataSource uzerinden dogrulanan iki health route'u vardir: `/health/live`, `/health/ready`. Bu middleware route'larinda method kisiti yoktur; istemci GET kullanmalidir. Anonimdir, JSON dondurur; Healthy/Degraded=200, Unhealthy=503. `live` yalniz prosesi, `ready` core_dependencies, operations_export_path ve background_workers kontrollerini olcer. Alanlar: status (string), durationMilliseconds (number), checks (ad -> status/durationMilliseconds/description/data). Tum runtime route'lari envanterde yer alir; yeni ve ApiExplorer disinda kalan route eklenirse test basarisiz olur.
 
 Ozel response'lar: `/` Hosting:ExposeDiagnosticsOnRoot=false iken yalniz service/status; true iken architecture/authDatabase/businessDatabase/swagger ekler. E-irsaliye PDF endpointleri application/pdf binary/inline doner. Operations authorization-files/saveauthorizationfile POST 201 body dondurmez. Ana rehberdeki ozel response notlari bu metadata bosluklarini tamamlar.
 
@@ -75,11 +75,13 @@ Ozel response'lar: `/` Hosting:ExposeDiagnosticsOnRoot=false iken yalniz service
 | GET | `/api/ayar-islemleri/terminal-cihazlari/ozet` | JWT + ayar-islemleri.terminal-cihazlari.list | query: warehouseNo / integer (int32) | 401: ProblemDetails<br>403: ProblemDetails<br>200: TerminalInstallationSummaryDto |
 | GET | `/api/ayar-islemleri/terminal-cihazlari/{id}` | JWT + ayar-islemleri.terminal-cihazlari.detail | path: id / string (uuid) (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: TerminalInstallationDto<br>404: ProblemDetails |
 | GET | `/api/ayar-islemleri/veritabani-izleme/anlik` | JWT + ayar-islemleri.veritabani-izleme.list |  | 401: ProblemDetails<br>403: ProblemDetails<br>200: DatabaseMonitoringSnapshotDto |
+| GET | `/api/ayar-islemleri/veritabani-izleme/genel-bakis` | JWT + ayar-islemleri.veritabani-izleme.list |  | 401: ProblemDetails<br>403: ProblemDetails<br>200: MonitoringOverviewDto |
 | GET | `/api/ayar-islemleri/veritabani-izleme/guvenli-yazmalar` | JWT + ayar-islemleri.veritabani-izleme.detail | query: Status / string<br>query: OperationCode / string<br>query: WarehouseNo / integer (int32)<br>query: Retryable / boolean<br>query: IncludeCompleted / boolean<br>query: Take / integer (int32) | 401: ProblemDetails<br>403: ProblemDetails<br>200: IReadOnlyCollection&lt;SafeWriteMonitoringItemDto&gt;<br>400: ProblemDetails |
 | GET | `/api/ayar-islemleri/veritabani-izleme/olaylar` | JWT + ayar-islemleri.veritabani-izleme.detail | query: take / integer (int32) | 401: ProblemDetails<br>403: ProblemDetails<br>200: IReadOnlyCollection&lt;DatabaseMonitoringIncidentDto&gt; |
 | GET | `/api/ayar-islemleri/veritabani-izleme/oturum-sonlandirma-gecmisi` | JWT + ayar-islemleri.veritabani-izleme.detail | query: take / integer (int32) | 401: ProblemDetails<br>403: ProblemDetails<br>200: IReadOnlyCollection&lt;DatabaseSessionTerminationDto&gt; |
 | GET | `/api/ayar-islemleri/veritabani-izleme/oturumlar/{sessionId}/rollback-durumu` | JWT + ayar-islemleri.veritabani-izleme.detail | path: sessionId / integer (int32) (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: DatabaseRollbackStatusDto |
 | POST | `/api/ayar-islemleri/veritabani-izleme/oturumlar/{sessionId}/sonlandir` | JWT + ayar-islemleri.veritabani-izleme.terminate-session | path: sessionId / integer (int32) (zorunlu)<br>body: request / TerminateDatabaseSessionHttpRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: DatabaseSessionTerminationDto<br>400: ProblemDetails<br>404: ProblemDetails<br>409: ProblemDetails |
+| GET | `/api/ayar-islemleri/veritabani-izleme/workerlar` | JWT + ayar-islemleri.veritabani-izleme.list |  | 401: ProblemDetails<br>403: ProblemDetails<br>200: WorkerMonitoringSnapshotDto |
 | GET | `/api/duzeltme-islemleri/mikro-evrak-duzenleme/alan-haritasi` | JWT + duzeltme-islemleri.mikro-evrak-duzenleme.list |  | 401: ProblemDetails<br>403: ProblemDetails<br>200: MikroDocumentFieldCatalogDto |
 | DELETE | `/api/duzeltme-islemleri/mikro-evrak-duzenleme/banknot-takipleri/{banknoteTrackId}` | JWT + duzeltme-islemleri.mikro-evrak-duzenleme.delete | path: banknoteTrackId / string (uuid) (zorunlu)<br>query: warehouseNo / integer (int32) | 401: ProblemDetails<br>403: ProblemDetails<br>200: MikroDocumentDeleteResponse<br>400: ProblemDetails<br>404: ProblemDetails |
 | GET | `/api/duzeltme-islemleri/mikro-evrak-duzenleme/banknot-takipleri/{banknoteTrackId}` | JWT + duzeltme-islemleri.mikro-evrak-duzenleme.detail | path: banknoteTrackId / string (uuid) (zorunlu)<br>query: warehouseNo / integer (int32) | 401: ProblemDetails<br>403: ProblemDetails<br>200: BanknoteTrackDto<br>400: ProblemDetails<br>404: ProblemDetails |
@@ -138,6 +140,8 @@ Ozel response'lar: `/` Hosting:ExposeDiagnosticsOnRoot=false iken yalniz service
 | GET | `/api/entegrasyon-islemleri/pos-muhasebe-aktarimi/z-raporlari/{totalId}` | JWT + entegrasyon-islemleri.pos-muhasebe-aktarimi.detail | path: totalId / integer (int32) (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: ZReportDetailDto<br>404: ProblemDetails |
 | GET | `/api/entegrasyon-islemleri/trendyol-go` | JWT + entegrasyon-islemleri.trendyol-go.list |  | 401: ProblemDetails<br>403: ProblemDetails<br>200: TrendyolGoConnectionStatusDto |
 | GET | `/api/entegrasyon-islemleri/trendyol-go/brands` | JWT + entegrasyon-islemleri.trendyol-go.list | query: page / integer (int32)<br>query: size / integer (int32)<br>query: name / string | 401: ProblemDetails<br>403: ProblemDetails |
+| POST | `/api/entegrasyon-islemleri/trendyol-go/catalog/dispatch` | JWT + entegrasyon-islemleri.trendyol-go.update | body: request / TrendyolGoCatalogDispatchHttpRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: TrendyolGoCatalogDispatch |
+| GET | `/api/entegrasyon-islemleri/trendyol-go/catalog/preview` | JWT + entegrasyon-islemleri.trendyol-go.list | query: storeId / integer (int64)<br>query: view / string<br>query: search / string<br>query: take / integer (int32) | 401: ProblemDetails<br>403: ProblemDetails<br>200: TrendyolGoCatalogPreview |
 | GET | `/api/entegrasyon-islemleri/trendyol-go/claims` | JWT + entegrasyon-islemleri.trendyol-go.list | query: ClaimItemStatus / string<br>query: StartDate / integer (int64)<br>query: EndDate / integer (int64)<br>query: Page / integer (int32)<br>query: Size / integer (int32) | 401: ProblemDetails<br>403: ProblemDetails |
 | PUT | `/api/entegrasyon-islemleri/trendyol-go/claims/{claimId}/accept` | JWT + entegrasyon-islemleri.trendyol-go.update | path: claimId / string (zorunlu)<br>body: payload / JsonElement (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails |
 | GET | `/api/entegrasyon-islemleri/trendyol-go/claims/{claimId}/items/objectionable` | JWT + entegrasyon-islemleri.trendyol-go.detail | path: claimId / string (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails |
@@ -1483,6 +1487,15 @@ Enum degerleri JSON sozlesmesinde bulunur.
 | `waitMilliseconds` | integer (int64) | Hayir |  |
 | `waitType` | string | Hayir | nullable |
 
+### FurpaMerkezApi.Application.Modules.AyarIslemleri.VeritabaniIzleme.DatabaseIncidentOverviewDto
+
+| JSON alani | Tip | Zorunlu | Sinirlar |
+|---|---|---|---|
+| `criticalCount` | integer (int32) | Hayir |  |
+| `lastSeenAtUtc` | string (date-time) | Hayir | nullable |
+| `openCount` | integer (int32) | Hayir |  |
+| `warningCount` | integer (int32) | Hayir |  |
+
 ### FurpaMerkezApi.Application.Modules.AyarIslemleri.VeritabaniIzleme.DatabaseMonitoringIncidentDto
 
 | JSON alani | Tip | Zorunlu | Sinirlar |
@@ -1504,6 +1517,16 @@ Enum degerleri JSON sozlesmesinde bulunur.
 | `sqlText` | string | Hayir | nullable |
 | `type` | string | Hayir | nullable |
 | `waitType` | string | Hayir | nullable |
+
+### FurpaMerkezApi.Application.Modules.AyarIslemleri.VeritabaniIzleme.DatabaseMonitoringOverviewDto
+
+| JSON alani | Tip | Zorunlu | Sinirlar |
+|---|---|---|---|
+| `activeRequestCount` | integer (int32) | Hayir |  |
+| `blockedRequestCount` | integer (int32) | Hayir |  |
+| `longRunningRequestCount` | integer (int32) | Hayir |  |
+| `openTransactionCount` | integer (int32) | Hayir |  |
+| `status` | string | Hayir | nullable |
 
 ### FurpaMerkezApi.Application.Modules.AyarIslemleri.VeritabaniIzleme.DatabaseMonitoringSnapshotDto
 
@@ -1595,6 +1618,19 @@ Enum degerleri JSON sozlesmesinde bulunur.
 | `sessionId` | integer (int32) | Hayir |  |
 | `sqlText` | string | Hayir | nullable |
 
+### FurpaMerkezApi.Application.Modules.AyarIslemleri.VeritabaniIzleme.MonitoringOverviewDto
+
+| JSON alani | Tip | Zorunlu | Sinirlar |
+|---|---|---|---|
+| `database` | FurpaMerkezApi.Application.Modules.AyarIslemleri.VeritabaniIzleme.DatabaseMonitoringOverviewDto | Hayir |  |
+| `generatedAtUtc` | string (date-time) | Hayir |  |
+| `headline` | string | Hayir | nullable |
+| `incidents` | FurpaMerkezApi.Application.Modules.AyarIslemleri.VeritabaniIzleme.DatabaseIncidentOverviewDto | Hayir |  |
+| `overallStatus` | string | Hayir | nullable |
+| `overallStatusName` | string | Hayir | nullable |
+| `safeWrites` | FurpaMerkezApi.Application.Modules.AyarIslemleri.VeritabaniIzleme.SafeWriteMonitoringOverviewDto | Hayir |  |
+| `workers` | FurpaMerkezApi.Application.Modules.AyarIslemleri.VeritabaniIzleme.WorkerMonitoringSnapshotDto | Hayir |  |
+
 ### FurpaMerkezApi.Application.Modules.AyarIslemleri.VeritabaniIzleme.SafeWriteMonitoringItemDto
 
 | JSON alani | Tip | Zorunlu | Sinirlar |
@@ -1612,6 +1648,52 @@ Enum degerleri JSON sozlesmesinde bulunur.
 | `status` | string | Hayir | nullable |
 | `updatedAtUtc` | string (date-time) | Hayir | nullable |
 | `warehouseNo` | integer (int32) | Hayir |  |
+
+### FurpaMerkezApi.Application.Modules.AyarIslemleri.VeritabaniIzleme.SafeWriteMonitoringOverviewDto
+
+| JSON alani | Tip | Zorunlu | Sinirlar |
+|---|---|---|---|
+| `completedCount` | integer (int32) | Hayir |  |
+| `manualReviewCount` | integer (int32) | Hayir |  |
+| `processingCount` | integer (int32) | Hayir |  |
+| `retryableFailureCount` | integer (int32) | Hayir |  |
+| `staleProcessingCount` | integer (int32) | Hayir |  |
+| `unclassifiedFailureCount` | integer (int32) | Hayir |  |
+| `windowHours` | integer (int32) | Hayir |  |
+
+### FurpaMerkezApi.Application.Modules.AyarIslemleri.VeritabaniIzleme.WorkerMonitoringItemDto
+
+| JSON alani | Tip | Zorunlu | Sinirlar |
+|---|---|---|---|
+| `activity` | string | Hayir | nullable |
+| `code` | string | Hayir | nullable |
+| `hasUnresolvedFailure` | boolean | Hayir |  |
+| `heartbeatAgeSeconds` | integer (int64) | Hayir | nullable |
+| `isCritical` | boolean | Hayir |  |
+| `isEnabled` | boolean | Hayir |  |
+| `lastError` | string | Hayir | nullable |
+| `lastFailureAtUtc` | string (date-time) | Hayir | nullable |
+| `lastHeartbeatAtUtc` | string (date-time) | Hayir | nullable |
+| `lastSuccessAtUtc` | string (date-time) | Hayir | nullable |
+| `name` | string | Hayir | nullable |
+| `oldestQueuedAgeSeconds` | integer (int64) | Hayir | nullable |
+| `oldestQueuedAtUtc` | string (date-time) | Hayir | nullable |
+| `queuedCount` | integer (int32) | Hayir |  |
+| `recommendation` | string | Hayir | nullable |
+| `registeredAtUtc` | string (date-time) | Hayir |  |
+| `requiresAttention` | boolean | Hayir |  |
+| `runningCount` | integer (int32) | Hayir |  |
+| `staleAfterSeconds` | integer (int32) | Hayir |  |
+| `status` | string | Hayir | nullable |
+| `statusName` | string | Hayir | nullable |
+
+### FurpaMerkezApi.Application.Modules.AyarIslemleri.VeritabaniIzleme.WorkerMonitoringSnapshotDto
+
+| JSON alani | Tip | Zorunlu | Sinirlar |
+|---|---|---|---|
+| `generatedAtUtc` | string (date-time) | Hayir |  |
+| `overallStatus` | string | Hayir | nullable |
+| `workers` | FurpaMerkezApi.Application.Modules.AyarIslemleri.VeritabaniIzleme.WorkerMonitoringItemDto[] | Hayir | nullable |
 
 ### FurpaMerkezApi.Application.Modules.Common.CompanyMovements.CompanyMovementDetailDto
 
@@ -3861,6 +3943,50 @@ Enum degerleri JSON sozlesmesinde bulunur.
 | `isSent` | boolean | Hayir |  |
 | `totalId` | integer (int32) | Hayir |  |
 | `zNo` | integer (int32) | Hayir |  |
+
+### FurpaMerkezApi.Application.Modules.EntegrasyonIslemleri.TrendyolGo.TrendyolGoCatalogDispatch
+
+| JSON alani | Tip | Zorunlu | Sinirlar |
+|---|---|---|---|
+| `batchCount` | integer (int32) | Hayir |  |
+| `nextStep` | string | Hayir | nullable |
+| `sentCount` | integer (int32) | Hayir |  |
+| `storeId` | integer (int64) | Hayir |  |
+| `upstreamResponses` | [] | Hayir | nullable |
+| `warehouseNo` | integer (int32) | Hayir |  |
+
+### FurpaMerkezApi.Application.Modules.EntegrasyonIslemleri.TrendyolGo.TrendyolGoCatalogPreview
+
+| JSON alani | Tip | Zorunlu | Sinirlar |
+|---|---|---|---|
+| `existingCount` | integer (int32) | Hayir |  |
+| `items` | FurpaMerkezApi.Application.Modules.EntegrasyonIslemleri.TrendyolGo.TrendyolGoCatalogRow[] | Hayir | nullable |
+| `mappingRequiredCount` | integer (int32) | Hayir |  |
+| `previewHash` | string | Hayir | nullable |
+| `readyCount` | integer (int32) | Hayir |  |
+| `skippedCount` | integer (int32) | Hayir |  |
+| `storeId` | integer (int64) | Hayir |  |
+| `storeName` | string | Hayir | nullable |
+| `totalCount` | integer (int32) | Hayir |  |
+| `view` | string | Hayir | nullable |
+| `visibleCount` | integer (int32) | Hayir |  |
+| `warehouseNo` | integer (int32) | Hayir |  |
+
+### FurpaMerkezApi.Application.Modules.EntegrasyonIslemleri.TrendyolGo.TrendyolGoCatalogRow
+
+| JSON alani | Tip | Zorunlu | Sinirlar |
+|---|---|---|---|
+| `barcode` | string | Hayir | nullable |
+| `mikroBrandCode` | string | Hayir | nullable |
+| `mikroCategoryCode` | string | Hayir | nullable |
+| `mikroPrice` | number (double) | Hayir | nullable |
+| `productName` | string | Hayir | nullable |
+| `reason` | string | Hayir | nullable |
+| `status` | string | Hayir | nullable |
+| `stockCode` | string | Hayir | nullable |
+| `trendyolBrandId` | integer (int64) | Hayir | nullable |
+| `trendyolCategoryId` | integer (int64) | Hayir | nullable |
+| `vatRate` | integer (int32) | Hayir | nullable |
 
 ### FurpaMerkezApi.Application.Modules.EntegrasyonIslemleri.TrendyolGo.TrendyolGoConnectionStatusDto
 
@@ -9750,6 +9876,15 @@ Enum degerleri JSON sozlesmesinde bulunur.
 | `documentNo` | string | Hayir | minLength=0; maxLength=50; nullable |
 | `paymentType` | string | Hayir | minLength=0; maxLength=30; nullable |
 
+### FurpaMerkezApi.WebApi.Controllers.Modules.EntegrasyonIslemleri.TrendyolGo.TrendyolGoCatalogDispatchHttpRequest
+
+| JSON alani | Tip | Zorunlu | Sinirlar |
+|---|---|---|---|
+| `barcodes` | string[] | Hayir | nullable |
+| `previewHash` | string | Evet | minLength=1 |
+| `sendAll` | boolean | Hayir |  |
+| `storeId` | integer (int64) | Hayir | min=1 |
+
 ### FurpaMerkezApi.WebApi.Controllers.Modules.EntegrasyonIslemleri.TrendyolGo.TrendyolGoInvoiceHttpRequest
 
 | JSON alani | Tip | Zorunlu | Sinirlar |
@@ -9764,6 +9899,7 @@ Enum degerleri JSON sozlesmesinde bulunur.
 | JSON alani | Tip | Zorunlu | Sinirlar |
 |---|---|---|---|
 | `barcodes` | string[] | Hayir | nullable |
+| `mode` | string | Hayir | pattern=^(?i:selected\|changed\|all-existing)$; nullable |
 | `previewHash` | string | Evet | minLength=1 |
 | `sendAll` | boolean | Hayir |  |
 | `storeId` | integer (int64) | Hayir | min=1 |

@@ -344,6 +344,10 @@ class _CompanyMovementsPageState extends State<CompanyMovementsPage> {
           title: widget.createTitle,
           helperText: widget.createHelperText,
           submitLabel: widget.createButtonLabel,
+          barcodeOperationType: widget.draftModuleKey.contains('iade')
+              ? 'return'
+              : 'shipment',
+          barcodeScreenCode: widget.draftModuleKey.split('.').last,
           showDocumentNoField: widget.showCreateDocumentNoField,
           draft: draft,
           draftRepository: draftRepository,

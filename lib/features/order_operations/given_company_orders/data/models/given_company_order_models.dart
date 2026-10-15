@@ -1,4 +1,5 @@
 import 'package:furpa_merkez_terminal/core/network/api_client.dart';
+import 'package:furpa_merkez_terminal/shared/data/barcode_resolution_models.dart';
 
 class CompanyOrderListFilter {
   const CompanyOrderListFilter({
@@ -358,6 +359,30 @@ class CompanyOrderProductLookupItem {
       delistReason: _readString(json['delistReason']),
       isOrderBlocked: _readBool(json['isOrderBlocked']),
       isSalesBlocked: _readBool(json['isSalesBlocked']),
+    );
+  }
+
+  factory CompanyOrderProductLookupItem.fromBarcodeResolution(
+    BarcodeResolutionResult resolution,
+  ) {
+    return CompanyOrderProductLookupItem(
+      warehouseNo: resolution.warehouseNo,
+      barcode: resolution.effectiveBarcode,
+      stockCode: resolution.stockCode,
+      stockName: resolution.stockName,
+      price: resolution.salesPrice,
+      unitName: resolution.matchedUnitName,
+      unitMultiplier: resolution.unitsPerCase > 0
+          ? resolution.unitsPerCase
+          : resolution.matchedUnitMultiplier,
+      secondaryUnitName: resolution.unitsPerCase > 1 ? 'KOLI' : '',
+      caseBarcode: resolution.caseBarcode,
+      unitPointer: resolution.effectiveUnitPointer,
+      isPassive: resolution.isPassive,
+      isDelisted: resolution.isDelisted,
+      delistReason: resolution.delistReason,
+      isOrderBlocked: resolution.isOrderBlocked,
+      isSalesBlocked: resolution.isSalesBlocked,
     );
   }
 }

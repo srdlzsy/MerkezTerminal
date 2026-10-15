@@ -92,7 +92,7 @@ class ApiInventoryCountsRepository implements InventoryCountsRepository {
     required String accessToken,
     required InventoryCountCreateRequest request,
   }) async {
-    final response = await _apiClient.postJsonMap(
+    final response = await _apiClient.postCreateJsonMap(
       '/api/stok-islemleri/sayim-sonuclari',
       accessToken: accessToken,
       body: request.toJson(),

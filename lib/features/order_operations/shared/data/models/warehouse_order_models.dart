@@ -349,7 +349,10 @@ class ProductLookupItem {
       stockName: resolution.stockName,
       price: resolution.salesPrice,
       unitName: resolution.matchedUnitName,
-      unitMultiplier: resolution.matchedUnitMultiplier,
+      unitMultiplier: resolution.unitsPerCase > 0
+          ? resolution.unitsPerCase
+          : resolution.matchedUnitMultiplier,
+      secondaryUnitName: resolution.unitsPerCase > 1 ? 'KOLI' : '',
       caseBarcode: resolution.caseBarcode,
       modelCode: resolution.productModelCode,
       hasPurchaseRequirement: resolution.hasPurchaseRequirement ?? false,

@@ -122,7 +122,7 @@ class ApiWarehouseReturnsRepository
     required String accessToken,
     required WarehouseReturnCreateRequest request,
   }) async {
-    final response = await _apiClient.postJsonMap(
+    final response = await _apiClient.postCreateJsonMap(
       '/api/iade-islemleri/depo-iadeleri/giden',
       accessToken: accessToken,
       body: request.toJson(),

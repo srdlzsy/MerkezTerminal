@@ -2,6 +2,8 @@ import 'package:furpa_merkez_terminal/core/network/api_client.dart';
 import 'package:furpa_merkez_terminal/features/company_movements/shared/data/models/company_movement_models.dart';
 import 'package:furpa_merkez_terminal/features/order_operations/given_company_orders/data/models/given_company_order_models.dart';
 import 'package:furpa_merkez_terminal/features/return_operations/warehouse_returns/data/models/warehouse_return_models.dart';
+import 'package:furpa_merkez_terminal/shared/data/barcode_resolution_models.dart';
+import 'package:furpa_merkez_terminal/shared/data/barcode_resolution_repository.dart';
 import 'package:furpa_merkez_terminal/shared/data/search_lookup_models.dart';
 import 'package:furpa_merkez_terminal/shared/offline/offline_sync_status.dart';
 
@@ -58,6 +60,7 @@ abstract class CompanyMovementsRepository {
 class ApiCompanyMovementsRepository
     implements
         CompanyMovementsRepository,
+        BarcodeResolutionRepository,
         OfflineSyncStatusProvider<CompanyMovementCreateResult> {
   const ApiCompanyMovementsRepository({
     required ApiClient apiClient,
@@ -76,6 +79,20 @@ class ApiCompanyMovementsRepository
   final String _detailPathPrefix;
   final bool _supportsCreate;
   final bool _supportsEDespatch;
+
+  BarcodeResolutionRepository get _barcodeResolutionRepository =>
+      ApiBarcodeResolutionRepository(apiClient: _apiClient);
+
+  @override
+  Future<BarcodeResolutionResult> resolveBarcode({
+    required String accessToken,
+    required BarcodeResolutionRequest request,
+  }) {
+    return _barcodeResolutionRepository.resolveBarcode(
+      accessToken: accessToken,
+      request: request,
+    );
+  }
 
   @override
   bool get supportsCreate => _supportsCreate;
@@ -128,7 +145,7 @@ class ApiCompanyMovementsRepository
       throw UnsupportedError('Bu ekranda create desteklenmiyor.');
     }
 
-    final response = await _apiClient.postJsonMap(
+    final response = await _apiClient.postCreateJsonMap(
       _listPath,
       accessToken: accessToken,
       body: request.toJson(),

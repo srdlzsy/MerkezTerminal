@@ -395,9 +395,7 @@ class _InventoryCountCreateSheetState extends State<InventoryCountCreateSheet>
       return false;
     }
 
-    final increment =
-        addedQuantity ??
-        productEntryController.unitMultiplierQuantity(product.unitMultiplier);
+    final increment = addedQuantity ?? 1;
     final totalQuantity =
         productEntryController.readQuantity(
           line.quantityController.text,
@@ -1174,9 +1172,7 @@ class _InventoryLineDraft {
     barcodeController.clear();
     stockCodeController.text = product.stockCode;
     if (quantityController.text.trim().isEmpty) {
-      quantityController.text = productEntryController.formatQuantity(
-        productEntryController.unitMultiplierQuantity(product.unitMultiplier),
-      );
+      quantityController.text = productEntryController.formatQuantity(1);
     }
   }
 

@@ -1,15 +1,32 @@
 import 'package:furpa_merkez_terminal/core/network/api_client.dart';
 import 'package:furpa_merkez_terminal/features/order_operations/given_company_orders/data/models/given_company_order_models.dart';
 import 'package:furpa_merkez_terminal/features/order_operations/shared/data/company_orders_repository.dart';
+import 'package:furpa_merkez_terminal/shared/data/barcode_resolution_models.dart';
+import 'package:furpa_merkez_terminal/shared/data/barcode_resolution_repository.dart';
 
 abstract class GivenCompanyOrdersRepository
     implements CompanyOrdersRepository {}
 
-class ApiGivenCompanyOrdersRepository implements GivenCompanyOrdersRepository {
+class ApiGivenCompanyOrdersRepository
+    implements GivenCompanyOrdersRepository, BarcodeResolutionRepository {
   const ApiGivenCompanyOrdersRepository({required ApiClient apiClient})
     : _apiClient = apiClient;
 
   final ApiClient _apiClient;
+
+  BarcodeResolutionRepository get _barcodeResolutionRepository =>
+      ApiBarcodeResolutionRepository(apiClient: _apiClient);
+
+  @override
+  Future<BarcodeResolutionResult> resolveBarcode({
+    required String accessToken,
+    required BarcodeResolutionRequest request,
+  }) {
+    return _barcodeResolutionRepository.resolveBarcode(
+      accessToken: accessToken,
+      request: request,
+    );
+  }
 
   @override
   bool get supportsCreate => true;
@@ -56,7 +73,7 @@ class ApiGivenCompanyOrdersRepository implements GivenCompanyOrdersRepository {
     required String accessToken,
     required CompanyOrderCreateRequest request,
   }) async {
-    final response = await _apiClient.postJsonMap(
+    final response = await _apiClient.postCreateJsonMap(
       '/api/siparis-islemleri/verilen-firma-siparisleri',
       accessToken: accessToken,
       body: request.toJson(),
