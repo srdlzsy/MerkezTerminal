@@ -71,25 +71,22 @@ void main() {
     expect(safeCreateRetryErrorMessage(conflict), contains('yazimi baslamadi'));
   });
 
-  test(
-    'manual review is preserved and only allows an independent operation',
-    () {
-      const conflict = ApiException(
-        statusCode: 409,
-        title: 'Conflict',
-        detail: 'Belge icerigi uyusmuyor.',
-        errorCode: 'MIKRO_DOCUMENT_CONTENT_MISMATCH',
-        retryable: false,
-      );
-      final kind = classifySafeCreateException(conflict);
+  test('manual review is preserved and blocks all create actions', () {
+    const conflict = ApiException(
+      statusCode: 409,
+      title: 'Conflict',
+      detail: 'Belge icerigi uyusmuyor.',
+      errorCode: 'MIKRO_DOCUMENT_CONTENT_MISMATCH',
+      retryable: false,
+    );
+    final kind = classifySafeCreateException(conflict);
 
-      expect(shouldKeepSafeCreatePending(kind), isTrue);
-      expect(canRetrySafeCreate(kind), isFalse);
-      expect(canStartNewSafeCreate(kind), isTrue);
-      expect(safeCreatePendingActionLabel(kind), 'Yeni Bagimsiz Islem');
-      expect(safeCreateRetryErrorMessage(conflict), contains('yetkili'));
-    },
-  );
+    expect(shouldKeepSafeCreatePending(kind), isTrue);
+    expect(canRetrySafeCreate(kind), isFalse);
+    expect(canStartNewSafeCreate(kind), isFalse);
+    expect(safeCreatePendingActionLabel(kind), 'Destek gerekli');
+    expect(safeCreateRetryErrorMessage(conflict), contains('yetkili'));
+  });
 
   test('payload mismatch requires an explicit new operation', () {
     final kind = classifySafeCreateFailure(
@@ -105,13 +102,15 @@ void main() {
   });
 
   test('legacy multiple-document message still requires review', () {
-    expect(
-      classifySafeCreateFailure(
-        statusCode: 409,
-        message: 'multiple Mikro documents: F120/1, F120/2',
-      ),
-      SafeCreateFailureKind.multipleDocuments,
+    final kind = classifySafeCreateFailure(
+      statusCode: 409,
+      message: 'multiple Mikro documents: F120/1, F120/2',
     );
+
+    expect(kind, SafeCreateFailureKind.multipleDocuments);
+    expect(canRetrySafeCreate(kind), isFalse);
+    expect(canStartNewSafeCreate(kind), isFalse);
+    expect(safeCreatePendingActionLabel(kind), 'Destek gerekli');
   });
 
   test('preserves correlation id in classified create errors', () {
@@ -128,6 +127,15 @@ void main() {
       safeCreateRetryErrorMessage(conflict),
       contains('Destek kodu: trace-789'),
     );
+  });
+
+  test('replaces legacy cancellation text with a safe Turkish message', () {
+    const error = ApiException(statusCode: 500, title: 'A task was canceled.');
+
+    final message = safeCreateRetryErrorMessage(error);
+
+    expect(message, contains('sonucu belirsiz'));
+    expect(message, isNot(contains('task was canceled')));
   });
 
   test('builds retry gate only for retryable responses', () {

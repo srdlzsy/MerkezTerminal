@@ -452,6 +452,10 @@ class ApiClient {
         errorCode: _problemString(decoded, 'errorCode'),
         retryable: _problemBool(decoded, 'retryable'),
         retryAfterSeconds: _problemInt(decoded, 'retryAfterSeconds'),
+        relatedClientRequestId: _problemString(
+          decoded,
+          'relatedClientRequestId',
+        ),
         correlationId:
             _problemString(decoded, 'correlationId') ??
             _responseCorrelationId(response),

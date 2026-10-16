@@ -67,6 +67,24 @@ class OfflineCompanyAcceptanceDraft {
     return this.userId == userId && this.warehouseNo == warehouseNo;
   }
 
+  bool matchesDocumentIdentity(CompanyAcceptanceCreateRequest request) {
+    final storedEttn = _normalizeDocumentToken(officialDocumentEttn);
+    final requestedEttn = _normalizeDocumentToken(request.officialDocumentEttn);
+    if (storedEttn.isNotEmpty &&
+        requestedEttn.isNotEmpty &&
+        storedEttn == requestedEttn) {
+      return true;
+    }
+
+    final storedSerie = documentSerie.trim().toUpperCase();
+    final requestedSerie = request.documentSerie.trim().toUpperCase();
+    return storedSerie.isNotEmpty &&
+        requestedSerie.isNotEmpty &&
+        storedSerie == requestedSerie &&
+        documentOrderNo > 0 &&
+        documentOrderNo == request.documentOrderNo;
+  }
+
   CompanyAcceptanceCreateRequest toCreateRequest() {
     return CompanyAcceptanceCreateRequest(
       customerCode: customerCode,
@@ -287,6 +305,13 @@ class OfflineCompanyAcceptanceDraft {
           .toList(growable: false),
     );
   }
+}
+
+String _normalizeDocumentToken(String? value) {
+  return (value ?? '').trim().toUpperCase().replaceAll(
+    RegExp(r'[^A-Z0-9]'),
+    '',
+  );
 }
 
 class OfflineCompanyAcceptanceLine {

@@ -5,6 +5,7 @@ import 'package:furpa_merkez_terminal/core/utils/safe_change_notifier.dart';
 import 'package:furpa_merkez_terminal/features/order_operations/shared/data/models/warehouse_order_models.dart';
 import 'package:furpa_merkez_terminal/features/order_operations/suggested_warehouse_orders/data/models/suggested_warehouse_order_models.dart';
 import 'package:furpa_merkez_terminal/features/order_operations/suggested_warehouse_orders/data/suggested_warehouse_orders_repository.dart';
+import 'package:furpa_merkez_terminal/shared/utils/safe_create_retry.dart';
 
 class SuggestedWarehouseOrdersController extends ChangeNotifier
     with SafeChangeNotifier {
@@ -23,6 +24,12 @@ class SuggestedWarehouseOrdersController extends ChangeNotifier
   bool _isConverting = false;
   String? _listError;
   String? _convertError;
+  SafeCreateFailureKind _convertFailureKind =
+      SafeCreateFailureKind.notRetryable;
+  String? _convertRelatedClientRequestId;
+  String? _convertErrorCode;
+  String? _convertCorrelationId;
+  int? _convertRetryAfterSeconds;
   List<SuggestedWarehouseOrderListItem> _items =
       const <SuggestedWarehouseOrderListItem>[];
   Set<String> _selectedKeys = <String>{};
@@ -33,6 +40,11 @@ class SuggestedWarehouseOrdersController extends ChangeNotifier
   bool get isConverting => _isConverting;
   String? get listError => _listError;
   String? get convertError => _convertError;
+  SafeCreateFailureKind get convertFailureKind => _convertFailureKind;
+  String? get convertRelatedClientRequestId => _convertRelatedClientRequestId;
+  String? get convertErrorCode => _convertErrorCode;
+  String? get convertCorrelationId => _convertCorrelationId;
+  int? get convertRetryAfterSeconds => _convertRetryAfterSeconds;
   List<SuggestedWarehouseOrderListItem> get items => _items;
   int get selectedCount => _selectedKeys.length;
   bool get hasSelection => _selectedKeys.isNotEmpty;
@@ -175,6 +187,10 @@ class SuggestedWarehouseOrdersController extends ChangeNotifier
     required DateTime deliveryDate,
     required String description,
     int? targetWarehouseNo,
+    String? clientRequestId,
+    bool forceCreateNew = false,
+    Future<void> Function(SuggestedWarehouseOrderConvertRequest request)?
+    onRequestPrepared,
   }) async {
     final sourceWarehouseNo = _sourceWarehouseNo;
     if (sourceWarehouseNo == null || sourceWarehouseNo <= 0) {
@@ -203,21 +219,39 @@ class SuggestedWarehouseOrdersController extends ChangeNotifier
       return null;
     }
 
+    final request = SuggestedWarehouseOrderConvertRequest(
+      sourceWarehouseNo: sourceWarehouseNo,
+      targetWarehouseNo: targetWarehouseNo,
+      orderDate: _normalizedDate(orderDate),
+      deliveryDate: _normalizedDate(deliveryDate),
+      description: description,
+      lines: lines,
+      clientRequestId: clientRequestId,
+      forceCreateNew: forceCreateNew,
+    );
+    if (onRequestPrepared != null) {
+      await onRequestPrepared(request);
+    }
+    return submitConvertRequest(request);
+  }
+
+  Future<WarehouseOrderCreateResult?> submitConvertRequest(
+    SuggestedWarehouseOrderConvertRequest request,
+  ) async {
+    if (_isConverting) return null;
     _isConverting = true;
     _convertError = null;
+    _convertFailureKind = SafeCreateFailureKind.notRetryable;
+    _convertRelatedClientRequestId = null;
+    _convertErrorCode = null;
+    _convertCorrelationId = null;
+    _convertRetryAfterSeconds = null;
     notifySafely();
 
     try {
       final result = await _repository.convertToOrder(
         accessToken: _accessToken,
-        request: SuggestedWarehouseOrderConvertRequest(
-          sourceWarehouseNo: sourceWarehouseNo,
-          targetWarehouseNo: targetWarehouseNo,
-          orderDate: _normalizedDate(orderDate),
-          deliveryDate: _normalizedDate(deliveryDate),
-          description: description,
-          lines: lines,
-        ),
+        request: request,
       );
       _isConverting = false;
       _selectedKeys = <String>{};
@@ -225,7 +259,12 @@ class SuggestedWarehouseOrdersController extends ChangeNotifier
       return result;
     } on ApiException catch (error) {
       _isConverting = false;
-      _convertError = error.message;
+      _convertFailureKind = classifySafeCreateException(error);
+      _convertRelatedClientRequestId = error.relatedClientRequestId;
+      _convertErrorCode = error.errorCode;
+      _convertCorrelationId = error.correlationId;
+      _convertRetryAfterSeconds = error.retryAfterSeconds;
+      _convertError = safeCreateRetryErrorMessage(error);
       notifySafely();
       return null;
     } catch (error) {

@@ -180,6 +180,43 @@ void main() {
 
     expect(restored?.retryNotBefore, retryNotBefore);
   });
+
+  test('persists support metadata for a pending create', () async {
+    final repository = LocalPendingCreateRepository(
+      database: _MemoryLocalDatabase(),
+    );
+    final checkedAt = DateTime(2026, 10, 16, 14, 30);
+
+    await repository.save(
+      PendingCreateOperation(
+        moduleKey: 'onerilen-firma-siparisi',
+        userId: 'user-1',
+        warehouseNo: '120',
+        payload: const <String, dynamic>{'clientRequestId': 'request-support'},
+        updatedAt: checkedAt,
+        failureKind: 'manualReview',
+        operationCode: 'siparis.onerilen-firma.create',
+        relatedClientRequestId: 'related-request',
+        errorCode: 'MIKRO_DOCUMENT_CONTENT_MISMATCH',
+        correlationId: 'support-603427',
+        errorMessage: 'Yetkili incelemesi gerekli.',
+        lastCheckedAt: checkedAt,
+      ),
+    );
+
+    final restored = await repository.read(
+      moduleKey: 'onerilen-firma-siparisi',
+      userId: 'user-1',
+      warehouseNo: '120',
+    );
+
+    expect(restored?.operationCode, 'siparis.onerilen-firma.create');
+    expect(restored?.relatedClientRequestId, 'related-request');
+    expect(restored?.errorCode, 'MIKRO_DOCUMENT_CONTENT_MISMATCH');
+    expect(restored?.correlationId, 'support-603427');
+    expect(restored?.errorMessage, 'Yetkili incelemesi gerekli.');
+    expect(restored?.lastCheckedAt, checkedAt);
+  });
 }
 
 class _MemoryLocalDatabase implements LocalDatabase {

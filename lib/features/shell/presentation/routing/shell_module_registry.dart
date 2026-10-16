@@ -235,6 +235,7 @@ class ShellModuleRegistry {
           canCreate: context.canCreate,
           currentUserId: context.user.id,
           draftRepository: createDraftRepository,
+          pendingCreateRepository: pendingCreateRepository,
           defaultWarehouseNo: context.user.warehouseNo,
           mobileCustomerCatalogRepository: mobileCustomerCatalogLocalRepository,
           userWarehouseName: context.user.warehouseName,
@@ -270,6 +271,8 @@ class ShellModuleRegistry {
           defaultWarehouseNo: context.user.warehouseNo,
           userWarehouseName: context.user.warehouseName,
           mobileCustomerCatalogRepository: mobileCustomerCatalogLocalRepository,
+          currentUserId: context.user.id,
+          pendingCreateRepository: pendingCreateRepository,
         ),
       ),
       ShellModuleRoute(
@@ -281,6 +284,7 @@ class ShellModuleRegistry {
           canCreate: context.canCreate,
           currentUserId: context.user.id,
           draftRepository: createDraftRepository,
+          pendingCreateRepository: pendingCreateRepository,
           defaultWarehouseNo: context.user.warehouseNo,
           greenGrocerProductCasesRepository: greenGrocerProductCasesRepository,
           mobileWarehouseCatalogRepository:
@@ -299,6 +303,8 @@ class ShellModuleRegistry {
           userWarehouseName: context.user.warehouseName,
           mobileWarehouseCatalogRepository:
               mobileWarehouseCatalogLocalRepository,
+          currentUserId: context.user.id,
+          pendingCreateRepository: pendingCreateRepository,
         ),
       ),
       ShellModuleRoute(

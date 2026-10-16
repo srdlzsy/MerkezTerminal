@@ -307,9 +307,11 @@ class CompanyMovementCreateRequest {
     required this.receiver,
     required this.lines,
     this.clientRequestId,
+    this.forceCreateNew = false,
   });
 
   final String? clientRequestId;
+  final bool forceCreateNew;
   final String customerCode;
   final DateTime movementDate;
   final DateTime documentDate;
@@ -323,6 +325,7 @@ class CompanyMovementCreateRequest {
     return <String, dynamic>{
       if (clientRequestId != null && clientRequestId!.trim().isNotEmpty)
         'clientRequestId': clientRequestId!.trim(),
+      if (forceCreateNew) 'forceCreateNew': true,
       'customerCode': customerCode,
       'movementDate': _toApiDate(movementDate),
       'documentDate': _toApiDate(documentDate),
@@ -338,6 +341,7 @@ class CompanyMovementCreateRequest {
     final rawLines = json['lines'];
     return CompanyMovementCreateRequest(
       clientRequestId: _readString(json['clientRequestId']),
+      forceCreateNew: json['forceCreateNew'] == true,
       customerCode: _readString(json['customerCode']),
       movementDate: _readDate(json['movementDate']) ?? DateTime.now(),
       documentDate: _readDate(json['documentDate']) ?? DateTime.now(),

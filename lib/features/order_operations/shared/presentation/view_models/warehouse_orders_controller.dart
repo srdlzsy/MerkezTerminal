@@ -5,6 +5,7 @@ import 'package:furpa_merkez_terminal/core/utils/request_epoch.dart';
 import 'package:furpa_merkez_terminal/core/utils/safe_change_notifier.dart';
 import 'package:furpa_merkez_terminal/features/order_operations/shared/data/models/warehouse_order_models.dart';
 import 'package:furpa_merkez_terminal/features/order_operations/shared/data/warehouse_orders_repository.dart';
+import 'package:furpa_merkez_terminal/shared/utils/safe_create_retry.dart';
 
 class WarehouseOrdersController extends ChangeNotifier with SafeChangeNotifier {
   WarehouseOrdersController({
@@ -30,6 +31,8 @@ class WarehouseOrdersController extends ChangeNotifier with SafeChangeNotifier {
   String? _listError;
   String? _detailError;
   String? _createError;
+  SafeCreateFailureKind _createFailureKind = SafeCreateFailureKind.notRetryable;
+  String? _createRelatedClientRequestId;
   List<WarehouseOrderListItem> _orders = const <WarehouseOrderListItem>[];
   WarehouseOrderListItem? _selectedOrder;
   WarehouseOrderDetail? _selectedOrderDetail;
@@ -43,6 +46,8 @@ class WarehouseOrdersController extends ChangeNotifier with SafeChangeNotifier {
   String? get listError => _listError;
   String? get detailError => _detailError;
   String? get createError => _createError;
+  SafeCreateFailureKind get createFailureKind => _createFailureKind;
+  String? get createRelatedClientRequestId => _createRelatedClientRequestId;
   List<WarehouseOrderListItem> get orders => _orders;
   WarehouseOrderListItem? get selectedOrder => _selectedOrder;
   WarehouseOrderDetail? get selectedOrderDetail => _selectedOrderDetail;
@@ -161,6 +166,8 @@ class WarehouseOrdersController extends ChangeNotifier with SafeChangeNotifier {
 
     _isCreating = true;
     _createError = null;
+    _createFailureKind = SafeCreateFailureKind.notRetryable;
+    _createRelatedClientRequestId = null;
     notifySafely();
 
     try {
@@ -180,7 +187,9 @@ class WarehouseOrdersController extends ChangeNotifier with SafeChangeNotifier {
       return result;
     } on ApiException catch (error) {
       _isCreating = false;
-      _createError = error.message;
+      _createFailureKind = classifySafeCreateException(error);
+      _createRelatedClientRequestId = error.relatedClientRequestId;
+      _createError = safeCreateRetryErrorMessage(error);
       notifySafely();
       return null;
     }

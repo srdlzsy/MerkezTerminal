@@ -3,6 +3,10 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:furpa_merkez_terminal/core/network/api_client.dart';
 import 'package:furpa_merkez_terminal/features/company_movements/shared/data/company_movements_repository.dart';
+import 'package:furpa_merkez_terminal/features/order_operations/given_company_orders/data/given_company_orders_repository.dart';
+import 'package:furpa_merkez_terminal/features/order_operations/given_warehouse_orders/data/given_warehouse_orders_repository.dart';
+import 'package:furpa_merkez_terminal/features/order_operations/suggested_company_orders/data/suggested_company_orders_repository.dart';
+import 'package:furpa_merkez_terminal/features/order_operations/suggested_warehouse_orders/data/suggested_warehouse_orders_repository.dart';
 import 'package:furpa_merkez_terminal/features/return_operations/warehouse_returns/data/warehouse_returns_repository.dart';
 import 'package:furpa_merkez_terminal/features/shipping_operations/outgoing_warehouse_shipments/data/outgoing_warehouse_shipments_repository.dart';
 import 'package:furpa_merkez_terminal/features/stock_operations/stock_receipts/data/models/stock_receipt_models.dart';
@@ -81,6 +85,30 @@ void main() {
       accessToken: 'token',
       clientRequestId: 'request-1',
     );
+    await ApiGivenWarehouseOrdersRepository(
+      apiClient: apiClient,
+    ).fetchOfflineSyncStatus(
+      accessToken: 'token',
+      clientRequestId: 'request-1',
+    );
+    await ApiGivenCompanyOrdersRepository(
+      apiClient: apiClient,
+    ).fetchOfflineSyncStatus(
+      accessToken: 'token',
+      clientRequestId: 'request-1',
+    );
+    await ApiSuggestedWarehouseOrdersRepository(
+      apiClient: apiClient,
+    ).fetchOfflineSyncStatus(
+      accessToken: 'token',
+      clientRequestId: 'request-1',
+    );
+    await ApiSuggestedCompanyOrdersRepository(
+      apiClient: apiClient,
+    ).fetchOfflineSyncStatus(
+      accessToken: 'token',
+      clientRequestId: 'request-1',
+    );
 
     expect(requestedPaths, <String>[
       '/api/sevk-islemleri/depolar-arasi-sevkler/giden/offline-sync/request-1',
@@ -90,6 +118,10 @@ void main() {
       '/api/stok-islemleri/zayiat-fisleri/offline-sync/request-1',
       '/api/stok-islemleri/masraf-fisleri/offline-sync/request-1',
       '/api/stok-islemleri/virmanlar/offline-sync/request-1',
+      '/api/siparis-islemleri/verilen-depo-siparisleri/offline-sync/request-1',
+      '/api/siparis-islemleri/verilen-firma-siparisleri/offline-sync/request-1',
+      '/api/siparis-islemleri/onerilen-depo-siparisleri/offline-sync/request-1',
+      '/api/siparis-islemleri/onerilen-firma-siparisleri/offline-sync/request-1',
     ]);
   });
 }

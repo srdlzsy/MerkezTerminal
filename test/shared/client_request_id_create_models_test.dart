@@ -1,5 +1,9 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:furpa_merkez_terminal/features/company_movements/shared/data/models/company_movement_models.dart';
+import 'package:furpa_merkez_terminal/features/order_operations/given_company_orders/data/models/given_company_order_models.dart';
+import 'package:furpa_merkez_terminal/features/order_operations/shared/data/models/warehouse_order_models.dart';
+import 'package:furpa_merkez_terminal/features/order_operations/suggested_company_orders/data/models/suggested_company_order_models.dart';
+import 'package:furpa_merkez_terminal/features/order_operations/suggested_warehouse_orders/data/models/suggested_warehouse_order_models.dart';
 import 'package:furpa_merkez_terminal/features/shipping_operations/outgoing_warehouse_shipments/data/models/outgoing_warehouse_shipment_models.dart';
 import 'package:furpa_merkez_terminal/features/stock_operations/stock_receipts/data/models/stock_receipt_models.dart';
 import 'package:furpa_merkez_terminal/features/stock_operations/virman/data/models/virman_models.dart';
@@ -107,6 +111,116 @@ void main() {
       ).toJson()['clientRequestId'],
       clientRequestId,
     );
+
+    expect(
+      WarehouseOrderCreateRequest(
+        clientRequestId: clientRequestId,
+        outWarehouseNo: 50,
+        orderDate: DateTime(2026, 4, 17),
+        deliveryDate: DateTime(2026, 4, 18),
+        description: 'Depo siparisi',
+        lines: const <WarehouseOrderCreateLine>[
+          WarehouseOrderCreateLine(
+            stockCode: '015792',
+            quantity: 10,
+            recommendedQuantity: 0,
+            unitPrice: 0,
+            unitPointer: 1,
+            description: '',
+            packageCode: '',
+            projectCode: '',
+            responsibilityCenter: '',
+          ),
+        ],
+      ).toJson()['clientRequestId'],
+      clientRequestId,
+    );
+
+    expect(
+      CompanyOrderCreateRequest(
+        clientRequestId: clientRequestId,
+        customerCode: '32000999',
+        orderDate: DateTime(2026, 4, 17),
+        deliveryDate: DateTime(2026, 4, 18),
+        description1: 'Firma siparisi',
+        description2: '',
+        deliverer: 'Ali',
+        receiver: 'Veli',
+        lines: const <CompanyOrderCreateLine>[
+          CompanyOrderCreateLine(
+            stockCode: '015792',
+            quantity: 10,
+            recommendedQuantity: 0,
+            unitPrice: 12.5,
+            unitPointer: 1,
+            description1: '',
+            description2: '',
+            packageCode: '',
+            projectCode: '',
+            customerResponsibilityCenter: '',
+            productResponsibilityCenter: '',
+          ),
+        ],
+      ).toJson()['clientRequestId'],
+      clientRequestId,
+    );
+
+    expect(
+      SuggestedWarehouseOrderConvertRequest(
+        clientRequestId: clientRequestId,
+        forceCreateNew: true,
+        sourceWarehouseNo: 50,
+        targetWarehouseNo: 120,
+        orderDate: DateTime(2026, 10, 1),
+        deliveryDate: DateTime(2026, 10, 2),
+        description: 'Onerilen depo siparisi',
+        lines: const <SuggestedWarehouseOrderConvertLine>[
+          SuggestedWarehouseOrderConvertLine(
+            stockCode: '015792',
+            quantity: 6,
+            recommendedQuantity: 5,
+            unitPrice: 10,
+            unitPointer: 1,
+            description: '',
+            packageCode: '',
+            projectCode: '',
+            responsibilityCenter: '',
+          ),
+        ],
+      ).toJson(),
+      containsPair('clientRequestId', clientRequestId),
+    );
+
+    expect(
+      SuggestedCompanyOrderConvertRequest(
+        clientRequestId: clientRequestId,
+        forceCreateNew: true,
+        supplierCode: '32000999',
+        warehouseNo: 120,
+        orderDate: DateTime(2026, 10, 1),
+        deliveryDate: DateTime(2026, 10, 2),
+        description1: 'Onerilen firma siparisi',
+        description2: '',
+        deliverer: '',
+        receiver: '',
+        lines: const <SuggestedCompanyOrderConvertLine>[
+          SuggestedCompanyOrderConvertLine(
+            stockCode: '015792',
+            quantity: 8,
+            recommendedQuantity: 7,
+            unitPrice: 12.5,
+            unitPointer: 1,
+            description1: '',
+            description2: '',
+            packageCode: '',
+            projectCode: '',
+            customerResponsibilityCenter: '',
+            productResponsibilityCenter: '',
+          ),
+        ],
+      ).toJson(),
+      containsPair('clientRequestId', clientRequestId),
+    );
   });
 
   test('safe retry create models restore the exact persisted payload', () {
@@ -176,6 +290,53 @@ void main() {
           ),
         ],
       ).toJson(),
+      WarehouseOrderCreateRequest(
+        clientRequestId: clientRequestId,
+        forceCreateNew: true,
+        outWarehouseNo: 50,
+        orderDate: DateTime(2026, 10, 1),
+        deliveryDate: DateTime(2026, 10, 2),
+        description: 'Depo siparisi',
+        lines: const <WarehouseOrderCreateLine>[
+          WarehouseOrderCreateLine(
+            stockCode: '015792',
+            quantity: 6,
+            recommendedQuantity: 5,
+            unitPrice: 10,
+            unitPointer: 1,
+            description: 'Satir',
+            packageCode: 'PKT',
+            projectCode: 'PRJ',
+            responsibilityCenter: 'SRM',
+          ),
+        ],
+      ).toJson(),
+      CompanyOrderCreateRequest(
+        clientRequestId: clientRequestId,
+        forceCreateNew: true,
+        customerCode: '32000999',
+        orderDate: DateTime(2026, 10, 1),
+        deliveryDate: DateTime(2026, 10, 2),
+        description1: 'Firma siparisi',
+        description2: 'Aciklama 2',
+        deliverer: 'Ali',
+        receiver: 'Veli',
+        lines: const <CompanyOrderCreateLine>[
+          CompanyOrderCreateLine(
+            stockCode: '015792',
+            quantity: 8,
+            recommendedQuantity: 7,
+            unitPrice: 12.5,
+            unitPointer: 1,
+            description1: 'Satir 1',
+            description2: 'Satir 2',
+            packageCode: 'PKT',
+            projectCode: 'PRJ',
+            customerResponsibilityCenter: 'CRM',
+            productResponsibilityCenter: 'URM',
+          ),
+        ],
+      ).toJson(),
     ];
 
     expect(
@@ -187,5 +348,13 @@ void main() {
       requests[1],
     );
     expect(VirmanCreateRequest.fromJson(requests[2]).toJson(), requests[2]);
+    expect(
+      WarehouseOrderCreateRequest.fromJson(requests[3]).toJson(),
+      requests[3],
+    );
+    expect(
+      CompanyOrderCreateRequest.fromJson(requests[4]).toJson(),
+      requests[4],
+    );
   });
 }

@@ -8,6 +8,12 @@ import 'package:furpa_merkez_terminal/features/order_operations/suggested_wareho
 import 'package:furpa_merkez_terminal/features/order_operations/suggested_warehouse_orders/presentation/view_models/suggested_warehouse_orders_controller.dart';
 import 'package:furpa_merkez_terminal/shared/formatters/app_formatters.dart';
 import 'package:furpa_merkez_terminal/shared/offline/mobile_warehouse_catalog_repository.dart';
+import 'package:furpa_merkez_terminal/shared/offline/offline_sync_status.dart';
+import 'package:furpa_merkez_terminal/shared/pending_create/pending_create_guard.dart';
+import 'package:furpa_merkez_terminal/shared/pending_create/pending_create_repository.dart';
+import 'package:furpa_merkez_terminal/shared/pending_create/pending_create_status_card.dart';
+import 'package:furpa_merkez_terminal/shared/utils/client_request_id.dart';
+import 'package:furpa_merkez_terminal/shared/utils/safe_create_retry.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/section_card.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/terminal_ui_parts.dart';
 
@@ -20,6 +26,8 @@ class SuggestedWarehouseOrdersPage extends StatefulWidget {
     required this.defaultWarehouseNo,
     required this.userWarehouseName,
     required this.mobileWarehouseCatalogRepository,
+    this.currentUserId = '',
+    this.pendingCreateRepository,
   });
 
   final SuggestedWarehouseOrdersRepository repository;
@@ -28,6 +36,8 @@ class SuggestedWarehouseOrdersPage extends StatefulWidget {
   final String defaultWarehouseNo;
   final String userWarehouseName;
   final MobileWarehouseCatalogLocalRepository mobileWarehouseCatalogRepository;
+  final String currentUserId;
+  final PendingCreateRepository? pendingCreateRepository;
 
   @override
   State<SuggestedWarehouseOrdersPage> createState() =>
@@ -36,6 +46,7 @@ class SuggestedWarehouseOrdersPage extends StatefulWidget {
 
 class _SuggestedWarehouseOrdersPageState
     extends State<SuggestedWarehouseOrdersPage> {
+  static const String _pendingModuleKey = 'suggested_warehouse_orders.convert';
   late final SuggestedWarehouseOrdersController _controller;
   late final TextEditingController _sourceWarehouseNoController;
   late final TextEditingController _descriptionController;
@@ -45,6 +56,17 @@ class _SuggestedWarehouseOrdersPageState
   WarehouseLookupItem? _selectedSourceWarehouse;
   late DateTime _orderDate;
   late DateTime _deliveryDate;
+  SuggestedWarehouseOrderConvertRequest? _pendingRequest;
+  PendingCreateOperation? _pendingOperation;
+  SafeCreateFailureKind _pendingFailureKind =
+      SafeCreateFailureKind.notRetryable;
+  bool _isCheckingPending = false;
+
+  bool get _usesSafeConvert =>
+      widget.pendingCreateRepository != null &&
+      widget.currentUserId.isNotEmpty &&
+      widget.repository
+          is OfflineSyncStatusProvider<WarehouseOrderCreateResult>;
 
   @override
   void initState() {
@@ -59,6 +81,9 @@ class _SuggestedWarehouseOrdersPageState
     );
     _orderDate = _normalizedDate(DateTime.now());
     _deliveryDate = _normalizedDate(DateTime.now());
+    if (_usesSafeConvert) {
+      unawaited(_restorePendingConvert());
+    }
   }
 
   @override
@@ -203,25 +228,246 @@ class _SuggestedWarehouseOrdersPageState
   }
 
   Future<void> _convertSelected() async {
-    final result = await _controller.convertSelected(
-      orderDate: _orderDate,
-      deliveryDate: _deliveryDate,
-      description: _descriptionController.text.trim(),
-    );
+    if (_usesSafeConvert) {
+      final hasCapacity = await ensurePendingCreateCapacity(
+        context: context,
+        repository: widget.pendingCreateRepository!,
+        moduleKey: _pendingModuleKey,
+        userId: widget.currentUserId,
+        warehouseNo: widget.defaultWarehouseNo,
+      );
+      if (!hasCapacity || !mounted) return;
+    }
+
+    WarehouseOrderCreateResult? result;
+    try {
+      result = await _controller.convertSelected(
+        orderDate: _orderDate,
+        deliveryDate: _deliveryDate,
+        description: _descriptionController.text.trim(),
+        clientRequestId: _usesSafeConvert ? generateClientRequestId() : null,
+        onRequestPrepared: _usesSafeConvert
+            ? (request) => _persistPending(request)
+            : null,
+      );
+    } on Object {
+      if (mounted) {
+        _showFeedback(
+          'Guvenli siparis bilgisi cihaza yazilamadi. Islem baslatilmadi.',
+        );
+      }
+      return;
+    }
 
     if (!mounted) {
       return;
     }
 
     if (result == null) {
+      if (_usesSafeConvert && _pendingRequest != null) {
+        await _handleConvertFailure();
+      }
       _showFeedback(_controller.convertError ?? 'Siparis olusturulamadi.');
       return;
     }
+
+    await _completePending(result);
 
     _showFeedback(
       '${result.documentNoLabel} olusturuldu. '
       '${result.lineCount} satir, toplam ${AppFormatters.quantity(result.totalQuantity)} miktar.',
     );
+  }
+
+  Future<void> _restorePendingConvert() async {
+    try {
+      final operation = await widget.pendingCreateRepository!.read(
+        moduleKey: _pendingModuleKey,
+        userId: widget.currentUserId,
+        warehouseNo: widget.defaultWarehouseNo,
+      );
+      if (!mounted || operation == null) return;
+      final request = SuggestedWarehouseOrderConvertRequest.fromJson(
+        operation.payload,
+      );
+      if (request.clientRequestId?.isNotEmpty != true) return;
+      setState(() {
+        _pendingRequest = request;
+        _pendingOperation = operation;
+        _pendingFailureKind = _failureKindFromName(operation.failureKind);
+      });
+      await _checkPendingStatus(silent: true);
+    } on Object {
+      if (mounted) {
+        _showFeedback(
+          'Bekleyen onerilen depo siparisi okunamadi. Uygulama verisini temizlemeyin.',
+        );
+      }
+    }
+  }
+
+  Future<void> _persistPending(
+    SuggestedWarehouseOrderConvertRequest request, {
+    SafeCreateFailureKind? failureKind,
+    String? errorMessage,
+    String? operationCode,
+    String? relatedClientRequestId,
+    String? errorCode,
+    String? correlationId,
+    DateTime? retryNotBefore,
+    DateTime? lastCheckedAt,
+  }) async {
+    final existingOperation =
+        _pendingOperation?.clientRequestId == request.clientRequestId
+        ? _pendingOperation
+        : null;
+    final operation = PendingCreateOperation(
+      moduleKey: _pendingModuleKey,
+      userId: widget.currentUserId,
+      warehouseNo: widget.defaultWarehouseNo,
+      payload: request.toJson(),
+      updatedAt: DateTime.now(),
+      failureKind: failureKind?.name,
+      retryNotBefore: retryNotBefore,
+      operationCode: operationCode ?? existingOperation?.operationCode,
+      relatedClientRequestId:
+          relatedClientRequestId ?? existingOperation?.relatedClientRequestId,
+      errorCode: errorCode ?? existingOperation?.errorCode,
+      correlationId: correlationId ?? existingOperation?.correlationId,
+      errorMessage: errorMessage ?? existingOperation?.errorMessage,
+      lastCheckedAt: lastCheckedAt,
+    );
+    await widget.pendingCreateRepository!.save(operation);
+    if (!mounted) return;
+    setState(() {
+      _pendingRequest = request;
+      _pendingOperation = operation;
+      _pendingFailureKind = failureKind ?? SafeCreateFailureKind.notRetryable;
+    });
+  }
+
+  Future<void> _handleConvertFailure() async {
+    final request = _pendingRequest;
+    if (request == null) return;
+    final kind = _controller.convertFailureKind;
+    if (!shouldKeepSafeCreatePending(kind)) {
+      await _removePending(request.clientRequestId);
+      return;
+    }
+    await _persistPending(
+      request,
+      failureKind: kind,
+      errorMessage: _controller.convertError,
+      relatedClientRequestId: _controller.convertRelatedClientRequestId,
+      errorCode: _controller.convertErrorCode,
+      correlationId: _controller.convertCorrelationId,
+      retryNotBefore: safeCreateRetryNotBefore(
+        retryable: canRetrySafeCreate(kind),
+        retryAfterSeconds: _controller.convertRetryAfterSeconds,
+      ),
+      lastCheckedAt: DateTime.now(),
+    );
+  }
+
+  Future<void> _checkPendingStatus({bool silent = false}) async {
+    final request = _pendingRequest;
+    final operation = _pendingOperation;
+    if (request == null || operation == null || _isCheckingPending) return;
+    setState(() => _isCheckingPending = true);
+    try {
+      final provider =
+          widget.repository
+              as OfflineSyncStatusProvider<WarehouseOrderCreateResult>;
+      final lookupId =
+          operation.relatedClientRequestId?.trim().isNotEmpty == true
+          ? operation.relatedClientRequestId!.trim()
+          : request.clientRequestId!;
+      final status = await provider.fetchOfflineSyncStatus(
+        accessToken: widget.accessToken,
+        clientRequestId: lookupId,
+      );
+      if (status.isCompleted && status.result != null) {
+        await _completePending(status.result!);
+        if (!silent && mounted) {
+          _showFeedback(
+            '${status.result!.documentNoLabel} zaten olusturulmus.',
+          );
+        }
+        return;
+      }
+      final kind = classifyOfflineSyncStatus(status);
+      await _persistPending(
+        request,
+        failureKind: kind,
+        errorMessage: status.errorMessage,
+        operationCode: status.operationCode,
+        errorCode: status.errorCode,
+        retryNotBefore: status.retryNotBefore(),
+        lastCheckedAt: DateTime.now(),
+      );
+    } on ApiException catch (error) {
+      final kind = error.statusCode == 404
+          ? SafeCreateFailureKind.statusNotFound
+          : classifySafeCreateException(error);
+      await _persistPending(
+        request,
+        failureKind: kind,
+        errorMessage: error.statusCode == 404
+            ? 'Sunucuda bu kaydin durum izi bulunamadi.'
+            : safeCreateRetryErrorMessage(error),
+        relatedClientRequestId: error.relatedClientRequestId,
+        errorCode: error.errorCode,
+        correlationId: error.correlationId,
+        retryNotBefore: safeCreateRetryNotBefore(
+          retryable: error.retryable,
+          retryAfterSeconds: error.retryAfterSeconds,
+        ),
+        lastCheckedAt: DateTime.now(),
+      );
+    } finally {
+      if (mounted) setState(() => _isCheckingPending = false);
+    }
+  }
+
+  Future<void> _retryPending() async {
+    final request = _pendingRequest;
+    final operation = _pendingOperation;
+    if (request == null || operation == null) return;
+    final wait = safeCreateRetryWait(operation.retryNotBefore);
+    if (wait > Duration.zero) {
+      _showFeedback(safeCreateRetryWaitMessage(wait));
+      return;
+    }
+    final result = await _controller.submitConvertRequest(request);
+    if (!mounted) return;
+    if (result != null) {
+      await _completePending(result);
+      _showFeedback('${result.documentNoLabel} olusturuldu.');
+    } else {
+      await _handleConvertFailure();
+      _showFeedback(_controller.convertError ?? 'Siparis olusturulamadi.');
+    }
+  }
+
+  Future<void> _completePending(WarehouseOrderCreateResult result) async {
+    if (!_usesSafeConvert) return;
+    await _removePending(_pendingRequest?.clientRequestId);
+  }
+
+  Future<void> _removePending(String? clientRequestId) async {
+    await widget.pendingCreateRepository!.remove(
+      moduleKey: _pendingModuleKey,
+      userId: widget.currentUserId,
+      warehouseNo: widget.defaultWarehouseNo,
+      clientRequestId: clientRequestId,
+    );
+    if (!mounted) return;
+    setState(() {
+      _pendingRequest = null;
+      _pendingOperation = null;
+      _pendingFailureKind = SafeCreateFailureKind.notRetryable;
+    });
+    await _restorePendingConvert();
   }
 
   void _showFeedback(String message) {
@@ -386,6 +632,18 @@ class _SuggestedWarehouseOrdersPageState
           : '${_controller.items.length} urun bulundu.',
       child: Column(
         children: <Widget>[
+          if (_pendingOperation != null) ...<Widget>[
+            PendingCreateStatusCard(
+              operation: _pendingOperation!,
+              failureKind: _pendingFailureKind,
+              isBusy: _isCheckingPending || _controller.isConverting,
+              onCheck: _checkPendingStatus,
+              onRetry: canRetrySafeCreate(_pendingFailureKind)
+                  ? _retryPending
+                  : null,
+            ),
+            const SizedBox(height: 10),
+          ],
           if (convertError != null) ...<Widget>[
             TerminalMessageBlock.error(message: convertError),
             const SizedBox(height: 10),
@@ -442,6 +700,13 @@ class _SuggestedWarehouseOrdersPageState
         .toStringAsFixed(3)
         .replaceFirst(RegExp(r'0+$'), '')
         .replaceFirst(RegExp(r'\.$'), '');
+  }
+
+  static SafeCreateFailureKind _failureKindFromName(String? value) {
+    return SafeCreateFailureKind.values.firstWhere(
+      (item) => item.name == value,
+      orElse: () => SafeCreateFailureKind.uncertain,
+    );
   }
 }
 

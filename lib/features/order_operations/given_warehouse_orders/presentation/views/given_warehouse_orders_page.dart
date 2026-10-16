@@ -5,6 +5,7 @@ import 'package:furpa_merkez_terminal/features/order_operations/given_warehouse_
 import 'package:furpa_merkez_terminal/features/order_operations/shared/presentation/views/warehouse_orders_page.dart';
 import 'package:furpa_merkez_terminal/shared/drafts/create_draft_repository.dart';
 import 'package:furpa_merkez_terminal/shared/offline/mobile_warehouse_catalog_repository.dart';
+import 'package:furpa_merkez_terminal/shared/pending_create/pending_create_repository.dart';
 
 class GivenWarehouseOrdersPage extends StatelessWidget {
   const GivenWarehouseOrdersPage({
@@ -15,6 +16,7 @@ class GivenWarehouseOrdersPage extends StatelessWidget {
     required this.defaultWarehouseNo,
     required this.mobileWarehouseCatalogRepository,
     required this.userWarehouseName,
+    required this.pendingCreateRepository,
     this.greenGrocerProductCasesRepository,
     this.currentUserId = '',
     this.draftRepository,
@@ -26,6 +28,7 @@ class GivenWarehouseOrdersPage extends StatelessWidget {
   final String defaultWarehouseNo;
   final MobileWarehouseCatalogLocalRepository mobileWarehouseCatalogRepository;
   final String userWarehouseName;
+  final PendingCreateRepository pendingCreateRepository;
   final GreenGrocerProductCasesRepository? greenGrocerProductCasesRepository;
   final String currentUserId;
   final CreateDraftRepository? draftRepository;
@@ -43,6 +46,7 @@ class GivenWarehouseOrdersPage extends StatelessWidget {
       currentUserId: currentUserId,
       draftModuleKey: 'siparis-islemleri.verilen-depo-siparisleri',
       draftRepository: draftRepository,
+      pendingCreateRepository: pendingCreateRepository,
       createTitle: 'Yeni Verilen Depo Siparisi',
       createSheetBuilder: (context, draft, draftRepository) {
         return GivenWarehouseOrderCreateSheet(

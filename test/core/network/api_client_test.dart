@@ -88,7 +88,8 @@ void main() {
           '"detail":"Mikro belge icerigi uyusmuyor",'
           '"errorCode":"MIKRO_DOCUMENT_CONTENT_MISMATCH",'
           '"retryable":false,"retryAfterSeconds":5,'
-          '"correlationId":"trace-123"}',
+          '"correlationId":"trace-123",'
+          '"relatedClientRequestId":"existing-request-456"}',
           409,
           headers: <String, String>{'content-type': 'application/problem+json'},
         );
@@ -111,6 +112,11 @@ void main() {
               (error) => error.correlationId,
               'correlationId',
               'trace-123',
+            )
+            .having(
+              (error) => error.relatedClientRequestId,
+              'relatedClientRequestId',
+              'existing-request-456',
             ),
       ),
     );

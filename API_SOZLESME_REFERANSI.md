@@ -7,7 +7,7 @@ Kapsam: kayitli HTTP method/route ve alias'lar, binding kaynagi, request alanlar
 
 `bildirilmemis` response tipi, runtime cevabinin bos oldugu anlamina gelmez. Anonim endpointler konfigurasyon/ag/servis kontrollerine tabi olabilir. JWT fallback policy, acik Authorize olmasa da uygulanir.
 
-Endpoint sayisi (method + route): 746. Model sayisi: 684.
+Endpoint sayisi (method + route): 750. Model sayisi: 687.
 
 Bunlara ek olarak EndpointDataSource uzerinden dogrulanan iki health route'u vardir: `/health/live`, `/health/ready`. Bu middleware route'larinda method kisiti yoktur; istemci GET kullanmalidir. Anonimdir, JSON dondurur; Healthy/Degraded=200, Unhealthy=503. `live` yalniz prosesi, `ready` core_dependencies, operations_export_path ve background_workers kontrollerini olcer. Alanlar: status (string), durationMilliseconds (number), checks (ad -> status/durationMilliseconds/description/data). Tum runtime route'lari envanterde yer alir; yeni ve ApiExplorer disinda kalan route eklenirse test basarisiz olur.
 
@@ -700,20 +700,24 @@ Ozel response'lar: `/` Hosting:ExposeDiagnosticsOnRoot=false iken yalniz service
 | GET | `/api/siparis-islemleri/alinan-firma-siparisleri/{documentSerie}/{documentOrderNo}` | JWT + siparis-islemleri.alinan-firma-siparisleri.detail | path: documentSerie / string (zorunlu)<br>path: documentOrderNo / integer (int32) (zorunlu)<br>query: warehouseNo / integer (int32) | 401: ProblemDetails<br>403: ProblemDetails<br>200: CompanyOrderDetailDto<br>400: ProblemDetails<br>404: ProblemDetails |
 | PUT | `/api/siparis-islemleri/alinan-firma-siparisleri/{id}` | JWT + siparis-islemleri.alinan-firma-siparisleri.update | path: id / string (zorunlu)<br>body: request / ModuleActionRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>501: ModuleActionScaffoldResponse |
 | GET | `/api/siparis-islemleri/onerilen-depo-siparisleri` | JWT + siparis-islemleri.onerilen-depo-siparisleri.list | query: TargetWarehouseNo / integer (int32)<br>query: SourceWarehouseNo / integer (int32)<br>query: LookbackDays / integer (int32)<br>query: FallbackRecommendedDay / integer (int32) | 401: ProblemDetails<br>403: ProblemDetails<br>200: IReadOnlyCollection&lt;SuggestedWarehouseOrderListItemDto&gt;<br>400: ProblemDetails |
-| POST | `/api/siparis-islemleri/onerilen-depo-siparisleri/convert-to-order` | JWT + siparis-islemleri.onerilen-depo-siparisleri.create | body: request / ConvertSuggestedWarehouseOrderHttpRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>201: CreateIssuedWarehouseOrderResponse<br>400: ProblemDetails |
+| POST | `/api/siparis-islemleri/onerilen-depo-siparisleri/convert-to-order` | JWT + siparis-islemleri.onerilen-depo-siparisleri.create | body: request / ConvertSuggestedWarehouseOrderHttpRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>201: CreateIssuedWarehouseOrderResponse<br>400: ProblemDetails<br>409: ProblemDetails |
 | GET | `/api/siparis-islemleri/onerilen-depo-siparisleri/kaynak-depo-urunleri` | JWT + siparis-islemleri.onerilen-depo-siparisleri.list | query: sourceWarehouseNo / integer (int32) | 401: ProblemDetails<br>403: ProblemDetails<br>200: IReadOnlyCollection&lt;SuggestedWarehouseSourceProductDto&gt;<br>400: ProblemDetails |
 | GET | `/api/siparis-islemleri/onerilen-depo-siparisleri/manav` | JWT + siparis-islemleri.onerilen-depo-siparisleri.list |  | 401: ProblemDetails<br>403: ProblemDetails<br>200: IReadOnlyCollection&lt;SuggestedWarehouseSourceProductDto&gt;<br>400: ProblemDetails |
+| GET | `/api/siparis-islemleri/onerilen-depo-siparisleri/offline-sync/{clientRequestId}` | JWT + siparis-islemleri.onerilen-depo-siparisleri.create | path: clientRequestId / string (uuid) (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: OfflineSyncStatusDto&lt;CreateIssuedWarehouseOrderResponse&gt;<br>404: ProblemDetails<br>409: ProblemDetails |
 | GET | `/api/siparis-islemleri/onerilen-firma-siparisleri` | JWT + siparis-islemleri.onerilen-firma-siparisleri.list | query: WarehouseNo / integer (int32)<br>query: SupplierCode / string (zorunlu)<br>query: LookbackDays / integer (int32)<br>query: FallbackRecommendedDay / integer (int32) | 401: ProblemDetails<br>403: ProblemDetails<br>200: IReadOnlyCollection&lt;SuggestedCompanyOrderListItemDto&gt;<br>400: ProblemDetails |
-| POST | `/api/siparis-islemleri/onerilen-firma-siparisleri/convert-to-order` | JWT + siparis-islemleri.onerilen-firma-siparisleri.create | body: request / ConvertSuggestedCompanyOrderHttpRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>201: CreateIssuedCompanyOrderResponse<br>400: ProblemDetails<br>404: ProblemDetails |
+| POST | `/api/siparis-islemleri/onerilen-firma-siparisleri/convert-to-order` | JWT + siparis-islemleri.onerilen-firma-siparisleri.create | body: request / ConvertSuggestedCompanyOrderHttpRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>201: CreateIssuedCompanyOrderResponse<br>400: ProblemDetails<br>404: ProblemDetails<br>409: ProblemDetails |
+| GET | `/api/siparis-islemleri/onerilen-firma-siparisleri/offline-sync/{clientRequestId}` | JWT + siparis-islemleri.onerilen-firma-siparisleri.create | path: clientRequestId / string (uuid) (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: OfflineSyncStatusDto&lt;CreateIssuedCompanyOrderResponse&gt;<br>404: ProblemDetails<br>409: ProblemDetails |
 | GET | `/api/siparis-islemleri/verilen-depo-siparisleri` | JWT + siparis-islemleri.verilen-depo-siparisleri.list | query: WarehouseNo / integer (int32)<br>query: StartDate / string (date-time) (zorunlu)<br>query: EndDate / string (date-time) (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: IReadOnlyCollection&lt;WarehouseOrderListItemDto&gt;<br>400: ProblemDetails |
-| POST | `/api/siparis-islemleri/verilen-depo-siparisleri` | JWT + siparis-islemleri.verilen-depo-siparisleri.create | body: request / CreateIssuedWarehouseOrderHttpRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>201: CreateIssuedWarehouseOrderResponse<br>400: ProblemDetails |
+| POST | `/api/siparis-islemleri/verilen-depo-siparisleri` | JWT + siparis-islemleri.verilen-depo-siparisleri.create | body: request / CreateIssuedWarehouseOrderHttpRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>201: CreateIssuedWarehouseOrderResponse<br>400: ProblemDetails<br>409: ProblemDetails |
 | GET | `/api/siparis-islemleri/verilen-depo-siparisleri/key/{documentKey}` | JWT + siparis-islemleri.verilen-depo-siparisleri.detail | path: documentKey / string (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: WarehouseOrderDetailDto<br>400: ProblemDetails<br>404: ProblemDetails |
+| GET | `/api/siparis-islemleri/verilen-depo-siparisleri/offline-sync/{clientRequestId}` | JWT + siparis-islemleri.verilen-depo-siparisleri.create | path: clientRequestId / string (uuid) (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: OfflineSyncStatusDto&lt;CreateIssuedWarehouseOrderResponse&gt;<br>404: ProblemDetails<br>409: ProblemDetails |
 | GET | `/api/siparis-islemleri/verilen-depo-siparisleri/{documentSerie}/{documentOrderNo}` | JWT + siparis-islemleri.verilen-depo-siparisleri.detail | path: documentSerie / string (zorunlu)<br>path: documentOrderNo / integer (int32) (zorunlu)<br>query: warehouseNo / integer (int32) | 401: ProblemDetails<br>403: ProblemDetails<br>200: WarehouseOrderDetailDto<br>400: ProblemDetails<br>404: ProblemDetails |
 | PUT | `/api/siparis-islemleri/verilen-depo-siparisleri/{id}` | JWT + siparis-islemleri.verilen-depo-siparisleri.update | path: id / string (zorunlu)<br>body: request / ModuleActionRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>501: ModuleActionScaffoldResponse |
 | GET | `/api/siparis-islemleri/verilen-firma-siparisleri` | JWT + siparis-islemleri.verilen-firma-siparisleri.list | query: WarehouseNo / integer (int32)<br>query: StartDate / string (date-time) (zorunlu)<br>query: EndDate / string (date-time) (zorunlu)<br>query: CustomerCode / string<br>query: OnlyOpen / boolean | 401: ProblemDetails<br>403: ProblemDetails<br>200: IReadOnlyCollection&lt;CompanyOrderListItemDto&gt;<br>400: ProblemDetails |
-| POST | `/api/siparis-islemleri/verilen-firma-siparisleri` | JWT + siparis-islemleri.verilen-firma-siparisleri.create | body: request / CreateIssuedCompanyOrderHttpRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>201: CreateIssuedCompanyOrderResponse<br>400: ProblemDetails<br>404: ProblemDetails |
+| POST | `/api/siparis-islemleri/verilen-firma-siparisleri` | JWT + siparis-islemleri.verilen-firma-siparisleri.create | body: request / CreateIssuedCompanyOrderHttpRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>201: CreateIssuedCompanyOrderResponse<br>400: ProblemDetails<br>404: ProblemDetails<br>409: ProblemDetails |
 | GET | `/api/siparis-islemleri/verilen-firma-siparisleri/firma-urunleri` | JWT + siparis-islemleri.verilen-firma-siparisleri.create | query: WarehouseNo / integer (int32)<br>query: CustomerCode / string (zorunlu)<br>query: Search / string<br>query: Take / integer (int32) | 401: ProblemDetails<br>403: ProblemDetails<br>200: IReadOnlyCollection&lt;IssuedCompanyOrderSupplierProductDto&gt;<br>400: ProblemDetails |
 | GET | `/api/siparis-islemleri/verilen-firma-siparisleri/key/{documentKey}` | JWT + siparis-islemleri.verilen-firma-siparisleri.detail | path: documentKey / string (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: CompanyOrderDetailDto<br>400: ProblemDetails<br>404: ProblemDetails |
+| GET | `/api/siparis-islemleri/verilen-firma-siparisleri/offline-sync/{clientRequestId}` | JWT + siparis-islemleri.verilen-firma-siparisleri.create | path: clientRequestId / string (uuid) (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: OfflineSyncStatusDto&lt;CreateIssuedCompanyOrderResponse&gt;<br>404: ProblemDetails<br>409: ProblemDetails |
 | GET | `/api/siparis-islemleri/verilen-firma-siparisleri/{documentSerie}/{documentOrderNo}` | JWT + siparis-islemleri.verilen-firma-siparisleri.detail | path: documentSerie / string (zorunlu)<br>path: documentOrderNo / integer (int32) (zorunlu)<br>query: warehouseNo / integer (int32) | 401: ProblemDetails<br>403: ProblemDetails<br>200: CompanyOrderDetailDto<br>400: ProblemDetails<br>404: ProblemDetails |
 | PUT | `/api/siparis-islemleri/verilen-firma-siparisleri/{id}` | JWT + siparis-islemleri.verilen-firma-siparisleri.update | path: id / string (zorunlu)<br>body: request / ModuleActionRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>501: ModuleActionScaffoldResponse |
 | GET | `/api/stok-islemleri/masraf-fisleri` | JWT + stok-islemleri.masraf-fisleri.list | query: WarehouseNo / integer (int32)<br>query: StartDate / string (date-time) (zorunlu)<br>query: EndDate / string (date-time) (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: IReadOnlyCollection&lt;StockReceiptListItemDto&gt;<br>400: ProblemDetails |
@@ -1661,19 +1665,41 @@ Enum degerleri JSON sozlesmesinde bulunur.
 | `unclassifiedFailureCount` | integer (int32) | Hayir |  |
 | `windowHours` | integer (int32) | Hayir |  |
 
+### FurpaMerkezApi.Application.Modules.AyarIslemleri.VeritabaniIzleme.WorkerJobMonitoringDto
+
+| JSON alani | Tip | Zorunlu | Sinirlar |
+|---|---|---|---|
+| `affectedRecordCount` | integer (int32) | Hayir |  |
+| `completedAtUtc` | string (date-time) | Hayir | nullable |
+| `createdAtUtc` | string (date-time) | Hayir |  |
+| `durationSeconds` | integer (int64) | Hayir | nullable |
+| `errorMessage` | string | Hayir | nullable |
+| `executionMode` | string | Hayir | nullable |
+| `jobId` | string (uuid) | Hayir |  |
+| `message` | string | Hayir | nullable |
+| `startedAtUtc` | string (date-time) | Hayir | nullable |
+| `status` | string | Hayir | nullable |
+| `taskCode` | string | Hayir | nullable |
+| `taskName` | string | Hayir | nullable |
+| `triggerSource` | string | Hayir | nullable |
+| `warehouseNo` | integer (int32) | Hayir | nullable |
+
 ### FurpaMerkezApi.Application.Modules.AyarIslemleri.VeritabaniIzleme.WorkerMonitoringItemDto
 
 | JSON alani | Tip | Zorunlu | Sinirlar |
 |---|---|---|---|
 | `activity` | string | Hayir | nullable |
 | `code` | string | Hayir | nullable |
+| `currentJob` | FurpaMerkezApi.Application.Modules.AyarIslemleri.VeritabaniIzleme.WorkerJobMonitoringDto | Hayir |  |
 | `hasUnresolvedFailure` | boolean | Hayir |  |
 | `heartbeatAgeSeconds` | integer (int64) | Hayir | nullable |
 | `isCritical` | boolean | Hayir |  |
 | `isEnabled` | boolean | Hayir |  |
 | `lastError` | string | Hayir | nullable |
+| `lastFailedJob` | FurpaMerkezApi.Application.Modules.AyarIslemleri.VeritabaniIzleme.WorkerJobMonitoringDto | Hayir |  |
 | `lastFailureAtUtc` | string (date-time) | Hayir | nullable |
 | `lastHeartbeatAtUtc` | string (date-time) | Hayir | nullable |
+| `lastJob` | FurpaMerkezApi.Application.Modules.AyarIslemleri.VeritabaniIzleme.WorkerJobMonitoringDto | Hayir |  |
 | `lastSuccessAtUtc` | string (date-time) | Hayir | nullable |
 | `name` | string | Hayir | nullable |
 | `oldestQueuedAgeSeconds` | integer (int64) | Hayir | nullable |
@@ -1686,6 +1712,7 @@ Enum degerleri JSON sozlesmesinde bulunur.
 | `staleAfterSeconds` | integer (int32) | Hayir |  |
 | `status` | string | Hayir | nullable |
 | `statusName` | string | Hayir | nullable |
+| `unresolvedFailureCount` | integer (int32) | Hayir |  |
 
 ### FurpaMerkezApi.Application.Modules.AyarIslemleri.VeritabaniIzleme.WorkerMonitoringSnapshotDto
 
@@ -1872,6 +1899,36 @@ Enum degerleri JSON sozlesmesinde bulunur.
 | `errorMessage` | string | Hayir | nullable |
 | `operationCode` | string | Hayir | nullable |
 | `result` | FurpaMerkezApi.Application.Modules.SevkIslemleri.DepolarArasiSevkler.Create.CreateInterWarehouseShipmentResponse | Hayir |  |
+| `retryAfterSeconds` | integer (int32) | Hayir | nullable |
+| `retryable` | boolean | Hayir | nullable |
+| `status` | string | Hayir | nullable |
+
+### FurpaMerkezApi.Application.Modules.Common.OfflineSync.OfflineSyncStatusDto.Of.FurpaMerkezApi.Application.Modules.SiparisIslemleri.VerilenDepoSiparisleri.Create.CreateIssuedWarehouseOrderResponse
+
+| JSON alani | Tip | Zorunlu | Sinirlar |
+|---|---|---|---|
+| `clientRequestId` | string (uuid) | Hayir |  |
+| `completedAtUtc` | string (date-time) | Hayir | nullable |
+| `createdAtUtc` | string (date-time) | Hayir |  |
+| `errorCode` | string | Hayir | nullable |
+| `errorMessage` | string | Hayir | nullable |
+| `operationCode` | string | Hayir | nullable |
+| `result` | FurpaMerkezApi.Application.Modules.SiparisIslemleri.VerilenDepoSiparisleri.Create.CreateIssuedWarehouseOrderResponse | Hayir |  |
+| `retryAfterSeconds` | integer (int32) | Hayir | nullable |
+| `retryable` | boolean | Hayir | nullable |
+| `status` | string | Hayir | nullable |
+
+### FurpaMerkezApi.Application.Modules.Common.OfflineSync.OfflineSyncStatusDto.Of.FurpaMerkezApi.Application.Modules.SiparisIslemleri.VerilenFirmaSiparisleri.Create.CreateIssuedCompanyOrderResponse
+
+| JSON alani | Tip | Zorunlu | Sinirlar |
+|---|---|---|---|
+| `clientRequestId` | string (uuid) | Hayir |  |
+| `completedAtUtc` | string (date-time) | Hayir | nullable |
+| `createdAtUtc` | string (date-time) | Hayir |  |
+| `errorCode` | string | Hayir | nullable |
+| `errorMessage` | string | Hayir | nullable |
+| `operationCode` | string | Hayir | nullable |
+| `result` | FurpaMerkezApi.Application.Modules.SiparisIslemleri.VerilenFirmaSiparisleri.Create.CreateIssuedCompanyOrderResponse | Hayir |  |
 | `retryAfterSeconds` | integer (int32) | Hayir | nullable |
 | `retryable` | boolean | Hayir | nullable |
 | `status` | string | Hayir | nullable |
@@ -8850,6 +8907,7 @@ Enum degerleri JSON sozlesmesinde bulunur.
 | `description` | string | Hayir | minLength=0; maxLength=50; nullable |
 | `documentDate` | string (date-time) | Hayir | nullable |
 | `documentNo` | string | Hayir | minLength=0; maxLength=50; nullable |
+| `forceCreateNew` | boolean | Hayir |  |
 | `lines` | FurpaMerkezApi.WebApi.Controllers.Modules.Common.CreateCompanyMovementLineHttpRequest[] | Evet |  |
 | `movementDate` | string (date-time) | Hayir | nullable |
 | `receiver` | string | Hayir | minLength=0; maxLength=25; nullable |
@@ -8877,6 +8935,7 @@ Enum degerleri JSON sozlesmesinde bulunur.
 |---|---|---|---|
 | `clientRequestId` | string (uuid) | Hayir | nullable |
 | `documentDate` | string (date-time) | Hayir | nullable |
+| `forceCreateNew` | boolean | Hayir |  |
 | `lines` | FurpaMerkezApi.WebApi.Controllers.Modules.Common.CreateInventoryCountLineHttpRequest[] | Evet |  |
 | `name` | string | Hayir | minLength=0; maxLength=25; nullable |
 | `warehouseNo` | integer (int32) | Hayir | min=1; max=2147483647; nullable |
@@ -8900,6 +8959,7 @@ Enum degerleri JSON sozlesmesinde bulunur.
 | `description` | string | Hayir | minLength=0; maxLength=50; nullable |
 | `documentDate` | string (date-time) | Hayir | nullable |
 | `documentNo` | string | Hayir | minLength=0; maxLength=50; nullable |
+| `forceCreateNew` | boolean | Hayir |  |
 | `lines` | FurpaMerkezApi.WebApi.Controllers.Modules.Common.CreateStockReceiptLineHttpRequest[] | Evet |  |
 | `movementDate` | string (date-time) | Hayir | nullable |
 | `warehouseNo` | integer (int32) | Hayir | min=1; max=2147483647; nullable |
@@ -8924,6 +8984,7 @@ Enum degerleri JSON sozlesmesinde bulunur.
 | `description` | string | Hayir | minLength=0; maxLength=50; nullable |
 | `documentDate` | string (date-time) | Hayir | nullable |
 | `documentNo` | string | Hayir | minLength=0; maxLength=50; nullable |
+| `forceCreateNew` | boolean | Hayir |  |
 | `lines` | FurpaMerkezApi.WebApi.Controllers.Modules.Common.CreateVirmanLineHttpRequest[] | Evet |  |
 | `movementDate` | string (date-time) | Hayir | nullable |
 | `warehouseNo` | integer (int32) | Hayir | min=1; max=2147483647; nullable |
@@ -9981,6 +10042,7 @@ Enum degerleri JSON sozlesmesinde bulunur.
 | `documentDate` | string (date-time) | Hayir | nullable |
 | `documentNo` | string | Hayir | minLength=0; maxLength=50; nullable |
 | `documentSerie` | string | Hayir | minLength=0; maxLength=20; nullable |
+| `forceCreateNew` | boolean | Hayir |  |
 | `lines` | FurpaMerkezApi.WebApi.Controllers.Modules.GreenGrocer.Operations.GreenGrocerOperationsAdjustmentLineHttpRequest[] | Evet |  |
 | `movementDate` | string (date-time) | Hayir | nullable |
 | `reasonCode` | string | Hayir | minLength=0; maxLength=25; nullable |
@@ -10048,6 +10110,7 @@ Enum degerleri JSON sozlesmesinde bulunur.
 | `description` | string | Hayir | minLength=0; maxLength=50; nullable |
 | `documentDate` | string (date-time) | Hayir | nullable |
 | `documentNo` | string | Hayir | minLength=0; maxLength=50; nullable |
+| `forceCreateNew` | boolean | Hayir |  |
 | `lines` | FurpaMerkezApi.WebApi.Controllers.Modules.IadeIslemleri.DepoIadeleri.CreateWarehouseReturnLineHttpRequest[] | Evet |  |
 | `movementDate` | string (date-time) | Hayir | nullable |
 | `sourceWarehouseNo` | integer (int32) | Hayir | min=1; max=2147483647; nullable |
@@ -10413,6 +10476,7 @@ Enum degerleri JSON sozlesmesinde bulunur.
 | `documentOrderNo` | integer (int32) | Evet | min=1; max=2147483647 |
 | `documentSerie` | string | Evet | minLength=0; maxLength=20; pattern=^[A-Za-z0-9]+$ |
 | `ettn` | string | Hayir | minLength=0; maxLength=50; nullable |
+| `forceCreateNew` | boolean | Hayir |  |
 | `invoiceDate` | string (date-time) | Hayir | nullable |
 | `invoiceNumber` | string | Hayir | minLength=0; maxLength=50; nullable |
 | `issueDate` | string (date-time) | Hayir | nullable |
@@ -10571,6 +10635,7 @@ Enum degerleri JSON sozlesmesinde bulunur.
 | `description` | string | Hayir | minLength=0; maxLength=50; nullable |
 | `documentDate` | string (date-time) | Hayir | nullable |
 | `documentNo` | string | Hayir | minLength=0; maxLength=50; nullable |
+| `forceCreateNew` | boolean | Hayir |  |
 | `lines` | FurpaMerkezApi.WebApi.Controllers.Modules.SevkIslemleri.DepolarArasiSevkler.CreateInterWarehouseShipmentLineHttpRequest[] | Evet |  |
 | `movementDate` | string (date-time) | Hayir | nullable |
 | `sourceWarehouseNo` | integer (int32) | Hayir | min=1; max=2147483647; nullable |
@@ -10603,8 +10668,10 @@ Enum degerleri JSON sozlesmesinde bulunur.
 
 | JSON alani | Tip | Zorunlu | Sinirlar |
 |---|---|---|---|
+| `clientRequestId` | string (uuid) | Hayir | nullable |
 | `deliveryDate` | string (date-time) | Hayir | nullable |
 | `description` | string | Hayir | minLength=0; maxLength=50; nullable |
+| `forceCreateNew` | boolean | Hayir |  |
 | `lines` | FurpaMerkezApi.WebApi.Controllers.Modules.SiparisIslemleri.OnerilenDepoSiparisleri.ConvertSuggestedWarehouseOrderLineHttpRequest[] | Evet |  |
 | `orderDate` | string (date-time) | Hayir | nullable |
 | `sourceWarehouseNo` | integer (int32) | Hayir | min=1; max=2147483647 |
@@ -10628,10 +10695,12 @@ Enum degerleri JSON sozlesmesinde bulunur.
 
 | JSON alani | Tip | Zorunlu | Sinirlar |
 |---|---|---|---|
+| `clientRequestId` | string (uuid) | Hayir | nullable |
 | `deliverer` | string | Hayir | minLength=0; maxLength=25; nullable |
 | `deliveryDate` | string (date-time) | Evet |  |
 | `description1` | string | Hayir | minLength=0; maxLength=50; nullable |
 | `description2` | string | Hayir | minLength=0; maxLength=50; nullable |
+| `forceCreateNew` | boolean | Hayir |  |
 | `lines` | FurpaMerkezApi.WebApi.Controllers.Modules.SiparisIslemleri.OnerilenFirmaSiparisleri.ConvertSuggestedCompanyOrderLineHttpRequest[] | Evet |  |
 | `orderDate` | string (date-time) | Hayir | nullable |
 | `receiver` | string | Hayir | minLength=0; maxLength=25; nullable |
@@ -10658,8 +10727,10 @@ Enum degerleri JSON sozlesmesinde bulunur.
 
 | JSON alani | Tip | Zorunlu | Sinirlar |
 |---|---|---|---|
+| `clientRequestId` | string (uuid) | Hayir | nullable |
 | `deliveryDate` | string (date-time) | Hayir | nullable |
 | `description` | string | Hayir | minLength=0; maxLength=50; nullable |
+| `forceCreateNew` | boolean | Hayir |  |
 | `inWarehouseNo` | integer (int32) | Hayir | min=1; max=2147483647; nullable |
 | `lines` | FurpaMerkezApi.WebApi.Controllers.Modules.SiparisIslemleri.VerilenDepoSiparisleri.CreateIssuedWarehouseOrderLineHttpRequest[] | Evet |  |
 | `orderDate` | string (date-time) | Hayir | nullable |
@@ -10701,11 +10772,13 @@ Enum degerleri JSON sozlesmesinde bulunur.
 
 | JSON alani | Tip | Zorunlu | Sinirlar |
 |---|---|---|---|
+| `clientRequestId` | string (uuid) | Hayir | nullable |
 | `customerCode` | string | Evet | minLength=0; maxLength=25 |
 | `deliverer` | string | Hayir | minLength=0; maxLength=25; nullable |
 | `deliveryDate` | string (date-time) | Evet |  |
 | `description1` | string | Hayir | minLength=0; maxLength=50; nullable |
 | `description2` | string | Hayir | minLength=0; maxLength=50; nullable |
+| `forceCreateNew` | boolean | Hayir |  |
 | `lines` | FurpaMerkezApi.WebApi.Controllers.Modules.SiparisIslemleri.VerilenFirmaSiparisleri.CreateIssuedCompanyOrderLineHttpRequest[] | Evet |  |
 | `orderDate` | string (date-time) | Hayir | nullable |
 | `receiver` | string | Hayir | minLength=0; maxLength=25; nullable |

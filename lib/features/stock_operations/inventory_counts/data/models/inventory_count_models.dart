@@ -28,12 +28,14 @@ class InventoryCountCreateRequest {
     required this.documentDate,
     required this.lines,
     this.clientRequestId,
+    this.forceCreateNew = false,
   });
 
   final String name;
   final DateTime documentDate;
   final List<InventoryCountCreateLine> lines;
   final String? clientRequestId;
+  final bool forceCreateNew;
 
   JsonMap toJson() {
     return <String, dynamic>{
@@ -41,6 +43,7 @@ class InventoryCountCreateRequest {
       'documentDate': _toApiDate(documentDate),
       if (clientRequestId != null && clientRequestId!.trim().isNotEmpty)
         'clientRequestId': clientRequestId!.trim(),
+      if (forceCreateNew) 'forceCreateNew': true,
       'lines': lines.map((item) => item.toJson()).toList(growable: false),
     };
   }
@@ -52,6 +55,7 @@ class InventoryCountCreateRequest {
       clientRequestId: _readString(json['clientRequestId']).trim().isEmpty
           ? null
           : _readString(json['clientRequestId']),
+      forceCreateNew: json['forceCreateNew'] == true,
       lines: (json['lines'] as List<dynamic>? ?? const <dynamic>[])
           .map(
             (item) => InventoryCountCreateLine.fromJson(

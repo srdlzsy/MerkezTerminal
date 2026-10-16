@@ -39,6 +39,8 @@ class CompanyOrderCreateRequest {
     required this.deliverer,
     required this.receiver,
     required this.lines,
+    this.clientRequestId,
+    this.forceCreateNew = false,
   });
 
   final String customerCode;
@@ -49,9 +51,32 @@ class CompanyOrderCreateRequest {
   final String deliverer;
   final String receiver;
   final List<CompanyOrderCreateLine> lines;
+  final String? clientRequestId;
+  final bool forceCreateNew;
+
+  CompanyOrderCreateRequest copyWith({
+    String? clientRequestId,
+    bool? forceCreateNew,
+  }) {
+    return CompanyOrderCreateRequest(
+      customerCode: customerCode,
+      orderDate: orderDate,
+      deliveryDate: deliveryDate,
+      description1: description1,
+      description2: description2,
+      deliverer: deliverer,
+      receiver: receiver,
+      lines: lines,
+      clientRequestId: clientRequestId ?? this.clientRequestId,
+      forceCreateNew: forceCreateNew ?? this.forceCreateNew,
+    );
+  }
 
   JsonMap toJson() {
     return <String, dynamic>{
+      if (clientRequestId != null && clientRequestId!.trim().isNotEmpty)
+        'clientRequestId': clientRequestId!.trim(),
+      if (forceCreateNew) 'forceCreateNew': true,
       'customerCode': customerCode,
       'orderDate': _toApiDate(orderDate),
       'deliveryDate': _toApiDate(deliveryDate),
@@ -61,6 +86,33 @@ class CompanyOrderCreateRequest {
       'receiver': receiver,
       'lines': lines.map((item) => item.toJson()).toList(growable: false),
     };
+  }
+
+  factory CompanyOrderCreateRequest.fromJson(JsonMap json) {
+    final rawLines = json['lines'];
+    return CompanyOrderCreateRequest(
+      clientRequestId: _readString(json['clientRequestId']).trim().isEmpty
+          ? null
+          : _readString(json['clientRequestId']).trim(),
+      forceCreateNew: json['forceCreateNew'] == true,
+      customerCode: _readString(json['customerCode']),
+      orderDate: _readDate(json['orderDate']) ?? DateTime.now(),
+      deliveryDate: _readDate(json['deliveryDate']) ?? DateTime.now(),
+      description1: _readString(json['description1']),
+      description2: _readString(json['description2']),
+      deliverer: _readString(json['deliverer']),
+      receiver: _readString(json['receiver']),
+      lines: rawLines is List
+          ? rawLines
+                .whereType<Map>()
+                .map(
+                  (item) => CompanyOrderCreateLine.fromJson(
+                    item.map((key, value) => MapEntry(key.toString(), value)),
+                  ),
+                )
+                .toList(growable: false)
+          : const <CompanyOrderCreateLine>[],
+    );
   }
 }
 
@@ -105,6 +157,26 @@ class CompanyOrderCreateLine {
       'customerResponsibilityCenter': customerResponsibilityCenter,
       'productResponsibilityCenter': productResponsibilityCenter,
     };
+  }
+
+  factory CompanyOrderCreateLine.fromJson(JsonMap json) {
+    return CompanyOrderCreateLine(
+      stockCode: _readString(json['stockCode']),
+      quantity: _readDouble(json['quantity']),
+      recommendedQuantity: _readDouble(json['recommendedQuantity']),
+      unitPrice: _readDouble(json['unitPrice']),
+      unitPointer: _readInt(json['unitPointer']),
+      description1: _readString(json['description1']),
+      description2: _readString(json['description2']),
+      packageCode: _readString(json['packageCode']),
+      projectCode: _readString(json['projectCode']),
+      customerResponsibilityCenter: _readString(
+        json['customerResponsibilityCenter'],
+      ),
+      productResponsibilityCenter: _readString(
+        json['productResponsibilityCenter'],
+      ),
+    );
   }
 }
 

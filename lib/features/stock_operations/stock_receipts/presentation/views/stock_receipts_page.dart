@@ -617,9 +617,7 @@ class _StockReceiptsPageState extends State<StockReceiptsPage> {
                   : safeCreatePendingActionLabel(_pendingCreateFailureKind),
             ),
           ),
-        if (widget.canCreate &&
-            _pendingCreateRequest != null &&
-            canRetrySafeCreate(_pendingCreateFailureKind))
+        if (widget.canCreate && _pendingCreateRequest != null)
           FilledButton.icon(
             onPressed:
                 _controller.isCreating ||

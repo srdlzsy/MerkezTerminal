@@ -261,9 +261,11 @@ class StockReceiptCreateRequest {
     required this.description,
     required this.lines,
     this.clientRequestId,
+    this.forceCreateNew = false,
   });
 
   final String? clientRequestId;
+  final bool forceCreateNew;
   final String creator;
   final String acceptor;
   final DateTime movementDate;
@@ -276,6 +278,7 @@ class StockReceiptCreateRequest {
     return <String, dynamic>{
       if (clientRequestId != null && clientRequestId!.trim().isNotEmpty)
         'clientRequestId': clientRequestId!.trim(),
+      if (forceCreateNew) 'forceCreateNew': true,
       'creator': creator,
       'acceptor': acceptor,
       'movementDate': _toApiDate(movementDate),
@@ -290,6 +293,7 @@ class StockReceiptCreateRequest {
     final rawLines = json['lines'];
     return StockReceiptCreateRequest(
       clientRequestId: _readString(json['clientRequestId']),
+      forceCreateNew: json['forceCreateNew'] == true,
       creator: _readString(json['creator']),
       acceptor: _readString(json['acceptor']),
       movementDate: _readDate(json['movementDate']) ?? DateTime.now(),

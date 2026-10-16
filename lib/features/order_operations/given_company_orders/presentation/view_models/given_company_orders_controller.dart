@@ -5,6 +5,7 @@ import 'package:furpa_merkez_terminal/core/utils/request_epoch.dart';
 import 'package:furpa_merkez_terminal/core/utils/safe_change_notifier.dart';
 import 'package:furpa_merkez_terminal/features/order_operations/given_company_orders/data/models/given_company_order_models.dart';
 import 'package:furpa_merkez_terminal/features/order_operations/shared/data/company_orders_repository.dart';
+import 'package:furpa_merkez_terminal/shared/utils/safe_create_retry.dart';
 
 class GivenCompanyOrdersController extends ChangeNotifier
     with SafeChangeNotifier {
@@ -31,6 +32,8 @@ class GivenCompanyOrdersController extends ChangeNotifier
   String? _listError;
   String? _detailError;
   String? _createError;
+  SafeCreateFailureKind _createFailureKind = SafeCreateFailureKind.notRetryable;
+  String? _createRelatedClientRequestId;
   List<CompanyOrderListItem> _orders = const <CompanyOrderListItem>[];
   CompanyOrderListItem? _selectedOrder;
   CompanyOrderDetail? _selectedOrderDetail;
@@ -44,6 +47,8 @@ class GivenCompanyOrdersController extends ChangeNotifier
   String? get listError => _listError;
   String? get detailError => _detailError;
   String? get createError => _createError;
+  SafeCreateFailureKind get createFailureKind => _createFailureKind;
+  String? get createRelatedClientRequestId => _createRelatedClientRequestId;
   List<CompanyOrderListItem> get orders => _orders;
   CompanyOrderListItem? get selectedOrder => _selectedOrder;
   CompanyOrderDetail? get selectedOrderDetail => _selectedOrderDetail;
@@ -162,6 +167,8 @@ class GivenCompanyOrdersController extends ChangeNotifier
 
     _isCreating = true;
     _createError = null;
+    _createFailureKind = SafeCreateFailureKind.notRetryable;
+    _createRelatedClientRequestId = null;
     notifySafely();
 
     try {
@@ -181,7 +188,9 @@ class GivenCompanyOrdersController extends ChangeNotifier
       return result;
     } on ApiException catch (error) {
       _isCreating = false;
-      _createError = error.message;
+      _createFailureKind = classifySafeCreateException(error);
+      _createRelatedClientRequestId = error.relatedClientRequestId;
+      _createError = safeCreateRetryErrorMessage(error);
       notifySafely();
       return null;
     }

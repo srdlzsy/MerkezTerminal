@@ -12,6 +12,12 @@ class PendingCreateOperation {
     this.failureKind,
     this.retryNotBefore,
     this.draft,
+    this.operationCode,
+    this.relatedClientRequestId,
+    this.errorCode,
+    this.correlationId,
+    this.errorMessage,
+    this.lastCheckedAt,
   });
 
   final String moduleKey;
@@ -22,6 +28,12 @@ class PendingCreateOperation {
   final String? failureKind;
   final DateTime? retryNotBefore;
   final CreateDraft? draft;
+  final String? operationCode;
+  final String? relatedClientRequestId;
+  final String? errorCode;
+  final String? correlationId;
+  final String? errorMessage;
+  final DateTime? lastCheckedAt;
 
   String get scopeKey => '$moduleKey\u0000$userId\u0000$warehouseNo';
 
@@ -33,6 +45,12 @@ class PendingCreateOperation {
   PendingCreateOperation copyWith({
     String? failureKind,
     DateTime? retryNotBefore,
+    String? operationCode,
+    String? relatedClientRequestId,
+    String? errorCode,
+    String? correlationId,
+    String? errorMessage,
+    DateTime? lastCheckedAt,
   }) {
     return PendingCreateOperation(
       moduleKey: moduleKey,
@@ -43,6 +61,13 @@ class PendingCreateOperation {
       failureKind: failureKind,
       retryNotBefore: retryNotBefore ?? this.retryNotBefore,
       draft: draft,
+      operationCode: operationCode ?? this.operationCode,
+      relatedClientRequestId:
+          relatedClientRequestId ?? this.relatedClientRequestId,
+      errorCode: errorCode ?? this.errorCode,
+      correlationId: correlationId ?? this.correlationId,
+      errorMessage: errorMessage ?? this.errorMessage,
+      lastCheckedAt: lastCheckedAt ?? this.lastCheckedAt,
     );
   }
 
@@ -56,6 +81,14 @@ class PendingCreateOperation {
     if (retryNotBefore != null)
       'retryNotBefore': retryNotBefore!.toUtc().toIso8601String(),
     if (draft != null) 'draft': draft!.toJson(),
+    if (operationCode != null) 'operationCode': operationCode,
+    if (relatedClientRequestId != null)
+      'relatedClientRequestId': relatedClientRequestId,
+    if (errorCode != null) 'errorCode': errorCode,
+    if (correlationId != null) 'correlationId': correlationId,
+    if (errorMessage != null) 'errorMessage': errorMessage,
+    if (lastCheckedAt != null)
+      'lastCheckedAt': lastCheckedAt!.toUtc().toIso8601String(),
   };
 
   factory PendingCreateOperation.fromJson(Map<String, dynamic> json) {
@@ -80,6 +113,14 @@ class PendingCreateOperation {
               rawDraft.map((key, value) => MapEntry(key.toString(), value)),
             )
           : null,
+      operationCode: json['operationCode']?.toString(),
+      relatedClientRequestId: json['relatedClientRequestId']?.toString(),
+      errorCode: json['errorCode']?.toString(),
+      correlationId: json['correlationId']?.toString(),
+      errorMessage: json['errorMessage']?.toString(),
+      lastCheckedAt: DateTime.tryParse(
+        json['lastCheckedAt']?.toString() ?? '',
+      )?.toLocal(),
     );
   }
 }

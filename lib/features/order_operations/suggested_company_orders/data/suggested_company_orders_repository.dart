@@ -1,6 +1,7 @@
 import 'package:furpa_merkez_terminal/core/network/api_client.dart';
 import 'package:furpa_merkez_terminal/features/order_operations/given_company_orders/data/models/given_company_order_models.dart';
 import 'package:furpa_merkez_terminal/features/order_operations/suggested_company_orders/data/models/suggested_company_order_models.dart';
+import 'package:furpa_merkez_terminal/shared/offline/offline_sync_status.dart';
 
 abstract class SuggestedCompanyOrdersRepository {
   Future<List<SuggestedCompanyOrderListItem>> fetchSuggestions({
@@ -20,7 +21,9 @@ abstract class SuggestedCompanyOrdersRepository {
 }
 
 class ApiSuggestedCompanyOrdersRepository
-    implements SuggestedCompanyOrdersRepository {
+    implements
+        SuggestedCompanyOrdersRepository,
+        OfflineSyncStatusProvider<CompanyOrderCreateResult> {
   const ApiSuggestedCompanyOrdersRepository({required ApiClient apiClient})
     : _apiClient = apiClient;
 
@@ -58,6 +61,22 @@ class ApiSuggestedCompanyOrdersRepository
     );
 
     return CompanyOrderCreateResult.fromJson(response);
+  }
+
+  @override
+  Future<OfflineSyncStatus<CompanyOrderCreateResult>> fetchOfflineSyncStatus({
+    required String accessToken,
+    required String clientRequestId,
+  }) async {
+    final response = await _apiClient.getJsonMap(
+      '/api/siparis-islemleri/onerilen-firma-siparisleri/offline-sync/'
+      '$clientRequestId',
+      accessToken: accessToken,
+    );
+    return OfflineSyncStatus<CompanyOrderCreateResult>.fromJson(
+      response,
+      resultParser: CompanyOrderCreateResult.fromJson,
+    );
   }
 
   @override

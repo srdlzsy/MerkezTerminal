@@ -731,8 +731,7 @@ class _WarehouseReturnsPageState extends State<WarehouseReturnsPage> {
             ),
           ),
         if (widget.direction == WarehouseReturnDirection.outgoing &&
-            _pendingCreateRequest != null &&
-            canRetrySafeCreate(_pendingCreateFailureKind))
+            _pendingCreateRequest != null)
           FilledButton.icon(
             onPressed:
                 _controller.isCreating ||

@@ -3,6 +3,7 @@ import 'package:furpa_merkez_terminal/features/order_operations/shared/data/mode
 import 'package:furpa_merkez_terminal/features/order_operations/shared/data/warehouse_orders_repository.dart';
 import 'package:furpa_merkez_terminal/shared/data/barcode_resolution_models.dart';
 import 'package:furpa_merkez_terminal/shared/data/barcode_resolution_repository.dart';
+import 'package:furpa_merkez_terminal/shared/offline/offline_sync_status.dart';
 
 abstract class GivenWarehouseOrdersRepository
     implements WarehouseOrdersRepository {}
@@ -11,7 +12,8 @@ class ApiGivenWarehouseOrdersRepository
     implements
         GivenWarehouseOrdersRepository,
         BarcodeResolutionRepository,
-        SourceWarehouseProductsRepository {
+        SourceWarehouseProductsRepository,
+        OfflineSyncStatusProvider<WarehouseOrderCreateResult> {
   const ApiGivenWarehouseOrdersRepository({required ApiClient apiClient})
     : _apiClient = apiClient;
 
@@ -83,6 +85,22 @@ class ApiGivenWarehouseOrdersRepository
     );
 
     return WarehouseOrderCreateResult.fromJson(response);
+  }
+
+  @override
+  Future<OfflineSyncStatus<WarehouseOrderCreateResult>> fetchOfflineSyncStatus({
+    required String accessToken,
+    required String clientRequestId,
+  }) async {
+    final response = await _apiClient.getJsonMap(
+      '/api/siparis-islemleri/verilen-depo-siparisleri/offline-sync/'
+      '$clientRequestId',
+      accessToken: accessToken,
+    );
+    return OfflineSyncStatus<WarehouseOrderCreateResult>.fromJson(
+      response,
+      resultParser: WarehouseOrderCreateResult.fromJson,
+    );
   }
 
   @override

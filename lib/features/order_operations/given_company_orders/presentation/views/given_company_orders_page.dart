@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:furpa_merkez_terminal/core/network/api_exception.dart';
 import 'package:furpa_merkez_terminal/core/utils/default_filter_dates.dart';
 import 'package:furpa_merkez_terminal/features/order_operations/given_company_orders/data/models/given_company_order_models.dart';
 import 'package:furpa_merkez_terminal/features/order_operations/given_company_orders/presentation/view_models/given_company_orders_controller.dart';
@@ -12,9 +13,17 @@ import 'package:furpa_merkez_terminal/shared/drafts/create_draft_repository.dart
 import 'package:furpa_merkez_terminal/shared/form_memory/remembered_form_values.dart';
 import 'package:furpa_merkez_terminal/shared/formatters/app_formatters.dart';
 import 'package:furpa_merkez_terminal/shared/offline/mobile_customer_catalog_repository.dart';
+import 'package:furpa_merkez_terminal/shared/offline/offline_sync_status.dart';
+import 'package:furpa_merkez_terminal/shared/pending_create/pending_create_guard.dart';
+import 'package:furpa_merkez_terminal/shared/pending_create/pending_create_repository.dart';
+import 'package:furpa_merkez_terminal/shared/utils/client_request_id.dart';
+import 'package:furpa_merkez_terminal/shared/utils/safe_create_retry.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/section_card.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/terminal_create_page.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/terminal_ui_parts.dart';
+
+const String _givenCompanyOrderModuleKey =
+    'siparis-islemleri.verilen-firma-siparisleri';
 
 class GivenCompanyOrdersPage extends StatefulWidget {
   const GivenCompanyOrdersPage({
@@ -29,6 +38,7 @@ class GivenCompanyOrdersPage extends StatefulWidget {
     required this.subtitle,
     this.currentUserId = '',
     this.draftRepository,
+    this.pendingCreateRepository,
     this.emptyListMessage =
         'Secilen tarih araliginda firma siparisi bulunamadi.',
   });
@@ -43,6 +53,7 @@ class GivenCompanyOrdersPage extends StatefulWidget {
   final String subtitle;
   final String currentUserId;
   final CreateDraftRepository? draftRepository;
+  final PendingCreateRepository? pendingCreateRepository;
   final String emptyListMessage;
 
   @override
@@ -53,6 +64,19 @@ class _GivenCompanyOrdersPageState extends State<GivenCompanyOrdersPage> {
   late final GivenCompanyOrdersController _controller;
   late DateTime _startDate;
   late DateTime _endDate;
+  CompanyOrderCreateRequest? _pendingCreateRequest;
+  CreateDraft? _pendingCreateDraft;
+  SafeCreateFailureKind _pendingCreateFailureKind =
+      SafeCreateFailureKind.notRetryable;
+  DateTime? _pendingRetryNotBefore;
+  bool _isRestoringPendingCreate = false;
+  bool _hasPendingCreateStorageError = false;
+
+  bool get _usesSafeCreate =>
+      widget.canCreate &&
+      _controller.canCreate &&
+      widget.pendingCreateRepository != null &&
+      widget.repository is OfflineSyncStatusProvider<CompanyOrderCreateResult>;
 
   @override
   void initState() {
@@ -64,7 +88,98 @@ class _GivenCompanyOrdersPageState extends State<GivenCompanyOrdersPage> {
     );
     _startDate = _controller.startDate;
     _endDate = _controller.endDate;
+    if (_usesSafeCreate) {
+      _isRestoringPendingCreate = true;
+      unawaited(_restorePendingCreate());
+    }
     unawaited(_controller.loadOrders());
+  }
+
+  Future<void> _restorePendingCreate({bool autoRecover = true}) async {
+    final repository = widget.pendingCreateRepository;
+    if (repository == null) return;
+    try {
+      final pending = await repository.read(
+        moduleKey: _givenCompanyOrderModuleKey,
+        userId: widget.currentUserId,
+        warehouseNo: widget.defaultWarehouseNo,
+      );
+      if (!mounted || pending == null) return;
+      final request = CompanyOrderCreateRequest.fromJson(pending.payload);
+      if (request.clientRequestId == null || request.clientRequestId!.isEmpty) {
+        throw StateError('clientRequestId eksik');
+      }
+      final failureKind = _failureKindFromName(pending.failureKind);
+      setState(() {
+        _hasPendingCreateStorageError = false;
+        _pendingCreateRequest = request;
+        _pendingCreateDraft = pending.draft;
+        _pendingCreateFailureKind = failureKind;
+        _pendingRetryNotBefore = pending.retryNotBefore;
+      });
+      if (autoRecover &&
+          canRetrySafeCreate(failureKind) &&
+          safeCreateRetryWait(pending.retryNotBefore) == Duration.zero) {
+        await _submitCreateRequest(request, pending.draft);
+      }
+    } on Object {
+      if (mounted) {
+        setState(() => _hasPendingCreateStorageError = true);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Bekleyen guvenli siparis kaydi okunamadi. Uygulama verisini '
+              'temizlemeden once destek birimine bildirin.',
+            ),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isRestoringPendingCreate = false);
+    }
+  }
+
+  Future<void> _persistPendingCreate(
+    CompanyOrderCreateRequest request,
+    CreateDraft? draft, {
+    SafeCreateFailureKind? failureKind,
+    DateTime? retryNotBefore,
+  }) {
+    return widget.pendingCreateRepository!.save(
+      PendingCreateOperation(
+        moduleKey: _givenCompanyOrderModuleKey,
+        userId: widget.currentUserId,
+        warehouseNo: widget.defaultWarehouseNo,
+        payload: request.toJson(),
+        updatedAt: DateTime.now(),
+        failureKind: failureKind?.name,
+        retryNotBefore: retryNotBefore,
+        draft: draft,
+      ),
+    );
+  }
+
+  Future<void> _clearPersistedPendingCreate([String? clientRequestId]) {
+    return widget.pendingCreateRepository!.remove(
+      moduleKey: _givenCompanyOrderModuleKey,
+      userId: widget.currentUserId,
+      warehouseNo: widget.defaultWarehouseNo,
+      clientRequestId: clientRequestId,
+    );
+  }
+
+  Future<void> _retryPendingCreate() async {
+    final request = _pendingCreateRequest;
+    if (request == null) return;
+    final wait = safeCreateRetryWait(_pendingRetryNotBefore);
+    if (wait > Duration.zero) {
+      final messenger = ScaffoldMessenger.of(context)..hideCurrentSnackBar();
+      messenger.showSnackBar(
+        SnackBar(content: Text(safeCreateRetryWaitMessage(wait))),
+      );
+      return;
+    }
+    await _submitCreateRequest(request, _pendingCreateDraft);
   }
 
   @override
@@ -119,12 +234,23 @@ class _GivenCompanyOrdersPageState extends State<GivenCompanyOrdersPage> {
   }
 
   Future<void> _openCreateSheet() async {
+    if (_usesSafeCreate) {
+      final hasCapacity = await ensurePendingCreateCapacity(
+        context: context,
+        repository: widget.pendingCreateRepository!,
+        moduleKey: _givenCompanyOrderModuleKey,
+        userId: widget.currentUserId,
+        warehouseNo: widget.defaultWarehouseNo,
+      );
+      if (!hasCapacity || !mounted) return;
+    }
+
     CreateDraft? draft;
     if (widget.draftRepository != null) {
       final launch = await showCreateDraftPicker(
         context: context,
         repository: widget.draftRepository!,
-        moduleKey: 'siparis-islemleri.verilen-firma-siparisleri',
+        moduleKey: _givenCompanyOrderModuleKey,
         userId: widget.currentUserId,
         warehouseNo: widget.defaultWarehouseNo,
         createTitle: 'Yeni Verilen Firma Siparisi',
@@ -135,7 +261,7 @@ class _GivenCompanyOrdersPageState extends State<GivenCompanyOrdersPage> {
       draft =
           launch.draft ??
           CreateDraft.empty(
-            moduleKey: 'siparis-islemleri.verilen-firma-siparisleri',
+            moduleKey: _givenCompanyOrderModuleKey,
             userId: widget.currentUserId,
             warehouseNo: widget.defaultWarehouseNo,
             title: 'Yeni Verilen Firma Siparisi',
@@ -161,7 +287,48 @@ class _GivenCompanyOrdersPageState extends State<GivenCompanyOrdersPage> {
       return;
     }
 
-    final result = await _controller.createOrder(request);
+    final safeRequest = _usesSafeCreate
+        ? request.copyWith(
+            clientRequestId: request.clientRequestId?.trim().isNotEmpty == true
+                ? request.clientRequestId
+                : generateClientRequestId(),
+          )
+        : request;
+    await _submitCreateRequest(safeRequest, draft);
+  }
+
+  Future<void> _submitCreateRequest(
+    CompanyOrderCreateRequest request,
+    CreateDraft? draft,
+  ) async {
+    if (_controller.isCreating) return;
+
+    if (_usesSafeCreate) {
+      try {
+        await _persistPendingCreate(request, draft);
+      } on Object {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Guvenli siparis bilgisi cihaza yazilamadi. Islem baslatilmadi.',
+              ),
+            ),
+          );
+        }
+        return;
+      }
+      if (!mounted) return;
+      setState(() {
+        _pendingCreateRequest = request;
+        _pendingCreateDraft = draft;
+        _pendingCreateFailureKind = SafeCreateFailureKind.notRetryable;
+        _pendingRetryNotBefore = null;
+      });
+    }
+
+    var result = await _controller.createOrder(request);
+    var recoveredFromStatus = false;
 
     if (!mounted) {
       return;
@@ -170,6 +337,86 @@ class _GivenCompanyOrdersPageState extends State<GivenCompanyOrdersPage> {
     final messenger = ScaffoldMessenger.of(context);
     messenger.hideCurrentSnackBar();
 
+    if (result == null && _usesSafeCreate) {
+      var failureKind = _controller.createFailureKind;
+      var failureMessage = _controller.createError ?? 'Siparis olusturulamadi.';
+      DateTime? retryNotBefore;
+      final statusProvider =
+          widget.repository
+              as OfflineSyncStatusProvider<CompanyOrderCreateResult>;
+      if (canRetrySafeCreate(failureKind)) {
+        try {
+          final status = await statusProvider.fetchOfflineSyncStatus(
+            accessToken: widget.accessToken,
+            clientRequestId:
+                _controller.createRelatedClientRequestId?.trim().isNotEmpty ==
+                    true
+                ? _controller.createRelatedClientRequestId!.trim()
+                : request.clientRequestId ?? '',
+          );
+          if (status.isCompleted && status.result != null) {
+            result = status.result;
+            recoveredFromStatus = true;
+          } else {
+            failureKind = classifyOfflineSyncStatus(status);
+            failureMessage = safeCreateOfflineSyncErrorMessage(
+              status,
+              fallback: failureMessage,
+            );
+            retryNotBefore = status.retryNotBefore();
+          }
+        } on ApiException catch (error) {
+          if (hasSafeCreateDecisionMetadata(error)) {
+            failureKind = classifySafeCreateException(error);
+            failureMessage = safeCreateRetryErrorMessage(error);
+            retryNotBefore = safeCreateRetryNotBefore(
+              retryable: error.retryable,
+              retryAfterSeconds: error.retryAfterSeconds,
+            );
+          }
+        } on Object {
+          // Yerel snapshot, bir sonraki guvenli sorgu icin korunur.
+        }
+      }
+
+      if (result == null) {
+        if (shouldKeepSafeCreatePending(failureKind)) {
+          await _persistPendingCreate(
+            request,
+            draft,
+            failureKind: failureKind,
+            retryNotBefore: retryNotBefore,
+          );
+          if (!mounted) return;
+          setState(() {
+            _pendingCreateFailureKind = failureKind;
+            _pendingRetryNotBefore = retryNotBefore;
+          });
+        } else {
+          await _clearPersistedPendingCreate(request.clientRequestId);
+          if (!mounted) return;
+          setState(() {
+            _pendingCreateRequest = null;
+            _pendingCreateDraft = null;
+            _pendingCreateFailureKind = SafeCreateFailureKind.notRetryable;
+            _pendingRetryNotBefore = null;
+          });
+        }
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text(failureMessage),
+            action: canRetrySafeCreate(failureKind)
+                ? SnackBarAction(
+                    label: 'Tekrar Dene',
+                    onPressed: () => unawaited(_retryPendingCreate()),
+                  )
+                : null,
+          ),
+        );
+        return;
+      }
+    }
+
     if (result == null) {
       messenger.showSnackBar(
         SnackBar(
@@ -177,6 +424,44 @@ class _GivenCompanyOrdersPageState extends State<GivenCompanyOrdersPage> {
         ),
       );
       return;
+    }
+
+    if (_usesSafeCreate) {
+      try {
+        await _clearPersistedPendingCreate(request.clientRequestId);
+      } on Object {
+        if (!mounted) return;
+        setState(() {
+          _pendingCreateRequest = request;
+          _pendingCreateDraft = draft;
+          _pendingCreateFailureKind = SafeCreateFailureKind.uncertain;
+          _pendingRetryNotBefore = null;
+        });
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text(
+              '${result.documentNoLabel} olusturuldu ancak cihazdaki guvenli '
+              'kayit temizlenemedi. Ayni kayitla Tekrar Dene kullanin.',
+            ),
+          ),
+        );
+        return;
+      }
+      if (!mounted) return;
+      setState(() {
+        _pendingCreateRequest = null;
+        _pendingCreateDraft = null;
+        _pendingCreateFailureKind = SafeCreateFailureKind.notRetryable;
+        _pendingRetryNotBefore = null;
+      });
+    }
+
+    if (recoveredFromStatus) {
+      await _controller.loadOrders(
+        preferredDocumentSerie: result.documentSerie,
+        preferredDocumentOrderNo: result.documentOrderNo,
+      );
+      if (!mounted) return;
     }
 
     unawaited(
@@ -316,21 +601,67 @@ class _GivenCompanyOrdersPageState extends State<GivenCompanyOrdersPage> {
         ),
         if (widget.canCreate && _controller.canCreate)
           FilledButton.tonalIcon(
-            onPressed: _controller.isCreating ? null : _openCreateSheet,
-            icon: _controller.isCreating
+            onPressed:
+                _controller.isCreating ||
+                    _isRestoringPendingCreate ||
+                    _hasPendingCreateStorageError
+                ? null
+                : _pendingCreateRequest == null
+                ? _openCreateSheet
+                : canStartNewSafeCreate(_pendingCreateFailureKind)
+                ? _openCreateSheet
+                : canRetrySafeCreate(_pendingCreateFailureKind)
+                ? _retryPendingCreate
+                : null,
+            icon: _controller.isCreating || _isRestoringPendingCreate
                 ? const SizedBox(
                     height: 16,
                     width: 16,
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
-                : const Icon(Icons.add_rounded),
+                : Icon(
+                    _hasPendingCreateStorageError
+                        ? Icons.error_outline_rounded
+                        : _pendingCreateRequest == null ||
+                              canStartNewSafeCreate(_pendingCreateFailureKind)
+                        ? Icons.add_rounded
+                        : Icons.refresh_rounded,
+                  ),
             label: Text(
-              _controller.isCreating ? 'Kaydediliyor...' : 'Yeni Siparis',
+              _controller.isCreating
+                  ? 'Kaydediliyor...'
+                  : _isRestoringPendingCreate
+                  ? 'Kayit kontrol ediliyor...'
+                  : _hasPendingCreateStorageError
+                  ? 'Destek gerekli'
+                  : _pendingCreateRequest == null
+                  ? 'Yeni Siparis'
+                  : safeCreatePendingActionLabel(_pendingCreateFailureKind),
             ),
+          ),
+        if (widget.canCreate &&
+            _controller.canCreate &&
+            _pendingCreateRequest != null)
+          FilledButton.icon(
+            onPressed:
+                _controller.isCreating ||
+                    _isRestoringPendingCreate ||
+                    _hasPendingCreateStorageError
+                ? null
+                : _openCreateSheet,
+            icon: const Icon(Icons.add_rounded),
+            label: const Text('Yeni Siparis'),
           ),
       ],
     );
   }
+}
+
+SafeCreateFailureKind _failureKindFromName(String? value) {
+  return SafeCreateFailureKind.values.firstWhere(
+    (item) => item.name == value,
+    orElse: () => SafeCreateFailureKind.uncertain,
+  );
 }
 
 class _CompanyOrdersAccordionPanel extends StatelessWidget {

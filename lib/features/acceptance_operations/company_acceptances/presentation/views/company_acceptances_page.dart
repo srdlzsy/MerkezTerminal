@@ -6,6 +6,7 @@ import 'package:furpa_merkez_terminal/features/acceptance_operations/company_acc
 import 'package:furpa_merkez_terminal/features/acceptance_operations/company_acceptances/data/models/company_acceptance_models.dart';
 import 'package:furpa_merkez_terminal/features/acceptance_operations/company_acceptances/presentation/view_models/company_acceptances_controller.dart';
 import 'package:furpa_merkez_terminal/features/acceptance_operations/company_acceptances/presentation/widgets/company_acceptance_create_sheet.dart';
+import 'package:furpa_merkez_terminal/features/acceptance_operations/offline_company_acceptances/data/models/offline_company_acceptance_models.dart';
 import 'package:furpa_merkez_terminal/features/acceptance_operations/offline_company_acceptances/data/offline_company_acceptances_repository.dart';
 import 'package:furpa_merkez_terminal/features/acceptance_operations/offline_company_acceptances/presentation/views/offline_company_acceptances_page.dart';
 import 'package:furpa_merkez_terminal/features/company_movements/shared/data/models/company_movement_models.dart';
@@ -239,6 +240,31 @@ class _CompanyAcceptancesPageState extends State<CompanyAcceptancesPage> {
     });
 
     try {
+      final pendingDuplicate = await _findPendingDuplicate(request);
+      if (!mounted) {
+        return;
+      }
+      if (pendingDuplicate != null) {
+        final documentLabel = pendingDuplicate.documentLabel.isEmpty
+            ? 'Bu resmi belge'
+            : pendingDuplicate.documentLabel;
+        final messenger = ScaffoldMessenger.of(context)..hideCurrentSnackBar();
+        messenger.showSnackBar(
+          SnackBar(
+            duration: const Duration(seconds: 10),
+            content: Text(
+              '$documentLabel icin cihazda sonuclanmamis bir mal kabul '
+              'kaydi var. Ikinci evrak gonderilmedi; mevcut kaydi kontrol edin.',
+            ),
+            action: SnackBarAction(
+              label: 'Taslaklar',
+              onPressed: () => unawaited(_openOfflineDraftsPage()),
+            ),
+          ),
+        );
+        return;
+      }
+
       final submission = await widget.offlineSyncService
           .submitCompanyAcceptance(
             accessToken: widget.accessToken,
@@ -337,6 +363,32 @@ class _CompanyAcceptancesPageState extends State<CompanyAcceptancesPage> {
         });
       }
     }
+  }
+
+  Future<OfflineCompanyAcceptanceDraft?> _findPendingDuplicate(
+    CompanyAcceptanceCreateRequest request,
+  ) async {
+    late final List<OfflineCompanyAcceptanceDraft> drafts;
+    try {
+      drafts = await widget.offlineRepository.fetchDrafts(
+        userId: widget.currentUserId,
+        warehouseNo: widget.defaultWarehouseNo,
+      );
+    } on Object {
+      throw Exception(
+        'Bekleyen mal kabul kayitlari kontrol edilemedi. Guvenlik icin yeni '
+        'evrak gonderilmedi.',
+      );
+    }
+    for (final draft in drafts) {
+      if (draft.clientRequestId == request.clientRequestId) {
+        continue;
+      }
+      if (draft.matchesDocumentIdentity(request)) {
+        return draft;
+      }
+    }
+    return null;
   }
 
   Future<void> _openOfflineDraftsPage() async {

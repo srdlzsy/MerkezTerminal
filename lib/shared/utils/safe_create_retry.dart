@@ -13,6 +13,7 @@ enum SafeCreateFailureKind {
   payloadChanged,
   multipleDocuments,
   manualReview,
+  statusNotFound,
 }
 
 SafeCreateFailureKind classifySafeCreateFailure({
@@ -148,16 +149,15 @@ bool shouldKeepSafeCreatePending(SafeCreateFailureKind kind) {
 }
 
 bool canStartNewSafeCreate(SafeCreateFailureKind kind) {
-  return kind == SafeCreateFailureKind.payloadChanged ||
-      kind == SafeCreateFailureKind.manualReview ||
-      kind == SafeCreateFailureKind.multipleDocuments;
+  return kind == SafeCreateFailureKind.payloadChanged;
 }
 
 String safeCreatePendingActionLabel(SafeCreateFailureKind kind) {
   return switch (kind) {
+    SafeCreateFailureKind.payloadChanged => 'Yeni Bagimsiz Islem',
     SafeCreateFailureKind.manualReview ||
     SafeCreateFailureKind.multipleDocuments ||
-    SafeCreateFailureKind.payloadChanged => 'Yeni Bagimsiz Islem',
+    SafeCreateFailureKind.statusNotFound => 'Destek gerekli',
     SafeCreateFailureKind.notRetryable => 'Islem Kullanilamaz',
     _ => 'Kaydi Tekrar Dene',
   };
@@ -200,9 +200,24 @@ String safeCreateRetryErrorMessage(ApiException error) {
       'Mikro evrak icerigi bu kayitla eslesmiyor. Tekrar kaydetmeyin; '
               'yetkili incelemesi gerekli. ${error.detail ?? ''}'
           .trim(),
+    SafeCreateFailureKind.statusNotFound =>
+      'Bu guvenli kaydin sunucu durum izi bulunamadi. Yeni kimlik uretmeyin; '
+          'destek birimine bildirin.',
     SafeCreateFailureKind.uncertain =>
-      error.statusCode == 409 ? safeCreateRetryConflictMessage : error.message,
+      error.statusCode == 409 || _isLegacyCancellationMessage(error.message)
+          ? safeCreateRetryConflictMessage
+          : error.message,
     SafeCreateFailureKind.notRetryable => error.message,
   };
   return error.messageWithSupportCode(message);
+}
+
+bool _isLegacyCancellationMessage(String message) {
+  final normalized = message.trim().toLowerCase();
+  return normalized.contains('task was canceled') ||
+      normalized.contains('task was cancelled') ||
+      normalized.contains('operation was canceled') ||
+      normalized.contains('operation was cancelled') ||
+      normalized.contains('request was canceled') ||
+      normalized.contains('request was cancelled');
 }

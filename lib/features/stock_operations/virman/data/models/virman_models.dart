@@ -332,9 +332,11 @@ class VirmanCreateRequest {
     required this.description,
     required this.lines,
     this.clientRequestId,
+    this.forceCreateNew = false,
   });
 
   final String? clientRequestId;
+  final bool forceCreateNew;
   final DateTime movementDate;
   final DateTime documentDate;
   final String documentNo;
@@ -345,6 +347,7 @@ class VirmanCreateRequest {
     return <String, dynamic>{
       if (clientRequestId != null && clientRequestId!.trim().isNotEmpty)
         'clientRequestId': clientRequestId!.trim(),
+      if (forceCreateNew) 'forceCreateNew': true,
       'movementDate': _toApiDate(movementDate),
       'documentDate': _toApiDate(documentDate),
       'documentNo': documentNo,
@@ -357,6 +360,7 @@ class VirmanCreateRequest {
     final rawLines = json['lines'];
     return VirmanCreateRequest(
       clientRequestId: _readString(json['clientRequestId']),
+      forceCreateNew: json['forceCreateNew'] == true,
       movementDate: _readDate(json['movementDate']) ?? DateTime.now(),
       documentDate: _readDate(json['documentDate']) ?? DateTime.now(),
       documentNo: _readString(json['documentNo']),

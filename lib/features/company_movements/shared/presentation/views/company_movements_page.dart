@@ -751,8 +751,8 @@ class _CompanyMovementsPageState extends State<CompanyMovementsPage> {
             ),
           ),
         if (widget.canCreate &&
-            _pendingCreateRequest != null &&
-            canRetrySafeCreate(_pendingCreateFailureKind))
+            _controller.canCreate &&
+            _pendingCreateRequest != null)
           FilledButton.icon(
             onPressed:
                 _controller.isCreating ||

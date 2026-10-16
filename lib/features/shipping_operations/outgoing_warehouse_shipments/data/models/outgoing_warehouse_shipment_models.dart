@@ -269,9 +269,11 @@ class WarehouseShipmentCreateRequest {
     required this.description,
     required this.lines,
     this.clientRequestId,
+    this.forceCreateNew = false,
   });
 
   final String? clientRequestId;
+  final bool forceCreateNew;
   final int targetWarehouseNo;
   final int? transitWarehouseNo;
   final DateTime movementDate;
@@ -284,6 +286,7 @@ class WarehouseShipmentCreateRequest {
     return <String, dynamic>{
       if (clientRequestId != null && clientRequestId!.trim().isNotEmpty)
         'clientRequestId': clientRequestId!.trim(),
+      if (forceCreateNew) 'forceCreateNew': true,
       'targetWarehouseNo': targetWarehouseNo,
       if (transitWarehouseNo != null) 'transitWarehouseNo': transitWarehouseNo,
       'movementDate': _toApiDate(movementDate),
@@ -298,6 +301,7 @@ class WarehouseShipmentCreateRequest {
     final rawLines = json['lines'];
     return WarehouseShipmentCreateRequest(
       clientRequestId: _readString(json['clientRequestId']),
+      forceCreateNew: json['forceCreateNew'] == true,
       targetWarehouseNo: _readInt(json['targetWarehouseNo']),
       transitWarehouseNo: json['transitWarehouseNo'] == null
           ? null

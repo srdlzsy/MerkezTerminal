@@ -193,6 +193,8 @@ class SuggestedWarehouseOrderConvertRequest {
     required this.description,
     required this.lines,
     this.targetWarehouseNo,
+    this.clientRequestId,
+    this.forceCreateNew = false,
   });
 
   final int sourceWarehouseNo;
@@ -201,9 +203,30 @@ class SuggestedWarehouseOrderConvertRequest {
   final DateTime deliveryDate;
   final String description;
   final List<SuggestedWarehouseOrderConvertLine> lines;
+  final String? clientRequestId;
+  final bool forceCreateNew;
+
+  SuggestedWarehouseOrderConvertRequest copyWith({
+    String? clientRequestId,
+    bool? forceCreateNew,
+  }) {
+    return SuggestedWarehouseOrderConvertRequest(
+      sourceWarehouseNo: sourceWarehouseNo,
+      targetWarehouseNo: targetWarehouseNo,
+      orderDate: orderDate,
+      deliveryDate: deliveryDate,
+      description: description,
+      lines: lines,
+      clientRequestId: clientRequestId ?? this.clientRequestId,
+      forceCreateNew: forceCreateNew ?? this.forceCreateNew,
+    );
+  }
 
   JsonMap toJson() {
     return <String, dynamic>{
+      if (clientRequestId?.trim().isNotEmpty == true)
+        'clientRequestId': clientRequestId!.trim(),
+      if (forceCreateNew) 'forceCreateNew': true,
       'sourceWarehouseNo': sourceWarehouseNo,
       if (targetWarehouseNo != null) 'targetWarehouseNo': targetWarehouseNo,
       'orderDate': _toApiDate(orderDate),
@@ -211,6 +234,31 @@ class SuggestedWarehouseOrderConvertRequest {
       'description': description,
       'lines': lines.map((item) => item.toJson()).toList(growable: false),
     };
+  }
+
+  factory SuggestedWarehouseOrderConvertRequest.fromJson(JsonMap json) {
+    final rawLines = json['lines'];
+    return SuggestedWarehouseOrderConvertRequest(
+      clientRequestId: _readString(json['clientRequestId']).trim().isEmpty
+          ? null
+          : _readString(json['clientRequestId']).trim(),
+      forceCreateNew: json['forceCreateNew'] == true,
+      sourceWarehouseNo: _readInt(json['sourceWarehouseNo']),
+      targetWarehouseNo: _readNullableInt(json['targetWarehouseNo']),
+      orderDate: _readDate(json['orderDate']),
+      deliveryDate: _readDate(json['deliveryDate']),
+      description: _readString(json['description']),
+      lines: rawLines is List
+          ? rawLines
+                .whereType<Map>()
+                .map(
+                  (item) => SuggestedWarehouseOrderConvertLine.fromJson(
+                    item.map((key, value) => MapEntry(key.toString(), value)),
+                  ),
+                )
+                .toList(growable: false)
+          : const <SuggestedWarehouseOrderConvertLine>[],
+    );
   }
 }
 
@@ -250,6 +298,20 @@ class SuggestedWarehouseOrderConvertLine {
       'responsibilityCenter': responsibilityCenter,
     };
   }
+
+  factory SuggestedWarehouseOrderConvertLine.fromJson(JsonMap json) {
+    return SuggestedWarehouseOrderConvertLine(
+      stockCode: _readString(json['stockCode']),
+      quantity: _readDouble(json['quantity']),
+      recommendedQuantity: _readDouble(json['recommendedQuantity']),
+      unitPrice: _readDouble(json['unitPrice']),
+      unitPointer: _readInt(json['unitPointer'], fallback: 1),
+      description: _readString(json['description']),
+      packageCode: _readString(json['packageCode']),
+      projectCode: _readString(json['projectCode']),
+      responsibilityCenter: _readString(json['responsibilityCenter']),
+    );
+  }
 }
 
 String _toApiDate(DateTime value) {
@@ -261,6 +323,22 @@ String _toApiDate(DateTime value) {
 
 String _readString(Object? value) {
   return value?.toString() ?? '';
+}
+
+int _readInt(Object? value, {int fallback = 0}) {
+  if (value is int) return value;
+  if (value is num) return value.toInt();
+  return int.tryParse(value?.toString() ?? '') ?? fallback;
+}
+
+int? _readNullableInt(Object? value) {
+  if (value == null) return null;
+  final parsed = _readInt(value);
+  return parsed > 0 ? parsed : null;
+}
+
+DateTime _readDate(Object? value) {
+  return DateTime.tryParse(value?.toString() ?? '') ?? DateTime.now();
 }
 
 double _readDouble(Object? value) {

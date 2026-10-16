@@ -3,12 +3,16 @@ import 'package:furpa_merkez_terminal/features/order_operations/given_company_or
 import 'package:furpa_merkez_terminal/features/order_operations/shared/data/company_orders_repository.dart';
 import 'package:furpa_merkez_terminal/shared/data/barcode_resolution_models.dart';
 import 'package:furpa_merkez_terminal/shared/data/barcode_resolution_repository.dart';
+import 'package:furpa_merkez_terminal/shared/offline/offline_sync_status.dart';
 
 abstract class GivenCompanyOrdersRepository
     implements CompanyOrdersRepository {}
 
 class ApiGivenCompanyOrdersRepository
-    implements GivenCompanyOrdersRepository, BarcodeResolutionRepository {
+    implements
+        GivenCompanyOrdersRepository,
+        BarcodeResolutionRepository,
+        OfflineSyncStatusProvider<CompanyOrderCreateResult> {
   const ApiGivenCompanyOrdersRepository({required ApiClient apiClient})
     : _apiClient = apiClient;
 
@@ -80,6 +84,22 @@ class ApiGivenCompanyOrdersRepository
     );
 
     return CompanyOrderCreateResult.fromJson(response);
+  }
+
+  @override
+  Future<OfflineSyncStatus<CompanyOrderCreateResult>> fetchOfflineSyncStatus({
+    required String accessToken,
+    required String clientRequestId,
+  }) async {
+    final response = await _apiClient.getJsonMap(
+      '/api/siparis-islemleri/verilen-firma-siparisleri/offline-sync/'
+      '$clientRequestId',
+      accessToken: accessToken,
+    );
+    return OfflineSyncStatus<CompanyOrderCreateResult>.fromJson(
+      response,
+      resultParser: CompanyOrderCreateResult.fromJson,
+    );
   }
 
   @override

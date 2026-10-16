@@ -5,6 +5,7 @@ import 'package:furpa_merkez_terminal/core/utils/safe_change_notifier.dart';
 import 'package:furpa_merkez_terminal/features/order_operations/given_company_orders/data/models/given_company_order_models.dart';
 import 'package:furpa_merkez_terminal/features/order_operations/suggested_company_orders/data/models/suggested_company_order_models.dart';
 import 'package:furpa_merkez_terminal/features/order_operations/suggested_company_orders/data/suggested_company_orders_repository.dart';
+import 'package:furpa_merkez_terminal/shared/utils/safe_create_retry.dart';
 
 class SuggestedCompanyOrdersController extends ChangeNotifier
     with SafeChangeNotifier {
@@ -23,6 +24,12 @@ class SuggestedCompanyOrdersController extends ChangeNotifier
   bool _isConverting = false;
   String? _listError;
   String? _convertError;
+  SafeCreateFailureKind _convertFailureKind =
+      SafeCreateFailureKind.notRetryable;
+  String? _convertRelatedClientRequestId;
+  String? _convertErrorCode;
+  String? _convertCorrelationId;
+  int? _convertRetryAfterSeconds;
   List<SuggestedCompanyOrderListItem> _items =
       const <SuggestedCompanyOrderListItem>[];
   Set<String> _selectedKeys = <String>{};
@@ -33,6 +40,11 @@ class SuggestedCompanyOrdersController extends ChangeNotifier
   bool get isConverting => _isConverting;
   String? get listError => _listError;
   String? get convertError => _convertError;
+  SafeCreateFailureKind get convertFailureKind => _convertFailureKind;
+  String? get convertRelatedClientRequestId => _convertRelatedClientRequestId;
+  String? get convertErrorCode => _convertErrorCode;
+  String? get convertCorrelationId => _convertCorrelationId;
+  int? get convertRetryAfterSeconds => _convertRetryAfterSeconds;
   List<SuggestedCompanyOrderListItem> get items => _items;
   int get selectedCount => _selectedKeys.length;
   bool get hasSelection => _selectedKeys.isNotEmpty;
@@ -186,6 +198,10 @@ class SuggestedCompanyOrdersController extends ChangeNotifier
     String deliverer = '',
     String receiver = '',
     int? warehouseNo,
+    String? clientRequestId,
+    bool forceCreateNew = false,
+    Future<void> Function(SuggestedCompanyOrderConvertRequest request)?
+    onRequestPrepared,
   }) async {
     final supplierCode = _supplierCode?.trim() ?? '';
     if (supplierCode.isEmpty) {
@@ -201,24 +217,42 @@ class SuggestedCompanyOrdersController extends ChangeNotifier
       return null;
     }
 
+    final request = SuggestedCompanyOrderConvertRequest(
+      supplierCode: supplierCode,
+      warehouseNo: warehouseNo,
+      orderDate: _normalizedDate(orderDate),
+      deliveryDate: _normalizedDate(deliveryDate),
+      description1: description1,
+      description2: description2,
+      deliverer: deliverer,
+      receiver: receiver,
+      lines: lines,
+      clientRequestId: clientRequestId,
+      forceCreateNew: forceCreateNew,
+    );
+    if (onRequestPrepared != null) {
+      await onRequestPrepared(request);
+    }
+    return submitConvertRequest(request);
+  }
+
+  Future<CompanyOrderCreateResult?> submitConvertRequest(
+    SuggestedCompanyOrderConvertRequest request,
+  ) async {
+    if (_isConverting) return null;
     _isConverting = true;
     _convertError = null;
+    _convertFailureKind = SafeCreateFailureKind.notRetryable;
+    _convertRelatedClientRequestId = null;
+    _convertErrorCode = null;
+    _convertCorrelationId = null;
+    _convertRetryAfterSeconds = null;
     notifySafely();
 
     try {
       final result = await _repository.convertToOrder(
         accessToken: _accessToken,
-        request: SuggestedCompanyOrderConvertRequest(
-          supplierCode: supplierCode,
-          warehouseNo: warehouseNo,
-          orderDate: _normalizedDate(orderDate),
-          deliveryDate: _normalizedDate(deliveryDate),
-          description1: description1,
-          description2: description2,
-          deliverer: deliverer,
-          receiver: receiver,
-          lines: lines,
-        ),
+        request: request,
       );
       _isConverting = false;
       _selectedKeys = <String>{};
@@ -226,7 +260,12 @@ class SuggestedCompanyOrdersController extends ChangeNotifier
       return result;
     } on ApiException catch (error) {
       _isConverting = false;
-      _convertError = error.message;
+      _convertFailureKind = classifySafeCreateException(error);
+      _convertRelatedClientRequestId = error.relatedClientRequestId;
+      _convertErrorCode = error.errorCode;
+      _convertCorrelationId = error.correlationId;
+      _convertRetryAfterSeconds = error.retryAfterSeconds;
+      _convertError = safeCreateRetryErrorMessage(error);
       notifySafely();
       return null;
     } catch (error) {

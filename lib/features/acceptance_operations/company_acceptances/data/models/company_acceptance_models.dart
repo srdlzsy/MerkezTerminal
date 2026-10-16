@@ -14,6 +14,7 @@ class CompanyAcceptanceCreateRequest {
     required this.lines,
     this.autoCreateReturnForPartialAcceptance = true,
     this.clientRequestId,
+    this.forceCreateNew = false,
     this.officialDocumentKind,
     this.officialDocumentNo,
     this.officialDocumentDate,
@@ -32,6 +33,7 @@ class CompanyAcceptanceCreateRequest {
   final bool autoCreateReturnForPartialAcceptance;
   final List<CompanyAcceptanceCreateLine> lines;
   final String? clientRequestId;
+  final bool forceCreateNew;
   final String? officialDocumentKind;
   final String? officialDocumentNo;
   final DateTime? officialDocumentDate;
@@ -46,6 +48,7 @@ class CompanyAcceptanceCreateRequest {
       'documentOrderNo': documentOrderNo,
       if (clientRequestId != null && clientRequestId!.trim().isNotEmpty)
         'clientRequestId': clientRequestId!.trim(),
+      if (forceCreateNew) 'forceCreateNew': true,
       if (officialDocumentKind != null &&
           officialDocumentKind!.trim().isNotEmpty)
         'officialDocumentKind': officialDocumentKind!.trim(),
@@ -92,6 +95,7 @@ class CompanyAcceptanceCreateRequest {
       clientRequestId: _readString(json['clientRequestId']).trim().isEmpty
           ? null
           : _readString(json['clientRequestId']),
+      forceCreateNew: json['forceCreateNew'] == true,
       officialDocumentKind:
           _readString(json['officialDocumentKind']).trim().isEmpty
           ? null

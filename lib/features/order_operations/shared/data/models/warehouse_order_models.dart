@@ -29,6 +29,8 @@ class WarehouseOrderCreateRequest {
     required this.deliveryDate,
     required this.description,
     required this.lines,
+    this.clientRequestId,
+    this.forceCreateNew = false,
   });
 
   final int outWarehouseNo;
@@ -36,15 +38,59 @@ class WarehouseOrderCreateRequest {
   final DateTime deliveryDate;
   final String description;
   final List<WarehouseOrderCreateLine> lines;
+  final String? clientRequestId;
+  final bool forceCreateNew;
+
+  WarehouseOrderCreateRequest copyWith({
+    String? clientRequestId,
+    bool? forceCreateNew,
+  }) {
+    return WarehouseOrderCreateRequest(
+      outWarehouseNo: outWarehouseNo,
+      orderDate: orderDate,
+      deliveryDate: deliveryDate,
+      description: description,
+      lines: lines,
+      clientRequestId: clientRequestId ?? this.clientRequestId,
+      forceCreateNew: forceCreateNew ?? this.forceCreateNew,
+    );
+  }
 
   JsonMap toJson() {
     return <String, dynamic>{
+      if (clientRequestId != null && clientRequestId!.trim().isNotEmpty)
+        'clientRequestId': clientRequestId!.trim(),
+      if (forceCreateNew) 'forceCreateNew': true,
       'outWarehouseNo': outWarehouseNo,
       'orderDate': _toApiDate(orderDate),
       'deliveryDate': _toApiDate(deliveryDate),
       'description': description,
       'lines': lines.map((item) => item.toJson()).toList(growable: false),
     };
+  }
+
+  factory WarehouseOrderCreateRequest.fromJson(JsonMap json) {
+    final rawLines = json['lines'];
+    return WarehouseOrderCreateRequest(
+      clientRequestId: _readString(json['clientRequestId']).trim().isEmpty
+          ? null
+          : _readString(json['clientRequestId']).trim(),
+      forceCreateNew: json['forceCreateNew'] == true,
+      outWarehouseNo: _readInt(json['outWarehouseNo']),
+      orderDate: _readDate(json['orderDate']) ?? DateTime.now(),
+      deliveryDate: _readDate(json['deliveryDate']) ?? DateTime.now(),
+      description: _readString(json['description']),
+      lines: rawLines is List
+          ? rawLines
+                .whereType<Map>()
+                .map(
+                  (item) => WarehouseOrderCreateLine.fromJson(
+                    item.map((key, value) => MapEntry(key.toString(), value)),
+                  ),
+                )
+                .toList(growable: false)
+          : const <WarehouseOrderCreateLine>[],
+    );
   }
 }
 
@@ -87,6 +133,21 @@ class WarehouseOrderCreateLine {
       if (greenGrocerCase != null)
         'greenGrocerCase': greenGrocerCase!.toCreateJson(),
     };
+  }
+
+  factory WarehouseOrderCreateLine.fromJson(JsonMap json) {
+    return WarehouseOrderCreateLine(
+      stockCode: _readString(json['stockCode']),
+      quantity: _readDouble(json['quantity']),
+      recommendedQuantity: _readDouble(json['recommendedQuantity']),
+      unitPrice: _readDouble(json['unitPrice']),
+      unitPointer: _readInt(json['unitPointer']),
+      description: _readString(json['description']),
+      packageCode: _readString(json['packageCode']),
+      projectCode: _readString(json['projectCode']),
+      responsibilityCenter: _readString(json['responsibilityCenter']),
+      greenGrocerCase: _readGreenGrocerCase(json['greenGrocerCase']),
+    );
   }
 }
 
