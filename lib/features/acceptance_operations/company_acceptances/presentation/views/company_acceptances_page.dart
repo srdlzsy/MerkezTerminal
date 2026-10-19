@@ -563,17 +563,19 @@ class _CompanyAcceptancesPageState extends State<CompanyAcceptancesPage> {
           return const CompanyAcceptanceSubmitDecision(
             closeForm: false,
             allowRetry: true,
+            lockFieldsOnRetry: true,
             message:
                 'Evrak Mikroda olusmadi. Bilgileri kontrol edip ayni formda '
-                'yeniden Kaydet butonuna basin.',
+                'Tekrar Dene butonuna basin.',
           );
         case OfflineSubmissionStatus.processing:
           return const CompanyAcceptanceSubmitDecision(
             closeForm: false,
             allowRetry: true,
+            lockFieldsOnRetry: true,
             message:
-                'Kayit sonucu henuz kesinlesmedi. Ayni formda yeniden Kaydet '
-                'butonuna basabilirsiniz; ikinci evrak gonderilmeyecek.',
+                'Kayit sonucu henuz kesinlesmedi. Ayni formda Tekrar Dene '
+                'kullanabilirsiniz; ikinci evrak gonderilmeyecek.',
           );
         case OfflineSubmissionStatus.needsReview:
           return const CompanyAcceptanceSubmitDecision(

@@ -39,11 +39,13 @@ class CompanyAcceptanceSubmitDecision {
     required this.closeForm,
     required this.allowRetry,
     required this.message,
+    this.lockFieldsOnRetry = false,
   });
 
   final bool closeForm;
   final bool allowRetry;
   final String message;
+  final bool lockFieldsOnRetry;
 }
 
 class CompanyAcceptanceCreateSheet extends StatefulWidget {
@@ -106,6 +108,7 @@ class _CompanyAcceptanceCreateSheetState
   String? _lastAddedProductKey;
   bool _isSubmitting = false;
   bool _submissionLocked = false;
+  bool _retryWithSnapshot = false;
 
   @override
   void initState() {
@@ -1531,6 +1534,7 @@ class _CompanyAcceptanceCreateSheetState
     setState(() {
       _isSubmitting = true;
       _submissionLocked = false;
+      _retryWithSnapshot = false;
       _lookupError = null;
     });
     try {
@@ -1548,7 +1552,8 @@ class _CompanyAcceptanceCreateSheetState
 
       setState(() {
         _isSubmitting = false;
-        _submissionLocked = !decision.allowRetry;
+        _retryWithSnapshot = decision.allowRetry && decision.lockFieldsOnRetry;
+        _submissionLocked = !decision.allowRetry || _retryWithSnapshot;
         _lookupError = decision.message;
       });
     } catch (error) {
@@ -1845,6 +1850,20 @@ class _CompanyAcceptanceCreateSheetState
                     Text('Kaydediliyor, sonuc kontrol ediliyor...'),
                   ],
                 ),
+              ),
+            ),
+          ),
+        if (_retryWithSnapshot)
+          Positioned(
+            left: 12,
+            right: 12,
+            bottom: 12,
+            child: SafeArea(
+              top: false,
+              child: FilledButton.icon(
+                onPressed: _submit,
+                icon: const Icon(Icons.refresh_rounded),
+                label: const Text('Tekrar Dene'),
               ),
             ),
           ),
