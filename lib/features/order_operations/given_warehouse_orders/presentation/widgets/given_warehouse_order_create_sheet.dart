@@ -330,7 +330,11 @@ class _GivenWarehouseOrderCreateSheetState
         }
 
         final line = _createLine();
-        line.applyProduct(product);
+        line.applyProduct(
+          product,
+          initialQuantity: _initialQuantityForProduct(product),
+          quantityStep: _quantityStepForProduct(product),
+        );
         line.quantityController.clear();
         addedLines.add(line);
         existingKeys.add(key);
@@ -436,7 +440,11 @@ class _GivenWarehouseOrderCreateSheetState
     }
 
     setState(() {
-      entryLine.applyProduct(pickedProduct, initialQuantity: 1);
+      entryLine.applyProduct(
+        pickedProduct,
+        initialQuantity: _initialQuantityForProduct(pickedProduct),
+        quantityStep: _quantityStepForProduct(pickedProduct),
+      );
       _validationMessage = null;
     });
     _draftSession.scheduleSave();
@@ -529,8 +537,11 @@ class _GivenWarehouseOrderCreateSheetState
     setState(() {
       entryLine.applyProduct(
         product,
-        initialQuantity: addedQuantity,
-        quantityStep: addedQuantity,
+        initialQuantity: _initialQuantityForProduct(
+          product,
+          fallback: addedQuantity,
+        ),
+        quantityStep: _quantityStepForProduct(product, fallback: addedQuantity),
       );
       entryLine.setProductCaseStatus(_resolvedBarcodeMessage(resolution));
       _validationMessage = null;
@@ -751,6 +762,13 @@ class _GivenWarehouseOrderCreateSheetState
       return;
     }
 
+    final packageError = _centralWarehousePackageError(product, quantity);
+    if (packageError != null) {
+      setState(() => _validationMessage = packageError);
+      unawaited(TerminalFeedback.warning());
+      return;
+    }
+
     if (!await _confirmDuplicateIncrease(line, product)) {
       return;
     }
@@ -952,6 +970,15 @@ class _GivenWarehouseOrderCreateSheetState
               '${index + 1}. satir icin miktar sifirdan buyuk olmali.',
         );
         return;
+      }
+
+      final product = line.selectedProduct;
+      if (product != null) {
+        final packageError = _centralWarehousePackageError(product, quantity);
+        if (packageError != null) {
+          setState(() => _validationMessage = packageError);
+          return;
+        }
       }
     }
 
@@ -1281,6 +1308,53 @@ class _GivenWarehouseOrderCreateSheetState
     }
 
     return '$quantity $unitName';
+  }
+
+  double _initialQuantityForProduct(
+    ProductLookupItem product, {
+    double fallback = 1,
+  }) {
+    final step = _quantityStepForProduct(product, fallback: fallback);
+    return step > 0 ? step : 1;
+  }
+
+  double _quantityStepForProduct(
+    ProductLookupItem product, {
+    double fallback = 1,
+  }) {
+    final factor = product.unitMultiplier.abs();
+    if (_selectedSourceWarehouseNo == 50 && factor > 1) {
+      return factor;
+    }
+    return fallback > 0 ? fallback : 1;
+  }
+
+  String? _centralWarehousePackageError(
+    ProductLookupItem product,
+    double quantity,
+  ) {
+    if (_selectedSourceWarehouseNo != 50) {
+      return null;
+    }
+
+    final factor = product.unitMultiplier.abs();
+    if (factor <= 1) {
+      return null;
+    }
+
+    final ratio = quantity / factor;
+    if ((ratio - ratio.roundToDouble()).abs() < 0.000001) {
+      return null;
+    }
+
+    final lower = ratio.floorToDouble() * factor;
+    final upper = ratio.ceilToDouble() * factor;
+    final validQuantities = lower > 0
+        ? '${AppFormatters.quantity(lower)} veya ${AppFormatters.quantity(upper)}'
+        : AppFormatters.quantity(upper);
+    return '${product.stockCode} icin miktar '
+        '${AppFormatters.quantity(factor)} koli katinda olmali. '
+        'En yakin gecerli miktar: $validQuantities.';
   }
 
   String? _greenGrocerMetaLabel(_CreateLineDraft line) {

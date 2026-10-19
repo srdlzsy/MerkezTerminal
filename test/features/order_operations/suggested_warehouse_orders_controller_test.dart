@@ -86,6 +86,36 @@ void main() {
   });
 
   test(
+    'does not convert a central warehouse quantity outside package multiple',
+    () async {
+      final repository = _FakeSuggestedWarehouseOrdersRepository(
+        packageFactor: 12,
+      );
+      final controller = SuggestedWarehouseOrdersController(
+        repository: repository,
+        accessToken: 'token',
+      );
+      addTearDown(controller.dispose);
+
+      await controller.loadSuggestions(sourceWarehouseNo: 50);
+
+      final item = controller.items.first;
+      controller.toggleItem(item);
+      controller.updateQuantity(item, '5');
+
+      final result = await controller.convertSelected(
+        orderDate: DateTime(2026, 7, 1),
+        deliveryDate: DateTime(2026, 7, 2),
+        description: '',
+      );
+
+      expect(result, isNull);
+      expect(controller.convertError, contains('12 koli katinda olmali'));
+      expect(repository.lastRequest, isNull);
+    },
+  );
+
+  test(
     'converts green grocer suggestions only after manual quantity',
     () async {
       final repository = _FakeSuggestedWarehouseOrdersRepository();
@@ -161,6 +191,9 @@ void main() {
 
 class _FakeSuggestedWarehouseOrdersRepository
     implements SuggestedWarehouseOrdersRepository {
+  _FakeSuggestedWarehouseOrdersRepository({this.packageFactor = 1});
+
+  final double packageFactor;
   SuggestedWarehouseOrderFilter? lastFilter;
   SuggestedWarehouseOrderConvertRequest? lastRequest;
 
@@ -199,7 +232,7 @@ class _FakeSuggestedWarehouseOrdersRepository
         ),
       ];
     }
-    return const <SuggestedWarehouseOrderListItem>[
+    return <SuggestedWarehouseOrderListItem>[
       SuggestedWarehouseOrderListItem(
         stockCode: '010001',
         stockName: 'Domates',
@@ -209,7 +242,7 @@ class _FakeSuggestedWarehouseOrdersRepository
         sourceOnHand: 120,
         salesQuantity: 86,
         openIncomingOrderQuantity: 3,
-        packageFactor: 1,
+        packageFactor: packageFactor,
         minDay: 0,
         recommendedDay: 7,
         maxDay: 0,

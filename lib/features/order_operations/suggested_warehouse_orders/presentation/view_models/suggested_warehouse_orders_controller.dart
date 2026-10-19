@@ -321,6 +321,20 @@ class SuggestedWarehouseOrdersController extends ChangeNotifier
       if (item.sourceOnHand > 0 && quantity > item.sourceOnHand) {
         return '${item.stockCode} icin siparis miktari kaynak stoktan buyuk olamaz.';
       }
+      if (_sourceWarehouseNo == 50) {
+        final factor = item.packageFactor.abs();
+        final ratio = factor > 1 ? quantity / factor : 0;
+        if (factor > 1 && (ratio - ratio.roundToDouble()).abs() >= 0.000001) {
+          final lower = ratio.floorToDouble() * factor;
+          final upper = ratio.ceilToDouble() * factor;
+          final validQuantities = lower > 0
+              ? '${_formatQuantity(lower)} veya ${_formatQuantity(upper)}'
+              : _formatQuantity(upper);
+          return '${item.stockCode} icin miktar ${_formatQuantity(factor)} '
+              'koli katinda olmali. En yakin gecerli miktar: '
+              '$validQuantities.';
+        }
+      }
     }
     return null;
   }
@@ -331,6 +345,16 @@ class SuggestedWarehouseOrdersController extends ChangeNotifier
       return 0;
     }
     return double.tryParse(normalized) ?? 0;
+  }
+
+  static String _formatQuantity(double value) {
+    if (value == value.roundToDouble()) {
+      return value.toInt().toString();
+    }
+    return value
+        .toStringAsFixed(3)
+        .replaceFirst(RegExp(r'0+$'), '')
+        .replaceFirst(RegExp(r'\.$'), '');
   }
 
   static DateTime _normalizedDate(DateTime value) {

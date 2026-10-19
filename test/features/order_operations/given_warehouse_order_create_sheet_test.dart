@@ -185,7 +185,9 @@ void main() {
     expect(repository.lastSourceWarehouseNo, isNull);
   });
 
-  testWidgets('warns but allows non-package-multiple quantity', (tester) async {
+  testWidgets('blocks non-package-multiple quantity for central warehouse', (
+    tester,
+  ) async {
     tester.view.physicalSize = const Size(390, 1000);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
@@ -240,8 +242,14 @@ void main() {
 
     await _confirmPendingProduct(tester);
 
-    expect(find.text('1 kalem'), findsOneWidget);
+    expect(find.text('0 kalem'), findsOneWidget);
     expect(find.text('AYTAC TEST URUN'), findsOneWidget);
+    expect(find.textContaining('12 koli katinda olmali'), findsOneWidget);
+
+    await tester.enterText(find.widgetWithText(TextFormField, 'Miktar'), '12');
+    await _confirmPendingProduct(tester);
+
+    expect(find.text('1 kalem'), findsOneWidget);
   });
 
   testWidgets('loads selected source warehouse products into quantity lines', (
