@@ -2,7 +2,7 @@
 
 Bu dokuman, mevcut backend durumuna gore frontend/UI tasarimi ve entegrasyonu icin hazirlanmistir.
 
-Son hedefli kontrol: 2026-10-16. Kayitli 755 method/route ve 690 JSON modeli koddan uretilen sozlesmeyle; auth, CORS, dogrudan IIS barindirma, Mikro create/readback, firma e-irsaliye, guvenli retry, worker heartbeat/backlog ve veritabani izleme anlatimlari kaynak kod ve Production ayarlariyla karsilastirildi.
+Son hedefli kontrol: 2026-10-19. Kayitli 756 method/route ve 691 JSON modeli koddan uretilen sozlesmeyle; auth, CORS, dogrudan IIS barindirma, Mikro create/readback, firma e-irsaliye, guvenli retry, worker heartbeat/backlog ve veritabani izleme anlatimlari kaynak kod ve Production ayarlariyla karsilastirildi.
 Tum kayitli endpointlerin route, method, request/response ve yetki metadata referansi: [API Sozlesme Referansi](API_SOZLESME_REFERANSI.md). Makine formati: [OpenAPI Sozlesmesi](API_SOZLESMESI.json). Bu referans test ile koddan uretilir; anlatimdaki orneklerin yerine tam alan/alias listesi icin kullanilir.
 Bu kontrol tum endpointlerin uctan uca canli onayi degildir. Yayin oncesi migration, acik riskler ve smoke testleri icin [Canliya Gecis Kontrol Listesi](CANLIYA_GECIS_KONTROL_LISTESI.md) kullanilmalidir.
 
@@ -1218,6 +1218,15 @@ Yetki ve kapsam:
 
 Bu bolum mobil uygulamanin offline iken olusturdugu fisleri internet geldiginde guvenli sekilde backend'e gondermesi icin create retry kurallarini anlatir.
 
+Terminal uygulama ekibi icin uygulanabilir kisa durum makinesi ve kabul kriterleri: [Terminal Guvenli Create Akisi](TERMINAL_GUVENLI_CREATE_AKISI.md).
+
+Create miktar guvenligi:
+
+- Belge/stok hareketi olusturan create akislarindaki gercek satir miktari ust siniri `100000` degeridir. Depo/firma siparisi, sevk, iade, firma/depo mal kabul, sayim, zayiat, masraf, virman, manav duzeltmesi ve bunlari kullanan AXATA/manual create yollari ayni siniri uygular.
+- `100000` kabul edilir; daha buyuk miktar `400 Bad Request` doner. Barkodun miktar alanina okutulmasi gibi uc degerlerde guvenli yazma rezervasyonu ve Mikro yazimi baslamaz.
+- UI miktar inputuna `max=100000` uygulamali ve alan hatasini formda gostermelidir. Bu `400` sonucu belirsiz create degildir; pending/retry akisina alinmaz, ayni form kullanici duzeltmesine acik kalir.
+- Bu sinir fiyat, tutar, rapor filtresi ve stok goruntuleme degerlerine uygulanmaz; yalniz create ile yazilan miktar alanlarina uygulanir.
+
 ### Terminal Icin Nihai Kullanici Akisi
 
 Bu bolum guvenli create ekranlarinin ana UI sozlesmesidir. Terminal teknik `status`, `retryable` veya hata metninden kendi kararini turetmemeli; response'taki `recommendedAction` alanini esas almalidir.
@@ -1245,7 +1254,9 @@ Kaydet butonunun kesin davranisi:
 Backend sorumlulugu:
 
 - Request body tamamen alindiktan ve Auth DB rezervasyonu olustuktan sonra backend create islemini istemci baglantisindan bagimsiz, en fazla 10 dakikalik sinirli bir server token'iyle tamamlar.
+- Ayni `clientRequestId` ile ayni POST taze `Processing` kaydina denk gelirse ikinci Mikro yazisi veya rakip readback baslatilmaz. Backend mevcut sonuca en fazla 15 saniye baglanir; tamamlanirsa ayni business response'u, tamamlanmazsa `WaitAndCheck` kararini doner.
 - `Processing` kaydi 12 dakikadan once sahipsiz kabul edilmez. Bu esik 10 dakikalik server calisma penceresinden uzundur; calisan islem erken ikinci yazima acilmaz.
+- Taze `Processing` kaydinin status GET'i Mikro recovery sorgusu baslatmaz; yalniz Auth DB durumunu dondurur. Readback create sahibinin kendi akisinda, `Failed + retryable=true` kaydinda veya 12 dakikalik lease asildiktan sonra calisir.
 - Her kesin basari request snapshot'i ile Mikro readback sonucu birebir eslestirilmeden `Completed` olmaz.
 - Status GET ve `yeniden-dogrula` create/update/delete yapmaz; yalniz mevcut Mikro kaydini okur ve sonucu uzlastirir.
 - Tek bir sorunlu evrak modulu, `Yeni Ekle` butonunu veya diger kullanicilarin islemlerini global kilitlemez.
@@ -1292,12 +1303,13 @@ Bu endpointler legacy UI gibi normal online da kullanilabilir. Ancak mobil uygul
 - Ayni kullanici, ayni islem ve ayni `clientRequestId` kombinasyonu backend tarafinda tekil kabul edilir.
 - Ayni `clientRequestId` ile ayni payload tekrar gelirse backend ayni is sonucunu donmeye calisir; boylece timeout veya kopan internet sonrasi guvenli retry yapilabilir.
 - Ayni `clientRequestId` ile farkli payload gelirse endpoint `409 Conflict` doner.
-- Ayni `clientRequestId` halen isleniyorsa endpoint `409 Conflict` doner.
+- Ayni `clientRequestId` halen taze `Processing` durumundaysa backend ikinci Mikro yazisi veya rakip recovery sorgusu baslatmaz. Create POST mevcut sonuca en fazla 15 saniye baglanir; ilk islem tamamlanirsa ayni business response'u, tamamlanmazsa `409 Conflict` ve `recommendedAction=WaitAndCheck` doner.
 - UI yanlislikla yeni bir `clientRequestId` uretse bile ayni kullanici, operasyon ve depoda ayni mantiksal payload'in onceki kaydi `Processing` veya `retryable=true` belirsiz durumda ise backend ikinci kalici rezervasyonu ve Mikro yazimini engeller. ProblemDetails icindeki `relatedClientRequestId`, durum sorgulanmasi gereken ilk kimligi bildirir.
 - Ayni mantiksal payload son 6 saat icinde `Completed` olduysa farkli `clientRequestId` ile tekrar POST edilmesi yeni Mikro yazisi baslatmaz. Backend onceki belgeyi readback ile yeniden dogrular, ayni business response'u dondurur ve yeni kimligi de tamamlanmis alias kaydi olarak saklar.
 - Gercekten ayri fakat icerigi birebir ayni yeni bir evrak gerekiyorsa kullanici acik bir onay aksiyonuyla yeni `clientRequestId` ve `forceCreateNew=true` gonderir. Bu alan yalniz son 6 saatteki dogrulanmis `Completed` tekrarini asar; `Processing`, sonucu belirsiz veya `retryable=false` manuel inceleme kaydini asmaz.
 - Eski istemci `clientRequestId` gondermezse backend geriye uyumluluk icin islem kimligini kendisi uretir ve ayni icerik korumasini uygular. Ancak UI bu uretilen kimligi bilmeyecegi icin durum sorgulama ve iyi hata deneyimi kaybolur; yeni UI yine her zaman kendi GUID degerini gondermelidir.
 - Request body tamamen alinip `clientRequestId` kaydi Auth DB'de rezerve edildikten sonra create islemi terminalin HTTP baglantisindan ayrilir ve en fazla 10 dakikalik sunucu calisma penceresiyle devam eder. Baglanti acik kalirsa ayni POST kesin business sonucunu bekleyip doner. Terminal baglantiyi kaybederse backend baslamis islemi iptal etmez; UI ayni kimlikle `offline-sync/{clientRequestId}` durumunu sorgular.
+- Taze `Processing` kaydi icin status GET yalniz Auth DB durumunu okur; Mikro recovery/readback sorgusu baslatmaz. Bu kural cok sayida terminalin ayni anda uzun recovery sorgulari acmasini engeller.
 - Baglanti request body tamamen alinmadan koparsa controller ve kalici rezervasyon henuz calismamis olabilir. Bu durumda Mikro yazimi baslamaz; terminal sakladigi ayni payload ve ayni `clientRequestId` ile POST'u yeniden gonderir. UI yalniz HTTP isteginin baslamasini `sunucuda kayit basladi` kaniti olarak gostermemelidir.
 - POST cevabi cihaza ulasmadiysa mobil uygulama once ilgili `offline-sync/{clientRequestId}` status GET'ini cagirir. Yalniz backend `recommendedAction=RetrySameRequest` dondururse ayni snapshot ve ayni kimlikle POST'u tekrarlar.
 - Desteklenen tum akislar ilgili `offline-sync/{clientRequestId}` endpoint'iyle sorgulanabilir. Durum sorgusu yeni create yazisi baslatmaz; kayitli request snapshot'i ile Mikro readback yapar ve bulunan kesin sonucu kalici kayda isler.
@@ -1315,10 +1327,12 @@ Guvenli create `409 Conflict` response sozlesmesi:
 
 - Siniflandirilmis create cakismalarinda standart ProblemDetails alanlarina ek olarak `errorCode` ve `retryable` doner.
 - Siniflandirilmis guvenli yazma/readback mesajlari API tarafinda kullaniciya acik Turkce metne cevrilir. Ayni ceviri `409 detail`, `offline-sync errorMessage` ve guvenli yazma izleme response'unda kullanilir; UI yine metin eslestirmemeli, kararini `errorCode` ve `retryable` alanlariyla vermelidir.
-- `MIKRO_WRITE_IN_PROGRESS`, `retryable=true`: ayni `clientRequestId` halen isleniyor veya onceki belirsiz yazmanin readback sonucu bekleniyor. UI payload snapshot'ini korur; yeni id uretmez.
+- `MIKRO_WRITE_IN_PROGRESS`, `retryable=true`: ayni `clientRequestId` halen isleniyor veya onceki belirsiz yazmanin readback sonucu bekleniyor. UI payload snapshot'ini korur, yeni id uretmez ve kullaniciya manuel `Tekrar Dene` butonu acmaz; `retryAfterSeconds` sonrasinda status GET yapar.
 - `MIKRO_WRITE_QUEUE_BUSY`, `retryable=true`: depolar arasi sevkte ayni belge serisinin onceki islemi devam ettigi icin 180 saniyelik kuyruk bekleme siniri dolmustur. Bu istegin Mikro yazimi baslamamistir; UI ayni payload ve ayni `clientRequestId` ile kisa bir sure sonra yeniden deneyebilir. Yeni id uretilmemelidir.
 - `MIKRO_WRITE_OUTCOME_UNCONFIRMED`, `retryable=true`: Mikro yazma sonucu kanitlanamadi. `recommendedAction=WaitAndCheck`; UI create POST yapmaz, status/readback ile sonucu uzlastirir.
 - `MIKRO_DOCUMENT_INCOMPLETE`, `retryable=true`: Ayni trace'e ait bazi satirlar goruluyor ancak tam satir seti henuz olusmadi. `recommendedAction=WaitAndCheck`; eksik set basari sayilmaz ve ikinci create yazisi baslatilmaz.
+- `MIKRO_DOCUMENT_IDENTITY_CONFLICT`, `retryable=false`: Girilen belge seri/sira anahtari Mikro'da baska bir firma mal kabul evraki tarafindan kullanilmistir. Bu denemede yazim baslamamistir; `recoveryState=NotStarted`, `recommendedAction=EditAndRetry` doner. Terminal offline snapshot'ini siler, normal form taslagini satirlariyla yeniden acar ve kullanicidan seri/sirayi duzeltmesini ister.
+- `MIKRO_OFFICIAL_DOCUMENT_ALREADY_RECEIVED`, `retryable=false`: Ayni cari ve resmi belge numarasiyla firma mal kabul zaten vardir. Bu denemede yazim baslamamistir; `recoveryState=ExistingDocument`, `recommendedAction=RefreshList` doner. Terminal ikinci evrak olusturmaz, offline snapshot'ini siler ve mevcut kaydi gostermek icin listeyi yeniler.
 - `SAFE_WRITE_RETRY_ALLOWED`, `retryable=true`: Salt-okuma incelemesi Mikro'da bu istege ait hic belge olmadigini kesinlestirmistir. `recommendedAction=RetrySameRequest`; sadece bu durumda ayni snapshot/id ile create POST yeniden baslatilabilir.
 - `MIKRO_DOCUMENT_CONTENT_MISMATCH`, `retryable=false`: Mikro'da ayni evrak anahtariyla kayit vardir fakat satir icerigi istekle tam eslesmemistir. UI otomatik veya yeni id ile POST yapmamalidir. Firma mal kabulde kaydi olusturan kullanici once `POST .../offline-sync/{clientRequestId}/yeniden-dogrula` ile salt-okuma kontrolunu kendisi baslatabilir; tam eslesme bulunursa kayit otomatik `Completed` olur. Eslesme bulunmazsa yetkili incelemesi gerekir.
 - Bu manuel inceleme karari backend'de kalici saklanir. Ayni id tekrar gonderilse bile yeniden create baslatilmaz. Firma mal kabulde kullaniciya acik yeniden dogrulama yalniz mevcut Mikro satirlarini okur; `tekrar-ac` ve `iptal` kararlari yetkili guvenli yazma inceleme akisinda kalir.
@@ -1338,6 +1352,8 @@ UI hata ve ekran kilidi karar matrisi:
 | `MIKRO_WRITE_QUEUE_BUSY`, `retryable=true` | Bu yazimin henuz baslamadigini bildir; ayni payload ve ayni `clientRequestId` ile belirtilen sure sonra tekrar dene. | Yalniz ilgili taslak bekletilir; modul global kilitlenmez. | Tekrarlayan uzun kuyruk veya SQL izleme bulgusu varsa destek gerekir. |
 | `MIKRO_WRITE_OUTCOME_UNCONFIRMED`, `retryable=true` | `Mikro sonucu kontrol ediliyor` goster; create POST yapmadan ayni kimlikle status/readback sorgula. | Yalniz bu mantiksal islem pending kalir. Kullanici baska bagimsiz bir isleme gecebilir. | Birden cok recovery denemesinden sonra durum degismiyorsa `operationCode`, `clientRequestId`, depo ve `correlationId` ile destek aksiyonu acilir. |
 | `MIKRO_DOCUMENT_INCOMPLETE`, `retryable=true` | `Belge satirlari tamamlaniyor` goster ve status sorgusuna devam et. | Yalniz ilgili taslak kilitli kalir. | Normalde destek gerekmez; uzun sure degismezse inceleme gerekir. |
+| `MIKRO_DOCUMENT_IDENTITY_CONFLICT`, `retryable=false` | Offline'a tasima; formu ayni satirlarla yeniden ac ve seri/sira duzeltmesini iste. Duzeltilmis kayit yeni bir `clientRequestId` alir. | Bekleyen/offline kilidi yoktur; normal form taslagi korunur. | Destek gerekmez. |
+| `MIKRO_OFFICIAL_DOCUMENT_ALREADY_RECEIVED`, `retryable=false` | Offline'a tasima ve ikinci POST yapma; listeyi yenileyip mevcut evraki goster. | Bekleyen/offline kilidi yoktur. | Mevcut evrak bulunamazsa destek gerekir. |
 | `SAFE_WRITE_RETRY_ALLOWED`, `retryable=true` | Saklanan ayni snapshot ve ayni `clientRequestId` ile POST'u yeniden dene. | Yalniz ilgili taslak yeniden kaydedilir. | Destek gerekmez. |
 | `Completed` | `result` icindeki belge seri/sirasini goster; yerel pending snapshot'ini sil ve bu taslagin kilidini ac. | Kilit tamamen kalkar. | Destek gerekmez. |
 | `MIKRO_DOCUMENT_CONTENT_MISMATCH`, `retryable=false` | Otomatik retry, yeni id ve `forceCreateNew` kapali kalir. `recommendedAction=RecheckExisting` ile salt-okuma yeniden dogrulama sunulur. Tam eslesirse `Completed`, aksi halde inceleme durumu korunur. | Yalniz ilgili kayit `needsReview` olur. Tum modul veya diger kullanicilar kilitlenmez. | Kullanici dogrulamasi sonrasi uyusmazlik suruyorsa belge, istek kimligi ve satir farki yetkili tarafindan incelenmelidir. |
@@ -2561,6 +2577,10 @@ Veri kaynaklari:
 
 Bu ekran Mikro SQL Server uzerindeki aktif istekleri, kilit zincirlerini, uzun acik transaction'lari ve temel bekleme nedenlerini canli gosterir. Ekran acilisi `manage`, canli veri `list`, olay/sonlandirma gecmisi `detail`, SQL oturumu sonlandirma ise ayri `terminate-session` yetkisine baglidir.
 
+Canli `STOK_HAREKETLERI` / `STOK_HAREKETLERI_OZET` kilit kok nedeni,
+uygulama duzeltmeleri ve yayin sirasi:
+`docs/MIKRO_STOK_HAREKETLERI_KILIT_ANALIZI.md`.
+
 Endpointler:
 
 ```text
@@ -2627,6 +2647,7 @@ Ekran yerlesimi:
 - `genel-bakis`, `anlik` ve `workerlar` ekran gorunurken 10 saniyede bir yenilenebilir. Onceki istek bitmeden yenisi baslatilmaz.
 - `olaylar` ve `guvenli-yazmalar` varsayilan olarak 30 saniyede bir veya kullanici yenilediginde sorgulanir.
 - `safeWrites` hata sayilari son 24 saati, `processingCount` ve `staleProcessingCount` tum halen Processing kayitlarini kapsar.
+- `staleProcessingCount`, 10 dakikalik dayanikli create ust suresi ve 2 dakikalik islem kirasi payi nedeniyle son guncellemesi 12 dakikadan eski `Processing` kayitlarini sayar. Bu kayitlar tek basina aktif SQL kilidi kaniti degildir.
 - `overallStatus=warning` uygulamanin durdugu anlamina gelmez; ilgili bolumdeki `recommendation` ve sayaclar incelenir.
 
 #### Anlik Izleme Response
@@ -2735,6 +2756,10 @@ Alan notlari:
 - `openTransactions`: acik kullanici transaction'laridir; aktif request olmasa da listede bulunabilir.
 - `canTerminate=true` teknik olarak sonlandirilabilir kullanici SPID'i oldugunu belirtir. Buton icin ayrica `terminate-session` permission'i zorunludur.
 - `sqlText`, `blockedSqlText` ve `lastSqlText` icindeki string literal degerler backend tarafinda `***` ile maskelenir.
+- `Guvenli Yazmalar` Auth DB'deki idempotency/sonuc kayitlarini, `Canli SQL` ise Mikro SQL Server'daki gercek request, transaction ve kilitleri gosterir. Bir guvenli yazma kaydi tek basina kilit olusturmaz; SQL kilidi veya yavaslik create sonucunu belirsiz birakip bu kaydin `Processing`/`Failed` gorunmesine neden olabilir.
+- Root blocker uzun bir `SELECT` ise once sorgunun endpointi ve eksik indexi bulunmalidir. Zayiat/masraf listeleri production SQL Server'da `ReadUncommitted` ile calisir; bu ekranlar create yazilarini bekletmemelidir. Kalici hiz icin `IX_FR_STH_StokFisi_Liste`, zayiat/masraf readback'i icin `IX_FR_STH_StokFisi_Trace` kurulmalidir.
+- `STOK_HAREKETLERI` indexleri 218 milyon ve benzeri buyuk tablolarda yogun saatte kurulmaz. Acil iki index icin `docs/STOK_HAREKETLERI_STOK_FISI_ACIL_INDEXLERI.sql`, tum liste indexleri icin `docs/STOK_HAREKETLERI_LISTE_INDEXLERI.sql` kullanilir.
+- `recommendations[].code=stock-summary-trigger-contention`, Mikro `mye_STOK_HAREKETLERI_Trigger` icindeki `STOK_HAREKETLERI_OZET` guncellemelerinin `LCK_M_U` ile kuyruklandigini gosterir. Bu durumda API'nin tek-satir trigger batch profilinin yayinda oldugu kontrol edilir; bekleyen tum SPID'ler topluca sonlandirilmaz.
 
 #### Worker Heartbeat ve Backlog
 
@@ -2909,8 +2934,8 @@ Alan ve filtre kurallari:
 UI gosterim onerisi:
 
 ```text
-Processing, ageSeconds <= 300   Isleniyor
-Processing, ageSeconds > 300    Uzlastirma Bekliyor
+Processing, ageSeconds <= 720   Isleniyor
+Processing, ageSeconds > 720    Uzlastirma Bekliyor
 Failed, retryable=true          Guvenli Tekrar Kontrol Edilebilir
 Failed, retryable=false         Manuel Inceleme Gerekli
 Failed, retryable=null          Siniflandirilmamis / Eski Hata
@@ -5907,6 +5932,11 @@ Onemli not:
 - `outWarehouseNo` siparis verilen/karsi depo numarasidir.
 - Merkez depoya siparis verme senaryosunda `inWarehouseNo` islemi yapan sube/magaza, `outWarehouseNo` kaynak/merkez depodur. Normal sube kullanicisinda `inWarehouseNo` gonderilmemeli, yalniz `outWarehouseNo=50` gonderilmelidir.
 - UI urun arama veya barkod cozumleme isteklerinde kaynak depo olan `50` degerini `warehouseNo` alanina basmamalidir. `warehouseNo` bos kalirsa backend JWT deposunu kullanir; kaynak depo yalniz siparis create body icindeki `outWarehouseNo` alanina yazilir.
+- `outWarehouseNo=50` merkez depo siparisinde backend her satirin koli katsayisini Mikro `STOKLAR.sto_birim2_katsayi` alanindan okur. Mutlak koli katsayisi `1`den buyukse `quantity` bu katsayinin tam kati olmalidir.
+- Merkez depo koli kontrolu hem dogrudan verilen depo siparisi create hem de onerilen siparisi `convert-to-order` akisi icin gecerlidir. Koli kati olmayan miktar Mikro yazimi baslamadan `400 Bad Request` ile reddedilir.
+- Backend koli disi miktari sessizce yukari veya asagi yuvarlamaz. ProblemDetails `detail` alaninda stok kodu, koli ici, girilen miktar ve en yakin gecerli miktarlar bulunur.
+- UI merkez depo seciliyken ana girisi koli adedi olarak sunmali, toplam `quantity = koliAdedi * unitMultiplier` hesabini yapmali ve adet alani elle degistirilirse koli katini kaydetmeden once kontrol etmelidir. Ornek: koli ici `9`, girilen `10` ise kullaniciya `9` veya `18` secenekleri gosterilir.
+- `sto_birim2_katsayi` bos, `0` veya `1` ise urun tekli miktar mantigiyla devam eder. Bu kural diger kaynak depolara ve manav KG/kasa cozumleme akisina uygulanmaz.
 - Manav depo siparisinde `outWarehouseNo=56` olmalidir. UI `resolution-preview` kullandiysa satirda `quantity = estimatedQuantity` gonderir; kullanicinin girdigi kasa/koli ve ortalama bilgisi opsiyonel `greenGrocerCase` nesnesinde gonderilir.
 - `greenGrocerCase` gonderilirse `estimatedQuantity` ile satir `quantity` birebir eslesmelidir; eslesmezse API `400 Bad Request` doner.
 - `greenGrocerCase` sadece snapshot/rapor/detay gosterimi icindir; Mikro siparis satirina yine `quantity` alani yazilir.
@@ -5924,7 +5954,7 @@ Request:
   "lines": [
     {
       "stockCode": "015550",
-      "quantity": 10,
+      "quantity": 18,
       "recommendedQuantity": 0,
       "unitPrice": 0,
       "unitPointer": 1,
@@ -5991,7 +6021,7 @@ Response:
   "inWarehouseNo": 110,
   "outWarehouseNo": 50,
   "lineCount": 1,
-  "totalQuantity": 10,
+  "totalQuantity": 18,
   "writeConnectionName": "testMikroConnection"
 }
 ```
@@ -6056,6 +6086,7 @@ UI akisi:
 - UI listeyi getirir ve stok kodu, stok adi, barkod, hedef stok, kaynak stok, son satis, acik siparis, ihtiyac, `unitMultiplier` koli ici ve onerilen siparis miktarini gosterir.
 - Kullanici satirlari secer, `quantity` alanini varsayilan olarak `suggestedOrderQuantity` ile doldurur.
 - Kullanici miktari degistirebilir; `recommendedQuantity` alanina orijinal `suggestedOrderQuantity` yazilmasi onerilir.
+- Kaynak depo `50` ve `unitMultiplier > 1` ise degistirilen `quantity` de `unitMultiplier` katinda kalmalidir. UI miktar step degerini `unitMultiplier` yapmali, koli disi degeri satirda gostermeli ve siparise cevirme aksiyonunu acmamalidir.
 
 ### Onerilen Depo Siparisleri / Kaynak Depo Urun Secimi
 
@@ -6149,6 +6180,7 @@ Not:
 - `siparis-islemleri.onerilen-depo-siparisleri.all-warehouses` yoksa `targetWarehouseNo` sorulmaz; backend JWT icindeki kullanici deposunu kullanir. Bu yetki varsa baska depo adina siparis olusturulacaksa body'de opsiyonel `targetWarehouseNo` gonderilebilir.
 - `sourceWarehouseNo`, olusacak depo siparisindeki `outWarehouseNo` olarak kullanilir.
 - Normal sube/terminal kullanicisinda `targetWarehouseNo` gonderilmemelidir. Merkez depo siparisi icin `sourceWarehouseNo=50` yeterlidir; hedef subeyi backend token deposundan cozer.
+- `sourceWarehouseNo=50` ise secilen her `quantity`, Mikro stok kartindaki koli katsayisinin tam kati olmalidir. Endpoint ayni verilen depo siparisi altyapisini kullandigi icin koli disi miktari `400 Bad Request` ile reddeder ve Mikro yazimi baslatmaz.
 
 Request:
 
@@ -6163,8 +6195,8 @@ Request:
   "lines": [
     {
       "stockCode": "010001",
-      "quantity": 12,
-      "recommendedQuantity": 12,
+      "quantity": 10,
+      "recommendedQuantity": 10,
       "unitPrice": 0,
       "unitPointer": 1,
       "description": "",
@@ -6813,6 +6845,7 @@ Not:
 - giden sevklerde filtre `sth_cikis_depo_no = WarehouseNo` olarak uygulanir
 - hedef depo nakliye durumuna gore `sth_giris_depo_no` veya `sth_nakliyedeposu` olarak cozulur
 - performans icin liste sorgusu sadece `STOK_HAREKETLERI` belge basliklarini gruplayarak doner; depo siparisi baglantisi gibi satir bazli ek bilgiler detay endpointinden okunur
+- Ayni `documentSerie + documentOrderNo` altindaki hareketler tek sevk evraki olarak doner. Siparise bagli satirlarda `sth_aciklama` urun adi gibi satir bazli farkli degerler tasisa da liste birden fazla evrak satirina bolunmez; `lineCount` tum satirlari, `totalQuantity` toplam miktari gosterir.
 - bu endpoint Mikro veritabaninda sadece SELECT yapar; insert/update/delete yoktur
 
 Geriye uyum icin su route da giden sevk listesi gibi calisir:
@@ -6862,6 +6895,7 @@ UI kullanim notlari:
 - Liste ekraninda `documentSerie`, `documentOrderNo`, `sourceWarehouse`, `targetWarehouse`, `shippingState`, `plaque`, `driverNameSurname`, `lineCount`, `totalQuantity` yeterlidir
 - `shippingState = 1` ise sevk hedef depoya ulasmis kabul edilebilir; diger durumlar icin operasyonel isimlendirme UI tarafinda netlestirilebilir
 - `warehouseOrderNo` liste response'unda performans nedeniyle bos gelebilir. Sevkin bagli oldugu depo siparisi gerekiyorsa detay endpointindeki `header.warehouseOrderNo`, `header.warehouseOrderNos` veya `items[].warehouseOrderNo` alanlari kullanilmalidir.
+- `descriptionEttn` yalniz hareket aciklamasinda gecerli bir e-irsaliye UUID degeri varsa dolar. Urun/satir aciklamalari bu alana ETTN olarak yansitilmaz.
 - Mal kabul satir eslestirmesi icin detay response icindeki `items[].movementGuid` kullanilmalidir; sadece stok kodu ile eslestirme ayni stoktan birden fazla satir oldugunda hatali olabilir
 - Plaka, sofor adi ve sofor TCKN create ekraninda sorulmaz; kullanici bu bilgileri e-irsaliye gonderirken elle girer veya kayitli sofor listesinden secer.
 
@@ -6883,7 +6917,7 @@ Onemli not:
 
 - Yazma yolu `MikroWriteRouting:InterWarehouseShipment` ile secilir; mevcut config'te deger `Database`tir.
 - `Database` modunda EF Core uzerinden ayri `MikroWriteDbContext` ile yazma yapar. Write hedefi canli `MikroConnection` degil; `MikroWriteConnection` yoksa `testMikroConnection` kullanilir.
-- `MikroWriteBatching:InterWarehouseShipmentEnabled`, `CompanyReceivingEnabled` ve `CompanyReturnEnabled` ayarlari ilgili `Database` yazma yollarini birbirinden bagimsiz acip kapatir. Ayar acikken bir evrakin `STOK_HAREKETLERI` satirlari mevcut transaction icinde tek SQL bulk batch olarak yazilir. Mikro trigger ve constraint kontrolleri acik kalir; hedef, cok satirli evrakta trigger'i satir basina degil belge batch'i basina bir kez calistirmaktir.
+- `MikroWriteBatching:InterWarehouseShipmentEnabled`, `CompanyReceivingEnabled` ve `CompanyReturnEnabled` ayarlari ilgili `Database` yazma yollarini birbirinden bagimsiz acip kapatir. Ayar acikken bir evrakin `STOK_HAREKETLERI` satirlari ayni SQL transaction'i icinde `SqlBulkCopy` ile yazilir; atomiklik korunur. Mikro'nun `mye_STOK_HAREKETLERI_Trigger` trigger'i cok satirli batch'te 22 milyon satirli `STOK_HAREKETLERI_OZET` tablosunda sayfa taramasi ve `LCK_M_U` zinciri olusturdugu icin bulk kopya `BatchSize=1` kullanir. Boylece trigger her satirda kendi hizli tek-satir kolunu calistirir; belge ancak tum satirlar ve bagli guncellemeler basariliysa commit edilir.
 - Firma mal kabulde normal kabul hareketleri tek batch, otomatik olusan firma iade evraki varsa onun satirlari ayri bir batch olarak yazilir. Boylece her belge kendi trigger calismasini bir kez yapar ve iki belge ayni transaction icinde birlikte commit/rollback olur.
 - Bulk yazma yalniz satirlarin SQL'e gonderilme seklini degistirir. `clientRequestId`, trace, duplicate kontrolu, belge numarasi, transaction, rollback, readback ve recovery davranisi aynen korunur.
 - Bulk yolunun timeout degeri `MikroWriteBatching:BulkCopyTimeoutSeconds` ile belirlenir; varsayilan `300` saniyedir. Ozellik kapatilirsa ayni endpoint ve response korunarak eski EF insert yoluna donulur.
@@ -8138,7 +8172,7 @@ Onemli not:
 - Mal kabul giris hareketinde `sth_miktar` irsaliye/gelen miktari olan `dispatchQuantity` ile yazilir.
 - Fiili/net kabul miktari `acceptedQuantity` alanidir. UI farkli kabul durumunda `dispatchQuantity` ve `acceptedQuantity` alanlarini ayri gondermelidir.
 - Eski uyumluluk icin `quantity` hala desteklenir; UI sadece `quantity` gonderirse backend bunu hem `dispatchQuantity` hem `acceptedQuantity` gibi yorumlar.
-- `acceptedQuantity`, `dispatchQuantity` degerinden buyuk olamaz. `dispatchQuantity` sifirdan buyuk olmali, `acceptedQuantity` sifir olabilir.
+- `acceptedQuantity`, `dispatchQuantity` degerinden buyuk olamaz. `dispatchQuantity` sifirdan buyuk olmali, `acceptedQuantity` sifir olabilir. Her iki miktar da en fazla `100.000` olabilir; barkodun yanlislikla miktar alanina yazilmasi gibi uc degerler Mikro yazimi baslamadan `400 Bad Request` ile durdurulur.
 - `autoCreateReturnForPartialAcceptance = true` varsayilandir. `acceptedQuantity < dispatchQuantity` ise backend fark kadar firma iade evragi olusturur. `Database` modunda ana mal kabul ve otomatik iade ayni DB transaction icindedir; `MikroApi` modunda ana mal kabul ve otomatik iade Mikro API create cagrilariyla sirali olusturulur.
 - Otomatik firma iade hareketi `sth_evraktip = 1`, `sth_tip = 1`, `sth_normal_iade = 1` olarak olusturulur; seri `F{warehouseNo}` seklinde uretilir ve sira Mikro'daki sonraki uygun sira olur.
 - Mikro net stok etkisi: `dispatchQuantity` kadar firma mal kabul girisi, fark kadar firma iade cikisi. Ornek: 10 geldi, 8 kabul edildi ise +10 mal kabul ve -2 firma iade yazilir; net stok 8 olur.
@@ -8156,11 +8190,12 @@ Onemli not:
 - `officialDocumentNo` varsa Mikro `STOK_HAREKETLERI.sth_belge_no` alanina da yazilir. ETTN/UUID bu alana yazilmaz.
 - `IRS19105-1`, `ABC` veya yalniz sayisal metinlerden seri/sira ya da belge no uretilmez.
 - Response'taki `documentNo`, Mikro'ya yazilan resmi belge numarasidir; manuel kayitta bos string doner. Evrak anahtari her zaman response `documentSerie + documentOrderNo` alanlaridir.
-- Ayni `documentSerie + documentOrderNo` kombinasyonu tum depolar genelinde yalnizca bir firma mal kabul evrakinda kullanilabilir. Baska depoda daha once kullanildiysa API yeni kaydi reddeder.
+- Ayni `documentSerie + documentOrderNo` kombinasyonu tum depolar genelinde yalnizca bir firma mal kabul evrakinda kullanilabilir. Baska depoda daha once kullanildiysa API `409`, `errorCode=MIKRO_DOCUMENT_IDENTITY_CONFLICT`, `retryable=false`, `recommendedAction=EditAndRetry` doner. Mikro yazimi baslamaz.
+- Ayni cari ve `officialDocumentNo` ile mevcut firma mal kabul varsa API `409`, `errorCode=MIKRO_OFFICIAL_DOCUMENT_ALREADY_RECEIVED`, `retryable=false`, `recommendedAction=RefreshList` doner. Ikinci evrak yazilmaz.
 - Mobil retry icin backend `clientRequestId` izini `FR` prefixli trace olarak `sth_eticaret_kanal_kodu` alanina tasir; `MikroApi` modunda bu payload ile Mikro'ya gider, tekrar istekte sonuc bu iz uzerinden toparlanabilir.
 - Ayni `clientRequestId` ile ayni payload tekrar gonderilirse backend ayni business response'u dondurmeye calisir.
 - Ayni `clientRequestId` ile farkli payload gonderilirse `409 Conflict` doner.
-- Ayni `clientRequestId` halen isleniyorsa `409 Conflict` doner.
+- Ayni `clientRequestId` halen taze `Processing` durumundaysa ikinci yazma/readback baslatilmaz. Backend mevcut islemin sonucuna en fazla 15 saniye baglanir; tamamlanirsa ayni business response'u, tamamlanmazsa `409 Conflict` ve `WaitAndCheck` karari doner.
 - `clientRequestId` kaydi Auth DB'de rezerve edildikten sonra terminalin HTTP baglantisinin kopmasi veya request'i iptal etmesi baslamis Mikro transaction'ini iptal etmez. Yazma kendi SQL/Mikro command timeout sinirlari icinde tamamlanir ve sonucu offline kaydina yazilir.
 - Eski kayitlarda ham `A task was canceled.` gibi siniflandirilmamis bir hata varsa durum veya ayni kimlikle retry akisi once trace readback yapar. Belge bulunamazsa kayit `MIKRO_WRITE_OUTCOME_UNCONFIRMED`, `retryable=true` olarak makine-okunur bicimde guncellenir.
 - `MikroWriteRouting:CompanyReceiving=Database` iken onceki deneme transaction rollback ile kapanmis ve trace readback hic hareket bulamamissa ayni payload + ayni `clientRequestId` yeniden yazilabilir. Bu yeni bir mantiksal fis degildir ve yeni GUID uretilmez.
@@ -8203,9 +8238,9 @@ Satir validasyonlari:
 | Alan | Zorunlu | Kural |
 |---|---|---|
 | `stockCode` | Evet | Max 25; bos olamaz. |
-| `quantity` | Eski uyum | Pozitif olmali; `dispatchQuantity` ve `acceptedQuantity` bos ise ikisi icin de kullanilir. |
-| `dispatchQuantity` | Onerilen | Pozitif olmali; resmi/gelen miktardir ve Mikro mal kabul hareket miktari olarak yazilir. |
-| `acceptedQuantity` | Onerilen | Sifir veya pozitif olabilir; fiili kabul miktaridir; `dispatchQuantity` degerinden buyuk olamaz. |
+| `quantity` | Eski uyum | Pozitif ve en fazla `100.000` olmali; `dispatchQuantity` ve `acceptedQuantity` bos ise ikisi icin de kullanilir. |
+| `dispatchQuantity` | Onerilen | Pozitif ve en fazla `100.000` olmali; resmi/gelen miktardir ve Mikro mal kabul hareket miktari olarak yazilir. |
+| `acceptedQuantity` | Onerilen | Sifir veya pozitif, en fazla `100.000` olabilir; fiili kabul miktaridir; `dispatchQuantity` degerinden buyuk olamaz. |
 | `unitPrice` | Hayir | Sifir veya pozitif olmali. |
 | `unitPointer` | Hayir | 1-255 arasi; bos ise 1 kabul edilir. |
 | `lastConsumingDate` | Hayir | SKT/son tuketim tarihi gerekiyorsa gonderilir. |
@@ -8449,6 +8484,8 @@ Firma mal kabul UI akisi:
 - QR/ETTN ile cozumlenmis belgede lookup sonucu mutlaka `officialDocument*` alanlarina tasinmalidir. `officialDocumentNo` Mikro `sth_belge_no`, resmi belge no/ETTN ise Belge Akis Takibi `externalDocumentNo` ve `externalUuid` alanlarinda aranabilir olur.
 - `lines[].isMatched = true` olan satirlar tek tikla create satirina aktarilabilir; `isMatched = false` olanlar ayrica "manuel eslestir" listesine dusurulebilir.
 - UI her durumda ayri `documentSerie` ve `documentOrderNo` alanlarini gostermeli ve ikisini de zorunlu tutmalidir. Birlesik manuel belge no veya prefix alani yoktur.
+- `MIKRO_DOCUMENT_IDENTITY_CONFLICT` gelirse bu kayit Offline/Bulut listesine tasinmaz. UI normal form taslagini ve tum satirlari koruyarak formu yeniden acar; seri/sira alanini belirginlestirir. Kullanici numarayi duzeltip Kaydet'e bastiginda yeni bir kaydetme denemesi ve yeni `clientRequestId` olusur.
+- `MIKRO_OFFICIAL_DOCUMENT_ALREADY_RECEIVED` gelirse bu kayit Offline/Bulut listesine tasinmaz ve seri/sira degistirilerek ikinci evrak olusturulmaz. UI firma mal kabul listesini yenileyip mevcut resmi belge kaydini kontrol ettirir.
 - Manuel kayitta `officialDocumentNo` gonderilmez ve response `documentNo` bos gelir. UI detay gecisinde response `documentSerie` ve `documentOrderNo` alanlarini kullanir.
 - Cari secildikten sonra kullanici manuel satir ekleyebilir. Manuel satirlarda `orderGuid = null` gonderilir.
 - `Siparis Bagla` aksiyonunda UI secili carinin acik verilen firma siparislerini `GET /api/siparis-islemleri/verilen-firma-siparisleri?WarehouseNo=...&CustomerCode=...&OnlyOpen=true` ile listeler.
@@ -34262,7 +34299,7 @@ Enum degerleri JSON sozlesmesinde bulunur.
 | `partyCode` | string | Hayir | minLength=0; maxLength=25; nullable |
 | `productResponsibilityCenter` | string | Hayir | minLength=0; maxLength=25; nullable |
 | `projectCode` | string | Hayir | minLength=0; maxLength=25; nullable |
-| `quantity` | number (double) | Hayir |  |
+| `quantity` | number (double) | Hayir | max=100000 |
 | `stockCode` | string | Evet | minLength=0; maxLength=25 |
 | `unitPointer` | integer (int32) | Hayir | min=1; max=255 |
 | `unitPrice` | number (double) | Hayir | min=0 |
@@ -34283,7 +34320,7 @@ Enum degerleri JSON sozlesmesinde bulunur.
 | JSON alani | Tip | Zorunlu | Sinirlar |
 |---|---|---|---|
 | `barcode` | string | Hayir | minLength=0; maxLength=50; nullable |
-| `quantity` | number (double) | Hayir | min=0 |
+| `quantity` | number (double) | Hayir | min=0; max=100000 |
 | `stockCode` | string | Evet | minLength=0; maxLength=25 |
 | `unitPointer` | integer (int32) | Hayir | min=1; max=255 |
 
@@ -34310,7 +34347,7 @@ Enum degerleri JSON sozlesmesinde bulunur.
 | `lotNo` | integer (int32) | Hayir | min=0; max=2147483647 |
 | `partyCode` | string | Hayir | minLength=0; maxLength=25; nullable |
 | `projectCode` | string | Hayir | minLength=0; maxLength=25; nullable |
-| `quantity` | number (double) | Hayir |  |
+| `quantity` | number (double) | Hayir | max=100000 |
 | `stockCode` | string | Evet | minLength=0; maxLength=25 |
 | `unitPointer` | integer (int32) | Hayir | min=1; max=255 |
 
@@ -34336,7 +34373,7 @@ Enum degerleri JSON sozlesmesinde bulunur.
 | `movementType` | integer (int32) | Hayir | min=0; max=255 |
 | `partyCode` | string | Hayir | minLength=0; maxLength=25; nullable |
 | `projectCode` | string | Hayir | minLength=0; maxLength=25; nullable |
-| `quantity` | number (double) | Hayir |  |
+| `quantity` | number (double) | Hayir | max=100000 |
 | `stockCode` | string | Evet | minLength=0; maxLength=25 |
 | `unitPointer` | integer (int32) | Hayir | min=1; max=255 |
 
@@ -34990,7 +35027,7 @@ Enum degerleri JSON sozlesmesinde bulunur.
 | `partyCode` | string | Hayir | minLength=0; maxLength=25; nullable |
 | `productResponsibilityCenter` | string | Hayir | minLength=0; maxLength=25; nullable |
 | `projectCode` | string | Hayir | minLength=0; maxLength=25; nullable |
-| `quantity` | number (double) | Hayir |  |
+| `quantity` | number (double) | Hayir | max=100000 |
 | `stockCode` | string | Evet | minLength=0; maxLength=25 |
 | `unitPointer` | integer (int32) | Hayir | min=1; max=255 |
 | `unitPrice` | number (double) | Hayir | min=0 |
@@ -35126,7 +35163,7 @@ Enum degerleri JSON sozlesmesinde bulunur.
 | `partyCode` | string | Hayir | minLength=0; maxLength=25; nullable |
 | `productResponsibilityCenter` | string | Hayir | minLength=0; maxLength=25; nullable |
 | `projectCode` | string | Hayir | minLength=0; maxLength=25; nullable |
-| `quantity` | number (double) | Hayir |  |
+| `quantity` | number (double) | Hayir | max=100000 |
 | `stockCode` | string | Evet | minLength=0; maxLength=25 |
 | `unitPointer` | integer (int32) | Hayir | min=1; max=255 |
 | `unitPrice` | number (double) | Hayir | min=0 |
@@ -35394,7 +35431,7 @@ Enum degerleri JSON sozlesmesinde bulunur.
 | `lotNo` | integer (int32) | Hayir | min=0; max=2147483647 |
 | `partyCode` | string | Hayir | minLength=0; maxLength=25; nullable |
 | `projectCode` | string | Hayir | minLength=0; maxLength=25; nullable |
-| `quantity` | number (double) | Hayir | min=0.0001 |
+| `quantity` | number (double) | Hayir | min=0.0001; max=100000 |
 | `stockCode` | string | Evet | minLength=0; maxLength=25 |
 | `unitPointer` | integer (int32) | Hayir | min=1; max=255 |
 | `unitPrice` | number (double) | Hayir | min=0 |
@@ -35465,7 +35502,7 @@ Enum degerleri JSON sozlesmesinde bulunur.
 | `partyCode` | string | Hayir | minLength=0; maxLength=25; nullable |
 | `productResponsibilityCenter` | string | Hayir | minLength=0; maxLength=25; nullable |
 | `projectCode` | string | Hayir | minLength=0; maxLength=25; nullable |
-| `quantity` | number (double) | Hayir |  |
+| `quantity` | number (double) | Hayir | max=100000 |
 | `stockCode` | string | Evet | minLength=0; maxLength=25 |
 | `unitPointer` | integer (int32) | Hayir | min=1; max=255 |
 | `unitPrice` | number (double) | Hayir | min=0 |
@@ -35553,7 +35590,7 @@ Enum degerleri JSON sozlesmesinde bulunur.
 | JSON alani | Tip | Zorunlu | Sinirlar |
 |---|---|---|---|
 | `banknoteType` | integer (int32) | Evet | min=1; max=2147483647 |
-| `quantity` | integer (int32) | Evet | min=0; max=2147483647 |
+| `quantity` | integer (int32) | Evet | min=0; max=100000 |
 | `total` | number (double) | Hayir |  |
 | `value` | number (double) | Hayir |  |
 
@@ -35579,7 +35616,7 @@ Enum degerleri JSON sozlesmesinde bulunur.
 | JSON alani | Tip | Zorunlu | Sinirlar |
 |---|---|---|---|
 | `giftCheckType` | integer (int32) | Evet | min=1; max=2147483647 |
-| `quantity` | integer (int32) | Evet | min=0; max=2147483647 |
+| `quantity` | integer (int32) | Evet | min=0; max=100000 |
 | `total` | number (double) | Hayir |  |
 | `value` | number (double) | Hayir |  |
 
@@ -35758,7 +35795,7 @@ Enum degerleri JSON sozlesmesinde bulunur.
 |---|---|---|---|
 | `acceptanceRecordId` | integer (int32) | Hayir | min=1; max=2147483647; nullable |
 | `description` | string | Hayir | minLength=0; maxLength=50; nullable |
-| `quantity` | number (double) | Hayir |  |
+| `quantity` | number (double) | Hayir | max=100000 |
 | `stockCode` | string | Evet | minLength=0; maxLength=25 |
 | `taxAmount` | number (double) | Hayir | nullable |
 | `taxPointer` | integer (int32) | Hayir | min=0; max=255; nullable |
@@ -35797,7 +35834,7 @@ Enum degerleri JSON sozlesmesinde bulunur.
 | JSON alani | Tip | Zorunlu | Sinirlar |
 |---|---|---|---|
 | `movementGuid` | string (uuid) | Hayir |  |
-| `receivedQuantity` | number (double) | Hayir | min=0 |
+| `receivedQuantity` | number (double) | Hayir | min=0; max=100000 |
 
 ### FurpaMerkezApi.WebApi.Controllers.Modules.MalKabulIslemleri.FirmaMalKabulleri.CreateCompanyReceivingHttpRequest
 
@@ -35834,17 +35871,17 @@ Enum degerleri JSON sozlesmesinde bulunur.
 
 | JSON alani | Tip | Zorunlu | Sinirlar |
 |---|---|---|---|
-| `acceptedQuantity` | number (double) | Hayir | min=0; nullable |
+| `acceptedQuantity` | number (double) | Hayir | min=0; max=100000; nullable |
 | `customerResponsibilityCenter` | string | Hayir | minLength=0; maxLength=25; nullable |
 | `description` | string | Hayir | minLength=0; maxLength=50; nullable |
-| `dispatchQuantity` | number (double) | Hayir | nullable |
+| `dispatchQuantity` | number (double) | Hayir | max=100000; nullable |
 | `lastConsumingDate` | string (date-time) | Hayir | nullable |
 | `lotNo` | integer (int32) | Hayir | min=0; max=2147483647 |
 | `orderGuid` | string (uuid) | Hayir | nullable |
 | `partyCode` | string | Hayir | minLength=0; maxLength=25; nullable |
 | `productResponsibilityCenter` | string | Hayir | minLength=0; maxLength=25; nullable |
 | `projectCode` | string | Hayir | minLength=0; maxLength=25; nullable |
-| `quantity` | number (double) | Hayir | nullable |
+| `quantity` | number (double) | Hayir | max=100000; nullable |
 | `stockCode` | string | Evet | minLength=0; maxLength=25 |
 | `unitPointer` | integer (int32) | Hayir | min=1; max=255 |
 | `unitPrice` | number (double) | Hayir | min=0 |
@@ -35857,14 +35894,14 @@ Enum degerleri JSON sozlesmesinde bulunur.
 | `referenceDate` | string (date-time) | Hayir | nullable |
 | `salesDayCount` | integer (int32) | Hayir | min=1; max=365; nullable |
 | `stockCode` | string | Evet | minLength=0; maxLength=25 |
-| `targetCaseQuantity` | integer (int32) | Hayir | min=0; max=2147483647 |
+| `targetCaseQuantity` | integer (int32) | Hayir | min=0; max=100000 |
 
 ### FurpaMerkezApi.WebApi.Controllers.Modules.OperasyonIslemleri.ProductDistributionBalanceLineHttpRequest
 
 | JSON alani | Tip | Zorunlu | Sinirlar |
 |---|---|---|---|
 | `branchAverageDailySales` | number (double) | Hayir |  |
-| `caseQuantity` | integer (int32) | Hayir | min=0; max=2147483647 |
+| `caseQuantity` | integer (int32) | Hayir | min=0; max=100000 |
 | `companyAverageDailySales` | number (double) | Hayir |  |
 | `currentStockQuantity` | number (double) | Hayir |  |
 | `isLocked` | boolean | Hayir |  |
@@ -35893,36 +35930,36 @@ Enum degerleri JSON sozlesmesinde bulunur.
 
 | JSON alani | Tip | Zorunlu | Sinirlar |
 |---|---|---|---|
-| `allocatedCaseQuantity` | integer (int32) | Hayir | min=1; max=2147483647; nullable |
+| `allocatedCaseQuantity` | integer (int32) | Hayir | min=1; max=100000; nullable |
 | `distributionCenterWarehouseNo` | integer (int32) | Hayir | min=1; max=2147483647 |
 | `includeBranchesWithoutSales` | boolean | Hayir |  |
 | `referenceDate` | string (date-time) | Hayir | nullable |
 | `salesDayCount` | integer (int32) | Hayir | min=1; max=365; nullable |
 | `stockCode` | string | Evet | minLength=0; maxLength=25 |
-| `targetCaseQuantity` | integer (int32) | Hayir | min=1; max=2147483647; nullable |
-| `totalCaseQuantity` | integer (int32) | Hayir | min=1; max=2147483647; nullable |
+| `targetCaseQuantity` | integer (int32) | Hayir | min=1; max=100000; nullable |
+| `totalCaseQuantity` | integer (int32) | Hayir | min=1; max=100000; nullable |
 
 ### FurpaMerkezApi.WebApi.Controllers.Modules.OperasyonIslemleri.ProductDistributionSaveHttpRequest
 
 | JSON alani | Tip | Zorunlu | Sinirlar |
 |---|---|---|---|
-| `allocatedCaseQuantity` | integer (int32) | Hayir | min=0; max=2147483647; nullable |
+| `allocatedCaseQuantity` | integer (int32) | Hayir | min=0; max=100000; nullable |
 | `distributedBy` | string | Hayir | minLength=0; maxLength=100; nullable |
 | `distributionCenterWarehouseNo` | integer (int32) | Hayir | min=1; max=2147483647 |
 | `lines` | FurpaMerkezApi.WebApi.Controllers.Modules.OperasyonIslemleri.ProductDistributionSaveLineHttpRequest[] | Evet |  |
 | `stockCode` | string | Evet | minLength=0; maxLength=25 |
-| `targetCaseQuantity` | integer (int32) | Hayir | min=0; max=2147483647; nullable |
-| `totalCaseQuantity` | integer (int32) | Hayir | min=0; max=2147483647 |
+| `targetCaseQuantity` | integer (int32) | Hayir | min=0; max=100000; nullable |
+| `totalCaseQuantity` | integer (int32) | Hayir | min=0; max=100000 |
 
 ### FurpaMerkezApi.WebApi.Controllers.Modules.OperasyonIslemleri.ProductDistributionSaveLineHttpRequest
 
 | JSON alani | Tip | Zorunlu | Sinirlar |
 |---|---|---|---|
 | `branchAverageDailySales` | number (double) | Hayir | min=0; nullable |
-| `caseQuantity` | integer (int32) | Hayir | min=0; max=2147483647 |
+| `caseQuantity` | integer (int32) | Hayir | min=0; max=100000 |
 | `companyAverageDailySales` | number (double) | Hayir | min=0; nullable |
 | `lastSalesQuantity` | number (double) | Hayir | min=0; nullable |
-| `unitQuantity` | integer (int32) | Hayir | min=0; max=2147483647; nullable |
+| `unitQuantity` | integer (int32) | Hayir | min=0; max=100000; nullable |
 | `warehouseNo` | integer (int32) | Hayir | min=1; max=2147483647 |
 
 ### FurpaMerkezApi.WebApi.Controllers.Modules.OperasyonIslemleri.SaveAuthorizationFileHttpRequest
@@ -35990,7 +36027,7 @@ Enum degerleri JSON sozlesmesinde bulunur.
 | `partyCode` | string | Hayir | minLength=0; maxLength=25; nullable |
 | `productResponsibilityCenter` | string | Hayir | minLength=0; maxLength=25; nullable |
 | `projectCode` | string | Hayir | minLength=0; maxLength=25; nullable |
-| `quantity` | number (double) | Hayir |  |
+| `quantity` | number (double) | Hayir | max=100000 |
 | `stockCode` | string | Evet | minLength=0; maxLength=25 |
 | `unitPointer` | integer (int32) | Hayir | min=1; max=255 |
 | `unitPrice` | number (double) | Hayir | min=0 |
@@ -36022,8 +36059,8 @@ Enum degerleri JSON sozlesmesinde bulunur.
 | `description` | string | Hayir | minLength=0; maxLength=50; nullable |
 | `packageCode` | string | Hayir | minLength=0; maxLength=25; nullable |
 | `projectCode` | string | Hayir | minLength=0; maxLength=25; nullable |
-| `quantity` | number (double) | Hayir |  |
-| `recommendedQuantity` | number (double) | Hayir | min=0; nullable |
+| `quantity` | number (double) | Hayir | max=100000 |
+| `recommendedQuantity` | number (double) | Hayir | min=0; max=100000; nullable |
 | `responsibilityCenter` | string | Hayir | minLength=0; maxLength=25; nullable |
 | `stockCode` | string | Evet | minLength=0; maxLength=25 |
 | `unitPointer` | integer (int32) | Hayir | min=1; max=255 |
@@ -36055,8 +36092,8 @@ Enum degerleri JSON sozlesmesinde bulunur.
 | `packageCode` | string | Hayir | minLength=0; maxLength=25; nullable |
 | `productResponsibilityCenter` | string | Hayir | minLength=0; maxLength=25; nullable |
 | `projectCode` | string | Hayir | minLength=0; maxLength=25; nullable |
-| `quantity` | number (double) | Hayir |  |
-| `recommendedQuantity` | number (double) | Hayir | min=0; nullable |
+| `quantity` | number (double) | Hayir | max=100000 |
+| `recommendedQuantity` | number (double) | Hayir | min=0; max=100000; nullable |
 | `stockCode` | string | Evet | minLength=0; maxLength=25 |
 | `unitPointer` | integer (int32) | Hayir | min=1; max=255 |
 | `unitPrice` | number (double) | Hayir | min=0 |
@@ -36082,8 +36119,8 @@ Enum degerleri JSON sozlesmesinde bulunur.
 | `greenGrocerCase` | FurpaMerkezApi.WebApi.Controllers.Modules.SiparisIslemleri.VerilenDepoSiparisleri.GreenGrocerOrderLineSnapshotHttpRequest | Hayir |  |
 | `packageCode` | string | Hayir | minLength=0; maxLength=25; nullable |
 | `projectCode` | string | Hayir | minLength=0; maxLength=25; nullable |
-| `quantity` | number (double) | Hayir |  |
-| `recommendedQuantity` | number (double) | Hayir | min=0; nullable |
+| `quantity` | number (double) | Hayir | max=100000 |
+| `recommendedQuantity` | number (double) | Hayir | min=0; max=100000; nullable |
 | `responsibilityCenter` | string | Hayir | minLength=0; maxLength=25; nullable |
 | `stockCode` | string | Evet | minLength=0; maxLength=25 |
 | `unitPointer` | integer (int32) | Hayir | min=1; max=255 |
@@ -36100,9 +36137,9 @@ Enum degerleri JSON sozlesmesinde bulunur.
 | `coefficientOfVariation` | number (double) | Hayir | min=0; nullable |
 | `confidence` | string | Evet | minLength=0; maxLength=30 |
 | `conversionMode` | string | Evet | minLength=0; maxLength=60 |
-| `estimatedQuantity` | number (double) | Hayir |  |
+| `estimatedQuantity` | number (double) | Hayir | max=100000 |
 | `inputMode` | string | Evet | minLength=0; maxLength=40 |
-| `inputQuantity` | number (double) | Hayir |  |
+| `inputQuantity` | number (double) | Hayir | max=100000 |
 | `microUnit` | string | Evet | minLength=0; maxLength=20 |
 | `unitsPerCase` | number (double) | Hayir | nullable |
 
@@ -36132,8 +36169,8 @@ Enum degerleri JSON sozlesmesinde bulunur.
 | `packageCode` | string | Hayir | minLength=0; maxLength=25; nullable |
 | `productResponsibilityCenter` | string | Hayir | minLength=0; maxLength=25; nullable |
 | `projectCode` | string | Hayir | minLength=0; maxLength=25; nullable |
-| `quantity` | number (double) | Hayir |  |
-| `recommendedQuantity` | number (double) | Hayir | min=0; nullable |
+| `quantity` | number (double) | Hayir | max=100000 |
+| `recommendedQuantity` | number (double) | Hayir | min=0; max=100000; nullable |
 | `stockCode` | string | Evet | minLength=0; maxLength=25 |
 | `unitPointer` | integer (int32) | Hayir | min=1; max=255 |
 | `unitPrice` | number (double) | Hayir | min=0 |

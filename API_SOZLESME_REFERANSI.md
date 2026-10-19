@@ -8985,7 +8985,7 @@ Enum degerleri JSON sozlesmesinde bulunur.
 | `partyCode` | string | Hayir | minLength=0; maxLength=25; nullable |
 | `productResponsibilityCenter` | string | Hayir | minLength=0; maxLength=25; nullable |
 | `projectCode` | string | Hayir | minLength=0; maxLength=25; nullable |
-| `quantity` | number (double) | Hayir |  |
+| `quantity` | number (double) | Hayir | max=100000 |
 | `stockCode` | string | Evet | minLength=0; maxLength=25 |
 | `unitPointer` | integer (int32) | Hayir | min=1; max=255 |
 | `unitPrice` | number (double) | Hayir | min=0 |
@@ -9006,7 +9006,7 @@ Enum degerleri JSON sozlesmesinde bulunur.
 | JSON alani | Tip | Zorunlu | Sinirlar |
 |---|---|---|---|
 | `barcode` | string | Hayir | minLength=0; maxLength=50; nullable |
-| `quantity` | number (double) | Hayir | min=0 |
+| `quantity` | number (double) | Hayir | min=0; max=100000 |
 | `stockCode` | string | Evet | minLength=0; maxLength=25 |
 | `unitPointer` | integer (int32) | Hayir | min=1; max=255 |
 
@@ -9033,7 +9033,7 @@ Enum degerleri JSON sozlesmesinde bulunur.
 | `lotNo` | integer (int32) | Hayir | min=0; max=2147483647 |
 | `partyCode` | string | Hayir | minLength=0; maxLength=25; nullable |
 | `projectCode` | string | Hayir | minLength=0; maxLength=25; nullable |
-| `quantity` | number (double) | Hayir |  |
+| `quantity` | number (double) | Hayir | max=100000 |
 | `stockCode` | string | Evet | minLength=0; maxLength=25 |
 | `unitPointer` | integer (int32) | Hayir | min=1; max=255 |
 
@@ -9059,7 +9059,7 @@ Enum degerleri JSON sozlesmesinde bulunur.
 | `movementType` | integer (int32) | Hayir | min=0; max=255 |
 | `partyCode` | string | Hayir | minLength=0; maxLength=25; nullable |
 | `projectCode` | string | Hayir | minLength=0; maxLength=25; nullable |
-| `quantity` | number (double) | Hayir |  |
+| `quantity` | number (double) | Hayir | max=100000 |
 | `stockCode` | string | Evet | minLength=0; maxLength=25 |
 | `unitPointer` | integer (int32) | Hayir | min=1; max=255 |
 
@@ -9713,7 +9713,7 @@ Enum degerleri JSON sozlesmesinde bulunur.
 | `partyCode` | string | Hayir | minLength=0; maxLength=25; nullable |
 | `productResponsibilityCenter` | string | Hayir | minLength=0; maxLength=25; nullable |
 | `projectCode` | string | Hayir | minLength=0; maxLength=25; nullable |
-| `quantity` | number (double) | Hayir |  |
+| `quantity` | number (double) | Hayir | max=100000 |
 | `stockCode` | string | Evet | minLength=0; maxLength=25 |
 | `unitPointer` | integer (int32) | Hayir | min=1; max=255 |
 | `unitPrice` | number (double) | Hayir | min=0 |
@@ -9849,7 +9849,7 @@ Enum degerleri JSON sozlesmesinde bulunur.
 | `partyCode` | string | Hayir | minLength=0; maxLength=25; nullable |
 | `productResponsibilityCenter` | string | Hayir | minLength=0; maxLength=25; nullable |
 | `projectCode` | string | Hayir | minLength=0; maxLength=25; nullable |
-| `quantity` | number (double) | Hayir |  |
+| `quantity` | number (double) | Hayir | max=100000 |
 | `stockCode` | string | Evet | minLength=0; maxLength=25 |
 | `unitPointer` | integer (int32) | Hayir | min=1; max=255 |
 | `unitPrice` | number (double) | Hayir | min=0 |
@@ -10117,7 +10117,7 @@ Enum degerleri JSON sozlesmesinde bulunur.
 | `lotNo` | integer (int32) | Hayir | min=0; max=2147483647 |
 | `partyCode` | string | Hayir | minLength=0; maxLength=25; nullable |
 | `projectCode` | string | Hayir | minLength=0; maxLength=25; nullable |
-| `quantity` | number (double) | Hayir | min=0.0001 |
+| `quantity` | number (double) | Hayir | min=0.0001; max=100000 |
 | `stockCode` | string | Evet | minLength=0; maxLength=25 |
 | `unitPointer` | integer (int32) | Hayir | min=1; max=255 |
 | `unitPrice` | number (double) | Hayir | min=0 |
@@ -10188,7 +10188,7 @@ Enum degerleri JSON sozlesmesinde bulunur.
 | `partyCode` | string | Hayir | minLength=0; maxLength=25; nullable |
 | `productResponsibilityCenter` | string | Hayir | minLength=0; maxLength=25; nullable |
 | `projectCode` | string | Hayir | minLength=0; maxLength=25; nullable |
-| `quantity` | number (double) | Hayir |  |
+| `quantity` | number (double) | Hayir | max=100000 |
 | `stockCode` | string | Evet | minLength=0; maxLength=25 |
 | `unitPointer` | integer (int32) | Hayir | min=1; max=255 |
 | `unitPrice` | number (double) | Hayir | min=0 |
@@ -10276,7 +10276,7 @@ Enum degerleri JSON sozlesmesinde bulunur.
 | JSON alani | Tip | Zorunlu | Sinirlar |
 |---|---|---|---|
 | `banknoteType` | integer (int32) | Evet | min=1; max=2147483647 |
-| `quantity` | integer (int32) | Evet | min=0; max=2147483647 |
+| `quantity` | integer (int32) | Evet | min=0; max=100000 |
 | `total` | number (double) | Hayir |  |
 | `value` | number (double) | Hayir |  |
 
@@ -10302,7 +10302,7 @@ Enum degerleri JSON sozlesmesinde bulunur.
 | JSON alani | Tip | Zorunlu | Sinirlar |
 |---|---|---|---|
 | `giftCheckType` | integer (int32) | Evet | min=1; max=2147483647 |
-| `quantity` | integer (int32) | Evet | min=0; max=2147483647 |
+| `quantity` | integer (int32) | Evet | min=0; max=100000 |
 | `total` | number (double) | Hayir |  |
 | `value` | number (double) | Hayir |  |
 
@@ -10481,7 +10481,7 @@ Enum degerleri JSON sozlesmesinde bulunur.
 |---|---|---|---|
 | `acceptanceRecordId` | integer (int32) | Hayir | min=1; max=2147483647; nullable |
 | `description` | string | Hayir | minLength=0; maxLength=50; nullable |
-| `quantity` | number (double) | Hayir |  |
+| `quantity` | number (double) | Hayir | max=100000 |
 | `stockCode` | string | Evet | minLength=0; maxLength=25 |
 | `taxAmount` | number (double) | Hayir | nullable |
 | `taxPointer` | integer (int32) | Hayir | min=0; max=255; nullable |
@@ -10520,7 +10520,7 @@ Enum degerleri JSON sozlesmesinde bulunur.
 | JSON alani | Tip | Zorunlu | Sinirlar |
 |---|---|---|---|
 | `movementGuid` | string (uuid) | Hayir |  |
-| `receivedQuantity` | number (double) | Hayir | min=0 |
+| `receivedQuantity` | number (double) | Hayir | min=0; max=100000 |
 
 ### FurpaMerkezApi.WebApi.Controllers.Modules.MalKabulIslemleri.FirmaMalKabulleri.CreateCompanyReceivingHttpRequest
 
@@ -10557,17 +10557,17 @@ Enum degerleri JSON sozlesmesinde bulunur.
 
 | JSON alani | Tip | Zorunlu | Sinirlar |
 |---|---|---|---|
-| `acceptedQuantity` | number (double) | Hayir | min=0; nullable |
+| `acceptedQuantity` | number (double) | Hayir | min=0; max=100000; nullable |
 | `customerResponsibilityCenter` | string | Hayir | minLength=0; maxLength=25; nullable |
 | `description` | string | Hayir | minLength=0; maxLength=50; nullable |
-| `dispatchQuantity` | number (double) | Hayir | nullable |
+| `dispatchQuantity` | number (double) | Hayir | max=100000; nullable |
 | `lastConsumingDate` | string (date-time) | Hayir | nullable |
 | `lotNo` | integer (int32) | Hayir | min=0; max=2147483647 |
 | `orderGuid` | string (uuid) | Hayir | nullable |
 | `partyCode` | string | Hayir | minLength=0; maxLength=25; nullable |
 | `productResponsibilityCenter` | string | Hayir | minLength=0; maxLength=25; nullable |
 | `projectCode` | string | Hayir | minLength=0; maxLength=25; nullable |
-| `quantity` | number (double) | Hayir | nullable |
+| `quantity` | number (double) | Hayir | max=100000; nullable |
 | `stockCode` | string | Evet | minLength=0; maxLength=25 |
 | `unitPointer` | integer (int32) | Hayir | min=1; max=255 |
 | `unitPrice` | number (double) | Hayir | min=0 |
@@ -10580,14 +10580,14 @@ Enum degerleri JSON sozlesmesinde bulunur.
 | `referenceDate` | string (date-time) | Hayir | nullable |
 | `salesDayCount` | integer (int32) | Hayir | min=1; max=365; nullable |
 | `stockCode` | string | Evet | minLength=0; maxLength=25 |
-| `targetCaseQuantity` | integer (int32) | Hayir | min=0; max=2147483647 |
+| `targetCaseQuantity` | integer (int32) | Hayir | min=0; max=100000 |
 
 ### FurpaMerkezApi.WebApi.Controllers.Modules.OperasyonIslemleri.ProductDistributionBalanceLineHttpRequest
 
 | JSON alani | Tip | Zorunlu | Sinirlar |
 |---|---|---|---|
 | `branchAverageDailySales` | number (double) | Hayir |  |
-| `caseQuantity` | integer (int32) | Hayir | min=0; max=2147483647 |
+| `caseQuantity` | integer (int32) | Hayir | min=0; max=100000 |
 | `companyAverageDailySales` | number (double) | Hayir |  |
 | `currentStockQuantity` | number (double) | Hayir |  |
 | `isLocked` | boolean | Hayir |  |
@@ -10616,36 +10616,36 @@ Enum degerleri JSON sozlesmesinde bulunur.
 
 | JSON alani | Tip | Zorunlu | Sinirlar |
 |---|---|---|---|
-| `allocatedCaseQuantity` | integer (int32) | Hayir | min=1; max=2147483647; nullable |
+| `allocatedCaseQuantity` | integer (int32) | Hayir | min=1; max=100000; nullable |
 | `distributionCenterWarehouseNo` | integer (int32) | Hayir | min=1; max=2147483647 |
 | `includeBranchesWithoutSales` | boolean | Hayir |  |
 | `referenceDate` | string (date-time) | Hayir | nullable |
 | `salesDayCount` | integer (int32) | Hayir | min=1; max=365; nullable |
 | `stockCode` | string | Evet | minLength=0; maxLength=25 |
-| `targetCaseQuantity` | integer (int32) | Hayir | min=1; max=2147483647; nullable |
-| `totalCaseQuantity` | integer (int32) | Hayir | min=1; max=2147483647; nullable |
+| `targetCaseQuantity` | integer (int32) | Hayir | min=1; max=100000; nullable |
+| `totalCaseQuantity` | integer (int32) | Hayir | min=1; max=100000; nullable |
 
 ### FurpaMerkezApi.WebApi.Controllers.Modules.OperasyonIslemleri.ProductDistributionSaveHttpRequest
 
 | JSON alani | Tip | Zorunlu | Sinirlar |
 |---|---|---|---|
-| `allocatedCaseQuantity` | integer (int32) | Hayir | min=0; max=2147483647; nullable |
+| `allocatedCaseQuantity` | integer (int32) | Hayir | min=0; max=100000; nullable |
 | `distributedBy` | string | Hayir | minLength=0; maxLength=100; nullable |
 | `distributionCenterWarehouseNo` | integer (int32) | Hayir | min=1; max=2147483647 |
 | `lines` | FurpaMerkezApi.WebApi.Controllers.Modules.OperasyonIslemleri.ProductDistributionSaveLineHttpRequest[] | Evet |  |
 | `stockCode` | string | Evet | minLength=0; maxLength=25 |
-| `targetCaseQuantity` | integer (int32) | Hayir | min=0; max=2147483647; nullable |
-| `totalCaseQuantity` | integer (int32) | Hayir | min=0; max=2147483647 |
+| `targetCaseQuantity` | integer (int32) | Hayir | min=0; max=100000; nullable |
+| `totalCaseQuantity` | integer (int32) | Hayir | min=0; max=100000 |
 
 ### FurpaMerkezApi.WebApi.Controllers.Modules.OperasyonIslemleri.ProductDistributionSaveLineHttpRequest
 
 | JSON alani | Tip | Zorunlu | Sinirlar |
 |---|---|---|---|
 | `branchAverageDailySales` | number (double) | Hayir | min=0; nullable |
-| `caseQuantity` | integer (int32) | Hayir | min=0; max=2147483647 |
+| `caseQuantity` | integer (int32) | Hayir | min=0; max=100000 |
 | `companyAverageDailySales` | number (double) | Hayir | min=0; nullable |
 | `lastSalesQuantity` | number (double) | Hayir | min=0; nullable |
-| `unitQuantity` | integer (int32) | Hayir | min=0; max=2147483647; nullable |
+| `unitQuantity` | integer (int32) | Hayir | min=0; max=100000; nullable |
 | `warehouseNo` | integer (int32) | Hayir | min=1; max=2147483647 |
 
 ### FurpaMerkezApi.WebApi.Controllers.Modules.OperasyonIslemleri.SaveAuthorizationFileHttpRequest
@@ -10713,7 +10713,7 @@ Enum degerleri JSON sozlesmesinde bulunur.
 | `partyCode` | string | Hayir | minLength=0; maxLength=25; nullable |
 | `productResponsibilityCenter` | string | Hayir | minLength=0; maxLength=25; nullable |
 | `projectCode` | string | Hayir | minLength=0; maxLength=25; nullable |
-| `quantity` | number (double) | Hayir |  |
+| `quantity` | number (double) | Hayir | max=100000 |
 | `stockCode` | string | Evet | minLength=0; maxLength=25 |
 | `unitPointer` | integer (int32) | Hayir | min=1; max=255 |
 | `unitPrice` | number (double) | Hayir | min=0 |
@@ -10745,8 +10745,8 @@ Enum degerleri JSON sozlesmesinde bulunur.
 | `description` | string | Hayir | minLength=0; maxLength=50; nullable |
 | `packageCode` | string | Hayir | minLength=0; maxLength=25; nullable |
 | `projectCode` | string | Hayir | minLength=0; maxLength=25; nullable |
-| `quantity` | number (double) | Hayir |  |
-| `recommendedQuantity` | number (double) | Hayir | min=0; nullable |
+| `quantity` | number (double) | Hayir | max=100000 |
+| `recommendedQuantity` | number (double) | Hayir | min=0; max=100000; nullable |
 | `responsibilityCenter` | string | Hayir | minLength=0; maxLength=25; nullable |
 | `stockCode` | string | Evet | minLength=0; maxLength=25 |
 | `unitPointer` | integer (int32) | Hayir | min=1; max=255 |
@@ -10778,8 +10778,8 @@ Enum degerleri JSON sozlesmesinde bulunur.
 | `packageCode` | string | Hayir | minLength=0; maxLength=25; nullable |
 | `productResponsibilityCenter` | string | Hayir | minLength=0; maxLength=25; nullable |
 | `projectCode` | string | Hayir | minLength=0; maxLength=25; nullable |
-| `quantity` | number (double) | Hayir |  |
-| `recommendedQuantity` | number (double) | Hayir | min=0; nullable |
+| `quantity` | number (double) | Hayir | max=100000 |
+| `recommendedQuantity` | number (double) | Hayir | min=0; max=100000; nullable |
 | `stockCode` | string | Evet | minLength=0; maxLength=25 |
 | `unitPointer` | integer (int32) | Hayir | min=1; max=255 |
 | `unitPrice` | number (double) | Hayir | min=0 |
@@ -10805,8 +10805,8 @@ Enum degerleri JSON sozlesmesinde bulunur.
 | `greenGrocerCase` | FurpaMerkezApi.WebApi.Controllers.Modules.SiparisIslemleri.VerilenDepoSiparisleri.GreenGrocerOrderLineSnapshotHttpRequest | Hayir |  |
 | `packageCode` | string | Hayir | minLength=0; maxLength=25; nullable |
 | `projectCode` | string | Hayir | minLength=0; maxLength=25; nullable |
-| `quantity` | number (double) | Hayir |  |
-| `recommendedQuantity` | number (double) | Hayir | min=0; nullable |
+| `quantity` | number (double) | Hayir | max=100000 |
+| `recommendedQuantity` | number (double) | Hayir | min=0; max=100000; nullable |
 | `responsibilityCenter` | string | Hayir | minLength=0; maxLength=25; nullable |
 | `stockCode` | string | Evet | minLength=0; maxLength=25 |
 | `unitPointer` | integer (int32) | Hayir | min=1; max=255 |
@@ -10823,9 +10823,9 @@ Enum degerleri JSON sozlesmesinde bulunur.
 | `coefficientOfVariation` | number (double) | Hayir | min=0; nullable |
 | `confidence` | string | Evet | minLength=0; maxLength=30 |
 | `conversionMode` | string | Evet | minLength=0; maxLength=60 |
-| `estimatedQuantity` | number (double) | Hayir |  |
+| `estimatedQuantity` | number (double) | Hayir | max=100000 |
 | `inputMode` | string | Evet | minLength=0; maxLength=40 |
-| `inputQuantity` | number (double) | Hayir |  |
+| `inputQuantity` | number (double) | Hayir | max=100000 |
 | `microUnit` | string | Evet | minLength=0; maxLength=20 |
 | `unitsPerCase` | number (double) | Hayir | nullable |
 
@@ -10855,8 +10855,8 @@ Enum degerleri JSON sozlesmesinde bulunur.
 | `packageCode` | string | Hayir | minLength=0; maxLength=25; nullable |
 | `productResponsibilityCenter` | string | Hayir | minLength=0; maxLength=25; nullable |
 | `projectCode` | string | Hayir | minLength=0; maxLength=25; nullable |
-| `quantity` | number (double) | Hayir |  |
-| `recommendedQuantity` | number (double) | Hayir | min=0; nullable |
+| `quantity` | number (double) | Hayir | max=100000 |
+| `recommendedQuantity` | number (double) | Hayir | min=0; max=100000; nullable |
 | `stockCode` | string | Evet | minLength=0; maxLength=25 |
 | `unitPointer` | integer (int32) | Hayir | min=1; max=255 |
 | `unitPrice` | number (double) | Hayir | min=0 |

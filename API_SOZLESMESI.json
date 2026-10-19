@@ -120375,6 +120375,7 @@
             "type": "string"
           },
           "quantity": {
+            "maximum": 100000,
             "type": "number",
             "format": "double"
           },
@@ -120487,6 +120488,7 @@
             "type": "string"
           },
           "quantity": {
+            "maximum": 100000,
             "minimum": 0,
             "type": "number",
             "format": "double"
@@ -120583,6 +120585,7 @@
             "type": "string"
           },
           "quantity": {
+            "maximum": 100000,
             "type": "number",
             "format": "double"
           },
@@ -120690,6 +120693,7 @@
             "format": "int32"
           },
           "quantity": {
+            "maximum": 100000,
             "type": "number",
             "format": "double"
           },
@@ -123705,6 +123709,7 @@
             "type": "string"
           },
           "quantity": {
+            "maximum": 100000,
             "type": "number",
             "format": "double"
           },
@@ -124164,6 +124169,7 @@
             "type": "string"
           },
           "quantity": {
+            "maximum": 100000,
             "type": "number",
             "format": "double"
           },
@@ -125089,6 +125095,7 @@
             "type": "string"
           },
           "quantity": {
+            "maximum": 100000,
             "minimum": 0.0001,
             "type": "number",
             "format": "double"
@@ -125380,6 +125387,7 @@
             "type": "string"
           },
           "quantity": {
+            "maximum": 100000,
             "type": "number",
             "format": "double"
           },
@@ -125702,7 +125710,7 @@
             "format": "int32"
           },
           "quantity": {
-            "maximum": 2147483647,
+            "maximum": 100000,
             "minimum": 0,
             "type": "integer",
             "format": "int32"
@@ -125816,7 +125824,7 @@
             "format": "int32"
           },
           "quantity": {
-            "maximum": 2147483647,
+            "maximum": 100000,
             "minimum": 0,
             "type": "integer",
             "format": "int32"
@@ -126491,6 +126499,7 @@
             "type": "string"
           },
           "quantity": {
+            "maximum": 100000,
             "type": "number",
             "format": "double"
           },
@@ -126646,6 +126655,7 @@
             "format": "uuid"
           },
           "receivedQuantity": {
+            "maximum": 100000,
             "minimum": 0,
             "type": "number",
             "format": "double"
@@ -126818,16 +126828,19 @@
             "type": "string"
           },
           "quantity": {
+            "maximum": 100000,
             "type": "number",
             "format": "double",
             "nullable": true
           },
           "dispatchQuantity": {
+            "maximum": 100000,
             "type": "number",
             "format": "double",
             "nullable": true
           },
           "acceptedQuantity": {
+            "maximum": 100000,
             "minimum": 0,
             "type": "number",
             "format": "double",
@@ -126906,7 +126919,7 @@
             "type": "string"
           },
           "targetCaseQuantity": {
-            "maximum": 2147483647,
+            "maximum": 100000,
             "minimum": 0,
             "type": "integer",
             "format": "int32"
@@ -126971,7 +126984,7 @@
             "format": "double"
           },
           "caseQuantity": {
-            "maximum": 2147483647,
+            "maximum": 100000,
             "minimum": 0,
             "type": "integer",
             "format": "int32"
@@ -127040,21 +127053,21 @@
             "format": "int32"
           },
           "totalCaseQuantity": {
-            "maximum": 2147483647,
+            "maximum": 100000,
             "minimum": 1,
             "type": "integer",
             "format": "int32",
             "nullable": true
           },
           "targetCaseQuantity": {
-            "maximum": 2147483647,
+            "maximum": 100000,
             "minimum": 1,
             "type": "integer",
             "format": "int32",
             "nullable": true
           },
           "allocatedCaseQuantity": {
-            "maximum": 2147483647,
+            "maximum": 100000,
             "minimum": 1,
             "type": "integer",
             "format": "int32",
@@ -127097,20 +127110,20 @@
             "format": "int32"
           },
           "totalCaseQuantity": {
-            "maximum": 2147483647,
+            "maximum": 100000,
             "minimum": 0,
             "type": "integer",
             "format": "int32"
           },
           "targetCaseQuantity": {
-            "maximum": 2147483647,
+            "maximum": 100000,
             "minimum": 0,
             "type": "integer",
             "format": "int32",
             "nullable": true
           },
           "allocatedCaseQuantity": {
-            "maximum": 2147483647,
+            "maximum": 100000,
             "minimum": 0,
             "type": "integer",
             "format": "int32",
@@ -127142,13 +127155,13 @@
             "format": "int32"
           },
           "caseQuantity": {
-            "maximum": 2147483647,
+            "maximum": 100000,
             "minimum": 0,
             "type": "integer",
             "format": "int32"
           },
           "unitQuantity": {
-            "maximum": 2147483647,
+            "maximum": 100000,
             "minimum": 0,
             "type": "integer",
             "format": "int32",
@@ -127397,6 +127410,7 @@
             "type": "string"
           },
           "quantity": {
+            "maximum": 100000,
             "type": "number",
             "format": "double"
           },
@@ -127537,10 +127551,12 @@
             "type": "string"
           },
           "quantity": {
+            "maximum": 100000,
             "type": "number",
             "format": "double"
           },
           "recommendedQuantity": {
+            "maximum": 100000,
             "minimum": 0,
             "type": "number",
             "format": "double",
@@ -127667,10 +127683,12 @@
             "type": "string"
           },
           "quantity": {
+            "maximum": 100000,
             "type": "number",
             "format": "double"
           },
           "recommendedQuantity": {
+            "maximum": 100000,
             "minimum": 0,
             "type": "number",
             "format": "double",
@@ -127791,10 +127809,12 @@
             "type": "string"
           },
           "quantity": {
+            "maximum": 100000,
             "type": "number",
             "format": "double"
           },
           "recommendedQuantity": {
+            "maximum": 100000,
             "minimum": 0,
             "type": "number",
             "format": "double",
@@ -127852,6 +127872,7 @@
         "type": "object",
         "properties": {
           "inputQuantity": {
+            "maximum": 100000,
             "type": "number",
             "format": "double"
           },
@@ -127871,6 +127892,7 @@
             "type": "string"
           },
           "estimatedQuantity": {
+            "maximum": 100000,
             "type": "number",
             "format": "double"
           },
@@ -128000,10 +128022,12 @@
             "type": "string"
           },
           "quantity": {
+            "maximum": 100000,
             "type": "number",
             "format": "double"
           },
           "recommendedQuantity": {
+            "maximum": 100000,
             "minimum": 0,
             "type": "number",
             "format": "double",
