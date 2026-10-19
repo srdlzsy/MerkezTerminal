@@ -739,6 +739,10 @@ void main() {
     expect(savedDrafts, hasLength(1));
     expect(savedDrafts.single.payload['customerText'], 'Test Cari');
     expect(savedDrafts.single.payload['customerCode'], 'CR001');
+    final savedClientRequestId = savedDrafts.single.payload['clientRequestId']
+        ?.toString();
+    expect(savedClientRequestId, isNotNull);
+    expect(savedClientRequestId, isNotEmpty);
     final lines = savedDrafts.single.payload['lines'] as List<dynamic>;
     expect(lines, hasLength(1));
     expect((lines.single as Map<String, dynamic>)['stockCode'], '015792');
@@ -763,6 +767,17 @@ void main() {
     expect(find.text('Test Urun'), findsOneWidget);
     expect(find.text('015792'), findsOneWidget);
     expect(find.text('KL'), findsOneWidget);
+
+    await tester.pump(const Duration(milliseconds: 900));
+    final restoredDrafts = await draftRepository.fetchDrafts(
+      moduleKey: 'mal-kabul-islemleri.firma-mal-kabulleri',
+      userId: '7',
+      warehouseNo: '110',
+    );
+    expect(
+      restoredDrafts.single.payload['clientRequestId'],
+      savedClientRequestId,
+    );
   });
 }
 

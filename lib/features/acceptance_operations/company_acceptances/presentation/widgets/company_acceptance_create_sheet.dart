@@ -21,6 +21,7 @@ import 'package:furpa_merkez_terminal/shared/product_entry/product_entry_widgets
 import 'package:furpa_merkez_terminal/shared/utils/client_request_id.dart';
 import 'package:furpa_merkez_terminal/shared/utils/create_form_validation.dart';
 import 'package:furpa_merkez_terminal/shared/utils/e_despatch_qr_parser.dart';
+import 'package:furpa_merkez_terminal/shared/utils/safe_create_retry.dart';
 import 'package:furpa_merkez_terminal/shared/utils/terminal_feedback.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/barcode_camera_scan_page.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/terminal_ui_parts.dart';
@@ -32,6 +33,18 @@ const int _shortCodeMaxLength = 25;
 const int _descriptionMaxLength = 50;
 const int _officialDocumentKindMaxLength = 30;
 const int _officialDocumentValueMaxLength = 50;
+
+class CompanyAcceptanceSubmitDecision {
+  const CompanyAcceptanceSubmitDecision({
+    required this.closeForm,
+    required this.allowRetry,
+    required this.message,
+  });
+
+  final bool closeForm;
+  final bool allowRetry;
+  final String message;
+}
 
 class CompanyAcceptanceCreateSheet extends StatefulWidget {
   const CompanyAcceptanceCreateSheet({
@@ -45,6 +58,7 @@ class CompanyAcceptanceCreateSheet extends StatefulWidget {
     this.draft,
     this.draftRepository,
     this.initialMessage,
+    this.onSubmitRequest,
   });
 
   final CompanyAcceptancesRepository repository;
@@ -56,6 +70,10 @@ class CompanyAcceptanceCreateSheet extends StatefulWidget {
   final CreateDraft? draft;
   final CreateDraftRepository? draftRepository;
   final String? initialMessage;
+  final Future<CompanyAcceptanceSubmitDecision> Function(
+    CompanyAcceptanceCreateRequest request,
+  )?
+  onSubmitRequest;
 
   @override
   State<CompanyAcceptanceCreateSheet> createState() =>
@@ -84,13 +102,21 @@ class _CompanyAcceptanceCreateSheetState
   CompanyAcceptanceEDespatchPrefill? _lastEDespatchPrefill;
   _CompanyAcceptanceCreateStep _step = _CompanyAcceptanceCreateStep.document;
   late final CreateDraftSession _draftSession;
+  late final String _clientRequestId;
   String? _lastAddedProductKey;
+  bool _isSubmitting = false;
+  bool _submissionLocked = false;
 
   @override
   void initState() {
     super.initState();
     _lookupError = widget.initialMessage;
     final payload = widget.draft?.payload ?? const <String, dynamic>{};
+    final savedClientRequestId = payload['clientRequestId']?.toString().trim();
+    _clientRequestId =
+        savedClientRequestId == null || savedClientRequestId.isEmpty
+        ? generateClientRequestId()
+        : savedClientRequestId;
     _customerController = TextEditingController(
       text: payload['customerText']?.toString() ?? '',
     );
@@ -218,6 +244,7 @@ class _CompanyAcceptanceCreateSheetState
 
   Map<String, dynamic> _buildDraftPayload() {
     return <String, dynamic>{
+      'clientRequestId': _clientRequestId,
       'customerText': _customerController.text,
       'customerCode': _customerCodeController.text,
       'ettn': _ettnController.text,
@@ -1444,7 +1471,7 @@ class _CompanyAcceptanceCreateSheetState
       documentDate: _documentDate,
       documentSerie: _documentSerieController.text.trim(),
       documentOrderNo: int.parse(_documentOrderNoController.text.trim()),
-      clientRequestId: generateClientRequestId(),
+      clientRequestId: _clientRequestId,
       officialDocumentKind: officialDocumentKind,
       officialDocumentNo: officialDocumentNo,
       officialDocumentDate: officialDocumentDate,
@@ -1491,11 +1518,51 @@ class _CompanyAcceptanceCreateSheetState
           .toList(growable: false),
     );
 
-    await _draftSession.complete();
-    if (!mounted) {
+    final onSubmitRequest = widget.onSubmitRequest;
+    if (onSubmitRequest == null) {
+      await _draftSession.complete();
+      if (!mounted) {
+        return;
+      }
+      Navigator.of(context).pop(request);
       return;
     }
-    Navigator.of(context).pop(request);
+
+    setState(() {
+      _isSubmitting = true;
+      _submissionLocked = false;
+      _lookupError = null;
+    });
+    try {
+      final decision = await onSubmitRequest(request);
+      if (!mounted) {
+        return;
+      }
+      if (decision.closeForm) {
+        await _draftSession.complete();
+        if (mounted) {
+          Navigator.of(context).pop(request);
+        }
+        return;
+      }
+
+      setState(() {
+        _isSubmitting = false;
+        _submissionLocked = !decision.allowRetry;
+        _lookupError = decision.message;
+      });
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _isSubmitting = false;
+        _submissionLocked = false;
+        _lookupError = error is ApiException
+            ? safeCreateRetryErrorMessage(error)
+            : error.toString().replaceFirst('Exception: ', '');
+      });
+    }
   }
 
   String? _validateHeaderLengthLimits({
@@ -1731,30 +1798,57 @@ class _CompanyAcceptanceCreateSheetState
   Widget build(BuildContext context) {
     final isDocumentStep = _step == _CompanyAcceptanceCreateStep.document;
 
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 6, 12, 12),
-      child: Form(
-        key: _formKey,
-        autovalidateMode: createFormAutovalidateMode,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: <Widget>[
-            TerminalSheetHeader(
-              title: 'Yeni Firma Mal Kabul',
-              badges: <Widget>[
-                TerminalLineCountBadge(count: _filledLineIndexes().length),
-              ],
-              padding: EdgeInsets.zero,
+    return Stack(
+      children: <Widget>[
+        AbsorbPointer(
+          absorbing: _isSubmitting || _submissionLocked,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(12, 6, 12, 12),
+            child: Form(
+              key: _formKey,
+              autovalidateMode: createFormAutovalidateMode,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: <Widget>[
+                  TerminalSheetHeader(
+                    title: 'Yeni Firma Mal Kabul',
+                    badges: <Widget>[
+                      TerminalLineCountBadge(
+                        count: _filledLineIndexes().length,
+                      ),
+                    ],
+                    padding: EdgeInsets.zero,
+                  ),
+                  const SizedBox(height: 4),
+                  _buildStepSelector(),
+                  const SizedBox(height: 5),
+                  Expanded(
+                    child: isDocumentStep
+                        ? _buildDocumentStep()
+                        : _buildLinesStep(),
+                  ),
+                ],
+              ),
             ),
-            const SizedBox(height: 4),
-            _buildStepSelector(),
-            const SizedBox(height: 5),
-            Expanded(
-              child: isDocumentStep ? _buildDocumentStep() : _buildLinesStep(),
-            ),
-          ],
+          ),
         ),
-      ),
+        if (_isSubmitting)
+          const Positioned.fill(
+            child: ColoredBox(
+              color: Color(0x99FFFFFF),
+              child: Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    CircularProgressIndicator(),
+                    SizedBox(height: 12),
+                    Text('Kaydediliyor, sonuc kontrol ediliyor...'),
+                  ],
+                ),
+              ),
+            ),
+          ),
+      ],
     );
   }
 
@@ -1920,7 +2014,7 @@ class _CompanyAcceptanceCreateSheetState
     );
 
     final submitButton = FilledButton.icon(
-      onPressed: _submit,
+      onPressed: _isSubmitting || _submissionLocked ? null : _submit,
       icon: const Icon(Icons.save_alt_rounded),
       label: const Text('Mal Kabul Et'),
     );

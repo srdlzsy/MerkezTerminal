@@ -216,6 +216,7 @@ class _CompanyAcceptancesPageState extends State<CompanyAcceptancesPage> {
           );
     }
 
+    var submittedInline = false;
     final request =
         await openTerminalCreatePage<CompanyAcceptanceCreateRequest>(
           context: context,
@@ -233,11 +234,15 @@ class _CompanyAcceptancesPageState extends State<CompanyAcceptancesPage> {
               draft: draft,
               draftRepository: widget.draftRepository,
               initialMessage: initialMessage,
+              onSubmitRequest: (request) {
+                submittedInline = true;
+                return _submitCompanyAcceptanceInline(request, draft);
+              },
             );
           },
         );
 
-    if (request == null || !mounted) {
+    if (request == null || !mounted || submittedInline) {
       return;
     }
 
@@ -261,10 +266,6 @@ class _CompanyAcceptancesPageState extends State<CompanyAcceptancesPage> {
             content: Text(
               '$documentLabel icin cihazda sonuclanmamis bir mal kabul '
               'kaydi var. Ikinci evrak gonderilmedi; mevcut kaydi kontrol edin.',
-            ),
-            action: SnackBarAction(
-              label: 'Taslaklar',
-              onPressed: () => unawaited(_openOfflineDraftsPage()),
             ),
           ),
         );
@@ -347,10 +348,32 @@ class _CompanyAcceptancesPageState extends State<CompanyAcceptancesPage> {
           messenger.showSnackBar(
             const SnackBar(
               content: Text(
-                'Mal kabul sunucuda isleniyor. Offline taslaklardan durumunu takip edebilirsiniz.',
+                'Mal kabul sonucu halen kontrol ediliyor. Ayni evragi yeniden '
+                'gondermeyin; terminal sonucu otomatik tamamlayacak.',
               ),
             ),
           );
+        case OfflineSubmissionStatus.retryAllowed:
+          final editableDraft = await _loadLatestCreateDraft(draft);
+          messenger.showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Evrak Mikroda olusmadi. Bilgileriniz korundu; ayni form '
+                'guvenli tekrar icin yeniden aciliyor.',
+              ),
+            ),
+          );
+          if (editableDraft != null) {
+            scheduleMicrotask(
+              () => unawaited(
+                _openCreateSheet(
+                  resumeDraft: editableDraft,
+                  initialMessage:
+                      'Evrak olusmadi. Bilgileri kontrol edip yeniden Kaydet butonuna basin.',
+                ),
+              ),
+            );
+          }
         case OfflineSubmissionStatus.needsReview:
           if (draft != null) {
             await widget.draftRepository?.deleteDraft(draft.id);
@@ -359,12 +382,8 @@ class _CompanyAcceptancesPageState extends State<CompanyAcceptancesPage> {
             SnackBar(
               duration: const Duration(seconds: 12),
               content: const Text(
-                'Bu mal kabul tekrar gonderilmemeli. Kayit cihazda korundu; '
-                'yetkili incelemesi gerekiyor.',
-              ),
-              action: SnackBarAction(
-                label: 'Taslaklar',
-                onPressed: () => unawaited(_openOfflineDraftsPage()),
+                'Mal kabul kaydedilemedi ve otomatik dogrulama tamamlanamadi. '
+                'Bilgiler cihazda korundu; ayni evragi yeniden gondermeyin.',
               ),
             ),
           );
@@ -437,6 +456,166 @@ class _CompanyAcceptancesPageState extends State<CompanyAcceptancesPage> {
         SnackBar(
           content: Text(error.toString().replaceFirst('Exception: ', '')),
         ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSubmittingCreate = false;
+        });
+      }
+    }
+  }
+
+  Future<CompanyAcceptanceSubmitDecision> _submitCompanyAcceptanceInline(
+    CompanyAcceptanceCreateRequest request,
+    CreateDraft? draft,
+  ) async {
+    if (mounted) {
+      setState(() {
+        _isSubmittingCreate = true;
+      });
+    }
+
+    try {
+      final pendingDuplicate = await _findPendingDuplicate(request);
+      if (pendingDuplicate != null) {
+        final documentLabel = pendingDuplicate.documentLabel.isEmpty
+            ? 'Bu resmi belge'
+            : pendingDuplicate.documentLabel;
+        return CompanyAcceptanceSubmitDecision(
+          closeForm: false,
+          allowRetry: false,
+          message:
+              '$documentLabel icin daha once baslatilmis bir kayit kontrol '
+              'ediliyor. Ikinci evrak gonderilmedi.',
+        );
+      }
+
+      final submission = await widget.offlineSyncService
+          .submitCompanyAcceptance(
+            accessToken: widget.accessToken,
+            userId: widget.currentUserId,
+            warehouseNo: widget.defaultWarehouseNo,
+            request: request,
+          );
+      unawaited(
+        RememberedFormValuesRepository().rememberAll(
+          warehouseNo: widget.defaultWarehouseNo,
+          values: <RememberedFormField, String>{
+            RememberedFormField.deliverer: request.deliverer,
+            RememberedFormField.receiver: request.receiver,
+          },
+        ),
+      );
+
+      switch (submission.status) {
+        case OfflineSubmissionStatus.synced:
+        case OfflineSubmissionStatus.recovered:
+          if (draft != null) {
+            await widget.draftRepository?.deleteDraft(draft.id);
+          }
+          final result = submission.onlineResult;
+          await _controller.loadAcceptances(
+            preferredDocumentSerie: result?.documentSerie,
+            preferredDocumentOrderNo: result?.documentOrderNo,
+          );
+          if (mounted) {
+            final message = result == null
+                ? 'Kayit sunucuda islenmis olarak bulundu.'
+                : '${result.documentNoLabel} kaydedildi. ${result.lineCount} satir.';
+            scheduleMicrotask(() {
+              if (mounted) {
+                ScaffoldMessenger.of(context)
+                  ..hideCurrentSnackBar()
+                  ..showSnackBar(SnackBar(content: Text(message)));
+              }
+            });
+          }
+          return const CompanyAcceptanceSubmitDecision(
+            closeForm: true,
+            allowRetry: false,
+            message: 'Evrak kaydedildi.',
+          );
+        case OfflineSubmissionStatus.queued:
+          if (draft != null) {
+            await widget.draftRepository?.deleteDraft(draft.id);
+          }
+          if (mounted) {
+            scheduleMicrotask(() {
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text(
+                      'Internet olmadigi icin kayit cihazda korundu. Internet '
+                      'gelince otomatik gonderilecek.',
+                    ),
+                  ),
+                );
+              }
+            });
+          }
+          return const CompanyAcceptanceSubmitDecision(
+            closeForm: true,
+            allowRetry: false,
+            message: 'Kayit cihazda korundu.',
+          );
+        case OfflineSubmissionStatus.retryAllowed:
+          return const CompanyAcceptanceSubmitDecision(
+            closeForm: false,
+            allowRetry: true,
+            message:
+                'Evrak Mikroda olusmadi. Bilgileri kontrol edip ayni formda '
+                'yeniden Kaydet butonuna basin.',
+          );
+        case OfflineSubmissionStatus.processing:
+          return const CompanyAcceptanceSubmitDecision(
+            closeForm: false,
+            allowRetry: true,
+            message:
+                'Kayit sonucu henuz kesinlesmedi. Ayni formda yeniden Kaydet '
+                'butonuna basabilirsiniz; ikinci evrak gonderilmeyecek.',
+          );
+        case OfflineSubmissionStatus.needsReview:
+          return const CompanyAcceptanceSubmitDecision(
+            closeForm: false,
+            allowRetry: false,
+            message:
+                'Kayit otomatik olarak dogrulanamadi. Bilgiler korundu ve '
+                'ikinci evrak gonderilmedi.',
+          );
+        case OfflineSubmissionStatus.cancelled:
+          return const CompanyAcceptanceSubmitDecision(
+            closeForm: false,
+            allowRetry: true,
+            message:
+                'Onceki deneme iptal edildi ve Mikro evraki olusturulmadi. '
+                'Bilgileri kontrol edip yeniden kaydedebilirsiniz.',
+          );
+      }
+    } on ApiException catch (error) {
+      final failureKind = classifySafeCreateException(error);
+      if (failureKind ==
+          SafeCreateFailureKind.officialDocumentAlreadyReceived) {
+        unawaited(_controller.loadAcceptances());
+        return CompanyAcceptanceSubmitDecision(
+          closeForm: true,
+          allowRetry: false,
+          message: safeCreateRetryErrorMessage(error),
+        );
+      }
+
+      return CompanyAcceptanceSubmitDecision(
+        closeForm: false,
+        allowRetry:
+            failureKind == SafeCreateFailureKind.documentIdentityConflict ||
+            failureKind == SafeCreateFailureKind.notRetryable,
+        message: safeCreateRetryErrorMessage(error),
+      );
+    } catch (error) {
+      return CompanyAcceptanceSubmitDecision(
+        closeForm: false,
+        allowRetry: true,
+        message: error.toString().replaceFirst('Exception: ', ''),
       );
     } finally {
       if (mounted) {

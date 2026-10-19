@@ -16,6 +16,7 @@ enum OfflineSubmissionStatus {
   recovered,
   queued,
   processing,
+  retryAllowed,
   needsReview,
   cancelled,
 }
@@ -62,15 +63,21 @@ class OfflineSyncService {
     required OfflineInventoryCountsRepository offlineInventoryRepository,
     required OfflineCompanyAcceptancesRepository
     offlineCompanyAcceptanceRepository,
+    Duration foregroundRecoveryTimeout = const Duration(minutes: 5),
+    Duration recoveryPollInterval = const Duration(seconds: 3),
   }) : _inventoryRepository = inventoryRepository,
        _companyAcceptanceRepository = companyAcceptanceRepository,
        _offlineInventoryRepository = offlineInventoryRepository,
-       _offlineCompanyAcceptanceRepository = offlineCompanyAcceptanceRepository;
+       _offlineCompanyAcceptanceRepository = offlineCompanyAcceptanceRepository,
+       _foregroundRecoveryTimeout = foregroundRecoveryTimeout,
+       _recoveryPollInterval = recoveryPollInterval;
 
   final InventoryCountsRepository _inventoryRepository;
   final CompanyAcceptancesRepository _companyAcceptanceRepository;
   final OfflineInventoryCountsRepository _offlineInventoryRepository;
   final OfflineCompanyAcceptancesRepository _offlineCompanyAcceptanceRepository;
+  final Duration _foregroundRecoveryTimeout;
+  final Duration _recoveryPollInterval;
 
   bool _isSyncRunning = false;
 
@@ -170,6 +177,7 @@ class OfflineSyncService {
     DateTime? createdAt,
   }) async {
     final now = DateTime.now();
+    final foregroundDeadline = now.add(_foregroundRecoveryTimeout);
     final snapshot = OfflineCompanyAcceptanceDraft.fromCreateRequest(
       request,
       userId: userId,
@@ -207,9 +215,16 @@ class OfflineSyncService {
       }
 
       if (_shouldTryCreateRecovery(error)) {
-        final recovery = await _recoverCompanyAcceptanceRequest(
+        var recovery = await _recoverCompanyAcceptanceRequest(
           accessToken: accessToken,
           clientRequestId: request.clientRequestId ?? '',
+          recheckExisting: true,
+        );
+        recovery = await _waitForCompanyAcceptanceResolution(
+          accessToken: accessToken,
+          clientRequestId: request.clientRequestId ?? '',
+          deadline: foregroundDeadline,
+          initial: recovery,
         );
         if (recovery.status == _CreateRecoveryStatus.completed) {
           await _offlineCompanyAcceptanceRepository.deleteDraft(snapshot.id);
@@ -235,13 +250,9 @@ class OfflineSyncService {
           );
         }
         if (recovery.status == _CreateRecoveryStatus.retryable) {
-          await _saveCompanyAcceptanceRecovery(
-            snapshot,
-            recovery,
-            status: OfflineRecordStatus.pending,
-          );
+          await _offlineCompanyAcceptanceRepository.deleteDraft(snapshot.id);
           return const CompanyAcceptanceSubmissionResult(
-            status: OfflineSubmissionStatus.queued,
+            status: OfflineSubmissionStatus.retryAllowed,
           );
         }
         if (recovery.status == _CreateRecoveryStatus.failed ||
@@ -322,6 +333,35 @@ class OfflineSyncService {
             : OfflineSubmissionStatus.needsReview,
       );
     }
+  }
+
+  Future<_CreateRecovery<CompanyAcceptanceCreateResult>>
+  _waitForCompanyAcceptanceResolution({
+    required String accessToken,
+    required String clientRequestId,
+    required DateTime deadline,
+    required _CreateRecovery<CompanyAcceptanceCreateResult> initial,
+  }) async {
+    var recovery = initial;
+    while (recovery.status == _CreateRecoveryStatus.processing &&
+        DateTime.now().isBefore(deadline)) {
+      final remaining = deadline.difference(DateTime.now());
+      final delay = remaining < _recoveryPollInterval
+          ? remaining
+          : _recoveryPollInterval;
+      if (delay > Duration.zero) {
+        await Future<void>.delayed(delay);
+      }
+      if (!DateTime.now().isBefore(deadline)) {
+        break;
+      }
+      recovery = await _recoverCompanyAcceptanceRequest(
+        accessToken: accessToken,
+        clientRequestId: clientRequestId,
+        recheckExisting: true,
+      );
+    }
+    return recovery;
   }
 
   Future<OfflineDraftSyncResult> syncInventoryDraft({

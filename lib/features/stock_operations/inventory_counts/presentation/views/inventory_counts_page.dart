@@ -236,6 +236,15 @@ class _InventoryCountsPageState extends State<InventoryCountsPage> {
               ),
             ),
           );
+        case OfflineSubmissionStatus.retryAllowed:
+          messenger.showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Sayim evraki Mikroda olusmadi. Ayni bilgilerle yeniden '
+                'Kaydet kullanilabilir.',
+              ),
+            ),
+          );
         case OfflineSubmissionStatus.needsReview:
           messenger.showSnackBar(
             const SnackBar(

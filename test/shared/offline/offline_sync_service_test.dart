@@ -31,6 +31,8 @@ void main() {
       companyAcceptanceRepository: companyAcceptanceRepository,
       offlineInventoryRepository: offlineInventoryRepository,
       offlineCompanyAcceptanceRepository: offlineCompanyAcceptanceRepository,
+      foregroundRecoveryTimeout: Duration.zero,
+      recoveryPollInterval: Duration.zero,
     );
   });
 
@@ -361,6 +363,63 @@ void main() {
         offlineCompanyAcceptanceRepository.savedDrafts.single.status,
         OfflineRecordStatus.syncing,
       );
+    },
+  );
+
+  test(
+    'submitCompanyAcceptance resolves a completed record on the same submit',
+    () async {
+      service = OfflineSyncService(
+        inventoryRepository: inventoryRepository,
+        companyAcceptanceRepository: companyAcceptanceRepository,
+        offlineInventoryRepository: offlineInventoryRepository,
+        offlineCompanyAcceptanceRepository: offlineCompanyAcceptanceRepository,
+        foregroundRecoveryTimeout: const Duration(seconds: 1),
+        recoveryPollInterval: Duration.zero,
+      );
+      companyAcceptanceRepository
+        ..createError = const ApiException(
+          statusCode: 409,
+          title: 'Isleniyor',
+          errorCode: 'MIKRO_WRITE_IN_PROGRESS',
+          retryable: true,
+        )
+        ..offlineSyncStatuses.addAll(<CompanyAcceptanceOfflineSyncStatus>[
+          CompanyAcceptanceOfflineSyncStatus(
+            clientRequestId: 'acceptance-foreground',
+            operationCode: 'company-acceptance-create',
+            status: 'processing',
+            createdAtUtc: DateTime.utc(2026, 10, 19, 8),
+            completedAtUtc: null,
+            errorMessage: null,
+            recommendedAction: 'WaitAndCheck',
+            result: null,
+          ),
+          CompanyAcceptanceOfflineSyncStatus(
+            clientRequestId: 'acceptance-foreground',
+            operationCode: 'company-acceptance-create',
+            status: 'completed',
+            createdAtUtc: DateTime.utc(2026, 10, 19, 8),
+            completedAtUtc: DateTime.utc(2026, 10, 19, 8, 1),
+            errorMessage: null,
+            recommendedAction: 'Completed',
+            result: _buildCompanyAcceptanceResult(documentOrderNo: 84),
+          ),
+        ]);
+
+      final result = await service.submitCompanyAcceptance(
+        accessToken: 'token',
+        userId: 'user-1',
+        warehouseNo: '110',
+        request: _buildCompanyAcceptanceRequest(
+          clientRequestId: 'acceptance-foreground',
+        ),
+      );
+
+      expect(result.status, OfflineSubmissionStatus.recovered);
+      expect(result.onlineResult?.documentOrderNo, 84);
+      expect(companyAcceptanceRepository.fetchOfflineSyncStatusCallCount, 2);
+      expect(offlineCompanyAcceptanceRepository.savedDrafts, isEmpty);
     },
   );
 
@@ -1123,6 +1182,8 @@ class _FakeCompanyAcceptancesRepository
     implements CompanyAcceptancesRepository {
   ApiException? createError;
   CompanyAcceptanceOfflineSyncStatus? offlineSyncStatus;
+  final List<CompanyAcceptanceOfflineSyncStatus> offlineSyncStatuses =
+      <CompanyAcceptanceOfflineSyncStatus>[];
   int fetchOfflineSyncStatusCallCount = 0;
   int createCallCount = 0;
   String? lastCreateClientRequestId;
@@ -1150,6 +1211,9 @@ class _FakeCompanyAcceptancesRepository
     required String clientRequestId,
   }) async {
     fetchOfflineSyncStatusCallCount += 1;
+    if (offlineSyncStatuses.isNotEmpty) {
+      return offlineSyncStatuses.removeAt(0);
+    }
     return offlineSyncStatus ??
         CompanyAcceptanceOfflineSyncStatus(
           clientRequestId: clientRequestId,
