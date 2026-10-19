@@ -236,6 +236,25 @@ class _InventoryCountsPageState extends State<InventoryCountsPage> {
               ),
             ),
           );
+        case OfflineSubmissionStatus.needsReview:
+          messenger.showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Sayim kaydi yetkili incelemesi bekliyor. Tekrar gondermeyin.',
+              ),
+            ),
+          );
+        case OfflineSubmissionStatus.cancelled:
+          if (draft != null) {
+            await widget.draftRepository?.deleteDraft(draft.id);
+          }
+          messenger.showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Bu sayim yetkili tarafindan iptal edildi. Mikro evraki olusturulmadi.',
+              ),
+            ),
+          );
       }
     } catch (error) {
       if (!mounted) {

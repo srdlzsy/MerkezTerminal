@@ -8,6 +8,8 @@ class ApiException implements Exception {
     this.retryAfterSeconds,
     this.relatedClientRequestId,
     this.correlationId,
+    this.recoveryState,
+    this.recommendedAction,
   });
 
   final int statusCode;
@@ -18,6 +20,8 @@ class ApiException implements Exception {
   final int? retryAfterSeconds;
   final String? relatedClientRequestId;
   final String? correlationId;
+  final String? recoveryState;
+  final String? recommendedAction;
 
   String get message {
     final normalizedDetail = detail?.trim();

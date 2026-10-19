@@ -459,6 +459,8 @@ class ApiClient {
         correlationId:
             _problemString(decoded, 'correlationId') ??
             _responseCorrelationId(response),
+        recoveryState: _problemString(decoded, 'recoveryState'),
+        recommendedAction: _problemString(decoded, 'recommendedAction'),
       );
     }
 

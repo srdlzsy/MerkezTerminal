@@ -13,7 +13,11 @@ enum SafeCreateFailureKind {
   payloadChanged,
   multipleDocuments,
   manualReview,
+  waitAndCheck,
+  retrySameRequest,
+  recheckExisting,
   statusNotFound,
+  cancelled,
 }
 
 SafeCreateFailureKind classifySafeCreateFailure({
@@ -21,7 +25,25 @@ SafeCreateFailureKind classifySafeCreateFailure({
   String? message,
   String? errorCode,
   bool? retryable,
+  String? recommendedAction,
 }) {
+  switch ((recommendedAction ?? '').trim().toLowerCase()) {
+    case 'completed':
+      return SafeCreateFailureKind.uncertain;
+    case 'waitandcheck':
+      return SafeCreateFailureKind.waitAndCheck;
+    case 'retrysamerequest':
+      return SafeCreateFailureKind.retrySameRequest;
+    case 'recheckexisting':
+      return SafeCreateFailureKind.recheckExisting;
+    case 'restoreoriginalrequest':
+      return SafeCreateFailureKind.payloadChanged;
+    case 'needsreview':
+      return SafeCreateFailureKind.manualReview;
+    case 'clearcancelled':
+      return SafeCreateFailureKind.cancelled;
+  }
+
   switch ((errorCode ?? '').trim().toUpperCase()) {
     case 'MIKRO_WRITE_IN_PROGRESS':
       return SafeCreateFailureKind.processing;
@@ -29,13 +51,22 @@ SafeCreateFailureKind classifySafeCreateFailure({
       return SafeCreateFailureKind.queueBusy;
     case 'MIKRO_WRITE_OUTCOME_UNCONFIRMED':
       return SafeCreateFailureKind.uncertain;
+    case 'MIKRO_DOCUMENT_INCOMPLETE':
+      return SafeCreateFailureKind.waitAndCheck;
+    case 'SAFE_WRITE_RETRY_ALLOWED':
+      return SafeCreateFailureKind.retrySameRequest;
     case 'MIKRO_DOCUMENT_CONTENT_MISMATCH':
       return SafeCreateFailureKind.manualReview;
     case 'CLIENT_REQUEST_PAYLOAD_MISMATCH':
       return SafeCreateFailureKind.payloadChanged;
+    case 'SAFE_WRITE_CANCELLED':
+      return SafeCreateFailureKind.cancelled;
   }
 
   final normalized = (message ?? '').trim().toLowerCase();
+  if (statusCode == 404) {
+    return SafeCreateFailureKind.retrySameRequest;
+  }
   if (statusCode == 409) {
     if (normalized.contains('multiple mikro documents') ||
         normalized.contains('birden fazla mikro')) {
@@ -72,18 +103,55 @@ SafeCreateFailureKind classifySafeCreateException(ApiException error) {
     message: error.message,
     errorCode: error.errorCode,
     retryable: error.retryable,
+    recommendedAction: error.recommendedAction,
   );
 }
 
 bool hasSafeCreateDecisionMetadata(ApiException error) {
-  return error.retryable != null ||
-      (error.errorCode?.trim().isNotEmpty ?? false);
+  return error.statusCode == 404 ||
+      error.retryable != null ||
+      (error.errorCode?.trim().isNotEmpty ?? false) ||
+      (error.recommendedAction?.trim().isNotEmpty ?? false);
 }
 
 bool canRetrySafeCreate(SafeCreateFailureKind kind) {
+  return kind == SafeCreateFailureKind.retrySameRequest ||
+      kind == SafeCreateFailureKind.queueBusy;
+}
+
+bool shouldCheckSafeCreateStatus(SafeCreateFailureKind kind) {
   return kind == SafeCreateFailureKind.uncertain ||
       kind == SafeCreateFailureKind.processing ||
+      kind == SafeCreateFailureKind.waitAndCheck ||
       kind == SafeCreateFailureKind.queueBusy;
+}
+
+bool shouldRecheckSafeCreate(SafeCreateFailureKind kind) {
+  return kind == SafeCreateFailureKind.recheckExisting;
+}
+
+Future<OfflineSyncStatus<T>> resolveSafeCreateStatus<T>({
+  required OfflineSyncStatusProvider<T> statusProvider,
+  required String accessToken,
+  required String clientRequestId,
+  required SafeCreateFailureKind currentKind,
+  OfflineSyncRecheckProvider<T>? recheckProvider,
+}) async {
+  final status = await statusProvider.fetchOfflineSyncStatus(
+    accessToken: accessToken,
+    clientRequestId: clientRequestId,
+  );
+  if (!shouldRecheckSafeCreate(currentKind) ||
+      recheckProvider == null ||
+      status.recommendedAction?.trim() != 'RecheckExisting' ||
+      status.operationCode.trim().isEmpty) {
+    return status;
+  }
+  return recheckProvider.recheckOfflineSyncStatus(
+    accessToken: accessToken,
+    clientRequestId: clientRequestId,
+    operationCode: status.operationCode,
+  );
 }
 
 SafeCreateFailureKind classifyOfflineSyncStatus<T>(
@@ -91,6 +159,9 @@ SafeCreateFailureKind classifyOfflineSyncStatus<T>(
 ) {
   if (status.isProcessing) {
     return SafeCreateFailureKind.processing;
+  }
+  if (status.isCancelled) {
+    return SafeCreateFailureKind.cancelled;
   }
   if (status.isCompleted && status.result == null) {
     return SafeCreateFailureKind.uncertain;
@@ -100,6 +171,7 @@ SafeCreateFailureKind classifyOfflineSyncStatus<T>(
     message: status.errorMessage,
     errorCode: status.errorCode,
     retryable: status.retryable,
+    recommendedAction: status.recommendedAction,
   );
 }
 
@@ -107,6 +179,11 @@ String safeCreateOfflineSyncErrorMessage<T>(
   OfflineSyncStatus<T> status, {
   required String fallback,
 }) {
+  if (status.isCancelled) {
+    return status.errorMessage?.trim().isNotEmpty == true
+        ? status.errorMessage!.trim()
+        : 'Bu kayit yetkili tarafindan iptal edildi. Mikro evraki olusturulmadi.';
+  }
   final normalizedMessage = status.errorMessage?.trim() ?? '';
   return safeCreateRetryErrorMessage(
     ApiException(
@@ -115,6 +192,8 @@ String safeCreateOfflineSyncErrorMessage<T>(
       errorCode: status.errorCode,
       retryable: status.retryable,
       retryAfterSeconds: status.retryAfterSeconds,
+      recoveryState: status.recoveryState,
+      recommendedAction: status.recommendedAction,
     ),
   );
 }
@@ -145,7 +224,8 @@ String safeCreateRetryWaitMessage(Duration wait) {
 }
 
 bool shouldKeepSafeCreatePending(SafeCreateFailureKind kind) {
-  return kind != SafeCreateFailureKind.notRetryable;
+  return kind != SafeCreateFailureKind.notRetryable &&
+      kind != SafeCreateFailureKind.cancelled;
 }
 
 bool canStartNewSafeCreate(SafeCreateFailureKind kind) {
@@ -155,11 +235,17 @@ bool canStartNewSafeCreate(SafeCreateFailureKind kind) {
 String safeCreatePendingActionLabel(SafeCreateFailureKind kind) {
   return switch (kind) {
     SafeCreateFailureKind.payloadChanged => 'Yeni Bagimsiz Islem',
+    SafeCreateFailureKind.recheckExisting => 'Mikro Kaydini Dogrula',
     SafeCreateFailureKind.manualReview ||
     SafeCreateFailureKind.multipleDocuments ||
     SafeCreateFailureKind.statusNotFound => 'Destek gerekli',
     SafeCreateFailureKind.notRetryable => 'Islem Kullanilamaz',
-    _ => 'Kaydi Tekrar Dene',
+    SafeCreateFailureKind.cancelled => 'Yetkili Tarafindan Iptal Edildi',
+    SafeCreateFailureKind.waitAndCheck ||
+    SafeCreateFailureKind.processing ||
+    SafeCreateFailureKind.uncertain => 'Durumu Kontrol Et',
+    SafeCreateFailureKind.retrySameRequest ||
+    SafeCreateFailureKind.queueBusy => 'Ayni Kaydi Tekrar Dene',
   };
 }
 
@@ -175,6 +261,7 @@ bool shouldOfferSafeCreateRetry(
       message: message,
       errorCode: errorCode,
       retryable: retryable,
+      recommendedAction: null,
     ),
   );
 }
@@ -200,6 +287,15 @@ String safeCreateRetryErrorMessage(ApiException error) {
       'Mikro evrak icerigi bu kayitla eslesmiyor. Tekrar kaydetmeyin; '
               'yetkili incelemesi gerekli. ${error.detail ?? ''}'
           .trim(),
+    SafeCreateFailureKind.recheckExisting =>
+      'Mikro kaydi bu evrakla tam eslesmedi. Mikro Kaydini Dogrula ile '
+          'salt-okuma kontrolu yapin; bu islem yeni evrak olusturmaz.',
+    SafeCreateFailureKind.waitAndCheck =>
+      'Kayit sonucu kontrol ediliyor. Yeni evrak baslatmayin; bildirilen '
+          'sure sonunda Durumu Kontrol Et kullanin.',
+    SafeCreateFailureKind.retrySameRequest =>
+      'Mikro tarafinda bu istege ait belge bulunmadigi dogrulandi. Saklanan '
+          'ayni bilgiler ve ayni istek kimligiyle tekrar gonderilebilir.',
     SafeCreateFailureKind.statusNotFound =>
       'Bu guvenli kaydin sunucu durum izi bulunamadi. Yeni kimlik uretmeyin; '
           'destek birimine bildirin.',
@@ -208,6 +304,8 @@ String safeCreateRetryErrorMessage(ApiException error) {
           ? safeCreateRetryConflictMessage
           : error.message,
     SafeCreateFailureKind.notRetryable => error.message,
+    SafeCreateFailureKind.cancelled =>
+      'Bu kayit yetkili tarafindan iptal edildi. Mikro evraki olusturulmadi.',
   };
   return error.messageWithSupportCode(message);
 }

@@ -98,9 +98,16 @@ class _VirmanPageState extends State<VirmanPage> {
       });
 
       if (autoRecover &&
-          canRetrySafeCreate(failureKind) &&
           safeCreateRetryWait(pending.retryNotBefore) == Duration.zero) {
-        await _submitCreateRequest(request, pending.draft);
+        if (canRetrySafeCreate(failureKind)) {
+          await _submitCreateRequest(request, pending.draft);
+        } else if (shouldCheckSafeCreateStatus(failureKind)) {
+          await _submitCreateRequest(
+            request,
+            pending.draft,
+            statusCheckOnly: true,
+          );
+        }
       }
     } on Object {
       if (mounted) {
@@ -166,6 +173,16 @@ class _VirmanPageState extends State<VirmanPage> {
       return;
     }
     await _submitCreateRequest(request, _pendingCreateDraft);
+  }
+
+  Future<void> _checkPendingCreateStatus() async {
+    final request = _pendingCreateRequest;
+    if (request == null) return;
+    await _submitCreateRequest(
+      request,
+      _pendingCreateDraft,
+      statusCheckOnly: true,
+    );
   }
 
   @override
@@ -332,8 +349,9 @@ class _VirmanPageState extends State<VirmanPage> {
 
   Future<void> _submitCreateRequest(
     VirmanCreateRequest request,
-    CreateDraft? draft,
-  ) async {
+    CreateDraft? draft, {
+    bool statusCheckOnly = false,
+  }) async {
     if (_controller.isCreating) {
       return;
     }
@@ -356,11 +374,15 @@ class _VirmanPageState extends State<VirmanPage> {
     setState(() {
       _pendingCreateRequest = request;
       _pendingCreateDraft = draft;
-      _pendingCreateFailureKind = SafeCreateFailureKind.notRetryable;
-      _pendingRetryNotBefore = null;
+      if (!statusCheckOnly) {
+        _pendingCreateFailureKind = SafeCreateFailureKind.notRetryable;
+        _pendingRetryNotBefore = null;
+      }
     });
 
-    var result = await _controller.createVirman(request);
+    var result = statusCheckOnly
+        ? null
+        : await _controller.createVirman(request);
 
     if (!mounted) {
       return;
@@ -370,7 +392,9 @@ class _VirmanPageState extends State<VirmanPage> {
     messenger.hideCurrentSnackBar();
 
     if (result == null) {
-      var failureKind = _controller.createFailureKind;
+      var failureKind = statusCheckOnly
+          ? _pendingCreateFailureKind
+          : _controller.createFailureKind;
       var failureMessage = _controller.createError ?? 'Virman kaydedilemedi.';
       DateTime? retryNotBefore;
       final provider = widget.repository;
@@ -378,11 +402,21 @@ class _VirmanPageState extends State<VirmanPage> {
           provider is OfflineSyncStatusProvider<VirmanCreateResult>
           ? provider as OfflineSyncStatusProvider<VirmanCreateResult>
           : null;
-      if (canRetrySafeCreate(failureKind) && statusProvider != null) {
+      if ((statusCheckOnly ||
+              shouldCheckSafeCreateStatus(failureKind) ||
+              canRetrySafeCreate(failureKind)) &&
+          statusProvider != null) {
         try {
-          final status = await statusProvider.fetchOfflineSyncStatus(
+          final recheckProvider =
+              provider is OfflineSyncRecheckProvider<VirmanCreateResult>
+              ? provider as OfflineSyncRecheckProvider<VirmanCreateResult>
+              : null;
+          final status = await resolveSafeCreateStatus(
+            statusProvider: statusProvider,
+            recheckProvider: recheckProvider,
             accessToken: widget.accessToken,
             clientRequestId: request.clientRequestId ?? '',
+            currentKind: failureKind,
           );
           if (status.isCompleted && status.result != null) {
             result = status.result;
@@ -438,11 +472,22 @@ class _VirmanPageState extends State<VirmanPage> {
         messenger.showSnackBar(
           SnackBar(
             content: Text(failureMessage),
-            action: canRetrySafeCreate(failureKind)
+            action:
+                canRetrySafeCreate(failureKind) ||
+                    shouldCheckSafeCreateStatus(failureKind) ||
+                    shouldRecheckSafeCreate(failureKind)
                 ? SnackBarAction(
-                    label: 'Tekrar Dene',
+                    label: canRetrySafeCreate(failureKind)
+                        ? 'Tekrar Dene'
+                        : shouldRecheckSafeCreate(failureKind)
+                        ? 'Dogrula'
+                        : 'Kontrol Et',
                     onPressed: () {
-                      unawaited(_retryPendingCreate());
+                      unawaited(
+                        canRetrySafeCreate(failureKind)
+                            ? _retryPendingCreate()
+                            : _checkPendingCreateStatus(),
+                      );
                     },
                   )
                 : null,
@@ -577,6 +622,9 @@ class _VirmanPageState extends State<VirmanPage> {
                 ? _startNewCreateFromPending
                 : canRetrySafeCreate(_pendingCreateFailureKind)
                 ? _retryPendingCreate
+                : shouldCheckSafeCreateStatus(_pendingCreateFailureKind) ||
+                      shouldRecheckSafeCreate(_pendingCreateFailureKind)
+                ? _checkPendingCreateStatus
                 : null,
             icon: _controller.isCreating || _isRestoringPendingCreate
                 ? const SizedBox(

@@ -12,6 +12,7 @@ import 'package:furpa_merkez_terminal/shared/drafts/create_draft_picker.dart';
 import 'package:furpa_merkez_terminal/shared/drafts/create_draft_repository.dart';
 import 'package:furpa_merkez_terminal/shared/form_memory/remembered_form_values.dart';
 import 'package:furpa_merkez_terminal/shared/formatters/app_formatters.dart';
+import 'package:furpa_merkez_terminal/shared/offline/offline_sync_status.dart';
 import 'package:furpa_merkez_terminal/shared/pending_create/pending_create_guard.dart';
 import 'package:furpa_merkez_terminal/shared/pending_create/pending_create_repository.dart';
 import 'package:furpa_merkez_terminal/shared/utils/safe_create_retry.dart';
@@ -100,9 +101,16 @@ class _StockReceiptsPageState extends State<StockReceiptsPage> {
       });
 
       if (autoRecover &&
-          canRetrySafeCreate(failureKind) &&
           safeCreateRetryWait(pending.retryNotBefore) == Duration.zero) {
-        await _submitCreateRequest(request, pending.draft);
+        if (canRetrySafeCreate(failureKind)) {
+          await _submitCreateRequest(request, pending.draft);
+        } else if (shouldCheckSafeCreateStatus(failureKind)) {
+          await _submitCreateRequest(
+            request,
+            pending.draft,
+            statusCheckOnly: true,
+          );
+        }
       }
     } on Object {
       if (mounted) {
@@ -168,6 +176,16 @@ class _StockReceiptsPageState extends State<StockReceiptsPage> {
       return;
     }
     await _submitCreateRequest(request, _pendingCreateDraft);
+  }
+
+  Future<void> _checkPendingCreateStatus() async {
+    final request = _pendingCreateRequest;
+    if (request == null) return;
+    await _submitCreateRequest(
+      request,
+      _pendingCreateDraft,
+      statusCheckOnly: true,
+    );
   }
 
   @override
@@ -335,8 +353,9 @@ class _StockReceiptsPageState extends State<StockReceiptsPage> {
 
   Future<void> _submitCreateRequest(
     StockReceiptCreateRequest request,
-    CreateDraft? draft,
-  ) async {
+    CreateDraft? draft, {
+    bool statusCheckOnly = false,
+  }) async {
     if (_controller.isCreating) {
       return;
     }
@@ -359,11 +378,15 @@ class _StockReceiptsPageState extends State<StockReceiptsPage> {
     setState(() {
       _pendingCreateRequest = request;
       _pendingCreateDraft = draft;
-      _pendingCreateFailureKind = SafeCreateFailureKind.notRetryable;
-      _pendingRetryNotBefore = null;
+      if (!statusCheckOnly) {
+        _pendingCreateFailureKind = SafeCreateFailureKind.notRetryable;
+        _pendingRetryNotBefore = null;
+      }
     });
 
-    var result = await _controller.createReceipt(request);
+    var result = statusCheckOnly
+        ? null
+        : await _controller.createReceipt(request);
 
     if (!mounted) {
       return;
@@ -373,20 +396,39 @@ class _StockReceiptsPageState extends State<StockReceiptsPage> {
     messenger.hideCurrentSnackBar();
 
     if (result == null) {
-      var failureKind = _controller.createFailureKind;
+      var failureKind = statusCheckOnly
+          ? _pendingCreateFailureKind
+          : _controller.createFailureKind;
       var failureMessage = _controller.createError ?? 'Fis kaydedilemedi.';
       DateTime? retryNotBefore;
       final provider = widget.repository;
       final statusProvider = provider is StockReceiptOfflineSyncStatusProvider
           ? provider as StockReceiptOfflineSyncStatusProvider
           : null;
-      if (canRetrySafeCreate(failureKind) && statusProvider != null) {
+      if ((statusCheckOnly ||
+              shouldCheckSafeCreateStatus(failureKind) ||
+              canRetrySafeCreate(failureKind)) &&
+          statusProvider != null) {
         try {
-          final status = await statusProvider.fetchReceiptOfflineSyncStatus(
+          var status = await statusProvider.fetchReceiptOfflineSyncStatus(
             accessToken: widget.accessToken,
             kind: widget.kind,
             clientRequestId: request.clientRequestId ?? '',
           );
+          if (shouldRecheckSafeCreate(failureKind) &&
+              status.recommendedAction == 'RecheckExisting' &&
+              status.operationCode.isNotEmpty &&
+              provider
+                  is OfflineSyncRecheckProvider<StockReceiptCreateResult>) {
+            final recheckProvider =
+                provider
+                    as OfflineSyncRecheckProvider<StockReceiptCreateResult>;
+            status = await recheckProvider.recheckOfflineSyncStatus(
+              accessToken: widget.accessToken,
+              clientRequestId: request.clientRequestId ?? '',
+              operationCode: status.operationCode,
+            );
+          }
           if (status.isCompleted && status.result != null) {
             result = status.result;
           } else {
@@ -441,11 +483,22 @@ class _StockReceiptsPageState extends State<StockReceiptsPage> {
         messenger.showSnackBar(
           SnackBar(
             content: Text(failureMessage),
-            action: canRetrySafeCreate(failureKind)
+            action:
+                canRetrySafeCreate(failureKind) ||
+                    shouldCheckSafeCreateStatus(failureKind) ||
+                    shouldRecheckSafeCreate(failureKind)
                 ? SnackBarAction(
-                    label: 'Tekrar Dene',
+                    label: canRetrySafeCreate(failureKind)
+                        ? 'Tekrar Dene'
+                        : shouldRecheckSafeCreate(failureKind)
+                        ? 'Dogrula'
+                        : 'Kontrol Et',
                     onPressed: () {
-                      unawaited(_retryPendingCreate());
+                      unawaited(
+                        canRetrySafeCreate(failureKind)
+                            ? _retryPendingCreate()
+                            : _checkPendingCreateStatus(),
+                      );
                     },
                   )
                 : null,
@@ -590,6 +643,9 @@ class _StockReceiptsPageState extends State<StockReceiptsPage> {
                 ? _startNewCreateFromPending
                 : canRetrySafeCreate(_pendingCreateFailureKind)
                 ? _retryPendingCreate
+                : shouldCheckSafeCreateStatus(_pendingCreateFailureKind) ||
+                      shouldRecheckSafeCreate(_pendingCreateFailureKind)
+                ? _checkPendingCreateStatus
                 : null,
             icon: _controller.isCreating || _isRestoringPendingCreate
                 ? const SizedBox(

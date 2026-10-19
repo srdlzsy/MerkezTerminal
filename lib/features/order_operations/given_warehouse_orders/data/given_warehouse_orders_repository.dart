@@ -3,6 +3,7 @@ import 'package:furpa_merkez_terminal/features/order_operations/shared/data/mode
 import 'package:furpa_merkez_terminal/features/order_operations/shared/data/warehouse_orders_repository.dart';
 import 'package:furpa_merkez_terminal/shared/data/barcode_resolution_models.dart';
 import 'package:furpa_merkez_terminal/shared/data/barcode_resolution_repository.dart';
+import 'package:furpa_merkez_terminal/shared/offline/mobile_safe_write_recheck.dart';
 import 'package:furpa_merkez_terminal/shared/offline/offline_sync_status.dart';
 
 abstract class GivenWarehouseOrdersRepository
@@ -13,7 +14,8 @@ class ApiGivenWarehouseOrdersRepository
         GivenWarehouseOrdersRepository,
         BarcodeResolutionRepository,
         SourceWarehouseProductsRepository,
-        OfflineSyncStatusProvider<WarehouseOrderCreateResult> {
+        OfflineSyncStatusProvider<WarehouseOrderCreateResult>,
+        OfflineSyncRecheckProvider<WarehouseOrderCreateResult> {
   const ApiGivenWarehouseOrdersRepository({required ApiClient apiClient})
     : _apiClient = apiClient;
 
@@ -99,6 +101,22 @@ class ApiGivenWarehouseOrdersRepository
     );
     return OfflineSyncStatus<WarehouseOrderCreateResult>.fromJson(
       response,
+      resultParser: WarehouseOrderCreateResult.fromJson,
+    );
+  }
+
+  @override
+  Future<OfflineSyncStatus<WarehouseOrderCreateResult>>
+  recheckOfflineSyncStatus({
+    required String accessToken,
+    required String clientRequestId,
+    required String operationCode,
+  }) {
+    return recheckMobileSafeWrite(
+      apiClient: _apiClient,
+      accessToken: accessToken,
+      clientRequestId: clientRequestId,
+      operationCode: operationCode,
       resultParser: WarehouseOrderCreateResult.fromJson,
     );
   }

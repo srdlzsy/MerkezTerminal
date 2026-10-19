@@ -3,6 +3,7 @@ import 'package:furpa_merkez_terminal/features/stock_operations/stock_receipts/d
 import 'package:furpa_merkez_terminal/shared/data/barcode_resolution_models.dart';
 import 'package:furpa_merkez_terminal/shared/data/barcode_resolution_repository.dart';
 import 'package:furpa_merkez_terminal/shared/data/search_lookup_models.dart';
+import 'package:furpa_merkez_terminal/shared/offline/mobile_safe_write_recheck.dart';
 import 'package:furpa_merkez_terminal/shared/offline/offline_sync_status.dart';
 
 abstract class StockReceiptsRepository {
@@ -49,7 +50,10 @@ abstract interface class StockReceiptOfflineSyncStatusProvider {
 }
 
 class ApiStockReceiptsRepository
-    implements StockReceiptsRepository, StockReceiptOfflineSyncStatusProvider {
+    implements
+        StockReceiptsRepository,
+        StockReceiptOfflineSyncStatusProvider,
+        OfflineSyncRecheckProvider<StockReceiptCreateResult> {
   const ApiStockReceiptsRepository({required ApiClient apiClient})
     : _apiClient = apiClient;
 
@@ -124,6 +128,21 @@ class ApiStockReceiptsRepository
     );
     return OfflineSyncStatus<StockReceiptCreateResult>.fromJson(
       response,
+      resultParser: StockReceiptCreateResult.fromJson,
+    );
+  }
+
+  @override
+  Future<OfflineSyncStatus<StockReceiptCreateResult>> recheckOfflineSyncStatus({
+    required String accessToken,
+    required String clientRequestId,
+    required String operationCode,
+  }) {
+    return recheckMobileSafeWrite(
+      apiClient: _apiClient,
+      accessToken: accessToken,
+      clientRequestId: clientRequestId,
+      operationCode: operationCode,
       resultParser: StockReceiptCreateResult.fromJson,
     );
   }

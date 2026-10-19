@@ -4,9 +4,9 @@ import 'package:furpa_merkez_terminal/shared/offline/offline_sync_status.dart';
 import 'package:furpa_merkez_terminal/shared/utils/safe_create_retry.dart';
 
 void main() {
-  test('only uncertain transport and server failures can be retried', () {
-    expect(shouldOfferSafeCreateRetry(0), isTrue);
-    expect(shouldOfferSafeCreateRetry(503), isTrue);
+  test('uncertain transport and server failures require status checks', () {
+    expect(shouldOfferSafeCreateRetry(0), isFalse);
+    expect(shouldOfferSafeCreateRetry(503), isFalse);
     expect(shouldOfferSafeCreateRetry(409), isFalse);
     expect(shouldOfferSafeCreateRetry(400), isFalse);
     expect(shouldOfferSafeCreateRetry(null), isFalse);
@@ -67,7 +67,7 @@ void main() {
     expect(shouldKeepSafeCreatePending(kind), isTrue);
     expect(canRetrySafeCreate(kind), isTrue);
     expect(canStartNewSafeCreate(kind), isFalse);
-    expect(safeCreatePendingActionLabel(kind), 'Kaydi Tekrar Dene');
+    expect(safeCreatePendingActionLabel(kind), 'Ayni Kaydi Tekrar Dene');
     expect(safeCreateRetryErrorMessage(conflict), contains('yazimi baslamadi'));
   });
 
@@ -162,7 +162,7 @@ void main() {
         hasSafeCreateDecisionMetadata(
           const ApiException(statusCode: 404, title: 'Kayit bulunamadi'),
         ),
-        isFalse,
+        isTrue,
       );
       expect(
         hasSafeCreateDecisionMetadata(
@@ -199,6 +199,31 @@ void main() {
     expect(
       safeCreateOfflineSyncErrorMessage(status, fallback: 'Kayit basarisiz.'),
       contains('yetkili incelemesi gerekli'),
+    );
+  });
+
+  test('cancelled safe write clears the local pending operation', () {
+    final status = OfflineSyncStatus<Object>(
+      clientRequestId: 'request-cancelled',
+      operationCode: 'test.create',
+      status: 'Cancelled',
+      createdAtUtc: null,
+      completedAtUtc: null,
+      errorMessage: 'Yetkili tarafindan iptal edildi.',
+      errorCode: 'SAFE_WRITE_CANCELLED',
+      retryable: false,
+      retryAfterSeconds: null,
+      result: null,
+    );
+
+    final kind = classifyOfflineSyncStatus(status);
+
+    expect(kind, SafeCreateFailureKind.cancelled);
+    expect(shouldKeepSafeCreatePending(kind), isFalse);
+    expect(canRetrySafeCreate(kind), isFalse);
+    expect(
+      safeCreateOfflineSyncErrorMessage(status, fallback: 'Kayit basarisiz.'),
+      'Yetkili tarafindan iptal edildi.',
     );
   });
 }

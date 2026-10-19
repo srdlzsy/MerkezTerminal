@@ -65,18 +65,32 @@ class _OfflineCompanyAcceptancesPageState
   bool _isLoading = false;
   String? _errorMessage;
   Set<String> _syncingIds = <String>{};
+  Timer? _draftRefreshTimer;
 
   @override
   void initState() {
     super.initState();
     unawaited(_loadDrafts());
+    _draftRefreshTimer = Timer.periodic(const Duration(seconds: 5), (_) {
+      if (mounted) {
+        unawaited(_loadDrafts(showLoading: false));
+      }
+    });
   }
 
-  Future<void> _loadDrafts() async {
-    setState(() {
-      _isLoading = true;
-      _errorMessage = null;
-    });
+  @override
+  void dispose() {
+    _draftRefreshTimer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _loadDrafts({bool showLoading = true}) async {
+    if (showLoading) {
+      setState(() {
+        _isLoading = true;
+        _errorMessage = null;
+      });
+    }
 
     try {
       final drafts = await widget.offlineRepository.fetchDrafts(
@@ -151,7 +165,11 @@ class _OfflineCompanyAcceptancesPageState
     await _loadDrafts();
   }
 
-  Future<void> _syncDraft(OfflineCompanyAcceptanceDraft draft) async {
+  Future<void> _syncDraft(
+    OfflineCompanyAcceptanceDraft draft, {
+    bool statusCheckOnly = false,
+    bool recheckExisting = false,
+  }) async {
     setState(() {
       _syncingIds = <String>{..._syncingIds, draft.id};
       _errorMessage = null;
@@ -161,6 +179,9 @@ class _OfflineCompanyAcceptancesPageState
       final result = await widget.offlineSyncService.syncCompanyAcceptanceDraft(
         accessToken: widget.accessToken,
         draft: draft,
+        manualRetry: !statusCheckOnly,
+        statusCheckOnly: statusCheckOnly,
+        recheckExisting: recheckExisting,
       );
       await _loadDrafts();
 
@@ -180,9 +201,13 @@ class _OfflineCompanyAcceptancesPageState
               'Baglanti yok; kayit kuyrukta beklemeye devam ediyor.',
         OfflineDraftSyncResultStatus.failed =>
           result.message ?? 'Kayit senkronize edilemedi.',
+        OfflineDraftSyncResultStatus.cancelled =>
+          result.message ??
+              'Bu mal kabul yetkili tarafindan iptal edildi. Mikro evraki olusturulmadi.',
       };
 
-      if (result.status == OfflineDraftSyncResultStatus.failed) {
+      if (result.status == OfflineDraftSyncResultStatus.failed &&
+          !statusCheckOnly) {
         setState(() {
           _errorMessage = message;
         });
@@ -208,10 +233,57 @@ class _OfflineCompanyAcceptancesPageState
     }
   }
 
+  Future<void> _copySupportDetails(OfflineCompanyAcceptanceDraft draft) async {
+    await Clipboard.setData(ClipboardData(text: _supportDetails(draft)));
+    if (!mounted) {
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Destek bilgileri kopyalandi. Yetkiliye bu metni iletin.',
+        ),
+      ),
+    );
+  }
+
+  String _supportDetails(OfflineCompanyAcceptanceDraft draft) {
+    return <String>[
+      'Islem: Offline Firma Mal Kabul',
+      'Belge: ${draft.documentLabel}',
+      'Depo: ${draft.warehouseNo}',
+      'Cari: ${draft.customerCode}',
+      'Istek kimligi: ${draft.effectiveClientRequestId}',
+      if ((draft.errorCode ?? '').trim().isNotEmpty)
+        'Hata kodu: ${draft.errorCode}',
+      if ((draft.correlationId ?? '').trim().isNotEmpty)
+        'Destek kodu: ${draft.correlationId}',
+      if ((draft.lastError ?? '').trim().isNotEmpty)
+        'Aciklama: ${draft.lastError}',
+    ].join('\n');
+  }
+
   Widget _buildDraftTitleRow({
     required OfflineCompanyAcceptanceDraft draft,
     required String title,
   }) {
+    final needsSupport = draft.hasBeenSubmitted && draft.retryable == false;
+    final isChecking = draft.status == OfflineRecordStatus.syncing;
+    final statusLabel = needsSupport
+        ? 'Destek gerekli'
+        : isChecking
+        ? 'Mikro kontrol ediliyor'
+        : offlineRecordStatusLabel(draft.status);
+    final statusColor = needsSupport
+        ? Theme.of(context).colorScheme.error
+        : isChecking
+        ? const Color(0xFF8A5A00)
+        : Theme.of(context).colorScheme.primary;
+    final statusBackground = needsSupport
+        ? Theme.of(context).colorScheme.errorContainer
+        : isChecking
+        ? const Color(0xFFFFE8A3)
+        : null;
     final titleText = Text(
       title,
       maxLines: 2,
@@ -222,7 +294,14 @@ class _OfflineCompanyAcceptancesPageState
     );
 
     final statusBadge = TerminalBadge(
-      label: offlineRecordStatusLabel(draft.status),
+      label: statusLabel,
+      icon: needsSupport
+          ? Icons.support_agent_rounded
+          : isChecking
+          ? Icons.cloud_sync_rounded
+          : null,
+      backgroundColor: statusBackground,
+      foregroundColor: statusColor,
     );
     final lineCountBadge = TerminalBadge(label: '${draft.lines.length} satir');
 
@@ -325,6 +404,8 @@ class _OfflineCompanyAcceptancesPageState
                     )
                   else
                     ..._drafts.map((draft) {
+                      final needsSupport =
+                          draft.hasBeenSubmitted && draft.retryable == false;
                       final isSyncing =
                           _syncingIds.contains(draft.id) ||
                           draft.status == OfflineRecordStatus.syncing;
@@ -381,8 +462,39 @@ class _OfflineCompanyAcceptancesPageState
                                   .trim()
                                   .isNotEmpty) ...<Widget>[
                                 const SizedBox(height: 8),
-                                TerminalMessageBlock.error(
-                                  message: draft.lastError!,
+                                if (isSyncing)
+                                  TerminalMessageBlock.loading(
+                                    message: draft.lastError!,
+                                  )
+                                else if (needsSupport)
+                                  TerminalMessageBlock.error(
+                                    message: draft.lastError!,
+                                  )
+                                else
+                                  TerminalMessageBlock.info(
+                                    message: draft.lastError!,
+                                  ),
+                              ],
+                              if (needsSupport) ...<Widget>[
+                                const SizedBox(height: 8),
+                                const TerminalMessageBlock.info(
+                                  message:
+                                      'Bu evrak yeniden gonderilmez ve silinmez. '
+                                      'Once Durumu Kontrol Et butonuna basin. '
+                                      'Sorun devam ederse destek bilgilerini '
+                                      'kopyalayip yetkiliye iletin. Diger '
+                                      'evraklara devam edebilirsiniz.',
+                                ),
+                                const SizedBox(height: 8),
+                                SelectableText(
+                                  <String>[
+                                    'Istek: ${draft.effectiveClientRequestId}',
+                                    if ((draft.errorCode ?? '').isNotEmpty)
+                                      'Hata: ${draft.errorCode}',
+                                    if ((draft.correlationId ?? '').isNotEmpty)
+                                      'Destek kodu: ${draft.correlationId}',
+                                  ].join(' | '),
+                                  style: Theme.of(context).textTheme.bodySmall,
                                 ),
                               ],
                               if (draft.description
@@ -439,36 +551,79 @@ class _OfflineCompanyAcceptancesPageState
                                 spacing: 10,
                                 runSpacing: 10,
                                 children: <Widget>[
-                                  FilledButton.icon(
-                                    onPressed: isSyncing
-                                        ? null
-                                        : () => _syncDraft(draft),
-                                    icon: isSyncing
-                                        ? const SizedBox(
-                                            height: 16,
-                                            width: 16,
-                                            child: CircularProgressIndicator(
-                                              strokeWidth: 2,
+                                  if (needsSupport) ...<Widget>[
+                                    OutlinedButton.icon(
+                                      onPressed: isSyncing
+                                          ? null
+                                          : () => _syncDraft(
+                                              draft,
+                                              statusCheckOnly: true,
+                                              recheckExisting:
+                                                  draft.recommendedAction ==
+                                                  'RecheckExisting',
                                             ),
-                                          )
-                                        : const Icon(
-                                            Icons.cloud_upload_rounded,
-                                          ),
-                                    label: Text(
-                                      isSyncing
-                                          ? 'Gonderiliyor...'
-                                          : 'Senkronize Et',
+                                      icon: isSyncing
+                                          ? const SizedBox.square(
+                                              dimension: 16,
+                                              child: CircularProgressIndicator(
+                                                strokeWidth: 2,
+                                              ),
+                                            )
+                                          : const Icon(
+                                              Icons.manage_search_rounded,
+                                            ),
+                                      label: Text(
+                                        isSyncing
+                                            ? 'Kontrol ediliyor...'
+                                            : draft.recommendedAction ==
+                                                  'RecheckExisting'
+                                            ? 'Mikro Kaydini Dogrula'
+                                            : 'Durumu Kontrol Et',
+                                      ),
                                     ),
-                                  ),
-                                  OutlinedButton.icon(
-                                    onPressed: isSyncing
-                                        ? null
-                                        : () => _deleteDraft(draft.id),
-                                    icon: const Icon(
-                                      Icons.delete_outline_rounded,
+                                    FilledButton.tonalIcon(
+                                      onPressed: () =>
+                                          _copySupportDetails(draft),
+                                      icon: const Icon(Icons.copy_rounded),
+                                      label: const Text(
+                                        'Destek Bilgisini Kopyala',
+                                      ),
                                     ),
-                                    label: const Text('Sil'),
-                                  ),
+                                  ] else ...<Widget>[
+                                    FilledButton.icon(
+                                      onPressed: isSyncing
+                                          ? null
+                                          : () => _syncDraft(draft),
+                                      icon: isSyncing
+                                          ? const SizedBox(
+                                              height: 16,
+                                              width: 16,
+                                              child: CircularProgressIndicator(
+                                                strokeWidth: 2,
+                                              ),
+                                            )
+                                          : const Icon(
+                                              Icons.cloud_sync_rounded,
+                                            ),
+                                      label: Text(
+                                        isSyncing
+                                            ? 'Kontrol ediliyor...'
+                                            : draft.hasBeenSubmitted
+                                            ? 'Durumu Kontrol Et'
+                                            : 'Senkronize Et',
+                                      ),
+                                    ),
+                                    OutlinedButton.icon(
+                                      onPressed:
+                                          isSyncing || draft.hasBeenSubmitted
+                                          ? null
+                                          : () => _deleteDraft(draft.id),
+                                      icon: const Icon(
+                                        Icons.delete_outline_rounded,
+                                      ),
+                                      label: const Text('Sil'),
+                                    ),
+                                  ],
                                 ],
                               ),
                             ],

@@ -142,6 +142,8 @@ class InventoryCountOfflineSyncStatus {
     this.errorCode,
     this.retryable,
     this.retryAfterSeconds,
+    this.recoveryState,
+    this.recommendedAction,
     required this.result,
   });
 
@@ -154,11 +156,14 @@ class InventoryCountOfflineSyncStatus {
   final String? errorCode;
   final bool? retryable;
   final int? retryAfterSeconds;
+  final String? recoveryState;
+  final String? recommendedAction;
   final InventoryCountCreateResult? result;
 
   bool get isProcessing => status.toLowerCase() == 'processing';
   bool get isCompleted => status.toLowerCase() == 'completed';
   bool get isFailed => status.toLowerCase() == 'failed';
+  bool get isCancelled => status.toLowerCase() == 'cancelled';
 
   factory InventoryCountOfflineSyncStatus.fromJson(JsonMap json) {
     final resultJson = json['result'];
@@ -182,6 +187,12 @@ class InventoryCountOfflineSyncStatus {
       retryAfterSeconds: json['retryAfterSeconds'] is num
           ? (json['retryAfterSeconds'] as num).toInt()
           : int.tryParse(json['retryAfterSeconds']?.toString() ?? ''),
+      recoveryState: _readString(json['recoveryState']).trim().isEmpty
+          ? null
+          : _readString(json['recoveryState']),
+      recommendedAction: _readString(json['recommendedAction']).trim().isEmpty
+          ? null
+          : _readString(json['recommendedAction']),
       result: mappedResult,
     );
   }

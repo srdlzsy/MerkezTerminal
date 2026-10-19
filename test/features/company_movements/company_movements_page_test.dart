@@ -201,9 +201,9 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Kaydi Tekrar Dene'), findsOneWidget);
-    expect(repository.createRequests, hasLength(1));
-    expect(repository.createRequests.single.clientRequestId, 'request-1');
+    expect(find.text('Ayni Kaydi Tekrar Dene'), findsOneWidget);
+    expect(repository.createRequests, isEmpty);
+    expect(repository.fetchOfflineSyncStatusCallCount, 1);
   });
 
   testWidgets(
@@ -216,19 +216,32 @@ void main() {
       await pendingRepository.save(
         _pendingCompanyMovement(failureKind: 'processing'),
       );
+      final completedResult = CompanyMovementCreateResult(
+        documentSerie: 'F50',
+        documentOrderNo: 87990,
+        movementDate: DateTime(2026, 10, 1),
+        documentDate: DateTime(2026, 10, 1),
+        documentNo: '',
+        warehouseNo: 50,
+        customerCode: 'CARI-1',
+        lineCount: 1,
+        totalQuantity: 2,
+        totalAmount: 0,
+        writeConnectionName: 'Mikro',
+      );
       final repository = _FakeCompanyMovementsRepository(
-        createResult: CompanyMovementCreateResult(
-          documentSerie: 'F50',
-          documentOrderNo: 87990,
-          movementDate: DateTime(2026, 10, 1),
-          documentDate: DateTime(2026, 10, 1),
-          documentNo: '',
-          warehouseNo: 50,
-          customerCode: 'CARI-1',
-          lineCount: 1,
-          totalQuantity: 2,
-          totalAmount: 0,
-          writeConnectionName: 'Mikro',
+        offlineSyncStatus: OfflineSyncStatus<CompanyMovementCreateResult>(
+          clientRequestId: 'request-1',
+          operationCode: 'iade-islemleri.firma-iadeleri.create',
+          status: 'Completed',
+          createdAtUtc: DateTime.utc(2026, 10, 1),
+          completedAtUtc: DateTime.utc(2026, 10, 1, 0, 1),
+          errorMessage: null,
+          errorCode: null,
+          retryable: false,
+          retryAfterSeconds: null,
+          result: completedResult,
+          recommendedAction: 'Completed',
         ),
       );
 
@@ -244,8 +257,8 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(repository.createRequests, hasLength(1));
-      expect(repository.createRequests.single.clientRequestId, 'request-1');
+      expect(repository.createRequests, isEmpty);
+      expect(repository.fetchOfflineSyncStatusCallCount, 1);
       expect(find.text('Yeni Iade'), findsOneWidget);
       expect(
         await pendingRepository.read(
@@ -279,58 +292,60 @@ void main() {
     expect(button.onPressed, isNull);
   });
 
-  testWidgets('keeps retryable failed create pending and allows independent new', (
-    tester,
-  ) async {
-    final database = MemoryLocalDatabase();
-    final pendingRepository = LocalPendingCreateRepository(database: database);
-    await pendingRepository.save(
-      _pendingCompanyMovement(failureKind: 'uncertain'),
-    );
-    final repository = _FakeCompanyMovementsRepository(
-      createError: const ApiException(
-        statusCode: 409,
-        title: 'Sonuc dogrulanamadi',
-        errorCode: 'MIKRO_WRITE_OUTCOME_UNCONFIRMED',
-        retryable: true,
-      ),
-      offlineSyncStatus: OfflineSyncStatus<CompanyMovementCreateResult>(
-        clientRequestId: 'request-1',
-        operationCode: 'iade-islemleri.firma-iadeleri.create',
-        status: 'Failed',
-        createdAtUtc: DateTime.utc(2026, 10, 13, 8),
-        completedAtUtc: null,
-        errorMessage: 'Mikro yazim sonucu dogrulanamadi.',
-        errorCode: 'MIKRO_WRITE_OUTCOME_UNCONFIRMED',
-        retryable: true,
-        retryAfterSeconds: 60,
-        result: null,
-      ),
-    );
+  testWidgets(
+    'keeps retryable failed create pending and allows independent new',
+    (tester) async {
+      final database = MemoryLocalDatabase();
+      final pendingRepository = LocalPendingCreateRepository(
+        database: database,
+      );
+      await pendingRepository.save(
+        _pendingCompanyMovement(failureKind: 'uncertain'),
+      );
+      final repository = _FakeCompanyMovementsRepository(
+        createError: const ApiException(
+          statusCode: 409,
+          title: 'Sonuc dogrulanamadi',
+          errorCode: 'MIKRO_WRITE_OUTCOME_UNCONFIRMED',
+          retryable: true,
+        ),
+        offlineSyncStatus: OfflineSyncStatus<CompanyMovementCreateResult>(
+          clientRequestId: 'request-1',
+          operationCode: 'iade-islemleri.firma-iadeleri.create',
+          status: 'Failed',
+          createdAtUtc: DateTime.utc(2026, 10, 13, 8),
+          completedAtUtc: null,
+          errorMessage: 'Mikro yazim sonucu dogrulanamadi.',
+          errorCode: 'MIKRO_WRITE_OUTCOME_UNCONFIRMED',
+          retryable: true,
+          retryAfterSeconds: 60,
+          result: null,
+        ),
+      );
 
-    await tester.pumpWidget(
-      MaterialApp(
-        home: Scaffold(
-          body: _companyMovementsPage(
-            pendingRepository,
-            repository: repository,
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: _companyMovementsPage(
+              pendingRepository,
+              repository: repository,
+            ),
           ),
         ),
-      ),
-    );
-    await tester.pumpAndSettle();
+      );
+      await tester.pumpAndSettle();
 
-    expect(repository.createRequests, hasLength(1));
-    expect(repository.fetchOfflineSyncStatusCallCount, 1);
-    expect(find.text('Kaydi Tekrar Dene'), findsOneWidget);
-    expect(find.text('Yeni Iade'), findsOneWidget);
+      expect(repository.createRequests, isEmpty);
+      expect(repository.fetchOfflineSyncStatusCallCount, 1);
+      expect(find.text('Durumu Kontrol Et'), findsOneWidget);
+      expect(find.text('Yeni Iade'), findsOneWidget);
 
-    await tester.tap(find.text('Kaydi Tekrar Dene'));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 300));
-    expect(repository.createRequests, hasLength(1));
-    expect(find.textContaining('saniye sonra tekrar deneyin'), findsOneWidget);
-  });
+      await tester.tap(find.text('Durumu Kontrol Et'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(repository.createRequests, isEmpty);
+    },
+  );
 
   testWidgets('starts a new operation only from the explicit action', (
     tester,
@@ -569,7 +584,6 @@ class _FakeCompanyMovementsRepository
   _FakeCompanyMovementsRepository({
     this.movements = const <CompanyMovementListItem>[],
     this.detailCompleter,
-    this.createResult,
     this.createError,
     this.offlineSyncStatus,
     this.barcodeResolution,
@@ -577,7 +591,6 @@ class _FakeCompanyMovementsRepository
 
   final List<CompanyMovementListItem> movements;
   final Completer<CompanyMovementDetail>? detailCompleter;
-  final CompanyMovementCreateResult? createResult;
   final ApiException? createError;
   final OfflineSyncStatus<CompanyMovementCreateResult>? offlineSyncStatus;
   final BarcodeResolutionResult? barcodeResolution;
@@ -614,9 +627,6 @@ class _FakeCompanyMovementsRepository
     createRequests.add(request);
     if (createError case final error?) {
       throw error;
-    }
-    if (createResult case final result?) {
-      return result;
     }
     throw UnimplementedError();
   }

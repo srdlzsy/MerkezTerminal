@@ -28,6 +28,18 @@ class OfflineCompanyAcceptanceDraft {
     required this.lastSyncAttemptAt,
     required this.lastError,
     required this.lines,
+    this.hasBeenSubmitted = false,
+    this.operationCode,
+    this.errorCode,
+    this.retryable,
+    this.retryAfterSeconds,
+    this.retryNotBefore,
+    this.correlationId,
+    this.relatedClientRequestId,
+    this.lastCheckedAt,
+    this.statusCheckCount = 0,
+    this.recoveryState,
+    this.recommendedAction,
   });
 
   final String id;
@@ -53,8 +65,25 @@ class OfflineCompanyAcceptanceDraft {
   final DateTime? lastSyncAttemptAt;
   final String? lastError;
   final List<OfflineCompanyAcceptanceLine> lines;
+  final bool hasBeenSubmitted;
+  final String? operationCode;
+  final String? errorCode;
+  final bool? retryable;
+  final int? retryAfterSeconds;
+  final DateTime? retryNotBefore;
+  final String? correlationId;
+  final String? relatedClientRequestId;
+  final DateTime? lastCheckedAt;
+  final int statusCheckCount;
+  final String? recoveryState;
+  final String? recommendedAction;
 
   String get clientRequestId => id;
+
+  String get effectiveClientRequestId {
+    final related = relatedClientRequestId?.trim() ?? '';
+    return related.isEmpty ? clientRequestId : related;
+  }
 
   String get documentLabel {
     final serie = documentSerie.trim();
@@ -102,7 +131,7 @@ class OfflineCompanyAcceptanceDraft {
       allowOrderOverReceiving: allowOrderOverReceiving,
       autoCreateReturnForPartialAcceptance:
           autoCreateReturnForPartialAcceptance,
-      clientRequestId: clientRequestId,
+      clientRequestId: effectiveClientRequestId,
       lines: lines
           .map(
             (item) => CompanyAcceptanceCreateLine(
@@ -129,6 +158,19 @@ class OfflineCompanyAcceptanceDraft {
     OfflineRecordStatus? status,
     DateTime? lastSyncAttemptAt,
     String? lastError,
+    bool? hasBeenSubmitted,
+    String? operationCode,
+    String? errorCode,
+    bool? retryable,
+    int? retryAfterSeconds,
+    DateTime? retryNotBefore,
+    String? correlationId,
+    String? relatedClientRequestId,
+    DateTime? lastCheckedAt,
+    int? statusCheckCount,
+    String? recoveryState,
+    String? recommendedAction,
+    bool clearSyncMetadata = false,
   }) {
     return OfflineCompanyAcceptanceDraft(
       id: id,
@@ -155,6 +197,36 @@ class OfflineCompanyAcceptanceDraft {
       lastSyncAttemptAt: lastSyncAttemptAt ?? this.lastSyncAttemptAt,
       lastError: lastError,
       lines: lines,
+      hasBeenSubmitted: hasBeenSubmitted ?? this.hasBeenSubmitted,
+      operationCode: clearSyncMetadata
+          ? null
+          : operationCode ?? this.operationCode,
+      errorCode: clearSyncMetadata ? null : errorCode ?? this.errorCode,
+      retryable: clearSyncMetadata ? null : retryable ?? this.retryable,
+      retryAfterSeconds: clearSyncMetadata
+          ? null
+          : retryAfterSeconds ?? this.retryAfterSeconds,
+      retryNotBefore: clearSyncMetadata
+          ? null
+          : retryNotBefore ?? this.retryNotBefore,
+      correlationId: clearSyncMetadata
+          ? null
+          : correlationId ?? this.correlationId,
+      relatedClientRequestId: clearSyncMetadata
+          ? null
+          : relatedClientRequestId ?? this.relatedClientRequestId,
+      lastCheckedAt: clearSyncMetadata
+          ? null
+          : lastCheckedAt ?? this.lastCheckedAt,
+      statusCheckCount: clearSyncMetadata
+          ? 0
+          : statusCheckCount ?? this.statusCheckCount,
+      recoveryState: clearSyncMetadata
+          ? null
+          : recoveryState ?? this.recoveryState,
+      recommendedAction: clearSyncMetadata
+          ? null
+          : recommendedAction ?? this.recommendedAction,
     );
   }
 
@@ -183,6 +255,18 @@ class OfflineCompanyAcceptanceDraft {
       'status': encodeOfflineRecordStatus(status),
       'lastSyncAttemptAt': lastSyncAttemptAt?.toIso8601String(),
       'lastError': lastError,
+      'hasBeenSubmitted': hasBeenSubmitted,
+      'operationCode': operationCode,
+      'errorCode': errorCode,
+      'retryable': retryable,
+      'retryAfterSeconds': retryAfterSeconds,
+      'retryNotBefore': retryNotBefore?.toIso8601String(),
+      'correlationId': correlationId,
+      'relatedClientRequestId': relatedClientRequestId,
+      'lastCheckedAt': lastCheckedAt?.toIso8601String(),
+      'statusCheckCount': statusCheckCount,
+      'recoveryState': recoveryState,
+      'recommendedAction': recommendedAction,
       'lines': lines.map((item) => item.toJson()).toList(growable: false),
     };
   }
@@ -194,6 +278,16 @@ class OfflineCompanyAcceptanceDraft {
     final documentSerie = json['documentSerie']?.toString().trim() ?? '';
     final parsedDocumentOrderNo =
         int.tryParse(json['documentOrderNo']?.toString() ?? '') ?? 0;
+    final status = decodeOfflineRecordStatus(json['status']);
+    final lastSyncAttemptAt = DateTime.tryParse(
+      json['lastSyncAttemptAt']?.toString() ?? '',
+    );
+    final savedHasBeenSubmitted = json['hasBeenSubmitted'];
+    final hasBeenSubmitted = savedHasBeenSubmitted is bool
+        ? savedHasBeenSubmitted
+        : lastSyncAttemptAt != null ||
+              status == OfflineRecordStatus.syncing ||
+              status == OfflineRecordStatus.failed;
     return OfflineCompanyAcceptanceDraft(
       id: json['id']?.toString() ?? '',
       userId: json['userId']?.toString() ?? '',
@@ -228,13 +322,30 @@ class OfflineCompanyAcceptanceDraft {
       createdAt:
           DateTime.tryParse(json['createdAt']?.toString() ?? '') ??
           DateTime.now(),
-      status: decodeOfflineRecordStatus(json['status']),
-      lastSyncAttemptAt: DateTime.tryParse(
-        json['lastSyncAttemptAt']?.toString() ?? '',
-      ),
+      status: status,
+      lastSyncAttemptAt: lastSyncAttemptAt,
       lastError: json['lastError']?.toString().trim().isEmpty ?? true
           ? null
           : json['lastError']?.toString(),
+      hasBeenSubmitted: hasBeenSubmitted,
+      operationCode: _readNullableString(json['operationCode']),
+      errorCode: _readNullableString(json['errorCode']),
+      retryable: json['retryable'] as bool?,
+      retryAfterSeconds: int.tryParse(
+        json['retryAfterSeconds']?.toString() ?? '',
+      ),
+      retryNotBefore: DateTime.tryParse(
+        json['retryNotBefore']?.toString() ?? '',
+      ),
+      correlationId: _readNullableString(json['correlationId']),
+      relatedClientRequestId: _readNullableString(
+        json['relatedClientRequestId'],
+      ),
+      lastCheckedAt: DateTime.tryParse(json['lastCheckedAt']?.toString() ?? ''),
+      statusCheckCount:
+          int.tryParse(json['statusCheckCount']?.toString() ?? '') ?? 0,
+      recoveryState: _readNullableString(json['recoveryState']),
+      recommendedAction: _readNullableString(json['recommendedAction']),
       lines: (json['lines'] as List<dynamic>? ?? const <dynamic>[])
           .map(
             (item) => OfflineCompanyAcceptanceLine.fromJson(
@@ -254,6 +365,18 @@ class OfflineCompanyAcceptanceDraft {
     required OfflineRecordStatus status,
     required DateTime? lastSyncAttemptAt,
     String? lastError,
+    bool hasBeenSubmitted = false,
+    String? operationCode,
+    String? errorCode,
+    bool? retryable,
+    int? retryAfterSeconds,
+    DateTime? retryNotBefore,
+    String? correlationId,
+    String? relatedClientRequestId,
+    DateTime? lastCheckedAt,
+    int statusCheckCount = 0,
+    String? recoveryState,
+    String? recommendedAction,
   }) {
     final clientRequestId = request.clientRequestId?.trim();
     return OfflineCompanyAcceptanceDraft(
@@ -282,6 +405,18 @@ class OfflineCompanyAcceptanceDraft {
       status: status,
       lastSyncAttemptAt: lastSyncAttemptAt,
       lastError: lastError,
+      hasBeenSubmitted: hasBeenSubmitted,
+      operationCode: operationCode,
+      errorCode: errorCode,
+      retryable: retryable,
+      retryAfterSeconds: retryAfterSeconds,
+      retryNotBefore: retryNotBefore,
+      correlationId: correlationId,
+      relatedClientRequestId: relatedClientRequestId,
+      lastCheckedAt: lastCheckedAt,
+      statusCheckCount: statusCheckCount,
+      recoveryState: recoveryState,
+      recommendedAction: recommendedAction,
       lines: request.lines
           .map(
             (item) => OfflineCompanyAcceptanceLine(

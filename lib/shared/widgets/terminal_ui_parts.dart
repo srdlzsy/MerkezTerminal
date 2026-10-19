@@ -2875,11 +2875,13 @@ class TerminalBadge extends StatelessWidget {
     required this.label,
     this.backgroundColor,
     this.foregroundColor,
+    this.icon,
   });
 
   final String label;
   final Color? backgroundColor;
   final Color? foregroundColor;
+  final IconData? icon;
 
   @override
   Widget build(BuildContext context) {
@@ -2891,12 +2893,25 @@ class TerminalBadge extends StatelessWidget {
         color: backgroundColor ?? theme.colorScheme.primary.withAlpha(18),
         borderRadius: BorderRadius.circular(999),
       ),
-      child: Text(
-        label,
-        style: theme.textTheme.labelLarge?.copyWith(
-          color: foregroundColor ?? theme.colorScheme.primary,
-          fontWeight: FontWeight.w800,
-        ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          if (icon != null) ...<Widget>[
+            Icon(
+              icon,
+              size: 16,
+              color: foregroundColor ?? theme.colorScheme.primary,
+            ),
+            const SizedBox(width: 5),
+          ],
+          Text(
+            label,
+            style: theme.textTheme.labelLarge?.copyWith(
+              color: foregroundColor ?? theme.colorScheme.primary,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
       ),
     );
   }

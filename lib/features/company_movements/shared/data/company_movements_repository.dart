@@ -5,6 +5,7 @@ import 'package:furpa_merkez_terminal/features/return_operations/warehouse_retur
 import 'package:furpa_merkez_terminal/shared/data/barcode_resolution_models.dart';
 import 'package:furpa_merkez_terminal/shared/data/barcode_resolution_repository.dart';
 import 'package:furpa_merkez_terminal/shared/data/search_lookup_models.dart';
+import 'package:furpa_merkez_terminal/shared/offline/mobile_safe_write_recheck.dart';
 import 'package:furpa_merkez_terminal/shared/offline/offline_sync_status.dart';
 
 abstract class CompanyMovementsRepository {
@@ -61,7 +62,8 @@ class ApiCompanyMovementsRepository
     implements
         CompanyMovementsRepository,
         BarcodeResolutionRepository,
-        OfflineSyncStatusProvider<CompanyMovementCreateResult> {
+        OfflineSyncStatusProvider<CompanyMovementCreateResult>,
+        OfflineSyncRecheckProvider<CompanyMovementCreateResult> {
   const ApiCompanyMovementsRepository({
     required ApiClient apiClient,
     required String listPath,
@@ -169,6 +171,22 @@ class ApiCompanyMovementsRepository
     );
     return OfflineSyncStatus<CompanyMovementCreateResult>.fromJson(
       response,
+      resultParser: CompanyMovementCreateResult.fromJson,
+    );
+  }
+
+  @override
+  Future<OfflineSyncStatus<CompanyMovementCreateResult>>
+  recheckOfflineSyncStatus({
+    required String accessToken,
+    required String clientRequestId,
+    required String operationCode,
+  }) {
+    return recheckMobileSafeWrite(
+      apiClient: _apiClient,
+      accessToken: accessToken,
+      clientRequestId: clientRequestId,
+      operationCode: operationCode,
       resultParser: CompanyMovementCreateResult.fromJson,
     );
   }

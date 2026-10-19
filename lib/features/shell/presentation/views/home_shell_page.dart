@@ -62,7 +62,7 @@ class _HomeShellPageState extends State<HomeShellPage>
     WidgetsBinding.instance.addObserver(this);
     _selectedMenu = null;
     _offlineSyncTimer = Timer.periodic(
-      const Duration(seconds: 45),
+      const Duration(seconds: 5),
       (_) => unawaited(_triggerOfflineSync()),
     );
     _sessionContextRefreshTimer = Timer.periodic(

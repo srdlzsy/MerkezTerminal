@@ -17,12 +17,108 @@ import 'package:furpa_merkez_terminal/shared/data/barcode_resolution_models.dart
 import 'package:furpa_merkez_terminal/shared/data/search_lookup_models.dart';
 import 'package:furpa_merkez_terminal/shared/offline/mobile_customer_catalog_repository.dart';
 import 'package:furpa_merkez_terminal/shared/offline/mobile_product_catalog_repository.dart';
+import 'package:furpa_merkez_terminal/shared/offline/offline_record_status.dart';
 import 'package:furpa_merkez_terminal/shared/offline/offline_sync_service.dart';
 
 import '../../support/memory_local_database.dart';
 import '../../support/pda_create_screen_contract.dart';
 
 void main() {
+  testWidgets('explains and provides safe actions for support state', (
+    tester,
+  ) async {
+    final offlineRepository = _FakeOfflineCompanyAcceptancesRepository();
+    offlineRepository.drafts.add(
+      OfflineCompanyAcceptanceDraft.fromCreateRequest(
+        CompanyAcceptanceCreateRequest(
+          clientRequestId: 'support-request-1',
+          customerCode: 'CR-001',
+          movementDate: DateTime(2026, 10, 16),
+          documentDate: DateTime(2026, 10, 16),
+          documentSerie: 'ERS',
+          documentOrderNo: 5530,
+          deliverer: '',
+          receiver: '',
+          description: '',
+          allowOrderOverReceiving: false,
+          lines: const <CompanyAcceptanceCreateLine>[
+            CompanyAcceptanceCreateLine(
+              stockCode: '030841',
+              dispatchQuantity: 10,
+              acceptedQuantity: 10,
+              unitPrice: 0,
+              unitPointer: 1,
+              lastConsumingDate: null,
+              orderGuid: null,
+              description: '',
+              partyCode: '',
+              lotNo: 0,
+              projectCode: '',
+              customerResponsibilityCenter: '',
+              productResponsibilityCenter: '',
+            ),
+          ],
+        ),
+        userId: 'u1',
+        warehouseNo: '110',
+        customerDisplayName: 'Test Cari',
+        createdAt: DateTime(2026, 10, 16, 10, 45),
+        status: OfflineRecordStatus.failed,
+        lastSyncAttemptAt: DateTime(2026, 10, 16, 12, 52),
+        lastError:
+            'Bu belge tekrar gonderilmemeli; yetkili incelemesi gerekli.',
+        hasBeenSubmitted: true,
+        operationCode: 'company-acceptance-create',
+        errorCode: 'MIKRO_DOCUMENT_CONTENT_MISMATCH',
+        retryable: false,
+        correlationId: 'support-code-1',
+      ),
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: OfflineCompanyAcceptancesPage(
+          offlineRepository: offlineRepository,
+          onlineRepository: _FakeCompanyAcceptancesRepository(),
+          ordersRepository: _FakeGivenCompanyOrdersRepository(),
+          accessToken: 'token',
+          offlineSyncService: OfflineSyncService(
+            inventoryRepository: _FakeInventoryCountsRepository(),
+            companyAcceptanceRepository: _FakeCompanyAcceptancesRepository(),
+            offlineInventoryRepository: _FakeOfflineInventoryCountsRepository(),
+            offlineCompanyAcceptanceRepository: offlineRepository,
+          ),
+          mobileCustomerCatalogRepository: MobileCustomerCatalogLocalRepository(
+            database: MemoryLocalDatabase(),
+          ),
+          mobileProductCatalogRepository: MobileProductCatalogLocalRepository(
+            database: MemoryLocalDatabase(),
+          ),
+          currentUserId: 'u1',
+          defaultWarehouseNo: '110',
+          userWarehouseName: 'TEST DEPO',
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Destek gerekli'), findsWidgets);
+    expect(
+      find.textContaining('MIKRO_DOCUMENT_CONTENT_MISMATCH'),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('Bu evrak yeniden gonderilmez ve silinmez.'),
+      findsOneWidget,
+    );
+    final checkButton = tester.widget<OutlinedButton>(
+      find.widgetWithText(OutlinedButton, 'Durumu Kontrol Et'),
+    );
+    expect(checkButton.onPressed, isNotNull);
+    expect(find.text('Destek Bilgisini Kopyala'), findsOneWidget);
+    expect(find.textContaining('support-code-1'), findsOneWidget);
+  });
+
   testWidgets('passes offline pda create contract with keyboard inset', (
     tester,
   ) async {

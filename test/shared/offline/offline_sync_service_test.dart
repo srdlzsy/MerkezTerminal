@@ -109,6 +109,7 @@ void main() {
         errorCode: 'MIKRO_WRITE_OUTCOME_UNCONFIRMED',
         retryable: true,
         retryAfterSeconds: 5,
+        recommendedAction: 'WaitAndCheck',
         result: null,
       );
 
@@ -119,15 +120,15 @@ void main() {
       request: _buildRequest(clientRequestId: 'request-retryable'),
     );
 
-    expect(result.status, OfflineSubmissionStatus.queued);
+    expect(result.status, OfflineSubmissionStatus.processing);
     expect(offlineInventoryRepository.savedDrafts, hasLength(1));
     expect(
       offlineInventoryRepository.savedDrafts.single.status,
-      OfflineRecordStatus.pending,
+      OfflineRecordStatus.syncing,
     );
     expect(
       offlineInventoryRepository.savedDrafts.single.lastError,
-      contains('5 saniye sonra'),
+      contains('Durumu Kontrol Et'),
     );
   });
 
@@ -382,6 +383,7 @@ void main() {
         errorCode: 'MIKRO_WRITE_OUTCOME_UNCONFIRMED',
         retryable: true,
         retryAfterSeconds: 5,
+        recommendedAction: 'WaitAndCheck',
         result: null,
       );
 
@@ -394,12 +396,12 @@ void main() {
       ),
     );
 
-    expect(result.status, OfflineSubmissionStatus.queued);
+    expect(result.status, OfflineSubmissionStatus.processing);
     expect(companyAcceptanceRepository.fetchOfflineSyncStatusCallCount, 1);
     final savedDraft = offlineCompanyAcceptanceRepository.savedDrafts.single;
     expect(savedDraft.clientRequestId, 'acceptance-uncertain');
-    expect(savedDraft.status, OfflineRecordStatus.pending);
-    expect(savedDraft.lastError, contains('Kayit sonucu henuz kesinlesmedi'));
+    expect(savedDraft.status, OfflineRecordStatus.syncing);
+    expect(savedDraft.lastError, contains('Durumu Kontrol Et'));
     expect(savedDraft.lastError, isNot(contains('A task was canceled')));
   });
 
@@ -498,31 +500,248 @@ void main() {
   );
 
   test(
-    'submitCompanyAcceptance rethrows unresolved conflict without queueing',
+    'submitCompanyAcceptance preserves unresolved conflict for support',
     () async {
       companyAcceptanceRepository.createError = const ApiException(
         statusCode: 409,
         title: 'Islem zaten var',
       );
 
-      await expectLater(
-        service.submitCompanyAcceptance(
-          accessToken: 'token',
-          userId: 'user-1',
-          warehouseNo: '110',
-          request: _buildCompanyAcceptanceRequest(
-            clientRequestId: 'acceptance-5',
-          ),
-        ),
-        throwsA(
-          isA<ApiException>().having((error) => error.statusCode, 'code', 409),
+      final result = await service.submitCompanyAcceptance(
+        accessToken: 'token',
+        userId: 'user-1',
+        warehouseNo: '110',
+        request: _buildCompanyAcceptanceRequest(
+          clientRequestId: 'acceptance-5',
         ),
       );
 
+      expect(result.status, OfflineSubmissionStatus.needsReview);
       expect(companyAcceptanceRepository.fetchOfflineSyncStatusCallCount, 1);
+      final savedDraft = offlineCompanyAcceptanceRepository.savedDrafts.single;
+      expect(savedDraft.clientRequestId, 'acceptance-5');
+      expect(savedDraft.hasBeenSubmitted, isTrue);
+      expect(savedDraft.retryable, isFalse);
+      expect(savedDraft.status, OfflineRecordStatus.failed);
+    },
+  );
+
+  test('submitCompanyAcceptance persists snapshot before POST', () async {
+    var snapshotWasPresentDuringCreate = false;
+    companyAcceptanceRepository.onCreate = () {
+      final drafts = offlineCompanyAcceptanceRepository.savedDrafts;
+      snapshotWasPresentDuringCreate =
+          drafts.length == 1 &&
+          drafts.single.clientRequestId == 'acceptance-snapshot' &&
+          drafts.single.hasBeenSubmitted;
+    };
+
+    final result = await service.submitCompanyAcceptance(
+      accessToken: 'token',
+      userId: 'user-1',
+      warehouseNo: '110',
+      request: _buildCompanyAcceptanceRequest(
+        clientRequestId: 'acceptance-snapshot',
+      ),
+    );
+
+    expect(result.status, OfflineSubmissionStatus.synced);
+    expect(snapshotWasPresentDuringCreate, isTrue);
+    expect(offlineCompanyAcceptanceRepository.savedDrafts, isEmpty);
+  });
+
+  test(
+    'submitted company acceptance checks status before another POST',
+    () async {
+      companyAcceptanceRepository.offlineSyncStatus =
+          CompanyAcceptanceOfflineSyncStatus(
+            clientRequestId: 'acceptance-processing-status',
+            operationCode: 'company-acceptance-create',
+            status: 'processing',
+            createdAtUtc: DateTime.utc(2026, 10, 16, 8),
+            completedAtUtc: null,
+            errorMessage: null,
+            errorCode: 'MIKRO_WRITE_IN_PROGRESS',
+            retryable: true,
+            retryAfterSeconds: 5,
+            result: null,
+          );
+      final draft = _buildCompanyAcceptanceDraft(
+        clientRequestId: 'acceptance-processing-status',
+        hasBeenSubmitted: true,
+      );
+
+      final result = await service.syncCompanyAcceptanceDraft(
+        accessToken: 'token',
+        draft: draft,
+      );
+
+      expect(result.status, OfflineDraftSyncResultStatus.processing);
+      expect(companyAcceptanceRepository.fetchOfflineSyncStatusCallCount, 1);
+      expect(companyAcceptanceRepository.createCallCount, 0);
+    },
+  );
+
+  test(
+    'queue busy company acceptance retries same snapshot after status',
+    () async {
+      companyAcceptanceRepository.offlineSyncStatus =
+          CompanyAcceptanceOfflineSyncStatus(
+            clientRequestId: 'acceptance-queue-busy',
+            operationCode: 'company-acceptance-create',
+            status: 'failed',
+            createdAtUtc: DateTime.utc(2026, 10, 16, 8),
+            completedAtUtc: DateTime.utc(2026, 10, 16, 8, 1),
+            errorMessage: 'Depo yazma kuyrugu mesgul.',
+            errorCode: 'MIKRO_WRITE_QUEUE_BUSY',
+            retryable: true,
+            retryAfterSeconds: 5,
+            result: null,
+          );
+      final draft = _buildCompanyAcceptanceDraft(
+        clientRequestId: 'acceptance-queue-busy',
+        hasBeenSubmitted: true,
+      ).copyWith(errorCode: 'MIKRO_WRITE_QUEUE_BUSY', retryable: true);
+
+      final result = await service.syncCompanyAcceptanceDraft(
+        accessToken: 'token',
+        draft: draft,
+      );
+
+      expect(result.status, OfflineDraftSyncResultStatus.synced);
+      expect(companyAcceptanceRepository.fetchOfflineSyncStatusCallCount, 1);
+      expect(companyAcceptanceRepository.createCallCount, 1);
+      expect(
+        companyAcceptanceRepository.lastCreateClientRequestId,
+        'acceptance-queue-busy',
+      );
       expect(offlineCompanyAcceptanceRepository.savedDrafts, isEmpty);
     },
   );
+
+  test('first queue busy status waits before another POST', () async {
+    companyAcceptanceRepository.offlineSyncStatus =
+        CompanyAcceptanceOfflineSyncStatus(
+          clientRequestId: 'acceptance-first-queue-busy',
+          operationCode: 'company-acceptance-create',
+          status: 'failed',
+          createdAtUtc: DateTime.utc(2026, 10, 16, 8),
+          completedAtUtc: DateTime.utc(2026, 10, 16, 8, 1),
+          errorMessage: 'Depo yazma kuyrugu mesgul.',
+          errorCode: 'MIKRO_WRITE_QUEUE_BUSY',
+          retryable: true,
+          retryAfterSeconds: 5,
+          result: null,
+        );
+    final draft = _buildCompanyAcceptanceDraft(
+      clientRequestId: 'acceptance-first-queue-busy',
+      hasBeenSubmitted: true,
+    );
+
+    final result = await service.syncCompanyAcceptanceDraft(
+      accessToken: 'token',
+      draft: draft,
+    );
+
+    expect(result.status, OfflineDraftSyncResultStatus.deferred);
+    expect(companyAcceptanceRepository.createCallCount, 0);
+    final savedDraft = offlineCompanyAcceptanceRepository.savedDrafts.single;
+    expect(savedDraft.errorCode, 'MIKRO_WRITE_QUEUE_BUSY');
+    expect(savedDraft.retryNotBefore, isNotNull);
+  });
+
+  test(
+    'uncertain company acceptance is not automatically posted again',
+    () async {
+      companyAcceptanceRepository.offlineSyncStatus =
+          CompanyAcceptanceOfflineSyncStatus(
+            clientRequestId: 'acceptance-uncertain-status',
+            operationCode: 'company-acceptance-create',
+            status: 'failed',
+            createdAtUtc: DateTime.utc(2026, 10, 16, 8),
+            completedAtUtc: DateTime.utc(2026, 10, 16, 8, 1),
+            errorMessage: 'Mikro sonucu henuz kesinlesmedi.',
+            errorCode: 'MIKRO_WRITE_OUTCOME_UNCONFIRMED',
+            retryable: true,
+            retryAfterSeconds: 5,
+            result: null,
+          );
+      final draft = _buildCompanyAcceptanceDraft(
+        clientRequestId: 'acceptance-uncertain-status',
+        hasBeenSubmitted: true,
+      );
+
+      final result = await service.syncCompanyAcceptanceDraft(
+        accessToken: 'token',
+        draft: draft,
+      );
+
+      expect(result.status, OfflineDraftSyncResultStatus.processing);
+      expect(companyAcceptanceRepository.fetchOfflineSyncStatusCallCount, 1);
+      expect(companyAcceptanceRepository.createCallCount, 0);
+    },
+  );
+
+  test('support state can be checked without another POST', () async {
+    companyAcceptanceRepository.offlineSyncStatus =
+        CompanyAcceptanceOfflineSyncStatus(
+          clientRequestId: 'acceptance-support-status',
+          operationCode: 'company-acceptance-create',
+          status: 'failed',
+          createdAtUtc: DateTime.utc(2026, 10, 16, 8),
+          completedAtUtc: DateTime.utc(2026, 10, 16, 8, 1),
+          errorMessage: 'Yetkili incelemesi gerekli.',
+          errorCode: 'MIKRO_DOCUMENT_CONTENT_MISMATCH',
+          retryable: false,
+          result: null,
+        );
+    final draft = _buildCompanyAcceptanceDraft(
+      clientRequestId: 'acceptance-support-status',
+      hasBeenSubmitted: true,
+    ).copyWith(errorCode: 'MIKRO_DOCUMENT_CONTENT_MISMATCH', retryable: false);
+
+    final result = await service.syncCompanyAcceptanceDraft(
+      accessToken: 'token',
+      draft: draft,
+      statusCheckOnly: true,
+    );
+
+    expect(result.status, OfflineDraftSyncResultStatus.failed);
+    expect(companyAcceptanceRepository.fetchOfflineSyncStatusCallCount, 1);
+    expect(companyAcceptanceRepository.createCallCount, 0);
+  });
+
+  test('cancelled company acceptance clears its local snapshot', () async {
+    companyAcceptanceRepository.offlineSyncStatus =
+        CompanyAcceptanceOfflineSyncStatus(
+          clientRequestId: 'acceptance-cancelled',
+          operationCode: 'company-acceptance-create',
+          status: 'Cancelled',
+          createdAtUtc: DateTime.utc(2026, 10, 16, 8),
+          completedAtUtc: DateTime.utc(2026, 10, 16, 8, 1),
+          errorMessage: 'Kayit yetkili tarafindan iptal edildi.',
+          errorCode: 'SAFE_WRITE_CANCELLED',
+          retryable: false,
+          result: null,
+        );
+    final draft = _buildCompanyAcceptanceDraft(
+      clientRequestId: 'acceptance-cancelled',
+      hasBeenSubmitted: true,
+    ).copyWith(retryable: false);
+    await offlineCompanyAcceptanceRepository.saveDraft(draft);
+
+    final result = await service.syncCompanyAcceptanceDraft(
+      accessToken: 'token',
+      draft: draft,
+      statusCheckOnly: true,
+    );
+
+    expect(result.status, OfflineDraftSyncResultStatus.cancelled);
+    expect(result.message, contains('iptal edildi'));
+    expect(companyAcceptanceRepository.fetchOfflineSyncStatusCallCount, 1);
+    expect(companyAcceptanceRepository.createCallCount, 0);
+    expect(offlineCompanyAcceptanceRepository.savedDrafts, isEmpty);
+  });
 
   test('syncCompanyAcceptanceDraft defers connection failures', () async {
     companyAcceptanceRepository.createError = const ApiException(
@@ -737,6 +956,7 @@ CompanyAcceptanceCreateResult _buildCompanyAcceptanceResult({
 
 OfflineCompanyAcceptanceDraft _buildCompanyAcceptanceDraft({
   required String clientRequestId,
+  bool hasBeenSubmitted = false,
 }) {
   return OfflineCompanyAcceptanceDraft.fromCreateRequest(
     _buildCompanyAcceptanceRequest(clientRequestId: clientRequestId),
@@ -746,6 +966,7 @@ OfflineCompanyAcceptanceDraft _buildCompanyAcceptanceDraft({
     createdAt: DateTime(2026, 4, 23, 9),
     status: OfflineRecordStatus.pending,
     lastSyncAttemptAt: null,
+    hasBeenSubmitted: hasBeenSubmitted,
   );
 }
 
@@ -868,12 +1089,18 @@ class _FakeCompanyAcceptancesRepository
   ApiException? createError;
   CompanyAcceptanceOfflineSyncStatus? offlineSyncStatus;
   int fetchOfflineSyncStatusCallCount = 0;
+  int createCallCount = 0;
+  String? lastCreateClientRequestId;
+  void Function()? onCreate;
 
   @override
   Future<CompanyAcceptanceCreateResult> createAcceptance({
     required String accessToken,
     required CompanyAcceptanceCreateRequest request,
   }) async {
+    createCallCount += 1;
+    lastCreateClientRequestId = request.clientRequestId;
+    onCreate?.call();
     final error = createError;
     if (error != null) {
       throw error;

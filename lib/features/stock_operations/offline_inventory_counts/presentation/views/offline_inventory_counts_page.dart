@@ -156,6 +156,9 @@ class _OfflineInventoryCountsPageState
               'Baglanti yok; kayit kuyrukta beklemeye devam ediyor.',
         OfflineDraftSyncResultStatus.failed =>
           result.message ?? 'Kayit senkronize edilemedi.',
+        OfflineDraftSyncResultStatus.cancelled =>
+          result.message ??
+              'Bu sayim yetkili tarafindan iptal edildi. Mikro evraki olusturulmadi.',
       };
 
       if (result.status == OfflineDraftSyncResultStatus.failed) {

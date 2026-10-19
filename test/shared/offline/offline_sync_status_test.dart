@@ -38,6 +38,22 @@ void main() {
     expect(status.retryable, isTrue);
     expect(status.retryNotBefore(now), now.add(const Duration(seconds: 5)));
   });
+
+  test('recognizes a safe write cancelled by an authorized reviewer', () {
+    final status = OfflineSyncStatus<_TestResult>.fromJson(<String, dynamic>{
+      'clientRequestId': 'request-cancelled',
+      'operationCode': 'test.create',
+      'status': 'Cancelled',
+      'errorMessage': 'Kayit yetkili tarafindan iptal edildi.',
+      'errorCode': 'SAFE_WRITE_CANCELLED',
+      'retryable': false,
+      'result': null,
+    }, resultParser: _TestResult.fromJson);
+
+    expect(status.isCancelled, isTrue);
+    expect(status.isCompleted, isFalse);
+    expect(status.retryable, isFalse);
+  });
 }
 
 class _TestResult {

@@ -24,6 +24,7 @@ class PendingCreateStatusCard extends StatelessWidget {
     final colorScheme = Theme.of(context).colorScheme;
     final needsSupport =
         failureKind == SafeCreateFailureKind.manualReview ||
+        failureKind == SafeCreateFailureKind.recheckExisting ||
         failureKind == SafeCreateFailureKind.multipleDocuments ||
         failureKind == SafeCreateFailureKind.statusNotFound;
     final color = needsSupport ? colorScheme.error : colorScheme.tertiary;
@@ -90,7 +91,11 @@ class PendingCreateStatusCard extends StatelessWidget {
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
                       : const Icon(Icons.manage_search_rounded),
-                  label: const Text('Durumu Kontrol Et'),
+                  label: Text(
+                    failureKind == SafeCreateFailureKind.recheckExisting
+                        ? 'Mikro Kaydini Dogrula'
+                        : 'Durumu Kontrol Et',
+                  ),
                 ),
                 if (onRetry != null)
                   FilledButton.tonalIcon(
@@ -170,6 +175,12 @@ String _failureMessage(SafeCreateFailureKind kind) {
       'Onceki islem suruyor. Bildirilen sure dolunca ayni kayitla tekrar deneyin.',
     SafeCreateFailureKind.uncertain =>
       'Kaydin sonucu kesinlesmedi. Ayni kaydi sorgulayin veya tekrar deneyin.',
+    SafeCreateFailureKind.waitAndCheck =>
+      'Kayit sonucu kontrol ediliyor. Bekleme sonunda durumu yeniden kontrol edin.',
+    SafeCreateFailureKind.retrySameRequest =>
+      'Belgenin olusmadigi dogrulandi. Saklanan ayni kayit guvenle yeniden gonderilebilir.',
+    SafeCreateFailureKind.recheckExisting =>
+      'Mikro kaydini salt-okuma olarak yeniden dogrulayin; yeni evrak gondermeyin.',
     SafeCreateFailureKind.payloadChanged =>
       'Saklanan istek ile gonderilen bilgiler uyusmuyor. Destek incelemesi gerekir.',
     SafeCreateFailureKind.multipleDocuments =>
@@ -180,6 +191,8 @@ String _failureMessage(SafeCreateFailureKind kind) {
       'Sunucuda bu kaydin durum izi bulunamadi. Yeni kimlik uretmeyin.',
     SafeCreateFailureKind.notRetryable =>
       'Kayit tekrar gonderilemez. Hata detayini kontrol edin.',
+    SafeCreateFailureKind.cancelled =>
+      'Bu kayit yetkili tarafindan iptal edildi. Mikro evraki olusturulmadi.',
   };
 }
 

@@ -2,6 +2,8 @@ import 'package:furpa_merkez_terminal/core/network/api_client.dart';
 import 'package:furpa_merkez_terminal/features/stock_operations/inventory_counts/data/models/inventory_count_models.dart';
 import 'package:furpa_merkez_terminal/shared/data/barcode_resolution_models.dart';
 import 'package:furpa_merkez_terminal/shared/data/barcode_resolution_repository.dart';
+import 'package:furpa_merkez_terminal/shared/offline/mobile_safe_write_recheck.dart';
+import 'package:furpa_merkez_terminal/shared/offline/offline_sync_status.dart';
 
 abstract class InventoryCountsRepository {
   Future<List<InventoryCountListItem>> fetchCounts({
@@ -39,7 +41,10 @@ abstract class InventoryCountsRepository {
   });
 }
 
-class ApiInventoryCountsRepository implements InventoryCountsRepository {
+class ApiInventoryCountsRepository
+    implements
+        InventoryCountsRepository,
+        OfflineSyncRecheckProvider<InventoryCountCreateResult> {
   const ApiInventoryCountsRepository({required ApiClient apiClient})
     : _apiClient = apiClient;
 
@@ -112,6 +117,22 @@ class ApiInventoryCountsRepository implements InventoryCountsRepository {
     );
 
     return InventoryCountOfflineSyncStatus.fromJson(response);
+  }
+
+  @override
+  Future<OfflineSyncStatus<InventoryCountCreateResult>>
+  recheckOfflineSyncStatus({
+    required String accessToken,
+    required String clientRequestId,
+    required String operationCode,
+  }) {
+    return recheckMobileSafeWrite(
+      apiClient: _apiClient,
+      accessToken: accessToken,
+      clientRequestId: clientRequestId,
+      operationCode: operationCode,
+      resultParser: InventoryCountCreateResult.fromJson,
+    );
   }
 
   @override

@@ -361,9 +361,17 @@ class _SuggestedCompanyOrdersPageState
           operation.relatedClientRequestId?.trim().isNotEmpty == true
           ? operation.relatedClientRequestId!.trim()
           : request.clientRequestId!;
-      final status = await provider.fetchOfflineSyncStatus(
+      final repository = widget.repository;
+      final recheckProvider =
+          repository is OfflineSyncRecheckProvider<CompanyOrderCreateResult>
+          ? repository as OfflineSyncRecheckProvider<CompanyOrderCreateResult>
+          : null;
+      final status = await resolveSafeCreateStatus(
+        statusProvider: provider,
+        recheckProvider: recheckProvider,
         accessToken: widget.accessToken,
         clientRequestId: lookupId,
+        currentKind: _pendingFailureKind,
       );
       if (status.isCompleted && status.result != null) {
         await _completePending(status.result!);
@@ -386,13 +394,13 @@ class _SuggestedCompanyOrdersPageState
       );
     } on ApiException catch (error) {
       final kind = error.statusCode == 404
-          ? SafeCreateFailureKind.statusNotFound
+          ? SafeCreateFailureKind.retrySameRequest
           : classifySafeCreateException(error);
       await _persistPending(
         request,
         failureKind: kind,
         errorMessage: error.statusCode == 404
-            ? 'Sunucuda bu kaydin durum izi bulunamadi.'
+            ? 'Sunucuda bu istegin rezervasyonu bulunamadi. Saklanan ayni kayit yeniden gonderilebilir.'
             : safeCreateRetryErrorMessage(error),
         relatedClientRequestId: error.relatedClientRequestId,
         errorCode: error.errorCode,

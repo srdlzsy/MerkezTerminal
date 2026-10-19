@@ -3,6 +3,7 @@ import 'package:furpa_merkez_terminal/features/stock_operations/virman/data/mode
 import 'package:furpa_merkez_terminal/shared/data/barcode_resolution_models.dart';
 import 'package:furpa_merkez_terminal/shared/data/barcode_resolution_repository.dart';
 import 'package:furpa_merkez_terminal/shared/data/search_lookup_models.dart';
+import 'package:furpa_merkez_terminal/shared/offline/mobile_safe_write_recheck.dart';
 import 'package:furpa_merkez_terminal/shared/offline/offline_sync_status.dart';
 
 abstract class VirmanRepository {
@@ -41,7 +42,8 @@ class ApiVirmanRepository
     implements
         VirmanRepository,
         BarcodeResolutionRepository,
-        OfflineSyncStatusProvider<VirmanCreateResult> {
+        OfflineSyncStatusProvider<VirmanCreateResult>,
+        OfflineSyncRecheckProvider<VirmanCreateResult> {
   const ApiVirmanRepository({required ApiClient apiClient})
     : _apiClient = apiClient;
 
@@ -121,6 +123,21 @@ class ApiVirmanRepository
     );
     return OfflineSyncStatus<VirmanCreateResult>.fromJson(
       response,
+      resultParser: VirmanCreateResult.fromJson,
+    );
+  }
+
+  @override
+  Future<OfflineSyncStatus<VirmanCreateResult>> recheckOfflineSyncStatus({
+    required String accessToken,
+    required String clientRequestId,
+    required String operationCode,
+  }) {
+    return recheckMobileSafeWrite(
+      apiClient: _apiClient,
+      accessToken: accessToken,
+      clientRequestId: clientRequestId,
+      operationCode: operationCode,
       resultParser: VirmanCreateResult.fromJson,
     );
   }

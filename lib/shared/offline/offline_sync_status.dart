@@ -7,6 +7,14 @@ abstract interface class OfflineSyncStatusProvider<T> {
   });
 }
 
+abstract interface class OfflineSyncRecheckProvider<T> {
+  Future<OfflineSyncStatus<T>> recheckOfflineSyncStatus({
+    required String accessToken,
+    required String clientRequestId,
+    required String operationCode,
+  });
+}
+
 class OfflineSyncStatus<T> {
   const OfflineSyncStatus({
     required this.clientRequestId,
@@ -19,6 +27,8 @@ class OfflineSyncStatus<T> {
     required this.retryable,
     required this.retryAfterSeconds,
     required this.result,
+    this.recoveryState,
+    this.recommendedAction,
   });
 
   final String clientRequestId;
@@ -31,12 +41,21 @@ class OfflineSyncStatus<T> {
   final bool? retryable;
   final int? retryAfterSeconds;
   final T? result;
+  final String? recoveryState;
+  final String? recommendedAction;
 
   bool get isProcessing => status.toLowerCase() == 'processing';
   bool get isCompleted => status.toLowerCase() == 'completed';
   bool get isFailed => status.toLowerCase() == 'failed';
+  bool get isCancelled => status.toLowerCase() == 'cancelled';
 
   DateTime? retryNotBefore([DateTime? now]) {
+    if (recommendedAction?.trim() == 'WaitAndCheck') {
+      final seconds = retryAfterSeconds;
+      return (now ?? DateTime.now()).add(
+        Duration(seconds: seconds != null && seconds > 0 ? seconds : 5),
+      );
+    }
     final seconds = retryAfterSeconds;
     if (retryable != true || seconds == null || seconds <= 0) {
       return null;
@@ -64,6 +83,65 @@ class OfflineSyncStatus<T> {
               resultJson.map((key, value) => MapEntry(key.toString(), value)),
             )
           : null,
+      recoveryState: _readNullableString(json['recoveryState']),
+      recommendedAction: _readNullableString(json['recommendedAction']),
+    );
+  }
+
+  factory OfflineSyncStatus.fromReviewJson(
+    Map<String, dynamic> json, {
+    required String fallbackClientRequestId,
+    required String fallbackOperationCode,
+    required OfflineSyncResultParser<T> resultParser,
+  }) {
+    final safeWriteValue = json['safeWrite'];
+    final safeWrite = safeWriteValue is Map
+        ? safeWriteValue.map((key, value) => MapEntry(key.toString(), value))
+        : const <String, dynamic>{};
+    final resultJson = json['result'];
+    final outcome = _readNullableString(json['outcome']);
+    final status =
+        _readNullableString(safeWrite['status']) ??
+        _readNullableString(json['status']) ??
+        (outcome == 'Completed' || outcome == 'AlreadyCompleted'
+            ? 'Completed'
+            : outcome == 'Cancelled' || outcome == 'AlreadyCancelled'
+            ? 'Cancelled'
+            : 'Failed');
+    return OfflineSyncStatus<T>(
+      clientRequestId:
+          _readNullableString(safeWrite['clientRequestId']) ??
+          _readNullableString(json['clientRequestId']) ??
+          fallbackClientRequestId,
+      operationCode:
+          _readNullableString(safeWrite['operationCode']) ??
+          _readNullableString(json['operationCode']) ??
+          fallbackOperationCode,
+      status: status,
+      createdAtUtc: _readDate(
+        safeWrite['createdAtUtc'] ?? json['createdAtUtc'],
+      ),
+      completedAtUtc: _readDate(
+        safeWrite['completedAtUtc'] ?? json['completedAtUtc'],
+      ),
+      errorMessage:
+          _readNullableString(safeWrite['errorMessage']) ??
+          _readNullableString(json['errorMessage']) ??
+          _readNullableString(json['message']),
+      errorCode:
+          _readNullableString(safeWrite['errorCode']) ??
+          _readNullableString(json['errorCode']),
+      retryable: _readBool(safeWrite['retryable'] ?? json['retryable']),
+      retryAfterSeconds: _readInt(
+        safeWrite['retryAfterSeconds'] ?? json['retryAfterSeconds'],
+      ),
+      result: resultJson is Map
+          ? resultParser(
+              resultJson.map((key, value) => MapEntry(key.toString(), value)),
+            )
+          : null,
+      recoveryState: _readNullableString(json['recoveryState']),
+      recommendedAction: _readNullableString(json['recommendedAction']),
     );
   }
 }

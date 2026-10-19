@@ -7,7 +7,7 @@ Kapsam: kayitli HTTP method/route ve alias'lar, binding kaynagi, request alanlar
 
 `bildirilmemis` response tipi, runtime cevabinin bos oldugu anlamina gelmez. Anonim endpointler konfigurasyon/ag/servis kontrollerine tabi olabilir. JWT fallback policy, acik Authorize olmasa da uygulanir.
 
-Endpoint sayisi (method + route): 750. Model sayisi: 687.
+Endpoint sayisi (method + route): 756. Model sayisi: 691.
 
 Bunlara ek olarak EndpointDataSource uzerinden dogrulanan iki health route'u vardir: `/health/live`, `/health/ready`. Bu middleware route'larinda method kisiti yoktur; istemci GET kullanmalidir. Anonimdir, JSON dondurur; Healthy/Degraded=200, Unhealthy=503. `live` yalniz prosesi, `ready` core_dependencies, operations_export_path ve background_workers kontrollerini olcer. Alanlar: status (string), durationMilliseconds (number), checks (ad -> status/durationMilliseconds/description/data). Tum runtime route'lari envanterde yer alir; yeni ve ApiExplorer disinda kalan route eklenirse test basarisiz olur.
 
@@ -77,6 +77,10 @@ Ozel response'lar: `/` Hosting:ExposeDiagnosticsOnRoot=false iken yalniz service
 | GET | `/api/ayar-islemleri/veritabani-izleme/anlik` | JWT + ayar-islemleri.veritabani-izleme.list |  | 401: ProblemDetails<br>403: ProblemDetails<br>200: DatabaseMonitoringSnapshotDto |
 | GET | `/api/ayar-islemleri/veritabani-izleme/genel-bakis` | JWT + ayar-islemleri.veritabani-izleme.list |  | 401: ProblemDetails<br>403: ProblemDetails<br>200: MonitoringOverviewDto |
 | GET | `/api/ayar-islemleri/veritabani-izleme/guvenli-yazmalar` | JWT + ayar-islemleri.veritabani-izleme.detail | query: Status / string<br>query: OperationCode / string<br>query: WarehouseNo / integer (int32)<br>query: Retryable / boolean<br>query: IncludeCompleted / boolean<br>query: Take / integer (int32) | 401: ProblemDetails<br>403: ProblemDetails<br>200: IReadOnlyCollection&lt;SafeWriteMonitoringItemDto&gt;<br>400: ProblemDetails |
+| GET | `/api/ayar-islemleri/veritabani-izleme/guvenli-yazmalar/{id}/inceleme-gecmisi` | JWT + ayar-islemleri.veritabani-izleme.detail | path: id / string (uuid) (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: IReadOnlyCollection&lt;SafeWriteReviewAuditDto&gt;<br>404: ProblemDetails |
+| POST | `/api/ayar-islemleri/veritabani-izleme/guvenli-yazmalar/{id}/iptal` | JWT + ayar-islemleri.veritabani-izleme.resolve-safe-write | path: id / string (uuid) (zorunlu)<br>body: request / SafeWriteReviewHttpRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: SafeWriteReviewResultDto<br>404: ProblemDetails |
+| POST | `/api/ayar-islemleri/veritabani-izleme/guvenli-yazmalar/{id}/tekrar-ac` | JWT + ayar-islemleri.veritabani-izleme.resolve-safe-write | path: id / string (uuid) (zorunlu)<br>body: request / SafeWriteReviewHttpRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: SafeWriteReviewResultDto<br>404: ProblemDetails |
+| POST | `/api/ayar-islemleri/veritabani-izleme/guvenli-yazmalar/{id}/yeniden-dogrula` | JWT + ayar-islemleri.veritabani-izleme.resolve-safe-write | path: id / string (uuid) (zorunlu)<br>body: request / SafeWriteReviewHttpRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: SafeWriteReviewResultDto<br>404: ProblemDetails |
 | GET | `/api/ayar-islemleri/veritabani-izleme/olaylar` | JWT + ayar-islemleri.veritabani-izleme.detail | query: take / integer (int32) | 401: ProblemDetails<br>403: ProblemDetails<br>200: IReadOnlyCollection&lt;DatabaseMonitoringIncidentDto&gt; |
 | GET | `/api/ayar-islemleri/veritabani-izleme/oturum-sonlandirma-gecmisi` | JWT + ayar-islemleri.veritabani-izleme.detail | query: take / integer (int32) | 401: ProblemDetails<br>403: ProblemDetails<br>200: IReadOnlyCollection&lt;DatabaseSessionTerminationDto&gt; |
 | GET | `/api/ayar-islemleri/veritabani-izleme/oturumlar/{sessionId}/rollback-durumu` | JWT + ayar-islemleri.veritabani-izleme.detail | path: sessionId / integer (int32) (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: DatabaseRollbackStatusDto |
@@ -543,6 +547,7 @@ Ozel response'lar: `/` Hosting:ExposeDiagnosticsOnRoot=false iken yalniz service
 | POST | `/api/mal-kabul-islemleri/firma-mal-kabulleri` | JWT + mal-kabul-islemleri.firma-mal-kabulleri.create | body: request / CreateCompanyReceivingHttpRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>201: CreateCompanyReceivingResponse<br>200: CreateCompanyReceivingResponse<br>400: ProblemDetails<br>404: ProblemDetails<br>409: ProblemDetails |
 | GET | `/api/mal-kabul-islemleri/firma-mal-kabulleri/e-irsaliye/ettn/{ettn}` | JWT + mal-kabul-islemleri.firma-mal-kabulleri.create | path: ettn / string (zorunlu)<br>query: warehouseNo / integer (int32) | 401: ProblemDetails<br>403: ProblemDetails<br>200: InboundDespatchLookupResponse<br>400: ProblemDetails |
 | GET | `/api/mal-kabul-islemleri/firma-mal-kabulleri/offline-sync/{clientRequestId}` | JWT + mal-kabul-islemleri.firma-mal-kabulleri.create | path: clientRequestId / string (uuid) (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: OfflineSyncStatusDto&lt;CreateCompanyReceivingResponse&gt;<br>404: ProblemDetails<br>409: ProblemDetails |
+| POST | `/api/mal-kabul-islemleri/firma-mal-kabulleri/offline-sync/{clientRequestId}/yeniden-dogrula` | JWT + mal-kabul-islemleri.firma-mal-kabulleri.create | path: clientRequestId / string (uuid) (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: SafeWriteReviewResultDto<br>404: ProblemDetails<br>409: ProblemDetails |
 | GET | `/api/mal-kabul-islemleri/firma-mal-kabulleri/resmi-belge/ettn/{ettn}` | JWT + mal-kabul-islemleri.firma-mal-kabulleri.create | path: ettn / string (zorunlu)<br>query: warehouseNo / integer (int32)<br>query: documentKind / string | 401: ProblemDetails<br>403: ProblemDetails<br>200: InboundDespatchLookupResponse<br>400: ProblemDetails |
 | GET | `/api/mal-kabul-islemleri/firma-mal-kabulleri/{documentSerie}/{documentOrderNo}` | JWT + mal-kabul-islemleri.firma-mal-kabulleri.detail | path: documentSerie / string (zorunlu)<br>path: documentOrderNo / integer (int32) (zorunlu)<br>query: warehouseNo / integer (int32) | 401: ProblemDetails<br>403: ProblemDetails<br>200: CompanyMovementDetailDto<br>400: ProblemDetails<br>404: ProblemDetails |
 | PUT | `/api/mal-kabul-islemleri/firma-mal-kabulleri/{id}` | JWT + mal-kabul-islemleri.firma-mal-kabulleri.update | path: id / string (zorunlu)<br>body: request / ModuleActionRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>501: ModuleActionScaffoldResponse |
@@ -556,6 +561,7 @@ Ozel response'lar: `/` Hosting:ExposeDiagnosticsOnRoot=false iken yalniz service
 | POST | `/api/mal-kabul-islemleri/mal-kabuller/firma` | JWT + mal-kabul-islemleri.firma-mal-kabulleri.create | body: request / CreateCompanyReceivingHttpRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>201: CreateCompanyReceivingResponse<br>200: CreateCompanyReceivingResponse<br>400: ProblemDetails<br>404: ProblemDetails<br>409: ProblemDetails |
 | GET | `/api/mobile-sync/cari-katalogu` | JWT | query: Since / string (date-time)<br>query: Cursor / string<br>query: PageSize / integer (int32) | 401: ProblemDetails<br>200: MobileCustomerCatalogResponse<br>400: ProblemDetails |
 | GET | `/api/mobile-sync/depo-katalogu` | JWT | query: Since / string (date-time)<br>query: Cursor / string<br>query: PageSize / integer (int32) | 401: ProblemDetails<br>200: MobileWarehouseCatalogResponse<br>400: ProblemDetails |
+| POST | `/api/mobile-sync/guvenli-yazmalar/{clientRequestId}/yeniden-dogrula` | JWT | path: clientRequestId / string (uuid) (zorunlu)<br>body: request / RecheckMobileSafeWriteHttpRequest (zorunlu) | 401: ProblemDetails<br>200: SafeWriteReviewResultDto<br>400: ProblemDetails<br>404: ProblemDetails<br>409: ProblemDetails |
 | GET | `/api/mobile-sync/urun-fiyat-katalogu` | JWT + arama-islemleri.fiyat-gor.list | query: WarehouseNo / integer (int32)<br>query: Since / string (date-time)<br>query: Cursor / string<br>query: PageSize / integer (int32) | 401: ProblemDetails<br>200: MobileProductPriceCatalogResponse<br>400: ProblemDetails<br>403: ProblemDetails |
 | GET | `/api/operasyon-islemleri/belge-akis-takibi` | JWT + operasyon-islemleri.belge-akis-takibi.list | query: WarehouseNo / integer (int32)<br>query: StartDate / string (date-time)<br>query: EndDate / string (date-time)<br>query: DocumentType / FurpaMerkezApi.Domain.Entities.DocumentFlowType<br>query: Status / FurpaMerkezApi.Domain.Entities.DocumentFlowStatus<br>query: Search / string<br>query: Take / integer (int32) | 401: ProblemDetails<br>403: ProblemDetails<br>200: DocumentFlowListResponse<br>400: ProblemDetails |
 | GET | `/api/operasyon-islemleri/belge-akis-takibi/{id}` | JWT + operasyon-islemleri.belge-akis-takibi.detail | path: id / string (uuid) (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: DocumentFlowDetailDto<br>404: ProblemDetails |
@@ -1665,6 +1671,35 @@ Enum degerleri JSON sozlesmesinde bulunur.
 | `unclassifiedFailureCount` | integer (int32) | Hayir |  |
 | `windowHours` | integer (int32) | Hayir |  |
 
+### FurpaMerkezApi.Application.Modules.AyarIslemleri.VeritabaniIzleme.SafeWriteReviewAuditDto
+
+| JSON alani | Tip | Zorunlu | Sinirlar |
+|---|---|---|---|
+| `action` | string | Hayir | nullable |
+| `id` | string (uuid) | Hayir |  |
+| `message` | string | Hayir | nullable |
+| `outcome` | string | Hayir | nullable |
+| `previousErrorCode` | string | Hayir | nullable |
+| `previousStatus` | string | Hayir | nullable |
+| `reason` | string | Hayir | nullable |
+| `resultErrorCode` | string | Hayir | nullable |
+| `resultStatus` | string | Hayir | nullable |
+| `reviewedAtUtc` | string (date-time) | Hayir |  |
+| `reviewedByUserId` | string (uuid) | Hayir |  |
+| `safeWriteId` | string (uuid) | Hayir |  |
+
+### FurpaMerkezApi.Application.Modules.AyarIslemleri.VeritabaniIzleme.SafeWriteReviewResultDto
+
+| JSON alani | Tip | Zorunlu | Sinirlar |
+|---|---|---|---|
+| `action` | string | Hayir | nullable |
+| `message` | string | Hayir | nullable |
+| `outcome` | string | Hayir | nullable |
+| `recommendedAction` | string | Hayir | nullable |
+| `recoveryState` | string | Hayir | nullable |
+| `result` |  | Hayir | nullable |
+| `safeWrite` | FurpaMerkezApi.Application.Modules.AyarIslemleri.VeritabaniIzleme.SafeWriteMonitoringItemDto | Hayir |  |
+
 ### FurpaMerkezApi.Application.Modules.AyarIslemleri.VeritabaniIzleme.WorkerJobMonitoringDto
 
 | JSON alani | Tip | Zorunlu | Sinirlar |
@@ -1838,6 +1873,8 @@ Enum degerleri JSON sozlesmesinde bulunur.
 | `errorCode` | string | Hayir | nullable |
 | `errorMessage` | string | Hayir | nullable |
 | `operationCode` | string | Hayir | nullable |
+| `recommendedAction` | string | Hayir | nullable |
+| `recoveryState` | string | Hayir | nullable |
 | `result` | FurpaMerkezApi.Application.Modules.Common.CompanyMovements.CreateCompanyMovementResponse | Hayir |  |
 | `retryAfterSeconds` | integer (int32) | Hayir | nullable |
 | `retryable` | boolean | Hayir | nullable |
@@ -1853,6 +1890,8 @@ Enum degerleri JSON sozlesmesinde bulunur.
 | `errorCode` | string | Hayir | nullable |
 | `errorMessage` | string | Hayir | nullable |
 | `operationCode` | string | Hayir | nullable |
+| `recommendedAction` | string | Hayir | nullable |
+| `recoveryState` | string | Hayir | nullable |
 | `result` | FurpaMerkezApi.Application.Modules.GreenGrocer.Operations.GreenGrocerOperationsAdjustmentApplyResponse | Hayir |  |
 | `retryAfterSeconds` | integer (int32) | Hayir | nullable |
 | `retryable` | boolean | Hayir | nullable |
@@ -1868,6 +1907,8 @@ Enum degerleri JSON sozlesmesinde bulunur.
 | `errorCode` | string | Hayir | nullable |
 | `errorMessage` | string | Hayir | nullable |
 | `operationCode` | string | Hayir | nullable |
+| `recommendedAction` | string | Hayir | nullable |
+| `recoveryState` | string | Hayir | nullable |
 | `result` | FurpaMerkezApi.Application.Modules.IadeIslemleri.DepoIadeleri.Create.CreateWarehouseReturnResponse | Hayir |  |
 | `retryAfterSeconds` | integer (int32) | Hayir | nullable |
 | `retryable` | boolean | Hayir | nullable |
@@ -1883,6 +1924,8 @@ Enum degerleri JSON sozlesmesinde bulunur.
 | `errorCode` | string | Hayir | nullable |
 | `errorMessage` | string | Hayir | nullable |
 | `operationCode` | string | Hayir | nullable |
+| `recommendedAction` | string | Hayir | nullable |
+| `recoveryState` | string | Hayir | nullable |
 | `result` | FurpaMerkezApi.Application.Modules.MalKabulIslemleri.MalKabuller.CompanyReceiving.CreateCompanyReceivingResponse | Hayir |  |
 | `retryAfterSeconds` | integer (int32) | Hayir | nullable |
 | `retryable` | boolean | Hayir | nullable |
@@ -1898,6 +1941,8 @@ Enum degerleri JSON sozlesmesinde bulunur.
 | `errorCode` | string | Hayir | nullable |
 | `errorMessage` | string | Hayir | nullable |
 | `operationCode` | string | Hayir | nullable |
+| `recommendedAction` | string | Hayir | nullable |
+| `recoveryState` | string | Hayir | nullable |
 | `result` | FurpaMerkezApi.Application.Modules.SevkIslemleri.DepolarArasiSevkler.Create.CreateInterWarehouseShipmentResponse | Hayir |  |
 | `retryAfterSeconds` | integer (int32) | Hayir | nullable |
 | `retryable` | boolean | Hayir | nullable |
@@ -1913,6 +1958,8 @@ Enum degerleri JSON sozlesmesinde bulunur.
 | `errorCode` | string | Hayir | nullable |
 | `errorMessage` | string | Hayir | nullable |
 | `operationCode` | string | Hayir | nullable |
+| `recommendedAction` | string | Hayir | nullable |
+| `recoveryState` | string | Hayir | nullable |
 | `result` | FurpaMerkezApi.Application.Modules.SiparisIslemleri.VerilenDepoSiparisleri.Create.CreateIssuedWarehouseOrderResponse | Hayir |  |
 | `retryAfterSeconds` | integer (int32) | Hayir | nullable |
 | `retryable` | boolean | Hayir | nullable |
@@ -1928,6 +1975,8 @@ Enum degerleri JSON sozlesmesinde bulunur.
 | `errorCode` | string | Hayir | nullable |
 | `errorMessage` | string | Hayir | nullable |
 | `operationCode` | string | Hayir | nullable |
+| `recommendedAction` | string | Hayir | nullable |
+| `recoveryState` | string | Hayir | nullable |
 | `result` | FurpaMerkezApi.Application.Modules.SiparisIslemleri.VerilenFirmaSiparisleri.Create.CreateIssuedCompanyOrderResponse | Hayir |  |
 | `retryAfterSeconds` | integer (int32) | Hayir | nullable |
 | `retryable` | boolean | Hayir | nullable |
@@ -1943,6 +1992,8 @@ Enum degerleri JSON sozlesmesinde bulunur.
 | `errorCode` | string | Hayir | nullable |
 | `errorMessage` | string | Hayir | nullable |
 | `operationCode` | string | Hayir | nullable |
+| `recommendedAction` | string | Hayir | nullable |
+| `recoveryState` | string | Hayir | nullable |
 | `result` | FurpaMerkezApi.Application.Modules.StokIslemleri.Common.CreateStockReceiptResponse | Hayir |  |
 | `retryAfterSeconds` | integer (int32) | Hayir | nullable |
 | `retryable` | boolean | Hayir | nullable |
@@ -1958,6 +2009,8 @@ Enum degerleri JSON sozlesmesinde bulunur.
 | `errorCode` | string | Hayir | nullable |
 | `errorMessage` | string | Hayir | nullable |
 | `operationCode` | string | Hayir | nullable |
+| `recommendedAction` | string | Hayir | nullable |
+| `recoveryState` | string | Hayir | nullable |
 | `result` | FurpaMerkezApi.Application.Modules.StokIslemleri.SayimSonuclari.CreateInventoryCountResponse | Hayir |  |
 | `retryAfterSeconds` | integer (int32) | Hayir | nullable |
 | `retryable` | boolean | Hayir | nullable |
@@ -1973,6 +2026,8 @@ Enum degerleri JSON sozlesmesinde bulunur.
 | `errorCode` | string | Hayir | nullable |
 | `errorMessage` | string | Hayir | nullable |
 | `operationCode` | string | Hayir | nullable |
+| `recommendedAction` | string | Hayir | nullable |
+| `recoveryState` | string | Hayir | nullable |
 | `result` | FurpaMerkezApi.Application.Modules.StokIslemleri.Virmanlar.CreateVirmanResponse | Hayir |  |
 | `retryAfterSeconds` | integer (int32) | Hayir | nullable |
 | `retryable` | boolean | Hayir | nullable |
@@ -8888,6 +8943,12 @@ Enum degerleri JSON sozlesmesinde bulunur.
 | `poskonFolderPath` | string | Evet | minLength=0; maxLength=255 |
 | `scalesType` | integer (int32) | Evet | min=0; max=1 |
 
+### FurpaMerkezApi.WebApi.Controllers.Modules.AyarIslemleri.VeritabaniIzleme.SafeWriteReviewHttpRequest
+
+| JSON alani | Tip | Zorunlu | Sinirlar |
+|---|---|---|---|
+| `reason` | string | Evet | minLength=10; maxLength=500 |
+
 ### FurpaMerkezApi.WebApi.Controllers.Modules.AyarIslemleri.VeritabaniIzleme.TerminateDatabaseSessionHttpRequest
 
 | JSON alani | Tip | Zorunlu | Sinirlar |
@@ -10828,6 +10889,12 @@ Enum degerleri JSON sozlesmesinde bulunur.
 | `code` | string | Evet | minLength=0; maxLength=100 |
 | `description` | string | Hayir | minLength=0; maxLength=250; nullable |
 | `name` | string | Evet | minLength=0; maxLength=100 |
+
+### FurpaMerkezApi.WebApi.Controllers.RecheckMobileSafeWriteHttpRequest
+
+| JSON alani | Tip | Zorunlu | Sinirlar |
+|---|---|---|---|
+| `operationCode` | string | Evet | minLength=1; maxLength=150 |
 
 ### FurpaMerkezApi.WebApi.Controllers.RolesController.AssignPermissionsBody
 

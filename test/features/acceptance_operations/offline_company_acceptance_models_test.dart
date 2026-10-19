@@ -37,6 +37,56 @@ void main() {
       isTrue,
     );
   });
+
+  test('persists safe sync metadata and related request identity', () {
+    final retryAt = DateTime(2026, 10, 16, 12, 30);
+    final original = _draft(_request(serie: 'ERS', orderNo: 5530)).copyWith(
+      hasBeenSubmitted: true,
+      operationCode: 'company-acceptance-create',
+      errorCode: 'MIKRO_WRITE_QUEUE_BUSY',
+      retryable: true,
+      retryAfterSeconds: 10,
+      retryNotBefore: retryAt,
+      correlationId: 'support-1',
+      relatedClientRequestId: 'original-request-id',
+      lastCheckedAt: retryAt,
+      statusCheckCount: 2,
+    );
+
+    final restored = OfflineCompanyAcceptanceDraft.fromJson(original.toJson());
+
+    expect(restored.hasBeenSubmitted, isTrue);
+    expect(restored.errorCode, 'MIKRO_WRITE_QUEUE_BUSY');
+    expect(restored.retryable, isTrue);
+    expect(restored.retryAfterSeconds, 10);
+    expect(restored.retryNotBefore, retryAt);
+    expect(restored.correlationId, 'support-1');
+    expect(restored.effectiveClientRequestId, 'original-request-id');
+    expect(restored.toCreateRequest().clientRequestId, 'original-request-id');
+    expect(restored.statusCheckCount, 2);
+  });
+
+  test('treats an attempted legacy draft as already submitted', () {
+    final legacyJson = _draft(_request(serie: 'ERS', orderNo: 5530)).toJson()
+      ..remove('hasBeenSubmitted')
+      ..['status'] = 'failed'
+      ..['lastSyncAttemptAt'] = '2026-10-16T10:45:35.000';
+
+    final restored = OfflineCompanyAcceptanceDraft.fromJson(legacyJson);
+
+    expect(restored.hasBeenSubmitted, isTrue);
+  });
+
+  test('keeps an untouched legacy offline draft unsubmitted', () {
+    final legacyJson = _draft(_request(serie: 'ERS', orderNo: 5530)).toJson()
+      ..remove('hasBeenSubmitted')
+      ..['status'] = 'pending'
+      ..['lastSyncAttemptAt'] = null;
+
+    final restored = OfflineCompanyAcceptanceDraft.fromJson(legacyJson);
+
+    expect(restored.hasBeenSubmitted, isFalse);
+  });
 }
 
 OfflineCompanyAcceptanceDraft _draft(CompanyAcceptanceCreateRequest request) {

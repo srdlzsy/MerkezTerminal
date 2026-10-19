@@ -345,6 +345,34 @@ class _CompanyAcceptancesPageState extends State<CompanyAcceptancesPage> {
               ),
             ),
           );
+        case OfflineSubmissionStatus.needsReview:
+          if (draft != null) {
+            await widget.draftRepository?.deleteDraft(draft.id);
+          }
+          messenger.showSnackBar(
+            SnackBar(
+              duration: const Duration(seconds: 12),
+              content: const Text(
+                'Bu mal kabul tekrar gonderilmemeli. Kayit cihazda korundu; '
+                'yetkili incelemesi gerekiyor.',
+              ),
+              action: SnackBarAction(
+                label: 'Taslaklar',
+                onPressed: () => unawaited(_openOfflineDraftsPage()),
+              ),
+            ),
+          );
+        case OfflineSubmissionStatus.cancelled:
+          if (draft != null) {
+            await widget.draftRepository?.deleteDraft(draft.id);
+          }
+          messenger.showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Bu mal kabul yetkili tarafindan iptal edildi. Mikro evraki olusturulmadi.',
+              ),
+            ),
+          );
       }
     } catch (error) {
       if (!mounted) {

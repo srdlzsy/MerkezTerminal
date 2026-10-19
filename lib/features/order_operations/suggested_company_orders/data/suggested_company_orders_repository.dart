@@ -1,6 +1,7 @@
 import 'package:furpa_merkez_terminal/core/network/api_client.dart';
 import 'package:furpa_merkez_terminal/features/order_operations/given_company_orders/data/models/given_company_order_models.dart';
 import 'package:furpa_merkez_terminal/features/order_operations/suggested_company_orders/data/models/suggested_company_order_models.dart';
+import 'package:furpa_merkez_terminal/shared/offline/mobile_safe_write_recheck.dart';
 import 'package:furpa_merkez_terminal/shared/offline/offline_sync_status.dart';
 
 abstract class SuggestedCompanyOrdersRepository {
@@ -23,7 +24,8 @@ abstract class SuggestedCompanyOrdersRepository {
 class ApiSuggestedCompanyOrdersRepository
     implements
         SuggestedCompanyOrdersRepository,
-        OfflineSyncStatusProvider<CompanyOrderCreateResult> {
+        OfflineSyncStatusProvider<CompanyOrderCreateResult>,
+        OfflineSyncRecheckProvider<CompanyOrderCreateResult> {
   const ApiSuggestedCompanyOrdersRepository({required ApiClient apiClient})
     : _apiClient = apiClient;
 
@@ -75,6 +77,21 @@ class ApiSuggestedCompanyOrdersRepository
     );
     return OfflineSyncStatus<CompanyOrderCreateResult>.fromJson(
       response,
+      resultParser: CompanyOrderCreateResult.fromJson,
+    );
+  }
+
+  @override
+  Future<OfflineSyncStatus<CompanyOrderCreateResult>> recheckOfflineSyncStatus({
+    required String accessToken,
+    required String clientRequestId,
+    required String operationCode,
+  }) {
+    return recheckMobileSafeWrite(
+      apiClient: _apiClient,
+      accessToken: accessToken,
+      clientRequestId: clientRequestId,
+      operationCode: operationCode,
       resultParser: CompanyOrderCreateResult.fromJson,
     );
   }

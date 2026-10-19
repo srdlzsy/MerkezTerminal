@@ -5,6 +5,8 @@ import 'package:furpa_merkez_terminal/features/order_operations/given_company_or
 import 'package:furpa_merkez_terminal/shared/data/barcode_resolution_models.dart';
 import 'package:furpa_merkez_terminal/shared/data/barcode_resolution_repository.dart';
 import 'package:furpa_merkez_terminal/shared/data/search_lookup_models.dart';
+import 'package:furpa_merkez_terminal/shared/offline/mobile_safe_write_recheck.dart';
+import 'package:furpa_merkez_terminal/shared/offline/offline_sync_status.dart';
 
 abstract class CompanyAcceptancesRepository {
   Future<List<CompanyMovementListItem>> fetchAcceptances({
@@ -54,7 +56,10 @@ abstract class CompanyAcceptancesRepository {
   });
 }
 
-class ApiCompanyAcceptancesRepository implements CompanyAcceptancesRepository {
+class ApiCompanyAcceptancesRepository
+    implements
+        CompanyAcceptancesRepository,
+        OfflineSyncRecheckProvider<CompanyAcceptanceCreateResult> {
   const ApiCompanyAcceptancesRepository({required ApiClient apiClient})
     : _apiClient = apiClient;
 
@@ -126,6 +131,22 @@ class ApiCompanyAcceptancesRepository implements CompanyAcceptancesRepository {
     );
 
     return CompanyAcceptanceOfflineSyncStatus.fromJson(response);
+  }
+
+  @override
+  Future<OfflineSyncStatus<CompanyAcceptanceCreateResult>>
+  recheckOfflineSyncStatus({
+    required String accessToken,
+    required String clientRequestId,
+    required String operationCode,
+  }) {
+    return recheckMobileSafeWrite(
+      apiClient: _apiClient,
+      accessToken: accessToken,
+      clientRequestId: clientRequestId,
+      operationCode: operationCode,
+      resultParser: CompanyAcceptanceCreateResult.fromJson,
+    );
   }
 
   @override

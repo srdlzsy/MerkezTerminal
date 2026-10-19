@@ -182,9 +182,16 @@ class _WarehouseOrdersPageState extends State<WarehouseOrdersPage> {
         _pendingRetryNotBefore = pending.retryNotBefore;
       });
       if (autoRecover &&
-          canRetrySafeCreate(failureKind) &&
           safeCreateRetryWait(pending.retryNotBefore) == Duration.zero) {
-        await _submitCreateRequest(request, pending.draft);
+        if (canRetrySafeCreate(failureKind)) {
+          await _submitCreateRequest(request, pending.draft);
+        } else if (shouldCheckSafeCreateStatus(failureKind)) {
+          await _submitCreateRequest(
+            request,
+            pending.draft,
+            statusCheckOnly: true,
+          );
+        }
       }
     } on Object {
       if (mounted) {
@@ -244,6 +251,16 @@ class _WarehouseOrdersPageState extends State<WarehouseOrdersPage> {
       return;
     }
     await _submitCreateRequest(request, _pendingCreateDraft);
+  }
+
+  Future<void> _checkPendingCreateStatus() async {
+    final request = _pendingCreateRequest;
+    if (request == null) return;
+    await _submitCreateRequest(
+      request,
+      _pendingCreateDraft,
+      statusCheckOnly: true,
+    );
   }
 
   Future<void> _openCreateSheet() async {
@@ -310,8 +327,9 @@ class _WarehouseOrdersPageState extends State<WarehouseOrdersPage> {
 
   Future<void> _submitCreateRequest(
     WarehouseOrderCreateRequest request,
-    CreateDraft? draft,
-  ) async {
+    CreateDraft? draft, {
+    bool statusCheckOnly = false,
+  }) async {
     if (_controller.isCreating) return;
 
     if (_usesSafeCreate) {
@@ -333,12 +351,16 @@ class _WarehouseOrdersPageState extends State<WarehouseOrdersPage> {
       setState(() {
         _pendingCreateRequest = request;
         _pendingCreateDraft = draft;
-        _pendingCreateFailureKind = SafeCreateFailureKind.notRetryable;
-        _pendingRetryNotBefore = null;
+        if (!statusCheckOnly) {
+          _pendingCreateFailureKind = SafeCreateFailureKind.notRetryable;
+          _pendingRetryNotBefore = null;
+        }
       });
     }
 
-    var result = await _controller.createOrder(request);
+    var result = statusCheckOnly
+        ? null
+        : await _controller.createOrder(request);
     var recoveredFromStatus = false;
 
     if (!mounted) {
@@ -349,21 +371,34 @@ class _WarehouseOrdersPageState extends State<WarehouseOrdersPage> {
     messenger.hideCurrentSnackBar();
 
     if (result == null && _usesSafeCreate) {
-      var failureKind = _controller.createFailureKind;
+      var failureKind = statusCheckOnly
+          ? _pendingCreateFailureKind
+          : _controller.createFailureKind;
       var failureMessage = _controller.createError ?? 'Siparis olusturulamadi.';
       DateTime? retryNotBefore;
       final statusProvider =
           widget.repository
               as OfflineSyncStatusProvider<WarehouseOrderCreateResult>;
-      if (canRetrySafeCreate(failureKind)) {
+      if (statusCheckOnly ||
+          shouldCheckSafeCreateStatus(failureKind) ||
+          canRetrySafeCreate(failureKind)) {
         try {
-          final status = await statusProvider.fetchOfflineSyncStatus(
+          final provider = widget.repository;
+          final recheckProvider =
+              provider is OfflineSyncRecheckProvider<WarehouseOrderCreateResult>
+              ? provider
+                    as OfflineSyncRecheckProvider<WarehouseOrderCreateResult>
+              : null;
+          final status = await resolveSafeCreateStatus(
+            statusProvider: statusProvider,
+            recheckProvider: recheckProvider,
             accessToken: widget.accessToken,
             clientRequestId:
                 _controller.createRelatedClientRequestId?.trim().isNotEmpty ==
                     true
                 ? _controller.createRelatedClientRequestId!.trim()
                 : request.clientRequestId ?? '',
+            currentKind: failureKind,
           );
           if (status.isCompleted && status.result != null) {
             result = status.result;
@@ -416,10 +451,21 @@ class _WarehouseOrdersPageState extends State<WarehouseOrdersPage> {
         messenger.showSnackBar(
           SnackBar(
             content: Text(failureMessage),
-            action: canRetrySafeCreate(failureKind)
+            action:
+                canRetrySafeCreate(failureKind) ||
+                    shouldCheckSafeCreateStatus(failureKind) ||
+                    shouldRecheckSafeCreate(failureKind)
                 ? SnackBarAction(
-                    label: 'Tekrar Dene',
-                    onPressed: () => unawaited(_retryPendingCreate()),
+                    label: canRetrySafeCreate(failureKind)
+                        ? 'Tekrar Dene'
+                        : shouldRecheckSafeCreate(failureKind)
+                        ? 'Dogrula'
+                        : 'Kontrol Et',
+                    onPressed: () => unawaited(
+                      canRetrySafeCreate(failureKind)
+                          ? _retryPendingCreate()
+                          : _checkPendingCreateStatus(),
+                    ),
                   )
                 : null,
           ),
@@ -613,6 +659,9 @@ class _WarehouseOrdersPageState extends State<WarehouseOrdersPage> {
                 ? _openCreateSheet
                 : canRetrySafeCreate(_pendingCreateFailureKind)
                 ? _retryPendingCreate
+                : shouldCheckSafeCreateStatus(_pendingCreateFailureKind) ||
+                      shouldRecheckSafeCreate(_pendingCreateFailureKind)
+                ? _checkPendingCreateStatus
                 : null,
             icon: _controller.isCreating || _isRestoringPendingCreate
                 ? const SizedBox(
