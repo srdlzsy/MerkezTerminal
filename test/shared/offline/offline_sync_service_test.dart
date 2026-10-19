@@ -435,6 +435,41 @@ void main() {
   });
 
   test(
+    'submitCompanyAcceptance removes snapshot for document identity conflicts',
+    () async {
+      companyAcceptanceRepository.createError = const ApiException(
+        statusCode: 409,
+        title: 'Conflict',
+        detail: 'Seri ve sira numarasi zaten kullaniliyor.',
+        errorCode: 'MIKRO_DOCUMENT_IDENTITY_CONFLICT',
+        retryable: false,
+        recommendedAction: 'EditAndRetry',
+      );
+
+      await expectLater(
+        service.submitCompanyAcceptance(
+          accessToken: 'token',
+          userId: 'user-1',
+          warehouseNo: '110',
+          request: _buildCompanyAcceptanceRequest(
+            clientRequestId: 'acceptance-identity-conflict',
+          ),
+        ),
+        throwsA(
+          isA<ApiException>().having(
+            (error) => error.errorCode,
+            'errorCode',
+            'MIKRO_DOCUMENT_IDENTITY_CONFLICT',
+          ),
+        ),
+      );
+
+      expect(companyAcceptanceRepository.fetchOfflineSyncStatusCallCount, 0);
+      expect(offlineCompanyAcceptanceRepository.savedDrafts, isEmpty);
+    },
+  );
+
+  test(
     'submitCompanyAcceptance does not queue non-network status zero errors',
     () async {
       companyAcceptanceRepository.createError = const ApiException(

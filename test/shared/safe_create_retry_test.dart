@@ -71,6 +71,41 @@ void main() {
     expect(safeCreateRetryErrorMessage(conflict), contains('yazimi baslamadi'));
   });
 
+  test('document identity conflicts stay out of the pending queue', () {
+    const conflict = ApiException(
+      statusCode: 409,
+      title: 'Conflict',
+      errorCode: 'MIKRO_DOCUMENT_IDENTITY_CONFLICT',
+      retryable: false,
+      recommendedAction: 'EditAndRetry',
+    );
+
+    final kind = classifySafeCreateException(conflict);
+
+    expect(kind, SafeCreateFailureKind.documentIdentityConflict);
+    expect(shouldKeepSafeCreatePending(kind), isFalse);
+    expect(canRetrySafeCreate(kind), isFalse);
+    expect(safeCreatePendingActionLabel(kind), 'Seri / Sirayi Duzelt');
+    expect(
+      safeCreateRetryErrorMessage(conflict),
+      contains('Offline listesine'),
+    );
+  });
+
+  test('existing official documents stay out of the pending queue', () {
+    final kind = classifySafeCreateFailure(
+      statusCode: 409,
+      errorCode: 'MIKRO_OFFICIAL_DOCUMENT_ALREADY_RECEIVED',
+      retryable: false,
+      recommendedAction: 'RefreshList',
+    );
+
+    expect(kind, SafeCreateFailureKind.officialDocumentAlreadyReceived);
+    expect(shouldKeepSafeCreatePending(kind), isFalse);
+    expect(canRetrySafeCreate(kind), isFalse);
+    expect(safeCreatePendingActionLabel(kind), 'Listeyi Yenile');
+  });
+
   test('manual review is preserved and blocks all create actions', () {
     const conflict = ApiException(
       statusCode: 409,

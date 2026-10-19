@@ -179,6 +179,10 @@ String _failureMessage(SafeCreateFailureKind kind) {
       'Kayit sonucu kontrol ediliyor. Bekleme sonunda durumu yeniden kontrol edin.',
     SafeCreateFailureKind.retrySameRequest =>
       'Belgenin olusmadigi dogrulandi. Saklanan ayni kayit guvenle yeniden gonderilebilir.',
+    SafeCreateFailureKind.documentIdentityConflict =>
+      'Bu seri ve sira Mikro tarafinda kullaniliyor. Formdaki seri veya sirayi duzeltip yeniden kaydedin.',
+    SafeCreateFailureKind.officialDocumentAlreadyReceived =>
+      'Bu resmi belge daha once teslim alinmis. Ikinci evrak olusturmayin; listeyi yenileyin.',
     SafeCreateFailureKind.recheckExisting =>
       'Mikro kaydini salt-okuma olarak yeniden dogrulayin; yeni evrak gondermeyin.',
     SafeCreateFailureKind.payloadChanged =>

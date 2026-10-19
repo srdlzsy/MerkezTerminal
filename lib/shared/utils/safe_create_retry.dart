@@ -10,6 +10,8 @@ enum SafeCreateFailureKind {
   uncertain,
   processing,
   queueBusy,
+  documentIdentityConflict,
+  officialDocumentAlreadyReceived,
   payloadChanged,
   multipleDocuments,
   manualReview,
@@ -34,6 +36,10 @@ SafeCreateFailureKind classifySafeCreateFailure({
       return SafeCreateFailureKind.waitAndCheck;
     case 'retrysamerequest':
       return SafeCreateFailureKind.retrySameRequest;
+    case 'editandretry':
+      return SafeCreateFailureKind.documentIdentityConflict;
+    case 'refreshlist':
+      return SafeCreateFailureKind.officialDocumentAlreadyReceived;
     case 'recheckexisting':
       return SafeCreateFailureKind.recheckExisting;
     case 'restoreoriginalrequest':
@@ -57,6 +63,10 @@ SafeCreateFailureKind classifySafeCreateFailure({
       return SafeCreateFailureKind.retrySameRequest;
     case 'MIKRO_DOCUMENT_CONTENT_MISMATCH':
       return SafeCreateFailureKind.manualReview;
+    case 'MIKRO_DOCUMENT_IDENTITY_CONFLICT':
+      return SafeCreateFailureKind.documentIdentityConflict;
+    case 'MIKRO_OFFICIAL_DOCUMENT_ALREADY_RECEIVED':
+      return SafeCreateFailureKind.officialDocumentAlreadyReceived;
     case 'CLIENT_REQUEST_PAYLOAD_MISMATCH':
       return SafeCreateFailureKind.payloadChanged;
     case 'SAFE_WRITE_CANCELLED':
@@ -225,6 +235,8 @@ String safeCreateRetryWaitMessage(Duration wait) {
 
 bool shouldKeepSafeCreatePending(SafeCreateFailureKind kind) {
   return kind != SafeCreateFailureKind.notRetryable &&
+      kind != SafeCreateFailureKind.documentIdentityConflict &&
+      kind != SafeCreateFailureKind.officialDocumentAlreadyReceived &&
       kind != SafeCreateFailureKind.cancelled;
 }
 
@@ -235,6 +247,8 @@ bool canStartNewSafeCreate(SafeCreateFailureKind kind) {
 String safeCreatePendingActionLabel(SafeCreateFailureKind kind) {
   return switch (kind) {
     SafeCreateFailureKind.payloadChanged => 'Yeni Bagimsiz Islem',
+    SafeCreateFailureKind.documentIdentityConflict => 'Seri / Sirayi Duzelt',
+    SafeCreateFailureKind.officialDocumentAlreadyReceived => 'Listeyi Yenile',
     SafeCreateFailureKind.recheckExisting => 'Mikro Kaydini Dogrula',
     SafeCreateFailureKind.manualReview ||
     SafeCreateFailureKind.multipleDocuments ||
@@ -279,6 +293,14 @@ String safeCreateRetryErrorMessage(ApiException error) {
     SafeCreateFailureKind.payloadChanged =>
       'Bu kayit denemesinin icerigi degismis. Devam etmek icin acikca '
           'Yeni Islem olarak kaydedin.',
+    SafeCreateFailureKind.documentIdentityConflict =>
+      'Bu seri ve sira numarasi Mikro\'da zaten kullaniliyor. Yeni evrak '
+          'yazimi baslamadi ve kayit Offline listesine alinmadi. Seri veya '
+          'sira numarasini degistirip yeniden kaydedin.',
+    SafeCreateFailureKind.officialDocumentAlreadyReceived =>
+      'Bu cari ve resmi belge numarasiyla mal kabul zaten kaydedilmis. '
+          'Ikinci evrak olusturulmadi ve kayit Offline listesine alinmadi. '
+          'Listeyi yenileyip mevcut evraki kontrol edin.',
     SafeCreateFailureKind.multipleDocuments =>
       'Ayni kayit iziyle birden fazla Mikro evraki bulundu. Tekrar '
               'kaydetmeyin ve e-irsaliye gondermeyin. ${error.detail ?? ''}'

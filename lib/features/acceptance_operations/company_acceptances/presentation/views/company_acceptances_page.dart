@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:furpa_merkez_terminal/core/network/api_exception.dart';
 import 'package:furpa_merkez_terminal/core/utils/default_filter_dates.dart';
 import 'package:furpa_merkez_terminal/features/acceptance_operations/company_acceptances/data/company_acceptances_repository.dart';
 import 'package:furpa_merkez_terminal/features/acceptance_operations/company_acceptances/data/models/company_acceptance_models.dart';
@@ -19,6 +20,7 @@ import 'package:furpa_merkez_terminal/shared/formatters/app_formatters.dart';
 import 'package:furpa_merkez_terminal/shared/offline/mobile_customer_catalog_repository.dart';
 import 'package:furpa_merkez_terminal/shared/offline/mobile_product_catalog_repository.dart';
 import 'package:furpa_merkez_terminal/shared/offline/offline_sync_service.dart';
+import 'package:furpa_merkez_terminal/shared/utils/safe_create_retry.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/section_card.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/terminal_create_page.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/terminal_ui_parts.dart';
@@ -183,13 +185,16 @@ class _CompanyAcceptancesPageState extends State<CompanyAcceptancesPage> {
     }
   }
 
-  Future<void> _openCreateSheet() async {
+  Future<void> _openCreateSheet({
+    CreateDraft? resumeDraft,
+    String? initialMessage,
+  }) async {
     if (_isSubmittingCreate) {
       return;
     }
 
-    CreateDraft? draft;
-    if (widget.draftRepository != null) {
+    CreateDraft? draft = resumeDraft;
+    if (draft == null && widget.draftRepository != null) {
       final launch = await showCreateDraftPicker(
         context: context,
         repository: widget.draftRepository!,
@@ -227,6 +232,7 @@ class _CompanyAcceptancesPageState extends State<CompanyAcceptancesPage> {
                   widget.mobileProductCatalogRepository,
               draft: draft,
               draftRepository: widget.draftRepository,
+              initialMessage: initialMessage,
             );
           },
         );
@@ -374,6 +380,54 @@ class _CompanyAcceptancesPageState extends State<CompanyAcceptancesPage> {
             ),
           );
       }
+    } on ApiException catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      final failureKind = classifySafeCreateException(error);
+      if (failureKind == SafeCreateFailureKind.documentIdentityConflict) {
+        final editableDraft = await _loadLatestCreateDraft(draft);
+        if (!mounted) {
+          return;
+        }
+        final message = safeCreateRetryErrorMessage(error);
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Seri / sira kullaniliyor. Bilgileriniz korundu; form yeniden aciliyor.',
+              ),
+            ),
+          );
+        if (editableDraft != null) {
+          scheduleMicrotask(
+            () => unawaited(
+              _openCreateSheet(
+                resumeDraft: editableDraft,
+                initialMessage: message,
+              ),
+            ),
+          );
+        }
+        return;
+      }
+
+      if (failureKind ==
+          SafeCreateFailureKind.officialDocumentAlreadyReceived) {
+        unawaited(_controller.loadAcceptances());
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(
+            SnackBar(content: Text(safeCreateRetryErrorMessage(error))),
+          );
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(safeCreateRetryErrorMessage(error))),
+      );
     } catch (error) {
       if (!mounted) {
         return;
@@ -391,6 +445,29 @@ class _CompanyAcceptancesPageState extends State<CompanyAcceptancesPage> {
         });
       }
     }
+  }
+
+  Future<CreateDraft?> _loadLatestCreateDraft(CreateDraft? draft) async {
+    if (draft == null) {
+      return null;
+    }
+
+    final repository = widget.draftRepository;
+    if (repository == null) {
+      return draft;
+    }
+
+    final drafts = await repository.fetchDrafts(
+      moduleKey: draft.moduleKey,
+      userId: draft.userId,
+      warehouseNo: draft.warehouseNo,
+    );
+    for (final candidate in drafts) {
+      if (candidate.id == draft.id) {
+        return candidate;
+      }
+    }
+    return draft;
   }
 
   Future<OfflineCompanyAcceptanceDraft?> _findPendingDuplicate(

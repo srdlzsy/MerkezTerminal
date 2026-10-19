@@ -44,6 +44,7 @@ class CompanyAcceptanceCreateSheet extends StatefulWidget {
     required this.mobileProductCatalogRepository,
     this.draft,
     this.draftRepository,
+    this.initialMessage,
   });
 
   final CompanyAcceptancesRepository repository;
@@ -54,6 +55,7 @@ class CompanyAcceptanceCreateSheet extends StatefulWidget {
   final MobileProductCatalogLocalRepository mobileProductCatalogRepository;
   final CreateDraft? draft;
   final CreateDraftRepository? draftRepository;
+  final String? initialMessage;
 
   @override
   State<CompanyAcceptanceCreateSheet> createState() =>
@@ -87,6 +89,7 @@ class _CompanyAcceptanceCreateSheetState
   @override
   void initState() {
     super.initState();
+    _lookupError = widget.initialMessage;
     final payload = widget.draft?.payload ?? const <String, dynamic>{};
     _customerController = TextEditingController(
       text: payload['customerText']?.toString() ?? '',
@@ -136,7 +139,9 @@ class _CompanyAcceptanceCreateSheetState
               payload['autoCreateReturnForPartialAcceptance']?.toString() ==
                   'true'
         : true;
-    _step = payload['activeStep']?.toString() == 'lines'
+    _step =
+        widget.initialMessage == null &&
+            payload['activeStep']?.toString() == 'lines'
         ? _CompanyAcceptanceCreateStep.lines
         : _CompanyAcceptanceCreateStep.document;
     _draftSession = CreateDraftSession(

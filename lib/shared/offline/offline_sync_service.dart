@@ -197,6 +197,15 @@ class OfflineSyncService {
         onlineResult: result,
       );
     } on ApiException catch (error) {
+      final initialFailureKind = classifySafeCreateException(error);
+      if (initialFailureKind ==
+              SafeCreateFailureKind.documentIdentityConflict ||
+          initialFailureKind ==
+              SafeCreateFailureKind.officialDocumentAlreadyReceived) {
+        await _offlineCompanyAcceptanceRepository.deleteDraft(snapshot.id);
+        rethrow;
+      }
+
       if (_shouldTryCreateRecovery(error)) {
         final recovery = await _recoverCompanyAcceptanceRequest(
           accessToken: accessToken,
@@ -269,7 +278,7 @@ class OfflineSyncService {
         }
       }
 
-      final failureKind = classifySafeCreateException(error);
+      final failureKind = initialFailureKind;
       final shouldPreserve =
           _shouldQueueAfterCreate(error) ||
           error.statusCode == 401 ||
