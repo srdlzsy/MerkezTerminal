@@ -146,6 +146,7 @@ class _InventoryCountsPageState extends State<InventoryCountsPage> {
           );
     }
 
+    var submittedInline = false;
     final request = await openTerminalCreatePage<InventoryCountCreateRequest>(
       context: context,
       title: 'Yeni Sayim',
@@ -159,11 +160,24 @@ class _InventoryCountsPageState extends State<InventoryCountsPage> {
           draftRepository: widget.draftRepository,
         );
       },
+      onSubmit: (request) async {
+        submittedInline = true;
+        return _submitInventoryCount(request, draft);
+      },
     );
 
-    if (request == null || !mounted) {
+    if (request == null || !mounted || submittedInline) {
       return;
     }
+
+    await _submitInventoryCount(request, draft);
+  }
+
+  Future<bool> _submitInventoryCount(
+    InventoryCountCreateRequest request,
+    CreateDraft? draft,
+  ) async {
+    if (_isSubmittingCreate) return false;
 
     setState(() {
       _isSubmittingCreate = true;
@@ -178,7 +192,7 @@ class _InventoryCountsPageState extends State<InventoryCountsPage> {
       );
 
       if (!mounted) {
-        return;
+        return false;
       }
 
       final messenger = ScaffoldMessenger.of(context);
@@ -196,7 +210,7 @@ class _InventoryCountsPageState extends State<InventoryCountsPage> {
             preferredDocumentDate: result?.documentDate,
           );
           if (!mounted) {
-            return;
+            return false;
           }
           if (result == null) {
             messenger.showSnackBar(
@@ -204,7 +218,7 @@ class _InventoryCountsPageState extends State<InventoryCountsPage> {
                 content: Text('Kayit sunucuda islenmis olarak bulundu.'),
               ),
             );
-            return;
+            return true;
           }
           messenger.showSnackBar(
             SnackBar(
@@ -214,6 +228,7 @@ class _InventoryCountsPageState extends State<InventoryCountsPage> {
               ),
             ),
           );
+          return true;
         case OfflineSubmissionStatus.queued:
           if (draft != null) {
             await widget.draftRepository?.deleteDraft(draft.id);
@@ -225,6 +240,7 @@ class _InventoryCountsPageState extends State<InventoryCountsPage> {
               ),
             ),
           );
+          return true;
         case OfflineSubmissionStatus.processing:
           if (draft != null) {
             await widget.draftRepository?.deleteDraft(draft.id);
@@ -236,6 +252,7 @@ class _InventoryCountsPageState extends State<InventoryCountsPage> {
               ),
             ),
           );
+          return false;
         case OfflineSubmissionStatus.retryAllowed:
           messenger.showSnackBar(
             const SnackBar(
@@ -245,6 +262,7 @@ class _InventoryCountsPageState extends State<InventoryCountsPage> {
               ),
             ),
           );
+          return false;
         case OfflineSubmissionStatus.needsReview:
           messenger.showSnackBar(
             const SnackBar(
@@ -253,6 +271,7 @@ class _InventoryCountsPageState extends State<InventoryCountsPage> {
               ),
             ),
           );
+          return false;
         case OfflineSubmissionStatus.cancelled:
           if (draft != null) {
             await widget.draftRepository?.deleteDraft(draft.id);
@@ -264,10 +283,11 @@ class _InventoryCountsPageState extends State<InventoryCountsPage> {
               ),
             ),
           );
+          return true;
       }
     } catch (error) {
       if (!mounted) {
-        return;
+        return false;
       }
 
       ScaffoldMessenger.of(context).showSnackBar(
@@ -275,6 +295,7 @@ class _InventoryCountsPageState extends State<InventoryCountsPage> {
           content: Text(error.toString().replaceFirst('Exception: ', '')),
         ),
       );
+      return false;
     } finally {
       if (mounted) {
         setState(() {

@@ -21,6 +21,7 @@ import 'package:furpa_merkez_terminal/shared/utils/create_form_validation.dart';
 import 'package:furpa_merkez_terminal/shared/utils/terminal_feedback.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/barcode_camera_scan_page.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/section_card.dart';
+import 'package:furpa_merkez_terminal/shared/widgets/terminal_create_page.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/terminal_ui_parts.dart';
 
 enum _ShipmentCreateMode { manual, orderLinked }
@@ -1596,7 +1597,7 @@ class _OutgoingWarehouseShipmentCreateSheetState
     if (!mounted) {
       return;
     }
-    Navigator.of(context).pop(request);
+    await TerminalCreateSubmitScope.submit(context, request);
   }
 
   List<WarehouseShipmentCreateLine>? _buildManualRequestLines() {

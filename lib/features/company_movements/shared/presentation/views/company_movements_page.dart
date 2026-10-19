@@ -348,6 +348,7 @@ class _CompanyMovementsPageState extends State<CompanyMovementsPage> {
           );
     }
 
+    var submittedInline = false;
     final request = await openTerminalCreatePage<CompanyMovementCreateRequest>(
       context: context,
       title: widget.createTitle,
@@ -370,9 +371,16 @@ class _CompanyMovementsPageState extends State<CompanyMovementsPage> {
           draftRepository: draftRepository,
         );
       },
+      onSubmit: (request) async {
+        submittedInline = true;
+        await _submitCreateRequest(_pendingCreateRequest ?? request, draft);
+        return mounted &&
+            _pendingCreateRequest == null &&
+            _controller.createError == null;
+      },
     );
 
-    if (request == null || !mounted) {
+    if (request == null || !mounted || submittedInline) {
       return;
     }
 

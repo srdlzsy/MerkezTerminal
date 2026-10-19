@@ -304,14 +304,32 @@ class _WarehouseOrdersPageState extends State<WarehouseOrdersPage> {
           );
     }
 
+    var submittedInline = false;
     final request = await openTerminalCreatePage<WarehouseOrderCreateRequest>(
       context: context,
       title: widget.createTitle,
       builder: (context) =>
           createSheetBuilder(context, draft, widget.draftRepository),
+      onSubmit: (request) async {
+        submittedInline = true;
+        final safeRequest =
+            _pendingCreateRequest ??
+            (_usesSafeCreate
+                ? request.copyWith(
+                    clientRequestId:
+                        request.clientRequestId?.trim().isNotEmpty == true
+                        ? request.clientRequestId
+                        : generateClientRequestId(),
+                  )
+                : request);
+        await _submitCreateRequest(safeRequest, draft);
+        return mounted &&
+            _pendingCreateRequest == null &&
+            _controller.createError == null;
+      },
     );
 
-    if (request == null || !mounted) {
+    if (request == null || !mounted || submittedInline) {
       return;
     }
 

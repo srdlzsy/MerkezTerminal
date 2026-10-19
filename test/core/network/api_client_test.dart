@@ -291,6 +291,212 @@ void main() {
     expect(requestCount, 1);
   });
 
+  test(
+    'all critical create routes resolve completed status in the foreground',
+    () async {
+      const routes = <String, String>{
+        '/api/mal-kabul-islemleri/firma-mal-kabulleri':
+            '/api/mal-kabul-islemleri/firma-mal-kabulleri/offline-sync',
+        '/api/stok-islemleri/sayim-sonuclari':
+            '/api/stok-islemleri/sayim-sonuclari/offline-sync',
+        '/api/siparis-islemleri/verilen-depo-siparisleri':
+            '/api/siparis-islemleri/verilen-depo-siparisleri/offline-sync',
+        '/api/siparis-islemleri/onerilen-depo-siparisleri/convert-to-order':
+            '/api/siparis-islemleri/onerilen-depo-siparisleri/offline-sync',
+        '/api/siparis-islemleri/verilen-firma-siparisleri':
+            '/api/siparis-islemleri/verilen-firma-siparisleri/offline-sync',
+        '/api/siparis-islemleri/onerilen-firma-siparisleri/convert-to-order':
+            '/api/siparis-islemleri/onerilen-firma-siparisleri/offline-sync',
+        '/api/sevk-islemleri/depolar-arasi-sevkler/giden':
+            '/api/sevk-islemleri/depolar-arasi-sevkler/offline-sync',
+        '/api/sevk-islemleri/firma-sevkleri/giden':
+            '/api/sevk-islemleri/firma-sevkleri/offline-sync',
+        '/api/iade-islemleri/depo-iadeleri/giden':
+            '/api/iade-islemleri/depo-iadeleri/offline-sync',
+        '/api/iade-islemleri/firma-iadeleri':
+            '/api/iade-islemleri/firma-iadeleri/offline-sync',
+        '/api/stok-islemleri/zayiat-fisleri':
+            '/api/stok-islemleri/zayiat-fisleri/offline-sync',
+        '/api/stok-islemleri/masraf-fisleri':
+            '/api/stok-islemleri/masraf-fisleri/offline-sync',
+        '/api/stok-islemleri/virmanlar':
+            '/api/stok-islemleri/virmanlar/offline-sync',
+        '/api/green-grocer/operations/adjustments':
+            '/api/green-grocer/operations/adjustments/offline-sync',
+      };
+
+      for (final entry in routes.entries) {
+        var statusRequestCount = 0;
+        final requestedPaths = <String>[];
+        final client = ApiClient(
+          baseUrl: 'http://localhost:5228',
+          httpClient: MockClient((request) async {
+            requestedPaths.add(request.url.path);
+            if (request.method == 'POST') {
+              return http.Response(
+                '{"title":"Conflict","status":409,'
+                '"errorCode":"MIKRO_WRITE_IN_PROGRESS",'
+                '"retryable":true,"recommendedAction":"WaitAndCheck"}',
+                409,
+              );
+            }
+
+            statusRequestCount += 1;
+            if (statusRequestCount == 1) {
+              return http.Response(
+                '{"status":"Processing",'
+                '"recommendedAction":"WaitAndCheck",'
+                '"retryAfterSeconds":1}',
+                200,
+              );
+            }
+
+            return http.Response(
+              '{"status":"Completed","recommendedAction":"Completed",'
+              '"result":{"documentSerie":"F110",'
+              '"documentOrderNo":42}}',
+              200,
+            );
+          }),
+          createRequestTimeout: const Duration(seconds: 1),
+          safeCreateStatusPollInterval: Duration.zero,
+          safeCreateStatusRequestTimeout: const Duration(milliseconds: 100),
+        );
+
+        final response = await client.postCreateJsonMap(
+          entry.key,
+          body: const <String, dynamic>{
+            'clientRequestId': '11111111-1111-1111-1111-111111111111',
+          },
+        );
+
+        expect(response['documentSerie'], 'F110', reason: entry.key);
+        expect(response['documentOrderNo'], 42, reason: entry.key);
+        expect(statusRequestCount, 2, reason: entry.key);
+        expect(
+          requestedPaths,
+          contains('${entry.value}/11111111-1111-1111-1111-111111111111'),
+          reason: entry.key,
+        );
+      }
+    },
+  );
+
+  test(
+    'safe create returns backend retry decision without a second POST',
+    () async {
+      var postCount = 0;
+      var getCount = 0;
+      final client = ApiClient(
+        baseUrl: 'http://localhost:5228',
+        httpClient: MockClient((request) async {
+          if (request.method == 'POST') {
+            postCount += 1;
+            return http.Response('{"title":"Server Error","status":500}', 500);
+          }
+
+          getCount += 1;
+          return http.Response(
+            '{"status":"Failed",'
+            '"errorMessage":"Mikro tarafinda belge bulunamadi.",'
+            '"errorCode":"SAFE_WRITE_RETRY_ALLOWED",'
+            '"retryable":true,"retryAfterSeconds":5,'
+            '"recommendedAction":"RetrySameRequest"}',
+            200,
+          );
+        }),
+        createRequestTimeout: const Duration(seconds: 1),
+        safeCreateStatusPollInterval: Duration.zero,
+      );
+
+      await expectLater(
+        client.postCreateJsonMap(
+          '/api/stok-islemleri/virmanlar',
+          body: const <String, dynamic>{
+            'clientRequestId': '22222222-2222-2222-2222-222222222222',
+          },
+        ),
+        throwsA(
+          isA<ApiException>()
+              .having(
+                (error) => error.errorCode,
+                'errorCode',
+                'SAFE_WRITE_RETRY_ALLOWED',
+              )
+              .having((error) => error.retryable, 'retryable', isTrue)
+              .having(
+                (error) => error.recommendedAction,
+                'recommendedAction',
+                'RetrySameRequest',
+              ),
+        ),
+      );
+
+      expect(postCount, 1);
+      expect(getCount, 1);
+    },
+  );
+
+  test(
+    'safe create does not poll status for a definite validation error',
+    () async {
+      var requestCount = 0;
+      final client = ApiClient(
+        baseUrl: 'http://localhost:5228',
+        httpClient: MockClient((request) async {
+          requestCount += 1;
+          return http.Response(
+            '{"title":"Bad Request","status":400,"detail":"Miktar gecersiz"}',
+            400,
+          );
+        }),
+        safeCreateStatusPollInterval: Duration.zero,
+      );
+
+      await expectLater(
+        client.postCreateJsonMap(
+          '/api/stok-islemleri/zayiat-fisleri',
+          body: const <String, dynamic>{
+            'clientRequestId': '33333333-3333-3333-3333-333333333333',
+          },
+        ),
+        throwsA(
+          isA<ApiException>().having(
+            (error) => error.statusCode,
+            'statusCode',
+            400,
+          ),
+        ),
+      );
+
+      expect(requestCount, 1);
+    },
+  );
+
+  test('unregistered create route keeps the regular create behavior', () async {
+    var requestCount = 0;
+    final client = ApiClient(
+      baseUrl: 'http://localhost:5228',
+      httpClient: MockClient((request) async {
+        requestCount += 1;
+        return http.Response('{"title":"Server Error"}', 500);
+      }),
+      safeCreateStatusPollInterval: Duration.zero,
+    );
+
+    await expectLater(
+      client.postCreateJsonMap(
+        '/api/test',
+        body: const <String, dynamic>{
+          'clientRequestId': '44444444-4444-4444-4444-444444444444',
+        },
+      ),
+      throwsA(isA<ApiException>()),
+    );
+
+    expect(requestCount, 1);
+  });
+
   test('create requests use their dedicated longer timeout', () async {
     final client = ApiClient(
       baseUrl: 'http://localhost:5228',

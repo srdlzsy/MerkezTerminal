@@ -18,6 +18,7 @@ import 'package:furpa_merkez_terminal/shared/product_entry/product_entry_widgets
 import 'package:furpa_merkez_terminal/shared/utils/create_form_validation.dart';
 import 'package:furpa_merkez_terminal/shared/utils/terminal_feedback.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/barcode_camera_scan_page.dart';
+import 'package:furpa_merkez_terminal/shared/widgets/terminal_create_page.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/terminal_ui_parts.dart';
 
 const Set<int> _givenWarehouseOrderSourceProductWarehouseNos = <int>{
@@ -1027,7 +1028,7 @@ class _GivenWarehouseOrderCreateSheetState
     if (!mounted) {
       return;
     }
-    Navigator.of(context).pop(request);
+    await TerminalCreateSubmitScope.submit(context, request);
   }
 
   Future<bool> _resolveGreenGrocerLinesBeforeSubmit(

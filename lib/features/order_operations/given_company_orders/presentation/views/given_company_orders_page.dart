@@ -284,6 +284,7 @@ class _GivenCompanyOrdersPageState extends State<GivenCompanyOrdersPage> {
             title: 'Yeni Verilen Firma Siparisi',
           );
     }
+    var submittedInline = false;
     final request = await openTerminalCreatePage<CompanyOrderCreateRequest>(
       context: context,
       title: 'Yeni Siparis',
@@ -298,9 +299,26 @@ class _GivenCompanyOrdersPageState extends State<GivenCompanyOrdersPage> {
           draftRepository: widget.draftRepository,
         );
       },
+      onSubmit: (request) async {
+        submittedInline = true;
+        final safeRequest =
+            _pendingCreateRequest ??
+            (_usesSafeCreate
+                ? request.copyWith(
+                    clientRequestId:
+                        request.clientRequestId?.trim().isNotEmpty == true
+                        ? request.clientRequestId
+                        : generateClientRequestId(),
+                  )
+                : request);
+        await _submitCreateRequest(safeRequest, draft);
+        return mounted &&
+            _pendingCreateRequest == null &&
+            _controller.createError == null;
+      },
     );
 
-    if (request == null || !mounted) {
+    if (request == null || !mounted || submittedInline) {
       return;
     }
 

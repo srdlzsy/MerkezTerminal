@@ -442,6 +442,7 @@ class _WarehouseReturnsPageState extends State<WarehouseReturnsPage> {
           );
     }
 
+    var submittedInline = false;
     final request = await openTerminalCreatePage<WarehouseReturnCreateRequest>(
       context: context,
       title: 'Yeni Iade',
@@ -456,9 +457,16 @@ class _WarehouseReturnsPageState extends State<WarehouseReturnsPage> {
           draftRepository: widget.draftRepository,
         );
       },
+      onSubmit: (request) async {
+        submittedInline = true;
+        await _submitCreateRequest(_pendingCreateRequest ?? request, draft);
+        return mounted &&
+            _pendingCreateRequest == null &&
+            _controller.createError == null;
+      },
     );
 
-    if (request == null || !mounted) {
+    if (request == null || !mounted || submittedInline) {
       return;
     }
 

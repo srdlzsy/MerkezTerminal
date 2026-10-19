@@ -17,6 +17,7 @@ import 'package:furpa_merkez_terminal/shared/product_entry/product_entry_widgets
 import 'package:furpa_merkez_terminal/shared/utils/client_request_id.dart';
 import 'package:furpa_merkez_terminal/shared/utils/create_form_validation.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/barcode_camera_scan_page.dart';
+import 'package:furpa_merkez_terminal/shared/widgets/terminal_create_page.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/terminal_ui_parts.dart';
 
 class VirmanCreateSheet extends StatefulWidget {
@@ -983,7 +984,7 @@ class _VirmanCreateSheetState extends State<VirmanCreateSheet>
     if (!mounted) {
       return;
     }
-    Navigator.of(context).pop(request);
+    await TerminalCreateSubmitScope.submit(context, request);
   }
 
   @override

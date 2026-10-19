@@ -19,6 +19,7 @@ import 'package:furpa_merkez_terminal/shared/utils/client_request_id.dart';
 import 'package:furpa_merkez_terminal/shared/utils/create_form_validation.dart';
 import 'package:furpa_merkez_terminal/shared/utils/terminal_feedback.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/barcode_camera_scan_page.dart';
+import 'package:furpa_merkez_terminal/shared/widgets/terminal_create_page.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/terminal_ui_parts.dart';
 
 class CompanyMovementCreateSheet extends StatefulWidget {
@@ -940,7 +941,10 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
       return;
     }
     _submitted = true;
-    Navigator.of(context).pop(request);
+    final completed = await TerminalCreateSubmitScope.submit(context, request);
+    if (!completed && mounted) {
+      setState(() => _submitted = false);
+    }
   }
 
   @override

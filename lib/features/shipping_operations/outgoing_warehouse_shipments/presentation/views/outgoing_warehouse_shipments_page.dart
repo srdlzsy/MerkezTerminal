@@ -288,6 +288,7 @@ class _OutgoingWarehouseShipmentsPageState
           );
     }
 
+    var submittedInline = false;
     final request =
         await openTerminalCreatePage<WarehouseShipmentCreateRequest>(
           context: context,
@@ -305,9 +306,16 @@ class _OutgoingWarehouseShipmentsPageState
               draftRepository: widget.draftRepository,
             );
           },
+          onSubmit: (request) async {
+            submittedInline = true;
+            await _submitCreateRequest(_pendingCreateRequest ?? request, draft);
+            return mounted &&
+                _pendingCreateRequest == null &&
+                _controller.createError == null;
+          },
         );
 
-    if (request == null || !mounted) {
+    if (request == null || !mounted || submittedInline) {
       return;
     }
 
