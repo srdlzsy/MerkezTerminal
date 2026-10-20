@@ -922,7 +922,7 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
               stockCode: line.selectedProduct!.stockCode,
               quantity: line.quantity,
               unitPrice: line.unitPrice,
-              unitPointer: line.unitPointer,
+              unitPointer: 1,
               description: line.descriptionController.text.trim(),
               partyCode: line.partyCodeController.text.trim(),
               lotNo: line.lotNo,
