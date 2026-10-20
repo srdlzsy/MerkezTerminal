@@ -308,7 +308,7 @@ class _OutgoingWarehouseShipmentsPageState
           },
           onSubmit: (request) async {
             submittedInline = true;
-            await _submitCreateRequest(_pendingCreateRequest ?? request, draft);
+            await _submitCreateRequest(request, draft);
             return mounted &&
                 _pendingCreateRequest == null &&
                 _controller.createError == null;
