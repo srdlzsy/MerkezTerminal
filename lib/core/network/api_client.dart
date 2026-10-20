@@ -173,33 +173,52 @@ class ApiClient {
     await _guardMutationRequest(verifyWarehouseContext);
 
     final route = _resolveSafeCreateRoute(path, body);
-    final deadline = DateTime.now().add(_createRequestTimeout);
+    var automaticRetryUsed = false;
 
-    try {
-      final response = await _send(
-        accessToken: accessToken,
-        allowUnauthorizedRecovery: allowUnauthorizedRecovery,
-        timeout: _initialSafeCreateRequestTimeout(deadline),
-        request: (resolvedAccessToken) => _httpClient.post(
-          _buildUri(path, queryParameters: queryParameters),
-          headers: _buildHeaders(accessToken: resolvedAccessToken),
-          body: body == null ? null : jsonEncode(body),
-        ),
-      );
+    while (true) {
+      final deadline = DateTime.now().add(_createRequestTimeout);
 
-      return _decodeJsonMap(response);
-    } on ApiException catch (error) {
-      if (route == null || !_shouldWaitForSafeCreateResolution(error)) {
-        rethrow;
+      try {
+        final response = await _send(
+          accessToken: accessToken,
+          allowUnauthorizedRecovery: allowUnauthorizedRecovery,
+          timeout: _initialSafeCreateRequestTimeout(deadline),
+          request: (resolvedAccessToken) => _httpClient.post(
+            _buildUri(path, queryParameters: queryParameters),
+            headers: _buildHeaders(accessToken: resolvedAccessToken),
+            body: body == null ? null : jsonEncode(body),
+          ),
+        );
+
+        return _decodeJsonMap(response);
+      } on ApiException catch (error) {
+        if (route != null &&
+            !automaticRetryUsed &&
+            _isSafeWriteRetryAllowed(error)) {
+          automaticRetryUsed = true;
+          continue;
+        }
+
+        if (route == null || !_shouldWaitForSafeCreateResolution(error)) {
+          rethrow;
+        }
+
+        try {
+          return await _pollSafeCreateStatus(
+            route: route,
+            accessToken: accessToken,
+            allowUnauthorizedRecovery: allowUnauthorizedRecovery,
+            deadline: deadline,
+            fallbackError: error,
+          );
+        } on ApiException catch (statusError) {
+          if (!automaticRetryUsed && _isSafeWriteRetryAllowed(statusError)) {
+            automaticRetryUsed = true;
+            continue;
+          }
+          rethrow;
+        }
       }
-
-      return _pollSafeCreateStatus(
-        route: route,
-        accessToken: accessToken,
-        allowUnauthorizedRecovery: allowUnauthorizedRecovery,
-        deadline: deadline,
-        fallbackError: error,
-      );
     }
   }
 
@@ -341,6 +360,12 @@ class ApiClient {
         errorCode == 'MIKRO_WRITE_OUTCOME_UNCONFIRMED' ||
         errorCode == 'MIKRO_DOCUMENT_INCOMPLETE' ||
         error.retryable == true;
+  }
+
+  bool _isSafeWriteRetryAllowed(ApiException error) {
+    return _readString(error.errorCode).toUpperCase() ==
+            'SAFE_WRITE_RETRY_ALLOWED' ||
+        _readString(error.recommendedAction) == 'RetrySameRequest';
   }
 
   ApiException _safeCreateStatusException(

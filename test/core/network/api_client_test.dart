@@ -383,7 +383,7 @@ void main() {
   );
 
   test(
-    'safe create returns backend retry decision without a second POST',
+    'safe create automatically retries once with the same request',
     () async {
       var postCount = 0;
       var getCount = 0;
@@ -392,6 +392,16 @@ void main() {
         httpClient: MockClient((request) async {
           if (request.method == 'POST') {
             postCount += 1;
+            if (postCount == 2) {
+              expect(
+                request.body,
+                contains('22222222-2222-2222-2222-222222222222'),
+              );
+              return http.Response(
+                '{"documentSerie":"F110","documentOrderNo":43}',
+                200,
+              );
+            }
             return http.Response('{"title":"Server Error","status":500}', 500);
           }
 
@@ -409,33 +419,98 @@ void main() {
         safeCreateStatusPollInterval: Duration.zero,
       );
 
-      await expectLater(
-        client.postCreateJsonMap(
-          '/api/stok-islemleri/virmanlar',
-          body: const <String, dynamic>{
-            'clientRequestId': '22222222-2222-2222-2222-222222222222',
-          },
-        ),
-        throwsA(
-          isA<ApiException>()
-              .having(
-                (error) => error.errorCode,
-                'errorCode',
-                'SAFE_WRITE_RETRY_ALLOWED',
-              )
-              .having((error) => error.retryable, 'retryable', isTrue)
-              .having(
-                (error) => error.recommendedAction,
-                'recommendedAction',
-                'RetrySameRequest',
-              ),
-        ),
+      final response = await client.postCreateJsonMap(
+        '/api/stok-islemleri/virmanlar',
+        body: const <String, dynamic>{
+          'clientRequestId': '22222222-2222-2222-2222-222222222222',
+        },
       );
 
-      expect(postCount, 1);
+      expect(response['documentSerie'], 'F110');
+      expect(response['documentOrderNo'], 43);
+      expect(postCount, 2);
       expect(getCount, 1);
     },
   );
+
+  test('safe create never automatically retries more than once', () async {
+    var postCount = 0;
+    var getCount = 0;
+    final client = ApiClient(
+      baseUrl: 'http://localhost:5228',
+      httpClient: MockClient((request) async {
+        if (request.method == 'POST') {
+          postCount += 1;
+          return http.Response('{"title":"Server Error","status":500}', 500);
+        }
+
+        getCount += 1;
+        return http.Response(
+          '{"status":"Failed",'
+          '"errorMessage":"Mikro tarafinda belge bulunamadi.",'
+          '"errorCode":"SAFE_WRITE_RETRY_ALLOWED",'
+          '"retryable":true,"retryAfterSeconds":5,'
+          '"recommendedAction":"RetrySameRequest"}',
+          200,
+        );
+      }),
+      createRequestTimeout: const Duration(seconds: 1),
+      safeCreateStatusPollInterval: Duration.zero,
+    );
+
+    await expectLater(
+      client.postCreateJsonMap(
+        '/api/stok-islemleri/virmanlar',
+        body: const <String, dynamic>{
+          'clientRequestId': '22222222-2222-2222-2222-222222222222',
+        },
+      ),
+      throwsA(
+        isA<ApiException>().having(
+          (error) => error.errorCode,
+          'errorCode',
+          'SAFE_WRITE_RETRY_ALLOWED',
+        ),
+      ),
+    );
+
+    expect(postCount, 2);
+    expect(getCount, 2);
+  });
+
+  test('safe create automatically retries a direct retry decision', () async {
+    var postCount = 0;
+    final client = ApiClient(
+      baseUrl: 'http://localhost:5228',
+      httpClient: MockClient((request) async {
+        postCount += 1;
+        if (postCount == 1) {
+          return http.Response(
+            '{"title":"Conflict","status":409,'
+            '"errorCode":"SAFE_WRITE_RETRY_ALLOWED",'
+            '"retryable":true,"recommendedAction":"RetrySameRequest"}',
+            409,
+          );
+        }
+
+        return http.Response(
+          '{"documentSerie":"F56","documentOrderNo":88971}',
+          200,
+        );
+      }),
+    );
+
+    final response = await client.postCreateJsonMap(
+      '/api/sevk-islemleri/depolar-arasi-sevkler/giden',
+      body: const <String, dynamic>{
+        'clientRequestId': '33333333-3333-3333-3333-333333333333',
+      },
+    );
+
+    expect(postCount, 2);
+    expect(response['documentSerie'], 'F56');
+    expect(response['documentOrderNo'], 88971);
+  });
 
   test(
     'safe create does not poll status for a definite validation error',
