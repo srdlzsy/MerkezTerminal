@@ -610,6 +610,8 @@ class _OfflineCompanyAcceptancesPageState
                                             ? 'Kontrol ediliyor...'
                                             : draft.hasBeenSubmitted
                                             ? 'Durumu Kontrol Et'
+                                            : draft.lastSyncAttemptAt != null
+                                            ? 'Tekrar Dene'
                                             : 'Senkronize Et',
                                       ),
                                     ),

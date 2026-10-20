@@ -677,6 +677,136 @@ void main() {
   );
 
   test(
+    'missing company acceptance reservation retries the same snapshot once',
+    () async {
+      companyAcceptanceRepository.offlineSyncError = const ApiException(
+        statusCode: 404,
+        title: 'Kayit bulunamadi',
+      );
+      final draft = _buildCompanyAcceptanceDraft(
+        clientRequestId: 'acceptance-missing-reservation',
+        hasBeenSubmitted: true,
+      );
+
+      final result = await service.syncCompanyAcceptanceDraft(
+        accessToken: 'token',
+        draft: draft,
+      );
+
+      expect(result.status, OfflineDraftSyncResultStatus.synced);
+      expect(companyAcceptanceRepository.fetchOfflineSyncStatusCallCount, 1);
+      expect(companyAcceptanceRepository.createCallCount, 1);
+      expect(
+        companyAcceptanceRepository.lastCreateClientRequestId,
+        'acceptance-missing-reservation',
+      );
+      expect(offlineCompanyAcceptanceRepository.savedDrafts, isEmpty);
+    },
+  );
+
+  test(
+    'missing reservation after resend returns draft to local retry state',
+    () async {
+      companyAcceptanceRepository
+        ..offlineSyncError = const ApiException(
+          statusCode: 404,
+          title: 'Kayit bulunamadi',
+        )
+        ..createError = const ApiException(
+          statusCode: 0,
+          title: 'Baglanti Hatasi',
+          detail: 'No network',
+        );
+      final draft = _buildCompanyAcceptanceDraft(
+        clientRequestId: 'acceptance-resend-not-received',
+        hasBeenSubmitted: true,
+      );
+
+      final result = await service.syncCompanyAcceptanceDraft(
+        accessToken: 'token',
+        draft: draft,
+      );
+
+      expect(result.status, OfflineDraftSyncResultStatus.deferred);
+      expect(companyAcceptanceRepository.fetchOfflineSyncStatusCallCount, 2);
+      expect(companyAcceptanceRepository.createCallCount, 1);
+      final savedDraft = offlineCompanyAcceptanceRepository.savedDrafts.single;
+      expect(savedDraft.hasBeenSubmitted, isFalse);
+      expect(savedDraft.retryable, isTrue);
+      expect(savedDraft.errorCode, 'LOCAL_SEND_RETRY_REQUIRED');
+      expect(savedDraft.lastError, contains('Tekrar Dene'));
+
+      final automaticResult = await service.syncCompanyAcceptanceDraft(
+        accessToken: 'token',
+        draft: savedDraft,
+      );
+
+      expect(automaticResult.status, OfflineDraftSyncResultStatus.deferred);
+      expect(companyAcceptanceRepository.createCallCount, 1);
+    },
+  );
+
+  test(
+    'manual status check converts missing reservation to explicit local retry',
+    () async {
+      companyAcceptanceRepository.offlineSyncError = const ApiException(
+        statusCode: 404,
+        title: 'Kayit bulunamadi',
+      );
+      final draft = _buildCompanyAcceptanceDraft(
+        clientRequestId: 'acceptance-manual-check-missing',
+        hasBeenSubmitted: true,
+      );
+
+      final result = await service.syncCompanyAcceptanceDraft(
+        accessToken: 'token',
+        draft: draft,
+        statusCheckOnly: true,
+      );
+
+      expect(result.status, OfflineDraftSyncResultStatus.deferred);
+      expect(companyAcceptanceRepository.fetchOfflineSyncStatusCallCount, 1);
+      expect(companyAcceptanceRepository.createCallCount, 0);
+      final savedDraft = offlineCompanyAcceptanceRepository.savedDrafts.single;
+      expect(savedDraft.hasBeenSubmitted, isFalse);
+      expect(savedDraft.errorCode, 'LOCAL_SEND_RETRY_REQUIRED');
+      expect(savedDraft.lastError, contains('Tekrar Dene'));
+    },
+  );
+
+  test(
+    'missing status does not reopen a non retryable support decision',
+    () async {
+      companyAcceptanceRepository.offlineSyncError = const ApiException(
+        statusCode: 404,
+        title: 'Kayit bulunamadi',
+      );
+      final draft =
+          _buildCompanyAcceptanceDraft(
+            clientRequestId: 'acceptance-support-missing-status',
+            hasBeenSubmitted: true,
+          ).copyWith(
+            status: OfflineRecordStatus.failed,
+            errorCode: 'MIKRO_DOCUMENT_CONTENT_MISMATCH',
+            retryable: false,
+          );
+
+      final result = await service.syncCompanyAcceptanceDraft(
+        accessToken: 'token',
+        draft: draft,
+        statusCheckOnly: true,
+      );
+
+      expect(result.status, OfflineDraftSyncResultStatus.failed);
+      expect(companyAcceptanceRepository.createCallCount, 0);
+      final savedDraft = offlineCompanyAcceptanceRepository.savedDrafts.single;
+      expect(savedDraft.hasBeenSubmitted, isTrue);
+      expect(savedDraft.retryable, isFalse);
+      expect(savedDraft.errorCode, 'MIKRO_DOCUMENT_CONTENT_MISMATCH');
+    },
+  );
+
+  test(
     'queue busy company acceptance retries same snapshot after status',
     () async {
       companyAcceptanceRepository.offlineSyncStatus =
@@ -1181,6 +1311,7 @@ class _FakeOfflineInventoryCountsRepository
 class _FakeCompanyAcceptancesRepository
     implements CompanyAcceptancesRepository {
   ApiException? createError;
+  ApiException? offlineSyncError;
   CompanyAcceptanceOfflineSyncStatus? offlineSyncStatus;
   final List<CompanyAcceptanceOfflineSyncStatus> offlineSyncStatuses =
       <CompanyAcceptanceOfflineSyncStatus>[];
@@ -1211,6 +1342,10 @@ class _FakeCompanyAcceptancesRepository
     required String clientRequestId,
   }) async {
     fetchOfflineSyncStatusCallCount += 1;
+    final error = offlineSyncError;
+    if (error != null) {
+      throw error;
+    }
     if (offlineSyncStatuses.isNotEmpty) {
       return offlineSyncStatuses.removeAt(0);
     }

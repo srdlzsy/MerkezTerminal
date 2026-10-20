@@ -80,7 +80,7 @@ class _StockReceiptsPageState extends State<StockReceiptsPage> {
     unawaited(_controller.loadReceipts());
   }
 
-  Future<void> _restorePendingCreate({bool autoRecover = true}) async {
+  Future<void> _restorePendingCreate() async {
     try {
       final pending = await widget.pendingCreateRepository.read(
         moduleKey: widget.draftModuleKey,
@@ -99,19 +99,6 @@ class _StockReceiptsPageState extends State<StockReceiptsPage> {
         _pendingCreateFailureKind = failureKind;
         _pendingRetryNotBefore = pending.retryNotBefore;
       });
-
-      if (autoRecover &&
-          safeCreateRetryWait(pending.retryNotBefore) == Duration.zero) {
-        if (canRetrySafeCreate(failureKind)) {
-          await _submitCreateRequest(request, pending.draft);
-        } else if (shouldCheckSafeCreateStatus(failureKind)) {
-          await _submitCreateRequest(
-            request,
-            pending.draft,
-            statusCheckOnly: true,
-          );
-        }
-      }
     } on Object {
       if (mounted) {
         setState(() => _hasPendingCreateStorageError = true);
@@ -548,7 +535,7 @@ class _StockReceiptsPageState extends State<StockReceiptsPage> {
       _pendingCreateFailureKind = SafeCreateFailureKind.notRetryable;
       _pendingRetryNotBefore = null;
     });
-    await _restorePendingCreate(autoRecover: false);
+    await _restorePendingCreate();
     if (!mounted) {
       return;
     }

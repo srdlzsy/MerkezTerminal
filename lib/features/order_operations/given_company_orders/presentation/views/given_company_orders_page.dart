@@ -95,7 +95,7 @@ class _GivenCompanyOrdersPageState extends State<GivenCompanyOrdersPage> {
     unawaited(_controller.loadOrders());
   }
 
-  Future<void> _restorePendingCreate({bool autoRecover = true}) async {
+  Future<void> _restorePendingCreate() async {
     final repository = widget.pendingCreateRepository;
     if (repository == null) return;
     try {
@@ -117,18 +117,6 @@ class _GivenCompanyOrdersPageState extends State<GivenCompanyOrdersPage> {
         _pendingCreateFailureKind = failureKind;
         _pendingRetryNotBefore = pending.retryNotBefore;
       });
-      if (autoRecover &&
-          safeCreateRetryWait(pending.retryNotBefore) == Duration.zero) {
-        if (canRetrySafeCreate(failureKind)) {
-          await _submitCreateRequest(request, pending.draft);
-        } else if (shouldCheckSafeCreateStatus(failureKind)) {
-          await _submitCreateRequest(
-            request,
-            pending.draft,
-            statusCheckOnly: true,
-          );
-        }
-      }
     } on Object {
       if (mounted) {
         setState(() => _hasPendingCreateStorageError = true);

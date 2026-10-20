@@ -77,7 +77,7 @@ class _VirmanPageState extends State<VirmanPage> {
     unawaited(_controller.loadVirmans());
   }
 
-  Future<void> _restorePendingCreate({bool autoRecover = true}) async {
+  Future<void> _restorePendingCreate() async {
     try {
       final pending = await widget.pendingCreateRepository.read(
         moduleKey: 'stok-islemleri.virmanlar',
@@ -96,19 +96,6 @@ class _VirmanPageState extends State<VirmanPage> {
         _pendingCreateFailureKind = failureKind;
         _pendingRetryNotBefore = pending.retryNotBefore;
       });
-
-      if (autoRecover &&
-          safeCreateRetryWait(pending.retryNotBefore) == Duration.zero) {
-        if (canRetrySafeCreate(failureKind)) {
-          await _submitCreateRequest(request, pending.draft);
-        } else if (shouldCheckSafeCreateStatus(failureKind)) {
-          await _submitCreateRequest(
-            request,
-            pending.draft,
-            statusCheckOnly: true,
-          );
-        }
-      }
     } on Object {
       if (mounted) {
         setState(() => _hasPendingCreateStorageError = true);
@@ -537,7 +524,7 @@ class _VirmanPageState extends State<VirmanPage> {
       _pendingCreateFailureKind = SafeCreateFailureKind.notRetryable;
       _pendingRetryNotBefore = null;
     });
-    await _restorePendingCreate(autoRecover: false);
+    await _restorePendingCreate();
     if (!mounted) {
       return;
     }

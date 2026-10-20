@@ -201,13 +201,13 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Ayni Kaydi Tekrar Dene'), findsOneWidget);
+    expect(find.text('Durumu Kontrol Et'), findsOneWidget);
     expect(repository.createRequests, isEmpty);
-    expect(repository.fetchOfflineSyncStatusCallCount, 1);
+    expect(repository.fetchOfflineSyncStatusCallCount, 0);
   });
 
   testWidgets(
-    'automatically reconciles and clears a completed pending create',
+    'reconciles and clears a completed pending create only after user action',
     (tester) async {
       final database = MemoryLocalDatabase();
       final pendingRepository = LocalPendingCreateRepository(
@@ -258,6 +258,20 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(repository.createRequests, isEmpty);
+      expect(repository.fetchOfflineSyncStatusCallCount, 0);
+      expect(find.text('Durumu Kontrol Et'), findsOneWidget);
+      expect(
+        await pendingRepository.read(
+          moduleKey: 'iade-islemleri.firma-iadeleri',
+          userId: 'user-1',
+          warehouseNo: '50',
+        ),
+        isNotNull,
+      );
+
+      await tester.tap(find.text('Durumu Kontrol Et'));
+      await tester.pumpAndSettle();
+
       expect(repository.fetchOfflineSyncStatusCallCount, 1);
       expect(find.text('Yeni Iade'), findsOneWidget);
       expect(
@@ -336,7 +350,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(repository.createRequests, isEmpty);
-      expect(repository.fetchOfflineSyncStatusCallCount, 1);
+      expect(repository.fetchOfflineSyncStatusCallCount, 0);
       expect(find.text('Durumu Kontrol Et'), findsOneWidget);
       expect(find.text('Yeni Iade'), findsOneWidget);
 
@@ -344,6 +358,7 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 300));
       expect(repository.createRequests, isEmpty);
+      expect(repository.fetchOfflineSyncStatusCallCount, 1);
     },
   );
 

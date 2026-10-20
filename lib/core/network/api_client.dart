@@ -192,11 +192,18 @@ class ApiClient {
 
         return _decodeJsonMap(response);
       } on ApiException catch (error) {
-        if (route != null &&
-            !automaticRetryUsed &&
-            _isSafeWriteRetryAllowed(error)) {
-          automaticRetryUsed = true;
-          continue;
+        if (route != null && _isSafeWriteRetryAllowed(error)) {
+          if (!automaticRetryUsed) {
+            automaticRetryUsed = true;
+            continue;
+          }
+
+          throw await _closeExhaustedSafeCreate(
+            route: route,
+            accessToken: accessToken,
+            allowUnauthorizedRecovery: allowUnauthorizedRecovery,
+            fallbackError: error,
+          );
         }
 
         if (route == null || !_shouldWaitForSafeCreateResolution(error)) {
@@ -212,9 +219,18 @@ class ApiClient {
             fallbackError: error,
           );
         } on ApiException catch (statusError) {
-          if (!automaticRetryUsed && _isSafeWriteRetryAllowed(statusError)) {
-            automaticRetryUsed = true;
-            continue;
+          if (_isSafeWriteRetryAllowed(statusError)) {
+            if (!automaticRetryUsed) {
+              automaticRetryUsed = true;
+              continue;
+            }
+
+            throw await _closeExhaustedSafeCreate(
+              route: route,
+              accessToken: accessToken,
+              allowUnauthorizedRecovery: allowUnauthorizedRecovery,
+              fallbackError: statusError,
+            );
           }
           rethrow;
         }
@@ -366,6 +382,42 @@ class ApiClient {
     return _readString(error.errorCode).toUpperCase() ==
             'SAFE_WRITE_RETRY_ALLOWED' ||
         _readString(error.recommendedAction) == 'RetrySameRequest';
+  }
+
+  Future<ApiException> _closeExhaustedSafeCreate({
+    required _SafeCreateRoute route,
+    required String? accessToken,
+    required bool allowUnauthorizedRecovery,
+    required ApiException fallbackError,
+  }) async {
+    try {
+      final response = await _send(
+        accessToken: accessToken,
+        allowUnauthorizedRecovery: allowUnauthorizedRecovery,
+        request: (resolvedAccessToken) => _httpClient.post(
+          _buildUri(
+            '/api/mobile-sync/guvenli-yazmalar/'
+            '${route.clientRequestId}/vazgec',
+          ),
+          headers: _buildHeaders(accessToken: resolvedAccessToken),
+        ),
+      );
+      _decodeJsonMap(response);
+    } on Object {
+      return fallbackError;
+    }
+
+    return ApiException(
+      statusCode: 400,
+      title: 'Kayit olusturulamadi',
+      detail:
+          'Mikro evraki olusmadi. Otomatik tekrar tamamlandi ve bekleyen '
+          'islem kapatildi. Formu kontrol edip yeniden kaydedin.',
+      errorCode: 'SAFE_WRITE_RETRY_EXHAUSTED',
+      retryable: false,
+      correlationId: fallbackError.correlationId,
+      recoveryState: 'Missing',
+    );
   }
 
   ApiException _safeCreateStatusException(

@@ -435,11 +435,21 @@ void main() {
 
   test('safe create never automatically retries more than once', () async {
     var postCount = 0;
+    var cancelCount = 0;
     var getCount = 0;
     final client = ApiClient(
       baseUrl: 'http://localhost:5228',
       httpClient: MockClient((request) async {
         if (request.method == 'POST') {
+          if (request.url.path.endsWith('/vazgec')) {
+            cancelCount += 1;
+            expect(
+              request.url.path,
+              '/api/mobile-sync/guvenli-yazmalar/'
+              '22222222-2222-2222-2222-222222222222/vazgec',
+            );
+            return http.Response('{"outcome":"Cancelled"}', 200);
+          }
           postCount += 1;
           return http.Response('{"title":"Server Error","status":500}', 500);
         }
@@ -469,14 +479,59 @@ void main() {
         isA<ApiException>().having(
           (error) => error.errorCode,
           'errorCode',
-          'SAFE_WRITE_RETRY_ALLOWED',
+          'SAFE_WRITE_RETRY_EXHAUSTED',
         ),
       ),
     );
 
     expect(postCount, 2);
+    expect(cancelCount, 1);
     expect(getCount, 2);
   });
+
+  test(
+    'safe create keeps the retry decision when exhausted record cannot close',
+    () async {
+      var createPostCount = 0;
+      final client = ApiClient(
+        baseUrl: 'http://localhost:5228',
+        httpClient: MockClient((request) async {
+          if (request.method == 'POST' &&
+              request.url.path.endsWith('/vazgec')) {
+            return http.Response('{"title":"Service unavailable"}', 503);
+          }
+          if (request.method == 'POST') {
+            createPostCount += 1;
+            return http.Response(
+              '{"title":"Conflict","status":409,'
+              '"errorCode":"SAFE_WRITE_RETRY_ALLOWED",'
+              '"retryable":true,"recommendedAction":"RetrySameRequest"}',
+              409,
+            );
+          }
+          return http.Response('{}', 404);
+        }),
+      );
+
+      await expectLater(
+        client.postCreateJsonMap(
+          '/api/sevk-islemleri/depolar-arasi-sevkler/giden',
+          body: const <String, dynamic>{
+            'clientRequestId': '44444444-4444-4444-4444-444444444444',
+          },
+        ),
+        throwsA(
+          isA<ApiException>().having(
+            (error) => error.errorCode,
+            'errorCode',
+            'SAFE_WRITE_RETRY_ALLOWED',
+          ),
+        ),
+      );
+
+      expect(createPostCount, 2);
+    },
+  );
 
   test('safe create automatically retries a direct retry decision', () async {
     var postCount = 0;

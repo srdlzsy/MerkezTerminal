@@ -486,6 +486,16 @@ class OfflineSyncService {
       );
     }
 
+    if (!manualRetry &&
+        !statusCheckOnly &&
+        !draft.hasBeenSubmitted &&
+        draft.errorCode == 'LOCAL_SEND_RETRY_REQUIRED') {
+      return OfflineDraftSyncResult(
+        status: OfflineDraftSyncResultStatus.deferred,
+        message: draft.lastError,
+      );
+    }
+
     if (!statusCheckOnly &&
         draft.retryable == false &&
         draft.hasBeenSubmitted) {
@@ -554,6 +564,29 @@ class OfflineSyncService {
         );
       }
       if (recovery.status == _CreateRecoveryStatus.retryable) {
+        if (statusCheckOnly &&
+            recovery.recoveryState == 'ReservationNotFound') {
+          if (draft.retryable == false) {
+            final message =
+                'Sunucuda bu istegin durum kaydi bulunamadi. Mevcut guvenlik '
+                'karari korundu; evrak otomatik olarak yeniden gonderilmeyecek.';
+            await _offlineCompanyAcceptanceRepository.saveDraft(
+              draft.copyWith(
+                status: OfflineRecordStatus.failed,
+                lastCheckedAt: DateTime.now(),
+                lastError: message,
+                statusCheckCount: draft.statusCheckCount + 1,
+              ),
+            );
+            return OfflineDraftSyncResult(
+              status: OfflineDraftSyncResultStatus.failed,
+              message: message,
+            );
+          }
+
+          return _resetCompanyAcceptanceToUnsent(draft);
+        }
+
         final errorCode = recovery.errorCode?.trim().toUpperCase() ?? '';
         final wasWaitingForQueue =
             draft.errorCode?.trim().toUpperCase() == 'MIKRO_WRITE_QUEUE_BUSY';
@@ -652,6 +685,10 @@ class OfflineSyncService {
         );
       }
       if (recovery.status == _CreateRecoveryStatus.retryable) {
+        if (recovery.recoveryState == 'ReservationNotFound') {
+          return _resetCompanyAcceptanceToUnsent(syncingDraft);
+        }
+
         await _saveCompanyAcceptanceRecovery(
           syncingDraft,
           recovery,
@@ -823,6 +860,32 @@ class OfflineSyncService {
         recoveryState: recovery.recoveryState,
         recommendedAction: recovery.recommendedAction,
       ),
+    );
+  }
+
+  Future<OfflineDraftSyncResult> _resetCompanyAcceptanceToUnsent(
+    OfflineCompanyAcceptanceDraft draft,
+  ) async {
+    const message =
+        'Sunucuda bu istek icin islem kaydi olusmadi. Evrak cihazda '
+        'korunuyor; baglantiyi kontrol edip Tekrar Dene butonuna basin.';
+    final resetDraft = draft.copyWith(
+      status: OfflineRecordStatus.pending,
+      lastSyncAttemptAt: DateTime.now(),
+      lastError: message,
+      hasBeenSubmitted: false,
+      clearSyncMetadata: true,
+    );
+    await _offlineCompanyAcceptanceRepository.saveDraft(
+      resetDraft.copyWith(
+        lastError: message,
+        errorCode: 'LOCAL_SEND_RETRY_REQUIRED',
+        retryable: true,
+      ),
+    );
+    return const OfflineDraftSyncResult(
+      status: OfflineDraftSyncResultStatus.deferred,
+      message: message,
     );
   }
 
@@ -1200,13 +1263,13 @@ class OfflineSyncService {
       if (error.statusCode == 404) {
         return _CreateRecovery(
           status: _CreateRecoveryStatus.retryable,
-          message:
-              'Sunucuda bu istegin rezervasyonu bulunamadi. Saklanan ayni '
-              'kayit guvenli sekilde yeniden gonderilecek.',
+          message: 'Sunucuda bu istegin durum kaydi bulunamadi.',
           errorCode: 'SAFE_WRITE_RETRY_ALLOWED',
           retryable: true,
           correlationId: error.correlationId,
           relatedClientRequestId: error.relatedClientRequestId,
+          recoveryState: 'ReservationNotFound',
+          recommendedAction: 'RetrySameRequest',
         );
       }
       final decision = classifySafeCreateException(error);

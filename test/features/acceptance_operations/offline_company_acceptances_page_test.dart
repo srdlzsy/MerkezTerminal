@@ -119,6 +119,64 @@ void main() {
     expect(find.textContaining('support-code-1'), findsOneWidget);
   });
 
+  testWidgets('shows explicit retry when server never received the draft', (
+    tester,
+  ) async {
+    final offlineRepository = _FakeOfflineCompanyAcceptancesRepository();
+    offlineRepository.drafts.add(
+      OfflineCompanyAcceptanceDraft.fromCreateRequest(
+        _buildCompanyAcceptanceRequest(),
+        userId: 'u1',
+        warehouseNo: '110',
+        customerDisplayName: 'Test Cari',
+        createdAt: DateTime(2026, 10, 20, 9),
+        status: OfflineRecordStatus.pending,
+        lastSyncAttemptAt: DateTime(2026, 10, 20, 9, 1),
+        lastError:
+            'Sunucuda bu istek icin islem kaydi olusmadi. Evrak cihazda '
+            'korunuyor; baglantiyi kontrol edip Tekrar Dene butonuna basin.',
+        hasBeenSubmitted: false,
+        errorCode: 'LOCAL_SEND_RETRY_REQUIRED',
+        retryable: true,
+      ),
+    );
+
+    final companyRepository = _FakeCompanyAcceptancesRepository();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: OfflineCompanyAcceptancesPage(
+          offlineRepository: offlineRepository,
+          onlineRepository: companyRepository,
+          ordersRepository: _FakeGivenCompanyOrdersRepository(),
+          accessToken: 'token',
+          offlineSyncService: OfflineSyncService(
+            inventoryRepository: _FakeInventoryCountsRepository(),
+            companyAcceptanceRepository: companyRepository,
+            offlineInventoryRepository: _FakeOfflineInventoryCountsRepository(),
+            offlineCompanyAcceptanceRepository: offlineRepository,
+          ),
+          mobileCustomerCatalogRepository: MobileCustomerCatalogLocalRepository(
+            database: MemoryLocalDatabase(),
+          ),
+          mobileProductCatalogRepository: MobileProductCatalogLocalRepository(
+            database: MemoryLocalDatabase(),
+          ),
+          currentUserId: 'u1',
+          defaultWarehouseNo: '110',
+          userWarehouseName: 'TEST DEPO',
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Tekrar Dene'), findsOneWidget);
+    final deleteButton = tester.widget<OutlinedButton>(
+      find.widgetWithText(OutlinedButton, 'Sil'),
+    );
+    expect(deleteButton.onPressed, isNotNull);
+    expect(find.text('Durumu Kontrol Et'), findsNothing);
+  });
+
   testWidgets('passes offline pda create contract with keyboard inset', (
     tester,
   ) async {
@@ -428,6 +486,38 @@ Future<void> _openOfflineCompanyAcceptanceLines(WidgetTester tester) async {
   await tester.tap(nextButton);
   await tester.pumpAndSettle();
   expect(find.text('Giris satiri'), findsOneWidget);
+}
+
+CompanyAcceptanceCreateRequest _buildCompanyAcceptanceRequest() {
+  return CompanyAcceptanceCreateRequest(
+    clientRequestId: 'local-retry-request-1',
+    customerCode: 'CR-001',
+    movementDate: DateTime(2026, 10, 20),
+    documentDate: DateTime(2026, 10, 20),
+    documentSerie: 'F54',
+    documentOrderNo: 6005,
+    deliverer: '',
+    receiver: '',
+    description: '',
+    allowOrderOverReceiving: false,
+    lines: const <CompanyAcceptanceCreateLine>[
+      CompanyAcceptanceCreateLine(
+        stockCode: '030841',
+        dispatchQuantity: 10,
+        acceptedQuantity: 10,
+        unitPrice: 0,
+        unitPointer: 1,
+        lastConsumingDate: null,
+        orderGuid: null,
+        description: '',
+        partyCode: '',
+        lotNo: 0,
+        projectCode: '',
+        customerResponsibilityCenter: '',
+        productResponsibilityCenter: '',
+      ),
+    ],
+  );
 }
 
 class _FakeOfflineCompanyAcceptancesRepository
