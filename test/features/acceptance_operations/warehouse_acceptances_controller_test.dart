@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:furpa_merkez_terminal/features/acceptance_operations/warehouse_acceptances/data/models/warehouse_acceptance_models.dart';
 import 'package:furpa_merkez_terminal/features/acceptance_operations/warehouse_acceptances/data/warehouse_acceptances_repository.dart';
@@ -57,6 +59,39 @@ void main() {
     expect(controller.selectedAcceptanceDetail, isNull);
   });
 
+  test('acceptShipment ignores a concurrent duplicate submit', () async {
+    final repository = _FakeWarehouseAcceptancesRepository();
+    final submitGate = Completer<void>();
+    repository.acceptShipmentGate = submitGate;
+    final controller = WarehouseAcceptancesController(
+      repository: repository,
+      accessToken: 'token',
+      defaultWarehouseNo: '110',
+    );
+
+    await controller.loadAcceptances();
+    await controller.selectAcceptance(controller.acceptances.first);
+    const request = WarehouseAcceptanceRequest(
+      allowDiscrepancy: false,
+      lines: <WarehouseAcceptanceRequestLine>[
+        WarehouseAcceptanceRequestLine(
+          movementGuid: 'movement-guid-1',
+          receivedQuantity: 10,
+        ),
+      ],
+    );
+
+    final firstSubmit = controller.acceptShipment(request);
+    await Future<void>.delayed(Duration.zero);
+    final duplicateResult = await controller.acceptShipment(request);
+
+    expect(duplicateResult, isNull);
+    expect(repository.acceptShipmentCallCount, 1);
+
+    submitGate.complete();
+    expect(await firstSubmit, isNotNull);
+  });
+
   test('requires official e-despatch trace for warehouse acceptance', () {
     expect(
       _buildHeader(
@@ -112,6 +147,9 @@ WarehouseShipmentDetailHeader _buildHeader({
 
 class _FakeWarehouseAcceptancesRepository
     implements WarehouseAcceptancesRepository {
+  Completer<void>? acceptShipmentGate;
+  int acceptShipmentCallCount = 0;
+
   final List<WarehouseAcceptanceListItem> _items =
       <WarehouseAcceptanceListItem>[
         const WarehouseShipmentListItem(
@@ -224,6 +262,9 @@ class _FakeWarehouseAcceptancesRepository
     required int documentOrderNo,
     required WarehouseAcceptanceRequest request,
   }) async {
+    acceptShipmentCallCount += 1;
+    await acceptShipmentGate?.future;
+
     _items.removeWhere(
       (item) =>
           item.documentSerie == documentSerie &&

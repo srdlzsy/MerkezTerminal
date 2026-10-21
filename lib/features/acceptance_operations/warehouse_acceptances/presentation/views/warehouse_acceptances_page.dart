@@ -583,6 +583,10 @@ class _AcceptanceReadyBodyState extends State<_AcceptanceReadyBody> {
   }
 
   Future<void> _submit() async {
+    if (widget.isSubmitting) {
+      return;
+    }
+
     if (!_hasRequiredEDespatch) {
       setState(() {
         _validationMessage =

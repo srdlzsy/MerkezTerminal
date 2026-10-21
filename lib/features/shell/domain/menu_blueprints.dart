@@ -250,6 +250,9 @@ abstract final class MenuBlueprintRegistry {
         'isReturn=false normal gelen depo sevkini, isReturn=true gelen depo iadesini ifade eder.',
         'UI her satir icin sayilan miktari sevk miktariyla onceden doldurabilir.',
         'Eksik veya fazla durumda kullanicidan acik fark onayi alinmali.',
+        'Kaydet devam ederken buton kilitlenir; controller ayni belge icin ikinci paralel POST istegini de engeller.',
+        'Ayni satir ve miktarlarla gelen 200 OK tekrar cevabi normal basari kabul edilir ve belge bekleyen listesinden dusurulur.',
+        'Farkli satir veya miktarla gelen 409 cevabinda otomatik tekrar yapilmaz; kullanici evrak detayini yeniler.',
       ],
     ),
     'mal-kabul-islemleri.mal-kabul-farklari': const MenuBlueprint(

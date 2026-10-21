@@ -164,6 +164,10 @@ class WarehouseAcceptancesController extends ChangeNotifier
   Future<WarehouseAcceptanceResult?> acceptShipment(
     WarehouseAcceptanceRequest request,
   ) async {
+    if (_isSubmitting) {
+      return null;
+    }
+
     final currentSelection = _selectedAcceptance;
 
     if (currentSelection == null) {
