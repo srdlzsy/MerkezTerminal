@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:furpa_merkez_terminal/core/network/api_exception.dart';
 import 'package:furpa_merkez_terminal/features/acceptance_operations/company_acceptances/data/company_acceptances_repository.dart';
 import 'package:furpa_merkez_terminal/features/acceptance_operations/company_acceptances/data/models/company_acceptance_models.dart';
@@ -92,6 +93,7 @@ class OfflineSyncService {
         accessToken: accessToken,
         request: request,
       );
+      await _completeInventoryDraft(request.clientRequestId ?? '');
       return InventoryCountSubmissionResult(
         status: OfflineSubmissionStatus.synced,
         onlineResult: result,
@@ -103,12 +105,14 @@ class OfflineSyncService {
           clientRequestId: request.clientRequestId ?? '',
         );
         if (recovery.status == _CreateRecoveryStatus.completed) {
+          await _completeInventoryDraft(request.clientRequestId ?? '');
           return InventoryCountSubmissionResult(
             status: OfflineSubmissionStatus.recovered,
             onlineResult: recovery.result,
           );
         }
         if (recovery.status == _CreateRecoveryStatus.cancelled) {
+          await _completeInventoryDraft(request.clientRequestId ?? '');
           return const InventoryCountSubmissionResult(
             status: OfflineSubmissionStatus.cancelled,
           );
@@ -122,6 +126,8 @@ class OfflineSyncService {
               status: OfflineRecordStatus.syncing,
               lastSyncAttemptAt: DateTime.now(),
               lastError: recovery.message ?? 'Kayit sunucuda isleniyor.',
+              hasBeenSubmitted: true,
+              retryNotBefore: DateTime.now().add(const Duration(seconds: 5)),
             ),
           );
           return const InventoryCountSubmissionResult(
@@ -137,6 +143,7 @@ class OfflineSyncService {
               status: OfflineRecordStatus.pending,
               lastSyncAttemptAt: DateTime.now(),
               lastError: recovery.message,
+              hasBeenSubmitted: false,
             ),
           );
           return const InventoryCountSubmissionResult(
@@ -160,6 +167,8 @@ class OfflineSyncService {
           status: OfflineRecordStatus.pending,
           lastSyncAttemptAt: DateTime.now(),
           lastError: _pendingCreateMessage(error),
+          hasBeenSubmitted: true,
+          retryNotBefore: DateTime.now().add(const Duration(seconds: 5)),
         ),
       );
       return const InventoryCountSubmissionResult(
@@ -199,7 +208,7 @@ class OfflineSyncService {
         accessToken: accessToken,
         request: request,
       );
-      await _offlineCompanyAcceptanceRepository.deleteDraft(snapshot.id);
+      await _completeCompanyAcceptanceDraft(snapshot.id);
       return CompanyAcceptanceSubmissionResult(
         status: OfflineSubmissionStatus.synced,
         onlineResult: result,
@@ -226,15 +235,43 @@ class OfflineSyncService {
           deadline: foregroundDeadline,
           initial: recovery,
         );
+        var automaticRetryAttempted = false;
+        if (recovery.status == _CreateRecoveryStatus.retryable &&
+            recovery.recommendedAction == 'RetrySameRequest') {
+          automaticRetryAttempted = true;
+          try {
+            final result = await _companyAcceptanceRepository.createAcceptance(
+              accessToken: accessToken,
+              request: request,
+            );
+            await _completeCompanyAcceptanceDraft(snapshot.id);
+            return CompanyAcceptanceSubmissionResult(
+              status: OfflineSubmissionStatus.synced,
+              onlineResult: result,
+            );
+          } on ApiException {
+            recovery = await _recoverCompanyAcceptanceRequest(
+              accessToken: accessToken,
+              clientRequestId: request.clientRequestId ?? '',
+              recheckExisting: true,
+            );
+            recovery = await _waitForCompanyAcceptanceResolution(
+              accessToken: accessToken,
+              clientRequestId: request.clientRequestId ?? '',
+              deadline: foregroundDeadline,
+              initial: recovery,
+            );
+          }
+        }
         if (recovery.status == _CreateRecoveryStatus.completed) {
-          await _offlineCompanyAcceptanceRepository.deleteDraft(snapshot.id);
+          await _completeCompanyAcceptanceDraft(snapshot.id);
           return CompanyAcceptanceSubmissionResult(
             status: OfflineSubmissionStatus.recovered,
             onlineResult: recovery.result,
           );
         }
         if (recovery.status == _CreateRecoveryStatus.cancelled) {
-          await _offlineCompanyAcceptanceRepository.deleteDraft(snapshot.id);
+          await _completeCompanyAcceptanceDraft(snapshot.id);
           return const CompanyAcceptanceSubmissionResult(
             status: OfflineSubmissionStatus.cancelled,
           );
@@ -250,6 +287,13 @@ class OfflineSyncService {
           );
         }
         if (recovery.status == _CreateRecoveryStatus.retryable) {
+          if (automaticRetryAttempted &&
+              recovery.recoveryState == 'ReservationNotFound') {
+            await _storeCompanyAcceptanceForManualRetry(snapshot);
+            return const CompanyAcceptanceSubmissionResult(
+              status: OfflineSubmissionStatus.queued,
+            );
+          }
           await _offlineCompanyAcceptanceRepository.deleteDraft(snapshot.id);
           return const CompanyAcceptanceSubmissionResult(
             status: OfflineSubmissionStatus.retryAllowed,
@@ -367,11 +411,103 @@ class OfflineSyncService {
   Future<OfflineDraftSyncResult> syncInventoryDraft({
     required String accessToken,
     required OfflineInventoryCountDraft draft,
+    bool statusCheckOnly = false,
+    bool recheckExisting = false,
   }) async {
+    if (draft.hasBeenSubmitted) {
+      final retryNotBefore = draft.retryNotBefore;
+      if (retryNotBefore != null && retryNotBefore.isAfter(DateTime.now())) {
+        final seconds = retryNotBefore.difference(DateTime.now()).inSeconds + 1;
+        return OfflineDraftSyncResult(
+          status: OfflineDraftSyncResultStatus.processing,
+          message: '$seconds saniye sonra durum yeniden kontrol edilecek.',
+        );
+      }
+
+      final recovery = await _recoverInventoryRequest(
+        accessToken: accessToken,
+        clientRequestId: draft.clientRequestId,
+        recheckExisting: recheckExisting,
+      );
+      if (recovery.status == _CreateRecoveryStatus.completed) {
+        await _completeInventoryDraft(draft.id);
+        return const OfflineDraftSyncResult(
+          status: OfflineDraftSyncResultStatus.synced,
+        );
+      }
+      if (recovery.status == _CreateRecoveryStatus.cancelled) {
+        await _completeInventoryDraft(draft.id);
+        return OfflineDraftSyncResult(
+          status: OfflineDraftSyncResultStatus.cancelled,
+          message:
+              recovery.message ??
+              'Bu sayim iptal edildi. Mikro evraki olusturulmadi.',
+        );
+      }
+      if (recovery.status == _CreateRecoveryStatus.processing ||
+          recovery.status == _CreateRecoveryStatus.unknown) {
+        final checkedAt = DateTime.now();
+        await _offlineInventoryRepository.saveDraft(
+          draft.copyWith(
+            status: OfflineRecordStatus.syncing,
+            lastCheckedAt: checkedAt,
+            lastError: recovery.message ?? 'Kayit sonucu kontrol ediliyor.',
+            retryNotBefore: checkedAt.add(const Duration(seconds: 30)),
+            statusCheckCount: draft.statusCheckCount + 1,
+          ),
+        );
+        return OfflineDraftSyncResult(
+          status: OfflineDraftSyncResultStatus.processing,
+          message: recovery.message ?? 'Kayit sonucu kontrol ediliyor.',
+        );
+      }
+      if (recovery.status == _CreateRecoveryStatus.failed) {
+        await _offlineInventoryRepository.saveDraft(
+          draft.copyWith(
+            status: OfflineRecordStatus.failed,
+            lastCheckedAt: DateTime.now(),
+            lastError: recovery.message ?? 'Sayim kaydi dogrulanamadi.',
+            statusCheckCount: draft.statusCheckCount + 1,
+            clearRetryNotBefore: true,
+          ),
+        );
+        return OfflineDraftSyncResult(
+          status: OfflineDraftSyncResultStatus.failed,
+          message: recovery.message,
+        );
+      }
+      if (recovery.status == _CreateRecoveryStatus.retryable) {
+        final pendingDraft = draft.copyWith(
+          status: OfflineRecordStatus.pending,
+          hasBeenSubmitted: false,
+          lastCheckedAt: DateTime.now(),
+          lastError:
+              recovery.message ??
+              'Sunucuda evrak bulunmadi. Ayni taslak yeniden kaydedilebilir.',
+          statusCheckCount: draft.statusCheckCount + 1,
+          clearRetryNotBefore: true,
+        );
+        await _offlineInventoryRepository.saveDraft(pendingDraft);
+        return OfflineDraftSyncResult(
+          status: OfflineDraftSyncResultStatus.deferred,
+          message: pendingDraft.lastError,
+        );
+      }
+    }
+
+    if (statusCheckOnly) {
+      return const OfflineDraftSyncResult(
+        status: OfflineDraftSyncResultStatus.deferred,
+        message: 'Bu taslak henuz sunucuya gonderilmedi.',
+      );
+    }
+
     final syncingDraft = draft.copyWith(
       status: OfflineRecordStatus.syncing,
       lastSyncAttemptAt: DateTime.now(),
       lastError: null,
+      hasBeenSubmitted: true,
+      retryNotBefore: DateTime.now().add(const Duration(seconds: 5)),
     );
     await _offlineInventoryRepository.saveDraft(syncingDraft);
 
@@ -380,23 +516,37 @@ class OfflineSyncService {
         accessToken: accessToken,
         request: syncingDraft.toCreateRequest(),
       );
-      await _offlineInventoryRepository.deleteDraft(syncingDraft.id);
+      await _completeInventoryDraft(syncingDraft.id);
       return const OfflineDraftSyncResult(
         status: OfflineDraftSyncResultStatus.synced,
       );
     } on ApiException catch (error) {
+      if (error.statusCode == 400) {
+        final editableDraft = syncingDraft.copyWith(
+          status: OfflineRecordStatus.pending,
+          lastError: error.message,
+          hasBeenSubmitted: false,
+          clearSyncMetadata: true,
+        );
+        await _offlineInventoryRepository.saveDraft(editableDraft);
+        return OfflineDraftSyncResult(
+          status: OfflineDraftSyncResultStatus.failed,
+          message: error.message,
+        );
+      }
+
       final recovery = await _recoverInventoryRequest(
         accessToken: accessToken,
         clientRequestId: syncingDraft.clientRequestId,
       );
       if (recovery.status == _CreateRecoveryStatus.completed) {
-        await _offlineInventoryRepository.deleteDraft(syncingDraft.id);
+        await _completeInventoryDraft(syncingDraft.id);
         return const OfflineDraftSyncResult(
           status: OfflineDraftSyncResultStatus.synced,
         );
       }
       if (recovery.status == _CreateRecoveryStatus.cancelled) {
-        await _offlineInventoryRepository.deleteDraft(syncingDraft.id);
+        await _completeInventoryDraft(syncingDraft.id);
         return OfflineDraftSyncResult(
           status: OfflineDraftSyncResultStatus.cancelled,
           message:
@@ -409,6 +559,9 @@ class OfflineSyncService {
           syncingDraft.copyWith(
             status: OfflineRecordStatus.syncing,
             lastError: recovery.message ?? 'Kayit sunucuda isleniyor.',
+            lastCheckedAt: DateTime.now(),
+            retryNotBefore: DateTime.now().add(const Duration(seconds: 30)),
+            statusCheckCount: syncingDraft.statusCheckCount + 1,
           ),
         );
         return OfflineDraftSyncResult(
@@ -421,6 +574,10 @@ class OfflineSyncService {
           syncingDraft.copyWith(
             status: OfflineRecordStatus.pending,
             lastError: recovery.message,
+            hasBeenSubmitted: false,
+            lastCheckedAt: DateTime.now(),
+            statusCheckCount: syncingDraft.statusCheckCount + 1,
+            clearRetryNotBefore: true,
           ),
         );
         return OfflineDraftSyncResult(
@@ -433,6 +590,9 @@ class OfflineSyncService {
           syncingDraft.copyWith(
             status: OfflineRecordStatus.failed,
             lastError: recovery.message,
+            lastCheckedAt: DateTime.now(),
+            statusCheckCount: syncingDraft.statusCheckCount + 1,
+            clearRetryNotBefore: true,
           ),
         );
         return OfflineDraftSyncResult(
@@ -446,6 +606,9 @@ class OfflineSyncService {
           syncingDraft.copyWith(
             status: OfflineRecordStatus.pending,
             lastError: error.message,
+            lastCheckedAt: DateTime.now(),
+            retryNotBefore: DateTime.now().add(const Duration(seconds: 30)),
+            statusCheckCount: syncingDraft.statusCheckCount + 1,
           ),
         );
         return OfflineDraftSyncResult(
@@ -458,6 +621,9 @@ class OfflineSyncService {
         syncingDraft.copyWith(
           status: OfflineRecordStatus.failed,
           lastError: error.message,
+          lastCheckedAt: DateTime.now(),
+          statusCheckCount: syncingDraft.statusCheckCount + 1,
+          clearRetryNotBefore: true,
         ),
       );
       return OfflineDraftSyncResult(
@@ -526,13 +692,13 @@ class OfflineSyncService {
         recheckExisting: recheckExisting,
       );
       if (recovery.status == _CreateRecoveryStatus.completed) {
-        await _offlineCompanyAcceptanceRepository.deleteDraft(draft.id);
+        await _completeCompanyAcceptanceDraft(draft.id);
         return const OfflineDraftSyncResult(
           status: OfflineDraftSyncResultStatus.synced,
         );
       }
       if (recovery.status == _CreateRecoveryStatus.cancelled) {
-        await _offlineCompanyAcceptanceRepository.deleteDraft(draft.id);
+        await _completeCompanyAcceptanceDraft(draft.id);
         return OfflineDraftSyncResult(
           status: OfflineDraftSyncResultStatus.cancelled,
           message:
@@ -648,24 +814,39 @@ class OfflineSyncService {
         accessToken: accessToken,
         request: draftToSubmit.toCreateRequest(),
       );
-      await _offlineCompanyAcceptanceRepository.deleteDraft(syncingDraft.id);
+      await _completeCompanyAcceptanceDraft(syncingDraft.id);
       return const OfflineDraftSyncResult(
         status: OfflineDraftSyncResultStatus.synced,
       );
     } on ApiException catch (error) {
+      if (error.statusCode == 400) {
+        final editableDraft = syncingDraft.copyWith(
+          status: OfflineRecordStatus.pending,
+          lastError: error.message,
+          hasBeenSubmitted: false,
+          clearSyncMetadata: true,
+          clearLastSyncAttemptAt: true,
+        );
+        await _offlineCompanyAcceptanceRepository.saveDraft(editableDraft);
+        return OfflineDraftSyncResult(
+          status: OfflineDraftSyncResultStatus.failed,
+          message: error.message,
+        );
+      }
+
       final recovery = await _recoverCompanyAcceptanceRequest(
         accessToken: accessToken,
         clientRequestId: syncingDraft.effectiveClientRequestId,
         recheckExisting: false,
       );
       if (recovery.status == _CreateRecoveryStatus.completed) {
-        await _offlineCompanyAcceptanceRepository.deleteDraft(syncingDraft.id);
+        await _completeCompanyAcceptanceDraft(syncingDraft.id);
         return const OfflineDraftSyncResult(
           status: OfflineDraftSyncResultStatus.synced,
         );
       }
       if (recovery.status == _CreateRecoveryStatus.cancelled) {
-        await _offlineCompanyAcceptanceRepository.deleteDraft(syncingDraft.id);
+        await _completeCompanyAcceptanceDraft(syncingDraft.id);
         return OfflineDraftSyncResult(
           status: OfflineDraftSyncResultStatus.cancelled,
           message:
@@ -766,48 +947,104 @@ class OfflineSyncService {
 
     _isSyncRunning = true;
     try {
-      final inventoryDrafts = await _offlineInventoryRepository.fetchDrafts(
-        userId: userId,
-        warehouseNo: warehouseNo,
-      );
+      final now = DateTime.now();
+      var inventoryStatusCheckAvailable = true;
+      var companyStatusCheckAvailable = true;
+      final inventoryDrafts =
+          await _offlineInventoryRepository.fetchDrafts(
+              userId: userId,
+              warehouseNo: warehouseNo,
+            )
+            ..sort((left, right) {
+              final leftCheckedAt =
+                  left.lastCheckedAt ?? left.lastSyncAttemptAt;
+              final rightCheckedAt =
+                  right.lastCheckedAt ?? right.lastSyncAttemptAt;
+              if (leftCheckedAt == null && rightCheckedAt == null) {
+                return left.createdAt.compareTo(right.createdAt);
+              }
+              if (leftCheckedAt == null) {
+                return -1;
+              }
+              if (rightCheckedAt == null) {
+                return 1;
+              }
+              return leftCheckedAt.compareTo(rightCheckedAt);
+            });
 
       for (final draft in inventoryDrafts) {
-        final lastAttempt = draft.lastSyncAttemptAt;
-        if (lastAttempt != null &&
-            DateTime.now().difference(lastAttempt) <
-                const Duration(seconds: 45)) {
+        if (!inventoryStatusCheckAvailable) {
+          break;
+        }
+        if (!draft.hasBeenSubmitted) {
           continue;
         }
+        final retryNotBefore = draft.retryNotBefore;
+        if (retryNotBefore != null && retryNotBefore.isAfter(now)) {
+          continue;
+        }
+        final lastCheck = draft.lastCheckedAt ?? draft.lastSyncAttemptAt;
+        if (lastCheck != null &&
+            now.difference(lastCheck) < const Duration(seconds: 45)) {
+          continue;
+        }
+        inventoryStatusCheckAvailable = false;
         final result = await syncInventoryDraft(
           accessToken: accessToken,
           draft: draft,
+          statusCheckOnly: true,
+          recheckExisting: false,
         );
         if (result.status == OfflineDraftSyncResultStatus.deferred ||
             result.status == OfflineDraftSyncResultStatus.processing) {
-          break;
+          continue;
         }
       }
 
-      final companyAcceptanceDrafts = await _offlineCompanyAcceptanceRepository
-          .fetchDrafts(userId: userId, warehouseNo: warehouseNo);
+      final companyAcceptanceDrafts =
+          await _offlineCompanyAcceptanceRepository.fetchDrafts(
+              userId: userId,
+              warehouseNo: warehouseNo,
+            )
+            ..sort((left, right) {
+              final leftCheckedAt =
+                  left.lastCheckedAt ?? left.lastSyncAttemptAt;
+              final rightCheckedAt =
+                  right.lastCheckedAt ?? right.lastSyncAttemptAt;
+              if (leftCheckedAt == null && rightCheckedAt == null) {
+                return left.createdAt.compareTo(right.createdAt);
+              }
+              if (leftCheckedAt == null) {
+                return -1;
+              }
+              if (rightCheckedAt == null) {
+                return 1;
+              }
+              return leftCheckedAt.compareTo(rightCheckedAt);
+            });
 
       for (final draft in companyAcceptanceDrafts) {
-        if (draft.retryable == false && draft.hasBeenSubmitted) {
-          final retryNotBefore = draft.retryNotBefore;
-          if (retryNotBefore != null &&
-              retryNotBefore.isAfter(DateTime.now())) {
-            continue;
-          }
-          await syncCompanyAcceptanceDraft(
-            accessToken: accessToken,
-            draft: draft,
-            statusCheckOnly: true,
-          );
+        if (!companyStatusCheckAvailable) {
+          break;
+        }
+        if (!draft.hasBeenSubmitted) {
           continue;
         }
+        final retryNotBefore = draft.retryNotBefore;
+        if (retryNotBefore != null && retryNotBefore.isAfter(now)) {
+          continue;
+        }
+        final lastCheck = draft.lastCheckedAt ?? draft.lastSyncAttemptAt;
+        if (lastCheck != null &&
+            now.difference(lastCheck) < const Duration(seconds: 45)) {
+          continue;
+        }
+        companyStatusCheckAvailable = false;
         await syncCompanyAcceptanceDraft(
           accessToken: accessToken,
           draft: draft,
+          statusCheckOnly: true,
+          recheckExisting: false,
         );
       }
     } finally {
@@ -867,8 +1104,21 @@ class OfflineSyncService {
     OfflineCompanyAcceptanceDraft draft,
   ) async {
     const message =
-        'Sunucuda bu istek icin islem kaydi olusmadi. Evrak cihazda '
-        'korunuyor; baglantiyi kontrol edip Tekrar Dene butonuna basin.';
+        'Sunucu bu istegi almadi. Evrak cihazda korunuyor. Baglantiyi '
+        'kontrol edip ayni taslakta Tekrar Dene butonuna basin.';
+    await _storeCompanyAcceptanceForManualRetry(draft, message: message);
+    return const OfflineDraftSyncResult(
+      status: OfflineDraftSyncResultStatus.deferred,
+      message: message,
+    );
+  }
+
+  Future<void> _storeCompanyAcceptanceForManualRetry(
+    OfflineCompanyAcceptanceDraft draft, {
+    String message =
+        'Sunucu bu istegi almadi. Evrak cihazda korunuyor. Baglantiyi '
+        'kontrol edip ayni taslakta Tekrar Dene butonuna basin.',
+  }) async {
     final resetDraft = draft.copyWith(
       status: OfflineRecordStatus.pending,
       lastSyncAttemptAt: DateTime.now(),
@@ -881,12 +1131,63 @@ class OfflineSyncService {
         lastError: message,
         errorCode: 'LOCAL_SEND_RETRY_REQUIRED',
         retryable: true,
+        retryNotBefore: DateTime.now().add(const Duration(seconds: 30)),
       ),
     );
-    return const OfflineDraftSyncResult(
-      status: OfflineDraftSyncResultStatus.deferred,
-      message: message,
+  }
+
+  Future<void> _completeInventoryDraft(String id) async {
+    if (id.trim().isEmpty) {
+      return;
+    }
+    Object? lastError;
+    StackTrace? lastStackTrace;
+    for (var attempt = 0; attempt < 3; attempt += 1) {
+      try {
+        await _offlineInventoryRepository.completeDraft(id);
+        return;
+      } on Object catch (error, stackTrace) {
+        lastError = error;
+        lastStackTrace = stackTrace;
+        if (attempt < 2) {
+          await Future<void>.delayed(
+            Duration(milliseconds: 50 * (attempt + 1)),
+          );
+        }
+      }
+    }
+    debugPrint(
+      'Inventory count completed but local snapshot cleanup failed: $lastError',
     );
+    if (lastStackTrace != null) {
+      debugPrintStack(stackTrace: lastStackTrace);
+    }
+  }
+
+  Future<void> _completeCompanyAcceptanceDraft(String id) async {
+    Object? lastError;
+    StackTrace? lastStackTrace;
+    for (var attempt = 0; attempt < 3; attempt += 1) {
+      try {
+        await _offlineCompanyAcceptanceRepository.completeDraft(id);
+        return;
+      } on Object catch (error, stackTrace) {
+        lastError = error;
+        lastStackTrace = stackTrace;
+        if (attempt < 2) {
+          await Future<void>.delayed(
+            Duration(milliseconds: 50 * (attempt + 1)),
+          );
+        }
+      }
+    }
+    debugPrint(
+      'Company acceptance completed but local snapshot cleanup failed: '
+      '$lastError',
+    );
+    if (lastStackTrace != null) {
+      debugPrintStack(stackTrace: lastStackTrace);
+    }
   }
 
   DateTime _nextCompanyAcceptanceCheck(
@@ -952,6 +1253,7 @@ class OfflineSyncService {
   Future<_CreateRecovery<InventoryCountCreateResult>> _recoverInventoryRequest({
     required String accessToken,
     required String clientRequestId,
+    bool recheckExisting = false,
   }) async {
     if (clientRequestId.trim().isEmpty) {
       return const _CreateRecovery(status: _CreateRecoveryStatus.unknown);
@@ -962,13 +1264,67 @@ class OfflineSyncService {
         accessToken: accessToken,
         clientRequestId: clientRequestId,
       );
-      final decision = classifySafeCreateFailure(
+      var decision = classifySafeCreateFailure(
         statusCode: status.retryable == true ? 409 : 400,
         message: status.errorMessage,
         errorCode: status.errorCode,
         retryable: status.retryable,
         recommendedAction: status.recommendedAction,
       );
+      if (recheckExisting &&
+          decision == SafeCreateFailureKind.recheckExisting &&
+          _inventoryRepository
+              is OfflineSyncRecheckProvider<InventoryCountCreateResult>) {
+        final provider =
+            _inventoryRepository
+                as OfflineSyncRecheckProvider<InventoryCountCreateResult>;
+        final rechecked = await provider.recheckOfflineSyncStatus(
+          accessToken: accessToken,
+          clientRequestId: clientRequestId,
+          operationCode: status.operationCode,
+        );
+        if (rechecked.isCompleted) {
+          return _CreateRecovery(
+            status: _CreateRecoveryStatus.completed,
+            result: rechecked.result,
+            operationCode: rechecked.operationCode,
+            recoveryState: rechecked.recoveryState,
+            recommendedAction: rechecked.recommendedAction,
+          );
+        }
+        if (rechecked.isCancelled) {
+          return _CreateRecovery(
+            status: _CreateRecoveryStatus.cancelled,
+            message: rechecked.errorMessage,
+            operationCode: rechecked.operationCode,
+            errorCode: rechecked.errorCode ?? 'SAFE_WRITE_CANCELLED',
+            retryable: false,
+            recoveryState: rechecked.recoveryState,
+            recommendedAction: rechecked.recommendedAction,
+          );
+        }
+        decision = classifyOfflineSyncStatus(rechecked);
+        return _CreateRecovery(
+          status: switch (decision) {
+            SafeCreateFailureKind.waitAndCheck ||
+            SafeCreateFailureKind.processing ||
+            SafeCreateFailureKind.uncertain => _CreateRecoveryStatus.processing,
+            SafeCreateFailureKind.retrySameRequest ||
+            SafeCreateFailureKind.queueBusy => _CreateRecoveryStatus.retryable,
+            _ => _CreateRecoveryStatus.failed,
+          },
+          message: safeCreateOfflineSyncErrorMessage(
+            rechecked,
+            fallback: 'Sayim kaydi yeniden kontrol edildi.',
+          ),
+          operationCode: rechecked.operationCode,
+          errorCode: rechecked.errorCode,
+          retryable: rechecked.retryable,
+          retryAfterSeconds: rechecked.retryAfterSeconds,
+          recoveryState: rechecked.recoveryState,
+          recommendedAction: rechecked.recommendedAction,
+        );
+      }
       if (status.isCompleted) {
         return _CreateRecovery(
           status: _CreateRecoveryStatus.completed,
@@ -1053,7 +1409,8 @@ class OfflineSyncService {
           status: _CreateRecoveryStatus.retryable,
           message:
               'Sunucuda bu istegin rezervasyonu bulunamadi. Saklanan ayni '
-              'kayit guvenli sekilde yeniden gonderilecek.',
+              'kayit kullanici Kaydet dediginde ayni kimlikle yeniden '
+              'gonderilebilir.',
           errorCode: 'SAFE_WRITE_RETRY_ALLOWED',
           retryable: true,
           correlationId: error.correlationId,

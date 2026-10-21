@@ -424,10 +424,12 @@ class ApiClient {
     JsonMap status,
     ApiException fallback,
   ) {
+    final detail =
+        _readNullableString(status['errorMessage']) ?? fallback.detail;
     return ApiException(
       statusCode: 409,
-      title: 'Conflict',
-      detail: _readNullableString(status['errorMessage']) ?? fallback.detail,
+      title: 'Islem cakismasi',
+      detail: ApiException.userFacingDetail(409, detail),
       errorCode: _readNullableString(status['errorCode']),
       retryable: _readBool(status['retryable']),
       retryAfterSeconds: _readInt(status['retryAfterSeconds']),
@@ -602,14 +604,16 @@ class ApiClient {
     } on TimeoutException {
       throw const ApiException(
         statusCode: 0,
-        title: 'Timeout',
-        detail: 'Sunucudan zamaninda yanit alinamadi.',
+        title: 'Islem zaman asimina ugradi',
+        detail:
+            'Sunucudan zamaninda yanit alinamadi. Internet baglantisini kontrol edip yeniden deneyin.',
       );
-    } on http.ClientException catch (error) {
-      throw ApiException(
+    } on http.ClientException {
+      throw const ApiException(
         statusCode: 0,
         title: 'Baglanti Hatasi',
-        detail: error.message,
+        detail:
+            'Sunucuya baglanilamadi. Internet baglantisini kontrol edip yeniden deneyin.',
       );
     }
   }
@@ -769,11 +773,12 @@ class ApiClient {
     final decoded = _decode(response);
 
     if (decoded is JsonMap) {
-      final title = _problemTitle(decoded);
+      final rawTitle = _problemTitle(decoded);
+      final rawDetail = _problemDetail(decoded, title: rawTitle);
       throw ApiException(
         statusCode: response.statusCode,
-        title: title,
-        detail: _problemDetail(decoded, title: title),
+        title: ApiException.userFacingTitle(response.statusCode, rawTitle),
+        detail: ApiException.userFacingDetail(response.statusCode, rawDetail),
         errorCode: _problemString(decoded, 'errorCode'),
         retryable: _problemBool(decoded, 'retryable'),
         retryAfterSeconds: _problemInt(decoded, 'retryAfterSeconds'),
@@ -791,8 +796,11 @@ class ApiClient {
 
     throw ApiException(
       statusCode: response.statusCode,
-      title: 'Istek basarisiz',
-      detail: response.body.isEmpty ? null : utf8.decode(response.bodyBytes),
+      title: ApiException.userFacingTitle(
+        response.statusCode,
+        'Istek basarisiz',
+      ),
+      detail: ApiException.userFacingDetail(response.statusCode, null),
       correlationId: _responseCorrelationId(response),
     );
   }

@@ -181,6 +181,48 @@ void main() {
     expect(restored?.retryNotBefore, retryNotBefore);
   });
 
+  test('completed request cannot be restored or saved again', () async {
+    final repository = LocalPendingCreateRepository(
+      database: _MemoryLocalDatabase(),
+    );
+    final operation = PendingCreateOperation(
+      moduleKey: 'sevk',
+      userId: 'user-1',
+      warehouseNo: '120',
+      payload: const <String, dynamic>{'clientRequestId': 'request-completed'},
+      updatedAt: DateTime(2026, 10, 21, 10),
+      failureKind: 'processing',
+    );
+
+    await repository.save(operation);
+    await repository.complete(
+      moduleKey: operation.moduleKey,
+      userId: operation.userId,
+      warehouseNo: operation.warehouseNo,
+      clientRequestId: operation.clientRequestId,
+    );
+
+    expect(
+      await repository.read(
+        moduleKey: operation.moduleKey,
+        userId: operation.userId,
+        warehouseNo: operation.warehouseNo,
+      ),
+      isNull,
+    );
+
+    await repository.save(operation.copyWith(failureKind: 'uncertain'));
+
+    expect(
+      await repository.readAll(
+        moduleKey: operation.moduleKey,
+        userId: operation.userId,
+        warehouseNo: operation.warehouseNo,
+      ),
+      isEmpty,
+    );
+  });
+
   test('persists support metadata for a pending create', () async {
     final repository = LocalPendingCreateRepository(
       database: _MemoryLocalDatabase(),

@@ -5,6 +5,7 @@ import 'package:furpa_merkez_terminal/core/utils/request_epoch.dart';
 import 'package:furpa_merkez_terminal/core/utils/safe_change_notifier.dart';
 import 'package:furpa_merkez_terminal/features/acceptance_operations/warehouse_acceptances/data/models/warehouse_acceptance_models.dart';
 import 'package:furpa_merkez_terminal/features/acceptance_operations/warehouse_acceptances/data/warehouse_acceptances_repository.dart';
+import 'package:furpa_merkez_terminal/shared/utils/post_create_refresh.dart';
 
 class WarehouseAcceptancesController extends ChangeNotifier
     with SafeChangeNotifier {
@@ -192,7 +193,9 @@ class WarehouseAcceptancesController extends ChangeNotifier
       _isSubmitting = false;
       notifySafely();
 
-      await loadAcceptances(preserveLastAcceptanceResult: true);
+      await refreshAfterSuccessfulCreate(
+        () => loadAcceptances(preserveLastAcceptanceResult: true),
+      );
 
       return result;
     } on ApiException catch (error) {

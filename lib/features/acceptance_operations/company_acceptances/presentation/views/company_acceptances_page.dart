@@ -20,6 +20,7 @@ import 'package:furpa_merkez_terminal/shared/formatters/app_formatters.dart';
 import 'package:furpa_merkez_terminal/shared/offline/mobile_customer_catalog_repository.dart';
 import 'package:furpa_merkez_terminal/shared/offline/mobile_product_catalog_repository.dart';
 import 'package:furpa_merkez_terminal/shared/offline/offline_sync_service.dart';
+import 'package:furpa_merkez_terminal/shared/utils/completed_create_cleanup.dart';
 import 'package:furpa_merkez_terminal/shared/utils/safe_create_retry.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/section_card.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/terminal_create_page.dart';
@@ -300,9 +301,7 @@ class _CompanyAcceptancesPageState extends State<CompanyAcceptancesPage> {
       switch (submission.status) {
         case OfflineSubmissionStatus.synced:
         case OfflineSubmissionStatus.recovered:
-          if (draft != null) {
-            await widget.draftRepository?.deleteDraft(draft.id);
-          }
+          await _deleteFormDraftBestEffort(draft);
           final result = submission.onlineResult;
           await _controller.loadAcceptances(
             preferredDocumentSerie: result?.documentSerie,
@@ -331,20 +330,17 @@ class _CompanyAcceptancesPageState extends State<CompanyAcceptancesPage> {
             ),
           );
         case OfflineSubmissionStatus.queued:
-          if (draft != null) {
-            await widget.draftRepository?.deleteDraft(draft.id);
-          }
+          await _deleteFormDraftBestEffort(draft);
           messenger.showSnackBar(
             const SnackBar(
               content: Text(
-                'Internet olmadigi icin mal kabul cihaza kaydedildi ve senkron kuyruguna eklendi.',
+                'Mal kabul cihaza kaydedildi. Terminal once mevcut istegin '
+                'durumunu kontrol eder; yeni evrak otomatik gonderilmez.',
               ),
             ),
           );
         case OfflineSubmissionStatus.processing:
-          if (draft != null) {
-            await widget.draftRepository?.deleteDraft(draft.id);
-          }
+          await _deleteFormDraftBestEffort(draft);
           messenger.showSnackBar(
             const SnackBar(
               content: Text(
@@ -375,9 +371,7 @@ class _CompanyAcceptancesPageState extends State<CompanyAcceptancesPage> {
             );
           }
         case OfflineSubmissionStatus.needsReview:
-          if (draft != null) {
-            await widget.draftRepository?.deleteDraft(draft.id);
-          }
+          await _deleteFormDraftBestEffort(draft);
           messenger.showSnackBar(
             SnackBar(
               duration: const Duration(seconds: 12),
@@ -388,9 +382,7 @@ class _CompanyAcceptancesPageState extends State<CompanyAcceptancesPage> {
             ),
           );
         case OfflineSubmissionStatus.cancelled:
-          if (draft != null) {
-            await widget.draftRepository?.deleteDraft(draft.id);
-          }
+          await _deleteFormDraftBestEffort(draft);
           messenger.showSnackBar(
             const SnackBar(
               content: Text(
@@ -511,9 +503,7 @@ class _CompanyAcceptancesPageState extends State<CompanyAcceptancesPage> {
       switch (submission.status) {
         case OfflineSubmissionStatus.synced:
         case OfflineSubmissionStatus.recovered:
-          if (draft != null) {
-            await widget.draftRepository?.deleteDraft(draft.id);
-          }
+          await _deleteFormDraftBestEffort(draft);
           final result = submission.onlineResult;
           await _controller.loadAcceptances(
             preferredDocumentSerie: result?.documentSerie,
@@ -537,17 +527,15 @@ class _CompanyAcceptancesPageState extends State<CompanyAcceptancesPage> {
             message: 'Evrak kaydedildi.',
           );
         case OfflineSubmissionStatus.queued:
-          if (draft != null) {
-            await widget.draftRepository?.deleteDraft(draft.id);
-          }
+          await _deleteFormDraftBestEffort(draft);
           if (mounted) {
             scheduleMicrotask(() {
               if (mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
                     content: Text(
-                      'Internet olmadigi icin kayit cihazda korundu. Internet '
-                      'gelince otomatik gonderilecek.',
+                      'Kayit cihazda korundu. Terminal mevcut istegin durumunu '
+                      'kontrol eder; yeni evrak otomatik gonderilmez.',
                     ),
                   ),
                 );
@@ -570,20 +558,19 @@ class _CompanyAcceptancesPageState extends State<CompanyAcceptancesPage> {
           );
         case OfflineSubmissionStatus.processing:
           return const CompanyAcceptanceSubmitDecision(
-            closeForm: false,
-            allowRetry: true,
-            lockFieldsOnRetry: true,
+            closeForm: true,
+            allowRetry: false,
             message:
-                'Kayit sonucu henuz kesinlesmedi. Ayni formda Tekrar Dene '
-                'kullanabilirsiniz; ikinci evrak gonderilmeyecek.',
+                'Kayit sonucu terminal tarafindan kontrol ediliyor. Form '
+                'kapatildi; ikinci evrak gonderilmeyecek.',
           );
         case OfflineSubmissionStatus.needsReview:
           return const CompanyAcceptanceSubmitDecision(
-            closeForm: false,
+            closeForm: true,
             allowRetry: false,
             message:
-                'Kayit otomatik olarak dogrulanamadi. Bilgiler korundu ve '
-                'ikinci evrak gonderilmedi.',
+                'Kayit otomatik olarak dogrulanamadi. Bilgiler cihazda '
+                'korundu; terminal durum kontrolune devam edecek.',
           );
         case OfflineSubmissionStatus.cancelled:
           return const CompanyAcceptanceSubmitDecision(
@@ -626,6 +613,17 @@ class _CompanyAcceptancesPageState extends State<CompanyAcceptancesPage> {
         });
       }
     }
+  }
+
+  Future<void> _deleteFormDraftBestEffort(CreateDraft? draft) async {
+    final repository = widget.draftRepository;
+    if (draft == null || repository == null) {
+      return;
+    }
+    await deleteCompletedDraftBestEffort(
+      draftRepository: repository,
+      draftId: draft.id,
+    );
   }
 
   Future<CreateDraft?> _loadLatestCreateDraft(CreateDraft? draft) async {

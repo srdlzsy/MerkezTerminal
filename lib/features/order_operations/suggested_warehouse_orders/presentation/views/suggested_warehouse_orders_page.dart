@@ -13,6 +13,7 @@ import 'package:furpa_merkez_terminal/shared/pending_create/pending_create_guard
 import 'package:furpa_merkez_terminal/shared/pending_create/pending_create_repository.dart';
 import 'package:furpa_merkez_terminal/shared/pending_create/pending_create_status_card.dart';
 import 'package:furpa_merkez_terminal/shared/utils/client_request_id.dart';
+import 'package:furpa_merkez_terminal/shared/utils/completed_create_cleanup.dart';
 import 'package:furpa_merkez_terminal/shared/utils/safe_create_retry.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/section_card.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/terminal_ui_parts.dart';
@@ -459,7 +460,21 @@ class _SuggestedWarehouseOrdersPageState
 
   Future<void> _completePending(WarehouseOrderCreateResult result) async {
     if (!_usesSafeConvert) return;
-    await _removePending(_pendingRequest?.clientRequestId);
+    final clientRequestId = _pendingRequest?.clientRequestId?.trim() ?? '';
+    if (mounted) {
+      setState(() {
+        _pendingRequest = null;
+        _pendingOperation = null;
+        _pendingFailureKind = SafeCreateFailureKind.notRetryable;
+      });
+    }
+    await completeLocalCreateState(
+      pendingRepository: widget.pendingCreateRepository!,
+      moduleKey: _pendingModuleKey,
+      userId: widget.currentUserId,
+      warehouseNo: widget.defaultWarehouseNo,
+      clientRequestId: clientRequestId,
+    );
   }
 
   Future<void> _removePending(String? clientRequestId) async {

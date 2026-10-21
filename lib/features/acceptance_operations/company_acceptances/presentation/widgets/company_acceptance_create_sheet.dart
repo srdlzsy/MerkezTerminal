@@ -392,7 +392,7 @@ class _CompanyAcceptanceCreateSheetState
 
       setState(() {
         _isResolvingEDespatch = false;
-        _lookupError = error.toString().replaceFirst('Exception: ', '');
+        _lookupError = userFacingErrorMessage(error);
       });
       _draftSession.scheduleSave();
 
@@ -511,7 +511,7 @@ class _CompanyAcceptanceCreateSheetState
       }
 
       setState(() {
-        _lookupError = error.toString().replaceFirst('Exception: ', '');
+        _lookupError = userFacingErrorMessage(error);
       });
       return;
     }
@@ -623,10 +623,7 @@ class _CompanyAcceptanceCreateSheetState
       }
 
       setState(() {
-        line.setLookupStatus(
-          'API hata dondu: ${error.toString().replaceFirst('Exception: ', '').trim()}',
-          isError: true,
-        );
+        line.setLookupStatus(userFacingErrorMessage(error), isError: true);
         _lookupError = null;
       });
       _refocusLine(line.lookupFocusNode);
@@ -1234,7 +1231,7 @@ class _CompanyAcceptanceCreateSheetState
       }
 
       setState(() {
-        _lookupError = error.toString().replaceFirst('Exception: ', '');
+        _lookupError = userFacingErrorMessage(error);
       });
       return;
     }
@@ -1306,7 +1303,7 @@ class _CompanyAcceptanceCreateSheetState
       }
 
       setState(() {
-        _lookupError = error.toString().replaceFirst('Exception: ', '');
+        _lookupError = userFacingErrorMessage(error);
       });
       return;
     }
@@ -1565,7 +1562,7 @@ class _CompanyAcceptanceCreateSheetState
         _submissionLocked = false;
         _lookupError = error is ApiException
             ? safeCreateRetryErrorMessage(error)
-            : error.toString().replaceFirst('Exception: ', '');
+            : userFacingErrorMessage(error);
       });
     }
   }
@@ -1724,6 +1721,9 @@ class _CompanyAcceptanceCreateSheetState
             : normalizedCustomerCode,
       );
     } on ApiException {
+      if (normalizedCustomerCode != null && normalizedCustomerCode.isNotEmpty) {
+        rethrow;
+      }
       final catalogItems = await widget.mobileProductCatalogRepository
           .searchProducts(warehouseNo: widget.defaultWarehouseNo, query: query);
       if (catalogItems.isNotEmpty) {

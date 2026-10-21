@@ -369,7 +369,7 @@ class _GivenWarehouseOrderCreateSheetState
 
       setState(() {
         _isLoadingSourceProducts = false;
-        _validationMessage = error.toString();
+        _validationMessage = userFacingErrorMessage(error);
       });
     }
   }
@@ -1179,7 +1179,7 @@ class _GivenWarehouseOrderCreateSheetState
         return false;
       }
 
-      final message = error.toString();
+      final message = userFacingErrorMessage(error);
       setState(() {
         line.setProductCaseStatus(message, isError: true);
       });
@@ -1970,7 +1970,7 @@ class _WarehouseLookupSheetState extends State<_WarehouseLookupSheet> {
       }
 
       setState(() {
-        _errorMessage = error.toString();
+        _errorMessage = userFacingErrorMessage(error);
         _isLoading = false;
       });
     } catch (error) {
@@ -1978,7 +1978,7 @@ class _WarehouseLookupSheetState extends State<_WarehouseLookupSheet> {
         return;
       }
       setState(() {
-        _errorMessage = error.toString();
+        _errorMessage = userFacingErrorMessage(error);
         _isLoading = false;
       });
     }
@@ -2178,7 +2178,7 @@ class _ProductLookupSheetState extends State<_ProductLookupSheet> {
         return;
       }
       setState(() {
-        _errorMessage = error.toString();
+        _errorMessage = userFacingErrorMessage(error);
         _isLoading = false;
       });
     }

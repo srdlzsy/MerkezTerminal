@@ -15,6 +15,10 @@ class OfflineInventoryCountDraft {
     required this.lastSyncAttemptAt,
     required this.lastError,
     required this.lines,
+    this.hasBeenSubmitted = false,
+    this.retryNotBefore,
+    this.lastCheckedAt,
+    this.statusCheckCount = 0,
   });
 
   final String id;
@@ -27,6 +31,10 @@ class OfflineInventoryCountDraft {
   final DateTime? lastSyncAttemptAt;
   final String? lastError;
   final List<OfflineInventoryCountLine> lines;
+  final bool hasBeenSubmitted;
+  final DateTime? retryNotBefore;
+  final DateTime? lastCheckedAt;
+  final int statusCheckCount;
 
   String get clientRequestId => id;
 
@@ -56,6 +64,12 @@ class OfflineInventoryCountDraft {
     OfflineRecordStatus? status,
     DateTime? lastSyncAttemptAt,
     String? lastError,
+    bool? hasBeenSubmitted,
+    DateTime? retryNotBefore,
+    DateTime? lastCheckedAt,
+    int? statusCheckCount,
+    bool clearRetryNotBefore = false,
+    bool clearSyncMetadata = false,
   }) {
     return OfflineInventoryCountDraft(
       id: id,
@@ -65,9 +79,21 @@ class OfflineInventoryCountDraft {
       documentDate: documentDate,
       createdAt: createdAt,
       status: status ?? this.status,
-      lastSyncAttemptAt: lastSyncAttemptAt ?? this.lastSyncAttemptAt,
+      lastSyncAttemptAt: clearSyncMetadata
+          ? null
+          : lastSyncAttemptAt ?? this.lastSyncAttemptAt,
       lastError: lastError,
       lines: lines,
+      hasBeenSubmitted: hasBeenSubmitted ?? this.hasBeenSubmitted,
+      retryNotBefore: clearSyncMetadata || clearRetryNotBefore
+          ? null
+          : retryNotBefore ?? this.retryNotBefore,
+      lastCheckedAt: clearSyncMetadata
+          ? null
+          : lastCheckedAt ?? this.lastCheckedAt,
+      statusCheckCount: clearSyncMetadata
+          ? 0
+          : statusCheckCount ?? this.statusCheckCount,
     );
   }
 
@@ -83,6 +109,10 @@ class OfflineInventoryCountDraft {
       'lastSyncAttemptAt': lastSyncAttemptAt?.toIso8601String(),
       'lastError': lastError,
       'lines': lines.map((item) => item.toJson()).toList(growable: false),
+      'hasBeenSubmitted': hasBeenSubmitted,
+      'retryNotBefore': retryNotBefore?.toIso8601String(),
+      'lastCheckedAt': lastCheckedAt?.toIso8601String(),
+      'statusCheckCount': statusCheckCount,
     };
   }
 
@@ -112,6 +142,13 @@ class OfflineInventoryCountDraft {
             ),
           )
           .toList(growable: false),
+      hasBeenSubmitted: json['hasBeenSubmitted'] == true,
+      retryNotBefore: DateTime.tryParse(
+        json['retryNotBefore']?.toString() ?? '',
+      ),
+      lastCheckedAt: DateTime.tryParse(json['lastCheckedAt']?.toString() ?? ''),
+      statusCheckCount:
+          int.tryParse(json['statusCheckCount']?.toString() ?? '') ?? 0,
     );
   }
 
@@ -122,6 +159,8 @@ class OfflineInventoryCountDraft {
     required OfflineRecordStatus status,
     required DateTime? lastSyncAttemptAt,
     String? lastError,
+    bool hasBeenSubmitted = false,
+    DateTime? retryNotBefore,
   }) {
     final clientRequestId = request.clientRequestId?.trim();
     return OfflineInventoryCountDraft(
@@ -136,6 +175,8 @@ class OfflineInventoryCountDraft {
       status: status,
       lastSyncAttemptAt: lastSyncAttemptAt,
       lastError: lastError,
+      hasBeenSubmitted: hasBeenSubmitted,
+      retryNotBefore: retryNotBefore,
       lines: request.lines
           .map(
             (item) => OfflineInventoryCountLine(

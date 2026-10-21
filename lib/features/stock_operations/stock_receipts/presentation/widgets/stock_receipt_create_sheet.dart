@@ -191,10 +191,7 @@ class _StockReceiptCreateSheetState extends State<StockReceiptCreateSheet>
       }
 
       setState(() {
-        line.setLookupStatus(
-          'API hata dondu: ${error.toString().replaceFirst('Exception: ', '').trim()}',
-          isError: true,
-        );
+        line.setLookupStatus(userFacingErrorMessage(error), isError: true);
         _lookupError = null;
       });
       _refocusLine(line.lookupFocusNode);

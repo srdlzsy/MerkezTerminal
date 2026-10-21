@@ -20,6 +20,7 @@ import 'package:furpa_merkez_terminal/shared/offline/mobile_customer_catalog_rep
 import 'package:furpa_merkez_terminal/shared/offline/offline_sync_status.dart';
 import 'package:furpa_merkez_terminal/shared/pending_create/pending_create_guard.dart';
 import 'package:furpa_merkez_terminal/shared/pending_create/pending_create_repository.dart';
+import 'package:furpa_merkez_terminal/shared/utils/completed_create_cleanup.dart';
 import 'package:furpa_merkez_terminal/shared/utils/safe_create_retry.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/section_card.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/terminal_create_page.dart';
@@ -412,6 +413,17 @@ class _CompanyMovementsPageState extends State<CompanyMovementsPage> {
         : await _controller.createMovement(request);
 
     if (!mounted) {
+      if (result != null) {
+        await completeLocalCreateState(
+          pendingRepository: widget.pendingCreateRepository,
+          moduleKey: widget.draftModuleKey,
+          userId: widget.currentUserId,
+          warehouseNo: widget.defaultWarehouseNo,
+          clientRequestId: request.clientRequestId ?? '',
+          draftRepository: widget.draftRepository,
+          draftId: draft?.id,
+        );
+      }
       return;
     }
 
@@ -526,29 +538,6 @@ class _CompanyMovementsPageState extends State<CompanyMovementsPage> {
       }
     }
 
-    try {
-      await _clearPersistedPendingCreate(request.clientRequestId);
-    } on Object {
-      if (!mounted) {
-        return;
-      }
-      setState(() {
-        _pendingCreateRequest = request;
-        _pendingCreateDraft = draft;
-        _pendingCreateFailureKind = SafeCreateFailureKind.uncertain;
-        _pendingRetryNotBefore = null;
-      });
-      messenger.showSnackBar(
-        SnackBar(
-          content: Text(
-            '${result.documentNoLabel} olusturuldu ancak cihazdaki guvenli '
-            'kayit temizlenemedi. Ayni kayitla Tekrar Dene kullanin.',
-          ),
-        ),
-      );
-      return;
-    }
-
     if (!mounted) {
       return;
     }
@@ -558,7 +547,15 @@ class _CompanyMovementsPageState extends State<CompanyMovementsPage> {
       _pendingCreateFailureKind = SafeCreateFailureKind.notRetryable;
       _pendingRetryNotBefore = null;
     });
-    await _restorePendingCreate();
+    await completeLocalCreateState(
+      pendingRepository: widget.pendingCreateRepository,
+      moduleKey: widget.draftModuleKey,
+      userId: widget.currentUserId,
+      warehouseNo: widget.defaultWarehouseNo,
+      clientRequestId: request.clientRequestId ?? '',
+      draftRepository: widget.draftRepository,
+      draftId: draft?.id,
+    );
     if (!mounted) {
       return;
     }
@@ -580,10 +577,6 @@ class _CompanyMovementsPageState extends State<CompanyMovementsPage> {
         ),
       ),
     );
-
-    if (draft != null) {
-      await widget.draftRepository?.deleteDraft(draft.id);
-    }
   }
 
   Future<void> _openEDespatchSheet() async {

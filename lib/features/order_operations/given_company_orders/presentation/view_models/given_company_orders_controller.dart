@@ -5,6 +5,7 @@ import 'package:furpa_merkez_terminal/core/utils/request_epoch.dart';
 import 'package:furpa_merkez_terminal/core/utils/safe_change_notifier.dart';
 import 'package:furpa_merkez_terminal/features/order_operations/given_company_orders/data/models/given_company_order_models.dart';
 import 'package:furpa_merkez_terminal/features/order_operations/shared/data/company_orders_repository.dart';
+import 'package:furpa_merkez_terminal/shared/utils/post_create_refresh.dart';
 import 'package:furpa_merkez_terminal/shared/utils/safe_create_retry.dart';
 
 class GivenCompanyOrdersController extends ChangeNotifier
@@ -180,9 +181,11 @@ class GivenCompanyOrdersController extends ChangeNotifier
       _isCreating = false;
       notifySafely();
 
-      await loadOrders(
-        preferredDocumentSerie: result.documentSerie,
-        preferredDocumentOrderNo: result.documentOrderNo,
+      await refreshAfterSuccessfulCreate(
+        () => loadOrders(
+          preferredDocumentSerie: result.documentSerie,
+          preferredDocumentOrderNo: result.documentOrderNo,
+        ),
       );
 
       return result;

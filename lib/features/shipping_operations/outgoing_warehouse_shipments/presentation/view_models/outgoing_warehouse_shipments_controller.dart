@@ -6,6 +6,7 @@ import 'package:furpa_merkez_terminal/core/utils/safe_change_notifier.dart';
 import 'package:furpa_merkez_terminal/features/return_operations/warehouse_returns/data/models/warehouse_return_models.dart';
 import 'package:furpa_merkez_terminal/features/shipping_operations/outgoing_warehouse_shipments/data/models/outgoing_warehouse_shipment_models.dart';
 import 'package:furpa_merkez_terminal/features/shipping_operations/outgoing_warehouse_shipments/data/outgoing_warehouse_shipments_repository.dart';
+import 'package:furpa_merkez_terminal/shared/utils/post_create_refresh.dart';
 import 'package:furpa_merkez_terminal/shared/utils/safe_create_retry.dart';
 
 class OutgoingWarehouseShipmentsController extends ChangeNotifier
@@ -224,9 +225,11 @@ class OutgoingWarehouseShipmentsController extends ChangeNotifier
       _isCreating = false;
       notifySafely();
 
-      await loadShipments(
-        preferredDocumentSerie: result.documentSerie,
-        preferredDocumentOrderNo: result.documentOrderNo,
+      await refreshAfterSuccessfulCreate(
+        () => loadShipments(
+          preferredDocumentSerie: result.documentSerie,
+          preferredDocumentOrderNo: result.documentOrderNo,
+        ),
       );
 
       return result;

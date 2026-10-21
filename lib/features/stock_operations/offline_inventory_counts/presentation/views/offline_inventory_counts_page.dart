@@ -115,13 +115,6 @@ class _OfflineInventoryCountsPageState
 
     await widget.offlineRepository.saveDraft(draft);
     await _loadDrafts();
-    unawaited(
-      widget.offlineSyncService.syncPending(
-        accessToken: widget.accessToken,
-        userId: widget.currentUserId,
-        warehouseNo: widget.defaultWarehouseNo,
-      ),
-    );
   }
 
   Future<void> _deleteDraft(String id) async {
@@ -139,6 +132,8 @@ class _OfflineInventoryCountsPageState
       final result = await widget.offlineSyncService.syncInventoryDraft(
         accessToken: widget.accessToken,
         draft: draft,
+        statusCheckOnly: draft.hasBeenSubmitted,
+        recheckExisting: draft.hasBeenSubmitted,
       );
       await _loadDrafts();
 
@@ -150,7 +145,7 @@ class _OfflineInventoryCountsPageState
         OfflineDraftSyncResultStatus.synced =>
           '${draft.name.isEmpty ? 'Offline sayim' : draft.name} sunucuya aktarildi.',
         OfflineDraftSyncResultStatus.processing =>
-          result.message ?? 'Kayit arka planda isleniyor.',
+          result.message ?? 'Kayit sonucu henuz kesinlesmedi.',
         OfflineDraftSyncResultStatus.deferred =>
           result.message ??
               'Baglanti yok; kayit kuyrukta beklemeye devam ediyor.',
@@ -211,7 +206,7 @@ class _OfflineInventoryCountsPageState
             TerminalListHeaderCard(
               title: 'Offline Sayim',
               subtitle:
-                  'Baglanti olmasa bile taslak kayit alir. Ag geri geldiginde ayni ekrandan senkronize edilir.',
+                  'Taslak cihazda kalir. Kaydet gonderir; Durumu Kontrol Et yeni fis olusturmaz.',
               infoChips: <Widget>[
                 TerminalInfoChip(
                   label: 'Varsayilan depo',
@@ -263,9 +258,10 @@ class _OfflineInventoryCountsPageState
                     )
                   else
                     ..._drafts.map((draft) {
-                      final isSyncing =
-                          _syncingIds.contains(draft.id) ||
-                          draft.status == OfflineRecordStatus.syncing;
+                      final isSyncing = _syncingIds.contains(draft.id);
+                      final actionLabel = draft.hasBeenSubmitted
+                          ? 'Durumu Kontrol Et'
+                          : 'Kaydet';
 
                       return Padding(
                         padding: const EdgeInsets.only(bottom: 12),
@@ -372,8 +368,8 @@ class _OfflineInventoryCountsPageState
                                           ),
                                     label: Text(
                                       isSyncing
-                                          ? 'Gonderiliyor...'
-                                          : 'Senkronize Et',
+                                          ? 'Kontrol Ediliyor...'
+                                          : actionLabel,
                                     ),
                                   ),
                                   OutlinedButton.icon(

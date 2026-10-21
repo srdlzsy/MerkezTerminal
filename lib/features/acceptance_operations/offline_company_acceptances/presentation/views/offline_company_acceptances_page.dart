@@ -65,23 +65,11 @@ class _OfflineCompanyAcceptancesPageState
   bool _isLoading = false;
   String? _errorMessage;
   Set<String> _syncingIds = <String>{};
-  Timer? _draftRefreshTimer;
 
   @override
   void initState() {
     super.initState();
     unawaited(_loadDrafts());
-    _draftRefreshTimer = Timer.periodic(const Duration(seconds: 5), (_) {
-      if (mounted) {
-        unawaited(_loadDrafts(showLoading: false));
-      }
-    });
-  }
-
-  @override
-  void dispose() {
-    _draftRefreshTimer?.cancel();
-    super.dispose();
   }
 
   Future<void> _loadDrafts({bool showLoading = true}) async {
@@ -151,13 +139,6 @@ class _OfflineCompanyAcceptancesPageState
       ),
     );
     await _loadDrafts();
-    unawaited(
-      widget.offlineSyncService.syncPending(
-        accessToken: widget.accessToken,
-        userId: widget.currentUserId,
-        warehouseNo: widget.defaultWarehouseNo,
-      ),
-    );
   }
 
   Future<void> _deleteDraft(String id) async {
@@ -195,7 +176,7 @@ class _OfflineCompanyAcceptancesPageState
               ? 'Offline firma mal kabul taslagi sunucuya aktarildi.'
               : '${draft.documentLabel} sunucuya aktarildi.',
         OfflineDraftSyncResultStatus.processing =>
-          result.message ?? 'Kayit arka planda isleniyor.',
+          result.message ?? 'Kayit sonucu henuz kesinlesmedi.',
         OfflineDraftSyncResultStatus.deferred =>
           result.message ??
               'Baglanti yok; kayit kuyrukta beklemeye devam ediyor.',
@@ -352,7 +333,7 @@ class _OfflineCompanyAcceptancesPageState
             TerminalListHeaderCard(
               title: 'Offline Firma Mal Kabul',
               subtitle:
-                  'Taslak firma mal kabullerini cihazda saklar; baglanti geri geldiginde ayni clientRequestId ile senkronize eder.',
+                  'Taslak cihazda kalir. Kaydet gonderir; Durumu Kontrol Et yeni evrak olusturmaz.',
               infoChips: <Widget>[
                 TerminalInfoChip(
                   label: 'Varsayilan depo',
@@ -406,9 +387,7 @@ class _OfflineCompanyAcceptancesPageState
                     ..._drafts.map((draft) {
                       final needsSupport =
                           draft.hasBeenSubmitted && draft.retryable == false;
-                      final isSyncing =
-                          _syncingIds.contains(draft.id) ||
-                          draft.status == OfflineRecordStatus.syncing;
+                      final isSyncing = _syncingIds.contains(draft.id);
                       final title = draft.documentLabel.isEmpty
                           ? draft.customerCode
                           : draft.documentLabel;
@@ -593,7 +572,13 @@ class _OfflineCompanyAcceptancesPageState
                                     FilledButton.icon(
                                       onPressed: isSyncing
                                           ? null
-                                          : () => _syncDraft(draft),
+                                          : () => _syncDraft(
+                                              draft,
+                                              statusCheckOnly:
+                                                  draft.hasBeenSubmitted,
+                                              recheckExisting:
+                                                  draft.hasBeenSubmitted,
+                                            ),
                                       icon: isSyncing
                                           ? const SizedBox(
                                               height: 16,
@@ -612,7 +597,7 @@ class _OfflineCompanyAcceptancesPageState
                                             ? 'Durumu Kontrol Et'
                                             : draft.lastSyncAttemptAt != null
                                             ? 'Tekrar Dene'
-                                            : 'Senkronize Et',
+                                            : 'Kaydet',
                                       ),
                                     ),
                                     OutlinedButton.icon(

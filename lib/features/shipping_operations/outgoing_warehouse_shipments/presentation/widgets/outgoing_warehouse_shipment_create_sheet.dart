@@ -2800,7 +2800,7 @@ class _WarehouseOrderPickerSheetState
       }
 
       setState(() {
-        _errorMessage = error.toString();
+        _errorMessage = userFacingErrorMessage(error);
         _isLoading = false;
       });
     }
@@ -2834,7 +2834,7 @@ class _WarehouseOrderPickerSheetState
 
       setState(() {
         _loadingDetailKey = null;
-        _errorMessage = error.toString();
+        _errorMessage = userFacingErrorMessage(error);
       });
     }
   }
@@ -3034,7 +3034,7 @@ class _WarehouseLookupSheetState extends State<_WarehouseLookupSheet> {
       }
 
       setState(() {
-        _errorMessage = error.toString();
+        _errorMessage = userFacingErrorMessage(error);
         _isLoading = false;
       });
     } catch (error) {
@@ -3043,7 +3043,7 @@ class _WarehouseLookupSheetState extends State<_WarehouseLookupSheet> {
       }
 
       setState(() {
-        _errorMessage = error.toString();
+        _errorMessage = userFacingErrorMessage(error);
         _isLoading = false;
       });
     }
@@ -3176,7 +3176,7 @@ class _ProductLookupSheetState extends State<_ProductLookupSheet> {
       }
 
       setState(() {
-        _errorMessage = error.toString();
+        _errorMessage = userFacingErrorMessage(error);
         _isLoading = false;
       });
     }

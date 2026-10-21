@@ -108,6 +108,11 @@ SafeCreateFailureKind classifySafeCreateFailure({
 }
 
 SafeCreateFailureKind classifySafeCreateException(ApiException error) {
+  // HTTP 400 is a definitive request/form error. It must never inherit
+  // safe-write metadata and enter a status-check or retry loop.
+  if (error.statusCode == 400) {
+    return SafeCreateFailureKind.notRetryable;
+  }
   return classifySafeCreateFailure(
     statusCode: error.statusCode,
     message: error.message,
@@ -195,16 +200,18 @@ String safeCreateOfflineSyncErrorMessage<T>(
         : 'Bu kayit yetkili tarafindan iptal edildi. Mikro evraki olusturulmadi.';
   }
   final normalizedMessage = status.errorMessage?.trim() ?? '';
-  return safeCreateRetryErrorMessage(
-    ApiException(
-      statusCode: status.retryable == true ? 409 : 400,
-      title: normalizedMessage.isEmpty ? fallback : normalizedMessage,
-      errorCode: status.errorCode,
-      retryable: status.retryable,
-      retryAfterSeconds: status.retryAfterSeconds,
-      recoveryState: status.recoveryState,
-      recommendedAction: status.recommendedAction,
-    ),
+  final error = ApiException(
+    statusCode: status.retryable == true ? 409 : 400,
+    title: normalizedMessage.isEmpty ? fallback : normalizedMessage,
+    errorCode: status.errorCode,
+    retryable: status.retryable,
+    retryAfterSeconds: status.retryAfterSeconds,
+    recoveryState: status.recoveryState,
+    recommendedAction: status.recommendedAction,
+  );
+  return _safeCreateRetryErrorMessageForKind(
+    error,
+    classifyOfflineSyncStatus(status),
   );
 }
 
@@ -281,7 +288,16 @@ bool shouldOfferSafeCreateRetry(
 }
 
 String safeCreateRetryErrorMessage(ApiException error) {
-  final kind = classifySafeCreateException(error);
+  return _safeCreateRetryErrorMessageForKind(
+    error,
+    classifySafeCreateException(error),
+  );
+}
+
+String _safeCreateRetryErrorMessageForKind(
+  ApiException error,
+  SafeCreateFailureKind kind,
+) {
   final message = switch (kind) {
     SafeCreateFailureKind.queueBusy =>
       'Ayni belge serisindeki onceki islem halen devam ediyor. Bu kaydin '

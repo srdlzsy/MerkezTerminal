@@ -70,12 +70,17 @@ class _TerminalCreatePageState<TResult>
       }
       setState(() => _isSubmitting = false);
       return false;
-    } catch (error) {
+    } catch (error, stackTrace) {
       if (!mounted) return false;
+      debugPrint('Create page submit failed unexpectedly: $error');
+      debugPrintStack(stackTrace: stackTrace);
       setState(() => _isSubmitting = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(error.toString().replaceFirst('Exception: ', '')),
+        const SnackBar(
+          content: Text(
+            'Islem sonucu ekranda tamamlanamadi. Ayni kaydi yeniden '
+            'gondermeden once listeyi yenileyin.',
+          ),
         ),
       );
       return false;

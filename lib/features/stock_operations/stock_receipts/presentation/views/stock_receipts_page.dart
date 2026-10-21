@@ -15,6 +15,7 @@ import 'package:furpa_merkez_terminal/shared/formatters/app_formatters.dart';
 import 'package:furpa_merkez_terminal/shared/offline/offline_sync_status.dart';
 import 'package:furpa_merkez_terminal/shared/pending_create/pending_create_guard.dart';
 import 'package:furpa_merkez_terminal/shared/pending_create/pending_create_repository.dart';
+import 'package:furpa_merkez_terminal/shared/utils/completed_create_cleanup.dart';
 import 'package:furpa_merkez_terminal/shared/utils/safe_create_retry.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/section_card.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/terminal_create_page.dart';
@@ -384,6 +385,17 @@ class _StockReceiptsPageState extends State<StockReceiptsPage> {
         : await _controller.createReceipt(request);
 
     if (!mounted) {
+      if (result != null) {
+        await completeLocalCreateState(
+          pendingRepository: widget.pendingCreateRepository,
+          moduleKey: widget.draftModuleKey,
+          userId: widget.currentUserId,
+          warehouseNo: widget.defaultWarehouseNo,
+          clientRequestId: request.clientRequestId ?? '',
+          draftRepository: widget.draftRepository,
+          draftId: draft?.id,
+        );
+      }
       return;
     }
 
@@ -503,29 +515,6 @@ class _StockReceiptsPageState extends State<StockReceiptsPage> {
       }
     }
 
-    try {
-      await _clearPersistedPendingCreate(request.clientRequestId);
-    } on Object {
-      if (!mounted) {
-        return;
-      }
-      setState(() {
-        _pendingCreateRequest = request;
-        _pendingCreateDraft = draft;
-        _pendingCreateFailureKind = SafeCreateFailureKind.uncertain;
-        _pendingRetryNotBefore = null;
-      });
-      messenger.showSnackBar(
-        SnackBar(
-          content: Text(
-            '${result.documentNoLabel} kaydedildi ancak cihazdaki guvenli '
-            'kayit temizlenemedi. Ayni kayitla Tekrar Dene kullanin.',
-          ),
-        ),
-      );
-      return;
-    }
-
     if (!mounted) {
       return;
     }
@@ -535,7 +524,15 @@ class _StockReceiptsPageState extends State<StockReceiptsPage> {
       _pendingCreateFailureKind = SafeCreateFailureKind.notRetryable;
       _pendingRetryNotBefore = null;
     });
-    await _restorePendingCreate();
+    await completeLocalCreateState(
+      pendingRepository: widget.pendingCreateRepository,
+      moduleKey: widget.draftModuleKey,
+      userId: widget.currentUserId,
+      warehouseNo: widget.defaultWarehouseNo,
+      clientRequestId: request.clientRequestId ?? '',
+      draftRepository: widget.draftRepository,
+      draftId: draft?.id,
+    );
     if (!mounted) {
       return;
     }
@@ -557,9 +554,6 @@ class _StockReceiptsPageState extends State<StockReceiptsPage> {
         ),
       ),
     );
-    if (draft != null) {
-      await widget.draftRepository?.deleteDraft(draft.id);
-    }
   }
 
   @override

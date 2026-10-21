@@ -1309,7 +1309,7 @@ class _InventoryProductLookupSheetState
       }
 
       setState(() {
-        _errorMessage = error.toString();
+        _errorMessage = userFacingErrorMessage(error);
         _isLoading = false;
       });
     }

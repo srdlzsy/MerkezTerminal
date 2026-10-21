@@ -6,6 +6,7 @@ import 'package:furpa_merkez_terminal/core/utils/safe_change_notifier.dart';
 import 'package:furpa_merkez_terminal/features/company_movements/shared/data/company_movements_repository.dart';
 import 'package:furpa_merkez_terminal/features/company_movements/shared/data/models/company_movement_models.dart';
 import 'package:furpa_merkez_terminal/features/return_operations/warehouse_returns/data/models/warehouse_return_models.dart';
+import 'package:furpa_merkez_terminal/shared/utils/post_create_refresh.dart';
 import 'package:furpa_merkez_terminal/shared/utils/safe_create_retry.dart';
 
 class CompanyMovementsController extends ChangeNotifier
@@ -225,9 +226,11 @@ class CompanyMovementsController extends ChangeNotifier
       _isCreating = false;
       notifySafely();
 
-      await loadMovements(
-        preferredDocumentSerie: result.documentSerie,
-        preferredDocumentOrderNo: result.documentOrderNo,
+      await refreshAfterSuccessfulCreate(
+        () => loadMovements(
+          preferredDocumentSerie: result.documentSerie,
+          preferredDocumentOrderNo: result.documentOrderNo,
+        ),
       );
 
       return result;

@@ -18,6 +18,7 @@ class PendingCreateOperation {
     this.correlationId,
     this.errorMessage,
     this.lastCheckedAt,
+    this.completedAt,
   });
 
   final String moduleKey;
@@ -34,6 +35,9 @@ class PendingCreateOperation {
   final String? correlationId;
   final String? errorMessage;
   final DateTime? lastCheckedAt;
+  final DateTime? completedAt;
+
+  bool get isCompleted => completedAt != null;
 
   String get scopeKey => '$moduleKey\u0000$userId\u0000$warehouseNo';
 
@@ -51,6 +55,7 @@ class PendingCreateOperation {
     String? correlationId,
     String? errorMessage,
     DateTime? lastCheckedAt,
+    DateTime? completedAt,
   }) {
     return PendingCreateOperation(
       moduleKey: moduleKey,
@@ -68,6 +73,7 @@ class PendingCreateOperation {
       correlationId: correlationId ?? this.correlationId,
       errorMessage: errorMessage ?? this.errorMessage,
       lastCheckedAt: lastCheckedAt ?? this.lastCheckedAt,
+      completedAt: completedAt ?? this.completedAt,
     );
   }
 
@@ -89,6 +95,8 @@ class PendingCreateOperation {
     if (errorMessage != null) 'errorMessage': errorMessage,
     if (lastCheckedAt != null)
       'lastCheckedAt': lastCheckedAt!.toUtc().toIso8601String(),
+    if (completedAt != null)
+      'completedAt': completedAt!.toUtc().toIso8601String(),
   };
 
   factory PendingCreateOperation.fromJson(Map<String, dynamic> json) {
@@ -121,6 +129,9 @@ class PendingCreateOperation {
       lastCheckedAt: DateTime.tryParse(
         json['lastCheckedAt']?.toString() ?? '',
       )?.toLocal(),
+      completedAt: DateTime.tryParse(
+        json['completedAt']?.toString() ?? '',
+      )?.toLocal(),
     );
   }
 }
@@ -140,6 +151,13 @@ abstract class PendingCreateRepository {
 
   Future<void> save(PendingCreateOperation operation);
 
+  Future<void> complete({
+    required String moduleKey,
+    required String userId,
+    required String warehouseNo,
+    required String clientRequestId,
+  });
+
   Future<void> remove({
     required String moduleKey,
     required String userId,
@@ -153,6 +171,7 @@ class LocalPendingCreateRepository implements PendingCreateRepository {
     : _database = database ?? LocalSqliteDatabase();
 
   static const String _storageKey = 'pending_create_operations_v1';
+  static const Duration _completionRetention = Duration(days: 30);
   final LocalDatabase _database;
 
   @override
@@ -180,7 +199,10 @@ class LocalPendingCreateRepository implements PendingCreateRepository {
     final operations =
         rows
             .map(PendingCreateOperation.fromJson)
-            .where((operation) => operation.scopeKey == expectedScope)
+            .where(
+              (operation) =>
+                  operation.scopeKey == expectedScope && !operation.isCompleted,
+            )
             .toList(growable: false)
           ..sort((left, right) => right.updatedAt.compareTo(left.updatedAt));
     return operations;
@@ -188,15 +210,57 @@ class LocalPendingCreateRepository implements PendingCreateRepository {
 
   @override
   Future<void> save(PendingCreateOperation operation) async {
-    final rows = await _database.readTable(_storageKey);
-    final retained = rows.where((row) {
-      final existing = PendingCreateOperation.fromJson(row);
-      return existing.operationKey != operation.operationKey;
+    await _mutateRows((rows) {
+      final operations = _pruneCompleted(rows);
+      final alreadyCompleted = operations.any(
+        (existing) =>
+            existing.operationKey == operation.operationKey &&
+            existing.isCompleted,
+      );
+      if (alreadyCompleted) {
+        return operations.map((item) => item.toJson()).toList(growable: false);
+      }
+      return <Map<String, dynamic>>[
+        ...operations
+            .where(
+              (existing) => existing.operationKey != operation.operationKey,
+            )
+            .map((item) => item.toJson()),
+        operation.toJson(),
+      ];
     });
-    await _database.writeTable(_storageKey, <Map<String, dynamic>>[
-      ...retained,
-      operation.toJson(),
-    ]);
+  }
+
+  @override
+  Future<void> complete({
+    required String moduleKey,
+    required String userId,
+    required String warehouseNo,
+    required String clientRequestId,
+  }) async {
+    final normalizedClientRequestId = clientRequestId.trim();
+    if (normalizedClientRequestId.isEmpty) {
+      return;
+    }
+    final completed = PendingCreateOperation(
+      moduleKey: moduleKey,
+      userId: userId,
+      warehouseNo: warehouseNo,
+      payload: <String, dynamic>{'clientRequestId': normalizedClientRequestId},
+      updatedAt: DateTime.now(),
+      completedAt: DateTime.now(),
+    );
+    await _mutateRows((rows) {
+      final operations = _pruneCompleted(rows);
+      return <Map<String, dynamic>>[
+        ...operations
+            .where(
+              (existing) => existing.operationKey != completed.operationKey,
+            )
+            .map((item) => item.toJson()),
+        completed.toJson(),
+      ];
+    });
   }
 
   @override
@@ -208,12 +272,9 @@ class LocalPendingCreateRepository implements PendingCreateRepository {
   }) async {
     final expectedScope = _scopeKey(moduleKey, userId, warehouseNo);
     final normalizedClientRequestId = clientRequestId?.trim();
-    final rows = await _database.readTable(_storageKey);
-    await _database.writeTable(
-      _storageKey,
-      rows
-          .where((row) {
-            final existing = PendingCreateOperation.fromJson(row);
+    await _mutateRows((rows) {
+      return _pruneCompleted(rows)
+          .where((existing) {
             if (existing.scopeKey != expectedScope) {
               return true;
             }
@@ -222,8 +283,35 @@ class LocalPendingCreateRepository implements PendingCreateRepository {
                 ? false
                 : existing.clientRequestId != normalizedClientRequestId;
           })
-          .toList(growable: false),
-    );
+          .map((item) => item.toJson())
+          .toList(growable: false);
+    });
+  }
+
+  List<PendingCreateOperation> _pruneCompleted(
+    List<Map<String, dynamic>> rows,
+  ) {
+    final cutoff = DateTime.now().subtract(_completionRetention);
+    return rows
+        .map(PendingCreateOperation.fromJson)
+        .where(
+          (operation) =>
+              !operation.isCompleted ||
+              !operation.completedAt!.isBefore(cutoff),
+        )
+        .toList(growable: false);
+  }
+
+  Future<void> _mutateRows(
+    List<Map<String, dynamic>> Function(List<Map<String, dynamic>> rows) mutate,
+  ) async {
+    final database = _database;
+    if (database is AtomicLocalDatabase) {
+      await database.mutateTable(_storageKey, mutate);
+      return;
+    }
+    final rows = await database.readTable(_storageKey);
+    await database.writeTable(_storageKey, mutate(rows));
   }
 
   static String _scopeKey(

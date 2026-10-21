@@ -6,6 +6,7 @@ import 'package:furpa_merkez_terminal/core/utils/safe_change_notifier.dart';
 import 'package:furpa_merkez_terminal/features/acceptance_operations/company_acceptances/data/company_acceptances_repository.dart';
 import 'package:furpa_merkez_terminal/features/acceptance_operations/company_acceptances/data/models/company_acceptance_models.dart';
 import 'package:furpa_merkez_terminal/features/company_movements/shared/data/models/company_movement_models.dart';
+import 'package:furpa_merkez_terminal/shared/utils/post_create_refresh.dart';
 
 class CompanyAcceptancesController extends ChangeNotifier
     with SafeChangeNotifier {
@@ -173,9 +174,11 @@ class CompanyAcceptancesController extends ChangeNotifier
       _isCreating = false;
       notifySafely();
 
-      await loadAcceptances(
-        preferredDocumentSerie: result.documentSerie,
-        preferredDocumentOrderNo: result.documentOrderNo,
+      await refreshAfterSuccessfulCreate(
+        () => loadAcceptances(
+          preferredDocumentSerie: result.documentSerie,
+          preferredDocumentOrderNo: result.documentOrderNo,
+        ),
       );
 
       return result;

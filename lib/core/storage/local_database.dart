@@ -10,6 +10,13 @@ abstract class LocalDatabase {
   Future<void> remove(String key);
 }
 
+abstract class AtomicLocalDatabase implements LocalDatabase {
+  Future<void> mutateTable(
+    String key,
+    List<Map<String, dynamic>> Function(List<Map<String, dynamic>> rows) mutate,
+  );
+}
+
 class LocalIndexedRow {
   const LocalIndexedRow({
     required this.rowKey,
@@ -26,7 +33,7 @@ class LocalIndexedRow {
   final Map<String, dynamic> document;
 }
 
-abstract class IndexedLocalDatabase implements LocalDatabase {
+abstract class IndexedLocalDatabase implements AtomicLocalDatabase {
   Future<List<Map<String, dynamic>>> searchIndexedTable(
     String key, {
     String? partitionKey,

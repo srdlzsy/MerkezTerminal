@@ -50,7 +50,6 @@ class _HomeShellPageState extends State<HomeShellPage>
   bool _isSidebarExpanded = false;
   _OfflineQueueSummary _offlineQueueSummary =
       const _OfflineQueueSummary.empty();
-  Timer? _offlineSyncTimer;
   Timer? _sessionContextRefreshTimer;
   bool _isWarehouseContextChecking = true;
   bool _isWarehouseContextVerified = false;
@@ -61,10 +60,6 @@ class _HomeShellPageState extends State<HomeShellPage>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _selectedMenu = null;
-    _offlineSyncTimer = Timer.periodic(
-      const Duration(seconds: 5),
-      (_) => unawaited(_triggerOfflineSync()),
-    );
     _sessionContextRefreshTimer = Timer.periodic(
       _sessionContextRefreshInterval,
       (_) => unawaited(_refreshWarehouseContext()),
@@ -96,7 +91,6 @@ class _HomeShellPageState extends State<HomeShellPage>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    _offlineSyncTimer?.cancel();
     _sessionContextRefreshTimer?.cancel();
     super.dispose();
   }
@@ -442,8 +436,8 @@ class _HomeShellPageState extends State<HomeShellPage>
                 const SizedBox(width: 8),
                 const Expanded(
                   child: Text(
-                    'Depo bilgisi dogrulanamadi. Otomatik senkronizasyon '
-                    'bekletiliyor; online kayittan once tekrar deneyin.',
+                    'Depo bilgisi dogrulanamadi. Bekleyen kayitlar kontrol '
+                    'edilmiyor; online kayittan once tekrar deneyin.',
                     maxLines: 2,
                   ),
                 ),
@@ -605,8 +599,8 @@ class _OfflineQueueIconButton extends StatelessWidget {
     return IconButton(
       onPressed: onPressed,
       tooltip: summary.failed > 0
-          ? '${summary.total} offline kayit, ${summary.failed} hata. Tekrar dene'
-          : '${summary.total} offline kayit senkron bekliyor',
+          ? '${summary.total} offline kayit, ${summary.failed} kontrol bekliyor'
+          : '${summary.total} offline kayit bekliyor',
       icon: Badge(
         label: Text(summary.total > 99 ? '99+' : '${summary.total}'),
         child: Icon(

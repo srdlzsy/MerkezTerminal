@@ -122,6 +122,65 @@ void main() {
     );
   });
 
+  test('English API validation error is shown as Turkish guidance', () async {
+    final client = ApiClient(
+      baseUrl: 'http://localhost:5228',
+      httpClient: MockClient((request) async {
+        return http.Response(
+          '{"title":"Bad Request","status":400,'
+          '"detail":"Line quantity must be greater than zero."}',
+          400,
+        );
+      }),
+    );
+
+    await expectLater(
+      client.getJsonMap('/api/test'),
+      throwsA(
+        isA<ApiException>()
+            .having((error) => error.title, 'title', 'Gecersiz istek')
+            .having(
+              (error) => error.detail,
+              'detail',
+              'Eksik veya hatali alanlari kontrol edip yeniden kaydedin.',
+            )
+            .having(
+              (error) => error.message,
+              'message',
+              isNot(contains('must be')),
+            ),
+      ),
+    );
+  });
+
+  test(
+    'non-json server error is shown without technical response body',
+    () async {
+      final client = ApiClient(
+        baseUrl: 'http://localhost:5228',
+        httpClient: MockClient((request) async {
+          return http.Response('<html>proxy failure</html>', 500);
+        }),
+      );
+
+      await expectLater(
+        client.getJsonMap('/api/test'),
+        throwsA(
+          isA<ApiException>()
+              .having((error) => error.title, 'title', 'Sunucu hatasi')
+              .having(
+                (error) => error.message,
+                'message',
+                allOf(
+                  contains('Beklenmeyen bir sunucu hatasi'),
+                  isNot(contains('<html>')),
+                ),
+              ),
+        ),
+      );
+    },
+  );
+
   test('uses response header as correlation id fallback', () async {
     final client = ApiClient(
       baseUrl: 'http://localhost:5228',
@@ -646,7 +705,11 @@ void main() {
       throwsA(
         isA<ApiException>()
             .having((error) => error.statusCode, 'statusCode', 0)
-            .having((error) => error.title, 'title', 'Timeout'),
+            .having(
+              (error) => error.title,
+              'title',
+              'Islem zaman asimina ugradi',
+            ),
       ),
     );
   });

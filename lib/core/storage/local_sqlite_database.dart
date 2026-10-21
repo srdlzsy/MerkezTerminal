@@ -71,6 +71,28 @@ class LocalSqliteDatabase implements IndexedLocalDatabase {
   }
 
   @override
+  Future<void> mutateTable(
+    String key,
+    List<Map<String, dynamic>> Function(List<Map<String, dynamic>> rows) mutate,
+  ) async {
+    final database = await _database;
+    await database.transaction((transaction) async {
+      final storedRows = await transaction.query(
+        _rowsTable,
+        columns: const <String>['row_json'],
+        where: 'table_key = ?',
+        whereArgs: <Object?>[key],
+        orderBy: 'row_id ASC',
+      );
+      final rows = storedRows
+          .map((row) => _decodeDocument(row['row_json']?.toString()))
+          .whereType<Map<String, dynamic>>()
+          .toList(growable: false);
+      await _replaceTableRows(transaction, key, mutate(rows));
+    });
+  }
+
+  @override
   Future<List<Map<String, dynamic>>> searchIndexedTable(
     String key, {
     String? partitionKey,

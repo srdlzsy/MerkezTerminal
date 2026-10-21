@@ -9,6 +9,7 @@ abstract class OfflineInventoryCountsRepository {
   });
   Future<OfflineInventoryCountDraft?> findDraft(String id);
   Future<void> saveDraft(OfflineInventoryCountDraft draft);
+  Future<void> completeDraft(String id);
   Future<void> deleteDraft(String id);
 }
 
@@ -18,6 +19,9 @@ class LocalOfflineInventoryCountsRepository
     : _database = database ?? LocalSqliteDatabase();
 
   static const String _storageKey = 'offline_inventory_count_drafts_v1';
+  static const String _completionStorageKey =
+      'offline_inventory_count_completed_v1';
+  static const Duration _completionRetention = Duration(days: 30);
   final LocalDatabase _database;
 
   @override
@@ -25,7 +29,7 @@ class LocalOfflineInventoryCountsRepository
     required String userId,
     required String warehouseNo,
   }) async {
-    final drafts = await _readAllDrafts();
+    final drafts = await _readActiveDrafts();
     return drafts
         .where(
           (item) =>
@@ -37,7 +41,7 @@ class LocalOfflineInventoryCountsRepository
 
   @override
   Future<OfflineInventoryCountDraft?> findDraft(String id) async {
-    final drafts = await _readAllDrafts();
+    final drafts = await _readActiveDrafts();
     for (final draft in drafts) {
       if (draft.id == id) {
         return draft;
@@ -49,6 +53,9 @@ class LocalOfflineInventoryCountsRepository
 
   @override
   Future<void> saveDraft(OfflineInventoryCountDraft draft) async {
+    if ((await _readCompletedIds()).contains(draft.id)) {
+      return;
+    }
     final drafts = await _readAllDrafts();
     final updated = <OfflineInventoryCountDraft>[
       draft,
@@ -58,6 +65,33 @@ class LocalOfflineInventoryCountsRepository
       _storageKey,
       updated.map((item) => item.toJson()).toList(growable: false),
     );
+  }
+
+  @override
+  Future<void> completeDraft(String id) async {
+    final normalizedId = id.trim();
+    if (normalizedId.isEmpty) {
+      return;
+    }
+    await _mutateTable(_completionStorageKey, (rows) {
+      final cutoff = DateTime.now().subtract(_completionRetention);
+      final retained = rows.where((row) {
+        final completedAt = DateTime.tryParse(
+          row['completedAt']?.toString() ?? '',
+        );
+        return row['id']?.toString() != normalizedId &&
+            completedAt != null &&
+            !completedAt.isBefore(cutoff);
+      });
+      return <Map<String, dynamic>>[
+        ...retained,
+        <String, dynamic>{
+          'id': normalizedId,
+          'completedAt': DateTime.now().toUtc().toIso8601String(),
+        },
+      ];
+    });
+    await deleteDraft(normalizedId);
   }
 
   @override
@@ -77,5 +111,41 @@ class LocalOfflineInventoryCountsRepository
     return rows
         .map(OfflineInventoryCountDraft.fromJson)
         .toList(growable: false);
+  }
+
+  Future<List<OfflineInventoryCountDraft>> _readActiveDrafts() async {
+    final completedIds = await _readCompletedIds();
+    final drafts = await _readAllDrafts();
+    return drafts
+        .where((draft) => !completedIds.contains(draft.id))
+        .toList(growable: false);
+  }
+
+  Future<Set<String>> _readCompletedIds() async {
+    final cutoff = DateTime.now().subtract(_completionRetention);
+    final rows = await _database.readTable(_completionStorageKey);
+    return rows
+        .where((row) {
+          final completedAt = DateTime.tryParse(
+            row['completedAt']?.toString() ?? '',
+          );
+          return completedAt != null && !completedAt.isBefore(cutoff);
+        })
+        .map((row) => row['id']?.toString().trim() ?? '')
+        .where((id) => id.isNotEmpty)
+        .toSet();
+  }
+
+  Future<void> _mutateTable(
+    String key,
+    List<Map<String, dynamic>> Function(List<Map<String, dynamic>> rows) mutate,
+  ) async {
+    final database = _database;
+    if (database is AtomicLocalDatabase) {
+      await database.mutateTable(key, mutate);
+      return;
+    }
+    final rows = await database.readTable(key);
+    await database.writeTable(key, mutate(rows));
   }
 }

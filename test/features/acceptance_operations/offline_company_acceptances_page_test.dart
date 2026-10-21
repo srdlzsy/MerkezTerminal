@@ -531,6 +531,9 @@ class _FakeOfflineCompanyAcceptancesRepository
   }
 
   @override
+  Future<void> completeDraft(String id) => deleteDraft(id);
+
+  @override
   Future<List<OfflineCompanyAcceptanceDraft>> fetchDrafts({
     required String userId,
     required String warehouseNo,
@@ -760,6 +763,9 @@ class _FakeInventoryCountsRepository implements InventoryCountsRepository {
 
 class _FakeOfflineInventoryCountsRepository
     implements OfflineInventoryCountsRepository {
+  @override
+  Future<void> completeDraft(String id) async {}
+
   @override
   Future<void> deleteDraft(String id) async {}
 

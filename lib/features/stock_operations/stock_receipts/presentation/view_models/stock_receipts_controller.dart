@@ -5,6 +5,7 @@ import 'package:furpa_merkez_terminal/core/utils/request_epoch.dart';
 import 'package:furpa_merkez_terminal/core/utils/safe_change_notifier.dart';
 import 'package:furpa_merkez_terminal/features/stock_operations/stock_receipts/data/models/stock_receipt_models.dart';
 import 'package:furpa_merkez_terminal/features/stock_operations/stock_receipts/data/stock_receipts_repository.dart';
+import 'package:furpa_merkez_terminal/shared/utils/post_create_refresh.dart';
 import 'package:furpa_merkez_terminal/shared/utils/safe_create_retry.dart';
 
 class StockReceiptsController extends ChangeNotifier with SafeChangeNotifier {
@@ -182,9 +183,11 @@ class StockReceiptsController extends ChangeNotifier with SafeChangeNotifier {
       _isCreating = false;
       notifySafely();
 
-      await loadReceipts(
-        preferredDocumentSerie: result.documentSerie,
-        preferredDocumentOrderNo: result.documentOrderNo,
+      await refreshAfterSuccessfulCreate(
+        () => loadReceipts(
+          preferredDocumentSerie: result.documentSerie,
+          preferredDocumentOrderNo: result.documentOrderNo,
+        ),
       );
 
       return result;

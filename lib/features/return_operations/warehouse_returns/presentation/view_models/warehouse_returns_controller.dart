@@ -5,6 +5,7 @@ import 'package:furpa_merkez_terminal/core/utils/request_epoch.dart';
 import 'package:furpa_merkez_terminal/core/utils/safe_change_notifier.dart';
 import 'package:furpa_merkez_terminal/features/return_operations/warehouse_returns/data/models/warehouse_return_models.dart';
 import 'package:furpa_merkez_terminal/features/return_operations/warehouse_returns/data/warehouse_returns_repository.dart';
+import 'package:furpa_merkez_terminal/shared/utils/post_create_refresh.dart';
 import 'package:furpa_merkez_terminal/shared/utils/safe_create_retry.dart';
 
 class WarehouseReturnsController extends ChangeNotifier
@@ -226,9 +227,11 @@ class WarehouseReturnsController extends ChangeNotifier
       _isCreating = false;
       notifySafely();
 
-      await loadReturns(
-        preferredDocumentSerie: result.documentSerie,
-        preferredDocumentOrderNo: result.documentOrderNo,
+      await refreshAfterSuccessfulCreate(
+        () => loadReturns(
+          preferredDocumentSerie: result.documentSerie,
+          preferredDocumentOrderNo: result.documentOrderNo,
+        ),
       );
 
       return result;

@@ -292,7 +292,7 @@ class _GivenCompanyOrderCreateSheetState
 
       setState(() {
         _isLoadingCustomerProducts = false;
-        _validationMessage = error.toString().replaceFirst('Exception: ', '');
+        _validationMessage = userFacingErrorMessage(error);
       });
     }
   }
@@ -1778,7 +1778,7 @@ class _CustomerLookupSheetState extends State<_CustomerLookupSheet> {
       }
 
       setState(() {
-        _errorMessage = error.toString();
+        _errorMessage = userFacingErrorMessage(error);
         _isLoading = false;
       });
     } catch (error) {
@@ -1787,7 +1787,7 @@ class _CustomerLookupSheetState extends State<_CustomerLookupSheet> {
       }
 
       setState(() {
-        _errorMessage = error.toString();
+        _errorMessage = userFacingErrorMessage(error);
         _isLoading = false;
       });
     }
@@ -1929,7 +1929,7 @@ class _CompanyProductLookupSheetState
       }
 
       setState(() {
-        _errorMessage = error.toString();
+        _errorMessage = userFacingErrorMessage(error);
         _isLoading = false;
       });
     }

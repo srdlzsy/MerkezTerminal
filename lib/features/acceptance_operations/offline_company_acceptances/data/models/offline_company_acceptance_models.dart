@@ -171,6 +171,7 @@ class OfflineCompanyAcceptanceDraft {
     String? recoveryState,
     String? recommendedAction,
     bool clearSyncMetadata = false,
+    bool clearLastSyncAttemptAt = false,
   }) {
     return OfflineCompanyAcceptanceDraft(
       id: id,
@@ -194,7 +195,9 @@ class OfflineCompanyAcceptanceDraft {
           autoCreateReturnForPartialAcceptance,
       createdAt: createdAt,
       status: status ?? this.status,
-      lastSyncAttemptAt: lastSyncAttemptAt ?? this.lastSyncAttemptAt,
+      lastSyncAttemptAt: clearLastSyncAttemptAt
+          ? null
+          : lastSyncAttemptAt ?? this.lastSyncAttemptAt,
       lastError: lastError,
       lines: lines,
       hasBeenSubmitted: hasBeenSubmitted ?? this.hasBeenSubmitted,

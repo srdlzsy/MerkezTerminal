@@ -12,6 +12,24 @@ void main() {
     expect(shouldOfferSafeCreateRetry(null), isFalse);
   });
 
+  test('http 400 always remains a local form error', () {
+    const error = ApiException(
+      statusCode: 400,
+      title: 'Bad Request',
+      detail: 'Miktar gecersiz.',
+      errorCode: 'MIKRO_WRITE_IN_PROGRESS',
+      retryable: true,
+      recommendedAction: 'WaitAndCheck',
+    );
+
+    final kind = classifySafeCreateException(error);
+
+    expect(kind, SafeCreateFailureKind.notRetryable);
+    expect(shouldKeepSafeCreatePending(kind), isFalse);
+    expect(shouldCheckSafeCreateStatus(kind), isFalse);
+    expect(canRetrySafeCreate(kind), isFalse);
+  });
+
   test('maps safe create error codes to the documented actions', () {
     expect(
       classifySafeCreateFailure(

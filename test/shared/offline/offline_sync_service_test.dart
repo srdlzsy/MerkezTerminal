@@ -266,6 +266,115 @@ void main() {
     );
   });
 
+  test(
+    'syncInventoryDraft checks a submitted draft without another create',
+    () async {
+      inventoryRepository.offlineSyncStatus = InventoryCountOfflineSyncStatus(
+        clientRequestId: 'submitted-count',
+        operationCode: 'inventory-count-create',
+        status: 'completed',
+        createdAtUtc: DateTime.utc(2026, 10, 21, 8),
+        completedAtUtc: DateTime.utc(2026, 10, 21, 8, 1),
+        errorMessage: null,
+        result: _buildResult(documentNo: 45),
+      );
+      final draft = OfflineInventoryCountDraft.fromCreateRequest(
+        _buildRequest(clientRequestId: 'submitted-count'),
+        userId: 'user-1',
+        warehouseNo: '110',
+        status: OfflineRecordStatus.syncing,
+        lastSyncAttemptAt: DateTime(2026, 10, 21, 8),
+        hasBeenSubmitted: true,
+      );
+      await offlineInventoryRepository.saveDraft(draft);
+
+      final result = await service.syncInventoryDraft(
+        accessToken: 'token',
+        draft: draft,
+        statusCheckOnly: true,
+        recheckExisting: true,
+      );
+
+      expect(result.status, OfflineDraftSyncResultStatus.synced);
+      expect(inventoryRepository.createCountCallCount, 0);
+      expect(inventoryRepository.fetchOfflineSyncStatusCallCount, 1);
+      expect(offlineInventoryRepository.savedDrafts, isEmpty);
+    },
+  );
+
+  test('syncPending leaves an unsent inventory draft on the device', () async {
+    final draft = OfflineInventoryCountDraft.fromCreateRequest(
+      _buildRequest(clientRequestId: 'local-count'),
+      userId: 'user-1',
+      warehouseNo: '110',
+      status: OfflineRecordStatus.pending,
+      lastSyncAttemptAt: null,
+    );
+    await offlineInventoryRepository.saveDraft(draft);
+
+    await service.syncPending(
+      accessToken: 'token',
+      userId: 'user-1',
+      warehouseNo: '110',
+    );
+
+    expect(inventoryRepository.createCountCallCount, 0);
+    expect(inventoryRepository.fetchOfflineSyncStatusCallCount, 0);
+    expect(offlineInventoryRepository.savedDrafts, hasLength(1));
+  });
+
+  test(
+    'syncPending leaves an unsent company acceptance on the device',
+    () async {
+      await offlineCompanyAcceptanceRepository.saveDraft(
+        _buildCompanyAcceptanceDraft(clientRequestId: 'local-acceptance'),
+      );
+
+      await service.syncPending(
+        accessToken: 'token',
+        userId: 'user-1',
+        warehouseNo: '110',
+      );
+
+      expect(companyAcceptanceRepository.createCallCount, 0);
+      expect(companyAcceptanceRepository.fetchOfflineSyncStatusCallCount, 0);
+      expect(offlineCompanyAcceptanceRepository.savedDrafts, hasLength(1));
+    },
+  );
+
+  test('syncPending checks at most one draft per type and run', () async {
+    for (var index = 0; index < 2; index += 1) {
+      await offlineInventoryRepository.saveDraft(
+        OfflineInventoryCountDraft.fromCreateRequest(
+          _buildRequest(clientRequestId: 'submitted-count-$index'),
+          userId: 'user-1',
+          warehouseNo: '110',
+          status: OfflineRecordStatus.syncing,
+          lastSyncAttemptAt: null,
+          hasBeenSubmitted: true,
+        ),
+      );
+    }
+    for (var index = 0; index < 4; index += 1) {
+      await offlineCompanyAcceptanceRepository.saveDraft(
+        _buildCompanyAcceptanceDraft(
+          clientRequestId: 'submitted-acceptance-$index',
+          hasBeenSubmitted: true,
+        ),
+      );
+    }
+
+    await service.syncPending(
+      accessToken: 'token',
+      userId: 'user-1',
+      warehouseNo: '110',
+    );
+
+    expect(inventoryRepository.fetchOfflineSyncStatusCallCount, 1);
+    expect(companyAcceptanceRepository.createCallCount, 0);
+    expect(companyAcceptanceRepository.fetchOfflineSyncStatusCallCount, 1);
+  });
+
   test('syncInventoryDraft fails non-network status zero errors', () async {
     inventoryRepository.createError = const ApiException(
       statusCode: 0,
@@ -284,6 +393,39 @@ void main() {
       OfflineRecordStatus.failed,
     );
   });
+
+  test(
+    'syncInventoryDraft keeps http 400 as an unsent editable draft',
+    () async {
+      inventoryRepository.createError = const ApiException(
+        statusCode: 400,
+        title: 'Validasyon Hatasi',
+        detail: 'Miktar gecersiz.',
+        errorCode: 'MIKRO_WRITE_IN_PROGRESS',
+        retryable: true,
+        recommendedAction: 'WaitAndCheck',
+      );
+      final draft = _buildDraft(clientRequestId: 'count-validation');
+      await offlineInventoryRepository.saveDraft(draft);
+
+      final result = await service.syncInventoryDraft(
+        accessToken: 'token',
+        draft: draft,
+      );
+
+      expect(result.status, OfflineDraftSyncResultStatus.failed);
+      expect(result.message, contains('Miktar gecersiz'));
+      expect(inventoryRepository.createCountCallCount, 1);
+      expect(inventoryRepository.fetchOfflineSyncStatusCallCount, 0);
+      final savedDraft = offlineInventoryRepository.savedDrafts.single;
+      expect(savedDraft.status, OfflineRecordStatus.pending);
+      expect(savedDraft.hasBeenSubmitted, isFalse);
+      expect(savedDraft.lastSyncAttemptAt, isNull);
+      expect(savedDraft.retryNotBefore, isNull);
+      expect(savedDraft.lastCheckedAt, isNull);
+      expect(savedDraft.statusCheckCount, 0);
+    },
+  );
 
   test(
     'submitCompanyAcceptance queues draft for connection failures',
@@ -464,6 +606,44 @@ void main() {
     expect(savedDraft.lastError, isNot(contains('A task was canceled')));
   });
 
+  test(
+    'submitCompanyAcceptance retries a missing reservation once on the same screen',
+    () async {
+      companyAcceptanceRepository
+        ..createError = const ApiException(
+          statusCode: 0,
+          title: 'Baglanti Hatasi',
+          detail: 'No network',
+        )
+        ..offlineSyncError = const ApiException(
+          statusCode: 404,
+          title: 'Kayit bulunamadi',
+        )
+        ..onCreate = () {
+          if (companyAcceptanceRepository.createCallCount == 2) {
+            companyAcceptanceRepository.createError = null;
+          }
+        };
+
+      final result = await service.submitCompanyAcceptance(
+        accessToken: 'token',
+        userId: 'user-1',
+        warehouseNo: '110',
+        request: _buildCompanyAcceptanceRequest(
+          clientRequestId: 'acceptance-inline-retry',
+        ),
+      );
+
+      expect(result.status, OfflineSubmissionStatus.synced);
+      expect(companyAcceptanceRepository.createCallCount, 2);
+      expect(
+        companyAcceptanceRepository.lastCreateClientRequestId,
+        'acceptance-inline-retry',
+      );
+      expect(offlineCompanyAcceptanceRepository.savedDrafts, isEmpty);
+    },
+  );
+
   test('submitCompanyAcceptance does not queue backend errors', () async {
     companyAcceptanceRepository.createError = const ApiException(
       statusCode: 400,
@@ -492,6 +672,41 @@ void main() {
     expect(companyAcceptanceRepository.fetchOfflineSyncStatusCallCount, 0);
     expect(offlineCompanyAcceptanceRepository.savedDrafts, isEmpty);
   });
+
+  test(
+    'syncCompanyAcceptanceDraft keeps http 400 as an unsent editable draft',
+    () async {
+      companyAcceptanceRepository.createError = const ApiException(
+        statusCode: 400,
+        title: 'Validasyon Hatasi',
+        detail: 'Cari ve stok uyumsuz.',
+        errorCode: 'MIKRO_WRITE_IN_PROGRESS',
+        retryable: true,
+        recommendedAction: 'WaitAndCheck',
+      );
+      final draft = _buildCompanyAcceptanceDraft(
+        clientRequestId: 'acceptance-validation',
+      );
+      await offlineCompanyAcceptanceRepository.saveDraft(draft);
+
+      final result = await service.syncCompanyAcceptanceDraft(
+        accessToken: 'token',
+        draft: draft,
+      );
+
+      expect(result.status, OfflineDraftSyncResultStatus.failed);
+      expect(result.message, contains('Cari ve stok uyumsuz'));
+      expect(companyAcceptanceRepository.createCallCount, 1);
+      expect(companyAcceptanceRepository.fetchOfflineSyncStatusCallCount, 0);
+      final savedDraft = offlineCompanyAcceptanceRepository.savedDrafts.single;
+      expect(savedDraft.status, OfflineRecordStatus.pending);
+      expect(savedDraft.hasBeenSubmitted, isFalse);
+      expect(savedDraft.lastSyncAttemptAt, isNull);
+      expect(savedDraft.operationCode, isNull);
+      expect(savedDraft.retryable, isNull);
+      expect(savedDraft.recommendedAction, isNull);
+    },
+  );
 
   test(
     'submitCompanyAcceptance removes snapshot for document identity conflicts',
@@ -705,7 +920,7 @@ void main() {
   );
 
   test(
-    'missing reservation after resend returns draft to local retry state',
+    'missing reservation after resend waits for explicit local retry',
     () async {
       companyAcceptanceRepository
         ..offlineSyncError = const ApiException(
@@ -735,6 +950,7 @@ void main() {
       expect(savedDraft.retryable, isTrue);
       expect(savedDraft.errorCode, 'LOCAL_SEND_RETRY_REQUIRED');
       expect(savedDraft.lastError, contains('Tekrar Dene'));
+      expect(savedDraft.retryNotBefore, isNotNull);
 
       final automaticResult = await service.syncCompanyAcceptanceDraft(
         accessToken: 'token',
@@ -1198,6 +1414,7 @@ class _FakeInventoryCountsRepository implements InventoryCountsRepository {
   ApiException? createError;
   InventoryCountOfflineSyncStatus? offlineSyncStatus;
   int fetchOfflineSyncStatusCallCount = 0;
+  int createCountCallCount = 0;
 
   @override
   Future<BarcodeResolutionResult> resolveBarcode({
@@ -1212,6 +1429,7 @@ class _FakeInventoryCountsRepository implements InventoryCountsRepository {
     required String accessToken,
     required InventoryCountCreateRequest request,
   }) async {
+    createCountCallCount += 1;
     final error = createError;
     if (error != null) {
       throw error;
@@ -1277,6 +1495,9 @@ class _FakeOfflineInventoryCountsRepository
     savedDrafts.removeWhere((item) => item.id == draft.id);
     savedDrafts.add(draft);
   }
+
+  @override
+  Future<void> completeDraft(String id) => deleteDraft(id);
 
   @override
   Future<void> deleteDraft(String id) async {
@@ -1380,6 +1601,9 @@ class _FakeOfflineCompanyAcceptancesRepository
   Future<void> deleteDraft(String id) async {
     savedDrafts.removeWhere((draft) => draft.id == id);
   }
+
+  @override
+  Future<void> completeDraft(String id) => deleteDraft(id);
 
   @override
   Future<List<OfflineCompanyAcceptanceDraft>> fetchDrafts({

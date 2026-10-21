@@ -5,6 +5,7 @@ import 'package:furpa_merkez_terminal/core/utils/request_epoch.dart';
 import 'package:furpa_merkez_terminal/core/utils/safe_change_notifier.dart';
 import 'package:furpa_merkez_terminal/features/stock_operations/inventory_counts/data/inventory_counts_repository.dart';
 import 'package:furpa_merkez_terminal/features/stock_operations/inventory_counts/data/models/inventory_count_models.dart';
+import 'package:furpa_merkez_terminal/shared/utils/post_create_refresh.dart';
 
 class InventoryCountsController extends ChangeNotifier with SafeChangeNotifier {
   InventoryCountsController({
@@ -179,9 +180,11 @@ class InventoryCountsController extends ChangeNotifier with SafeChangeNotifier {
       _isCreating = false;
       notifySafely();
 
-      await loadCounts(
-        preferredDocumentNo: result.documentNo,
-        preferredDocumentDate: result.documentDate,
+      await refreshAfterSuccessfulCreate(
+        () => loadCounts(
+          preferredDocumentNo: result.documentNo,
+          preferredDocumentDate: result.documentDate,
+        ),
       );
 
       return result;

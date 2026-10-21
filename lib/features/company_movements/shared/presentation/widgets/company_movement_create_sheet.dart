@@ -271,7 +271,7 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
       }
 
       setState(() {
-        _lookupError = error.toString().replaceFirst('Exception: ', '').trim();
+        _lookupError = userFacingErrorMessage(error);
       });
       return;
     }
@@ -387,10 +387,7 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
       }
 
       setState(() {
-        line.setLookupStatus(
-          'API hata dondu: ${error.toString().replaceFirst('Exception: ', '').trim()}',
-          isError: true,
-        );
+        line.setLookupStatus(userFacingErrorMessage(error), isError: true);
         _lookupError = null;
       });
       _refocusLine(line.lookupFocusNode);

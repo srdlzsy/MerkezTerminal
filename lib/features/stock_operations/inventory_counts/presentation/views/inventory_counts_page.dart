@@ -236,7 +236,8 @@ class _InventoryCountsPageState extends State<InventoryCountsPage> {
           messenger.showSnackBar(
             const SnackBar(
               content: Text(
-                'Internet olmadigi icin sayim cihaza kaydedildi ve senkron kuyruguna eklendi.',
+                'Sayim cihaza taslak olarak kaydedildi. Baglanti geldikten sonra '
+                'Offline Sayim ekranindan Kaydet butonuna basin.',
               ),
             ),
           );
@@ -248,11 +249,12 @@ class _InventoryCountsPageState extends State<InventoryCountsPage> {
           messenger.showSnackBar(
             const SnackBar(
               content: Text(
-                'Sayim sunucuda isleniyor. Offline taslaklardan durumunu takip edebilirsiniz.',
+                'Sayim sonucu kontrol ediliyor. Form kapatildi; Offline Sayim '
+                'ekranindaki Durumu Kontrol Et islemi yeni evrak olusturmaz.',
               ),
             ),
           );
-          return false;
+          return true;
         case OfflineSubmissionStatus.retryAllowed:
           messenger.showSnackBar(
             const SnackBar(
