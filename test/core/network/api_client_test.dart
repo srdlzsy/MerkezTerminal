@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:furpa_merkez_terminal/core/network/api_client.dart';
 import 'package:furpa_merkez_terminal/core/network/api_exception.dart';
@@ -405,7 +407,7 @@ void main() {
               return http.Response(
                 '{"status":"Processing",'
                 '"recommendedAction":"WaitAndCheck",'
-                '"retryAfterSeconds":1}',
+                '"retryAfterSeconds":0}',
                 200,
               );
             }
@@ -442,26 +444,33 @@ void main() {
   );
 
   test(
-    'safe create automatically retries once with the same request',
+    'safe create retries once with the same identity after status proves no write',
     () async {
       var postCount = 0;
       var getCount = 0;
+      final postBodies = <String>[];
+      final postIds = <String>[];
       final client = ApiClient(
         baseUrl: 'http://localhost:5228',
         httpClient: MockClient((request) async {
           if (request.method == 'POST') {
             postCount += 1;
-            if (postCount == 2) {
-              expect(
-                request.body,
-                contains('22222222-2222-2222-2222-222222222222'),
-              );
+            postBodies.add(request.body);
+            postIds.add(
+              (jsonDecode(request.body)
+                      as Map<String, dynamic>)['clientRequestId']
+                  .toString(),
+            );
+            if (postCount == 1) {
               return http.Response(
-                '{"documentSerie":"F110","documentOrderNo":43}',
-                200,
+                '{"title":"Server Error","status":500}',
+                500,
               );
             }
-            return http.Response('{"title":"Server Error","status":500}', 500);
+            return http.Response(
+              '{"documentSerie":"F110","documentOrderNo":42}',
+              201,
+            );
           }
 
           getCount += 1;
@@ -469,7 +478,7 @@ void main() {
             '{"status":"Failed",'
             '"errorMessage":"Mikro tarafinda belge bulunamadi.",'
             '"errorCode":"SAFE_WRITE_RETRY_ALLOWED",'
-            '"retryable":true,"retryAfterSeconds":5,'
+            '"retryable":true,"retryAfterSeconds":0,'
             '"recommendedAction":"RetrySameRequest"}',
             200,
           );
@@ -486,52 +495,81 @@ void main() {
       );
 
       expect(response['documentSerie'], 'F110');
-      expect(response['documentOrderNo'], 43);
       expect(postCount, 2);
       expect(getCount, 1);
+      expect(postIds.toSet(), <String>{'22222222-2222-2222-2222-222222222222'});
+      expect(postBodies[0], postBodies[1]);
     },
   );
 
-  test('safe create never automatically retries more than once', () async {
+  test(
+    'safe create retries once when status confirms no server reservation',
+    () async {
+      var postCount = 0;
+      var getCount = 0;
+      final postBodies = <String>[];
+      final client = ApiClient(
+        baseUrl: 'http://localhost:5228',
+        httpClient: MockClient((request) async {
+          if (request.method == 'POST') {
+            postCount += 1;
+            postBodies.add(request.body);
+            if (postCount == 1) {
+              return http.Response(
+                '{"title":"Server Error","status":500}',
+                500,
+              );
+            }
+            return http.Response(
+              '{"documentSerie":"F110","documentOrderNo":43}',
+              201,
+            );
+          }
+
+          getCount += 1;
+          return http.Response(
+            '{"title":"Not Found","status":404}',
+            404,
+          );
+        }),
+        createRequestTimeout: const Duration(seconds: 1),
+        safeCreateStatusPollInterval: Duration.zero,
+      );
+
+      final response = await client.postCreateJsonMap(
+        '/api/stok-islemleri/virmanlar',
+        body: const <String, dynamic>{
+          'clientRequestId': '44444444-4444-4444-4444-444444444444',
+        },
+      );
+
+      expect(response['documentSerie'], 'F110');
+      expect(postCount, 2);
+      expect(getCount, 1);
+      expect(postBodies[0], postBodies[1]);
+    },
+  );
+
+  test('safe create does not exceed one confirmed-missing retry', () async {
     var postCount = 0;
-    var cancelCount = 0;
-    var getCount = 0;
     final client = ApiClient(
       baseUrl: 'http://localhost:5228',
       httpClient: MockClient((request) async {
-        if (request.method == 'POST') {
-          if (request.url.path.endsWith('/vazgec')) {
-            cancelCount += 1;
-            expect(
-              request.url.path,
-              '/api/mobile-sync/guvenli-yazmalar/'
-              '22222222-2222-2222-2222-222222222222/vazgec',
-            );
-            return http.Response('{"outcome":"Cancelled"}', 200);
-          }
-          postCount += 1;
-          return http.Response('{"title":"Server Error","status":500}', 500);
-        }
-
-        getCount += 1;
+        postCount += 1;
         return http.Response(
-          '{"status":"Failed",'
-          '"errorMessage":"Mikro tarafinda belge bulunamadi.",'
+          '{"title":"Conflict","status":409,'
           '"errorCode":"SAFE_WRITE_RETRY_ALLOWED",'
-          '"retryable":true,"retryAfterSeconds":5,'
-          '"recommendedAction":"RetrySameRequest"}',
-          200,
+          '"retryable":true,"recommendedAction":"RetrySameRequest"}',
+          409,
         );
       }),
-      createRequestTimeout: const Duration(seconds: 1),
-      safeCreateStatusPollInterval: Duration.zero,
     );
 
     await expectLater(
       client.postCreateJsonMap(
-        '/api/stok-islemleri/virmanlar',
+        '/api/sevk-islemleri/depolar-arasi-sevkler/giden',
         body: const <String, dynamic>{
-          'clientRequestId': '22222222-2222-2222-2222-222222222222',
+          'clientRequestId': '33333333-3333-3333-3333-333333333333',
         },
       ),
       throwsA(
@@ -544,86 +582,6 @@ void main() {
     );
 
     expect(postCount, 2);
-    expect(cancelCount, 1);
-    expect(getCount, 2);
-  });
-
-  test(
-    'safe create keeps the retry decision when exhausted record cannot close',
-    () async {
-      var createPostCount = 0;
-      final client = ApiClient(
-        baseUrl: 'http://localhost:5228',
-        httpClient: MockClient((request) async {
-          if (request.method == 'POST' &&
-              request.url.path.endsWith('/vazgec')) {
-            return http.Response('{"title":"Service unavailable"}', 503);
-          }
-          if (request.method == 'POST') {
-            createPostCount += 1;
-            return http.Response(
-              '{"title":"Conflict","status":409,'
-              '"errorCode":"SAFE_WRITE_RETRY_ALLOWED",'
-              '"retryable":true,"recommendedAction":"RetrySameRequest"}',
-              409,
-            );
-          }
-          return http.Response('{}', 404);
-        }),
-      );
-
-      await expectLater(
-        client.postCreateJsonMap(
-          '/api/sevk-islemleri/depolar-arasi-sevkler/giden',
-          body: const <String, dynamic>{
-            'clientRequestId': '44444444-4444-4444-4444-444444444444',
-          },
-        ),
-        throwsA(
-          isA<ApiException>().having(
-            (error) => error.errorCode,
-            'errorCode',
-            'SAFE_WRITE_RETRY_ALLOWED',
-          ),
-        ),
-      );
-
-      expect(createPostCount, 2);
-    },
-  );
-
-  test('safe create automatically retries a direct retry decision', () async {
-    var postCount = 0;
-    final client = ApiClient(
-      baseUrl: 'http://localhost:5228',
-      httpClient: MockClient((request) async {
-        postCount += 1;
-        if (postCount == 1) {
-          return http.Response(
-            '{"title":"Conflict","status":409,'
-            '"errorCode":"SAFE_WRITE_RETRY_ALLOWED",'
-            '"retryable":true,"recommendedAction":"RetrySameRequest"}',
-            409,
-          );
-        }
-
-        return http.Response(
-          '{"documentSerie":"F56","documentOrderNo":88971}',
-          200,
-        );
-      }),
-    );
-
-    final response = await client.postCreateJsonMap(
-      '/api/sevk-islemleri/depolar-arasi-sevkler/giden',
-      body: const <String, dynamic>{
-        'clientRequestId': '33333333-3333-3333-3333-333333333333',
-      },
-    );
-
-    expect(postCount, 2);
-    expect(response['documentSerie'], 'F56');
-    expect(response['documentOrderNo'], 88971);
   });
 
   test(

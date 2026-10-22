@@ -1,18 +1,9 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:furpa_merkez_terminal/core/storage/local_database.dart';
 import 'package:furpa_merkez_terminal/features/shipping_operations/outgoing_warehouse_shipments/data/models/outgoing_warehouse_shipment_models.dart';
-import 'package:furpa_merkez_terminal/shared/pending_create/pending_create_guard.dart';
 import 'package:furpa_merkez_terminal/shared/pending_create/pending_create_repository.dart';
 
 void main() {
-  test('pending create capacity uses graduated safety levels', () {
-    expect(pendingCreateCapacityLevel(9), PendingCreateCapacityLevel.normal);
-    expect(pendingCreateCapacityLevel(10), PendingCreateCapacityLevel.warning);
-    expect(pendingCreateCapacityLevel(25), PendingCreateCapacityLevel.critical);
-    expect(pendingCreateCapacityLevel(50), PendingCreateCapacityLevel.blocked);
-    expect(maxPendingCreateOperationsPerScope, 50);
-  });
-
   test('persists and restores the exact create payload in its scope', () async {
     final repository = LocalPendingCreateRepository(
       database: _MemoryLocalDatabase(),
@@ -154,6 +145,72 @@ void main() {
     );
   });
 
+  test('restores the least recently checked pending create first', () async {
+    final repository = LocalPendingCreateRepository(
+      database: _MemoryLocalDatabase(),
+    );
+    final now = DateTime.now();
+
+    await repository.save(
+      PendingCreateOperation(
+        moduleKey: 'sevk',
+        userId: 'user-1',
+        warehouseNo: '120',
+        payload: const <String, dynamic>{'clientRequestId': 'never-checked'},
+        updatedAt: now.subtract(const Duration(minutes: 2)),
+      ),
+    );
+    await repository.save(
+      PendingCreateOperation(
+        moduleKey: 'sevk',
+        userId: 'user-1',
+        warehouseNo: '120',
+        payload: const <String, dynamic>{'clientRequestId': 'checked'},
+        updatedAt: now.subtract(const Duration(minutes: 3)),
+        lastCheckedAt: now.subtract(const Duration(minutes: 1)),
+      ),
+    );
+
+    final restored = await repository.read(
+      moduleKey: 'sevk',
+      userId: 'user-1',
+      warehouseNo: '120',
+    );
+
+    expect(restored?.clientRequestId, 'never-checked');
+  });
+
+  test('keeps at most five pending creates per scope', () async {
+    final repository = LocalPendingCreateRepository(
+      database: _MemoryLocalDatabase(),
+    );
+    final now = DateTime.now();
+
+    for (var index = 0; index < 6; index++) {
+      await repository.save(
+        PendingCreateOperation(
+          moduleKey: 'sevk',
+          userId: 'user-1',
+          warehouseNo: '120',
+          payload: <String, dynamic>{'clientRequestId': 'request-$index'},
+          updatedAt: now.add(Duration(minutes: index)),
+        ),
+      );
+    }
+
+    final retained = await repository.readAll(
+      moduleKey: 'sevk',
+      userId: 'user-1',
+      warehouseNo: '120',
+    );
+
+    expect(retained, hasLength(5));
+    expect(
+      retained.map((operation) => operation.clientRequestId),
+      isNot(contains('request-0')),
+    );
+  });
+
   test('persists retry gate with the pending request', () async {
     final repository = LocalPendingCreateRepository(
       database: _MemoryLocalDatabase(),
@@ -252,12 +309,7 @@ void main() {
       warehouseNo: '120',
     );
 
-    expect(restored?.operationCode, 'siparis.onerilen-firma.create');
-    expect(restored?.relatedClientRequestId, 'related-request');
-    expect(restored?.errorCode, 'MIKRO_DOCUMENT_CONTENT_MISMATCH');
-    expect(restored?.correlationId, 'support-603427');
-    expect(restored?.errorMessage, 'Yetkili incelemesi gerekli.');
-    expect(restored?.lastCheckedAt, checkedAt);
+    expect(restored, isNull);
   });
 }
 

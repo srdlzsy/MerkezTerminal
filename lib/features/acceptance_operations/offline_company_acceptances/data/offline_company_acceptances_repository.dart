@@ -21,7 +21,7 @@ class LocalOfflineCompanyAcceptancesRepository
   static const String _storageKey = 'offline_company_acceptance_drafts_v1';
   static const String _completionStorageKey =
       'offline_company_acceptance_completed_v1';
-  static const Duration _completionRetention = Duration(days: 30);
+  static const Duration _completionRetention = Duration(days: 7);
   final LocalDatabase _database;
 
   @override

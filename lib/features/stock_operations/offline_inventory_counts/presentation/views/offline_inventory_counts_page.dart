@@ -132,8 +132,6 @@ class _OfflineInventoryCountsPageState
       final result = await widget.offlineSyncService.syncInventoryDraft(
         accessToken: widget.accessToken,
         draft: draft,
-        statusCheckOnly: draft.hasBeenSubmitted,
-        recheckExisting: draft.hasBeenSubmitted,
       );
       await _loadDrafts();
 
@@ -205,8 +203,7 @@ class _OfflineInventoryCountsPageState
           children: <Widget>[
             TerminalListHeaderCard(
               title: 'Offline Sayim',
-              subtitle:
-                  'Taslak cihazda kalir. Kaydet gonderir; Durumu Kontrol Et yeni fis olusturmaz.',
+              subtitle: 'Kaydedilemeyen sayim cihazda taslak olarak korunur.',
               infoChips: <Widget>[
                 TerminalInfoChip(
                   label: 'Varsayilan depo',
@@ -259,9 +256,9 @@ class _OfflineInventoryCountsPageState
                   else
                     ..._drafts.map((draft) {
                       final isSyncing = _syncingIds.contains(draft.id);
-                      final actionLabel = draft.hasBeenSubmitted
-                          ? 'Durumu Kontrol Et'
-                          : 'Kaydet';
+                      final isDefinitiveFailure =
+                          draft.hasBeenSubmitted &&
+                          draft.status == OfflineRecordStatus.failed;
 
                       return Padding(
                         padding: const EdgeInsets.only(bottom: 12),
@@ -351,36 +348,43 @@ class _OfflineInventoryCountsPageState
                                 spacing: 10,
                                 runSpacing: 10,
                                 children: <Widget>[
-                                  FilledButton.icon(
-                                    onPressed: isSyncing
-                                        ? null
-                                        : () => _syncDraft(draft),
-                                    icon: isSyncing
-                                        ? const SizedBox(
-                                            height: 16,
-                                            width: 16,
-                                            child: CircularProgressIndicator(
-                                              strokeWidth: 2,
+                                  if (!draft.hasBeenSubmitted)
+                                    FilledButton.icon(
+                                      onPressed: isSyncing
+                                          ? null
+                                          : () => _syncDraft(draft),
+                                      icon: isSyncing
+                                          ? const SizedBox(
+                                              height: 16,
+                                              width: 16,
+                                              child: CircularProgressIndicator(
+                                                strokeWidth: 2,
+                                              ),
+                                            )
+                                          : const Icon(
+                                              Icons.cloud_upload_rounded,
                                             ),
-                                          )
-                                        : const Icon(
-                                            Icons.cloud_upload_rounded,
-                                          ),
-                                    label: Text(
-                                      isSyncing
-                                          ? 'Kontrol Ediliyor...'
-                                          : actionLabel,
+                                      label: Text(
+                                        isSyncing
+                                            ? 'Kaydediliyor...'
+                                            : 'Kaydet',
+                                      ),
                                     ),
-                                  ),
-                                  OutlinedButton.icon(
-                                    onPressed: isSyncing
-                                        ? null
-                                        : () => _deleteDraft(draft.id),
-                                    icon: const Icon(
-                                      Icons.delete_outline_rounded,
+                                  if (!draft.hasBeenSubmitted ||
+                                      isDefinitiveFailure)
+                                    OutlinedButton.icon(
+                                      onPressed: isSyncing
+                                          ? null
+                                          : () => _deleteDraft(draft.id),
+                                      icon: const Icon(
+                                        Icons.delete_outline_rounded,
+                                      ),
+                                      label: Text(
+                                        isDefinitiveFailure
+                                            ? 'Yerel Taslagi Sil'
+                                            : 'Sil',
+                                      ),
                                     ),
-                                    label: const Text('Sil'),
-                                  ),
                                 ],
                               ),
                             ],

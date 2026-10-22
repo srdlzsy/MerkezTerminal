@@ -18,7 +18,6 @@ import 'package:furpa_merkez_terminal/shared/form_memory/remembered_form_values.
 import 'package:furpa_merkez_terminal/shared/formatters/app_formatters.dart';
 import 'package:furpa_merkez_terminal/shared/offline/mobile_customer_catalog_repository.dart';
 import 'package:furpa_merkez_terminal/shared/offline/offline_sync_status.dart';
-import 'package:furpa_merkez_terminal/shared/pending_create/pending_create_guard.dart';
 import 'package:furpa_merkez_terminal/shared/pending_create/pending_create_repository.dart';
 import 'package:furpa_merkez_terminal/shared/utils/completed_create_cleanup.dart';
 import 'package:furpa_merkez_terminal/shared/utils/safe_create_retry.dart';
@@ -78,7 +77,6 @@ class _CompanyMovementsPageState extends State<CompanyMovementsPage> {
   CreateDraft? _pendingCreateDraft;
   SafeCreateFailureKind _pendingCreateFailureKind =
       SafeCreateFailureKind.notRetryable;
-  DateTime? _pendingRetryNotBefore;
   bool _isRestoringPendingCreate = false;
   bool _hasPendingCreateStorageError = false;
   late DateTime _startDate;
@@ -118,7 +116,6 @@ class _CompanyMovementsPageState extends State<CompanyMovementsPage> {
         _pendingCreateRequest = request;
         _pendingCreateDraft = pending.draft;
         _pendingCreateFailureKind = failureKind;
-        _pendingRetryNotBefore = pending.retryNotBefore;
       });
     } on Object {
       if (mounted) {
@@ -135,6 +132,9 @@ class _CompanyMovementsPageState extends State<CompanyMovementsPage> {
     } finally {
       if (mounted) {
         setState(() => _isRestoringPendingCreate = false);
+        if (_pendingCreateRequest != null) {
+          unawaited(_reconcileRestoredPendingCreate());
+        }
       }
     }
   }
@@ -168,25 +168,7 @@ class _CompanyMovementsPageState extends State<CompanyMovementsPage> {
     );
   }
 
-  Future<void> _startNewCreateFromPending() async {
-    await _openCreateSheet();
-  }
-
-  Future<void> _retryPendingCreate() async {
-    final request = _pendingCreateRequest;
-    if (request == null) return;
-    final wait = safeCreateRetryWait(_pendingRetryNotBefore);
-    if (wait > Duration.zero) {
-      final messenger = ScaffoldMessenger.of(context)..hideCurrentSnackBar();
-      messenger.showSnackBar(
-        SnackBar(content: Text(safeCreateRetryWaitMessage(wait))),
-      );
-      return;
-    }
-    await _submitCreateRequest(request, _pendingCreateDraft);
-  }
-
-  Future<void> _checkPendingCreateStatus() async {
+  Future<void> _reconcileRestoredPendingCreate() async {
     final request = _pendingCreateRequest;
     if (request == null) return;
     await _submitCreateRequest(
@@ -303,15 +285,6 @@ class _CompanyMovementsPageState extends State<CompanyMovementsPage> {
   }
 
   Future<void> _openCreateSheet() async {
-    final hasCapacity = await ensurePendingCreateCapacity(
-      context: context,
-      repository: widget.pendingCreateRepository,
-      moduleKey: widget.draftModuleKey,
-      userId: widget.currentUserId,
-      warehouseNo: widget.defaultWarehouseNo,
-    );
-    if (!hasCapacity || !mounted) return;
-
     CreateDraft? draft;
     final draftRepository = widget.draftRepository;
     if (draftRepository != null && widget.draftModuleKey.isNotEmpty) {
@@ -404,7 +377,6 @@ class _CompanyMovementsPageState extends State<CompanyMovementsPage> {
       _pendingCreateDraft = draft;
       if (!statusCheckOnly) {
         _pendingCreateFailureKind = SafeCreateFailureKind.notRetryable;
-        _pendingRetryNotBefore = null;
       }
     });
 
@@ -496,7 +468,6 @@ class _CompanyMovementsPageState extends State<CompanyMovementsPage> {
           }
           setState(() {
             _pendingCreateFailureKind = failureKind;
-            _pendingRetryNotBefore = retryNotBefore;
           });
         } else {
           await _clearPersistedPendingCreate(request.clientRequestId);
@@ -507,33 +478,9 @@ class _CompanyMovementsPageState extends State<CompanyMovementsPage> {
             _pendingCreateRequest = null;
             _pendingCreateDraft = null;
             _pendingCreateFailureKind = SafeCreateFailureKind.notRetryable;
-            _pendingRetryNotBefore = null;
           });
         }
-        messenger.showSnackBar(
-          SnackBar(
-            content: Text(failureMessage),
-            action:
-                canRetrySafeCreate(failureKind) ||
-                    shouldCheckSafeCreateStatus(failureKind) ||
-                    shouldRecheckSafeCreate(failureKind)
-                ? SnackBarAction(
-                    label: canRetrySafeCreate(failureKind)
-                        ? 'Tekrar Dene'
-                        : shouldRecheckSafeCreate(failureKind)
-                        ? 'Dogrula'
-                        : 'Kontrol Et',
-                    onPressed: () {
-                      unawaited(
-                        canRetrySafeCreate(failureKind)
-                            ? _retryPendingCreate()
-                            : _checkPendingCreateStatus(),
-                      );
-                    },
-                  )
-                : null,
-          ),
-        );
+        messenger.showSnackBar(SnackBar(content: Text(failureMessage)));
         return;
       }
     }
@@ -545,7 +492,6 @@ class _CompanyMovementsPageState extends State<CompanyMovementsPage> {
       _pendingCreateRequest = null;
       _pendingCreateDraft = null;
       _pendingCreateFailureKind = SafeCreateFailureKind.notRetryable;
-      _pendingRetryNotBefore = null;
     });
     await completeLocalCreateState(
       pendingRepository: widget.pendingCreateRepository,
@@ -558,6 +504,16 @@ class _CompanyMovementsPageState extends State<CompanyMovementsPage> {
     );
     if (!mounted) {
       return;
+    }
+
+    if (statusCheckOnly) {
+      await _controller.loadMovements(
+        preferredDocumentSerie: result.documentSerie,
+        preferredDocumentOrderNo: result.documentOrderNo,
+      );
+      if (!mounted) {
+        return;
+      }
     }
 
     unawaited(
@@ -752,16 +708,7 @@ class _CompanyMovementsPageState extends State<CompanyMovementsPage> {
                     _isRestoringPendingCreate ||
                     _hasPendingCreateStorageError
                 ? null
-                : _pendingCreateRequest == null
-                ? _openCreateSheet
-                : canStartNewSafeCreate(_pendingCreateFailureKind)
-                ? _startNewCreateFromPending
-                : canRetrySafeCreate(_pendingCreateFailureKind)
-                ? _retryPendingCreate
-                : shouldCheckSafeCreateStatus(_pendingCreateFailureKind) ||
-                      shouldRecheckSafeCreate(_pendingCreateFailureKind)
-                ? _checkPendingCreateStatus
-                : null,
+                : _openCreateSheet,
             icon: _controller.isCreating || _isRestoringPendingCreate
                 ? const SizedBox(
                     height: 16,
@@ -771,10 +718,7 @@ class _CompanyMovementsPageState extends State<CompanyMovementsPage> {
                 : Icon(
                     _hasPendingCreateStorageError
                         ? Icons.error_outline_rounded
-                        : _pendingCreateRequest == null ||
-                              canStartNewSafeCreate(_pendingCreateFailureKind)
-                        ? Icons.add_rounded
-                        : Icons.refresh_rounded,
+                        : Icons.add_rounded,
                   ),
             label: Text(
               _controller.isCreating
@@ -783,23 +727,8 @@ class _CompanyMovementsPageState extends State<CompanyMovementsPage> {
                   ? 'Kayit kontrol ediliyor...'
                   : _hasPendingCreateStorageError
                   ? 'Destek gerekli'
-                  : _pendingCreateRequest == null
-                  ? widget.createButtonLabel
-                  : safeCreatePendingActionLabel(_pendingCreateFailureKind),
+                  : widget.createButtonLabel,
             ),
-          ),
-        if (widget.canCreate &&
-            _controller.canCreate &&
-            _pendingCreateRequest != null)
-          FilledButton.icon(
-            onPressed:
-                _controller.isCreating ||
-                    _isRestoringPendingCreate ||
-                    _hasPendingCreateStorageError
-                ? null
-                : _openCreateSheet,
-            icon: const Icon(Icons.add_rounded),
-            label: Text(widget.createButtonLabel),
           ),
       ],
     );

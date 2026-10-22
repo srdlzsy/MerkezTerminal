@@ -171,7 +171,21 @@ class LocalPendingCreateRepository implements PendingCreateRepository {
     : _database = database ?? LocalSqliteDatabase();
 
   static const String _storageKey = 'pending_create_operations_v1';
-  static const Duration _completionRetention = Duration(days: 30);
+  static const Duration _completionRetention = Duration(days: 7);
+  static const Duration _pendingRetention = Duration(days: 30);
+  static const int _maxPendingPerScope = 5;
+  static const int _maxCompletedPerScope = 50;
+  static const Set<String> _closedFailureKinds = <String>{
+    'notRetryable',
+    'documentIdentityConflict',
+    'officialDocumentAlreadyReceived',
+    'payloadChanged',
+    'multipleDocuments',
+    'manualReview',
+    'recheckExisting',
+    'statusNotFound',
+    'cancelled',
+  };
   final LocalDatabase _database;
 
   @override
@@ -185,7 +199,16 @@ class LocalPendingCreateRepository implements PendingCreateRepository {
       userId: userId,
       warehouseNo: warehouseNo,
     );
-    return operations.isEmpty ? null : operations.first;
+    if (operations.isEmpty) return null;
+
+    // Reconcile records fairly without polling all of them at once. A record
+    // checked on the previous page opening moves behind records that have not
+    // been checked yet.
+    return operations.reduce((left, right) {
+      final leftCheck = left.lastCheckedAt ?? left.updatedAt;
+      final rightCheck = right.lastCheckedAt ?? right.updatedAt;
+      return leftCheck.isBefore(rightCheck) ? left : right;
+    });
   }
 
   @override
@@ -196,9 +219,19 @@ class LocalPendingCreateRepository implements PendingCreateRepository {
   }) async {
     final expectedScope = _scopeKey(moduleKey, userId, warehouseNo);
     final rows = await _database.readTable(_storageKey);
+    final storedOperations = rows
+        .map(PendingCreateOperation.fromJson)
+        .toList(growable: false);
+    final retainedOperations = _pruneStored(storedOperations);
+    if (retainedOperations.length != storedOperations.length) {
+      await _mutateRows(
+        (currentRows) => _pruneStored(
+          currentRows.map(PendingCreateOperation.fromJson).toList(),
+        ).map((item) => item.toJson()).toList(growable: false),
+      );
+    }
     final operations =
-        rows
-            .map(PendingCreateOperation.fromJson)
+        retainedOperations
             .where(
               (operation) =>
                   operation.scopeKey == expectedScope && !operation.isCompleted,
@@ -290,16 +323,44 @@ class LocalPendingCreateRepository implements PendingCreateRepository {
 
   List<PendingCreateOperation> _pruneCompleted(
     List<Map<String, dynamic>> rows,
+  ) => _pruneStored(rows.map(PendingCreateOperation.fromJson).toList());
+
+  List<PendingCreateOperation> _pruneStored(
+    List<PendingCreateOperation> operations,
   ) {
-    final cutoff = DateTime.now().subtract(_completionRetention);
-    return rows
-        .map(PendingCreateOperation.fromJson)
+    final now = DateTime.now();
+    final completionCutoff = now.subtract(_completionRetention);
+    final pendingCutoff = now.subtract(_pendingRetention);
+    final eligible = operations
         .where(
           (operation) =>
-              !operation.isCompleted ||
-              !operation.completedAt!.isBefore(cutoff),
+              !_closedFailureKinds.contains(operation.failureKind) &&
+              (operation.isCompleted
+                  ? !operation.completedAt!.isBefore(completionCutoff)
+                  : !operation.updatedAt.isBefore(pendingCutoff)),
         )
         .toList(growable: false);
+
+    final byScope = <String, List<PendingCreateOperation>>{};
+    for (final operation in eligible) {
+      byScope
+          .putIfAbsent(operation.scopeKey, () => <PendingCreateOperation>[])
+          .add(operation);
+    }
+
+    final retained = <PendingCreateOperation>[];
+    for (final scopeOperations in byScope.values) {
+      final pending =
+          scopeOperations.where((item) => !item.isCompleted).toList()
+            ..sort((left, right) => right.updatedAt.compareTo(left.updatedAt));
+      final completed =
+          scopeOperations.where((item) => item.isCompleted).toList()
+            ..sort((left, right) => right.updatedAt.compareTo(left.updatedAt));
+      retained.addAll(pending.take(_maxPendingPerScope));
+      retained.addAll(completed.take(_maxCompletedPerScope));
+    }
+
+    return retained;
   }
 
   Future<void> _mutateRows(

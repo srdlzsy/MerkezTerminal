@@ -21,7 +21,7 @@ class LocalOfflineInventoryCountsRepository
   static const String _storageKey = 'offline_inventory_count_drafts_v1';
   static const String _completionStorageKey =
       'offline_inventory_count_completed_v1';
-  static const Duration _completionRetention = Duration(days: 30);
+  static const Duration _completionRetention = Duration(days: 7);
   final LocalDatabase _database;
 
   @override

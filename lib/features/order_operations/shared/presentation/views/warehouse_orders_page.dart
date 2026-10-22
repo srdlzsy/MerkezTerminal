@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:furpa_merkez_terminal/core/network/api_exception.dart';
@@ -11,7 +12,6 @@ import 'package:furpa_merkez_terminal/shared/drafts/create_draft_picker.dart';
 import 'package:furpa_merkez_terminal/shared/drafts/create_draft_repository.dart';
 import 'package:furpa_merkez_terminal/shared/formatters/app_formatters.dart';
 import 'package:furpa_merkez_terminal/shared/offline/offline_sync_status.dart';
-import 'package:furpa_merkez_terminal/shared/pending_create/pending_create_guard.dart';
 import 'package:furpa_merkez_terminal/shared/pending_create/pending_create_repository.dart';
 import 'package:furpa_merkez_terminal/shared/utils/client_request_id.dart';
 import 'package:furpa_merkez_terminal/shared/utils/completed_create_cleanup.dart';
@@ -73,7 +73,6 @@ class _WarehouseOrdersPageState extends State<WarehouseOrdersPage> {
   CreateDraft? _pendingCreateDraft;
   SafeCreateFailureKind _pendingCreateFailureKind =
       SafeCreateFailureKind.notRetryable;
-  DateTime? _pendingRetryNotBefore;
   bool _isRestoringPendingCreate = false;
   bool _hasPendingCreateStorageError = false;
 
@@ -180,7 +179,6 @@ class _WarehouseOrdersPageState extends State<WarehouseOrdersPage> {
         _pendingCreateRequest = request;
         _pendingCreateDraft = pending.draft;
         _pendingCreateFailureKind = failureKind;
-        _pendingRetryNotBefore = pending.retryNotBefore;
       });
     } on Object {
       if (mounted) {
@@ -195,7 +193,12 @@ class _WarehouseOrdersPageState extends State<WarehouseOrdersPage> {
         );
       }
     } finally {
-      if (mounted) setState(() => _isRestoringPendingCreate = false);
+      if (mounted) {
+        setState(() => _isRestoringPendingCreate = false);
+        if (_pendingCreateRequest != null) {
+          unawaited(_checkPendingCreateStatus());
+        }
+      }
     }
   }
 
@@ -228,20 +231,6 @@ class _WarehouseOrdersPageState extends State<WarehouseOrdersPage> {
     );
   }
 
-  Future<void> _retryPendingCreate() async {
-    final request = _pendingCreateRequest;
-    if (request == null) return;
-    final wait = safeCreateRetryWait(_pendingRetryNotBefore);
-    if (wait > Duration.zero) {
-      final messenger = ScaffoldMessenger.of(context)..hideCurrentSnackBar();
-      messenger.showSnackBar(
-        SnackBar(content: Text(safeCreateRetryWaitMessage(wait))),
-      );
-      return;
-    }
-    await _submitCreateRequest(request, _pendingCreateDraft);
-  }
-
   Future<void> _checkPendingCreateStatus() async {
     final request = _pendingCreateRequest;
     if (request == null) return;
@@ -257,17 +246,6 @@ class _WarehouseOrdersPageState extends State<WarehouseOrdersPage> {
 
     if (createSheetBuilder == null) {
       return;
-    }
-
-    if (_usesSafeCreate) {
-      final hasCapacity = await ensurePendingCreateCapacity(
-        context: context,
-        repository: widget.pendingCreateRepository!,
-        moduleKey: widget.draftModuleKey,
-        userId: widget.currentUserId,
-        warehouseNo: widget.defaultWarehouseNo,
-      );
-      if (!hasCapacity || !mounted) return;
     }
 
     CreateDraft? draft;
@@ -294,6 +272,28 @@ class _WarehouseOrdersPageState extends State<WarehouseOrdersPage> {
     }
 
     var submittedInline = false;
+    String? lastPayloadFingerprint;
+    String? stableClientRequestId;
+    WarehouseOrderCreateRequest withStableIdentity(
+      WarehouseOrderCreateRequest request,
+    ) {
+      if (!_usesSafeCreate) return request;
+      final payload = request.toJson()..remove('clientRequestId');
+      final fingerprint = jsonEncode(payload);
+      if (fingerprint == lastPayloadFingerprint &&
+          stableClientRequestId != null) {
+        return request.copyWith(clientRequestId: stableClientRequestId);
+      }
+
+      final suppliedId = request.clientRequestId?.trim() ?? '';
+      stableClientRequestId =
+          lastPayloadFingerprint == null && suppliedId.isNotEmpty
+          ? suppliedId
+          : generateClientRequestId();
+      lastPayloadFingerprint = fingerprint;
+      return request.copyWith(clientRequestId: stableClientRequestId);
+    }
+
     final request = await openTerminalCreatePage<WarehouseOrderCreateRequest>(
       context: context,
       title: widget.createTitle,
@@ -301,16 +301,7 @@ class _WarehouseOrdersPageState extends State<WarehouseOrdersPage> {
           createSheetBuilder(context, draft, widget.draftRepository),
       onSubmit: (request) async {
         submittedInline = true;
-        final safeRequest =
-            _pendingCreateRequest ??
-            (_usesSafeCreate
-                ? request.copyWith(
-                    clientRequestId:
-                        request.clientRequestId?.trim().isNotEmpty == true
-                        ? request.clientRequestId
-                        : generateClientRequestId(),
-                  )
-                : request);
+        final safeRequest = withStableIdentity(request);
         await _submitCreateRequest(safeRequest, draft);
         return mounted &&
             _pendingCreateRequest == null &&
@@ -322,13 +313,7 @@ class _WarehouseOrdersPageState extends State<WarehouseOrdersPage> {
       return;
     }
 
-    final safeRequest = _usesSafeCreate
-        ? request.copyWith(
-            clientRequestId: request.clientRequestId?.trim().isNotEmpty == true
-                ? request.clientRequestId
-                : generateClientRequestId(),
-          )
-        : request;
+    final safeRequest = withStableIdentity(request);
     await _submitCreateRequest(safeRequest, draft);
   }
 
@@ -360,7 +345,6 @@ class _WarehouseOrdersPageState extends State<WarehouseOrdersPage> {
         _pendingCreateDraft = draft;
         if (!statusCheckOnly) {
           _pendingCreateFailureKind = SafeCreateFailureKind.notRetryable;
-          _pendingRetryNotBefore = null;
         }
       });
     }
@@ -454,7 +438,6 @@ class _WarehouseOrdersPageState extends State<WarehouseOrdersPage> {
           if (!mounted) return;
           setState(() {
             _pendingCreateFailureKind = failureKind;
-            _pendingRetryNotBefore = retryNotBefore;
           });
         } else {
           await _clearPersistedPendingCreate(request.clientRequestId);
@@ -463,31 +446,9 @@ class _WarehouseOrdersPageState extends State<WarehouseOrdersPage> {
             _pendingCreateRequest = null;
             _pendingCreateDraft = null;
             _pendingCreateFailureKind = SafeCreateFailureKind.notRetryable;
-            _pendingRetryNotBefore = null;
           });
         }
-        messenger.showSnackBar(
-          SnackBar(
-            content: Text(failureMessage),
-            action:
-                canRetrySafeCreate(failureKind) ||
-                    shouldCheckSafeCreateStatus(failureKind) ||
-                    shouldRecheckSafeCreate(failureKind)
-                ? SnackBarAction(
-                    label: canRetrySafeCreate(failureKind)
-                        ? 'Tekrar Dene'
-                        : shouldRecheckSafeCreate(failureKind)
-                        ? 'Dogrula'
-                        : 'Kontrol Et',
-                    onPressed: () => unawaited(
-                      canRetrySafeCreate(failureKind)
-                          ? _retryPendingCreate()
-                          : _checkPendingCreateStatus(),
-                    ),
-                  )
-                : null,
-          ),
-        );
+        messenger.showSnackBar(SnackBar(content: Text(failureMessage)));
         return;
       }
     }
@@ -507,7 +468,6 @@ class _WarehouseOrdersPageState extends State<WarehouseOrdersPage> {
         _pendingCreateRequest = null;
         _pendingCreateDraft = null;
         _pendingCreateFailureKind = SafeCreateFailureKind.notRetryable;
-        _pendingRetryNotBefore = null;
       });
       await completeLocalCreateState(
         pendingRepository: widget.pendingCreateRepository!,
@@ -662,16 +622,7 @@ class _WarehouseOrdersPageState extends State<WarehouseOrdersPage> {
                     _isRestoringPendingCreate ||
                     _hasPendingCreateStorageError
                 ? null
-                : _pendingCreateRequest == null
-                ? _openCreateSheet
-                : canStartNewSafeCreate(_pendingCreateFailureKind)
-                ? _openCreateSheet
-                : canRetrySafeCreate(_pendingCreateFailureKind)
-                ? _retryPendingCreate
-                : shouldCheckSafeCreateStatus(_pendingCreateFailureKind) ||
-                      shouldRecheckSafeCreate(_pendingCreateFailureKind)
-                ? _checkPendingCreateStatus
-                : null,
+                : _openCreateSheet,
             icon: _controller.isCreating || _isRestoringPendingCreate
                 ? const SizedBox(
                     height: 16,
@@ -681,10 +632,7 @@ class _WarehouseOrdersPageState extends State<WarehouseOrdersPage> {
                 : Icon(
                     _hasPendingCreateStorageError
                         ? Icons.error_outline_rounded
-                        : _pendingCreateRequest == null ||
-                              canStartNewSafeCreate(_pendingCreateFailureKind)
-                        ? Icons.add_rounded
-                        : Icons.refresh_rounded,
+                        : Icons.add_rounded,
                   ),
             label: Text(
               _controller.isCreating
@@ -692,22 +640,9 @@ class _WarehouseOrdersPageState extends State<WarehouseOrdersPage> {
                   : _isRestoringPendingCreate
                   ? 'Kayit kontrol ediliyor...'
                   : _hasPendingCreateStorageError
-                  ? 'Destek gerekli'
-                  : _pendingCreateRequest == null
-                  ? 'Yeni Siparis'
-                  : safeCreatePendingActionLabel(_pendingCreateFailureKind),
+                  ? 'Kayit alani okunamadi'
+                  : 'Yeni Siparis',
             ),
-          ),
-        if (_canCreate && _pendingCreateRequest != null)
-          FilledButton.icon(
-            onPressed:
-                _controller.isCreating ||
-                    _isRestoringPendingCreate ||
-                    _hasPendingCreateStorageError
-                ? null
-                : _openCreateSheet,
-            icon: const Icon(Icons.add_rounded),
-            label: const Text('Yeni Siparis'),
           ),
       ],
     );

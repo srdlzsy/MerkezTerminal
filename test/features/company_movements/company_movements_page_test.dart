@@ -201,13 +201,14 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Durumu Kontrol Et'), findsOneWidget);
+    expect(find.text('Durumu Kontrol Et'), findsNothing);
+    expect(find.text('Yeni Iade'), findsOneWidget);
     expect(repository.createRequests, isEmpty);
-    expect(repository.fetchOfflineSyncStatusCallCount, 0);
+    expect(repository.fetchOfflineSyncStatusCallCount, 1);
   });
 
   testWidgets(
-    'reconciles and clears a completed pending create only after user action',
+    'reconciles and clears a completed pending create automatically',
     (tester) async {
       final database = MemoryLocalDatabase();
       final pendingRepository = LocalPendingCreateRepository(
@@ -258,21 +259,9 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(repository.createRequests, isEmpty);
-      expect(repository.fetchOfflineSyncStatusCallCount, 0);
-      expect(find.text('Durumu Kontrol Et'), findsOneWidget);
-      expect(
-        await pendingRepository.read(
-          moduleKey: 'iade-islemleri.firma-iadeleri',
-          userId: 'user-1',
-          warehouseNo: '50',
-        ),
-        isNotNull,
-      );
-
-      await tester.tap(find.text('Durumu Kontrol Et'));
-      await tester.pumpAndSettle();
-
       expect(repository.fetchOfflineSyncStatusCallCount, 1);
+      expect(repository.fetchMovementsCallCount, 2);
+      expect(find.text('Durumu Kontrol Et'), findsNothing);
       expect(find.text('Yeni Iade'), findsOneWidget);
       expect(
         await pendingRepository.read(
@@ -285,7 +274,7 @@ void main() {
     },
   );
 
-  testWidgets('blocks create actions while manual review is required', (
+  testWidgets('clears legacy manual review without blocking new creates', (
     tester,
   ) async {
     final database = MemoryLocalDatabase();
@@ -299,11 +288,16 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Destek gerekli'), findsOneWidget);
-    final button = tester.widget<FilledButton>(
-      find.widgetWithText(FilledButton, 'Destek gerekli'),
+    expect(find.text('Destek gerekli'), findsNothing);
+    expect(find.text('Yeni Iade'), findsOneWidget);
+    expect(
+      await pendingRepository.read(
+        moduleKey: 'iade-islemleri.firma-iadeleri',
+        userId: 'user-1',
+        warehouseNo: '50',
+      ),
+      isNull,
     );
-    expect(button.onPressed, isNull);
   });
 
   testWidgets(
@@ -350,46 +344,52 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(repository.createRequests, isEmpty);
-      expect(repository.fetchOfflineSyncStatusCallCount, 0);
-      expect(find.text('Durumu Kontrol Et'), findsOneWidget);
-      expect(find.text('Yeni Iade'), findsOneWidget);
-
-      await tester.tap(find.text('Durumu Kontrol Et'));
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 300));
-      expect(repository.createRequests, isEmpty);
       expect(repository.fetchOfflineSyncStatusCallCount, 1);
+      expect(find.text('Durumu Kontrol Et'), findsNothing);
+      expect(find.text('Yeni Iade'), findsOneWidget);
+      expect(
+        await pendingRepository.read(
+          moduleKey: 'iade-islemleri.firma-iadeleri',
+          userId: 'user-1',
+          warehouseNo: '50',
+        ),
+        isNotNull,
+      );
     },
   );
 
-  testWidgets('starts a new operation only from the explicit action', (
-    tester,
-  ) async {
-    final database = MemoryLocalDatabase();
-    final pendingRepository = LocalPendingCreateRepository(database: database);
-    await pendingRepository.save(
-      _pendingCompanyMovement(failureKind: 'payloadChanged'),
-    );
+  testWidgets(
+    'clears payload mismatch and returns to the normal create action',
+    (tester) async {
+      final database = MemoryLocalDatabase();
+      final pendingRepository = LocalPendingCreateRepository(
+        database: database,
+      );
+      await pendingRepository.save(
+        _pendingCompanyMovement(failureKind: 'payloadChanged'),
+      );
 
-    await tester.pumpWidget(
-      MaterialApp(home: _companyMovementsPage(pendingRepository)),
-    );
-    await tester.pumpAndSettle();
+      await tester.pumpWidget(
+        MaterialApp(home: _companyMovementsPage(pendingRepository)),
+      );
+      await tester.pumpAndSettle();
 
-    expect(find.text('Yeni Bagimsiz Islem'), findsOneWidget);
-    await tester.tap(find.text('Yeni Bagimsiz Islem'));
-    await tester.pumpAndSettle();
+      expect(find.text('Yeni Bagimsiz Islem'), findsNothing);
+      expect(find.text('Yeni Iade'), findsOneWidget);
+      await tester.tap(find.text('Yeni Iade'));
+      await tester.pumpAndSettle();
 
-    expect(find.text('Cari'), findsOneWidget);
-    expect(
-      await pendingRepository.read(
-        moduleKey: 'iade-islemleri.firma-iadeleri',
-        userId: 'user-1',
-        warehouseNo: '50',
-      ),
-      isNotNull,
-    );
-  });
+      expect(find.text('Cari'), findsOneWidget);
+      expect(
+        await pendingRepository.read(
+          moduleKey: 'iade-islemleri.firma-iadeleri',
+          userId: 'user-1',
+          warehouseNo: '50',
+        ),
+        isNull,
+      );
+    },
+  );
 
   testWidgets('renders create sheet on 320px terminal width without overflow', (
     tester,
@@ -612,6 +612,7 @@ class _FakeCompanyMovementsRepository
   final List<BarcodeResolutionRequest> barcodeRequests =
       <BarcodeResolutionRequest>[];
   int fetchOfflineSyncStatusCallCount = 0;
+  int fetchMovementsCallCount = 0;
   final List<CompanyMovementCreateRequest> createRequests =
       <CompanyMovementCreateRequest>[];
 
@@ -689,6 +690,7 @@ class _FakeCompanyMovementsRepository
     required String accessToken,
     required CompanyMovementListFilter filter,
   }) async {
+    fetchMovementsCallCount += 1;
     return movements;
   }
 

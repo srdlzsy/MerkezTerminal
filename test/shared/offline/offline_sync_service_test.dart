@@ -130,7 +130,7 @@ void main() {
     );
     expect(
       offlineInventoryRepository.savedDrafts.single.lastError,
-      contains('Durumu Kontrol Et'),
+      contains('otomatik kontrol edilecek'),
     );
   });
 
@@ -160,6 +160,37 @@ void main() {
     expect(inventoryRepository.fetchOfflineSyncStatusCallCount, 0);
     expect(offlineInventoryRepository.savedDrafts, isEmpty);
   });
+
+  test(
+    'confirmed missing inventory count remains local without another status loop',
+    () async {
+      inventoryRepository.createError = const ApiException(
+        statusCode: 409,
+        title: 'Kayit tamamlanamadi',
+        detail: 'Mikro kaydi olusmadi; guvenli tekrar tamamlansin.',
+        errorCode: 'SAFE_WRITE_RETRY_EXHAUSTED',
+        retryable: true,
+        recommendedAction: 'RetrySameRequest',
+      );
+      final request = _buildRequest(
+        clientRequestId: 'inventory-safe-retry-exhausted',
+      );
+
+      final result = await service.submitInventoryCount(
+        accessToken: 'token',
+        userId: 'user-1',
+        warehouseNo: '110',
+        request: request,
+      );
+
+      expect(result.status, OfflineSubmissionStatus.queued);
+      expect(inventoryRepository.createCountCallCount, 1);
+      expect(inventoryRepository.fetchOfflineSyncStatusCallCount, 0);
+      final draft = offlineInventoryRepository.savedDrafts.single;
+      expect(draft.hasBeenSubmitted, isFalse);
+      expect(draft.clientRequestId, request.clientRequestId);
+    },
+  );
 
   test(
     'submitInventoryCount does not queue non-network status zero errors',
@@ -602,12 +633,12 @@ void main() {
     final savedDraft = offlineCompanyAcceptanceRepository.savedDrafts.single;
     expect(savedDraft.clientRequestId, 'acceptance-uncertain');
     expect(savedDraft.status, OfflineRecordStatus.syncing);
-    expect(savedDraft.lastError, contains('Durumu Kontrol Et'));
+    expect(savedDraft.lastError, contains('otomatik kontrol edilecek'));
     expect(savedDraft.lastError, isNot(contains('A task was canceled')));
   });
 
   test(
-    'submitCompanyAcceptance retries a missing reservation once on the same screen',
+    'submitCompanyAcceptance keeps a missing write as an editable draft',
     () async {
       companyAcceptanceRepository
         ..createError = const ApiException(
@@ -634,13 +665,15 @@ void main() {
         ),
       );
 
-      expect(result.status, OfflineSubmissionStatus.synced);
-      expect(companyAcceptanceRepository.createCallCount, 2);
+      expect(result.status, OfflineSubmissionStatus.queued);
+      expect(companyAcceptanceRepository.createCallCount, 1);
       expect(
         companyAcceptanceRepository.lastCreateClientRequestId,
         'acceptance-inline-retry',
       );
-      expect(offlineCompanyAcceptanceRepository.savedDrafts, isEmpty);
+      final savedDraft = offlineCompanyAcceptanceRepository.savedDrafts.single;
+      expect(savedDraft.hasBeenSubmitted, isFalse);
+      expect(savedDraft.errorCode, 'LOCAL_SEND_RETRY_REQUIRED');
     },
   );
 
@@ -672,6 +705,38 @@ void main() {
     expect(companyAcceptanceRepository.fetchOfflineSyncStatusCallCount, 0);
     expect(offlineCompanyAcceptanceRepository.savedDrafts, isEmpty);
   });
+
+  test(
+    'confirmed missing company acceptance remains an editable same-id draft after one safe retry',
+    () async {
+      companyAcceptanceRepository.createError = const ApiException(
+        statusCode: 409,
+        title: 'Kayit tamamlanamadi',
+        detail: 'Mikro kaydi olusmadi; guvenli tekrar tamamlansin.',
+        errorCode: 'SAFE_WRITE_RETRY_EXHAUSTED',
+        retryable: true,
+        recommendedAction: 'RetrySameRequest',
+      );
+      final request = _buildCompanyAcceptanceRequest(
+        clientRequestId: 'acceptance-safe-retry-exhausted',
+      );
+
+      final result = await service.submitCompanyAcceptance(
+        accessToken: 'token',
+        userId: 'user-1',
+        warehouseNo: '110',
+        request: request,
+      );
+
+      expect(result.status, OfflineSubmissionStatus.queued);
+      expect(companyAcceptanceRepository.createCallCount, 1);
+      expect(companyAcceptanceRepository.fetchOfflineSyncStatusCallCount, 0);
+      final draft = offlineCompanyAcceptanceRepository.savedDrafts.single;
+      expect(draft.hasBeenSubmitted, isFalse);
+      expect(draft.effectiveClientRequestId, request.clientRequestId);
+      expect(draft.errorCode, 'LOCAL_SEND_RETRY_REQUIRED');
+    },
+  );
 
   test(
     'syncCompanyAcceptanceDraft keeps http 400 as an unsent editable draft',
@@ -892,7 +957,7 @@ void main() {
   );
 
   test(
-    'missing company acceptance reservation retries the same snapshot once',
+    'missing company acceptance reservation returns to the editable draft',
     () async {
       companyAcceptanceRepository.offlineSyncError = const ApiException(
         statusCode: 404,
@@ -908,14 +973,12 @@ void main() {
         draft: draft,
       );
 
-      expect(result.status, OfflineDraftSyncResultStatus.synced);
+      expect(result.status, OfflineDraftSyncResultStatus.deferred);
       expect(companyAcceptanceRepository.fetchOfflineSyncStatusCallCount, 1);
-      expect(companyAcceptanceRepository.createCallCount, 1);
-      expect(
-        companyAcceptanceRepository.lastCreateClientRequestId,
-        'acceptance-missing-reservation',
-      );
-      expect(offlineCompanyAcceptanceRepository.savedDrafts, isEmpty);
+      expect(companyAcceptanceRepository.createCallCount, 0);
+      final savedDraft = offlineCompanyAcceptanceRepository.savedDrafts.single;
+      expect(savedDraft.hasBeenSubmitted, isFalse);
+      expect(savedDraft.errorCode, 'LOCAL_SEND_RETRY_REQUIRED');
     },
   );
 
@@ -943,14 +1006,14 @@ void main() {
       );
 
       expect(result.status, OfflineDraftSyncResultStatus.deferred);
-      expect(companyAcceptanceRepository.fetchOfflineSyncStatusCallCount, 2);
-      expect(companyAcceptanceRepository.createCallCount, 1);
+      expect(companyAcceptanceRepository.fetchOfflineSyncStatusCallCount, 1);
+      expect(companyAcceptanceRepository.createCallCount, 0);
       final savedDraft = offlineCompanyAcceptanceRepository.savedDrafts.single;
       expect(savedDraft.hasBeenSubmitted, isFalse);
       expect(savedDraft.retryable, isTrue);
       expect(savedDraft.errorCode, 'LOCAL_SEND_RETRY_REQUIRED');
-      expect(savedDraft.lastError, contains('Tekrar Dene'));
-      expect(savedDraft.retryNotBefore, isNotNull);
+      expect(savedDraft.lastError, contains('taslaginda korundu'));
+      expect(savedDraft.retryNotBefore, isNull);
 
       final automaticResult = await service.syncCompanyAcceptanceDraft(
         accessToken: 'token',
@@ -958,7 +1021,7 @@ void main() {
       );
 
       expect(automaticResult.status, OfflineDraftSyncResultStatus.deferred);
-      expect(companyAcceptanceRepository.createCallCount, 1);
+      expect(companyAcceptanceRepository.createCallCount, 0);
     },
   );
 
@@ -986,7 +1049,7 @@ void main() {
       final savedDraft = offlineCompanyAcceptanceRepository.savedDrafts.single;
       expect(savedDraft.hasBeenSubmitted, isFalse);
       expect(savedDraft.errorCode, 'LOCAL_SEND_RETRY_REQUIRED');
-      expect(savedDraft.lastError, contains('Tekrar Dene'));
+      expect(savedDraft.lastError, contains('taslaginda korundu'));
     },
   );
 
@@ -1022,44 +1085,39 @@ void main() {
     },
   );
 
-  test(
-    'queue busy company acceptance retries same snapshot after status',
-    () async {
-      companyAcceptanceRepository.offlineSyncStatus =
-          CompanyAcceptanceOfflineSyncStatus(
-            clientRequestId: 'acceptance-queue-busy',
-            operationCode: 'company-acceptance-create',
-            status: 'failed',
-            createdAtUtc: DateTime.utc(2026, 10, 16, 8),
-            completedAtUtc: DateTime.utc(2026, 10, 16, 8, 1),
-            errorMessage: 'Depo yazma kuyrugu mesgul.',
-            errorCode: 'MIKRO_WRITE_QUEUE_BUSY',
-            retryable: true,
-            retryAfterSeconds: 5,
-            result: null,
-          );
-      final draft = _buildCompanyAcceptanceDraft(
-        clientRequestId: 'acceptance-queue-busy',
-        hasBeenSubmitted: true,
-      ).copyWith(errorCode: 'MIKRO_WRITE_QUEUE_BUSY', retryable: true);
+  test('queue busy company acceptance returns to the editable draft', () async {
+    companyAcceptanceRepository.offlineSyncStatus =
+        CompanyAcceptanceOfflineSyncStatus(
+          clientRequestId: 'acceptance-queue-busy',
+          operationCode: 'company-acceptance-create',
+          status: 'failed',
+          createdAtUtc: DateTime.utc(2026, 10, 16, 8),
+          completedAtUtc: DateTime.utc(2026, 10, 16, 8, 1),
+          errorMessage: 'Depo yazma kuyrugu mesgul.',
+          errorCode: 'MIKRO_WRITE_QUEUE_BUSY',
+          retryable: true,
+          retryAfterSeconds: 5,
+          result: null,
+        );
+    final draft = _buildCompanyAcceptanceDraft(
+      clientRequestId: 'acceptance-queue-busy',
+      hasBeenSubmitted: true,
+    ).copyWith(errorCode: 'MIKRO_WRITE_QUEUE_BUSY', retryable: true);
 
-      final result = await service.syncCompanyAcceptanceDraft(
-        accessToken: 'token',
-        draft: draft,
-      );
+    final result = await service.syncCompanyAcceptanceDraft(
+      accessToken: 'token',
+      draft: draft,
+    );
 
-      expect(result.status, OfflineDraftSyncResultStatus.synced);
-      expect(companyAcceptanceRepository.fetchOfflineSyncStatusCallCount, 1);
-      expect(companyAcceptanceRepository.createCallCount, 1);
-      expect(
-        companyAcceptanceRepository.lastCreateClientRequestId,
-        'acceptance-queue-busy',
-      );
-      expect(offlineCompanyAcceptanceRepository.savedDrafts, isEmpty);
-    },
-  );
+    expect(result.status, OfflineDraftSyncResultStatus.deferred);
+    expect(companyAcceptanceRepository.fetchOfflineSyncStatusCallCount, 1);
+    expect(companyAcceptanceRepository.createCallCount, 0);
+    final savedDraft = offlineCompanyAcceptanceRepository.savedDrafts.single;
+    expect(savedDraft.hasBeenSubmitted, isFalse);
+    expect(savedDraft.errorCode, 'LOCAL_SEND_RETRY_REQUIRED');
+  });
 
-  test('first queue busy status waits before another POST', () async {
+  test('first queue busy status does not start another POST', () async {
     companyAcceptanceRepository.offlineSyncStatus =
         CompanyAcceptanceOfflineSyncStatus(
           clientRequestId: 'acceptance-first-queue-busy',
@@ -1086,8 +1144,9 @@ void main() {
     expect(result.status, OfflineDraftSyncResultStatus.deferred);
     expect(companyAcceptanceRepository.createCallCount, 0);
     final savedDraft = offlineCompanyAcceptanceRepository.savedDrafts.single;
-    expect(savedDraft.errorCode, 'MIKRO_WRITE_QUEUE_BUSY');
-    expect(savedDraft.retryNotBefore, isNotNull);
+    expect(savedDraft.errorCode, 'LOCAL_SEND_RETRY_REQUIRED');
+    expect(savedDraft.hasBeenSubmitted, isFalse);
+    expect(savedDraft.retryNotBefore, isNull);
   });
 
   test(

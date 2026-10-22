@@ -99,6 +99,23 @@ class OfflineSyncService {
         onlineResult: result,
       );
     } on ApiException catch (error) {
+      if (error.errorCode == 'SAFE_WRITE_RETRY_EXHAUSTED' ||
+          error.errorCode == 'SAFE_WRITE_RETRY_DEFERRED') {
+        await _offlineInventoryRepository.saveDraft(
+          OfflineInventoryCountDraft.fromCreateRequest(
+            request,
+            userId: userId,
+            warehouseNo: warehouseNo,
+            status: OfflineRecordStatus.pending,
+            lastSyncAttemptAt: DateTime.now(),
+            lastError: error.message,
+            hasBeenSubmitted: false,
+          ),
+        );
+        return const InventoryCountSubmissionResult(
+          status: OfflineSubmissionStatus.queued,
+        );
+      }
       if (_shouldTryCreateRecovery(error)) {
         final recovery = await _recoverInventoryRequest(
           accessToken: accessToken,
@@ -215,6 +232,16 @@ class OfflineSyncService {
       );
     } on ApiException catch (error) {
       final initialFailureKind = classifySafeCreateException(error);
+      if (error.errorCode == 'SAFE_WRITE_RETRY_EXHAUSTED' ||
+          error.errorCode == 'SAFE_WRITE_RETRY_DEFERRED') {
+        await _storeCompanyAcceptanceForManualRetry(
+          snapshot,
+          message: error.message,
+        );
+        return const CompanyAcceptanceSubmissionResult(
+          status: OfflineSubmissionStatus.queued,
+        );
+      }
       if (initialFailureKind ==
               SafeCreateFailureKind.documentIdentityConflict ||
           initialFailureKind ==
@@ -235,34 +262,6 @@ class OfflineSyncService {
           deadline: foregroundDeadline,
           initial: recovery,
         );
-        var automaticRetryAttempted = false;
-        if (recovery.status == _CreateRecoveryStatus.retryable &&
-            recovery.recommendedAction == 'RetrySameRequest') {
-          automaticRetryAttempted = true;
-          try {
-            final result = await _companyAcceptanceRepository.createAcceptance(
-              accessToken: accessToken,
-              request: request,
-            );
-            await _completeCompanyAcceptanceDraft(snapshot.id);
-            return CompanyAcceptanceSubmissionResult(
-              status: OfflineSubmissionStatus.synced,
-              onlineResult: result,
-            );
-          } on ApiException {
-            recovery = await _recoverCompanyAcceptanceRequest(
-              accessToken: accessToken,
-              clientRequestId: request.clientRequestId ?? '',
-              recheckExisting: true,
-            );
-            recovery = await _waitForCompanyAcceptanceResolution(
-              accessToken: accessToken,
-              clientRequestId: request.clientRequestId ?? '',
-              deadline: foregroundDeadline,
-              initial: recovery,
-            );
-          }
-        }
         if (recovery.status == _CreateRecoveryStatus.completed) {
           await _completeCompanyAcceptanceDraft(snapshot.id);
           return CompanyAcceptanceSubmissionResult(
@@ -287,16 +286,9 @@ class OfflineSyncService {
           );
         }
         if (recovery.status == _CreateRecoveryStatus.retryable) {
-          if (automaticRetryAttempted &&
-              recovery.recoveryState == 'ReservationNotFound') {
-            await _storeCompanyAcceptanceForManualRetry(snapshot);
-            return const CompanyAcceptanceSubmissionResult(
-              status: OfflineSubmissionStatus.queued,
-            );
-          }
-          await _offlineCompanyAcceptanceRepository.deleteDraft(snapshot.id);
+          await _storeCompanyAcceptanceForManualRetry(snapshot);
           return const CompanyAcceptanceSubmissionResult(
-            status: OfflineSubmissionStatus.retryAllowed,
+            status: OfflineSubmissionStatus.queued,
           );
         }
         if (recovery.status == _CreateRecoveryStatus.failed ||
@@ -684,7 +676,7 @@ class OfflineSyncService {
       );
     }
 
-    var draftToSubmit = draft;
+    final draftToSubmit = draft;
     if (draft.hasBeenSubmitted) {
       final recovery = await _recoverCompanyAcceptanceRequest(
         accessToken: accessToken,
@@ -753,32 +745,7 @@ class OfflineSyncService {
           return _resetCompanyAcceptanceToUnsent(draft);
         }
 
-        final errorCode = recovery.errorCode?.trim().toUpperCase() ?? '';
-        final wasWaitingForQueue =
-            draft.errorCode?.trim().toUpperCase() == 'MIKRO_WRITE_QUEUE_BUSY';
-        final canSubmitAgain =
-            !statusCheckOnly &&
-            (recovery.recommendedAction == 'RetrySameRequest' ||
-                errorCode == 'SAFE_WRITE_RETRY_ALLOWED' ||
-                (errorCode == 'MIKRO_WRITE_QUEUE_BUSY' && wasWaitingForQueue));
-        if (!canSubmitAgain) {
-          await _saveCompanyAcceptanceRecovery(
-            draft,
-            recovery,
-            status: OfflineRecordStatus.pending,
-          );
-          return OfflineDraftSyncResult(
-            status: OfflineDraftSyncResultStatus.deferred,
-            message: recovery.message,
-          );
-        }
-        draftToSubmit = draft.copyWith(
-          relatedClientRequestId: recovery.relatedClientRequestId,
-          operationCode: recovery.operationCode,
-          errorCode: recovery.errorCode,
-          retryable: true,
-          lastCheckedAt: DateTime.now(),
-        );
+        return _resetCompanyAcceptanceToUnsent(draft);
       } else if (recovery.status == _CreateRecoveryStatus.unknown) {
         await _offlineCompanyAcceptanceRepository.saveDraft(
           draft.copyWith(
@@ -1104,8 +1071,7 @@ class OfflineSyncService {
     OfflineCompanyAcceptanceDraft draft,
   ) async {
     const message =
-        'Sunucu bu istegi almadi. Evrak cihazda korunuyor. Baglantiyi '
-        'kontrol edip ayni taslakta Tekrar Dene butonuna basin.';
+        'Kayit Mikro\'ya yazilmadi. Bilgiler cihaz taslaginda korundu.';
     await _storeCompanyAcceptanceForManualRetry(draft, message: message);
     return const OfflineDraftSyncResult(
       status: OfflineDraftSyncResultStatus.deferred,
@@ -1116,8 +1082,7 @@ class OfflineSyncService {
   Future<void> _storeCompanyAcceptanceForManualRetry(
     OfflineCompanyAcceptanceDraft draft, {
     String message =
-        'Sunucu bu istegi almadi. Evrak cihazda korunuyor. Baglantiyi '
-        'kontrol edip ayni taslakta Tekrar Dene butonuna basin.',
+        'Kayit Mikro\'ya yazilmadi. Bilgiler cihaz taslaginda korundu.',
   }) async {
     final resetDraft = draft.copyWith(
       status: OfflineRecordStatus.pending,
@@ -1131,7 +1096,6 @@ class OfflineSyncService {
         lastError: message,
         errorCode: 'LOCAL_SEND_RETRY_REQUIRED',
         retryable: true,
-        retryNotBefore: DateTime.now().add(const Duration(seconds: 30)),
       ),
     );
   }

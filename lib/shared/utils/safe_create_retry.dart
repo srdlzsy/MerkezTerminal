@@ -61,6 +61,9 @@ SafeCreateFailureKind classifySafeCreateFailure({
       return SafeCreateFailureKind.waitAndCheck;
     case 'SAFE_WRITE_RETRY_ALLOWED':
       return SafeCreateFailureKind.retrySameRequest;
+    case 'SAFE_WRITE_RETRY_EXHAUSTED':
+    case 'SAFE_WRITE_RETRY_DEFERRED':
+      return SafeCreateFailureKind.retrySameRequest;
     case 'MIKRO_DOCUMENT_CONTENT_MISMATCH':
       return SafeCreateFailureKind.manualReview;
     case 'MIKRO_DOCUMENT_IDENTITY_CONFLICT':
@@ -130,19 +133,20 @@ bool hasSafeCreateDecisionMetadata(ApiException error) {
 }
 
 bool canRetrySafeCreate(SafeCreateFailureKind kind) {
-  return kind == SafeCreateFailureKind.retrySameRequest ||
-      kind == SafeCreateFailureKind.queueBusy;
+  return false;
 }
 
 bool shouldCheckSafeCreateStatus(SafeCreateFailureKind kind) {
-  return kind == SafeCreateFailureKind.uncertain ||
-      kind == SafeCreateFailureKind.processing ||
-      kind == SafeCreateFailureKind.waitAndCheck ||
-      kind == SafeCreateFailureKind.queueBusy;
+  // ApiClient resolves safe-create status during the foreground request.
+  // Remaining technical records are reconciled once when their page opens;
+  // users must not be given a manual check loop.
+  return false;
 }
 
 bool shouldRecheckSafeCreate(SafeCreateFailureKind kind) {
-  return kind == SafeCreateFailureKind.recheckExisting;
+  // Recheck is an internal recovery detail. Terminal users must not be put in
+  // a repeating validate/check loop for a create they already submitted.
+  return false;
 }
 
 Future<OfflineSyncStatus<T>> resolveSafeCreateStatus<T>({
@@ -241,10 +245,9 @@ String safeCreateRetryWaitMessage(Duration wait) {
 }
 
 bool shouldKeepSafeCreatePending(SafeCreateFailureKind kind) {
-  return kind != SafeCreateFailureKind.notRetryable &&
-      kind != SafeCreateFailureKind.documentIdentityConflict &&
-      kind != SafeCreateFailureKind.officialDocumentAlreadyReceived &&
-      kind != SafeCreateFailureKind.cancelled;
+  return kind == SafeCreateFailureKind.uncertain ||
+      kind == SafeCreateFailureKind.processing ||
+      kind == SafeCreateFailureKind.waitAndCheck;
 }
 
 bool canStartNewSafeCreate(SafeCreateFailureKind kind) {
@@ -256,7 +259,7 @@ String safeCreatePendingActionLabel(SafeCreateFailureKind kind) {
     SafeCreateFailureKind.payloadChanged => 'Yeni Bagimsiz Islem',
     SafeCreateFailureKind.documentIdentityConflict => 'Seri / Sirayi Duzelt',
     SafeCreateFailureKind.officialDocumentAlreadyReceived => 'Listeyi Yenile',
-    SafeCreateFailureKind.recheckExisting => 'Mikro Kaydini Dogrula',
+    SafeCreateFailureKind.recheckExisting => 'Taslakta Korundu',
     SafeCreateFailureKind.manualReview ||
     SafeCreateFailureKind.multipleDocuments ||
     SafeCreateFailureKind.statusNotFound => 'Destek gerekli',
@@ -264,9 +267,9 @@ String safeCreatePendingActionLabel(SafeCreateFailureKind kind) {
     SafeCreateFailureKind.cancelled => 'Yetkili Tarafindan Iptal Edildi',
     SafeCreateFailureKind.waitAndCheck ||
     SafeCreateFailureKind.processing ||
-    SafeCreateFailureKind.uncertain => 'Durumu Kontrol Et',
+    SafeCreateFailureKind.uncertain => 'Sonuc Otomatik Kontrol Edilecek',
     SafeCreateFailureKind.retrySameRequest ||
-    SafeCreateFailureKind.queueBusy => 'Ayni Kaydi Tekrar Dene',
+    SafeCreateFailureKind.queueBusy => 'Taslakta Bekliyor',
   };
 }
 
@@ -300,12 +303,11 @@ String _safeCreateRetryErrorMessageForKind(
 ) {
   final message = switch (kind) {
     SafeCreateFailureKind.queueBusy =>
-      'Ayni belge serisindeki onceki islem halen devam ediyor. Bu kaydin '
-          'Mikro yazimi baslamadi. Kisa bir sure sonra ayni kayitla Tekrar '
-          'Dene kullanin; yeni bir islem baslatmayin.',
+      'Kayit Mikro yazma sirasina giremedi. Bilgiler cihaz taslaginda '
+          'korundu; bu ekrandan otomatik tekrar gonderilmeyecek.',
     SafeCreateFailureKind.processing =>
-      'Kayit Mikro tarafinda halen isleniyor. Ayni kaydi yeni bir '
-          'islem olarak gondermeyin; kisa bir sure sonra Tekrar Dene kullanin.',
+      'Kayit Mikro tarafinda halen isleniyor. Sonuc uygulama tarafindan '
+          'otomatik kontrol edilecek; girdiginiz bilgiler korunuyor.',
     SafeCreateFailureKind.payloadChanged =>
       'Bu kayit denemesinin icerigi degismis. Devam etmek icin acikca '
           'Yeni Islem olarak kaydedin.',
@@ -322,18 +324,19 @@ String _safeCreateRetryErrorMessageForKind(
               'kaydetmeyin ve e-irsaliye gondermeyin. ${error.detail ?? ''}'
           .trim(),
     SafeCreateFailureKind.manualReview =>
-      'Mikro evrak icerigi bu kayitla eslesmiyor. Tekrar kaydetmeyin; '
-              'yetkili incelemesi gerekli. ${error.detail ?? ''}'
+      'Mikro bu istek kimligiyle bir evrak buldu ancak temel belge bilgileri '
+              'eslesmedi. Evrak yeniden gonderilmedi; girdiginiz bilgiler '
+              'cihaz taslaginda korundu. ${error.detail ?? ''}'
           .trim(),
     SafeCreateFailureKind.recheckExisting =>
-      'Mikro kaydi bu evrakla tam eslesmedi. Mikro Kaydini Dogrula ile '
-          'salt-okuma kontrolu yapin; bu islem yeni evrak olusturmaz.',
+      'Mikro kaydi bu evrakla tam eslesmedi. Evrak yeniden gonderilmedi; '
+          'girdiginiz bilgiler cihaz taslaginda korundu.',
     SafeCreateFailureKind.waitAndCheck =>
-      'Kayit sonucu kontrol ediliyor. Yeni evrak baslatmayin; bildirilen '
-          'sure sonunda Durumu Kontrol Et kullanin.',
+      'Kayit sonucu henuz kesinlesmedi. Girdiginiz bilgiler korunuyor ve '
+          'sonuc uygulama tarafindan otomatik kontrol edilecek.',
     SafeCreateFailureKind.retrySameRequest =>
       'Mikro tarafinda bu istege ait belge bulunmadigi dogrulandi. Saklanan '
-          'ayni bilgiler ve ayni istek kimligiyle tekrar gonderilebilir.',
+          'bilgiler cihaz taslaginda korundu; otomatik tekrar gonderilmedi.',
     SafeCreateFailureKind.statusNotFound =>
       'Bu guvenli kaydin sunucu durum izi bulunamadi. Yeni kimlik uretmeyin; '
           'destek birimine bildirin.',

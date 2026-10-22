@@ -249,8 +249,8 @@ class _InventoryCountsPageState extends State<InventoryCountsPage> {
           messenger.showSnackBar(
             const SnackBar(
               content: Text(
-                'Sayim sonucu kontrol ediliyor. Form kapatildi; Offline Sayim '
-                'ekranindaki Durumu Kontrol Et islemi yeni evrak olusturmaz.',
+                'Sayim sonucu kontrol ediliyor. Form kapatildi; bilgiler '
+                'cihazda korunuyor ve sonuc otomatik kontrol edilecek.',
               ),
             ),
           );

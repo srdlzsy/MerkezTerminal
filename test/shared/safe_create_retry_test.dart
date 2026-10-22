@@ -73,7 +73,7 @@ void main() {
     );
   });
 
-  test('queue busy preserves the request and allows the same retry', () {
+  test('queue busy falls back to the editable form draft', () {
     const conflict = ApiException(
       statusCode: 409,
       title: 'Conflict',
@@ -82,11 +82,48 @@ void main() {
     );
     final kind = classifySafeCreateException(conflict);
 
-    expect(shouldKeepSafeCreatePending(kind), isTrue);
-    expect(canRetrySafeCreate(kind), isTrue);
+    expect(shouldKeepSafeCreatePending(kind), isFalse);
+    expect(shouldCheckSafeCreateStatus(kind), isFalse);
+    expect(canRetrySafeCreate(kind), isFalse);
     expect(canStartNewSafeCreate(kind), isFalse);
-    expect(safeCreatePendingActionLabel(kind), 'Ayni Kaydi Tekrar Dene');
-    expect(safeCreateRetryErrorMessage(conflict), contains('yazimi baslamadi'));
+    expect(safeCreatePendingActionLabel(kind), 'Taslakta Bekliyor');
+    expect(safeCreateRetryErrorMessage(conflict), contains('taslaginda'));
+  });
+
+  test('proven missing write does not start an automatic retry loop', () {
+    const conflict = ApiException(
+      statusCode: 409,
+      title: 'Conflict',
+      errorCode: 'SAFE_WRITE_RETRY_ALLOWED',
+      retryable: true,
+      recommendedAction: 'RetrySameRequest',
+    );
+    final kind = classifySafeCreateException(conflict);
+
+    expect(kind, SafeCreateFailureKind.retrySameRequest);
+    expect(shouldKeepSafeCreatePending(kind), isFalse);
+    expect(shouldCheckSafeCreateStatus(kind), isFalse);
+    expect(canRetrySafeCreate(kind), isFalse);
+    expect(safeCreateRetryErrorMessage(conflict), contains('otomatik tekrar'));
+  });
+
+  test('uncertain results are reconciled without a manual check action', () {
+    const conflict = ApiException(
+      statusCode: 409,
+      title: 'Conflict',
+      errorCode: 'MIKRO_WRITE_OUTCOME_UNCONFIRMED',
+      retryable: true,
+      recommendedAction: 'WaitAndCheck',
+    );
+    final kind = classifySafeCreateException(conflict);
+
+    expect(shouldKeepSafeCreatePending(kind), isTrue);
+    expect(shouldCheckSafeCreateStatus(kind), isFalse);
+    expect(shouldRecheckSafeCreate(kind), isFalse);
+    expect(
+      safeCreatePendingActionLabel(kind),
+      'Sonuc Otomatik Kontrol Edilecek',
+    );
   });
 
   test('document identity conflicts stay out of the pending queue', () {
@@ -124,7 +161,7 @@ void main() {
     expect(safeCreatePendingActionLabel(kind), 'Listeyi Yenile');
   });
 
-  test('manual review is preserved and blocks all create actions', () {
+  test('manual review does not create a persistent terminal loop', () {
     const conflict = ApiException(
       statusCode: 409,
       title: 'Conflict',
@@ -134,11 +171,11 @@ void main() {
     );
     final kind = classifySafeCreateException(conflict);
 
-    expect(shouldKeepSafeCreatePending(kind), isTrue);
+    expect(shouldKeepSafeCreatePending(kind), isFalse);
     expect(canRetrySafeCreate(kind), isFalse);
     expect(canStartNewSafeCreate(kind), isFalse);
     expect(safeCreatePendingActionLabel(kind), 'Destek gerekli');
-    expect(safeCreateRetryErrorMessage(conflict), contains('yetkili'));
+    expect(safeCreateRetryErrorMessage(conflict), contains('taslaginda'));
   });
 
   test('payload mismatch requires an explicit new operation', () {
@@ -148,7 +185,7 @@ void main() {
       retryable: false,
     );
 
-    expect(shouldKeepSafeCreatePending(kind), isTrue);
+    expect(shouldKeepSafeCreatePending(kind), isFalse);
     expect(canRetrySafeCreate(kind), isFalse);
     expect(canStartNewSafeCreate(kind), isTrue);
     expect(safeCreatePendingActionLabel(kind), 'Yeni Bagimsiz Islem');
@@ -231,7 +268,7 @@ void main() {
     },
   );
 
-  test('offline status keeps non-retryable review decisions pending', () {
+  test('offline status closes non-retryable terminal review decisions', () {
     final status = OfflineSyncStatus<Object>(
       clientRequestId: 'request-review',
       operationCode: 'test.create',
@@ -247,11 +284,11 @@ void main() {
 
     final kind = classifyOfflineSyncStatus(status);
     expect(kind, SafeCreateFailureKind.manualReview);
-    expect(shouldKeepSafeCreatePending(kind), isTrue);
+    expect(shouldKeepSafeCreatePending(kind), isFalse);
     expect(canRetrySafeCreate(kind), isFalse);
     expect(
       safeCreateOfflineSyncErrorMessage(status, fallback: 'Kayit basarisiz.'),
-      contains('yetkili incelemesi gerekli'),
+      contains('taslaginda korundu'),
     );
   });
 

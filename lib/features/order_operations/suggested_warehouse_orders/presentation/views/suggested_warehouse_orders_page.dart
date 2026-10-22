@@ -9,7 +9,6 @@ import 'package:furpa_merkez_terminal/features/order_operations/suggested_wareho
 import 'package:furpa_merkez_terminal/shared/formatters/app_formatters.dart';
 import 'package:furpa_merkez_terminal/shared/offline/mobile_warehouse_catalog_repository.dart';
 import 'package:furpa_merkez_terminal/shared/offline/offline_sync_status.dart';
-import 'package:furpa_merkez_terminal/shared/pending_create/pending_create_guard.dart';
 import 'package:furpa_merkez_terminal/shared/pending_create/pending_create_repository.dart';
 import 'package:furpa_merkez_terminal/shared/pending_create/pending_create_status_card.dart';
 import 'package:furpa_merkez_terminal/shared/utils/client_request_id.dart';
@@ -229,17 +228,6 @@ class _SuggestedWarehouseOrdersPageState
   }
 
   Future<void> _convertSelected() async {
-    if (_usesSafeConvert) {
-      final hasCapacity = await ensurePendingCreateCapacity(
-        context: context,
-        repository: widget.pendingCreateRepository!,
-        moduleKey: _pendingModuleKey,
-        userId: widget.currentUserId,
-        warehouseNo: widget.defaultWarehouseNo,
-      );
-      if (!hasCapacity || !mounted) return;
-    }
-
     WarehouseOrderCreateResult? result;
     try {
       result = await _controller.convertSelected(
@@ -435,26 +423,6 @@ class _SuggestedWarehouseOrdersPageState
       );
     } finally {
       if (mounted) setState(() => _isCheckingPending = false);
-    }
-  }
-
-  Future<void> _retryPending() async {
-    final request = _pendingRequest;
-    final operation = _pendingOperation;
-    if (request == null || operation == null) return;
-    final wait = safeCreateRetryWait(operation.retryNotBefore);
-    if (wait > Duration.zero) {
-      _showFeedback(safeCreateRetryWaitMessage(wait));
-      return;
-    }
-    final result = await _controller.submitConvertRequest(request);
-    if (!mounted) return;
-    if (result != null) {
-      await _completePending(result);
-      _showFeedback('${result.documentNoLabel} olusturuldu.');
-    } else {
-      await _handleConvertFailure();
-      _showFeedback(_controller.convertError ?? 'Siparis olusturulamadi.');
     }
   }
 
@@ -660,10 +628,7 @@ class _SuggestedWarehouseOrdersPageState
               operation: _pendingOperation!,
               failureKind: _pendingFailureKind,
               isBusy: _isCheckingPending || _controller.isConverting,
-              onCheck: _checkPendingStatus,
-              onRetry: canRetrySafeCreate(_pendingFailureKind)
-                  ? _retryPending
-                  : null,
+              showDetails: false,
             ),
             const SizedBox(height: 10),
           ],

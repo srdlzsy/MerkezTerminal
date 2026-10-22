@@ -24,7 +24,7 @@ import '../../support/memory_local_database.dart';
 import '../../support/pda_create_screen_contract.dart';
 
 void main() {
-  testWidgets('explains and provides safe actions for support state', (
+  testWidgets('does not expose a recheck loop for definitive failure', (
     tester,
   ) async {
     final offlineRepository = _FakeOfflineCompanyAcceptancesRepository();
@@ -102,24 +102,20 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Destek gerekli'), findsWidgets);
+    expect(find.text('Kaydedilemedi'), findsWidgets);
     expect(
-      find.textContaining('MIKRO_DOCUMENT_CONTENT_MISMATCH'),
+      find.textContaining('Bu evrak guvenlik nedeniyle yeniden gonderilmedi.'),
       findsOneWidget,
     );
-    expect(
-      find.textContaining('Bu evrak yeniden gonderilmez ve silinmez.'),
-      findsOneWidget,
+    final deleteButton = tester.widget<OutlinedButton>(
+      find.widgetWithText(OutlinedButton, 'Yerel Taslagi Sil'),
     );
-    final checkButton = tester.widget<OutlinedButton>(
-      find.widgetWithText(OutlinedButton, 'Durumu Kontrol Et'),
-    );
-    expect(checkButton.onPressed, isNotNull);
-    expect(find.text('Destek Bilgisini Kopyala'), findsOneWidget);
-    expect(find.textContaining('support-code-1'), findsOneWidget);
+    expect(deleteButton.onPressed, isNotNull);
+    expect(find.text('Durumu Kontrol Et'), findsNothing);
+    expect(find.text('Mikro Kaydini Dogrula'), findsNothing);
   });
 
-  testWidgets('shows explicit retry when server never received the draft', (
+  testWidgets('shows normal save when server never received the draft', (
     tester,
   ) async {
     final offlineRepository = _FakeOfflineCompanyAcceptancesRepository();
@@ -169,7 +165,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Tekrar Dene'), findsOneWidget);
+    expect(find.text('Kaydet'), findsOneWidget);
     final deleteButton = tester.widget<OutlinedButton>(
       find.widgetWithText(OutlinedButton, 'Sil'),
     );

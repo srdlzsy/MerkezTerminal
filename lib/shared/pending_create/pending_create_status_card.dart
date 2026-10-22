@@ -9,15 +9,13 @@ class PendingCreateStatusCard extends StatelessWidget {
     required this.operation,
     required this.failureKind,
     required this.isBusy,
-    required this.onCheck,
-    this.onRetry,
+    this.showDetails = true,
   });
 
   final PendingCreateOperation operation;
   final SafeCreateFailureKind failureKind;
   final bool isBusy;
-  final VoidCallback onCheck;
-  final VoidCallback? onRetry;
+  final bool showDetails;
 
   @override
   Widget build(BuildContext context) {
@@ -59,16 +57,17 @@ class PendingCreateStatusCard extends StatelessWidget {
                     ),
                   ),
                 ),
-                TextButton(
-                  onPressed: isBusy
-                      ? null
-                      : () => showPendingCreateDetailsDialog(
-                          context: context,
-                          operation: operation,
-                          failureKind: failureKind,
-                        ),
-                  child: const Text('Detay'),
-                ),
+                if (showDetails)
+                  TextButton(
+                    onPressed: isBusy
+                        ? null
+                        : () => showPendingCreateDetailsDialog(
+                            context: context,
+                            operation: operation,
+                            failureKind: failureKind,
+                          ),
+                    child: const Text('Detay'),
+                  ),
               ],
             ),
             Text(
@@ -77,33 +76,6 @@ class PendingCreateStatusCard extends StatelessWidget {
                   : _failureMessage(failureKind),
               maxLines: 3,
               overflow: TextOverflow.ellipsis,
-            ),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: <Widget>[
-                OutlinedButton.icon(
-                  onPressed: isBusy ? null : onCheck,
-                  icon: isBusy
-                      ? const SizedBox.square(
-                          dimension: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.manage_search_rounded),
-                  label: Text(
-                    failureKind == SafeCreateFailureKind.recheckExisting
-                        ? 'Mikro Kaydini Dogrula'
-                        : 'Durumu Kontrol Et',
-                  ),
-                ),
-                if (onRetry != null)
-                  FilledButton.tonalIcon(
-                    onPressed: isBusy ? null : onRetry,
-                    icon: const Icon(Icons.refresh_rounded),
-                    label: const Text('Tekrar Dene'),
-                  ),
-              ],
             ),
           ],
         ),
@@ -170,13 +142,13 @@ String _detailsText(
 String _failureMessage(SafeCreateFailureKind kind) {
   return switch (kind) {
     SafeCreateFailureKind.processing =>
-      'Kayit Mikro tarafinda isleniyor. Yeni kimlik uretmeden durumunu kontrol edin.',
+      'Kayit Mikro tarafinda isleniyor. Sonuc otomatik kontrol edilecek.',
     SafeCreateFailureKind.queueBusy =>
       'Onceki islem suruyor. Bildirilen sure dolunca ayni kayitla tekrar deneyin.',
     SafeCreateFailureKind.uncertain =>
-      'Kaydin sonucu kesinlesmedi. Ayni kaydi sorgulayin veya tekrar deneyin.',
+      'Kaydin sonucu kesinlesmedi. Bilgiler korunuyor; sonuc otomatik kontrol edilecek.',
     SafeCreateFailureKind.waitAndCheck =>
-      'Kayit sonucu kontrol ediliyor. Bekleme sonunda durumu yeniden kontrol edin.',
+      'Kayit sonucu kontrol ediliyor. Kullanici islemi gerekmiyor.',
     SafeCreateFailureKind.retrySameRequest =>
       'Belgenin olusmadigi dogrulandi. Saklanan ayni kayit guvenle yeniden gonderilebilir.',
     SafeCreateFailureKind.documentIdentityConflict =>

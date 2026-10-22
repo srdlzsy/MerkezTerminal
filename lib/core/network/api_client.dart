@@ -173,69 +173,167 @@ class ApiClient {
     await _guardMutationRequest(verifyWarehouseContext);
 
     final route = _resolveSafeCreateRoute(path, body);
-    var automaticRetryUsed = false;
+    final deadline = DateTime.now().add(_createRequestTimeout);
+    final encodedBody = body == null ? null : jsonEncode(body);
 
-    while (true) {
-      final deadline = DateTime.now().add(_createRequestTimeout);
+    try {
+      return await _sendSafeCreatePost(
+        path: path,
+        queryParameters: queryParameters,
+        encodedBody: encodedBody,
+        accessToken: accessToken,
+        allowUnauthorizedRecovery: allowUnauthorizedRecovery,
+        deadline: deadline,
+      );
+    } on ApiException catch (error) {
+      if (route == null) {
+        rethrow;
+      }
 
-      try {
-        final response = await _send(
+      if (_isConfirmedMissingWrite(error)) {
+        return _retryConfirmedMissingWriteOnce(
+          path: path,
+          queryParameters: queryParameters,
+          encodedBody: encodedBody,
+          route: route,
           accessToken: accessToken,
           allowUnauthorizedRecovery: allowUnauthorizedRecovery,
-          timeout: _initialSafeCreateRequestTimeout(deadline),
-          request: (resolvedAccessToken) => _httpClient.post(
-            _buildUri(path, queryParameters: queryParameters),
-            headers: _buildHeaders(accessToken: resolvedAccessToken),
-            body: body == null ? null : jsonEncode(body),
-          ),
+          deadline: deadline,
+          missingWriteError: error,
         );
+      }
+      if (!_shouldWaitForSafeCreateResolution(error)) rethrow;
 
-        return _decodeJsonMap(response);
-      } on ApiException catch (error) {
-        if (route != null && _isSafeWriteRetryAllowed(error)) {
-          if (!automaticRetryUsed) {
-            automaticRetryUsed = true;
-            continue;
-          }
-
-          throw await _closeExhaustedSafeCreate(
-            route: route,
-            accessToken: accessToken,
-            allowUnauthorizedRecovery: allowUnauthorizedRecovery,
-            fallbackError: error,
-          );
-        }
-
-        if (route == null || !_shouldWaitForSafeCreateResolution(error)) {
-          rethrow;
-        }
-
-        try {
-          return await _pollSafeCreateStatus(
-            route: route,
-            accessToken: accessToken,
-            allowUnauthorizedRecovery: allowUnauthorizedRecovery,
-            deadline: deadline,
-            fallbackError: error,
-          );
-        } on ApiException catch (statusError) {
-          if (_isSafeWriteRetryAllowed(statusError)) {
-            if (!automaticRetryUsed) {
-              automaticRetryUsed = true;
-              continue;
-            }
-
-            throw await _closeExhaustedSafeCreate(
-              route: route,
-              accessToken: accessToken,
-              allowUnauthorizedRecovery: allowUnauthorizedRecovery,
-              fallbackError: statusError,
-            );
-          }
-          rethrow;
-        }
+      try {
+        return await _pollSafeCreateStatus(
+          route: route,
+          accessToken: accessToken,
+          allowUnauthorizedRecovery: allowUnauthorizedRecovery,
+          deadline: deadline,
+          fallbackError: error,
+        );
+      } on ApiException catch (statusError) {
+        if (!_isConfirmedMissingWrite(statusError)) rethrow;
+        return _retryConfirmedMissingWriteOnce(
+          path: path,
+          queryParameters: queryParameters,
+          encodedBody: encodedBody,
+          route: route,
+          accessToken: accessToken,
+          allowUnauthorizedRecovery: allowUnauthorizedRecovery,
+          deadline: deadline,
+          missingWriteError: statusError,
+        );
       }
     }
+  }
+
+  Future<JsonMap> _sendSafeCreatePost({
+    required String path,
+    required Map<String, String>? queryParameters,
+    required String? encodedBody,
+    required String? accessToken,
+    required bool allowUnauthorizedRecovery,
+    required DateTime deadline,
+  }) async {
+    final response = await _send(
+      accessToken: accessToken,
+      allowUnauthorizedRecovery: allowUnauthorizedRecovery,
+      timeout: _initialSafeCreateRequestTimeout(deadline),
+      request: (resolvedAccessToken) => _httpClient.post(
+        _buildUri(path, queryParameters: queryParameters),
+        headers: _buildHeaders(accessToken: resolvedAccessToken),
+        body: encodedBody,
+      ),
+    );
+    return _decodeJsonMap(response);
+  }
+
+  Future<JsonMap> _retryConfirmedMissingWriteOnce({
+    required String path,
+    required Map<String, String>? queryParameters,
+    required String? encodedBody,
+    required _SafeCreateRoute route,
+    required String? accessToken,
+    required bool allowUnauthorizedRecovery,
+    required DateTime deadline,
+    required ApiException missingWriteError,
+  }) async {
+    final retryAfter = missingWriteError.retryAfterSeconds ?? 0;
+    if (retryAfter > 0) {
+      final delay = _durationWithinDeadline(
+        Duration(seconds: retryAfter),
+        deadline,
+      );
+      await Future<void>.delayed(delay);
+    }
+    if (!DateTime.now().isBefore(deadline)) {
+      throw ApiException(
+        statusCode: 409,
+        title: 'Guvenli tekrar bekliyor',
+        detail:
+            'Mikro kaydi bulunamadi ancak sunucunun bekleme suresi dolmadan yeni deneme baslatilmadi. Bilgiler taslakta korundu.',
+        errorCode: 'SAFE_WRITE_RETRY_DEFERRED',
+        retryable: true,
+        retryAfterSeconds: missingWriteError.retryAfterSeconds,
+        relatedClientRequestId: missingWriteError.relatedClientRequestId,
+        correlationId: missingWriteError.correlationId,
+        recommendedAction: 'RetrySameRequest',
+      );
+    }
+
+    try {
+      return await _sendSafeCreatePost(
+        path: path,
+        queryParameters: queryParameters,
+        encodedBody: encodedBody,
+        accessToken: accessToken,
+        allowUnauthorizedRecovery: allowUnauthorizedRecovery,
+        deadline: deadline,
+      );
+    } on ApiException catch (retryError) {
+      if (_isConfirmedMissingWrite(retryError)) {
+        throw _safeCreateRetryExhausted(retryError);
+      }
+      if (!_shouldWaitForSafeCreateResolution(retryError)) rethrow;
+
+      try {
+        return await _pollSafeCreateStatus(
+          route: route,
+          accessToken: accessToken,
+          allowUnauthorizedRecovery: allowUnauthorizedRecovery,
+          deadline: deadline,
+          fallbackError: retryError,
+        );
+      } on ApiException catch (statusError) {
+        if (_isConfirmedMissingWrite(statusError)) {
+          throw _safeCreateRetryExhausted(statusError);
+        }
+        rethrow;
+      }
+    }
+  }
+
+  ApiException _safeCreateRetryExhausted(ApiException cause) => ApiException(
+    statusCode: 409,
+    title: 'Kayit tamamlanamadi',
+    detail:
+        'Sunucu evrakin Mikroya yazilmadigini dogruladi ancak bir guvenli tekrar da tamamlanamadi. Bilgiler formda korundu; baglanti duzelince ayni kaydi yeniden kaydedin.',
+    errorCode: 'SAFE_WRITE_RETRY_EXHAUSTED',
+    retryable: true,
+    retryAfterSeconds: cause.retryAfterSeconds,
+    relatedClientRequestId: cause.relatedClientRequestId,
+    correlationId: cause.correlationId,
+    recommendedAction: 'RetrySameRequest',
+  );
+
+  bool _isConfirmedMissingWrite(ApiException error) {
+    final action = _readString(error.recommendedAction);
+    if (action.isNotEmpty) return action == 'RetrySameRequest';
+
+    final errorCode = _readString(error.errorCode).toUpperCase();
+    return errorCode == 'SAFE_WRITE_RETRY_ALLOWED' ||
+        errorCode == 'MIKRO_WRITE_QUEUE_BUSY';
   }
 
   Duration _initialSafeCreateRequestTimeout(DateTime deadline) {
@@ -260,12 +358,18 @@ class ApiClient {
     required ApiException fallbackError,
   }) async {
     var lastError = fallbackError;
+    var nextPollDelay = _safeCreateStatusPollInterval;
 
     while (DateTime.now().isBefore(deadline)) {
-      final delay = _durationWithinDeadline(
-        _safeCreateStatusPollInterval,
-        deadline,
-      );
+      final requestedDelay =
+          lastError.retryAfterSeconds != null &&
+              lastError.retryAfterSeconds! > 0
+          ? _maxDuration(
+              nextPollDelay,
+              Duration(seconds: lastError.retryAfterSeconds!),
+            )
+          : nextPollDelay;
+      final delay = _durationWithinDeadline(requestedDelay, deadline);
       if (delay > Duration.zero) {
         await Future<void>.delayed(delay);
       }
@@ -303,6 +407,7 @@ class ApiClient {
         if (normalizedStatus == 'processing' ||
             recommendedAction == 'WaitAndCheck') {
           lastError = statusError;
+          nextPollDelay = _nextSafeCreatePollDelay(nextPollDelay);
           continue;
         }
 
@@ -314,8 +419,24 @@ class ApiClient {
           rethrow;
         }
 
-        if (error.statusCode == 404 || error.statusCode >= 500) {
-          lastError = error.statusCode == 404 ? lastError : error;
+        if (error.statusCode == 404) {
+          throw ApiException(
+            statusCode: 409,
+            title: 'Islem sunucuda bulunamadi',
+            detail:
+                'Sunucuda bu istek icin kayit bulunamadi. Ayni bilgiler ve istek kimligiyle guvenli tekrar yapilabilir.',
+            errorCode: 'SAFE_WRITE_RETRY_ALLOWED',
+            retryable: true,
+            relatedClientRequestId: route.clientRequestId,
+            correlationId: error.correlationId,
+            recoveryState: 'Missing',
+            recommendedAction: 'RetrySameRequest',
+          );
+        }
+
+        if (error.statusCode >= 500) {
+          lastError = error;
+          nextPollDelay = _nextSafeCreatePollDelay(nextPollDelay);
           continue;
         }
 
@@ -325,6 +446,16 @@ class ApiClient {
 
     throw lastError;
   }
+
+  Duration _nextSafeCreatePollDelay(Duration current) {
+    if (current <= Duration.zero) return Duration.zero;
+    const maximum = Duration(seconds: 30);
+    final doubled = Duration(microseconds: current.inMicroseconds * 2);
+    return doubled < maximum ? doubled : maximum;
+  }
+
+  Duration _maxDuration(Duration left, Duration right) =>
+      left >= right ? left : right;
 
   Duration _durationWithinDeadline(Duration preferred, DateTime deadline) {
     final remaining = deadline.difference(DateTime.now());
@@ -376,48 +507,6 @@ class ApiClient {
         errorCode == 'MIKRO_WRITE_OUTCOME_UNCONFIRMED' ||
         errorCode == 'MIKRO_DOCUMENT_INCOMPLETE' ||
         error.retryable == true;
-  }
-
-  bool _isSafeWriteRetryAllowed(ApiException error) {
-    return _readString(error.errorCode).toUpperCase() ==
-            'SAFE_WRITE_RETRY_ALLOWED' ||
-        _readString(error.recommendedAction) == 'RetrySameRequest';
-  }
-
-  Future<ApiException> _closeExhaustedSafeCreate({
-    required _SafeCreateRoute route,
-    required String? accessToken,
-    required bool allowUnauthorizedRecovery,
-    required ApiException fallbackError,
-  }) async {
-    try {
-      final response = await _send(
-        accessToken: accessToken,
-        allowUnauthorizedRecovery: allowUnauthorizedRecovery,
-        request: (resolvedAccessToken) => _httpClient.post(
-          _buildUri(
-            '/api/mobile-sync/guvenli-yazmalar/'
-            '${route.clientRequestId}/vazgec',
-          ),
-          headers: _buildHeaders(accessToken: resolvedAccessToken),
-        ),
-      );
-      _decodeJsonMap(response);
-    } on Object {
-      return fallbackError;
-    }
-
-    return ApiException(
-      statusCode: 400,
-      title: 'Kayit olusturulamadi',
-      detail:
-          'Mikro evraki olusmadi. Otomatik tekrar tamamlandi ve bekleyen '
-          'islem kapatildi. Formu kontrol edip yeniden kaydedin.',
-      errorCode: 'SAFE_WRITE_RETRY_EXHAUSTED',
-      retryable: false,
-      correlationId: fallbackError.correlationId,
-      recoveryState: 'Missing',
-    );
   }
 
   ApiException _safeCreateStatusException(
