@@ -4,6 +4,7 @@ import 'package:furpa_merkez_terminal/features/green_grocer/product_cases/data/g
 import 'package:furpa_merkez_terminal/features/order_operations/given_warehouse_orders/presentation/widgets/given_warehouse_order_create_sheet.dart';
 import 'package:furpa_merkez_terminal/features/order_operations/shared/data/models/warehouse_order_models.dart';
 import 'package:furpa_merkez_terminal/features/order_operations/shared/data/warehouse_orders_repository.dart';
+import 'package:furpa_merkez_terminal/shared/drafts/create_draft.dart';
 import 'package:furpa_merkez_terminal/shared/offline/mobile_warehouse_catalog_repository.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/terminal_create_page.dart';
 
@@ -149,6 +150,85 @@ void main() {
       find.widgetWithText(FilledButton, 'Siparisi Olustur'),
     );
     expect(submit.onPressed, isNotNull);
+  });
+
+  testWidgets('refreshes stale automatic dates before submitting a draft', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 1000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    WarehouseOrderCreateRequest? request;
+    final oldDate = DateTime(2020, 1, 1);
+    final draft = CreateDraft(
+      id: 'stale-warehouse-order-draft',
+      moduleKey: 'given-warehouse-orders',
+      userId: 'user',
+      warehouseNo: '110',
+      title: 'Eski tarihli depo siparisi',
+      createdAt: oldDate,
+      updatedAt: oldDate,
+      payload: <String, dynamic>{
+        'outWarehouseNo': '50',
+        'orderDate': oldDate.toIso8601String(),
+        'deliveryDate': oldDate.toIso8601String(),
+        'lines': <Map<String, dynamic>>[
+          <String, dynamic>{
+            'stockCode': '015792',
+            'barcode': '',
+            'quantity': '1',
+            'quantityStep': 1,
+          },
+        ],
+      },
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Builder(
+            builder: (context) => FilledButton(
+              onPressed: () async {
+                request =
+                    await showModalBottomSheet<WarehouseOrderCreateRequest>(
+                      context: context,
+                      isScrollControlled: true,
+                      builder: (_) => GivenWarehouseOrderCreateSheet(
+                        repository: _FakeWarehouseOrdersRepository(),
+                        accessToken: 'token',
+                        defaultWarehouseNo: '110',
+                        mobileWarehouseCatalogRepository:
+                            MobileWarehouseCatalogLocalRepository(
+                              database: MemoryLocalDatabase(),
+                            ),
+                        draft: draft,
+                      ),
+                    );
+              },
+              child: const Text('Ac'),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Ac'));
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.text('Siparisi Olustur'),
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.tap(find.widgetWithText(FilledButton, 'Siparisi Olustur'));
+    await tester.pumpAndSettle();
+
+    final today = DateTime.now();
+    final normalizedToday = DateTime(today.year, today.month, today.day);
+    expect(request, isNotNull);
+    expect(request!.orderDate, normalizedToday);
+    expect(request!.deliveryDate, normalizedToday);
   });
 
   testWidgets('passes pda create screen contract with keyboard inset', (

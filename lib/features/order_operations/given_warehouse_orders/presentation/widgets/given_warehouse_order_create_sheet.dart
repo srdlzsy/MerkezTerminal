@@ -116,12 +116,12 @@ class _GivenWarehouseOrderCreateSheetState
     _outWarehouseNoController = TextEditingController(
       text: payload['outWarehouseNo']?.toString() ?? '',
     );
+    final today = _normalizeDate(DateTime.now());
     _orderDate =
-        DateTime.tryParse(payload['orderDate']?.toString() ?? '') ??
-        _normalizeDate(DateTime.now());
+        DateTime.tryParse(payload['orderDate']?.toString() ?? '') ?? today;
     _deliveryDate =
-        DateTime.tryParse(payload['deliveryDate']?.toString() ?? '') ??
-        _normalizeDate(DateTime.now());
+        DateTime.tryParse(payload['deliveryDate']?.toString() ?? '') ?? today;
+    _refreshAutomaticDates(today);
     final warehouseJson = _warehouseOrderDraftMap(payload['selectedWarehouse']);
     if (warehouseJson != null) {
       _selectedWarehouse = WarehouseLookupItem.fromJson(warehouseJson);
@@ -184,6 +184,16 @@ class _GivenWarehouseOrderCreateSheetState
           .map((line) => line.toDraftJson())
           .toList(growable: false),
     };
+  }
+
+  void _refreshAutomaticDates([DateTime? referenceDate]) {
+    final today = _normalizeDate(referenceDate ?? DateTime.now());
+    if (_orderDate.isBefore(today)) {
+      _orderDate = today;
+    }
+    if (_deliveryDate.isBefore(_orderDate)) {
+      _deliveryDate = _orderDate;
+    }
   }
 
   Future<void> _searchWarehouse() async {
@@ -923,6 +933,8 @@ class _GivenWarehouseOrderCreateSheetState
     if (_isPreparingSubmit) {
       return;
     }
+
+    _refreshAutomaticDates();
 
     if (!validateCreateForm(_formKey)) {
       setState(() => _validationMessage = 'Lutfen zorunlu alanlari duzeltin.');
