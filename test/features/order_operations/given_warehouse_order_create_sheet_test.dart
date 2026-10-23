@@ -5,6 +5,7 @@ import 'package:furpa_merkez_terminal/features/order_operations/given_warehouse_
 import 'package:furpa_merkez_terminal/features/order_operations/shared/data/models/warehouse_order_models.dart';
 import 'package:furpa_merkez_terminal/features/order_operations/shared/data/warehouse_orders_repository.dart';
 import 'package:furpa_merkez_terminal/shared/offline/mobile_warehouse_catalog_repository.dart';
+import 'package:furpa_merkez_terminal/shared/widgets/terminal_create_page.dart';
 
 import '../../support/memory_local_database.dart';
 import '../../support/pda_create_screen_contract.dart';
@@ -93,6 +94,62 @@ void main() {
       expect(find.byIcon(Icons.photo_camera_back_rounded), findsWidgets);
     },
   );
+
+  testWidgets('re-enables submit when inline create does not complete', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 1000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) => Scaffold(
+            body: FilledButton(
+              onPressed: () {
+                openTerminalCreatePage<WarehouseOrderCreateRequest>(
+                  context: context,
+                  title: 'Yeni Siparis',
+                  builder: (context) => GivenWarehouseOrderCreateSheet(
+                    repository: _FakeWarehouseOrdersRepository(),
+                    accessToken: 'token',
+                    defaultWarehouseNo: '110',
+                    mobileWarehouseCatalogRepository:
+                        MobileWarehouseCatalogLocalRepository(
+                          database: MemoryLocalDatabase(),
+                        ),
+                  ),
+                  onSubmit: (_) async => false,
+                );
+              },
+              child: const Text('Ac'),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Ac'));
+    await tester.pumpAndSettle();
+    await _pickWarehouse(tester);
+    await _pickWarehouseOrderProduct(tester);
+    await tester.scrollUntilVisible(
+      find.text('Siparisi Olustur'),
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
+
+    await tester.tap(find.widgetWithText(FilledButton, 'Siparisi Olustur'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Hazirlaniyor'), findsNothing);
+    final submit = tester.widget<FilledButton>(
+      find.widgetWithText(FilledButton, 'Siparisi Olustur'),
+    );
+    expect(submit.onPressed, isNotNull);
+  });
 
   testWidgets('passes pda create screen contract with keyboard inset', (
     tester,

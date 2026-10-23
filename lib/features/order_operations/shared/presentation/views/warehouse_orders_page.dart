@@ -302,10 +302,7 @@ class _WarehouseOrdersPageState extends State<WarehouseOrdersPage> {
       onSubmit: (request) async {
         submittedInline = true;
         final safeRequest = withStableIdentity(request);
-        await _submitCreateRequest(safeRequest, draft);
-        return mounted &&
-            _pendingCreateRequest == null &&
-            _controller.createError == null;
+        return _submitCreateRequest(safeRequest, draft);
       },
     );
 
@@ -317,12 +314,12 @@ class _WarehouseOrdersPageState extends State<WarehouseOrdersPage> {
     await _submitCreateRequest(safeRequest, draft);
   }
 
-  Future<void> _submitCreateRequest(
+  Future<bool> _submitCreateRequest(
     WarehouseOrderCreateRequest request,
     CreateDraft? draft, {
     bool statusCheckOnly = false,
   }) async {
-    if (_controller.isCreating) return;
+    if (_controller.isCreating) return false;
 
     if (_usesSafeCreate) {
       try {
@@ -337,9 +334,9 @@ class _WarehouseOrdersPageState extends State<WarehouseOrdersPage> {
             ),
           );
         }
-        return;
+        return false;
       }
-      if (!mounted) return;
+      if (!mounted) return false;
       setState(() {
         _pendingCreateRequest = request;
         _pendingCreateDraft = draft;
@@ -366,7 +363,7 @@ class _WarehouseOrdersPageState extends State<WarehouseOrdersPage> {
           draftId: draft?.id,
         );
       }
-      return;
+      return result != null;
     }
 
     final messenger = ScaffoldMessenger.of(context);
@@ -435,13 +432,13 @@ class _WarehouseOrdersPageState extends State<WarehouseOrdersPage> {
             failureKind: failureKind,
             retryNotBefore: retryNotBefore,
           );
-          if (!mounted) return;
+          if (!mounted) return false;
           setState(() {
             _pendingCreateFailureKind = failureKind;
           });
         } else {
           await _clearPersistedPendingCreate(request.clientRequestId);
-          if (!mounted) return;
+          if (!mounted) return false;
           setState(() {
             _pendingCreateRequest = null;
             _pendingCreateDraft = null;
@@ -449,7 +446,7 @@ class _WarehouseOrdersPageState extends State<WarehouseOrdersPage> {
           });
         }
         messenger.showSnackBar(SnackBar(content: Text(failureMessage)));
-        return;
+        return false;
       }
     }
 
@@ -459,11 +456,11 @@ class _WarehouseOrdersPageState extends State<WarehouseOrdersPage> {
           content: Text(_controller.createError ?? 'Siparis olusturulamadi.'),
         ),
       );
-      return;
+      return false;
     }
 
     if (_usesSafeCreate) {
-      if (!mounted) return;
+      if (!mounted) return false;
       setState(() {
         _pendingCreateRequest = null;
         _pendingCreateDraft = null;
@@ -490,7 +487,7 @@ class _WarehouseOrdersPageState extends State<WarehouseOrdersPage> {
         preferredDocumentSerie: result.documentSerie,
         preferredDocumentOrderNo: result.documentOrderNo,
       );
-      if (!mounted) return;
+      if (!mounted) return true;
     }
 
     messenger.showSnackBar(
@@ -501,6 +498,7 @@ class _WarehouseOrdersPageState extends State<WarehouseOrdersPage> {
         ),
       ),
     );
+    return true;
   }
 
   Future<void> _toggleOrderSelection(WarehouseOrderListItem item) async {

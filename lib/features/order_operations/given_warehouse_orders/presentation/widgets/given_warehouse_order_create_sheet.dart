@@ -1024,11 +1024,18 @@ class _GivenWarehouseOrderCreateSheetState
           .toList(growable: false),
     );
 
-    await _draftSession.complete();
-    if (!mounted) {
-      return;
+    var completed = false;
+    try {
+      await _draftSession.complete();
+      if (!mounted) {
+        return;
+      }
+      completed = await TerminalCreateSubmitScope.submit(context, request);
+    } finally {
+      if (mounted && !completed) {
+        setState(() => _isPreparingSubmit = false);
+      }
     }
-    await TerminalCreateSubmitScope.submit(context, request);
   }
 
   Future<bool> _resolveGreenGrocerLinesBeforeSubmit(
