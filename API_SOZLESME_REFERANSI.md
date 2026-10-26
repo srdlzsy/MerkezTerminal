@@ -7,7 +7,7 @@ Kapsam: kayitli HTTP method/route ve alias'lar, binding kaynagi, request alanlar
 
 `bildirilmemis` response tipi, runtime cevabinin bos oldugu anlamina gelmez. Anonim endpointler konfigurasyon/ag/servis kontrollerine tabi olabilir. JWT fallback policy, acik Authorize olmasa da uygulanir.
 
-Endpoint sayisi (method + route): 756. Model sayisi: 691.
+Endpoint sayisi (method + route): 767. Model sayisi: 702.
 
 Bunlara ek olarak EndpointDataSource uzerinden dogrulanan iki health route'u vardir: `/health/live`, `/health/ready`. Bu middleware route'larinda method kisiti yoktur; istemci GET kullanmalidir. Anonimdir, JSON dondurur; Healthy/Degraded=200, Unhealthy=503. `live` yalniz prosesi, `ready` core_dependencies, operations_export_path ve background_workers kontrollerini olcer. Alanlar: status (string), durationMilliseconds (number), checks (ad -> status/durationMilliseconds/description/data). Tum runtime route'lari envanterde yer alir; yeni ve ApiExplorer disinda kalan route eklenirse test basarisiz olur.
 
@@ -50,15 +50,22 @@ Ozel response'lar: `/` Hosting:ExposeDiagnosticsOnRoot=false iken yalniz service
 | GET | `/api/ayar-islemleri/cihazlar/tipler` | JWT + ayar-islemleri.cihazlar.list |  | 401: ProblemDetails<br>403: ProblemDetails<br>200: IReadOnlyCollection&lt;DeviceTypeDto&gt; |
 | DELETE | `/api/ayar-islemleri/cihazlar/{id}` | JWT + ayar-islemleri.cihazlar.update | path: id / integer (int32) (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>204: bildirilmemis<br>400: ProblemDetails<br>404: ProblemDetails |
 | POST | `/api/ayar-islemleri/kasa-pos-terminalleri` | JWT + ayar-islemleri.kasa-pos-terminalleri.create | body: request / CreateCashRegisterHttpRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>201: CashRegisterResponse<br>400: ProblemDetails<br>404: ProblemDetails<br>409: ProblemDetails |
-| GET | `/api/ayar-islemleri/kasa-pos-terminalleri/kasalar/{cashNo}/terminaller` | JWT + ayar-islemleri.kasa-pos-terminalleri.list | path: cashNo / integer (int32) (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: IReadOnlyCollection&lt;CashRegisterTerminalDto&gt;<br>400: ProblemDetails |
+| GET | `/api/ayar-islemleri/kasa-pos-terminalleri/kasalar/{cashNo}/terminaller` | JWT + ayar-islemleri.kasa-pos-terminalleri.list | path: cashNo / integer (int32) (zorunlu)<br>query: branchNo / integer (int32) | 401: ProblemDetails<br>403: ProblemDetails<br>200: IReadOnlyCollection&lt;CashRegisterTerminalDto&gt;<br>400: ProblemDetails |
 | GET | `/api/ayar-islemleri/kasa-pos-terminalleri/mevcut-sube/mesaj-durumlari` | JWT + ayar-islemleri.kasa-pos-terminalleri.list |  | 401: ProblemDetails<br>403: ProblemDetails<br>200: IReadOnlyCollection&lt;CashRegisterMessageStatusDto&gt;<br>400: ProblemDetails<br>404: ProblemDetails |
 | GET | `/api/ayar-islemleri/kasa-pos-terminalleri/secenekler` | JWT + ayar-islemleri.kasa-pos-terminalleri.list |  | 401: ProblemDetails<br>403: ProblemDetails<br>200: CashRegisterSettingsLookupsDto |
 | DELETE | `/api/ayar-islemleri/kasa-pos-terminalleri/subeler/{branchNo}/kasalar/{cashNo}` | JWT + ayar-islemleri.kasa-pos-terminalleri.update | path: branchNo / integer (int32) (zorunlu)<br>path: cashNo / integer (int32) (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>204: bildirilmemis<br>400: ProblemDetails<br>404: ProblemDetails |
+| PUT | `/api/ayar-islemleri/kasa-pos-terminalleri/subeler/{branchNo}/kasalar/{cashNo}/terminal-gruplari/{terminalNo}/tasi` | JWT + ayar-islemleri.kasa-pos-terminalleri.update | path: branchNo / integer (int32) (zorunlu)<br>path: cashNo / integer (int32) (zorunlu)<br>path: terminalNo / string (zorunlu)<br>body: request / MoveCashRegisterTerminalGroupHttpRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: IReadOnlyCollection&lt;CashRegisterTerminalDto&gt;<br>400: ProblemDetails<br>404: ProblemDetails<br>409: ProblemDetails |
+| POST | `/api/ayar-islemleri/kasa-pos-terminalleri/subeler/{branchNo}/kasalar/{cashNo}/terminaller` | JWT + ayar-islemleri.kasa-pos-terminalleri.create | path: branchNo / integer (int32) (zorunlu)<br>path: cashNo / integer (int32) (zorunlu)<br>body: request / CreateCashRegisterTerminalHttpRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>201: CashRegisterTerminalDto<br>400: ProblemDetails<br>404: ProblemDetails<br>409: ProblemDetails |
+| DELETE | `/api/ayar-islemleri/kasa-pos-terminalleri/subeler/{branchNo}/kasalar/{cashNo}/terminaller/{terminalId}` | JWT + ayar-islemleri.kasa-pos-terminalleri.update | path: branchNo / integer (int32) (zorunlu)<br>path: cashNo / integer (int32) (zorunlu)<br>path: terminalId / integer (int32) (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>204: bildirilmemis<br>400: ProblemDetails<br>404: ProblemDetails |
+| PUT | `/api/ayar-islemleri/kasa-pos-terminalleri/subeler/{branchNo}/kasalar/{cashNo}/terminaller/{terminalId}` | JWT + ayar-islemleri.kasa-pos-terminalleri.update | path: branchNo / integer (int32) (zorunlu)<br>path: cashNo / integer (int32) (zorunlu)<br>path: terminalId / integer (int32) (zorunlu)<br>body: request / CreateCashRegisterTerminalHttpRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: CashRegisterTerminalDto<br>400: ProblemDetails<br>404: ProblemDetails<br>409: ProblemDetails |
+| PUT | `/api/ayar-islemleri/kasa-pos-terminalleri/subeler/{branchNo}/kasalar/{cashNo}/tip` | JWT + ayar-islemleri.kasa-pos-terminalleri.update | path: branchNo / integer (int32) (zorunlu)<br>path: cashNo / integer (int32) (zorunlu)<br>body: request / UpdateCashRegisterTypeHttpRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: CashRegistryDto<br>400: ProblemDetails<br>404: ProblemDetails |
 | GET | `/api/ayar-islemleri/kasa-pos-terminalleri/subeler/{branchNo}/mesaj-durumlari` | JWT + ayar-islemleri.kasa-pos-terminalleri.list | path: branchNo / integer (int32) (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: IReadOnlyCollection&lt;CashRegisterMessageStatusDto&gt;<br>400: ProblemDetails<br>404: ProblemDetails |
-| DELETE | `/api/ayar-islemleri/kasa-pos-terminalleri/subeler/{branchNo}/terminaller/{terminalNo}` | JWT + ayar-islemleri.kasa-pos-terminalleri.update | path: branchNo / integer (int32) (zorunlu)<br>path: terminalNo / string (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>204: bildirilmemis<br>400: ProblemDetails<br>404: ProblemDetails |
+| GET | `/api/ayar-islemleri/kasa-pos-terminalleri/tanim-sorunlari` | JWT + ayar-islemleri.kasa-pos-terminalleri.list | query: branchNo / integer (int32) | 401: ProblemDetails<br>403: ProblemDetails<br>200: IReadOnlyCollection&lt;CashRegisterDefinitionIssueDto&gt;<br>400: ProblemDetails |
+| GET | `/api/ayar-islemleri/kasa-pos-terminalleri/terminaller/konum` | JWT + ayar-islemleri.kasa-pos-terminalleri.list | query: terminalNo / string (zorunlu)<br>query: branchNo / integer (int32) | 401: ProblemDetails<br>403: ProblemDetails<br>200: IReadOnlyCollection&lt;CashRegisterTerminalLocationDto&gt;<br>400: ProblemDetails |
 | GET | `/api/ayar-islemleri/kasiyerler` | JWT + ayar-islemleri.kasiyerler.list |  | 401: ProblemDetails<br>403: ProblemDetails<br>200: IReadOnlyCollection&lt;CashierDto&gt; |
 | POST | `/api/ayar-islemleri/kasiyerler` | JWT + ayar-islemleri.kasiyerler.create | body: request / CreateCashierHttpRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>201: CashierPasswordMutationDto<br>400: ProblemDetails |
 | PUT | `/api/ayar-islemleri/kasiyerler/{cashierCode}` | JWT + ayar-islemleri.kasiyerler.update | path: cashierCode / integer (int32) (zorunlu)<br>body: request / UpdateCashierHttpRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: CashierDto<br>400: ProblemDetails<br>404: ProblemDetails |
+| GET | `/api/ayar-islemleri/kasiyerler/{cashierCode}/sifre` | JWT + ayar-islemleri.kasiyerler.detail | path: cashierCode / integer (int32) (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: CashierPasswordDto<br>400: ProblemDetails<br>404: ProblemDetails |
 | POST | `/api/ayar-islemleri/kasiyerler/{cashierCode}/sifre-sifirla` | JWT + ayar-islemleri.kasiyerler.update | path: cashierCode / integer (int32) (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: CashierPasswordMutationDto<br>400: ProblemDetails<br>404: ProblemDetails |
 | GET | `/api/ayar-islemleri/soforler` | JWT + ayar-islemleri.soforler.list | query: Search / string<br>query: IncludeInactive / boolean<br>query: Take / integer (int32) | 401: ProblemDetails<br>403: ProblemDetails<br>200: IReadOnlyCollection&lt;DespatchDriverDto&gt;<br>400: ProblemDetails |
 | POST | `/api/ayar-islemleri/soforler` | JWT + ayar-islemleri.soforler.create | body: request / SaveDespatchDriverHttpRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>201: DespatchDriverDto<br>400: ProblemDetails<br>409: ProblemDetails |
@@ -412,9 +419,9 @@ Ozel response'lar: `/` Hosting:ExposeDiagnosticsOnRoot=false iken yalniz service
 | POST | `/api/integrations/axata-sync/tasks/{taskCode}/execute` | JWT + entegrasyon-islemleri.axata-senkronizasyonu.create | path: taskCode / string (zorunlu)<br>body: request / AxataSynchronizationExecuteTaskHttpRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>202: AxataSynchronizationJobDto<br>400: ProblemDetails |
 | GET | `/api/integrations/axata-sync/tasks/{taskCode}/preview` | JWT + entegrasyon-islemleri.axata-senkronizasyonu.detail | path: taskCode / string (zorunlu)<br>query: warehouseNo / integer (int32)<br>query: take / integer (int32) | 401: ProblemDetails<br>403: ProblemDetails<br>200: AxataSynchronizationPreviewDto<br>400: ProblemDetails |
 | GET | `/api/integrations/axata-sync/workbench` | JWT + entegrasyon-islemleri.axata-senkronizasyonu.list | query: StartDate / string (date-time)<br>query: EndDate / string (date-time)<br>query: WarehouseNo / integer (int32)<br>query: Take / integer (int32)<br>query: DocumentSerie / string<br>query: DocumentOrderNo / integer (int32)<br>query: Statuses / string | 401: ProblemDetails<br>403: ProblemDetails<br>200: AxataSynchronizationWorkbenchDto<br>400: ProblemDetails |
-| GET | `/api/kasa-islemleri/banknot-takipleri` | JWT + kasa-islemleri.banknot-takipleri.list | query: DateToGet / string (date-time) (zorunlu)<br>query: WarehouseNo / integer (int32) | 401: ProblemDetails<br>403: ProblemDetails<br>200: IReadOnlyCollection&lt;BanknoteTrackDto&gt;<br>400: ProblemDetails |
+| GET | `/api/kasa-islemleri/banknot-takipleri` | JWT + kasa-islemleri.banknot-takipleri.list | query: DateToGet / string (date-time) (zorunlu)<br>query: WarehouseNo / integer (int32)<br>query: Search / string | 401: ProblemDetails<br>403: ProblemDetails<br>200: IReadOnlyCollection&lt;BanknoteTrackDto&gt;<br>400: ProblemDetails |
 | POST | `/api/kasa-islemleri/banknot-takipleri` | JWT + kasa-islemleri.banknot-takipleri.create | body: request / CreateBanknoteTrackHttpRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: CreateBanknoteTrackResponse<br>201: CreateBanknoteTrackResponse<br>400: ProblemDetails |
-| GET | `/api/kasa-islemleri/banknot-takipleri/sayim-toplami` | JWT + kasa-islemleri.banknot-takipleri.list | query: DateToGet / string (date-time) (zorunlu)<br>query: WarehouseNo / integer (int32) | 401: ProblemDetails<br>403: ProblemDetails<br>200: BanknoteTrackDailySummaryTotalDto<br>400: ProblemDetails |
+| GET | `/api/kasa-islemleri/banknot-takipleri/sayim-toplami` | JWT + kasa-islemleri.banknot-takipleri.list | query: DateToGet / string (date-time) (zorunlu)<br>query: WarehouseNo / integer (int32)<br>query: Search / string | 401: ProblemDetails<br>403: ProblemDetails<br>200: BanknoteTrackDailySummaryTotalDto<br>400: ProblemDetails |
 | GET | `/api/kasa-islemleri/banknot-takipleri/{banknoteTrackId}` | JWT + kasa-islemleri.banknot-takipleri.detail | path: banknoteTrackId / string (uuid) (zorunlu)<br>query: warehouseNo / integer (int32) | 401: ProblemDetails<br>403: ProblemDetails<br>200: BanknoteTrackDto<br>400: ProblemDetails<br>404: ProblemDetails |
 | POST | `/api/kasa-islemleri/birlik-kart-sorgulama/detay` | JWT + kasa-islemleri.birlik-kart-sorgulama.detail | body: request / BirlikKartDetayRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: BirlikKartDetayResponse<br>400: ProblemDetails |
 | POST | `/api/kasa-islemleri/birlik-kart-sorgulama/guncelle` | JWT + kasa-islemleri.birlik-kart-sorgulama.update | body: request / BirlikKartSorgulamaGuncelleRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: BirlikKartGuncelleResponse<br>400: ProblemDetails |
@@ -463,11 +470,11 @@ Ozel response'lar: `/` Hosting:ExposeDiagnosticsOnRoot=false iken yalniz service
 | GET | `/api/kasa-islemleri/kasa-sayimlari/banknot-tipleri` | JWT + kasa-islemleri.icmal-kaydi-girisi.list |  | 401: ProblemDetails<br>403: ProblemDetails<br>200: IReadOnlyCollection&lt;BanknoteTypeItemDto&gt; |
 | POST | `/api/kasa-islemleri/kasa-sayimlari/deletesummary` | JWT + kasa-islemleri.kasa-sayimlari.delete | body: request / LegacyDeleteCashSummaryHttpRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: DeleteCashSummaryResponse<br>400: ProblemDetails |
 | GET | `/api/kasa-islemleri/kasa-sayimlari/hediye-ceki-tipleri` | JWT + kasa-islemleri.icmal-kaydi-girisi.list |  | 401: ProblemDetails<br>403: ProblemDetails<br>200: IReadOnlyCollection&lt;GiftCheckTypeItemDto&gt; |
-| GET | `/api/kasa-islemleri/kasa-sayimlari/kasa-detayi` | JWT + kasa-islemleri.icmal-kaydi-girisi.list | query: CashNo / integer (int32)<br>query: CashRegisterNo / string | 401: ProblemDetails<br>403: ProblemDetails<br>200: CashRegisterDetailDto<br>400: ProblemDetails<br>404: ProblemDetails |
+| GET | `/api/kasa-islemleri/kasa-sayimlari/kasa-detayi` | JWT + kasa-islemleri.icmal-kaydi-girisi.list | query: BranchNo / integer (int32)<br>query: CashNo / integer (int32)<br>query: CashRegisterNo / string | 401: ProblemDetails<br>403: ProblemDetails<br>200: CashRegisterDetailDto<br>400: ProblemDetails<br>404: ProblemDetails<br>409: ProblemDetails |
 | GET | `/api/kasa-islemleri/kasa-sayimlari/kasalar` | JWT + kasa-islemleri.icmal-kaydi-girisi.list | query: BranchNo / integer (int32) | 401: ProblemDetails<br>403: ProblemDetails<br>200: IReadOnlyCollection&lt;CashRegistryItemDto&gt;<br>400: ProblemDetails |
 | GET | `/api/kasa-islemleri/kasa-sayimlari/kasiyerler` | JWT + kasa-islemleri.icmal-kaydi-girisi.list | query: FilterString / string (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: IReadOnlyCollection&lt;CashierSearchItemDto&gt;<br>400: ProblemDetails |
 | GET | `/api/kasa-islemleri/kasa-sayimlari/kasiyerler/ikili` | JWT + kasa-islemleri.icmal-kaydi-girisi.list | query: CashierCode / integer (int32) (zorunlu)<br>query: ManagerCode / integer (int32) (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: IReadOnlyCollection&lt;CashierItemDto&gt;<br>400: ProblemDetails |
-| GET | `/api/kasa-islemleri/kasa-sayimlari/odeme-tipleri/banka` | JWT + kasa-islemleri.icmal-kaydi-girisi.list | query: CashRegisterNo / string (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: IReadOnlyCollection&lt;PaymentTypeItemDto&gt;<br>400: ProblemDetails |
+| GET | `/api/kasa-islemleri/kasa-sayimlari/odeme-tipleri/banka` | JWT + kasa-islemleri.icmal-kaydi-girisi.list | query: CashRegisterNo / string<br>query: BranchNo / integer (int32)<br>query: CashNo / integer (int32) | 401: ProblemDetails<br>403: ProblemDetails<br>200: IReadOnlyCollection&lt;PaymentTypeItemDto&gt;<br>400: ProblemDetails |
 | GET | `/api/kasa-islemleri/kasa-sayimlari/odeme-tipleri/magaza-masrafi` | JWT + kasa-islemleri.icmal-kaydi-girisi.list |  | 401: ProblemDetails<br>403: ProblemDetails<br>200: IReadOnlyCollection&lt;PaymentTypeItemDto&gt; |
 | GET | `/api/kasa-islemleri/kasa-sayimlari/odeme-tipleri/masraf-pusulasi` | JWT + kasa-islemleri.icmal-kaydi-girisi.list |  | 401: ProblemDetails<br>403: ProblemDetails<br>200: IReadOnlyCollection&lt;PaymentTypeItemDto&gt; |
 | GET | `/api/kasa-islemleri/kasa-sayimlari/odeme-tipleri/online` | JWT + kasa-islemleri.icmal-kaydi-girisi.list |  | 401: ProblemDetails<br>403: ProblemDetails<br>200: IReadOnlyCollection&lt;PaymentTypeItemDto&gt; |
@@ -482,6 +489,7 @@ Ozel response'lar: `/` Hosting:ExposeDiagnosticsOnRoot=false iken yalniz service
 | GET | `/api/kasa-islemleri/kasa-sayimlari/{documentSerie}/{documentOrderNo}` | JWT + kasa-islemleri.kasa-sayimlari.detail | path: documentSerie / string (zorunlu)<br>path: documentOrderNo / integer (int32) (zorunlu)<br>query: warehouseNo / integer (int32) | 401: ProblemDetails<br>403: ProblemDetails<br>200: IReadOnlyCollection&lt;CashSummaryDetailItemDto&gt;<br>400: ProblemDetails<br>404: ProblemDetails |
 | GET | `/api/kasa-islemleri/kasa-sayimlari/{documentSerie}/{documentOrderNo}/banknot-hareketleri` | JWT + kasa-islemleri.kasa-sayimlari.detail | path: documentSerie / string (zorunlu)<br>path: documentOrderNo / integer (int32) (zorunlu)<br>query: warehouseNo / integer (int32) | 401: ProblemDetails<br>403: ProblemDetails<br>200: IReadOnlyCollection&lt;BanknoteMovementItemDto&gt;<br>400: ProblemDetails |
 | PUT | `/api/kasa-islemleri/kasa-sayimlari/{documentSerie}/{documentOrderNo}/banknot-hareketleri` | JWT + kasa-islemleri.kasa-sayimlari.update | path: documentSerie / string (zorunlu)<br>path: documentOrderNo / integer (int32) (zorunlu)<br>body: request / UpdateCashSummaryBanknotesHttpRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: UpdateCashSummaryBanknotesResponse<br>400: ProblemDetails<br>404: ProblemDetails |
+| PUT | `/api/kasa-islemleri/kasa-sayimlari/{documentSerie}/{documentOrderNo}/baslik` | JWT + kasa-islemleri.kasa-sayimlari.update | path: documentSerie / string (zorunlu)<br>path: documentOrderNo / integer (int32) (zorunlu)<br>body: request / UpdateCashSummaryHeaderHttpRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: UpdateCashSummaryHeaderResponse<br>400: ProblemDetails<br>404: ProblemDetails<br>409: ProblemDetails |
 | GET | `/api/kasa-islemleri/kasa-sayimlari/{documentSerie}/{documentOrderNo}/detaylar` | JWT + kasa-islemleri.kasa-sayimlari.detail | path: documentSerie / string (zorunlu)<br>path: documentOrderNo / integer (int32) (zorunlu)<br>query: warehouseNo / integer (int32) | 401: ProblemDetails<br>403: ProblemDetails<br>200: IReadOnlyCollection&lt;CashSummaryDetailItemDto&gt;<br>400: ProblemDetails<br>404: ProblemDetails |
 | PUT | `/api/kasa-islemleri/kasa-sayimlari/{documentSerie}/{documentOrderNo}/detaylar` | JWT + kasa-islemleri.kasa-sayimlari.update | path: documentSerie / string (zorunlu)<br>path: documentOrderNo / integer (int32) (zorunlu)<br>body: request / UpdateCashSummaryDetailsHttpRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: UpdateCashSummaryDetailsResponse<br>400: ProblemDetails<br>404: ProblemDetails |
 | GET | `/api/kasa-islemleri/kasa-sayimlari/{documentSerie}/{documentOrderNo}/hediye-ceki-hareketleri` | JWT + kasa-islemleri.kasa-sayimlari.detail | path: documentSerie / string (zorunlu)<br>path: documentOrderNo / integer (int32) (zorunlu)<br>query: warehouseNo / integer (int32) | 401: ProblemDetails<br>403: ProblemDetails<br>200: IReadOnlyCollection&lt;GiftCheckMovementItemDto&gt;<br>400: ProblemDetails |
@@ -561,6 +569,7 @@ Ozel response'lar: `/` Hosting:ExposeDiagnosticsOnRoot=false iken yalniz service
 | POST | `/api/mal-kabul-islemleri/mal-kabuller/firma` | JWT + mal-kabul-islemleri.firma-mal-kabulleri.create | body: request / CreateCompanyReceivingHttpRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>201: CreateCompanyReceivingResponse<br>200: CreateCompanyReceivingResponse<br>400: ProblemDetails<br>404: ProblemDetails<br>409: ProblemDetails |
 | GET | `/api/mobile-sync/cari-katalogu` | JWT | query: Since / string (date-time)<br>query: Cursor / string<br>query: PageSize / integer (int32) | 401: ProblemDetails<br>200: MobileCustomerCatalogResponse<br>400: ProblemDetails |
 | GET | `/api/mobile-sync/depo-katalogu` | JWT | query: Since / string (date-time)<br>query: Cursor / string<br>query: PageSize / integer (int32) | 401: ProblemDetails<br>200: MobileWarehouseCatalogResponse<br>400: ProblemDetails |
+| POST | `/api/mobile-sync/guvenli-yazmalar/{clientRequestId}/vazgec` | JWT | path: clientRequestId / string (uuid) (zorunlu) | 401: ProblemDetails<br>200: SafeWriteReviewResultDto<br>404: ProblemDetails<br>409: ProblemDetails |
 | POST | `/api/mobile-sync/guvenli-yazmalar/{clientRequestId}/yeniden-dogrula` | JWT | path: clientRequestId / string (uuid) (zorunlu)<br>body: request / RecheckMobileSafeWriteHttpRequest (zorunlu) | 401: ProblemDetails<br>200: SafeWriteReviewResultDto<br>400: ProblemDetails<br>404: ProblemDetails<br>409: ProblemDetails |
 | GET | `/api/mobile-sync/urun-fiyat-katalogu` | JWT + arama-islemleri.fiyat-gor.list | query: WarehouseNo / integer (int32)<br>query: Since / string (date-time)<br>query: Cursor / string<br>query: PageSize / integer (int32) | 401: ProblemDetails<br>200: MobileProductPriceCatalogResponse<br>400: ProblemDetails<br>403: ProblemDetails |
 | GET | `/api/operasyon-islemleri/belge-akis-takibi` | JWT + operasyon-islemleri.belge-akis-takibi.list | query: WarehouseNo / integer (int32)<br>query: StartDate / string (date-time)<br>query: EndDate / string (date-time)<br>query: DocumentType / FurpaMerkezApi.Domain.Entities.DocumentFlowType<br>query: Status / FurpaMerkezApi.Domain.Entities.DocumentFlowStatus<br>query: Search / string<br>query: Take / integer (int32) | 401: ProblemDetails<br>403: ProblemDetails<br>200: DocumentFlowListResponse<br>400: ProblemDetails |
@@ -698,6 +707,7 @@ Ozel response'lar: `/` Hosting:ExposeDiagnosticsOnRoot=false iken yalniz service
 | POST | `/api/siparis-islemleri/alinan-depo-siparisleri` | JWT + siparis-islemleri.alinan-depo-siparisleri.create | body: request / ModuleActionRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>501: ModuleActionScaffoldResponse |
 | GET | `/api/siparis-islemleri/alinan-depo-siparisleri/key/{documentKey}` | JWT + siparis-islemleri.alinan-depo-siparisleri.detail | path: documentKey / string (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: WarehouseOrderDetailDto<br>400: ProblemDetails<br>404: ProblemDetails |
 | POST | `/api/siparis-islemleri/alinan-depo-siparisleri/toplu-yazdir` | JWT + siparis-islemleri.alinan-depo-siparisleri.print | body: request / BulkPrintReceivedWarehouseOrdersHttpRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: FileContentResult<br>400: ProblemDetails<br>404: ProblemDetails |
+| GET | `/api/siparis-islemleri/alinan-depo-siparisleri/unlu-uretim-raporu` | JWT + siparis-islemleri.alinan-depo-siparisleri.print | query: Date / string (date) (zorunlu)<br>query: SourceWarehouseNo / integer (int32) | 401: ProblemDetails<br>403: ProblemDetails<br>200: BakeryProductionReportDto<br>400: ProblemDetails |
 | GET | `/api/siparis-islemleri/alinan-depo-siparisleri/{documentSerie}/{documentOrderNo}` | JWT + siparis-islemleri.alinan-depo-siparisleri.detail | path: documentSerie / string (zorunlu)<br>path: documentOrderNo / integer (int32) (zorunlu)<br>query: warehouseNo / integer (int32) | 401: ProblemDetails<br>403: ProblemDetails<br>200: WarehouseOrderDetailDto<br>400: ProblemDetails<br>404: ProblemDetails |
 | PUT | `/api/siparis-islemleri/alinan-depo-siparisleri/{id}` | JWT + siparis-islemleri.alinan-depo-siparisleri.update | path: id / string (zorunlu)<br>body: request / ModuleActionRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>501: ModuleActionScaffoldResponse |
 | GET | `/api/siparis-islemleri/alinan-firma-siparisleri` | JWT + siparis-islemleri.alinan-firma-siparisleri.list | query: WarehouseNo / integer (int32)<br>query: StartDate / string (date-time) (zorunlu)<br>query: EndDate / string (date-time) (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: IReadOnlyCollection&lt;CompanyOrderListItemDto&gt;<br>400: ProblemDetails |
@@ -706,6 +716,7 @@ Ozel response'lar: `/` Hosting:ExposeDiagnosticsOnRoot=false iken yalniz service
 | GET | `/api/siparis-islemleri/alinan-firma-siparisleri/{documentSerie}/{documentOrderNo}` | JWT + siparis-islemleri.alinan-firma-siparisleri.detail | path: documentSerie / string (zorunlu)<br>path: documentOrderNo / integer (int32) (zorunlu)<br>query: warehouseNo / integer (int32) | 401: ProblemDetails<br>403: ProblemDetails<br>200: CompanyOrderDetailDto<br>400: ProblemDetails<br>404: ProblemDetails |
 | PUT | `/api/siparis-islemleri/alinan-firma-siparisleri/{id}` | JWT + siparis-islemleri.alinan-firma-siparisleri.update | path: id / string (zorunlu)<br>body: request / ModuleActionRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>501: ModuleActionScaffoldResponse |
 | GET | `/api/siparis-islemleri/onerilen-depo-siparisleri` | JWT + siparis-islemleri.onerilen-depo-siparisleri.list | query: TargetWarehouseNo / integer (int32)<br>query: SourceWarehouseNo / integer (int32)<br>query: LookbackDays / integer (int32)<br>query: FallbackRecommendedDay / integer (int32) | 401: ProblemDetails<br>403: ProblemDetails<br>200: IReadOnlyCollection&lt;SuggestedWarehouseOrderListItemDto&gt;<br>400: ProblemDetails |
+| GET | `/api/siparis-islemleri/onerilen-depo-siparisleri/analiz` | JWT + siparis-islemleri.onerilen-depo-siparisleri.list | query: TargetWarehouseNo / integer (int32)<br>query: SourceWarehouseNo / integer (int32)<br>query: LookbackDays / integer (int32)<br>query: FallbackRecommendedDay / integer (int32) | 401: ProblemDetails<br>403: ProblemDetails<br>200: SuggestedWarehouseOrderAnalysisDto<br>400: ProblemDetails |
 | POST | `/api/siparis-islemleri/onerilen-depo-siparisleri/convert-to-order` | JWT + siparis-islemleri.onerilen-depo-siparisleri.create | body: request / ConvertSuggestedWarehouseOrderHttpRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>201: CreateIssuedWarehouseOrderResponse<br>400: ProblemDetails<br>409: ProblemDetails |
 | GET | `/api/siparis-islemleri/onerilen-depo-siparisleri/kaynak-depo-urunleri` | JWT + siparis-islemleri.onerilen-depo-siparisleri.list | query: sourceWarehouseNo / integer (int32) | 401: ProblemDetails<br>403: ProblemDetails<br>200: IReadOnlyCollection&lt;SuggestedWarehouseSourceProductDto&gt;<br>400: ProblemDetails |
 | GET | `/api/siparis-islemleri/onerilen-depo-siparisleri/manav` | JWT + siparis-islemleri.onerilen-depo-siparisleri.list |  | 401: ProblemDetails<br>403: ProblemDetails<br>200: IReadOnlyCollection&lt;SuggestedWarehouseSourceProductDto&gt;<br>400: ProblemDetails |
@@ -1145,6 +1156,7 @@ Enum degerleri JSON sozlesmesinde bulunur.
 | `stockName` | string | Hayir | nullable |
 | `unitMultiplier` | number (double) | Hayir |  |
 | `unitName` | string | Hayir | nullable |
+| `unitPointer` | integer (int32) | Hayir |  |
 | `warehouseNo` | integer (int32) | Hayir |  |
 
 ### FurpaMerkezApi.Application.Modules.AramaIslemleri.SearchProducts.ProductSourceWarehouseDto
@@ -1245,6 +1257,18 @@ Enum degerleri JSON sozlesmesinde bulunur.
 | `cashTypes` | FurpaMerkezApi.Application.Modules.AyarIslemleri.Ayarlar.SettingsTypeOptionDto[] | Hayir | nullable |
 | `scalesTypes` | FurpaMerkezApi.Application.Modules.AyarIslemleri.Ayarlar.SettingsTypeOptionDto[] | Hayir | nullable |
 
+### FurpaMerkezApi.Application.Modules.AyarIslemleri.Ayarlar.CashRegisterDefinitionIssueDto
+
+| JSON alani | Tip | Zorunlu | Sinirlar |
+|---|---|---|---|
+| `bank` | string | Hayir | nullable |
+| `branchNo` | integer (int32) | Hayir |  |
+| `cashNo` | integer (int32) | Hayir |  |
+| `code` | string | Hayir | nullable |
+| `message` | string | Hayir | nullable |
+| `severity` | string | Hayir | nullable |
+| `terminalNo` | string | Hayir | nullable |
+
 ### FurpaMerkezApi.Application.Modules.AyarIslemleri.Ayarlar.CashRegisterMessageStatusDto
 
 | JSON alani | Tip | Zorunlu | Sinirlar |
@@ -1283,10 +1307,19 @@ Enum degerleri JSON sozlesmesinde bulunur.
 |---|---|---|---|
 | `bank` | string | Hayir | nullable |
 | `cashNo` | integer (int32) | Hayir | nullable |
-| `cashRegisterNo` | string | Hayir | nullable |
 | `id` | integer (int32) | Hayir |  |
 | `merchantNo` | string | Hayir | nullable |
 | `terminalId` | string | Hayir | nullable |
+| `terminalNo` | string | Hayir | nullable |
+
+### FurpaMerkezApi.Application.Modules.AyarIslemleri.Ayarlar.CashRegisterTerminalLocationDto
+
+| JSON alani | Tip | Zorunlu | Sinirlar |
+|---|---|---|---|
+| `bankRowCount` | integer (int32) | Hayir |  |
+| `banks` | string[] | Hayir | nullable |
+| `branchNo` | integer (int32) | Hayir |  |
+| `cashNo` | integer (int32) | Hayir |  |
 | `terminalNo` | string | Hayir | nullable |
 
 ### FurpaMerkezApi.Application.Modules.AyarIslemleri.Ayarlar.CashRegistryDto
@@ -1313,6 +1346,14 @@ Enum degerleri JSON sozlesmesinde bulunur.
 | `cashierCode` | integer (int32) | Hayir |  |
 | `cashierName` | string | Hayir | nullable |
 | `cashierState` | boolean | Hayir |  |
+
+### FurpaMerkezApi.Application.Modules.AyarIslemleri.Ayarlar.CashierPasswordDto
+
+| JSON alani | Tip | Zorunlu | Sinirlar |
+|---|---|---|---|
+| `cashierCode` | integer (int32) | Hayir |  |
+| `cashierName` | string | Hayir | nullable |
+| `password` | string | Hayir | nullable |
 
 ### FurpaMerkezApi.Application.Modules.AyarIslemleri.Ayarlar.CashierPasswordMutationDto
 
@@ -2915,6 +2956,7 @@ Enum degerleri JSON sozlesmesinde bulunur.
 | JSON alani | Tip | Zorunlu | Sinirlar |
 |---|---|---|---|
 | `errorMessage` | string | Hayir | nullable |
+| `isInfrastructureFailure` | boolean | Hayir |  |
 | `orderDocumentNo` | string | Hayir | nullable |
 
 ### FurpaMerkezApi.Application.Modules.EntegrasyonIslemleri.AxataSenkronizasyonu.AxataG01InboundAtfPreviewDto
@@ -3248,6 +3290,7 @@ Enum degerleri JSON sozlesmesinde bulunur.
 | `axataDeliveryNo` | string | Hayir | nullable |
 | `axataSequenceNo` | integer (int64) | Hayir | nullable |
 | `errorMessage` | string | Hayir | nullable |
+| `isInfrastructureFailure` | boolean | Hayir |  |
 
 ### FurpaMerkezApi.Application.Modules.EntegrasyonIslemleri.AxataSenkronizasyonu.AxataOutboundDeliveryImportPreviewDto
 
@@ -5896,6 +5939,19 @@ Enum degerleri JSON sozlesmesinde bulunur.
 | `totalAmount` | number (double) | Hayir |  |
 | `updatedLineCount` | integer (int32) | Hayir |  |
 
+### FurpaMerkezApi.Application.Modules.KasaIslemleri.KasaSayimlari.UpdateCashSummaryHeaderResponse
+
+| JSON alani | Tip | Zorunlu | Sinirlar |
+|---|---|---|---|
+| `documentOrderNo` | integer (int32) | Hayir |  |
+| `documentSerie` | string | Hayir | nullable |
+| `summaryDate` | string (date-time) | Hayir |  |
+| `updatedBanknoteLineCount` | integer (int32) | Hayir |  |
+| `updatedGiftCheckLineCount` | integer (int32) | Hayir |  |
+| `updatedSummaryLineCount` | integer (int32) | Hayir |  |
+| `zReportNo` | integer (int32) | Hayir |  |
+| `zTotalValue` | number (double) | Hayir |  |
+
 ### FurpaMerkezApi.Application.Modules.KasaIslemleri.KunyeEtiketYazdirma.KunyeLabelTagDto
 
 | JSON alani | Tip | Zorunlu | Sinirlar |
@@ -8083,6 +8139,29 @@ Enum degerleri JSON sozlesmesinde bulunur.
 | `transitWarehouseNo` | integer (int32) | Hayir |  |
 | `writeConnectionName` | string | Hayir | nullable |
 
+### FurpaMerkezApi.Application.Modules.SiparisIslemleri.AlinanDepoSiparisleri.BakeryReport.BakeryProductionReportDto
+
+| JSON alani | Tip | Zorunlu | Sinirlar |
+|---|---|---|---|
+| `items` | FurpaMerkezApi.Application.Modules.SiparisIslemleri.AlinanDepoSiparisleri.BakeryReport.BakeryProductionReportItemDto[] | Hayir | nullable |
+| `reportDate` | string (date) | Hayir |  |
+| `sourceWarehouseName` | string | Hayir | nullable |
+| `sourceWarehouseNo` | integer (int32) | Hayir |  |
+
+### FurpaMerkezApi.Application.Modules.SiparisIslemleri.AlinanDepoSiparisleri.BakeryReport.BakeryProductionReportItemDto
+
+| JSON alani | Tip | Zorunlu | Sinirlar |
+|---|---|---|---|
+| `branchName` | string | Hayir | nullable |
+| `branchNo` | integer (int32) | Hayir |  |
+| `documentOrderNo` | integer (int32) | Hayir |  |
+| `documentSerie` | string | Hayir | nullable |
+| `productCode` | string | Hayir | nullable |
+| `productName` | string | Hayir | nullable |
+| `quantity` | number (double) | Hayir |  |
+| `typeCode` | string | Hayir | nullable |
+| `typeName` | string | Hayir | nullable |
+
 ### FurpaMerkezApi.Application.Modules.SiparisIslemleri.Common.CompanyOrderDetailDto
 
 | JSON alani | Tip | Zorunlu | Sinirlar |
@@ -8307,6 +8386,23 @@ Enum degerleri JSON sozlesmesinde bulunur.
 | `totalQuantity` | number (double) | Hayir |  |
 | `warehouseName` | string | Hayir | nullable |
 | `warehouseNo` | integer (int32) | Hayir |  |
+
+### FurpaMerkezApi.Application.Modules.SiparisIslemleri.OnerilenDepoSiparisleri.List.SuggestedWarehouseOrderAnalysisDto
+
+| JSON alani | Tip | Zorunlu | Sinirlar |
+|---|---|---|---|
+| `candidateCount` | integer (int32) | Hayir |  |
+| `exclusions` | FurpaMerkezApi.Application.Modules.SiparisIslemleri.OnerilenDepoSiparisleri.List.SuggestedWarehouseOrderExclusionSummaryDto[] | Hayir | nullable |
+| `items` | FurpaMerkezApi.Application.Modules.SiparisIslemleri.Common.SuggestedWarehouseOrderListItemDto[] | Hayir | nullable |
+| `suggestedCount` | integer (int32) | Hayir |  |
+
+### FurpaMerkezApi.Application.Modules.SiparisIslemleri.OnerilenDepoSiparisleri.List.SuggestedWarehouseOrderExclusionSummaryDto
+
+| JSON alani | Tip | Zorunlu | Sinirlar |
+|---|---|---|---|
+| `code` | string | Hayir | nullable |
+| `count` | integer (int32) | Hayir |  |
+| `label` | string | Hayir | nullable |
 
 ### FurpaMerkezApi.Application.Modules.SiparisIslemleri.OnerilenDepoSiparisleri.SourceProducts.SuggestedWarehouseSourceProductDto
 
@@ -8888,18 +8984,31 @@ Enum degerleri JSON sozlesmesinde bulunur.
 | `terminalId` | string | Evet | minLength=0; maxLength=40 |
 | `terminalNo` | string | Evet | minLength=0; maxLength=40 |
 
+### FurpaMerkezApi.WebApi.Controllers.Modules.AyarIslemleri.KasaPosTerminalleri.MoveCashRegisterTerminalGroupHttpRequest
+
+| JSON alani | Tip | Zorunlu | Sinirlar |
+|---|---|---|---|
+| `targetBranchNo` | integer (int32) | Evet | min=1; max=2147483647 |
+| `targetCashNo` | integer (int32) | Evet | min=1; max=2147483647 |
+
+### FurpaMerkezApi.WebApi.Controllers.Modules.AyarIslemleri.KasaPosTerminalleri.UpdateCashRegisterTypeHttpRequest
+
+| JSON alani | Tip | Zorunlu | Sinirlar |
+|---|---|---|---|
+| `cashType` | integer (int32) | Evet | min=0; max=255 |
+
 ### FurpaMerkezApi.WebApi.Controllers.Modules.AyarIslemleri.Kasiyerler.CreateCashierHttpRequest
 
 | JSON alani | Tip | Zorunlu | Sinirlar |
 |---|---|---|---|
-| `cashierAuthorization` | string | Evet | minLength=0; maxLength=100 |
+| `cashierAuthorization` | string | Evet | minLength=0; maxLength=1 |
 | `cashierName` | string | Evet | minLength=0; maxLength=100 |
 
 ### FurpaMerkezApi.WebApi.Controllers.Modules.AyarIslemleri.Kasiyerler.UpdateCashierHttpRequest
 
 | JSON alani | Tip | Zorunlu | Sinirlar |
 |---|---|---|---|
-| `cashierAuthorization` | string | Evet | minLength=0; maxLength=100 |
+| `cashierAuthorization` | string | Evet | minLength=0; maxLength=1 |
 | `cashierName` | string | Evet | minLength=0; maxLength=100 |
 | `cashierState` | boolean | Evet |  |
 
@@ -10286,6 +10395,7 @@ Enum degerleri JSON sozlesmesinde bulunur.
 |---|---|---|---|
 | `banknoteMovements` | FurpaMerkezApi.WebApi.Controllers.Modules.KasaIslemleri.KasaSayimlari.CreateBanknoteMovementHttpRequest[] | Hayir | nullable |
 | `cashNo` | integer (int32) | Evet | min=1; max=2147483647 |
+| `cashRegisterNo` | string | Hayir | minLength=0; maxLength=40; nullable |
 | `cashierNo` | integer (int32) | Evet | min=1; max=2147483647 |
 | `giftCheckMovements` | FurpaMerkezApi.WebApi.Controllers.Modules.KasaIslemleri.KasaSayimlari.CreateGiftCheckMovementHttpRequest[] | Hayir | nullable |
 | `managerNo` | integer (int32) | Evet | min=1; max=2147483647 |
@@ -10450,6 +10560,15 @@ Enum degerleri JSON sozlesmesinde bulunur.
 |---|---|---|---|
 | `giftCheckMovements` | FurpaMerkezApi.WebApi.Controllers.Modules.KasaIslemleri.KasaSayimlari.UpdateCashSummaryGiftCheckLineHttpRequest[] | Hayir | nullable |
 | `warehouseNo` | integer (int32) | Hayir | min=1; max=2147483647; nullable |
+
+### FurpaMerkezApi.WebApi.Controllers.Modules.KasaIslemleri.KasaSayimlari.UpdateCashSummaryHeaderHttpRequest
+
+| JSON alani | Tip | Zorunlu | Sinirlar |
+|---|---|---|---|
+| `summaryDate` | string (date-time) | Evet |  |
+| `warehouseNo` | integer (int32) | Hayir | min=1; max=2147483647; nullable |
+| `zReportNo` | integer (int32) | Evet | min=0; max=2147483647 |
+| `zTotalValue` | number (double) | Evet | min=0 |
 
 ### FurpaMerkezApi.WebApi.Controllers.Modules.KasaIslemleri.ManavMalKabulVeEtiket.ManavMalKabulVeEtiketCalculationHttpRequest
 
