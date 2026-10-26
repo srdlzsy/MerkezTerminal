@@ -19,6 +19,42 @@ import '../../support/memory_local_database.dart';
 import '../../support/pda_create_screen_contract.dart';
 
 void main() {
+  test('company acceptance result matches the submitted document identity', () {
+    final request = CompanyAcceptanceCreateRequest.fromJson(<String, dynamic>{
+      'customerCode': '12001970',
+      'documentSerie': ' ysl ',
+      'documentOrderNo': 13721,
+      'lines': <dynamic>[],
+    });
+    final result = CompanyAcceptanceCreateResult.fromJson(<String, dynamic>{
+      'customerCode': '12001970',
+      'documentSerie': 'YSL',
+      'documentOrderNo': 13721,
+      'lines': <dynamic>[],
+    });
+
+    expect(result.matchesRequestIdentity(request), isTrue);
+  });
+
+  test('company acceptance result rejects a stale document result', () {
+    final request = CompanyAcceptanceCreateRequest.fromJson(<String, dynamic>{
+      'customerCode': '12001970',
+      'documentSerie': 'YSL',
+      'documentOrderNo': 13721,
+      'lines': <dynamic>[],
+    });
+    final staleResult =
+        CompanyAcceptanceCreateResult.fromJson(<String, dynamic>{
+          'customerCode': '12001970',
+          'documentSerie': 'SYL',
+          'documentOrderNo': 3720,
+          'lineCount': 19,
+          'lines': <dynamic>[],
+        });
+
+    expect(staleResult.matchesRequestIdentity(request), isFalse);
+  });
+
   test('parses e-document document identity for company acceptance', () {
     final prefill =
         CompanyAcceptanceEDespatchPrefill.fromJson(<String, dynamic>{

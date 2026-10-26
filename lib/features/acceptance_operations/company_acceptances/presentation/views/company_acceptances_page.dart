@@ -194,6 +194,8 @@ class _CompanyAcceptancesPageState extends State<CompanyAcceptancesPage> {
       return;
     }
 
+    ScaffoldMessenger.of(context).clearSnackBars();
+
     CreateDraft? draft = resumeDraft;
     if (draft == null && widget.draftRepository != null) {
       final launch = await showCreateDraftPicker(
@@ -260,7 +262,7 @@ class _CompanyAcceptancesPageState extends State<CompanyAcceptancesPage> {
         final documentLabel = pendingDuplicate.documentLabel.isEmpty
             ? 'Bu resmi belge'
             : pendingDuplicate.documentLabel;
-        final messenger = ScaffoldMessenger.of(context)..hideCurrentSnackBar();
+        final messenger = ScaffoldMessenger.of(context)..clearSnackBars();
         messenger.showSnackBar(
           SnackBar(
             duration: const Duration(seconds: 10),
@@ -295,14 +297,25 @@ class _CompanyAcceptancesPageState extends State<CompanyAcceptancesPage> {
         return;
       }
 
-      final messenger = ScaffoldMessenger.of(context);
-      messenger.hideCurrentSnackBar();
+      final messenger = ScaffoldMessenger.of(context)..clearSnackBars();
 
       switch (submission.status) {
         case OfflineSubmissionStatus.synced:
         case OfflineSubmissionStatus.recovered:
-          await _deleteFormDraftBestEffort(draft);
           final result = submission.onlineResult;
+          if (result != null && !result.matchesRequestIdentity(request)) {
+            messenger.showSnackBar(
+              const SnackBar(
+                duration: Duration(seconds: 10),
+                content: Text(
+                  'Sunucudan bu forma ait olmayan bir evrak sonucu geldi. '
+                  'Form ve taslak korundu; evrak yeniden gonderilmedi.',
+                ),
+              ),
+            );
+            return;
+          }
+          await _deleteFormDraftBestEffort(draft);
           await _controller.loadAcceptances(
             preferredDocumentSerie: result?.documentSerie,
             preferredDocumentOrderNo: result?.documentOrderNo,
@@ -404,7 +417,7 @@ class _CompanyAcceptancesPageState extends State<CompanyAcceptancesPage> {
         }
         final message = safeCreateRetryErrorMessage(error);
         ScaffoldMessenger.of(context)
-          ..hideCurrentSnackBar()
+          ..clearSnackBars()
           ..showSnackBar(
             const SnackBar(
               content: Text(
@@ -429,7 +442,7 @@ class _CompanyAcceptancesPageState extends State<CompanyAcceptancesPage> {
           SafeCreateFailureKind.officialDocumentAlreadyReceived) {
         unawaited(_controller.loadAcceptances());
         ScaffoldMessenger.of(context)
-          ..hideCurrentSnackBar()
+          ..clearSnackBars()
           ..showSnackBar(
             SnackBar(content: Text(safeCreateRetryErrorMessage(error))),
           );
@@ -503,8 +516,17 @@ class _CompanyAcceptancesPageState extends State<CompanyAcceptancesPage> {
       switch (submission.status) {
         case OfflineSubmissionStatus.synced:
         case OfflineSubmissionStatus.recovered:
-          await _deleteFormDraftBestEffort(draft);
           final result = submission.onlineResult;
+          if (result != null && !result.matchesRequestIdentity(request)) {
+            return const CompanyAcceptanceSubmitDecision(
+              closeForm: false,
+              allowRetry: false,
+              message:
+                  'Sunucudan bu forma ait olmayan bir evrak sonucu geldi. '
+                  'Form ve taslak korundu; evrak yeniden gonderilmedi.',
+            );
+          }
+          await _deleteFormDraftBestEffort(draft);
           await _controller.loadAcceptances(
             preferredDocumentSerie: result?.documentSerie,
             preferredDocumentOrderNo: result?.documentOrderNo,
@@ -516,7 +538,7 @@ class _CompanyAcceptancesPageState extends State<CompanyAcceptancesPage> {
             scheduleMicrotask(() {
               if (mounted) {
                 ScaffoldMessenger.of(context)
-                  ..hideCurrentSnackBar()
+                  ..clearSnackBars()
                   ..showSnackBar(SnackBar(content: Text(message)));
               }
             });
@@ -669,6 +691,10 @@ class _CompanyAcceptancesPageState extends State<CompanyAcceptancesPage> {
         continue;
       }
       if (draft.matchesDocumentIdentity(request)) {
+        if (!draft.hasBeenSubmitted) {
+          await widget.offlineRepository.deleteDraft(draft.id);
+          continue;
+        }
         return draft;
       }
     }

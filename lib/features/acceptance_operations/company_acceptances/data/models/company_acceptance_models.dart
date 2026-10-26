@@ -287,6 +287,15 @@ class CompanyAcceptanceCreateResult {
   final List<CompanyAcceptanceCreateLineResult> lines;
 
   String get documentNoLabel => '$documentSerie.$documentOrderNo';
+
+  bool matchesRequestIdentity(CompanyAcceptanceCreateRequest request) {
+    return documentSerie.trim().toUpperCase() ==
+            request.documentSerie.trim().toUpperCase() &&
+        documentOrderNo == request.documentOrderNo &&
+        customerCode.trim().toUpperCase() ==
+            request.customerCode.trim().toUpperCase();
+  }
+
   String? get autoCreatedReturnDocumentNoLabel {
     final serie = autoCreatedReturnDocumentSerie?.trim() ?? '';
     final orderNo = autoCreatedReturnDocumentOrderNo;
