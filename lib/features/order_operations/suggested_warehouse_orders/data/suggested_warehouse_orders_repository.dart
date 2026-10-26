@@ -21,9 +21,17 @@ abstract class SuggestedWarehouseOrdersRepository {
   });
 }
 
+abstract class SuggestedWarehouseOrderAnalysisRepository {
+  Future<SuggestedWarehouseOrderAnalysis> fetchSuggestionAnalysis({
+    required String accessToken,
+    required SuggestedWarehouseOrderFilter filter,
+  });
+}
+
 class ApiSuggestedWarehouseOrdersRepository
     implements
         SuggestedWarehouseOrdersRepository,
+        SuggestedWarehouseOrderAnalysisRepository,
         OfflineSyncStatusProvider<WarehouseOrderCreateResult>,
         OfflineSyncRecheckProvider<WarehouseOrderCreateResult> {
   const ApiSuggestedWarehouseOrdersRepository({required ApiClient apiClient})
@@ -53,6 +61,20 @@ class ApiSuggestedWarehouseOrdersRepository
           ),
         )
         .toList(growable: false);
+  }
+
+  @override
+  Future<SuggestedWarehouseOrderAnalysis> fetchSuggestionAnalysis({
+    required String accessToken,
+    required SuggestedWarehouseOrderFilter filter,
+  }) async {
+    final response = await _apiClient.getJsonMap(
+      '/api/siparis-islemleri/onerilen-depo-siparisleri/analiz',
+      accessToken: accessToken,
+      queryParameters: filter.toQueryParameters(),
+    );
+
+    return SuggestedWarehouseOrderAnalysis.fromJson(response);
   }
 
   @override

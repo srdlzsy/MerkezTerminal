@@ -1085,7 +1085,7 @@ class _VirmanCreateSheetState extends State<VirmanCreateSheet>
                           submit: FilledButton.icon(
                             onPressed: _submit,
                             icon: const Icon(Icons.save_alt_rounded),
-                            label: const Text('Virmani Kaydet'),
+                            label: const Text('Kaydet'),
                           ),
                         ),
                       ],

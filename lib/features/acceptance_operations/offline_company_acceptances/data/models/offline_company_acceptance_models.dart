@@ -80,6 +80,9 @@ class OfflineCompanyAcceptanceDraft {
 
   String get clientRequestId => id;
 
+  bool get hasDocumentIdentityConflict =>
+      errorCode?.trim().toUpperCase() == 'MIKRO_DOCUMENT_IDENTITY_CONFLICT';
+
   String get effectiveClientRequestId {
     final related = relatedClientRequestId?.trim() ?? '';
     return related.isEmpty ? clientRequestId : related;

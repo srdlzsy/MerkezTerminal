@@ -868,7 +868,7 @@ class _LabelDocumentCreateSheetState extends State<LabelDocumentCreateSheet> {
                             child: FilledButton.icon(
                               onPressed: _submit,
                               icon: const Icon(Icons.save_alt_rounded),
-                              label: const Text('Belge Olustur'),
+                              label: const Text('Kaydet'),
                             ),
                           ),
                         ],

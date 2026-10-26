@@ -322,7 +322,7 @@ class _CompanyMovementsPageState extends State<CompanyMovementsPage> {
               widget.mobileCustomerCatalogRepository,
           title: widget.createTitle,
           helperText: widget.createHelperText,
-          submitLabel: widget.createButtonLabel,
+          submitLabel: 'Kaydet',
           barcodeOperationType: widget.draftModuleKey.contains('iade')
               ? 'return'
               : 'shipment',

@@ -39,14 +39,14 @@ void main() {
     expect(find.text('Satirlar'), findsOneWidget);
 
     await tester.scrollUntilVisible(
-      find.text('Siparisi Olustur'),
+      find.text('Kaydet'),
       200,
       scrollable: find.byType(Scrollable).first,
     );
     await tester.pumpAndSettle();
 
     expect(find.text('Vazgec'), findsOneWidget);
-    expect(find.text('Siparisi Olustur'), findsOneWidget);
+    expect(find.text('Kaydet'), findsOneWidget);
 
     final renderedText = tester
         .widgetList<Text>(find.byType(Text))
@@ -137,17 +137,17 @@ void main() {
     await _pickWarehouse(tester);
     await _pickWarehouseOrderProduct(tester);
     await tester.scrollUntilVisible(
-      find.text('Siparisi Olustur'),
+      find.text('Kaydet'),
       200,
       scrollable: find.byType(Scrollable).first,
     );
 
-    await tester.tap(find.widgetWithText(FilledButton, 'Siparisi Olustur'));
+    await tester.tap(find.widgetWithText(FilledButton, 'Kaydet'));
     await tester.pumpAndSettle();
 
     expect(find.text('Hazirlaniyor'), findsNothing);
     final submit = tester.widget<FilledButton>(
-      find.widgetWithText(FilledButton, 'Siparisi Olustur'),
+      find.widgetWithText(FilledButton, 'Kaydet'),
     );
     expect(submit.onPressed, isNotNull);
   });
@@ -217,11 +217,11 @@ void main() {
     await tester.tap(find.text('Ac'));
     await tester.pumpAndSettle();
     await tester.scrollUntilVisible(
-      find.text('Siparisi Olustur'),
+      find.text('Kaydet'),
       200,
       scrollable: find.byType(Scrollable).first,
     );
-    await tester.tap(find.widgetWithText(FilledButton, 'Siparisi Olustur'));
+    await tester.tap(find.widgetWithText(FilledButton, 'Kaydet'));
     await tester.pumpAndSettle();
 
     final today = DateTime.now();
@@ -246,7 +246,7 @@ void main() {
       ),
       prepare: _pickWarehouse,
       entryRowFinder: find.text('Giris satiri'),
-      saveButtonFinder: find.widgetWithText(FilledButton, 'Siparisi Olustur'),
+      saveButtonFinder: find.widgetWithText(FilledButton, 'Kaydet'),
     );
   });
 
@@ -758,11 +758,11 @@ void main() {
     await tester.pump();
 
     await tester.scrollUntilVisible(
-      find.text('Siparisi Olustur'),
+      find.text('Kaydet'),
       200,
       scrollable: find.byType(Scrollable).first,
     );
-    await tester.tap(find.widgetWithText(FilledButton, 'Siparisi Olustur'));
+    await tester.tap(find.widgetWithText(FilledButton, 'Kaydet'));
     await tester.pumpAndSettle();
 
     expect(greenGrocerRepository.requests, isNotEmpty);

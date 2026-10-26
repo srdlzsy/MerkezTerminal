@@ -176,4 +176,45 @@ void main() {
       expect(items.single.needsManualQuantity, isFalse);
     },
   );
+
+  test('fetchSuggestionAnalysis reads exclusion summary', () async {
+    Uri? requestedUri;
+    final repository = ApiSuggestedWarehouseOrdersRepository(
+      apiClient: ApiClient(
+        baseUrl: 'https://terminal.test',
+        httpClient: MockClient((request) async {
+          requestedUri = request.url;
+          return http.Response(
+            jsonEncode(<String, Object?>{
+              'candidateCount': 8,
+              'suggestedCount': 2,
+              'items': <Map<String, Object?>>[],
+              'exclusions': <Map<String, Object?>>[
+                <String, Object?>{
+                  'code': 'TARGET_STOCK_SUFFICIENT',
+                  'label': 'Hedef depo stogu yeterli',
+                  'count': 6,
+                },
+              ],
+            }),
+            200,
+            headers: <String, String>{'content-type': 'application/json'},
+          );
+        }),
+      ),
+    );
+
+    final analysis = await repository.fetchSuggestionAnalysis(
+      accessToken: 'token',
+      filter: const SuggestedWarehouseOrderFilter(sourceWarehouseNo: 50),
+    );
+
+    expect(
+      requestedUri?.path,
+      '/api/siparis-islemleri/onerilen-depo-siparisleri/analiz',
+    );
+    expect(analysis.candidateCount, 8);
+    expect(analysis.suggestedCount, 2);
+    expect(analysis.exclusions.single.count, 6);
+  });
 }

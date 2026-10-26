@@ -81,10 +81,23 @@ class _OfflineCompanyAcceptancesPageState
     }
 
     try {
-      final drafts = await widget.offlineRepository.fetchDrafts(
+      final fetchedDrafts = await widget.offlineRepository.fetchDrafts(
         userId: widget.currentUserId,
         warehouseNo: widget.defaultWarehouseNo,
       );
+      final drafts = <OfflineCompanyAcceptanceDraft>[];
+      for (final draft in fetchedDrafts) {
+        if (!draft.hasDocumentIdentityConflict) {
+          drafts.add(draft);
+          continue;
+        }
+
+        try {
+          await widget.offlineRepository.deleteDraft(draft.id);
+        } catch (_) {
+          drafts.add(draft);
+        }
+      }
 
       if (!mounted) {
         return;
@@ -1720,7 +1733,7 @@ class _OfflineCompanyAcceptanceCreateSheetState
     final submitButton = FilledButton.icon(
       onPressed: _submit,
       icon: const Icon(Icons.save_alt_rounded),
-      label: const Text('Taslagi Kaydet'),
+      label: const Text('Kaydet'),
     );
 
     return TerminalFormActionRow(cancel: documentButton, submit: submitButton);

@@ -19,7 +19,7 @@ void main() {
         defaultWarehouseNo: '110',
       ),
       entryRowFinder: find.text('Giris satiri'),
-      saveButtonFinder: find.widgetWithText(FilledButton, 'Belge Olustur'),
+      saveButtonFinder: find.widgetWithText(FilledButton, 'Kaydet'),
     );
   });
 }

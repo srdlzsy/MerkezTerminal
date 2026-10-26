@@ -95,8 +95,20 @@ class AppUpdateService {
       return null;
     }
 
+    final manifestUri = _manifestUri.replace(
+      queryParameters: <String, String>{
+        ..._manifestUri.queryParameters,
+        '_ts': DateTime.now().millisecondsSinceEpoch.toString(),
+      },
+    );
     final response = await _httpClient
-        .get(_manifestUri)
+        .get(
+          manifestUri,
+          headers: const <String, String>{
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache',
+          },
+        )
         .timeout(AppConfig.requestTimeout);
 
     if (response.statusCode < 200 || response.statusCode >= 300) {

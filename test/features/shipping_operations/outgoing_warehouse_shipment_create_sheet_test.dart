@@ -110,7 +110,7 @@ void main() {
       ),
       prepare: _pickShipmentTargetWarehouse,
       entryRowFinder: find.text('Giris satiri'),
-      saveButtonFinder: find.widgetWithText(FilledButton, 'Sevki Hazirla'),
+      saveButtonFinder: find.widgetWithText(FilledButton, 'Kaydet'),
     );
   });
 
@@ -209,11 +209,11 @@ void main() {
     expect(find.text('Test Urun'), findsOneWidget);
 
     await tester.scrollUntilVisible(
-      find.text('Sevki Hazirla'),
+      find.text('Kaydet'),
       200,
       scrollable: find.byType(Scrollable).first,
     );
-    await tester.tap(find.widgetWithText(FilledButton, 'Sevki Hazirla'));
+    await tester.tap(find.widgetWithText(FilledButton, 'Kaydet'));
     await tester.pumpAndSettle();
 
     expect(request, isNull);
@@ -330,11 +330,11 @@ void main() {
     await tester.pumpAndSettle();
 
     await tester.scrollUntilVisible(
-      find.text('Sevki Hazirla'),
+      find.text('Kaydet'),
       200,
       scrollable: find.byType(Scrollable).first,
     );
-    await tester.tap(find.widgetWithText(FilledButton, 'Sevki Hazirla'));
+    await tester.tap(find.widgetWithText(FilledButton, 'Kaydet'));
     await tester.pumpAndSettle();
 
     expect(request, isNotNull);
@@ -592,11 +592,11 @@ void main() {
       await _enterShipmentBarcode(tester, barcode: '2700000001150');
 
       await tester.scrollUntilVisible(
-        find.text('Sevki Hazirla'),
+        find.text('Kaydet'),
         200,
         scrollable: find.byType(Scrollable).first,
       );
-      await tester.tap(find.widgetWithText(FilledButton, 'Sevki Hazirla'));
+      await tester.tap(find.widgetWithText(FilledButton, 'Kaydet'));
       await tester.pumpAndSettle();
 
       expect(request, isNotNull);
@@ -707,11 +707,11 @@ void main() {
       await tester.pumpAndSettle();
 
       await tester.scrollUntilVisible(
-        find.text('Sevki Hazirla'),
+        find.text('Kaydet'),
         200,
         scrollable: find.byType(Scrollable).first,
       );
-      await tester.tap(find.widgetWithText(FilledButton, 'Sevki Hazirla'));
+      await tester.tap(find.widgetWithText(FilledButton, 'Kaydet'));
       await tester.pumpAndSettle();
 
       expect(request, isNotNull);

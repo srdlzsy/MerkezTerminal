@@ -6,10 +6,14 @@ Bu rehber Android terminal guncellemesini daha kucuk APK dosyalariyla dagitmak i
 
 `pubspec.yaml` icindeki `version` alanini artir.
 
+`buildNumber`, sahada daha once yayinlanmis en buyuk Android `versionCode`
+degerinden mutlaka buyuk olmalidir. Eski terminallerde `2100` yapi numarali
+surum bulundugu icin yeni yayinlarda `2101` altina inilmemelidir.
+
 Ornek:
 
 ```yaml
-version: 1.1.42+43
+version: 1.1.103+2103
 ```
 
 Kontrol:
@@ -78,19 +82,19 @@ APK dosyalarini sunucuya kopyalayip URL'lerini kontrol ettikten sonra
 `version.json` dosyasini en son yayinla. `buildNumber`, `pubspec.yaml` icindeki
 `+` isaretinden sonraki Android `versionCode` degeriyle ayni olmalidir.
 
-Ornek yeni manifest (`version: 1.1.42+43` icin):
+Ornek yeni manifest (`version: 1.1.103+2103` icin):
 
 ```json
 {
-  "version": "1.1.42",
-  "buildNumber": 43,
-  "apk": "http://10.0.0.100:802/Terminal/furpa-terminal-1.1.42-43-universal.apk",
+  "version": "1.1.103",
+  "buildNumber": 2103,
+  "apk": "http://10.0.0.100:802/Terminal/furpa-terminal-1.1.103-2103-universal.apk",
   "android": {
-    "universalUrl": "http://10.0.0.100:802/Terminal/furpa-terminal-1.1.42-43-universal.apk",
+    "universalUrl": "http://10.0.0.100:802/Terminal/furpa-terminal-1.1.103-2103-universal.apk",
     "apks": {
-      "arm64-v8a": "http://10.0.0.100:802/Terminal/furpa-terminal-1.1.42-43-arm64-v8a.apk",
-      "armeabi-v7a": "http://10.0.0.100:802/Terminal/furpa-terminal-1.1.42-43-armeabi-v7a.apk",
-      "x86_64": "http://10.0.0.100:802/Terminal/furpa-terminal-1.1.42-43-x86_64.apk"
+      "arm64-v8a": "http://10.0.0.100:802/Terminal/furpa-terminal-1.1.103-2103-arm64-v8a.apk",
+      "armeabi-v7a": "http://10.0.0.100:802/Terminal/furpa-terminal-1.1.103-2103-armeabi-v7a.apk",
+      "x86_64": "http://10.0.0.100:802/Terminal/furpa-terminal-1.1.103-2103-x86_64.apk"
     }
   }
 }

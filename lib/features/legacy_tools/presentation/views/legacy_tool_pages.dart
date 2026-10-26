@@ -54,6 +54,8 @@ class ProductLookupToolPage extends StatefulWidget {
 
 class _ProductLookupToolPageState extends State<ProductLookupToolPage> {
   final TextEditingController _queryController = TextEditingController();
+  final FocusNode _queryFocusNode = FocusNode();
+  int _searchRequestId = 0;
   bool _isLoading = false;
   bool _isSyncingCatalog = false;
   bool _hasQuery = false;
@@ -77,6 +79,7 @@ class _ProductLookupToolPageState extends State<ProductLookupToolPage> {
   void dispose() {
     _queryController.removeListener(_handleQueryChanged);
     _queryController.dispose();
+    _queryFocusNode.dispose();
     super.dispose();
   }
 
@@ -92,12 +95,22 @@ class _ProductLookupToolPageState extends State<ProductLookupToolPage> {
   }
 
   void _clearSearch() {
+    _searchRequestId++;
     _queryController.clear();
     setState(() {
       _products = const <SearchProductLookupItem>[];
       _errorMessage = null;
       _isUsingOfflineCatalog = false;
       _isLoading = false;
+    });
+    _focusSearchField();
+  }
+
+  void _focusSearchField() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _queryFocusNode.requestFocus();
+      }
     });
   }
 
@@ -131,6 +144,13 @@ class _ProductLookupToolPageState extends State<ProductLookupToolPage> {
       return;
     }
 
+    final requestId = ++_searchRequestId;
+    final isBarcode = RegExp(r'^\d{7,}$').hasMatch(query);
+    if (isBarcode) {
+      _queryController.clear();
+    }
+    _focusSearchField();
+
     setState(() {
       _isLoading = true;
       _errorMessage = null;
@@ -151,7 +171,7 @@ class _ProductLookupToolPageState extends State<ProductLookupToolPage> {
               includeDelisted: !_hideDelistedProducts,
             );
 
-      if (!mounted) {
+      if (!mounted || requestId != _searchRequestId) {
         return;
       }
 
@@ -165,7 +185,7 @@ class _ProductLookupToolPageState extends State<ProductLookupToolPage> {
       final catalogProducts = await widget.productCatalogRepository
           .searchProducts(warehouseNo: widget.defaultWarehouseNo, query: query);
 
-      if (!mounted) {
+      if (!mounted || requestId != _searchRequestId) {
         return;
       }
 
@@ -184,6 +204,7 @@ class _ProductLookupToolPageState extends State<ProductLookupToolPage> {
           _isLoading = false;
           _errorMessage = null;
         });
+        _focusSearchField();
         return;
       }
 
@@ -192,8 +213,9 @@ class _ProductLookupToolPageState extends State<ProductLookupToolPage> {
         _isUsingOfflineCatalog = false;
         _errorMessage = error.toString().replaceFirst('Exception: ', '');
       });
+      _focusSearchField();
     } catch (error) {
-      if (!mounted) {
+      if (!mounted || requestId != _searchRequestId) {
         return;
       }
 
@@ -202,7 +224,10 @@ class _ProductLookupToolPageState extends State<ProductLookupToolPage> {
         _isUsingOfflineCatalog = false;
         _errorMessage = error.toString().replaceFirst('Exception: ', '');
       });
+      _focusSearchField();
     }
+
+    _focusSearchField();
   }
 
   Future<void> _scanWithCamera() async {
@@ -321,7 +346,9 @@ class _ProductLookupToolPageState extends State<ProductLookupToolPage> {
                   breakpoint: 340,
                   field: ProductLookupField(
                     controller: _queryController,
-                    enabled: !_isLoading,
+                    focusNode: _queryFocusNode,
+                    autofocus: true,
+                    enabled: true,
                     onSubmit: _search,
                     labelText: 'Arama veya barkod',
                     suffixIcon: _hasQuery

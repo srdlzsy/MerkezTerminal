@@ -24,7 +24,7 @@ void main() {
         ),
       ),
       entryRowFinder: find.text('Giris satiri'),
-      saveButtonFinder: find.widgetWithText(FilledButton, 'Siparisi Olustur'),
+      saveButtonFinder: find.widgetWithText(FilledButton, 'Kaydet'),
     );
   });
 

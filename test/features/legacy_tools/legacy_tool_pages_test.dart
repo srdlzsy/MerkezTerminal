@@ -42,6 +42,44 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('fiyat gor clears barcode and keeps scanner focus', (
+    tester,
+  ) async {
+    final repository = _FakeLegacyToolsRepository();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: ProductLookupToolPage(
+            repository: repository,
+            accessToken: 'token',
+            defaultWarehouseNo: '110',
+            productCatalogRepository: _productCatalogRepository(),
+            productCatalogSyncService: _productCatalogSyncService(),
+            customerCatalogRepository: _customerCatalogRepository(),
+            customerCatalogSyncService: _customerCatalogSyncService(),
+            warehouseCatalogRepository: _warehouseCatalogRepository(),
+            warehouseCatalogSyncService: _warehouseCatalogSyncService(),
+            title: 'Fiyat Gor',
+            subtitle: 'Test',
+            emptyMessage: 'Bos',
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    await tester.enterText(find.byType(TextField), '8690000000001');
+    await tester.tap(find.widgetWithText(FilledButton, 'Urun'));
+    await tester.pumpAndSettle();
+
+    final editable = tester.widget<EditableText>(
+      find.byType(EditableText).first,
+    );
+    expect(editable.controller.text, isEmpty);
+    expect(editable.focusNode.hasFocus, isTrue);
+    expect(repository.productQueries, <String>['8690000000001']);
+  });
+
   testWidgets('var yok uses stock availability result fields', (tester) async {
     await tester.pumpWidget(
       MaterialApp(
@@ -242,6 +280,7 @@ class _FakeLegacyToolsRepository implements LegacyToolsRepository {
 
   final ApiException? searchCustomersByBarcodeError;
   final List<SearchProductLookupItem> stockAvailabilityProducts;
+  final List<String> productQueries = <String>[];
 
   @override
   Future<List<SearchProductLookupItem>> searchProducts({
@@ -250,6 +289,7 @@ class _FakeLegacyToolsRepository implements LegacyToolsRepository {
     required String query,
     bool includeDelisted = true,
   }) async {
+    productQueries.add(query);
     return const <SearchProductLookupItem>[];
   }
 

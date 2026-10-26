@@ -29,7 +29,7 @@ void main() {
       ),
       prepare: _pickTargetWarehouse,
       entryRowFinder: find.text('Giris satiri'),
-      saveButtonFinder: find.widgetWithText(FilledButton, 'Iadeyi Kaydet'),
+      saveButtonFinder: find.widgetWithText(FilledButton, 'Kaydet'),
     );
   });
 

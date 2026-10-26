@@ -1096,7 +1096,7 @@ class _OfflineInventoryCountCreateSheetState
                             submit: FilledButton.icon(
                               onPressed: _submit,
                               icon: const Icon(Icons.save_alt_rounded),
-                              label: const Text('Taslagi Kaydet'),
+                              label: const Text('Kaydet'),
                             ),
                           ),
                         ],

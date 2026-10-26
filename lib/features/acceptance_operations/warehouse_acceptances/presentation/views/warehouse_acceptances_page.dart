@@ -249,10 +249,8 @@ class _WarehouseAcceptancesPageState extends State<WarehouseAcceptancesPage> {
         ),
       ],
       actions: <Widget>[
-        FilledButton.icon(
+        _WarehouseAcceptanceListButton(
           onPressed: _controller.isLoadingList ? null : _applyFilters,
-          icon: const Icon(Icons.search_rounded),
-          label: const Text('Listele'),
         ),
         OutlinedButton.icon(
           onPressed: _controller.isLoadingList ? null : _resetFilters,
@@ -263,6 +261,21 @@ class _WarehouseAcceptancesPageState extends State<WarehouseAcceptancesPage> {
       footer: lastResult == null
           ? null
           : _AcceptanceResultBanner(result: lastResult),
+    );
+  }
+}
+
+class _WarehouseAcceptanceListButton extends StatelessWidget {
+  const _WarehouseAcceptanceListButton({required this.onPressed});
+
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return FilledButton.icon(
+      onPressed: onPressed,
+      icon: const Icon(Icons.search_rounded),
+      label: const Text('Listele'),
     );
   }
 }
@@ -818,13 +831,7 @@ class _AcceptanceReadyBodyState extends State<_AcceptanceReadyBody> {
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
                   : const Icon(Icons.inventory_2_rounded),
-              label: Text(
-                widget.isSubmitting
-                    ? 'Kaydediliyor...'
-                    : widget.isReturn
-                    ? 'Depo Iadesi Mal Kabul Et'
-                    : 'Depo Sevki Mal Kabul Et',
-              ),
+              label: Text(widget.isSubmitting ? 'Kaydediliyor...' : 'Kaydet'),
             ),
           ),
         ],

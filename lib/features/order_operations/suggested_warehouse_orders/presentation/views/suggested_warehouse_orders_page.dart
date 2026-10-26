@@ -615,6 +615,7 @@ class _SuggestedWarehouseOrdersPageState
   Widget _buildListSection(BuildContext context) {
     final listError = _controller.listError;
     final convertError = _controller.convertError;
+    final analysis = _controller.analysis;
 
     return SectionCard(
       title: 'Onerilen Kalemler',
@@ -638,6 +639,16 @@ class _SuggestedWarehouseOrdersPageState
           ],
           if (listError != null) ...<Widget>[
             TerminalMessageBlock.error(message: listError),
+            const SizedBox(height: 10),
+          ],
+          if (analysis != null && !_controller.isLoadingList) ...<Widget>[
+            TerminalMessageBlock.info(
+              message: <String>[
+                '${analysis.candidateCount} urun incelendi, ${analysis.suggestedCount} urun onerildi.',
+                if (analysis.exclusions.isNotEmpty)
+                  'Elenenler: ${analysis.exclusions.map((item) => "${item.label} (${item.count})").join(', ')}.',
+              ].join(' '),
+            ),
             const SizedBox(height: 10),
           ],
           if (_controller.isLoadingList)

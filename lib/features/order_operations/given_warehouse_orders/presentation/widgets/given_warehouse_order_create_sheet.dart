@@ -1559,8 +1559,8 @@ class _GivenWarehouseOrderCreateSheetState
                                             : const Icon(Icons.save_rounded),
                                         label: Text(
                                           _isPreparingSubmit
-                                              ? 'Hazirlaniyor'
-                                              : 'Siparisi Olustur',
+                                              ? 'Kaydediliyor...'
+                                              : 'Kaydet',
                                         ),
                                         style: FilledButton.styleFrom(
                                           padding: const EdgeInsets.symmetric(

@@ -113,7 +113,7 @@ void main() {
       ),
       prepare: _goToLineStepIfNeeded,
       entryRowFinder: find.text('Giris satiri'),
-      saveButtonFinder: find.widgetWithText(FilledButton, 'Mal Kabul Et'),
+      saveButtonFinder: find.widgetWithText(FilledButton, 'Kaydet'),
     );
   });
 
@@ -643,11 +643,9 @@ void main() {
     await tester.pumpAndSettle();
 
     await _pickProduct(tester);
-    await tester.ensureVisible(
-      find.widgetWithText(FilledButton, 'Mal Kabul Et'),
-    );
+    await tester.ensureVisible(find.widgetWithText(FilledButton, 'Kaydet'));
     await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(FilledButton, 'Mal Kabul Et'));
+    await tester.tap(find.widgetWithText(FilledButton, 'Kaydet'));
     await tester.pumpAndSettle();
 
     expect(capturedRequest, isNotNull);

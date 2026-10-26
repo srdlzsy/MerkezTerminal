@@ -1826,7 +1826,7 @@ class _OutgoingWarehouseShipmentCreateSheetState
                                       child: FilledButton.icon(
                                         onPressed: _submit,
                                         icon: const Icon(Icons.save_outlined),
-                                        label: const Text('Sevki Hazirla'),
+                                        label: const Text('Kaydet'),
                                       ),
                                     ),
                                   ],

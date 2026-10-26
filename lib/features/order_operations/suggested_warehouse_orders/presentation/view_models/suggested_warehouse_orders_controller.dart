@@ -32,6 +32,7 @@ class SuggestedWarehouseOrdersController extends ChangeNotifier
   int? _convertRetryAfterSeconds;
   List<SuggestedWarehouseOrderListItem> _items =
       const <SuggestedWarehouseOrderListItem>[];
+  SuggestedWarehouseOrderAnalysis? _analysis;
   Set<String> _selectedKeys = <String>{};
   Map<String, double> _quantityByKey = <String, double>{};
 
@@ -46,6 +47,7 @@ class SuggestedWarehouseOrdersController extends ChangeNotifier
   String? get convertCorrelationId => _convertCorrelationId;
   int? get convertRetryAfterSeconds => _convertRetryAfterSeconds;
   List<SuggestedWarehouseOrderListItem> get items => _items;
+  SuggestedWarehouseOrderAnalysis? get analysis => _analysis;
   int get selectedCount => _selectedKeys.length;
   bool get hasSelection => _selectedKeys.isNotEmpty;
 
@@ -75,6 +77,7 @@ class SuggestedWarehouseOrdersController extends ChangeNotifier
     if (sourceWarehouseNo <= 0) {
       _sourceWarehouseNo = null;
       _items = const <SuggestedWarehouseOrderListItem>[];
+      _analysis = null;
       _selectedKeys = <String>{};
       _quantityByKey = <String, double>{};
       _listError = 'Kaynak depo secin.';
@@ -90,23 +93,37 @@ class SuggestedWarehouseOrdersController extends ChangeNotifier
     notifySafely();
 
     try {
-      final items = await _repository.fetchSuggestions(
-        accessToken: _accessToken,
-        filter: SuggestedWarehouseOrderFilter(
-          sourceWarehouseNo: sourceWarehouseNo,
-          targetWarehouseNo: targetWarehouseNo,
-          lookbackDays: lookbackDays,
-          fallbackRecommendedDay: fallbackRecommendedDay,
-          useSourceProducts:
-              useSourceProducts ??
-              usesSuggestedWarehouseOrderSourceProducts(sourceWarehouseNo),
-        ),
+      final filter = SuggestedWarehouseOrderFilter(
+        sourceWarehouseNo: sourceWarehouseNo,
+        targetWarehouseNo: targetWarehouseNo,
+        lookbackDays: lookbackDays,
+        fallbackRecommendedDay: fallbackRecommendedDay,
+        useSourceProducts:
+            useSourceProducts ??
+            usesSuggestedWarehouseOrderSourceProducts(sourceWarehouseNo),
       );
+      final analysisRepository =
+          _repository is SuggestedWarehouseOrderAnalysisRepository
+          ? _repository as SuggestedWarehouseOrderAnalysisRepository
+          : null;
+      final analysis = !filter.useSourceProducts && analysisRepository != null
+          ? await analysisRepository.fetchSuggestionAnalysis(
+              accessToken: _accessToken,
+              filter: filter,
+            )
+          : null;
+      final items =
+          analysis?.items ??
+          await _repository.fetchSuggestions(
+            accessToken: _accessToken,
+            filter: filter,
+          );
       if (!_listEpoch.isCurrent(listRequestId)) {
         return;
       }
 
       _items = items;
+      _analysis = analysis;
       _selectedKeys = <String>{};
       _quantityByKey = <String, double>{
         for (final item in items) item.identity: item.defaultOrderQuantity,
@@ -118,6 +135,7 @@ class SuggestedWarehouseOrdersController extends ChangeNotifier
         return;
       }
       _items = const <SuggestedWarehouseOrderListItem>[];
+      _analysis = null;
       _selectedKeys = <String>{};
       _quantityByKey = <String, double>{};
       _isLoadingList = false;
@@ -128,6 +146,7 @@ class SuggestedWarehouseOrdersController extends ChangeNotifier
         return;
       }
       _items = const <SuggestedWarehouseOrderListItem>[];
+      _analysis = null;
       _selectedKeys = <String>{};
       _quantityByKey = <String, double>{};
       _isLoadingList = false;

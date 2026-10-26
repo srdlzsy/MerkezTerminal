@@ -25,7 +25,7 @@ void main() {
         ),
       ),
       entryRowFinder: find.text('Virman urunu ekle'),
-      saveButtonFinder: find.widgetWithText(FilledButton, 'Virmani Kaydet'),
+      saveButtonFinder: find.widgetWithText(FilledButton, 'Kaydet'),
     );
   });
 

@@ -301,19 +301,19 @@ class MainActivity : FlutterActivity() {
         val archiveVersion = archiveInfo.versionName.orEmpty()
         if (
             !expectedVersion.isNullOrBlank() &&
-            normalizeVersion(archiveVersion) != normalizeVersion(expectedVersion)
+            compareVersions(archiveVersion, expectedVersion) < 0
         ) {
             throw ApkValidationException(
-                "Sunucudaki APK surumu beklenen surumle uyusmuyor. " +
+                "Sunucudaki APK surumu beklenen surumden eski. " +
                     "Beklenen: $expectedVersion, APK: $archiveVersion. " +
                     "APK dosyasini yeniden yayinlayin.",
             )
         }
 
         val archiveVersionCode = packageVersionCode(archiveInfo)
-        if (expectedVersionCode != null && archiveVersionCode != expectedVersionCode) {
+        if (expectedVersionCode != null && archiveVersionCode < expectedVersionCode) {
             throw ApkValidationException(
-                "Sunucudaki APK yapi numarasi uyusmuyor. " +
+                "Sunucudaki APK yapi numarasi beklenenden eski. " +
                     "Beklenen: $expectedVersionCode, APK: $archiveVersionCode.",
             )
         }
@@ -395,6 +395,29 @@ class MainActivity : FlutterActivity() {
 
     private fun normalizeVersion(version: String): String {
         return version.trim().removePrefix("v").substringBefore("+")
+    }
+
+    private fun compareVersions(left: String, right: String): Int {
+        val leftParts = versionParts(left)
+        val rightParts = versionParts(right)
+        val maxSize = maxOf(leftParts.size, rightParts.size)
+
+        for (index in 0 until maxSize) {
+            val leftPart = leftParts.getOrElse(index) { 0 }
+            val rightPart = rightParts.getOrElse(index) { 0 }
+            if (leftPart != rightPart) {
+                return leftPart.compareTo(rightPart)
+            }
+        }
+
+        return 0
+    }
+
+    private fun versionParts(version: String): List<Int> {
+        return normalizeVersion(version)
+            .substringBefore("-")
+            .split(".")
+            .map { part -> part.filter(Char::isDigit).toIntOrNull() ?: 0 }
     }
 
     private fun emitDownloadProgress(

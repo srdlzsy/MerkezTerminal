@@ -185,6 +185,67 @@ class SuggestedWarehouseOrderListItem {
   }
 }
 
+class SuggestedWarehouseOrderExclusionSummary {
+  const SuggestedWarehouseOrderExclusionSummary({
+    required this.code,
+    required this.label,
+    required this.count,
+  });
+
+  final String code;
+  final String label;
+  final int count;
+
+  factory SuggestedWarehouseOrderExclusionSummary.fromJson(JsonMap json) {
+    return SuggestedWarehouseOrderExclusionSummary(
+      code: _readString(json['code']),
+      label: _readString(json['label']),
+      count: _readPositiveInt(json['count'], fallback: 0),
+    );
+  }
+}
+
+class SuggestedWarehouseOrderAnalysis {
+  const SuggestedWarehouseOrderAnalysis({
+    required this.candidateCount,
+    required this.suggestedCount,
+    required this.items,
+    required this.exclusions,
+  });
+
+  final int candidateCount;
+  final int suggestedCount;
+  final List<SuggestedWarehouseOrderListItem> items;
+  final List<SuggestedWarehouseOrderExclusionSummary> exclusions;
+
+  factory SuggestedWarehouseOrderAnalysis.fromJson(JsonMap json) {
+    final rawItems = json['items'];
+    final rawExclusions = json['exclusions'];
+    return SuggestedWarehouseOrderAnalysis(
+      candidateCount: _readPositiveInt(json['candidateCount'], fallback: 0),
+      suggestedCount: _readPositiveInt(json['suggestedCount'], fallback: 0),
+      items: rawItems is List
+          ? rawItems
+                .map(
+                  (item) => SuggestedWarehouseOrderListItem.fromJson(
+                    item as JsonMap? ?? <String, dynamic>{},
+                  ),
+                )
+                .toList(growable: false)
+          : const <SuggestedWarehouseOrderListItem>[],
+      exclusions: rawExclusions is List
+          ? rawExclusions
+                .map(
+                  (item) => SuggestedWarehouseOrderExclusionSummary.fromJson(
+                    item as JsonMap? ?? <String, dynamic>{},
+                  ),
+                )
+                .toList(growable: false)
+          : const <SuggestedWarehouseOrderExclusionSummary>[],
+    );
+  }
+}
+
 class SuggestedWarehouseOrderConvertRequest {
   const SuggestedWarehouseOrderConvertRequest({
     required this.sourceWarehouseNo,

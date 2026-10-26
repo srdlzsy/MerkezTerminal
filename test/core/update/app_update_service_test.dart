@@ -33,7 +33,11 @@ void main() {
 
       final service = AppUpdateService(
         httpClient: MockClient((request) async {
-          expect(request.url.toString(), 'http://updates.test/version.json');
+          expect(
+            request.url.origin + request.url.path,
+            'http://updates.test/version.json',
+          );
+          expect(request.url.queryParameters['_ts'], isNotEmpty);
           return http.Response(
             '{"version":"1.1.21","apk":"http://updates.test/app-release.apk"}',
             200,
@@ -70,7 +74,11 @@ void main() {
 
       final service = AppUpdateService(
         httpClient: MockClient((request) async {
-          expect(request.url.toString(), 'http://updates.test/version.json');
+          expect(
+            request.url.origin + request.url.path,
+            'http://updates.test/version.json',
+          );
+          expect(request.url.queryParameters['_ts'], isNotEmpty);
           return http.Response('''
             {
               "version": "1.1.21",

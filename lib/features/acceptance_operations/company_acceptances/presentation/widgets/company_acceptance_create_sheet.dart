@@ -2035,7 +2035,7 @@ class _CompanyAcceptanceCreateSheetState
     final submitButton = FilledButton.icon(
       onPressed: _isSubmitting || _submissionLocked ? null : _submit,
       icon: const Icon(Icons.save_alt_rounded),
-      label: const Text('Mal Kabul Et'),
+      label: const Text('Kaydet'),
     );
 
     return TerminalFormActionRow(cancel: documentButton, submit: submitButton);

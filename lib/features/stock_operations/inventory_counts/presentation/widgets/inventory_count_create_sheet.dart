@@ -850,7 +850,7 @@ class _InventoryCountCreateSheetState extends State<InventoryCountCreateSheet>
                                   submit: FilledButton.icon(
                                     onPressed: _submit,
                                     icon: const Icon(Icons.save_rounded),
-                                    label: const Text('Sayimi Kaydet'),
+                                    label: const Text('Kaydet'),
                                     style: FilledButton.styleFrom(
                                       padding: const EdgeInsets.symmetric(
                                         vertical: 14,

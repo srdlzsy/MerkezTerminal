@@ -24,6 +24,60 @@ import '../../support/memory_local_database.dart';
 import '../../support/pda_create_screen_contract.dart';
 
 void main() {
+  testWidgets('removes persisted document identity conflicts on load', (
+    tester,
+  ) async {
+    final offlineRepository = _FakeOfflineCompanyAcceptancesRepository();
+    offlineRepository.drafts.add(
+      OfflineCompanyAcceptanceDraft.fromCreateRequest(
+        _buildCompanyAcceptanceRequest(),
+        userId: 'u1',
+        warehouseNo: '110',
+        customerDisplayName: 'Test Cari',
+        createdAt: DateTime(2026, 10, 19, 15, 28),
+        status: OfflineRecordStatus.failed,
+        lastSyncAttemptAt: DateTime(2026, 10, 23, 14, 43),
+        lastError: 'Bu belge seri ve sira numarasi Mikroda zaten kullaniliyor.',
+        hasBeenSubmitted: true,
+        operationCode: 'company-acceptance-create',
+        errorCode: 'MIKRO_DOCUMENT_IDENTITY_CONFLICT',
+        retryable: false,
+        correlationId: 'identity-conflict-support-code',
+      ),
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: OfflineCompanyAcceptancesPage(
+          offlineRepository: offlineRepository,
+          onlineRepository: _FakeCompanyAcceptancesRepository(),
+          ordersRepository: _FakeGivenCompanyOrdersRepository(),
+          accessToken: 'token',
+          offlineSyncService: OfflineSyncService(
+            inventoryRepository: _FakeInventoryCountsRepository(),
+            companyAcceptanceRepository: _FakeCompanyAcceptancesRepository(),
+            offlineInventoryRepository: _FakeOfflineInventoryCountsRepository(),
+            offlineCompanyAcceptanceRepository: offlineRepository,
+          ),
+          mobileCustomerCatalogRepository: MobileCustomerCatalogLocalRepository(
+            database: MemoryLocalDatabase(),
+          ),
+          mobileProductCatalogRepository: MobileProductCatalogLocalRepository(
+            database: MemoryLocalDatabase(),
+          ),
+          currentUserId: 'u1',
+          defaultWarehouseNo: '110',
+          userWarehouseName: 'TEST DEPO',
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(offlineRepository.drafts, isEmpty);
+    expect(find.text('Destek gerekli'), findsNothing);
+    expect(find.text('Yerel Taslagi Sil'), findsNothing);
+  });
+
   testWidgets('does not expose a recheck loop for definitive failure', (
     tester,
   ) async {
@@ -204,7 +258,7 @@ void main() {
       },
       prepare: _openOfflineCompanyAcceptanceLines,
       entryRowFinder: find.text('Giris satiri'),
-      saveButtonFinder: find.widgetWithText(FilledButton, 'Taslagi Kaydet'),
+      saveButtonFinder: find.widgetWithText(FilledButton, 'Kaydet'),
     );
   });
 
@@ -273,10 +327,7 @@ void main() {
 
       expect(find.text('Giris satiri'), findsOneWidget);
       expect(find.text('CR-001'), findsOneWidget);
-      expect(
-        find.widgetWithText(FilledButton, 'Taslagi Kaydet'),
-        findsOneWidget,
-      );
+      expect(find.widgetWithText(FilledButton, 'Kaydet'), findsOneWidget);
       expect(find.widgetWithText(OutlinedButton, 'Belge'), findsOneWidget);
       expect(tester.takeException(), isNull);
     },

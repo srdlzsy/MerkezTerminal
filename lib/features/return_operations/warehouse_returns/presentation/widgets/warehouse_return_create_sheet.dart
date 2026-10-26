@@ -932,7 +932,7 @@ class _WarehouseReturnCreateSheetState extends State<WarehouseReturnCreateSheet>
                                   submit: FilledButton.icon(
                                     onPressed: _submit,
                                     icon: const Icon(Icons.save_rounded),
-                                    label: const Text('Iadeyi Kaydet'),
+                                    label: const Text('Kaydet'),
                                   ),
                                 ),
                               ],

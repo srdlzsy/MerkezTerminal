@@ -128,6 +128,8 @@ void main() {
     expect(tester.takeException(), isNull);
     expect(find.text('Cari'), findsOneWidget);
     expect(find.text('Satirlar'), findsOneWidget);
+    expect(find.widgetWithText(FilledButton, 'Kaydet'), findsOneWidget);
+    expect(find.widgetWithText(FilledButton, 'Yeni  Iade'), findsNothing);
   });
 
   testWidgets('restores a persisted uncertain create with the same request', (
