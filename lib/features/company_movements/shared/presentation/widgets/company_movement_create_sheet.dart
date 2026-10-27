@@ -74,6 +74,8 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
   bool _submitted = false;
   String? _lastAddedProductKey;
 
+  bool get _isCompanyReturn => widget.barcodeOperationType == 'return';
+
   @override
   void initState() {
     super.initState();
@@ -146,6 +148,12 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
         if (lineJson != null) {
           _lines.add(_createLine(lineJson));
         }
+      }
+    }
+
+    if (_isCompanyReturn) {
+      for (final line in _lines) {
+        line.unitPriceController.text = '0';
       }
     }
 
@@ -419,26 +427,30 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
         );
       });
 
-      selected = await showTerminalProductSelectionSheet<SearchProductLookupItem>(
-        context: context,
-        items: products,
-        reloadItems: ({required bool includeDelisted}) =>
-            widget.repository.searchProducts(
-              accessToken: widget.accessToken,
-              warehouseNo: widget.defaultWarehouseNo,
-              query: query,
-              customerCode: _selectedCustomer?.customerCode,
-              includeDelisted: includeDelisted,
+      selected =
+          await showTerminalProductSelectionSheet<SearchProductLookupItem>(
+            context: context,
+            items: products,
+            reloadItems: ({required bool includeDelisted}) =>
+                widget.repository.searchProducts(
+                  accessToken: widget.accessToken,
+                  warehouseNo: widget.defaultWarehouseNo,
+                  query: query,
+                  customerCode: _selectedCustomer?.customerCode,
+                  includeDelisted: includeDelisted,
+                ),
+            itemBuilder: (context, item, onSelect) => TerminalProductLookupTile(
+              title: item.displayLabel,
+              subtitle: [
+                item.unitName,
+                if (!_isCompanyReturn) AppFormatters.currency(item.price),
+                if (item.barcode.isNotEmpty) item.barcode,
+              ].join(' | '),
+              informationLabels: item.sourceInformationLabels,
+              showWarning: item.needsStatusAttention,
+              onTap: onSelect,
             ),
-        itemBuilder: (context, item, onSelect) => TerminalProductLookupTile(
-          title: item.displayLabel,
-          subtitle:
-              '${item.unitName} | ${AppFormatters.currency(item.price)}${item.barcode.isNotEmpty ? ' | ${item.barcode}' : ''}',
-          informationLabels: item.sourceInformationLabels,
-          showWarning: item.needsStatusAttention,
-          onTap: onSelect,
-        ),
-      );
+          );
     }
 
     if (selected == null) {
@@ -464,7 +476,11 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
     }
 
     setState(() {
-      entryLine.applyProduct(pickedProduct, initialQuantity: 1);
+      entryLine.applyProduct(
+        pickedProduct,
+        initialQuantity: 1,
+        useProductPrice: !_isCompanyReturn,
+      );
       entryLine.lookupController.clear();
       entryLine.setLookupStatus(
         'Secildi: ${pickedProduct.stockCode} | ${pickedProduct.stockName}',
@@ -550,6 +566,7 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
         product,
         initialQuantity: addedQuantity,
         quantityStep: addedQuantity,
+        useProductPrice: !_isCompanyReturn,
       );
       entryLine.lookupController.clear();
       entryLine.setLookupStatus(_resolvedBarcodeMessage(resolution));
@@ -616,7 +633,7 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
     final existingLine = _findMergeTarget(line, product);
 
     if (existingLine == null) {
-      line.applyProduct(product);
+      line.applyProduct(product, useProductPrice: !_isCompanyReturn);
       return false;
     }
 
@@ -632,7 +649,7 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
           fallback: 0,
         ) <=
         0) {
-      line.applyProduct(product);
+      line.applyProduct(product, useProductPrice: !_isCompanyReturn);
       existingLine.unitPriceController.text = line.unitPriceController.text;
     }
 
@@ -918,7 +935,7 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
             (line) => CompanyMovementCreateLine(
               stockCode: line.selectedProduct!.stockCode,
               quantity: line.quantity,
-              unitPrice: line.unitPrice,
+              unitPrice: _isCompanyReturn ? 0 : line.unitPrice,
               unitPointer: 1,
               description: line.descriptionController.text.trim(),
               partyCode: line.partyCodeController.text.trim(),
@@ -1143,7 +1160,9 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
         packageLabel: product.unitMultiplier > 1
             ? AppFormatters.quantity(product.unitMultiplier)
             : null,
-        priceLabel: AppFormatters.currency(product.price),
+        priceLabel: _isCompanyReturn
+            ? null
+            : AppFormatters.currency(product.price),
         warningLabel: product.needsStatusAttention
             ? product.statusWarningLabel
             : null,
@@ -1195,7 +1214,9 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
         packageLabel: product.unitMultiplier > 1
             ? AppFormatters.quantity(product.unitMultiplier)
             : null,
-        priceLabel: AppFormatters.currency(product.price),
+        priceLabel: _isCompanyReturn
+            ? null
+            : AppFormatters.currency(product.price),
         barcode: product.barcode,
         highlightOnMount: displayLineNo == 1,
         canDelete: _lines.length > 1,
@@ -1263,10 +1284,11 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
                   label: 'Birim',
                   value: line.selectedProduct!.unitName,
                 ),
-                TerminalPdaInfo(
-                  label: 'Fiyat',
-                  value: AppFormatters.currency(line.selectedProduct!.price),
-                ),
+                if (!_isCompanyReturn)
+                  TerminalPdaInfo(
+                    label: 'Fiyat',
+                    value: AppFormatters.currency(line.selectedProduct!.price),
+                  ),
                 if (line.selectedProduct!.barcode.isNotEmpty)
                   TerminalPdaInfo(
                     label: 'Barkod',
@@ -1420,6 +1442,7 @@ class _MovementLineDraft {
     SearchProductLookupItem product, {
     double initialQuantity = 1,
     double quantityStep = 1,
+    bool useProductPrice = true,
   }) {
     selectedProduct = product;
     lookupController.clear();
@@ -1429,7 +1452,7 @@ class _MovementLineDraft {
         initialQuantity > 0 ? initialQuantity : 1,
       );
     }
-    unitPriceController.text = product.price.toString();
+    unitPriceController.text = useProductPrice ? product.price.toString() : '0';
   }
 
   void clear() {

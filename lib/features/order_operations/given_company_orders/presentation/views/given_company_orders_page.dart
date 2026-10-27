@@ -291,10 +291,7 @@ class _GivenCompanyOrdersPageState extends State<GivenCompanyOrdersPage> {
       onSubmit: (request) async {
         submittedInline = true;
         final safeRequest = withStableIdentity(request);
-        await _submitCreateRequest(safeRequest, draft);
-        return mounted &&
-            _pendingCreateRequest == null &&
-            _controller.createError == null;
+        return _submitCreateRequest(safeRequest, draft);
       },
     );
 
@@ -306,12 +303,12 @@ class _GivenCompanyOrdersPageState extends State<GivenCompanyOrdersPage> {
     await _submitCreateRequest(safeRequest, draft);
   }
 
-  Future<void> _submitCreateRequest(
+  Future<bool> _submitCreateRequest(
     CompanyOrderCreateRequest request,
     CreateDraft? draft, {
     bool statusCheckOnly = false,
   }) async {
-    if (_controller.isCreating) return;
+    if (_controller.isCreating) return false;
 
     if (_usesSafeCreate) {
       try {
@@ -326,9 +323,9 @@ class _GivenCompanyOrdersPageState extends State<GivenCompanyOrdersPage> {
             ),
           );
         }
-        return;
+        return false;
       }
-      if (!mounted) return;
+      if (!mounted) return false;
       setState(() {
         _pendingCreateRequest = request;
         _pendingCreateDraft = draft;
@@ -355,7 +352,7 @@ class _GivenCompanyOrdersPageState extends State<GivenCompanyOrdersPage> {
           draftId: draft?.id,
         );
       }
-      return;
+      return false;
     }
 
     final messenger = ScaffoldMessenger.of(context);
@@ -423,13 +420,13 @@ class _GivenCompanyOrdersPageState extends State<GivenCompanyOrdersPage> {
             failureKind: failureKind,
             retryNotBefore: retryNotBefore,
           );
-          if (!mounted) return;
+          if (!mounted) return false;
           setState(() {
             _pendingCreateFailureKind = failureKind;
           });
         } else {
           await _clearPersistedPendingCreate(request.clientRequestId);
-          if (!mounted) return;
+          if (!mounted) return false;
           setState(() {
             _pendingCreateRequest = null;
             _pendingCreateDraft = null;
@@ -437,7 +434,7 @@ class _GivenCompanyOrdersPageState extends State<GivenCompanyOrdersPage> {
           });
         }
         messenger.showSnackBar(SnackBar(content: Text(failureMessage)));
-        return;
+        return false;
       }
     }
 
@@ -447,11 +444,11 @@ class _GivenCompanyOrdersPageState extends State<GivenCompanyOrdersPage> {
           content: Text(_controller.createError ?? 'Siparis olusturulamadi.'),
         ),
       );
-      return;
+      return false;
     }
 
     if (_usesSafeCreate) {
-      if (!mounted) return;
+      if (!mounted) return false;
       setState(() {
         _pendingCreateRequest = null;
         _pendingCreateDraft = null;
@@ -478,7 +475,7 @@ class _GivenCompanyOrdersPageState extends State<GivenCompanyOrdersPage> {
         preferredDocumentSerie: result.documentSerie,
         preferredDocumentOrderNo: result.documentOrderNo,
       );
-      if (!mounted) return;
+      if (!mounted) return false;
     }
 
     unawaited(
@@ -499,6 +496,7 @@ class _GivenCompanyOrdersPageState extends State<GivenCompanyOrdersPage> {
         ),
       ),
     );
+    return true;
   }
 
   Future<void> _toggleOrderSelection(CompanyOrderListItem item) async {

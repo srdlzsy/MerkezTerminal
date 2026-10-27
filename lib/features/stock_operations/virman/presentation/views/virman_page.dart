@@ -302,10 +302,7 @@ class _VirmanPageState extends State<VirmanPage> {
       },
       onSubmit: (request) async {
         submittedInline = true;
-        await _submitCreateRequest(request, draft);
-        return mounted &&
-            _pendingCreateRequest == null &&
-            _controller.createError == null;
+        return _submitCreateRequest(request, draft);
       },
     );
 
@@ -316,13 +313,13 @@ class _VirmanPageState extends State<VirmanPage> {
     await _submitCreateRequest(request, draft);
   }
 
-  Future<void> _submitCreateRequest(
+  Future<bool> _submitCreateRequest(
     VirmanCreateRequest request,
     CreateDraft? draft, {
     bool statusCheckOnly = false,
   }) async {
     if (_controller.isCreating) {
-      return;
+      return false;
     }
 
     try {
@@ -337,7 +334,7 @@ class _VirmanPageState extends State<VirmanPage> {
           ),
         );
       }
-      return;
+      return false;
     }
 
     setState(() {
@@ -364,7 +361,7 @@ class _VirmanPageState extends State<VirmanPage> {
           draftId: draft?.id,
         );
       }
-      return;
+      return false;
     }
 
     final messenger = ScaffoldMessenger.of(context);
@@ -430,7 +427,7 @@ class _VirmanPageState extends State<VirmanPage> {
             retryNotBefore: retryNotBefore,
           );
           if (!mounted) {
-            return;
+            return false;
           }
           setState(() {
             _pendingCreateFailureKind = failureKind;
@@ -438,7 +435,7 @@ class _VirmanPageState extends State<VirmanPage> {
         } else {
           await _clearPersistedPendingCreate(request.clientRequestId);
           if (!mounted) {
-            return;
+            return false;
           }
           setState(() {
             _pendingCreateRequest = null;
@@ -447,12 +444,12 @@ class _VirmanPageState extends State<VirmanPage> {
           });
         }
         messenger.showSnackBar(SnackBar(content: Text(failureMessage)));
-        return;
+        return false;
       }
     }
 
     if (!mounted) {
-      return;
+      return false;
     }
     setState(() {
       _pendingCreateRequest = null;
@@ -469,7 +466,7 @@ class _VirmanPageState extends State<VirmanPage> {
       draftId: draft?.id,
     );
     if (!mounted) {
-      return;
+      return false;
     }
 
     if (statusCheckOnly) {
@@ -478,7 +475,7 @@ class _VirmanPageState extends State<VirmanPage> {
         preferredDocumentOrderNo: result.documentOrderNo,
       );
       if (!mounted) {
-        return;
+        return false;
       }
     }
 
@@ -489,6 +486,7 @@ class _VirmanPageState extends State<VirmanPage> {
         ),
       ),
     );
+    return true;
   }
 
   @override

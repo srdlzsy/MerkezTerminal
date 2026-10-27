@@ -420,10 +420,7 @@ class _WarehouseReturnsPageState extends State<WarehouseReturnsPage> {
       },
       onSubmit: (request) async {
         submittedInline = true;
-        await _submitCreateRequest(request, draft);
-        return mounted &&
-            _pendingCreateRequest == null &&
-            _controller.createError == null;
+        return _submitCreateRequest(request, draft);
       },
     );
 
@@ -434,13 +431,13 @@ class _WarehouseReturnsPageState extends State<WarehouseReturnsPage> {
     await _submitCreateRequest(request, draft);
   }
 
-  Future<void> _submitCreateRequest(
+  Future<bool> _submitCreateRequest(
     WarehouseReturnCreateRequest request,
     CreateDraft? draft, {
     bool statusCheckOnly = false,
   }) async {
     if (_controller.isCreating) {
-      return;
+      return false;
     }
 
     try {
@@ -455,7 +452,7 @@ class _WarehouseReturnsPageState extends State<WarehouseReturnsPage> {
           ),
         );
       }
-      return;
+      return false;
     }
 
     setState(() {
@@ -482,7 +479,7 @@ class _WarehouseReturnsPageState extends State<WarehouseReturnsPage> {
           draftId: draft?.id,
         );
       }
-      return;
+      return false;
     }
 
     final messenger = ScaffoldMessenger.of(context);
@@ -551,7 +548,7 @@ class _WarehouseReturnsPageState extends State<WarehouseReturnsPage> {
             retryNotBefore: retryNotBefore,
           );
           if (!mounted) {
-            return;
+            return false;
           }
           setState(() {
             _pendingCreateFailureKind = failureKind;
@@ -559,7 +556,7 @@ class _WarehouseReturnsPageState extends State<WarehouseReturnsPage> {
         } else {
           await _clearPersistedPendingCreate(request.clientRequestId);
           if (!mounted) {
-            return;
+            return false;
           }
           setState(() {
             _pendingCreateRequest = null;
@@ -568,12 +565,12 @@ class _WarehouseReturnsPageState extends State<WarehouseReturnsPage> {
           });
         }
         messenger.showSnackBar(SnackBar(content: Text(failureMessage)));
-        return;
+        return false;
       }
     }
 
     if (!mounted) {
-      return;
+      return false;
     }
     setState(() {
       _pendingCreateRequest = null;
@@ -590,7 +587,7 @@ class _WarehouseReturnsPageState extends State<WarehouseReturnsPage> {
       draftId: draft?.id,
     );
     if (!mounted) {
-      return;
+      return false;
     }
 
     if (statusCheckOnly) {
@@ -599,7 +596,7 @@ class _WarehouseReturnsPageState extends State<WarehouseReturnsPage> {
         preferredDocumentOrderNo: result.documentOrderNo,
       );
       if (!mounted) {
-        return;
+        return false;
       }
     }
 
@@ -610,6 +607,7 @@ class _WarehouseReturnsPageState extends State<WarehouseReturnsPage> {
         ),
       ),
     );
+    return true;
   }
 
   @override

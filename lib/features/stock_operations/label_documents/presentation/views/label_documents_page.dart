@@ -196,6 +196,7 @@ class _LabelDocumentsPageState extends State<LabelDocumentsPage> {
           );
     }
 
+    var submittedInline = false;
     final request = await openTerminalCreatePage<CreateLabelDocumentRequest>(
       context: context,
       title: 'Yeni Etiket Belgesi',
@@ -208,11 +209,24 @@ class _LabelDocumentsPageState extends State<LabelDocumentsPage> {
           draftRepository: widget.draftRepository,
         );
       },
+      onSubmit: (request) async {
+        submittedInline = true;
+        return _submitCreateRequest(request, draft);
+      },
     );
 
-    if (request == null || !mounted) {
+    if (request == null || !mounted || submittedInline) {
       return;
     }
+
+    await _submitCreateRequest(request, draft);
+  }
+
+  Future<bool> _submitCreateRequest(
+    CreateLabelDocumentRequest request,
+    CreateDraft? draft,
+  ) async {
+    if (_isCreating) return false;
 
     setState(() {
       _isCreating = true;
@@ -226,7 +240,7 @@ class _LabelDocumentsPageState extends State<LabelDocumentsPage> {
       );
 
       if (!mounted) {
-        return;
+        return false;
       }
 
       setState(() {
@@ -236,7 +250,7 @@ class _LabelDocumentsPageState extends State<LabelDocumentsPage> {
       await _loadCurrentMode();
 
       if (!mounted) {
-        return;
+        return false;
       }
 
       ScaffoldMessenger.of(context).showSnackBar(
@@ -249,15 +263,17 @@ class _LabelDocumentsPageState extends State<LabelDocumentsPage> {
       if (draft != null) {
         await widget.draftRepository?.deleteDraft(draft.id);
       }
+      return true;
     } catch (error) {
       if (!mounted) {
-        return;
+        return false;
       }
 
       setState(() {
         _isCreating = false;
         _errorMessage = error.toString().replaceFirst('Exception: ', '');
       });
+      return false;
     }
   }
 

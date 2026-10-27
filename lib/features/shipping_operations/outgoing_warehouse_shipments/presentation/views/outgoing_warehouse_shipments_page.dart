@@ -269,10 +269,7 @@ class _OutgoingWarehouseShipmentsPageState
           },
           onSubmit: (request) async {
             submittedInline = true;
-            await _submitCreateRequest(request, draft);
-            return mounted &&
-                _pendingCreateRequest == null &&
-                _controller.createError == null;
+            return _submitCreateRequest(request, draft);
           },
         );
 
@@ -283,13 +280,13 @@ class _OutgoingWarehouseShipmentsPageState
     await _submitCreateRequest(request, draft);
   }
 
-  Future<void> _submitCreateRequest(
+  Future<bool> _submitCreateRequest(
     WarehouseShipmentCreateRequest request,
     CreateDraft? draft, {
     bool statusCheckOnly = false,
   }) async {
     if (_controller.isCreating) {
-      return;
+      return false;
     }
 
     try {
@@ -304,7 +301,7 @@ class _OutgoingWarehouseShipmentsPageState
           ),
         );
       }
-      return;
+      return false;
     }
 
     setState(() {
@@ -331,7 +328,7 @@ class _OutgoingWarehouseShipmentsPageState
           draftId: draft?.id,
         );
       }
-      return;
+      return false;
     }
 
     final messenger = ScaffoldMessenger.of(context);
@@ -401,7 +398,7 @@ class _OutgoingWarehouseShipmentsPageState
             retryNotBefore: retryNotBefore,
           );
           if (!mounted) {
-            return;
+            return false;
           }
           setState(() {
             _pendingCreateFailureKind = failureKind;
@@ -409,7 +406,7 @@ class _OutgoingWarehouseShipmentsPageState
         } else {
           await _clearPersistedPendingCreate(request.clientRequestId);
           if (!mounted) {
-            return;
+            return false;
           }
           setState(() {
             _pendingCreateRequest = null;
@@ -418,12 +415,12 @@ class _OutgoingWarehouseShipmentsPageState
           });
         }
         messenger.showSnackBar(SnackBar(content: Text(failureMessage)));
-        return;
+        return false;
       }
     }
 
     if (!mounted) {
-      return;
+      return false;
     }
     setState(() {
       _pendingCreateRequest = null;
@@ -440,7 +437,7 @@ class _OutgoingWarehouseShipmentsPageState
       draftId: draft?.id,
     );
     if (!mounted) {
-      return;
+      return false;
     }
 
     if (statusCheckOnly) {
@@ -449,7 +446,7 @@ class _OutgoingWarehouseShipmentsPageState
         preferredDocumentOrderNo: result.documentOrderNo,
       );
       if (!mounted) {
-        return;
+        return false;
       }
     }
 
@@ -464,6 +461,7 @@ class _OutgoingWarehouseShipmentsPageState
         ),
       ),
     );
+    return true;
   }
 
   Future<void> _toggleSelection(WarehouseShipmentListItem item) async {

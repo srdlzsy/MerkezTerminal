@@ -306,10 +306,7 @@ class _StockReceiptsPageState extends State<StockReceiptsPage> {
       },
       onSubmit: (request) async {
         submittedInline = true;
-        await _submitCreateRequest(request, draft);
-        return mounted &&
-            _pendingCreateRequest == null &&
-            _controller.createError == null;
+        return _submitCreateRequest(request, draft);
       },
     );
 
@@ -320,13 +317,13 @@ class _StockReceiptsPageState extends State<StockReceiptsPage> {
     await _submitCreateRequest(request, draft);
   }
 
-  Future<void> _submitCreateRequest(
+  Future<bool> _submitCreateRequest(
     StockReceiptCreateRequest request,
     CreateDraft? draft, {
     bool statusCheckOnly = false,
   }) async {
     if (_controller.isCreating) {
-      return;
+      return false;
     }
 
     try {
@@ -341,7 +338,7 @@ class _StockReceiptsPageState extends State<StockReceiptsPage> {
           ),
         );
       }
-      return;
+      return false;
     }
 
     setState(() {
@@ -368,7 +365,7 @@ class _StockReceiptsPageState extends State<StockReceiptsPage> {
           draftId: draft?.id,
         );
       }
-      return;
+      return false;
     }
 
     final messenger = ScaffoldMessenger.of(context);
@@ -441,7 +438,7 @@ class _StockReceiptsPageState extends State<StockReceiptsPage> {
             retryNotBefore: retryNotBefore,
           );
           if (!mounted) {
-            return;
+            return false;
           }
           setState(() {
             _pendingCreateFailureKind = failureKind;
@@ -449,7 +446,7 @@ class _StockReceiptsPageState extends State<StockReceiptsPage> {
         } else {
           await _clearPersistedPendingCreate(request.clientRequestId);
           if (!mounted) {
-            return;
+            return false;
           }
           setState(() {
             _pendingCreateRequest = null;
@@ -458,12 +455,12 @@ class _StockReceiptsPageState extends State<StockReceiptsPage> {
           });
         }
         messenger.showSnackBar(SnackBar(content: Text(failureMessage)));
-        return;
+        return false;
       }
     }
 
     if (!mounted) {
-      return;
+      return false;
     }
     setState(() {
       _pendingCreateRequest = null;
@@ -480,7 +477,7 @@ class _StockReceiptsPageState extends State<StockReceiptsPage> {
       draftId: draft?.id,
     );
     if (!mounted) {
-      return;
+      return false;
     }
 
     if (statusCheckOnly) {
@@ -489,7 +486,7 @@ class _StockReceiptsPageState extends State<StockReceiptsPage> {
         preferredDocumentOrderNo: result.documentOrderNo,
       );
       if (!mounted) {
-        return;
+        return false;
       }
     }
 
@@ -510,6 +507,7 @@ class _StockReceiptsPageState extends State<StockReceiptsPage> {
         ),
       ),
     );
+    return true;
   }
 
   @override

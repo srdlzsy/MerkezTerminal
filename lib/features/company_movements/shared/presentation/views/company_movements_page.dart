@@ -334,10 +334,7 @@ class _CompanyMovementsPageState extends State<CompanyMovementsPage> {
       },
       onSubmit: (request) async {
         submittedInline = true;
-        await _submitCreateRequest(request, draft);
-        return mounted &&
-            _pendingCreateRequest == null &&
-            _controller.createError == null;
+        return _submitCreateRequest(request, draft);
       },
     );
 
@@ -348,13 +345,13 @@ class _CompanyMovementsPageState extends State<CompanyMovementsPage> {
     await _submitCreateRequest(request, draft);
   }
 
-  Future<void> _submitCreateRequest(
+  Future<bool> _submitCreateRequest(
     CompanyMovementCreateRequest request,
     CreateDraft? draft, {
     bool statusCheckOnly = false,
   }) async {
     if (_controller.isCreating) {
-      return;
+      return false;
     }
 
     try {
@@ -369,7 +366,7 @@ class _CompanyMovementsPageState extends State<CompanyMovementsPage> {
           ),
         );
       }
-      return;
+      return false;
     }
 
     setState(() {
@@ -396,7 +393,7 @@ class _CompanyMovementsPageState extends State<CompanyMovementsPage> {
           draftId: draft?.id,
         );
       }
-      return;
+      return false;
     }
 
     final messenger = ScaffoldMessenger.of(context);
@@ -464,7 +461,7 @@ class _CompanyMovementsPageState extends State<CompanyMovementsPage> {
             retryNotBefore: retryNotBefore,
           );
           if (!mounted) {
-            return;
+            return false;
           }
           setState(() {
             _pendingCreateFailureKind = failureKind;
@@ -472,7 +469,7 @@ class _CompanyMovementsPageState extends State<CompanyMovementsPage> {
         } else {
           await _clearPersistedPendingCreate(request.clientRequestId);
           if (!mounted) {
-            return;
+            return false;
           }
           setState(() {
             _pendingCreateRequest = null;
@@ -481,12 +478,12 @@ class _CompanyMovementsPageState extends State<CompanyMovementsPage> {
           });
         }
         messenger.showSnackBar(SnackBar(content: Text(failureMessage)));
-        return;
+        return false;
       }
     }
 
     if (!mounted) {
-      return;
+      return false;
     }
     setState(() {
       _pendingCreateRequest = null;
@@ -503,7 +500,7 @@ class _CompanyMovementsPageState extends State<CompanyMovementsPage> {
       draftId: draft?.id,
     );
     if (!mounted) {
-      return;
+      return false;
     }
 
     if (statusCheckOnly) {
@@ -512,7 +509,7 @@ class _CompanyMovementsPageState extends State<CompanyMovementsPage> {
         preferredDocumentOrderNo: result.documentOrderNo,
       );
       if (!mounted) {
-        return;
+        return false;
       }
     }
 
@@ -533,6 +530,7 @@ class _CompanyMovementsPageState extends State<CompanyMovementsPage> {
         ),
       ),
     );
+    return true;
   }
 
   Future<void> _openEDespatchSheet() async {

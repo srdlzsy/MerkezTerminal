@@ -343,22 +343,20 @@ class _CompanyAcceptancesPageState extends State<CompanyAcceptancesPage> {
             ),
           );
         case OfflineSubmissionStatus.queued:
-          await _deleteFormDraftBestEffort(draft);
           messenger.showSnackBar(
             const SnackBar(
               content: Text(
-                'Mal kabul cihaza kaydedildi. Terminal once mevcut istegin '
-                'durumunu kontrol eder; yeni evrak otomatik gonderilmez.',
+                'Sunucuya ulasilamadi. Mal kabul taslakta korundu; baglanti '
+                'geldikten sonra ayni formdan yeniden Kaydet kullanin.',
               ),
             ),
           );
         case OfflineSubmissionStatus.processing:
-          await _deleteFormDraftBestEffort(draft);
           messenger.showSnackBar(
             const SnackBar(
               content: Text(
-                'Mal kabul sonucu halen kontrol ediliyor. Ayni evragi yeniden '
-                'gondermeyin; terminal sonucu otomatik tamamlayacak.',
+                'Mal kabul sonucu henuz kesinlesmedi. Form ve taslak '
+                'korundu; sonuc kesinlesmeden ikinci evrak gonderilmeyecek.',
               ),
             ),
           );
@@ -384,7 +382,6 @@ class _CompanyAcceptancesPageState extends State<CompanyAcceptancesPage> {
             );
           }
         case OfflineSubmissionStatus.needsReview:
-          await _deleteFormDraftBestEffort(draft);
           messenger.showSnackBar(
             SnackBar(
               duration: const Duration(seconds: 12),
@@ -549,25 +546,13 @@ class _CompanyAcceptancesPageState extends State<CompanyAcceptancesPage> {
             message: 'Evrak kaydedildi.',
           );
         case OfflineSubmissionStatus.queued:
-          await _deleteFormDraftBestEffort(draft);
-          if (mounted) {
-            scheduleMicrotask(() {
-              if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text(
-                      'Kayit cihazda korundu. Terminal mevcut istegin durumunu '
-                      'kontrol eder; yeni evrak otomatik gonderilmez.',
-                    ),
-                  ),
-                );
-              }
-            });
-          }
           return const CompanyAcceptanceSubmitDecision(
-            closeForm: true,
-            allowRetry: false,
-            message: 'Kayit cihazda korundu.',
+            closeForm: false,
+            allowRetry: true,
+            lockFieldsOnRetry: true,
+            message:
+                'Sunucuya ulasilamadi. Bilgiler taslakta korundu; baglanti '
+                'geldikten sonra ayni formdan Tekrar Dene kullanin.',
           );
         case OfflineSubmissionStatus.retryAllowed:
           return const CompanyAcceptanceSubmitDecision(
@@ -580,19 +565,19 @@ class _CompanyAcceptancesPageState extends State<CompanyAcceptancesPage> {
           );
         case OfflineSubmissionStatus.processing:
           return const CompanyAcceptanceSubmitDecision(
-            closeForm: true,
+            closeForm: false,
             allowRetry: false,
             message:
-                'Kayit sonucu terminal tarafindan kontrol ediliyor. Form '
-                'kapatildi; ikinci evrak gonderilmeyecek.',
+                'Kayit sonucu henuz kesinlesmedi. Form ve taslak korundu; '
+                'sonuc kesinlesmeden ikinci evrak gonderilmeyecek.',
           );
         case OfflineSubmissionStatus.needsReview:
           return const CompanyAcceptanceSubmitDecision(
-            closeForm: true,
+            closeForm: false,
             allowRetry: false,
             message:
                 'Kayit otomatik olarak dogrulanamadi. Bilgiler cihazda '
-                'korundu; terminal durum kontrolune devam edecek.',
+                'korundu; ayni evragi yeniden gondermeyin.',
           );
         case OfflineSubmissionStatus.cancelled:
           return const CompanyAcceptanceSubmitDecision(

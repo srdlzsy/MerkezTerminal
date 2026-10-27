@@ -230,31 +230,25 @@ class _InventoryCountsPageState extends State<InventoryCountsPage> {
           );
           return true;
         case OfflineSubmissionStatus.queued:
-          if (draft != null) {
-            await widget.draftRepository?.deleteDraft(draft.id);
-          }
           messenger.showSnackBar(
             const SnackBar(
               content: Text(
-                'Sayim cihaza taslak olarak kaydedildi. Baglanti geldikten sonra '
-                'Offline Sayim ekranindan Kaydet butonuna basin.',
+                'Sunucuya ulasilamadi. Sayim taslakta korundu; baglanti '
+                'geldikten sonra yeniden Kaydet kullanin.',
               ),
             ),
           );
-          return true;
+          return false;
         case OfflineSubmissionStatus.processing:
-          if (draft != null) {
-            await widget.draftRepository?.deleteDraft(draft.id);
-          }
           messenger.showSnackBar(
             const SnackBar(
               content: Text(
-                'Sayim sonucu kontrol ediliyor. Form kapatildi; bilgiler '
-                'cihazda korunuyor ve sonuc otomatik kontrol edilecek.',
+                'Sayim sonucu henuz kesinlesmedi. Form acik tutuluyor; '
+                'sonuc kesinlesmeden yeni kayit gonderilmeyecek.',
               ),
             ),
           );
-          return true;
+          return false;
         case OfflineSubmissionStatus.retryAllowed:
           messenger.showSnackBar(
             const SnackBar(
@@ -275,9 +269,6 @@ class _InventoryCountsPageState extends State<InventoryCountsPage> {
           );
           return false;
         case OfflineSubmissionStatus.cancelled:
-          if (draft != null) {
-            await widget.draftRepository?.deleteDraft(draft.id);
-          }
           messenger.showSnackBar(
             const SnackBar(
               content: Text(
@@ -285,7 +276,7 @@ class _InventoryCountsPageState extends State<InventoryCountsPage> {
               ),
             ),
           );
-          return true;
+          return false;
       }
     } catch (error) {
       if (!mounted) {
