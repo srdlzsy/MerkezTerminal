@@ -464,6 +464,72 @@ void main() {
     expect(find.text('Giris satiri'), findsOneWidget);
   });
 
+  testWidgets('keeps product lines visible on a 320x568 terminal', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(320, 568);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final repository = _FakeWarehouseOrdersRepository(
+      warehouses: const <WarehouseLookupItem>[
+        WarehouseLookupItem(
+          warehouseNo: 56,
+          warehouseName: 'MANAV DEPO',
+          address: '',
+          district: 'Osmangazi',
+          province: 'Bursa',
+        ),
+      ],
+      sourceProducts: List<ProductLookupItem>.generate(
+        9,
+        (index) => ProductLookupItem(
+          warehouseNo: 56,
+          barcode: '29007${index + 20}',
+          stockCode: '0161${index + 20}',
+          stockName: 'MNV TERMINAL URUN ${index + 1}',
+          price: 0,
+          unitName: 'ADET',
+          unitMultiplier: 12,
+          secondaryUnitName: 'KOLI',
+          isOrderBlocked: false,
+        ),
+      ),
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: GivenWarehouseOrderCreateSheet(
+            repository: repository,
+            accessToken: 'token',
+            defaultWarehouseNo: '110',
+            mobileWarehouseCatalogRepository:
+                MobileWarehouseCatalogLocalRepository(
+                  database: MemoryLocalDatabase(),
+                ),
+          ),
+        ),
+      ),
+    );
+
+    await _pickWarehouse(tester, label: '56 - MANAV DEPO');
+    await tester.tap(find.byTooltip('Depo urunleri'));
+    await tester.pumpAndSettle();
+    await tester.pump(const Duration(seconds: 3));
+    await tester.pumpAndSettle();
+
+    expect(find.text('9 kalem'), findsOneWidget);
+    expect(find.text('Giris satiri').hitTestable(), findsOneWidget);
+    expect(find.text('MNV TERMINAL URUN 1').hitTestable(), findsOneWidget);
+    expect(
+      find.widgetWithText(FilledButton, 'Kaydet').hitTestable(),
+      findsOneWidget,
+    );
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('shows source products action for central warehouse 50', (
     tester,
   ) async {

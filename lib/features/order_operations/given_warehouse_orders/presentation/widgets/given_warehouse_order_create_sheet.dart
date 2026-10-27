@@ -1419,17 +1419,17 @@ class _GivenWarehouseOrderCreateSheetState
     final theme = Theme.of(context);
 
     return SafeArea(
-      child: Padding(
-        padding: EdgeInsets.zero,
-        child: FractionallySizedBox(
-          heightFactor: 0.97,
-          child: Material(
-            color: theme.scaffoldBackgroundColor,
-            child: Form(
+      child: Material(
+        color: theme.scaffoldBackgroundColor,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final compactHeight = constraints.maxHeight < 650;
+
+            return Form(
               key: _formKey,
               autovalidateMode: createFormAutovalidateMode,
               child: Column(
-                children: [
+                children: <Widget>[
                   TerminalSheetHeader(
                     title: 'Yeni Verilen Depo Siparisi',
                     badges: <Widget>[
@@ -1441,50 +1441,20 @@ class _GivenWarehouseOrderCreateSheetState
                   ),
 
                   TerminalCreateInputDock(
+                    padding: EdgeInsets.fromLTRB(
+                      8,
+                      compactHeight ? 2 : 4,
+                      8,
+                      compactHeight ? 2 : 4,
+                    ),
                     children: <Widget>[
-                      _buildWarehouseSection(theme),
-                      const SizedBox(height: 5),
-                      TerminalSectionToolbar(
-                        title: 'Satirlar',
-                        breakpoint: 430,
-                        actions: <Widget>[
-                          if (_canLoadSourceWarehouseProducts)
-                            FilledButton.tonalIcon(
-                              onPressed:
-                                  _isLoadingSourceProducts ||
-                                      !_hasWarehouseSelection
-                                  ? null
-                                  : _loadSourceWarehouseProducts,
-                              icon: _isLoadingSourceProducts
-                                  ? const SizedBox(
-                                      width: 16,
-                                      height: 16,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                      ),
-                                    )
-                                  : const Icon(
-                                      Icons.playlist_add_rounded,
-                                      size: 18,
-                                    ),
-                              label: Text(
-                                _isLoadingSourceProducts
-                                    ? 'Yukleniyor'
-                                    : 'Depo urunleri',
-                              ),
-                            ),
-                          if (_emptyQuantityLineCount > 0)
-                            FilledButton.tonalIcon(
-                              onPressed: _removeEmptyQuantityLines,
-                              icon: const Icon(
-                                Icons.cleaning_services_rounded,
-                                size: 18,
-                              ),
-                              label: const Text('Boslari sil'),
-                            ),
-                        ],
+                      _buildWarehouseSection(
+                        theme,
+                        compactHeight: compactHeight,
                       ),
-                      const SizedBox(height: 4),
+                      SizedBox(height: compactHeight ? 2 : 5),
+                      _buildLinesToolbar(theme, compactHeight: compactHeight),
+                      SizedBox(height: compactHeight ? 2 : 4),
                       _buildEntryLineCard(theme),
                     ],
                   ),
@@ -1494,100 +1464,81 @@ class _GivenWarehouseOrderCreateSheetState
                       controller: _scrollController,
                       slivers: <Widget>[
                         _buildLazyLineSliver(theme),
-                        SliverPadding(
-                          padding: const EdgeInsets.fromLTRB(12, 6, 12, 12),
-                          sliver: SliverToBoxAdapter(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: <Widget>[
-                                if (_validationMessage != null) ...[
-                                  Container(
-                                    padding: const EdgeInsets.all(12),
-                                    decoration: BoxDecoration(
-                                      color: theme.colorScheme.errorContainer,
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                    child: Row(
-                                      children: [
-                                        Icon(
-                                          Icons.error_outline,
-                                          color: theme.colorScheme.error,
-                                          size: 20,
-                                        ),
-                                        const SizedBox(width: 8),
-                                        Expanded(
-                                          child: Text(
-                                            _validationMessage!,
-                                            style: theme.textTheme.bodyMedium
-                                                ?.copyWith(
-                                                  color: theme
-                                                      .colorScheme
-                                                      .onErrorContainer,
-                                                ),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  const SizedBox(height: 10),
-                                ],
-                                Row(
-                                  children: [
-                                    Expanded(
-                                      child: OutlinedButton(
-                                        onPressed: () =>
-                                            Navigator.of(context).pop(),
-                                        child: const Text('Vazgec'),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 12),
-                                    Expanded(
-                                      flex: 2,
-                                      child: FilledButton.icon(
-                                        onPressed: _isPreparingSubmit
-                                            ? null
-                                            : _submit,
-                                        icon: _isPreparingSubmit
-                                            ? const SizedBox(
-                                                width: 18,
-                                                height: 18,
-                                                child:
-                                                    CircularProgressIndicator(
-                                                      strokeWidth: 2,
-                                                    ),
-                                              )
-                                            : const Icon(Icons.save_rounded),
-                                        label: Text(
-                                          _isPreparingSubmit
-                                              ? 'Kaydediliyor...'
-                                              : 'Kaydet',
-                                        ),
-                                        style: FilledButton.styleFrom(
-                                          padding: const EdgeInsets.symmetric(
-                                            vertical: 14,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ],
+                        if (_validationMessage != null)
+                          SliverPadding(
+                            padding: const EdgeInsets.fromLTRB(12, 6, 12, 4),
+                            sliver: SliverToBoxAdapter(
+                              child: _buildValidationMessage(theme),
                             ),
                           ),
-                        ),
+                        const SliverToBoxAdapter(child: SizedBox(height: 6)),
                       ],
                     ),
                   ),
+                  _buildActionFooter(theme, compactHeight: compactHeight),
                 ],
               ),
-            ),
-          ),
+            );
+          },
         ),
       ),
     );
   }
 
-  Widget _buildWarehouseSection(ThemeData theme) {
+  Widget _buildWarehouseSection(
+    ThemeData theme, {
+    required bool compactHeight,
+  }) {
+    final selectedWarehouse = _selectedWarehouse;
+    if (selectedWarehouse != null) {
+      return Container(
+        width: double.infinity,
+        padding: EdgeInsets.fromLTRB(
+          8,
+          compactHeight ? 3 : 5,
+          4,
+          compactHeight ? 3 : 5,
+        ),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.primaryContainer.withAlpha(50),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: theme.colorScheme.primary.withAlpha(45)),
+        ),
+        child: Row(
+          children: <Widget>[
+            Icon(
+              Icons.check_circle_outline,
+              size: 18,
+              color: theme.colorScheme.primary,
+            ),
+            const SizedBox(width: 7),
+            Expanded(
+              child: Text(
+                selectedWarehouse.displayLabel,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  color: theme.colorScheme.onPrimaryContainer,
+                ),
+              ),
+            ),
+            const SizedBox(width: 4),
+            FilledButton.tonalIcon(
+              onPressed: _searchWarehouse,
+              icon: const Icon(Icons.warehouse_outlined, size: 17),
+              label: const Text('Sec'),
+              style: FilledButton.styleFrom(
+                minimumSize: const Size(64, 38),
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                visualDensity: VisualDensity.compact,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
     return Container(
       decoration: BoxDecoration(
         color: theme.colorScheme.surfaceContainerHighest.withAlpha(30),
@@ -1599,7 +1550,7 @@ class _GivenWarehouseOrderCreateSheetState
       child: Column(
         children: <Widget>[
           Padding(
-            padding: const EdgeInsets.all(8),
+            padding: EdgeInsets.all(compactHeight ? 5 : 8),
             child: LayoutBuilder(
               builder: (context, constraints) {
                 final warehouseField = TextFormField(
@@ -1651,37 +1602,153 @@ class _GivenWarehouseOrderCreateSheetState
               },
             ),
           ),
-          if (_selectedWarehouse != null)
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: theme.colorScheme.primaryContainer.withAlpha(50),
-                borderRadius: const BorderRadius.only(
-                  bottomLeft: Radius.circular(12),
-                  bottomRight: Radius.circular(12),
-                ),
-              ),
-              child: Row(
-                children: <Widget>[
-                  Icon(
-                    Icons.check_circle_outline,
-                    size: 18,
-                    color: theme.colorScheme.primary,
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      _selectedWarehouse!.displayLabel,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        fontWeight: FontWeight.w600,
-                        color: theme.colorScheme.onPrimaryContainer,
-                      ),
-                    ),
-                  ),
-                ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLinesToolbar(ThemeData theme, {required bool compactHeight}) {
+    if (!compactHeight) {
+      return TerminalSectionToolbar(
+        title: 'Satirlar',
+        breakpoint: 430,
+        actions: <Widget>[
+          if (_canLoadSourceWarehouseProducts)
+            FilledButton.tonalIcon(
+              onPressed: _isLoadingSourceProducts || !_hasWarehouseSelection
+                  ? null
+                  : _loadSourceWarehouseProducts,
+              icon: _isLoadingSourceProducts
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.playlist_add_rounded, size: 18),
+              label: Text(
+                _isLoadingSourceProducts ? 'Yukleniyor' : 'Depo urunleri',
               ),
             ),
+          if (_emptyQuantityLineCount > 0)
+            FilledButton.tonalIcon(
+              onPressed: _removeEmptyQuantityLines,
+              icon: const Icon(Icons.cleaning_services_rounded, size: 18),
+              label: const Text('Boslari sil'),
+            ),
+        ],
+      );
+    }
+
+    return SizedBox(
+      height: 40,
+      child: Row(
+        children: <Widget>[
+          Text(
+            'Satirlar',
+            style: theme.textTheme.titleSmall?.copyWith(
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const Spacer(),
+          if (_canLoadSourceWarehouseProducts)
+            Tooltip(
+              message: 'Depo urunleri',
+              child: IconButton.filledTonal(
+                onPressed: _isLoadingSourceProducts || !_hasWarehouseSelection
+                    ? null
+                    : _loadSourceWarehouseProducts,
+                icon: _isLoadingSourceProducts
+                    ? const SizedBox(
+                        width: 17,
+                        height: 17,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.playlist_add_rounded, size: 20),
+                visualDensity: VisualDensity.compact,
+              ),
+            ),
+          if (_emptyQuantityLineCount > 0) ...<Widget>[
+            const SizedBox(width: 4),
+            Tooltip(
+              message: 'Boslari sil',
+              child: IconButton.filledTonal(
+                onPressed: _removeEmptyQuantityLines,
+                icon: const Icon(Icons.cleaning_services_rounded, size: 20),
+                visualDensity: VisualDensity.compact,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildValidationMessage(ThemeData theme) {
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.errorContainer,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        children: <Widget>[
+          Icon(Icons.error_outline, color: theme.colorScheme.error, size: 20),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              _validationMessage!,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onErrorContainer,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildActionFooter(ThemeData theme, {required bool compactHeight}) {
+    return Container(
+      padding: EdgeInsets.fromLTRB(10, compactHeight ? 5 : 7, 10, 8),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        border: Border(
+          top: BorderSide(color: theme.colorScheme.outlineVariant),
+        ),
+      ),
+      child: Row(
+        children: <Widget>[
+          Expanded(
+            child: OutlinedButton(
+              onPressed: () => Navigator.of(context).pop(),
+              style: OutlinedButton.styleFrom(
+                minimumSize: const Size.fromHeight(46),
+              ),
+              child: const Text('Vazgec'),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            flex: 2,
+            child: FilledButton.icon(
+              onPressed: _isPreparingSubmit ? null : _submit,
+              icon: _isPreparingSubmit
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.save_rounded),
+              label: Text(_isPreparingSubmit ? 'Kaydediliyor...' : 'Kaydet'),
+              style: FilledButton.styleFrom(
+                minimumSize: const Size.fromHeight(46),
+                padding: EdgeInsets.symmetric(
+                  horizontal: 8,
+                  vertical: compactHeight ? 10 : 12,
+                ),
+              ),
+            ),
+          ),
         ],
       ),
     );

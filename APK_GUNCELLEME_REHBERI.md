@@ -6,14 +6,15 @@ Bu rehber Android terminal guncellemesini daha kucuk APK dosyalariyla dagitmak i
 
 `pubspec.yaml` icindeki `version` alanini artir.
 
-`buildNumber`, sahada daha once yayinlanmis en buyuk Android `versionCode`
-degerinden mutlaka buyuk olmalidir. Eski terminallerde `2100` yapi numarali
-surum bulundugu icin yeni yayinlarda `2101` altina inilmemelidir.
+`+` isaretinden sonraki temel build numarasi her yayinda artirilmalidir.
+`--split-per-abi` kullanildiginda Flutter bu temel degere ABI farki ekler.
+Bu nedenle terminalde gorunen gercek Android `versionCode`, `pubspec.yaml`
+icindeki temel build numarasindan farkli olabilir.
 
 Ornek:
 
 ```yaml
-version: 1.1.103+2103
+version: 1.1.104+2104
 ```
 
 Kontrol:
@@ -66,8 +67,8 @@ adi kullanmalidir. Sunucu klasorunu kendi ortamina gore degistir.
 
 ```powershell
 $ServerPath = "\\10.0.0.100\Terminal"
-$VersionName = "1.1.42"
-$BuildNumber = "43"
+$VersionName = "1.1.104"
+$BuildNumber = "2104"
 $ReleaseId = "$VersionName-$BuildNumber"
 
 Copy-Item "build/app/outputs/flutter-apk/app-arm64-v8a-release.apk" "$ServerPath\furpa-terminal-$ReleaseId-arm64-v8a.apk" -Force
@@ -79,39 +80,53 @@ Copy-Item "build/app/outputs/flutter-apk/app-release.apk" "$ServerPath\furpa-ter
 ## 6. version.json Guncelle
 
 APK dosyalarini sunucuya kopyalayip URL'lerini kontrol ettikten sonra
-`version.json` dosyasini en son yayinla. `buildNumber`, `pubspec.yaml` icindeki
-`+` isaretinden sonraki Android `versionCode` degeriyle ayni olmalidir.
+`version.json` dosyasini en son yayinla. Coklu ABI dagitiminda APK'lar farkli
+gercek `versionCode` degerleri tasidigi icin manifestte tek bir global
+`buildNumber` yayinlama. Guncelleme karari `version` uzerinden verilir; indirilen
+APK'nin gercek yapi numarasi kurulumdan once cihazdaki APK ile karsilastirilir.
 
-Ornek yeni manifest (`version: 1.1.103+2103` icin):
+Ornek yeni manifest (`version: 1.1.104+2104` icin):
 
 ```json
 {
-  "version": "1.1.103",
-  "buildNumber": 2103,
-  "apk": "http://10.0.0.100:802/Terminal/furpa-terminal-1.1.103-2103-universal.apk",
+  "version": "1.1.104",
+  "apk": "http://10.0.0.100:802/Terminal/furpa-terminal-1.1.104-2104-universal.apk",
   "android": {
-    "universalUrl": "http://10.0.0.100:802/Terminal/furpa-terminal-1.1.103-2103-universal.apk",
+    "universalUrl": "http://10.0.0.100:802/Terminal/furpa-terminal-1.1.104-2104-universal.apk",
     "apks": {
-      "arm64-v8a": "http://10.0.0.100:802/Terminal/furpa-terminal-1.1.103-2103-arm64-v8a.apk",
-      "armeabi-v7a": "http://10.0.0.100:802/Terminal/furpa-terminal-1.1.103-2103-armeabi-v7a.apk",
-      "x86_64": "http://10.0.0.100:802/Terminal/furpa-terminal-1.1.103-2103-x86_64.apk"
+      "arm64-v8a": "http://10.0.0.100:802/Terminal/furpa-terminal-1.1.104-2104-arm64-v8a.apk",
+      "armeabi-v7a": "http://10.0.0.100:802/Terminal/furpa-terminal-1.1.104-2104-armeabi-v7a.apk",
+      "x86_64": "http://10.0.0.100:802/Terminal/furpa-terminal-1.1.104-2104-x86_64.apk"
     }
   }
 }
 ```
 
+`version: 1.1.104+2104` ile uretilen APK'larda beklenen gercek kodlar:
+
+```text
+universal:   2104
+armeabi-v7a: 3104
+arm64-v8a:   4104
+x86_64:      6104
+```
+
+Bu nedenle arm64 terminalde `4104` gorulmesi normaldir. Manifestte global
+`buildNumber: 2104` verilirse arm64 cihazdaki kurulu `4103` ile yanlis
+karsilastirma yapilip guncelleme bulunamayabilir.
+
 Eski uygulamalar sadece `apk` alanini okur. Yeni uygulamalar cihaz ABI'sine uygun APK'yi `android.apks` icinden secer.
 
-Yeni uygulama indirdigi APK'nin paket adini, imzasini, `version` ve
-`buildNumber` degerlerini kurulumdan once dogrular. Yanlis/eski APK sunulursa
-kurulum ekrani acilmaz ve kullaniciya Turkce hata gosterilir.
+Yeni uygulama indirdigi APK'nin paket adini, imzasini, `version` ve gercek
+Android `versionCode` degerini kurulumdan once dogrular. Yanlis/eski APK
+sunulursa kurulum ekrani acilmaz ve kullaniciya Turkce hata gosterilir.
 
 ## 7. Sunucudan Kontrol Et
 
 ```powershell
 Invoke-WebRequest "http://10.0.0.100:802/Terminal/version.json" | Select-Object -ExpandProperty Content
-Invoke-WebRequest "http://10.0.0.100:802/Terminal/furpa-terminal-1.1.42-43-arm64-v8a.apk" -Method Head
-Invoke-WebRequest "http://10.0.0.100:802/Terminal/furpa-terminal-1.1.42-43-armeabi-v7a.apk" -Method Head
+Invoke-WebRequest "http://10.0.0.100:802/Terminal/furpa-terminal-1.1.104-2104-arm64-v8a.apk" -Method Head
+Invoke-WebRequest "http://10.0.0.100:802/Terminal/furpa-terminal-1.1.104-2104-armeabi-v7a.apk" -Method Head
 ```
 
 Kontrol listesi:
@@ -119,7 +134,8 @@ Kontrol listesi:
 - APK URL'leri `200` donuyor mu?
 - `Content-Length` sifirdan buyuk mu?
 - APK release anahtariyla imzalandi mi?
-- `version.json` icindeki `version/buildNumber`, APK ile ayni mi?
+- `version.json` icindeki `version`, APK ile ayni mi?
+- Secilen ABI APK'sinin gercek `versionCode` degeri kurulu APK'dan buyuk mu?
 - `version.json`, tum APK dosyalari kopyalandiktan sonra mi yayinlandi?
 
 ## 8. Hizli Tek Komut Akisi
@@ -132,7 +148,7 @@ flutter build apk --release
 ```
 
 Sonra APK dosyalarini surumlu adlarla sunucuya kopyala. URL'leri kontrol et ve
-`version.json` dosyasini en son yeni `version/buildNumber` ile yayinla.
+`version.json` dosyasini en son yeni `version` ile yayinla.
 
 ## 9. Guncelleme Tekrar Gorunuyorsa
 
