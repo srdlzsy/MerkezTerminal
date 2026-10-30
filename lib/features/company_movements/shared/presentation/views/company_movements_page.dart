@@ -49,6 +49,7 @@ class CompanyMovementsPage extends StatefulWidget {
     this.despatchDriversRepository,
     this.initialCustomer,
     this.openCreateOnStart = false,
+    this.returnToPreviousAfterInitialCreate = false,
   });
 
   final CompanyMovementsRepository repository;
@@ -71,6 +72,7 @@ class CompanyMovementsPage extends StatefulWidget {
   final DespatchDriversRepository? despatchDriversRepository;
   final CustomerLookupItem? initialCustomer;
   final bool openCreateOnStart;
+  final bool returnToPreviousAfterInitialCreate;
 
   @override
   State<CompanyMovementsPage> createState() => _CompanyMovementsPageState();
@@ -100,12 +102,7 @@ class _CompanyMovementsPageState extends State<CompanyMovementsPage> {
     if (widget.openCreateOnStart && widget.initialCustomer != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {
-          unawaited(
-            _openCreateSheet(
-              initialCustomer: widget.initialCustomer,
-              skipDraftPicker: true,
-            ),
-          );
+          unawaited(_openInitialCreateSheet());
         }
       });
     }
@@ -114,6 +111,18 @@ class _CompanyMovementsPageState extends State<CompanyMovementsPage> {
       unawaited(_restorePendingCreate());
     }
     unawaited(_controller.loadMovements());
+  }
+
+  Future<void> _openInitialCreateSheet() async {
+    await _openCreateSheet(
+      initialCustomer: widget.initialCustomer,
+      skipDraftPicker: true,
+    );
+    if (!mounted || !widget.returnToPreviousAfterInitialCreate) {
+      return;
+    }
+
+    await Navigator.of(context).maybePop();
   }
 
   Future<void> _restorePendingCreate() async {

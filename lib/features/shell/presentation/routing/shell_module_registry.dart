@@ -731,21 +731,25 @@ class ShellModuleRegistry {
   }) async {
     await Navigator.of(navigationContext).push<void>(
       MaterialPageRoute<void>(
-        builder: (_) => CompanyAcceptancesPage(
-          repository: companyAcceptancesRepository,
-          offlineRepository: offlineCompanyAcceptancesRepository,
-          ordersRepository: givenCompanyOrdersRepository,
-          accessToken: routeContext.accessToken,
-          canCreate: true,
-          offlineSyncService: offlineSyncService,
-          mobileCustomerCatalogRepository: mobileCustomerCatalogLocalRepository,
-          mobileProductCatalogRepository: mobileProductCatalogLocalRepository,
-          currentUserId: routeContext.user.id,
-          defaultWarehouseNo: routeContext.user.warehouseNo,
-          userWarehouseName: routeContext.user.warehouseName,
-          draftRepository: createDraftRepository,
-          initialCustomer: customer,
-          openCreateOnStart: true,
+        builder: (_) => Scaffold(
+          body: CompanyAcceptancesPage(
+            repository: companyAcceptancesRepository,
+            offlineRepository: offlineCompanyAcceptancesRepository,
+            ordersRepository: givenCompanyOrdersRepository,
+            accessToken: routeContext.accessToken,
+            canCreate: true,
+            offlineSyncService: offlineSyncService,
+            mobileCustomerCatalogRepository:
+                mobileCustomerCatalogLocalRepository,
+            mobileProductCatalogRepository: mobileProductCatalogLocalRepository,
+            currentUserId: routeContext.user.id,
+            defaultWarehouseNo: routeContext.user.warehouseNo,
+            userWarehouseName: routeContext.user.warehouseName,
+            draftRepository: createDraftRepository,
+            initialCustomer: customer,
+            openCreateOnStart: true,
+            returnToPreviousAfterInitialCreate: true,
+          ),
         ),
       ),
     );
@@ -758,30 +762,35 @@ class ShellModuleRegistry {
   }) async {
     await Navigator.of(navigationContext).push<void>(
       MaterialPageRoute<void>(
-        builder: (_) => CompanyMovementsPage(
-          repository: companyReturnsRepository,
-          accessToken: routeContext.accessToken,
-          canCreate: true,
-          currentUserId: routeContext.user.id,
-          draftModuleKey: 'iade-islemleri.firma-iadeleri',
-          draftRepository: createDraftRepository,
-          pendingCreateRepository: pendingCreateRepository,
-          defaultWarehouseNo: routeContext.user.warehouseNo,
-          mobileCustomerCatalogRepository: mobileCustomerCatalogLocalRepository,
-          userWarehouseName: routeContext.user.warehouseName,
-          title: 'Firma Iadeleri',
-          subtitle: 'Firma iadeleri.',
-          createTitle: 'Yeni Iade',
-          createHelperText: 'Cari sec, urunleri ekle.',
-          createButtonLabel: 'Yeni Iade',
-          emptyListMessage: 'Secilen tarih araliginda firma iadesi bulunamadi.',
-          showCreateDocumentNoField: false,
-          despatchDriversRepository:
-              routeContext.hasPermission(_despatchDriverListPermission)
-              ? despatchDriversRepository
-              : null,
-          initialCustomer: customer,
-          openCreateOnStart: true,
+        builder: (_) => Scaffold(
+          body: CompanyMovementsPage(
+            repository: companyReturnsRepository,
+            accessToken: routeContext.accessToken,
+            canCreate: true,
+            currentUserId: routeContext.user.id,
+            draftModuleKey: 'iade-islemleri.firma-iadeleri',
+            draftRepository: createDraftRepository,
+            pendingCreateRepository: pendingCreateRepository,
+            defaultWarehouseNo: routeContext.user.warehouseNo,
+            mobileCustomerCatalogRepository:
+                mobileCustomerCatalogLocalRepository,
+            userWarehouseName: routeContext.user.warehouseName,
+            title: 'Firma Iadeleri',
+            subtitle: 'Firma iadeleri.',
+            createTitle: 'Yeni Iade',
+            createHelperText: 'Cari sec, urunleri ekle.',
+            createButtonLabel: 'Yeni Iade',
+            emptyListMessage:
+                'Secilen tarih araliginda firma iadesi bulunamadi.',
+            showCreateDocumentNoField: false,
+            despatchDriversRepository:
+                routeContext.hasPermission(_despatchDriverListPermission)
+                ? despatchDriversRepository
+                : null,
+            initialCustomer: customer,
+            openCreateOnStart: true,
+            returnToPreviousAfterInitialCreate: true,
+          ),
         ),
       ),
     );

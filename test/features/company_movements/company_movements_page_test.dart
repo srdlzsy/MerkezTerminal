@@ -62,6 +62,82 @@ void main() {
     expect(customerField.controller?.text, contains('Tasinan Firma'));
   });
 
+  testWidgets('returns to cari lookup after cancelling carried create flow', (
+    tester,
+  ) async {
+    const customer = CustomerLookupItem(
+      customerCode: 'CR001',
+      customerName: 'Tasinan Firma',
+      customerTitle: 'Tasinan Firma A.S.',
+      customerDisplayName: 'Tasinan Firma',
+      taxNumber: '1234567890',
+      representativeCode: '',
+      representativeName: '',
+      invoiceAddressNo: 1,
+      shippingAddressNo: 1,
+      isLocked: false,
+      isClosed: false,
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) {
+            return Scaffold(
+              body: Center(
+                child: FilledButton(
+                  onPressed: () {
+                    Navigator.of(context).push<void>(
+                      MaterialPageRoute<void>(
+                        builder: (_) => Scaffold(
+                          body: CompanyMovementsPage(
+                            repository: _FakeCompanyMovementsRepository(),
+                            accessToken: 'token',
+                            canCreate: true,
+                            currentUserId: 'user-1',
+                            draftModuleKey: 'iade-islemleri.firma-iadeleri',
+                            pendingCreateRepository:
+                                LocalPendingCreateRepository(
+                                  database: MemoryLocalDatabase(),
+                                ),
+                            defaultWarehouseNo: '50',
+                            mobileCustomerCatalogRepository:
+                                _emptyCustomerCatalogRepository(),
+                            userWarehouseName: 'MERKEZ DEPO',
+                            title: 'Firma Iadeleri',
+                            subtitle: 'Firma iadeleri.',
+                            createTitle: 'Yeni Firma Iadesi',
+                            createHelperText: 'Cari sec, urunleri ekle.',
+                            createButtonLabel: 'Yeni Iade',
+                            initialCustomer: customer,
+                            openCreateOnStart: true,
+                            returnToPreviousAfterInitialCreate: true,
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                  child: const Text('Cari Bul Test'),
+                ),
+              ),
+            );
+          },
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Cari Bul Test'));
+    await tester.pumpAndSettle();
+    expect(find.text('Yeni Firma Iadesi'), findsOneWidget);
+
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+
+    expect(find.text('Cari Bul Test'), findsOneWidget);
+    expect(find.text('Yeni Firma Iadesi'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('opens detail page before detail request completes', (
     tester,
   ) async {

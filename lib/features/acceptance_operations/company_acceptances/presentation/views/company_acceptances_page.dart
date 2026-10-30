@@ -44,6 +44,7 @@ class CompanyAcceptancesPage extends StatefulWidget {
     this.draftRepository,
     this.initialCustomer,
     this.openCreateOnStart = false,
+    this.returnToPreviousAfterInitialCreate = false,
   });
 
   final CompanyAcceptancesRepository repository;
@@ -60,6 +61,7 @@ class CompanyAcceptancesPage extends StatefulWidget {
   final CreateDraftRepository? draftRepository;
   final CustomerLookupItem? initialCustomer;
   final bool openCreateOnStart;
+  final bool returnToPreviousAfterInitialCreate;
 
   @override
   State<CompanyAcceptancesPage> createState() => _CompanyAcceptancesPageState();
@@ -85,15 +87,22 @@ class _CompanyAcceptancesPageState extends State<CompanyAcceptancesPage> {
     if (widget.openCreateOnStart && widget.initialCustomer != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {
-          unawaited(
-            _openCreateSheet(
-              initialCustomer: widget.initialCustomer,
-              skipDraftPicker: true,
-            ),
-          );
+          unawaited(_openInitialCreateSheet());
         }
       });
     }
+  }
+
+  Future<void> _openInitialCreateSheet() async {
+    await _openCreateSheet(
+      initialCustomer: widget.initialCustomer,
+      skipDraftPicker: true,
+    );
+    if (!mounted || !widget.returnToPreviousAfterInitialCreate) {
+      return;
+    }
+
+    await Navigator.of(context).maybePop();
   }
 
   @override
