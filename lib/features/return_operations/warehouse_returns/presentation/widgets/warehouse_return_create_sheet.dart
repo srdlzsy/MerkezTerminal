@@ -921,25 +921,26 @@ class _WarehouseReturnCreateSheetState extends State<WarehouseReturnCreateSheet>
                                   _ValidationBlock(
                                     message: _validationMessage!,
                                   ),
-                                  const SizedBox(height: 10),
                                 ],
-                                TerminalFormActionRow(
-                                  cancel: OutlinedButton(
-                                    onPressed: () =>
-                                        Navigator.of(context).pop(),
-                                    child: const Text('Vazgec'),
-                                  ),
-                                  submit: FilledButton.icon(
-                                    onPressed: _submit,
-                                    icon: const Icon(Icons.save_rounded),
-                                    label: const Text('Kaydet'),
-                                  ),
-                                ),
                               ],
                             ),
                           ),
                         ),
                       ],
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
+                    child: TerminalFormActionRow(
+                      cancel: OutlinedButton(
+                        onPressed: () => Navigator.of(context).pop(),
+                        child: const Text('Vazgec'),
+                      ),
+                      submit: FilledButton.icon(
+                        onPressed: _submit,
+                        icon: const Icon(Icons.save_rounded),
+                        label: const Text('Kaydet'),
+                      ),
                     ),
                   ),
                 ],

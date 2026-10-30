@@ -385,7 +385,14 @@ class _TerminalActionGrid extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final actionChildren = constraints.maxWidth < 420
-            ? children.map(_compactAction).toList(growable: false)
+            ? children
+                  .map(
+                    (action) => _compactAction(
+                      action,
+                      allowOptionalLabel: children.length <= 2,
+                    ),
+                  )
+                  .toList(growable: false)
             : children;
 
         return Wrap(
@@ -398,7 +405,7 @@ class _TerminalActionGrid extends StatelessWidget {
     );
   }
 
-  Widget _compactAction(Widget action) {
+  Widget _compactAction(Widget action, {required bool allowOptionalLabel}) {
     final data = _TerminalHeaderActionData.from(action);
     if (data == null) {
       return action;
@@ -406,25 +413,53 @@ class _TerminalActionGrid extends StatelessWidget {
 
     final tooltip = data.label ?? 'Islem';
     final icon = data.icon ?? _fallbackActionIcon(tooltip);
-    final compactLabel = _criticalCompactLabel(tooltip);
+    final compactLabel = _compactActionLabel(
+      tooltip,
+      allowOptionalLabel: allowOptionalLabel,
+    );
 
     if (compactLabel != null) {
+      final showIcon = _isCriticalCompactAction(tooltip);
       final button = switch (data.style) {
-        _TerminalHeaderActionStyle.primary => FilledButton.icon(
-          onPressed: data.onPressed,
-          icon: icon,
-          label: Text(compactLabel),
-        ),
-        _TerminalHeaderActionStyle.tonal => FilledButton.tonalIcon(
-          onPressed: data.onPressed,
-          icon: icon,
-          label: Text(compactLabel),
-        ),
-        _TerminalHeaderActionStyle.outlined => OutlinedButton.icon(
-          onPressed: data.onPressed,
-          icon: icon,
-          label: Text(compactLabel),
-        ),
+        _TerminalHeaderActionStyle.primary =>
+          showIcon
+              ? FilledButton.icon(
+                  onPressed: data.onPressed,
+                  icon: icon,
+                  label: Text(compactLabel),
+                  style: _compactFilledButtonStyle(),
+                )
+              : FilledButton(
+                  onPressed: data.onPressed,
+                  style: _compactFilledButtonStyle(),
+                  child: Text(compactLabel),
+                ),
+        _TerminalHeaderActionStyle.tonal =>
+          showIcon
+              ? FilledButton.tonalIcon(
+                  onPressed: data.onPressed,
+                  icon: icon,
+                  label: Text(compactLabel),
+                  style: _compactFilledButtonStyle(),
+                )
+              : FilledButton.tonal(
+                  onPressed: data.onPressed,
+                  style: _compactFilledButtonStyle(),
+                  child: Text(compactLabel),
+                ),
+        _TerminalHeaderActionStyle.outlined =>
+          showIcon
+              ? OutlinedButton.icon(
+                  onPressed: data.onPressed,
+                  icon: icon,
+                  label: Text(compactLabel),
+                  style: _compactOutlinedButtonStyle(),
+                )
+              : OutlinedButton(
+                  onPressed: data.onPressed,
+                  style: _compactOutlinedButtonStyle(),
+                  child: Text(compactLabel),
+                ),
       };
       return Tooltip(message: tooltip, child: button);
     }
@@ -448,7 +483,10 @@ class _TerminalActionGrid extends StatelessWidget {
     };
   }
 
-  String? _criticalCompactLabel(String label) {
+  String? _compactActionLabel(
+    String label, {
+    required bool allowOptionalLabel,
+  }) {
     final normalized = label.toLowerCase();
     if (RegExp(r'(^|\s)yeni(\s|$)').hasMatch(normalized)) {
       return 'Yeni';
@@ -465,7 +503,52 @@ class _TerminalActionGrid extends StatelessWidget {
     if (normalized.contains('olustur')) {
       return 'Olustur';
     }
+    if (!allowOptionalLabel) {
+      return null;
+    }
+    if (normalized.contains('yenile')) {
+      return 'Yenile';
+    }
+    if (normalized.contains('detay')) {
+      return 'Detay';
+    }
+    if (normalized.contains('kontrol') || normalized.contains('dogrula')) {
+      return 'Kontrol';
+    }
+    if (normalized.contains('tekrar')) {
+      return 'Tekrar';
+    }
+    if (normalized.contains('ara')) {
+      return 'Ara';
+    }
     return null;
+  }
+
+  bool _isCriticalCompactAction(String label) {
+    final normalized = label.toLowerCase();
+    return RegExp(r'(^|\s)yeni(\s|$)').hasMatch(normalized) ||
+        normalized.contains('kaydet') ||
+        normalized.contains('gonder') ||
+        normalized.contains('kabul') ||
+        normalized.contains('olustur');
+  }
+
+  ButtonStyle _compactFilledButtonStyle() {
+    return FilledButton.styleFrom(
+      minimumSize: const Size(0, 40),
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      visualDensity: VisualDensity.compact,
+    );
+  }
+
+  ButtonStyle _compactOutlinedButtonStyle() {
+    return OutlinedButton.styleFrom(
+      minimumSize: const Size(0, 40),
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      visualDensity: VisualDensity.compact,
+    );
   }
 
   Widget _fallbackActionIcon(String label) {
@@ -633,7 +716,9 @@ class TerminalResponsiveLookupRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final trailing = trailingAction;
+        final trailing = trailingAction == null
+            ? null
+            : _readableTrailingAction(trailingAction!);
 
         if (constraints.maxWidth < breakpoint) {
           return Column(
@@ -667,6 +752,38 @@ class TerminalResponsiveLookupRow extends StatelessWidget {
           ],
         );
       },
+    );
+  }
+
+  Widget _readableTrailingAction(Widget action) {
+    if (action is! IconButton) {
+      return action;
+    }
+
+    final tooltip = action.tooltip?.trim() ?? '';
+    final normalized = tooltip.toLowerCase();
+    if (!normalized.contains('oku') &&
+        !normalized.contains('kamera') &&
+        !normalized.contains('qr')) {
+      return action;
+    }
+
+    return Tooltip(
+      message: tooltip.isEmpty ? 'Kamera ile oku' : tooltip,
+      child: FilledButton.tonalIcon(
+        onPressed: action.onPressed,
+        icon: IconTheme.merge(
+          data: const IconThemeData(size: 17),
+          child: action.icon,
+        ),
+        label: const Text('Oku'),
+        style: FilledButton.styleFrom(
+          minimumSize: const Size(64, 44),
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          visualDensity: VisualDensity.compact,
+        ),
+      ),
     );
   }
 }
@@ -1852,19 +1969,23 @@ class _TerminalLineDeleteButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return IconButton.filled(
-      onPressed: enabled ? onPressed : null,
-      icon: const Icon(Icons.delete_outline_rounded, size: 18),
-      tooltip: 'Satiri sil',
-      constraints: const BoxConstraints.tightFor(width: 38, height: 34),
-      padding: EdgeInsets.zero,
-      style: IconButton.styleFrom(
-        foregroundColor: theme.colorScheme.onErrorContainer,
-        backgroundColor: theme.colorScheme.errorContainer,
-        disabledForegroundColor: theme.colorScheme.onSurface.withAlpha(70),
-        disabledBackgroundColor: theme.colorScheme.surfaceContainerHighest,
-        tapTargetSize: MaterialTapTargetSize.padded,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+    return Tooltip(
+      message: 'Satiri sil',
+      child: FilledButton.icon(
+        onPressed: enabled ? onPressed : null,
+        icon: const Icon(Icons.delete_outline_rounded, size: 16),
+        label: const Text('Sil'),
+        style: FilledButton.styleFrom(
+          foregroundColor: theme.colorScheme.onErrorContainer,
+          backgroundColor: theme.colorScheme.errorContainer,
+          disabledForegroundColor: theme.colorScheme.onSurface.withAlpha(70),
+          disabledBackgroundColor: theme.colorScheme.surfaceContainerHighest,
+          minimumSize: const Size(58, 34),
+          padding: const EdgeInsets.symmetric(horizontal: 7),
+          tapTargetSize: MaterialTapTargetSize.padded,
+          visualDensity: VisualDensity.compact,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+        ),
       ),
     );
   }
@@ -2347,7 +2468,7 @@ class TerminalFormActionRow extends StatelessWidget {
     super.key,
     required this.cancel,
     required this.submit,
-    this.breakpoint = 360,
+    this.breakpoint = 260,
     this.spacing = 12,
     this.submitFlex = 1,
   });
@@ -2360,6 +2481,12 @@ class TerminalFormActionRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final mediaQuery = MediaQuery.of(context);
+    final usableHeight = mediaQuery.size.height - mediaQuery.viewInsets.bottom;
+    if (usableHeight < 430) {
+      return const SizedBox.shrink();
+    }
+
     return LayoutBuilder(
       builder: (context, constraints) {
         if (constraints.maxWidth < breakpoint) {
@@ -2397,12 +2524,19 @@ class TerminalCreateInputDock extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final mediaQuery = MediaQuery.of(context);
+    final usableHeight = mediaQuery.size.height - mediaQuery.viewInsets.bottom;
+    final keyboardCompact = usableHeight < 430;
+    final visibleChildren = keyboardCompact && children.isNotEmpty
+        ? <Widget>[children.last]
+        : children;
+
     return Padding(
       padding: padding,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         mainAxisSize: MainAxisSize.min,
-        children: children,
+        children: visibleChildren,
       ),
     );
   }
@@ -2481,9 +2615,15 @@ class TerminalSheetHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final mediaQuery = MediaQuery.of(context);
+    final usableHeight = mediaQuery.size.height - mediaQuery.viewInsets.bottom;
+    if (usableHeight < 430) {
+      return const SizedBox.shrink();
+    }
+    final compactHeight = usableHeight < 500;
 
     return Container(
-      padding: padding,
+      padding: compactHeight ? const EdgeInsets.fromLTRB(8, 0, 4, 0) : padding,
       decoration: BoxDecoration(
         color: elevated ? theme.colorScheme.surface : null,
         boxShadow: elevated
@@ -2548,6 +2688,9 @@ class TerminalSheetHeader extends StatelessWidget {
             tooltip: 'Kapat',
             padding: EdgeInsets.zero,
             constraints: const BoxConstraints.tightFor(width: 32, height: 32),
+            style: IconButton.styleFrom(
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
           ),
         ],
       ),
@@ -2801,25 +2944,36 @@ class TerminalMessageBlock extends StatelessWidget {
                 ),
                 if (supportCode != null) ...<Widget>[
                   const SizedBox(width: 4),
-                  IconButton(
-                    visualDensity: VisualDensity.compact,
-                    tooltip: 'Destek kodunu kopyala',
-                    onPressed: () async {
-                      await Clipboard.setData(ClipboardData(text: supportCode));
-                      if (!context.mounted) {
-                        return;
-                      }
-                      ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-                        const SnackBar(
-                          content: Text('Destek kodu kopyalandi.'),
-                          duration: Duration(seconds: 2),
-                        ),
-                      );
-                    },
-                    icon: Icon(
-                      Icons.copy_rounded,
-                      size: 19,
-                      color: foregroundColor,
+                  Tooltip(
+                    message: 'Destek kodunu kopyala',
+                    child: TextButton.icon(
+                      onPressed: () async {
+                        await Clipboard.setData(
+                          ClipboardData(text: supportCode),
+                        );
+                        if (!context.mounted) {
+                          return;
+                        }
+                        ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+                          const SnackBar(
+                            content: Text('Destek kodu kopyalandi.'),
+                            duration: Duration(seconds: 2),
+                          ),
+                        );
+                      },
+                      icon: Icon(
+                        Icons.copy_rounded,
+                        size: 17,
+                        color: foregroundColor,
+                      ),
+                      label: Text(
+                        'Kopyala',
+                        style: TextStyle(color: foregroundColor),
+                      ),
+                      style: TextButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 6),
+                        visualDensity: VisualDensity.compact,
+                      ),
                     ),
                   ),
                 ],

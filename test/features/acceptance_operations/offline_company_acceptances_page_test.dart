@@ -230,13 +230,55 @@ void main() {
   testWidgets('passes offline pda create contract with keyboard inset', (
     tester,
   ) async {
+    final database = MemoryLocalDatabase();
+    final productCatalog = MobileProductCatalogLocalRepository(
+      database: database,
+    );
+    await productCatalog.applyCatalogDelta(
+      warehouseNo: 110,
+      items: const <MobileProductCatalogItem>[
+        MobileProductCatalogItem(
+          warehouseNo: 110,
+          barcode: '8690000000012',
+          lookupSource: 'barcode',
+          stockCode: '015792',
+          stockName: 'Koli Test Urun',
+          price: 0,
+          priceTypeCode: 0,
+          unitPointer: 1,
+          unitName: 'ADET',
+          unitMultiplier: 12,
+          matchedUnitMultiplier: 1,
+          secondaryUnitName: 'KOLI',
+          secondaryUnitMultiplier: 12,
+          salesBlockCode: null,
+          orderBlockCode: null,
+          goodsAcceptanceBlockCode: null,
+          isSalesBlocked: false,
+          isOrderBlocked: false,
+          isGoodsAcceptanceBlocked: false,
+          isPassive: false,
+          isDelisted: false,
+          delistReason: '',
+          isDeleted: false,
+          productManagerCode: '',
+        ),
+      ],
+      deletedBarcodes: const <String>[],
+    );
+
     await expectPdaCreateScreenContract(
       tester,
       buildSubject: () {
         final offlineRepository = _FakeOfflineCompanyAcceptancesRepository();
         return OfflineCompanyAcceptancesPage(
           offlineRepository: offlineRepository,
-          onlineRepository: _FakeCompanyAcceptancesRepository(),
+          onlineRepository: _FakeCompanyAcceptancesRepository(
+            productSearchError: const ApiException(
+              statusCode: 0,
+              title: 'Baglanti Hatasi',
+            ),
+          ),
           ordersRepository: _FakeGivenCompanyOrdersRepository(),
           accessToken: 'token',
           offlineSyncService: OfflineSyncService(
@@ -246,19 +288,29 @@ void main() {
             offlineCompanyAcceptanceRepository: offlineRepository,
           ),
           mobileCustomerCatalogRepository: MobileCustomerCatalogLocalRepository(
-            database: MemoryLocalDatabase(),
+            database: database,
           ),
-          mobileProductCatalogRepository: MobileProductCatalogLocalRepository(
-            database: MemoryLocalDatabase(),
-          ),
+          mobileProductCatalogRepository: productCatalog,
           currentUserId: 'u1',
           defaultWarehouseNo: '110',
           userWarehouseName: 'TEST DEPO',
         );
       },
-      prepare: _openOfflineCompanyAcceptanceLines,
+      prepare: (tester) async {
+        await _openOfflineCompanyAcceptanceLines(tester);
+        final lookup = find.widgetWithText(
+          TextFormField,
+          'Barkod / stok kodu / urun adi',
+        );
+        await tester.enterText(lookup.first, '8690000000012');
+        await tester.tap(find.widgetWithText(FilledButton, 'Urun').first);
+        await tester.pumpAndSettle();
+        await tester.tap(find.widgetWithText(FilledButton, 'Ekle').first);
+        await tester.pumpAndSettle();
+      },
       entryRowFinder: find.text('Giris satiri'),
       saveButtonFinder: find.widgetWithText(FilledButton, 'Kaydet'),
+      lineItemFinder: find.text('Koli Test Urun'),
     );
   });
 

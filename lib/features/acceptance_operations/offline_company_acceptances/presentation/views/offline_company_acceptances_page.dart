@@ -1669,21 +1669,10 @@ class _OfflineCompanyAcceptanceCreateSheetState
         ),
         const SizedBox(height: 4),
         Expanded(
-          child: CustomScrollView(
-            slivers: <Widget>[
-              _buildLazyLineSliver(),
-              SliverToBoxAdapter(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: <Widget>[
-                    const SizedBox(height: 4),
-                    _buildLineStepActions(),
-                  ],
-                ),
-              ),
-            ],
-          ),
+          child: CustomScrollView(slivers: <Widget>[_buildLazyLineSliver()]),
         ),
+        const SizedBox(height: 4),
+        _buildLineStepActions(),
       ],
     );
   }
@@ -2260,7 +2249,7 @@ class _OfflineCompanyAcceptanceCreateSheetState
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        if (constraints.maxWidth < 360) {
+        if (constraints.maxWidth < 280) {
           return Column(
             children: <Widget>[
               dispatchField(),

@@ -43,13 +43,17 @@ void main() {
     await expectPdaCreateScreenContract(
       tester,
       buildSubject: () => StockReceiptCreateSheet(
-        repository: _FakeStockReceiptsRepository(),
+        repository: _FakeStockReceiptsRepository(
+          products: const <SearchProductLookupItem>[_stockReceiptProduct],
+        ),
         kind: StockReceiptKind.outage,
         accessToken: 'token',
         defaultWarehouseNo: '50',
       ),
+      prepare: _addStockReceiptLine,
       entryRowFinder: find.text('Giris satiri'),
       saveButtonFinder: find.widgetWithText(FilledButton, 'Kaydet'),
+      lineItemFinder: find.text('Test Urun'),
     );
   });
 
@@ -176,6 +180,36 @@ void main() {
     );
   });
 }
+
+Future<void> _addStockReceiptLine(WidgetTester tester) async {
+  final productField = find
+      .widgetWithText(TextFormField, 'Barkod / stok kodu / urun adi')
+      .first;
+  await tester.enterText(productField, '8690000000012');
+  await tester.tap(find.widgetWithText(FilledButton, 'Urun').first);
+  await tester.pumpAndSettle();
+  await _confirmPendingProduct(tester);
+}
+
+const SearchProductLookupItem _stockReceiptProduct = SearchProductLookupItem(
+  warehouseNo: 50,
+  barcode: '8690000000012',
+  stockCode: '015792',
+  stockName: 'Test Urun',
+  price: 125,
+  priceTypeCode: 0,
+  unitName: 'AD',
+  unitMultiplier: 1,
+  secondaryUnitName: '',
+  secondaryUnitMultiplier: 0,
+  salesBlockCode: null,
+  orderBlockCode: null,
+  goodsAcceptanceBlockCode: null,
+  isSalesBlocked: false,
+  isOrderBlocked: false,
+  isGoodsAcceptanceBlocked: false,
+  productManagerCode: '',
+);
 
 Future<void> _confirmPendingProduct(WidgetTester tester) async {
   final addButton = find.widgetWithText(FilledButton, 'Ekle').first;

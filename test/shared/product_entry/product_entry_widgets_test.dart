@@ -127,6 +127,7 @@ void main() {
                 trailingAction: IconButton.filledTonal(
                   onPressed: () {},
                   icon: const Icon(Icons.photo_camera_back_rounded),
+                  tooltip: 'Kamera ile oku',
                 ),
               ),
               onConfirm: () {},
@@ -148,6 +149,8 @@ void main() {
       findsOneWidget,
     );
     expect(find.text('STK-001 | ADET'), findsOneWidget);
+    expect(find.text('Oku'), findsOneWidget);
+    expect(find.text('Vazgec'), findsOneWidget);
     expect(find.text('Ekle'), findsOneWidget);
     expect(
       tester.getBottomRight(find.widgetWithText(FilledButton, 'Ekle')).dy,
@@ -361,6 +364,7 @@ void main() {
     expect(find.textContaining('Koli ici 12 ADET'), findsOneWidget);
     expect(find.text('01'), findsOneWidget);
     expect(find.byTooltip('Satiri sil'), findsOneWidget);
+    expect(find.text('Sil'), findsOneWidget);
     final highlight = tester.widget<TweenAnimationBuilder<double>>(
       find.byKey(const ValueKey<String>('terminal-product-line-highlight')),
     );

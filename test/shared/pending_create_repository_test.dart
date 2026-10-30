@@ -8,6 +8,7 @@ void main() {
     final repository = LocalPendingCreateRepository(
       database: _MemoryLocalDatabase(),
     );
+    final now = DateTime.now();
     final request = WarehouseShipmentCreateRequest(
       clientRequestId: 'request-123',
       targetWarehouseNo: 56,
@@ -36,7 +37,7 @@ void main() {
         userId: 'user-1',
         warehouseNo: '120',
         payload: request.toJson(),
-        updatedAt: DateTime(2026, 9, 30),
+        updatedAt: now,
         failureKind: 'processing',
       ),
     );
@@ -67,6 +68,7 @@ void main() {
     final repository = LocalPendingCreateRepository(
       database: _MemoryLocalDatabase(),
     );
+    final now = DateTime.now();
     for (final warehouseNo in <String>['120', '145']) {
       await repository.save(
         PendingCreateOperation(
@@ -74,7 +76,7 @@ void main() {
           userId: 'user-1',
           warehouseNo: warehouseNo,
           payload: <String, dynamic>{'clientRequestId': warehouseNo},
-          updatedAt: DateTime(2026, 9, 30),
+          updatedAt: now,
         ),
       );
     }
@@ -107,6 +109,7 @@ void main() {
     final repository = LocalPendingCreateRepository(
       database: _MemoryLocalDatabase(),
     );
+    final now = DateTime.now();
     for (final requestId in <String>['request-old', 'request-new']) {
       await repository.save(
         PendingCreateOperation(
@@ -114,7 +117,9 @@ void main() {
           userId: 'user-1',
           warehouseNo: '120',
           payload: <String, dynamic>{'clientRequestId': requestId},
-          updatedAt: DateTime(2026, 10, requestId == 'request-old' ? 1 : 2),
+          updatedAt: now.add(
+            Duration(minutes: requestId == 'request-old' ? 0 : 1),
+          ),
         ),
       );
     }
@@ -180,7 +185,7 @@ void main() {
     expect(restored?.clientRequestId, 'never-checked');
   });
 
-  test('keeps at most five pending creates per scope', () async {
+  test('keeps every unresolved pending create in the same scope', () async {
     final repository = LocalPendingCreateRepository(
       database: _MemoryLocalDatabase(),
     );
@@ -204,10 +209,17 @@ void main() {
       warehouseNo: '120',
     );
 
-    expect(retained, hasLength(5));
+    expect(retained, hasLength(6));
     expect(
       retained.map((operation) => operation.clientRequestId),
-      isNot(contains('request-0')),
+      containsAll(<String>[
+        'request-0',
+        'request-1',
+        'request-2',
+        'request-3',
+        'request-4',
+        'request-5',
+      ]),
     );
   });
 
@@ -215,7 +227,8 @@ void main() {
     final repository = LocalPendingCreateRepository(
       database: _MemoryLocalDatabase(),
     );
-    final retryNotBefore = DateTime(2026, 10, 13, 12, 30, 5);
+    final now = DateTime.now();
+    final retryNotBefore = now.add(const Duration(seconds: 5));
 
     await repository.save(
       PendingCreateOperation(
@@ -223,7 +236,7 @@ void main() {
         userId: 'user-1',
         warehouseNo: '120',
         payload: const <String, dynamic>{'clientRequestId': 'request-retry'},
-        updatedAt: DateTime(2026, 10, 13, 12, 30),
+        updatedAt: now,
         failureKind: 'uncertain',
         retryNotBefore: retryNotBefore,
       ),
@@ -242,12 +255,13 @@ void main() {
     final repository = LocalPendingCreateRepository(
       database: _MemoryLocalDatabase(),
     );
+    final now = DateTime.now();
     final operation = PendingCreateOperation(
       moduleKey: 'sevk',
       userId: 'user-1',
       warehouseNo: '120',
       payload: const <String, dynamic>{'clientRequestId': 'request-completed'},
-      updatedAt: DateTime(2026, 10, 21, 10),
+      updatedAt: now,
       failureKind: 'processing',
     );
 
@@ -284,7 +298,7 @@ void main() {
     final repository = LocalPendingCreateRepository(
       database: _MemoryLocalDatabase(),
     );
-    final checkedAt = DateTime(2026, 10, 16, 14, 30);
+    final checkedAt = DateTime.now();
 
     await repository.save(
       PendingCreateOperation(

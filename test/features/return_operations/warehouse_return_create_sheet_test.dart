@@ -27,9 +27,13 @@ void main() {
           database: MemoryLocalDatabase(),
         ),
       ),
-      prepare: _pickTargetWarehouse,
+      prepare: (tester) async {
+        await _pickTargetWarehouse(tester);
+        await _pickProduct(tester);
+      },
       entryRowFinder: find.text('Giris satiri'),
       saveButtonFinder: find.widgetWithText(FilledButton, 'Kaydet'),
+      lineItemFinder: find.text('Test Urun'),
     );
   });
 

@@ -838,31 +838,27 @@ class _InventoryCountCreateSheetState extends State<InventoryCountCreateSheet>
                                   _ValidationBlock(
                                     message: _validationMessage!,
                                   ),
-                                  const SizedBox(height: 10),
                                 ],
-                                TerminalFormActionRow(
-                                  submitFlex: 2,
-                                  cancel: OutlinedButton(
-                                    onPressed: () =>
-                                        Navigator.of(context).pop(),
-                                    child: const Text('Vazgec'),
-                                  ),
-                                  submit: FilledButton.icon(
-                                    onPressed: _submit,
-                                    icon: const Icon(Icons.save_rounded),
-                                    label: const Text('Kaydet'),
-                                    style: FilledButton.styleFrom(
-                                      padding: const EdgeInsets.symmetric(
-                                        vertical: 14,
-                                      ),
-                                    ),
-                                  ),
-                                ),
                               ],
                             ),
                           ),
                         ),
                       ],
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
+                    child: TerminalFormActionRow(
+                      submitFlex: 2,
+                      cancel: OutlinedButton(
+                        onPressed: () => Navigator.of(context).pop(),
+                        child: const Text('Vazgec'),
+                      ),
+                      submit: FilledButton.icon(
+                        onPressed: _submit,
+                        icon: const Icon(Icons.save_rounded),
+                        label: const Text('Kaydet'),
+                      ),
                     ),
                   ),
                 ],

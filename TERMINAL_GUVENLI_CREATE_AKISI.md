@@ -70,7 +70,7 @@ Basarida:
 
 - Basarili create'te tam request payload ve form taslagi temizlenir; yalniz `clientRequestId` ile tamamlanma zamani 7 gunluk tekrar-koruma isareti olarak kalir.
 - Sonucu belirsiz veya kesin yazilmamis isteklerde ayni body/id ile guvenli sonuc alabilmek icin yalniz o kaydin snapshot'i korunur. Eski snapshot sayisi yeni, bagimsiz bir create'i bloke etmez.
-- Teknik pending snapshot'lari kullanici/depo/modul basina en fazla 5 kayit ve en fazla 30 gun saklanir. Tamamlanma isaretleri 7 gun tutulur ve ayni kapsamda en fazla 50 kayitla sinirlidir.
+- Cozumlenmemis teknik pending snapshot'lari adet siniri nedeniyle sessizce silinmez ve en fazla 30 gun saklanir. Tamamlanma isaretleri 7 gun tutulur ve ayni kapsamda en fazla 50 kayitla sinirlidir.
 - Kullanici tarafindan acikca kaydedilmis normal taslaklar kendi taslak ekraninda basariya veya kullanici silmesine kadar kalir. Arka plan bunlari otomatik create etmez.
 
 ## Karar Tablosu

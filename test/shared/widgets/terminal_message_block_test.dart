@@ -30,6 +30,7 @@ void main() {
 
     final copyButton = find.byTooltip('Destek kodunu kopyala');
     expect(copyButton, findsOneWidget);
+    expect(find.text('Kopyala'), findsOneWidget);
 
     await tester.tap(copyButton);
     await tester.pump();

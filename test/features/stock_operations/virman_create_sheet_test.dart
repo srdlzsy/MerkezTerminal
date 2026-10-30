@@ -17,15 +17,20 @@ void main() {
     await expectPdaCreateScreenContract(
       tester,
       buildSubject: () => VirmanCreateSheet(
-        repository: _FakeVirmanRepository(),
+        repository: _FakeVirmanRepository(
+          products: <SearchProductLookupItem>[_sourceProduct],
+          suggestion: _reliableSuggestion,
+        ),
         accessToken: 'token',
         defaultWarehouseNo: '110',
         mobileProductCatalogRepository: MobileProductCatalogLocalRepository(
           database: MemoryLocalDatabase(),
         ),
       ),
+      prepare: _addVirmanLine,
       entryRowFinder: find.text('Virman urunu ekle'),
       saveButtonFinder: find.widgetWithText(FilledButton, 'Kaydet'),
+      lineItemFinder: find.text("SODA SADE 6'LI"),
     );
   });
 
@@ -67,11 +72,39 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(repository.suggestionRequestCount, 1);
-    expect(find.text('SODA SADE TEKLI'), findsOneWidget);
     expect(find.textContaining('Gecmis virmanlardan onerildi'), findsOneWidget);
+    for (
+      var attempt = 0;
+      attempt < 8 && find.text('SODA SADE TEKLI').evaluate().isEmpty;
+      attempt += 1
+    ) {
+      await tester.drag(
+        find.byType(CustomScrollView).first,
+        const Offset(0, -120),
+      );
+      await tester.pump();
+    }
+    await tester.pumpAndSettle();
+    expect(find.text('SODA SADE TEKLI'), findsOneWidget);
     expect(find.textContaining('36'), findsWidgets);
     expect(find.textContaining('Giris'), findsWidgets);
   });
+}
+
+Future<void> _addVirmanLine(WidgetTester tester) async {
+  final lookup = find.descendant(
+    of: find.byType(ProductLookupField),
+    matching: find.byType(EditableText),
+  );
+  await tester.enterText(lookup, '015550');
+  await tester.tap(find.widgetWithText(FilledButton, 'Urun').first);
+  await tester.pumpAndSettle();
+  await tester.enterText(
+    find.widgetWithText(TextFormField, 'Miktar').first,
+    '6',
+  );
+  await tester.tap(find.widgetWithText(FilledButton, 'Ekle').first);
+  await tester.pumpAndSettle();
 }
 
 class _FakeVirmanRepository implements VirmanRepository {

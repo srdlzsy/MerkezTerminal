@@ -159,7 +159,9 @@ void main() {
     );
 
     expect(tester.takeException(), isNull);
-    expect(tester.getSize(_actionFinder('Yenile')).width, lessThan(56));
+    expect(find.text('Yenile'), findsOneWidget);
+    expect(tester.getSize(_actionFinder('Yenile')).width, greaterThan(56));
+    expect(tester.getSize(_actionFinder('Yenile')).width, lessThan(110));
   });
 
   testWidgets('stacks form actions on tiny terminal width', (tester) async {

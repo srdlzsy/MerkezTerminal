@@ -244,9 +244,13 @@ void main() {
           database: MemoryLocalDatabase(),
         ),
       ),
-      prepare: _pickWarehouse,
+      prepare: (tester) async {
+        await _pickWarehouse(tester);
+        await _pickWarehouseOrderProduct(tester);
+      },
       entryRowFinder: find.text('Giris satiri'),
       saveButtonFinder: find.widgetWithText(FilledButton, 'Kaydet'),
+      lineItemFinder: find.text('Test Urun'),
     );
   });
 

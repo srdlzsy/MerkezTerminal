@@ -1809,33 +1809,27 @@ class _OutgoingWarehouseShipmentCreateSheetState
                                   _ValidationBlock(
                                     message: _validationMessage!,
                                   ),
-                                  const SizedBox(height: 10),
                                 ],
-                                Row(
-                                  children: <Widget>[
-                                    Expanded(
-                                      child: OutlinedButton(
-                                        onPressed: () =>
-                                            Navigator.of(context).pop(),
-                                        child: const Text('Vazgec'),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 12),
-                                    Expanded(
-                                      flex: 2,
-                                      child: FilledButton.icon(
-                                        onPressed: _submit,
-                                        icon: const Icon(Icons.save_outlined),
-                                        label: const Text('Kaydet'),
-                                      ),
-                                    ),
-                                  ],
-                                ),
                               ],
                             ),
                           ),
                         ),
                       ],
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
+                    child: TerminalFormActionRow(
+                      submitFlex: 2,
+                      cancel: OutlinedButton(
+                        onPressed: () => Navigator.of(context).pop(),
+                        child: const Text('Vazgec'),
+                      ),
+                      submit: FilledButton.icon(
+                        onPressed: _submit,
+                        icon: const Icon(Icons.save_outlined),
+                        label: const Text('Kaydet'),
+                      ),
                     ),
                   ),
                 ],

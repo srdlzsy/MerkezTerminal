@@ -149,6 +149,45 @@ void main() {
       expect(registry.syncCallCount, 1);
     },
   );
+
+  testWidgets(
+    'offline capable menu opens when warehouse verification is unavailable',
+    (tester) async {
+      final session = _buildSession();
+      final repository = _FakeAuthRepository(session);
+      final sessionController = AppSessionController(
+        authRepository: repository,
+      );
+      final registry = _FakeShellModuleRegistry();
+      await sessionController.signIn(usernameOrEmail: 'demo', password: '1234');
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: HomeShellPage(
+            sessionController: sessionController,
+            moduleRegistry: registry,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(registry.syncCallCount, 1);
+
+      repository.warehouseContextError = const ApiException(
+        statusCode: 0,
+        title: 'Baglanti Hatasi',
+      );
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Offline Menu').first);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Content: Offline Menu'), findsOneWidget);
+      expect(find.textContaining('Depo bilgisi dogrulanamadi'), findsOneWidget);
+      expect(registry.syncCallCount, 1);
+    },
+  );
 }
 
 class _FakeShellModuleRegistry implements ShellModuleRegistry {
@@ -158,6 +197,11 @@ class _FakeShellModuleRegistry implements ShellModuleRegistry {
 
   @override
   OfflineSyncService get offlineSyncService => _offlineSyncService;
+
+  @override
+  bool canOpenWithoutVerifiedWarehouseContext(MenuEntry menu) {
+    return menu.menuCode == 'offline-menu';
+  }
 
   @override
   Widget buildPage({
@@ -240,6 +284,11 @@ AuthSession _buildSession() {
         name: 'IkinciMenu',
         actions: <PermissionAction>[action],
       ),
+      PermissionMenu(
+        code: 'offline-menu',
+        name: 'OfflineMenu',
+        actions: <PermissionAction>[action],
+      ),
     ],
   );
 
@@ -260,6 +309,7 @@ AuthSession _buildSession() {
       permissions: <String>[
         'test-modulu.birinci-menu.page',
         'test-modulu.ikinci-menu.page',
+        'test-modulu.offline-menu.page',
       ],
       modules: <PermissionModule>[module],
     ),

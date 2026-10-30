@@ -16,15 +16,37 @@ void main() {
     await expectPdaCreateScreenContract(
       tester,
       buildSubject: () => GivenCompanyOrderCreateSheet(
-        repository: _FakeCompanyOrdersRepository(),
+        repository: const _FakeCompanyOrdersRepository(
+          customerProducts: <CompanyOrderProductLookupItem>[
+            CompanyOrderProductLookupItem(
+              warehouseNo: 110,
+              barcode: '8690000000001',
+              stockCode: '010001',
+              stockName: 'Test Cari Urunu',
+              price: 15.75,
+              unitName: 'AD',
+              unitMultiplier: 12,
+              secondaryUnitName: 'KOLI',
+              caseBarcode: '18690000000018',
+              minimumPurchaseQuantity: 24,
+              deliveryDay: 2,
+              unitPointer: 2,
+              isOrderBlocked: false,
+              isSalesBlocked: false,
+            ),
+          ],
+        ),
         accessToken: 'token',
         defaultWarehouseNo: '110',
         mobileCustomerCatalogRepository: MobileCustomerCatalogLocalRepository(
           database: MemoryLocalDatabase(),
         ),
+        draft: _selectedCustomerDraft(),
       ),
+      prepare: _loadCompanyProducts,
       entryRowFinder: find.text('Giris satiri'),
       saveButtonFinder: find.widgetWithText(FilledButton, 'Kaydet'),
+      lineItemFinder: find.text('Test Cari Urunu'),
     );
   });
 
@@ -142,6 +164,13 @@ void main() {
     expect(find.textContaining('Koli ici 12'), findsWidgets);
     expect(find.widgetWithText(FilledButton, 'Boslari sil'), findsOneWidget);
   });
+}
+
+Future<void> _loadCompanyProducts(WidgetTester tester) async {
+  final button = find.widgetWithText(FilledButton, 'Firma urunleri');
+  await tester.ensureVisible(button);
+  await tester.tap(button);
+  await tester.pumpAndSettle();
 }
 
 CreateDraft _selectedCustomerDraft() {

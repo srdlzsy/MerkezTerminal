@@ -88,12 +88,14 @@ class ShellModuleRoute {
     this.exactRouteKey,
     this.menuCodes = const <String>[],
     this.keywords = const <String>[],
+    this.allowWhenWarehouseContextUnavailable = false,
     required this.builder,
   });
 
   final String? exactRouteKey;
   final List<String> menuCodes;
   final List<String> keywords;
+  final bool allowWhenWarehouseContextUnavailable;
   final ShellModulePageBuilder builder;
 
   bool matches(MenuEntry menu) {
@@ -203,6 +205,16 @@ class ShellModuleRegistry {
       'ayar-islemleri.soforler.list';
 
   late final List<ShellModuleRoute> routes = _buildRoutes();
+
+  bool canOpenWithoutVerifiedWarehouseContext(MenuEntry menu) {
+    for (final route in routes) {
+      if (route.matches(menu)) {
+        return route.allowWhenWarehouseContextUnavailable;
+      }
+    }
+
+    return false;
+  }
 
   Widget buildPage({
     required MenuEntry selectedMenu,
@@ -421,6 +433,7 @@ class ShellModuleRegistry {
       ),
       ShellModuleRoute(
         exactRouteKey: 'stok-islemleri.sayim-sonuclari',
+        allowWhenWarehouseContextUnavailable: true,
         builder: (context) => InventoryCountsPage(
           key: context.pageKey,
           repository: inventoryCountsRepository,
@@ -517,6 +530,7 @@ class ShellModuleRegistry {
       ),
       ShellModuleRoute(
         exactRouteKey: 'mal-kabul-islemleri.firma-mal-kabulleri',
+        allowWhenWarehouseContextUnavailable: true,
         builder: (context) => CompanyAcceptancesPage(
           key: context.pageKey,
           repository: companyAcceptancesRepository,
@@ -599,6 +613,7 @@ class ShellModuleRegistry {
           'censusEntryOffline',
         ],
         keywords: const <String>['offline sayim'],
+        allowWhenWarehouseContextUnavailable: true,
         builder: (context) => OfflineInventoryCountsPage(
           key: context.pageKey,
           offlineRepository: offlineInventoryCountsRepository,

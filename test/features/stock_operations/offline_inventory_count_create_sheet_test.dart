@@ -24,8 +24,10 @@ void main() {
           database: MemoryLocalDatabase(),
         ),
       ),
+      prepare: _addOfflineInventoryCountLine,
       entryRowFinder: find.text('Giris satiri'),
       saveButtonFinder: find.widgetWithText(FilledButton, 'Kaydet'),
+      lineItemFinder: find.text('Test Urun'),
     );
   });
 
@@ -63,6 +65,17 @@ void main() {
 
     expect(find.text('Test Urun: toplam 2 AD sayildi.'), findsOneWidget);
   });
+}
+
+Future<void> _addOfflineInventoryCountLine(WidgetTester tester) async {
+  final lookup = find.widgetWithText(TextField, 'Online urun ara');
+  await tester.enterText(lookup.first, '8690000000012');
+  await tester.tap(find.widgetWithText(FilledButton, 'Bul').first);
+  await tester.pumpAndSettle();
+  final addButton = find.widgetWithText(FilledButton, 'Ekle').first;
+  await tester.ensureVisible(addButton);
+  await tester.tap(addButton);
+  await tester.pumpAndSettle();
 }
 
 class _FakeInventoryCountsRepository implements InventoryCountsRepository {

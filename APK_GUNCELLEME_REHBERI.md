@@ -14,7 +14,7 @@ icindeki temel build numarasindan farkli olabilir.
 Ornek:
 
 ```yaml
-version: 1.1.104+2104
+version: 1.1.105+2105
 ```
 
 Kontrol:
@@ -67,8 +67,8 @@ adi kullanmalidir. Sunucu klasorunu kendi ortamina gore degistir.
 
 ```powershell
 $ServerPath = "\\10.0.0.100\Terminal"
-$VersionName = "1.1.104"
-$BuildNumber = "2104"
+$VersionName = "1.1.105"
+$BuildNumber = "2105"
 $ReleaseId = "$VersionName-$BuildNumber"
 
 Copy-Item "build/app/outputs/flutter-apk/app-arm64-v8a-release.apk" "$ServerPath\furpa-terminal-$ReleaseId-arm64-v8a.apk" -Force
@@ -85,34 +85,34 @@ gercek `versionCode` degerleri tasidigi icin manifestte tek bir global
 `buildNumber` yayinlama. Guncelleme karari `version` uzerinden verilir; indirilen
 APK'nin gercek yapi numarasi kurulumdan once cihazdaki APK ile karsilastirilir.
 
-Ornek yeni manifest (`version: 1.1.104+2104` icin):
+Ornek yeni manifest (`version: 1.1.105+2105` icin):
 
 ```json
 {
-  "version": "1.1.104",
-  "apk": "http://10.0.0.100:802/Terminal/furpa-terminal-1.1.104-2104-universal.apk",
+  "version": "1.1.105",
+  "apk": "http://10.0.0.100:802/Terminal/furpa-terminal-1.1.105-2105-universal.apk",
   "android": {
-    "universalUrl": "http://10.0.0.100:802/Terminal/furpa-terminal-1.1.104-2104-universal.apk",
+    "universalUrl": "http://10.0.0.100:802/Terminal/furpa-terminal-1.1.105-2105-universal.apk",
     "apks": {
-      "arm64-v8a": "http://10.0.0.100:802/Terminal/furpa-terminal-1.1.104-2104-arm64-v8a.apk",
-      "armeabi-v7a": "http://10.0.0.100:802/Terminal/furpa-terminal-1.1.104-2104-armeabi-v7a.apk",
-      "x86_64": "http://10.0.0.100:802/Terminal/furpa-terminal-1.1.104-2104-x86_64.apk"
+      "arm64-v8a": "http://10.0.0.100:802/Terminal/furpa-terminal-1.1.105-2105-arm64-v8a.apk",
+      "armeabi-v7a": "http://10.0.0.100:802/Terminal/furpa-terminal-1.1.105-2105-armeabi-v7a.apk",
+      "x86_64": "http://10.0.0.100:802/Terminal/furpa-terminal-1.1.105-2105-x86_64.apk"
     }
   }
 }
 ```
 
-`version: 1.1.104+2104` ile uretilen APK'larda beklenen gercek kodlar:
+`version: 1.1.105+2105` ile uretilen APK'larda beklenen gercek kodlar:
 
 ```text
-universal:   2104
-armeabi-v7a: 3104
-arm64-v8a:   4104
-x86_64:      6104
+universal:   2105
+armeabi-v7a: 3105
+arm64-v8a:   4105
+x86_64:      6105
 ```
 
-Bu nedenle arm64 terminalde `4104` gorulmesi normaldir. Manifestte global
-`buildNumber: 2104` verilirse arm64 cihazdaki kurulu `4103` ile yanlis
+Bu nedenle arm64 terminalde `4105` gorulmesi normaldir. Manifestte global
+`buildNumber: 2105` verilirse arm64 cihazdaki kurulu `4104` ile yanlis
 karsilastirma yapilip guncelleme bulunamayabilir.
 
 Eski uygulamalar sadece `apk` alanini okur. Yeni uygulamalar cihaz ABI'sine uygun APK'yi `android.apks` icinden secer.
@@ -125,8 +125,8 @@ sunulursa kurulum ekrani acilmaz ve kullaniciya Turkce hata gosterilir.
 
 ```powershell
 Invoke-WebRequest "http://10.0.0.100:802/Terminal/version.json" | Select-Object -ExpandProperty Content
-Invoke-WebRequest "http://10.0.0.100:802/Terminal/furpa-terminal-1.1.104-2104-arm64-v8a.apk" -Method Head
-Invoke-WebRequest "http://10.0.0.100:802/Terminal/furpa-terminal-1.1.104-2104-armeabi-v7a.apk" -Method Head
+Invoke-WebRequest "http://10.0.0.100:802/Terminal/furpa-terminal-1.1.105-2105-arm64-v8a.apk" -Method Head
+Invoke-WebRequest "http://10.0.0.100:802/Terminal/furpa-terminal-1.1.105-2105-armeabi-v7a.apk" -Method Head
 ```
 
 Kontrol listesi:

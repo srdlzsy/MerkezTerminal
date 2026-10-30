@@ -428,7 +428,12 @@ void main() {
     await expectPdaCreateScreenContract(
       tester,
       buildSubject: () => CompanyMovementCreateSheet(
-        repository: _FakeCompanyMovementsRepository(),
+        repository: _FakeCompanyMovementsRepository(
+          barcodeResolution: buildBarcodeResolutionResult(
+            operationType: 'shipment',
+            screenCode: 'giden-firma-sevkleri',
+          ),
+        ),
         accessToken: 'token',
         defaultWarehouseNo: '50',
         mobileCustomerCatalogRepository: _emptyCustomerCatalogRepository(),
@@ -436,8 +441,10 @@ void main() {
         helperText: 'Cari secildikten sonra iade satirlari eklenir.',
         submitLabel: 'Iadeyi Kaydet',
       ),
+      prepare: _addCompanyMovementLine,
       entryRowFinder: find.text('Giris satiri'),
       saveButtonFinder: find.widgetWithText(FilledButton, 'Iadeyi Kaydet'),
+      lineItemFinder: find.text('Test Urun'),
     );
   });
 
@@ -531,6 +538,17 @@ void main() {
     );
     expect(customerField.controller?.text, 'Cari-42');
   });
+}
+
+Future<void> _addCompanyMovementLine(WidgetTester tester) async {
+  final lookup = find.byType(TextFormField).last;
+  await tester.enterText(lookup, '8690000000012');
+  await tester.testTextInput.receiveAction(TextInputAction.done);
+  await tester.pumpAndSettle();
+  final addButton = find.widgetWithText(FilledButton, 'Ekle').first;
+  await tester.ensureVisible(addButton);
+  await tester.tap(addButton);
+  await tester.pumpAndSettle();
 }
 
 MobileCustomerCatalogLocalRepository _emptyCustomerCatalogRepository() {

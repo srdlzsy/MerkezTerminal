@@ -108,9 +108,13 @@ void main() {
         defaultWarehouseNo: '110',
         mobileWarehouseCatalogRepository: _emptyWarehouseCatalogRepository(),
       ),
-      prepare: _pickShipmentTargetWarehouse,
+      prepare: (tester) async {
+        await _pickShipmentTargetWarehouse(tester);
+        await _enterShipmentBarcode(tester);
+      },
       entryRowFinder: find.text('Giris satiri'),
       saveButtonFinder: find.widgetWithText(FilledButton, 'Kaydet'),
+      lineItemFinder: find.text('Test Urun'),
     );
   });
 

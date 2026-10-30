@@ -147,9 +147,10 @@ void main() {
           database: MemoryLocalDatabase(),
         ),
       ),
-      prepare: _goToLineStepIfNeeded,
+      prepare: _pickProduct,
       entryRowFinder: find.text('Giris satiri'),
       saveButtonFinder: find.widgetWithText(FilledButton, 'Kaydet'),
+      lineItemFinder: find.text('Test Urun'),
     );
   });
 

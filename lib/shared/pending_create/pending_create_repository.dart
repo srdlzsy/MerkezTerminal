@@ -173,7 +173,6 @@ class LocalPendingCreateRepository implements PendingCreateRepository {
   static const String _storageKey = 'pending_create_operations_v1';
   static const Duration _completionRetention = Duration(days: 7);
   static const Duration _pendingRetention = Duration(days: 30);
-  static const int _maxPendingPerScope = 5;
   static const int _maxCompletedPerScope = 50;
   static const Set<String> _closedFailureKinds = <String>{
     'notRetryable',
@@ -356,7 +355,10 @@ class LocalPendingCreateRepository implements PendingCreateRepository {
       final completed =
           scopeOperations.where((item) => item.isCompleted).toList()
             ..sort((left, right) => right.updatedAt.compareTo(left.updatedAt));
-      retained.addAll(pending.take(_maxPendingPerScope));
+      // Unresolved requests carry the immutable body and clientRequestId used
+      // to prevent duplicate Mikro documents. Never discard them just because
+      // another pending request was created in the same scope.
+      retained.addAll(pending);
       retained.addAll(completed.take(_maxCompletedPerScope));
     }
 

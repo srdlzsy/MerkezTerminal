@@ -368,16 +368,16 @@ class ProductDraftEntryPanel extends StatelessWidget {
       return Row(
         children: <Widget>[
           SizedBox(
-            width: 40,
+            width: 76,
             height: 38,
             child: OutlinedButton(
               onPressed: onCancel,
               style: OutlinedButton.styleFrom(
-                padding: EdgeInsets.zero,
-                minimumSize: const Size(40, 38),
+                padding: const EdgeInsets.symmetric(horizontal: 6),
+                minimumSize: const Size(76, 38),
                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
               ),
-              child: const Icon(Icons.clear_rounded, size: 20),
+              child: const Text('Vazgec'),
             ),
           ),
           const SizedBox(width: 6),
@@ -467,7 +467,8 @@ class ProductDraftEntryPanel extends StatelessWidget {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        if (constraints.maxWidth < 560) {
+        final stackedBreakpoint = isCompact ? 280.0 : 560.0;
+        if (constraints.maxWidth < stackedBreakpoint) {
           return Column(
             children: <Widget>[
               primaryQuantity,

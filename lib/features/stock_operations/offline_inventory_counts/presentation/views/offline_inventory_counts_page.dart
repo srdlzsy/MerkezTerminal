@@ -1087,22 +1087,24 @@ class _OfflineInventoryCountCreateSheetState
                             const SizedBox(height: 12),
                             TerminalMessageBlock.error(message: _errorMessage!),
                           ],
-                          const SizedBox(height: 12),
-                          TerminalFormActionRow(
-                            cancel: OutlinedButton(
-                              onPressed: () => Navigator.of(context).pop(),
-                              child: const Text('Vazgec'),
-                            ),
-                            submit: FilledButton.icon(
-                              onPressed: _submit,
-                              icon: const Icon(Icons.save_alt_rounded),
-                              label: const Text('Kaydet'),
-                            ),
-                          ),
                         ],
                       ),
                     ),
                   ],
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.only(top: 4, bottom: 4),
+                child: TerminalFormActionRow(
+                  cancel: OutlinedButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: const Text('Vazgec'),
+                  ),
+                  submit: FilledButton.icon(
+                    onPressed: _submit,
+                    icon: const Icon(Icons.save_alt_rounded),
+                    label: const Text('Kaydet'),
+                  ),
                 ),
               ),
             ],

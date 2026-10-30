@@ -760,23 +760,25 @@ class _StockReceiptCreateSheetState extends State<StockReceiptCreateSheet>
                       children: <Widget>[
                         if (_lookupError != null) ...<Widget>[
                           TerminalMessageBlock.error(message: _lookupError!),
-                          const SizedBox(height: 12),
                         ],
-                        TerminalFormActionRow(
-                          cancel: OutlinedButton(
-                            onPressed: () => Navigator.of(context).pop(),
-                            child: const Text('Vazgec'),
-                          ),
-                          submit: FilledButton.icon(
-                            onPressed: _submit,
-                            icon: const Icon(Icons.save_alt_rounded),
-                            label: const Text('Kaydet'),
-                          ),
-                        ),
                       ],
                     ),
                   ),
                 ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.only(top: 4, bottom: 4),
+              child: TerminalFormActionRow(
+                cancel: OutlinedButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('Vazgec'),
+                ),
+                submit: FilledButton.icon(
+                  onPressed: _submit,
+                  icon: const Icon(Icons.save_alt_rounded),
+                  label: const Text('Kaydet'),
+                ),
               ),
             ),
           ],

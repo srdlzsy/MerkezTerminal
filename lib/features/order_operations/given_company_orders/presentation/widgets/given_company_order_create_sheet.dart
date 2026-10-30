@@ -1037,31 +1037,27 @@ class _GivenCompanyOrderCreateSheetState
                                   _ValidationBlock(
                                     message: _validationMessage!,
                                   ),
-                                  const SizedBox(height: 10),
                                 ],
-                                TerminalFormActionRow(
-                                  submitFlex: 2,
-                                  cancel: OutlinedButton(
-                                    onPressed: () =>
-                                        Navigator.of(context).pop(),
-                                    child: const Text('Vazgec'),
-                                  ),
-                                  submit: FilledButton.icon(
-                                    onPressed: _submit,
-                                    icon: const Icon(Icons.save_rounded),
-                                    label: const Text('Kaydet'),
-                                    style: FilledButton.styleFrom(
-                                      padding: const EdgeInsets.symmetric(
-                                        vertical: 14,
-                                      ),
-                                    ),
-                                  ),
-                                ),
                               ],
                             ),
                           ),
                         ),
                       ],
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
+                    child: TerminalFormActionRow(
+                      submitFlex: 2,
+                      cancel: OutlinedButton(
+                        onPressed: () => Navigator.of(context).pop(),
+                        child: const Text('Vazgec'),
+                      ),
+                      submit: FilledButton.icon(
+                        onPressed: _submit,
+                        icon: const Icon(Icons.save_rounded),
+                        label: const Text('Kaydet'),
+                      ),
                     ),
                   ),
                 ],
@@ -1074,6 +1070,57 @@ class _GivenCompanyOrderCreateSheetState
   }
 
   Widget _buildCustomerSection(ThemeData theme) {
+    final mediaQuery = MediaQuery.of(context);
+    final compactHeight =
+        mediaQuery.size.height - mediaQuery.viewInsets.bottom < 650;
+    final selectedCustomer = _selectedCustomer;
+
+    if (compactHeight && selectedCustomer != null) {
+      return Container(
+        padding: const EdgeInsets.fromLTRB(8, 5, 5, 5),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.primaryContainer.withAlpha(55),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: theme.colorScheme.primary.withAlpha(45)),
+        ),
+        child: Column(
+          children: <Widget>[
+            Row(
+              children: <Widget>[
+                const Icon(Icons.business_rounded, size: 18),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    selectedCustomer.displayLabel,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.labelLarge?.copyWith(
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ),
+                IconButton(
+                  onPressed: _searchCustomer,
+                  tooltip: 'Cari degistir',
+                  icon: const Icon(Icons.swap_horiz_rounded, size: 19),
+                  constraints: const BoxConstraints.tightFor(
+                    width: 34,
+                    height: 32,
+                  ),
+                  padding: EdgeInsets.zero,
+                  style: IconButton.styleFrom(
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 3),
+            _buildDeliveryInfoRow(),
+          ],
+        ),
+      );
+    }
+
     return Container(
       decoration: BoxDecoration(
         color: theme.colorScheme.surfaceContainerHighest.withAlpha(30),

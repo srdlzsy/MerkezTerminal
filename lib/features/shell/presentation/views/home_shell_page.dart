@@ -243,7 +243,10 @@ class _HomeShellPageState extends State<HomeShellPage>
       return;
     }
 
-    if (!_isWarehouseContextVerified) {
+    final canOpenWithoutVerifiedWarehouseContext = widget.moduleRegistry
+        .canOpenWithoutVerifiedWarehouseContext(menu);
+    if (!_isWarehouseContextVerified &&
+        !canOpenWithoutVerifiedWarehouseContext) {
       final result = await _refreshWarehouseContext(showProgress: true);
       if (!mounted || result != WarehouseContextGuardResult.verified) {
         return;
