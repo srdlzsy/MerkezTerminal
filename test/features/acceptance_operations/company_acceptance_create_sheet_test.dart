@@ -19,6 +19,52 @@ import '../../support/memory_local_database.dart';
 import '../../support/pda_create_screen_contract.dart';
 
 void main() {
+  testWidgets('prefills customer carried from cari lookup', (tester) async {
+    const customer = CustomerLookupItem(
+      customerCode: 'CR001',
+      customerName: 'Tasinan Firma',
+      customerTitle: 'Tasinan Firma A.S.',
+      customerDisplayName: 'Tasinan Firma',
+      taxNumber: '1234567890',
+      representativeCode: '',
+      representativeName: '',
+      invoiceAddressNo: 1,
+      shippingAddressNo: 1,
+      isLocked: false,
+      isClosed: false,
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: CompanyAcceptanceCreateSheet(
+            repository: _FakeCompanyAcceptancesRepository(),
+            ordersRepository: _FakeGivenCompanyOrdersRepository(),
+            accessToken: 'token',
+            defaultWarehouseNo: '110',
+            mobileCustomerCatalogRepository:
+                MobileCustomerCatalogLocalRepository(
+                  database: MemoryLocalDatabase(),
+                ),
+            mobileProductCatalogRepository: MobileProductCatalogLocalRepository(
+              database: MemoryLocalDatabase(),
+            ),
+            initialCustomer: customer,
+          ),
+        ),
+      ),
+    );
+
+    final customerField = tester.widget<TextFormField>(
+      find.widgetWithText(TextFormField, 'Cari Arama'),
+    );
+    final customerCodeField = tester.widget<TextFormField>(
+      find.widgetWithText(TextFormField, 'Cari Kodu*'),
+    );
+    expect(customerField.controller?.text, contains('Tasinan Firma'));
+    expect(customerCodeField.controller?.text, 'CR001');
+  });
+
   test('company acceptance result matches the submitted document identity', () {
     final request = CompanyAcceptanceCreateRequest.fromJson(<String, dynamic>{
       'customerCode': '12001970',

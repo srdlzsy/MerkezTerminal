@@ -174,6 +174,65 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('cari bul carries selected customer to document actions', (
+    tester,
+  ) async {
+    const customer = CustomerLookupItem(
+      customerCode: 'CR001',
+      customerName: 'Test Firma',
+      customerTitle: 'Test Firma A.S.',
+      customerDisplayName: 'Test Firma',
+      taxNumber: '1234567890',
+      representativeCode: '',
+      representativeName: '',
+      invoiceAddressNo: 1,
+      shippingAddressNo: 1,
+      isLocked: false,
+      isClosed: false,
+    );
+    CustomerLookupItem? acceptanceCustomer;
+    CustomerLookupItem? returnCustomer;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: CompanyLookupToolPage(
+            repository: _FakeLegacyToolsRepository(
+              customers: const <CustomerLookupItem>[customer],
+            ),
+            accessToken: 'token',
+            defaultWarehouseNo: '110',
+            customerCatalogRepository: _customerCatalogRepository(),
+            customerCatalogSyncService: _customerCatalogSyncService(),
+            title: 'Cari Bul',
+            subtitle: 'Test',
+            emptyMessage: 'Bos',
+            onOpenCompanyAcceptance: (context, selected) async {
+              acceptanceCustomer = selected;
+            },
+            onOpenCompanyReturn: (context, selected) async {
+              returnCustomer = selected;
+            },
+          ),
+        ),
+      ),
+    );
+
+    await tester.enterText(find.byType(TextField), 'CR001');
+    await tester.tap(find.widgetWithText(FilledButton, 'Cari'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Mal Kabul'), findsOneWidget);
+    expect(find.text('Firma Iade'), findsOneWidget);
+    await tester.tap(find.text('Mal Kabul'));
+    await tester.pump();
+    await tester.tap(find.text('Firma Iade'));
+    await tester.pump();
+
+    expect(acceptanceCustomer?.customerCode, 'CR001');
+    expect(returnCustomer?.customerCode, 'CR001');
+  });
+
   testWidgets('cari bul falls back to local customer catalog', (tester) async {
     final customerCatalogRepository = _customerCatalogRepository();
     await customerCatalogRepository.replaceCatalog(
@@ -276,10 +335,12 @@ class _FakeLegacyToolsRepository implements LegacyToolsRepository {
   _FakeLegacyToolsRepository({
     this.searchCustomersByBarcodeError,
     this.stockAvailabilityProducts = const <SearchProductLookupItem>[],
+    this.customers = const <CustomerLookupItem>[],
   });
 
   final ApiException? searchCustomersByBarcodeError;
   final List<SearchProductLookupItem> stockAvailabilityProducts;
+  final List<CustomerLookupItem> customers;
   final List<String> productQueries = <String>[];
 
   @override
@@ -310,7 +371,7 @@ class _FakeLegacyToolsRepository implements LegacyToolsRepository {
     required String accessToken,
     required String query,
   }) async {
-    return const <CustomerLookupItem>[];
+    return customers;
   }
 
   @override
@@ -324,7 +385,7 @@ class _FakeLegacyToolsRepository implements LegacyToolsRepository {
       throw error;
     }
 
-    return const <CustomerLookupItem>[];
+    return customers;
   }
 
   @override

@@ -16,6 +16,9 @@ import 'package:furpa_merkez_terminal/shared/widgets/barcode_camera_scan_page.da
 import 'package:furpa_merkez_terminal/shared/widgets/section_card.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/terminal_ui_parts.dart';
 
+typedef CustomerDocumentLauncher =
+    Future<void> Function(BuildContext context, CustomerLookupItem customer);
+
 class ProductLookupToolPage extends StatefulWidget {
   const ProductLookupToolPage({
     super.key,
@@ -685,6 +688,8 @@ class CompanyLookupToolPage extends StatefulWidget {
     required this.title,
     required this.subtitle,
     required this.emptyMessage,
+    this.onOpenCompanyAcceptance,
+    this.onOpenCompanyReturn,
   });
 
   final LegacyToolsRepository repository;
@@ -695,6 +700,8 @@ class CompanyLookupToolPage extends StatefulWidget {
   final String title;
   final String subtitle;
   final String emptyMessage;
+  final CustomerDocumentLauncher? onOpenCompanyAcceptance;
+  final CustomerDocumentLauncher? onOpenCompanyReturn;
 
   @override
   State<CompanyLookupToolPage> createState() => _CompanyLookupToolPageState();
@@ -1070,6 +1077,62 @@ class _CompanyLookupToolPageState extends State<CompanyLookupToolPage> {
                                 ),
                               ],
                             ),
+                            if (widget.onOpenCompanyAcceptance != null ||
+                                widget.onOpenCompanyReturn != null) ...<Widget>[
+                              const SizedBox(height: 10),
+                              Row(
+                                children: <Widget>[
+                                  if (widget.onOpenCompanyAcceptance != null)
+                                    Expanded(
+                                      child: FilledButton.tonalIcon(
+                                        onPressed:
+                                            item.isLocked || item.isClosed
+                                            ? null
+                                            : () =>
+                                                  widget
+                                                      .onOpenCompanyAcceptance!(
+                                                    context,
+                                                    item,
+                                                  ),
+                                        icon: const Icon(
+                                          Icons.inventory_2_rounded,
+                                        ),
+                                        label: const Text('Mal Kabul'),
+                                      ),
+                                    ),
+                                  if (widget.onOpenCompanyAcceptance != null &&
+                                      widget.onOpenCompanyReturn != null)
+                                    const SizedBox(width: 8),
+                                  if (widget.onOpenCompanyReturn != null)
+                                    Expanded(
+                                      child: OutlinedButton.icon(
+                                        onPressed:
+                                            item.isLocked || item.isClosed
+                                            ? null
+                                            : () => widget.onOpenCompanyReturn!(
+                                                context,
+                                                item,
+                                              ),
+                                        icon: const Icon(Icons.undo_rounded),
+                                        label: const Text('Firma Iade'),
+                                      ),
+                                    ),
+                                ],
+                              ),
+                              if (item.isLocked || item.isClosed) ...<Widget>[
+                                const SizedBox(height: 6),
+                                Text(
+                                  'Kilitli veya kapali cari ile yeni belge acilamaz.',
+                                  style: Theme.of(context).textTheme.bodySmall
+                                      ?.copyWith(
+                                        color: Theme.of(
+                                          context,
+                                        ).colorScheme.error,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                ),
+                              ],
+                            ],
                           ],
                         ),
                       ),

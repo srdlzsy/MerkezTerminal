@@ -60,6 +60,7 @@ class CompanyAcceptanceCreateSheet extends StatefulWidget {
     this.draft,
     this.draftRepository,
     this.initialMessage,
+    this.initialCustomer,
     this.onSubmitRequest,
   });
 
@@ -72,6 +73,7 @@ class CompanyAcceptanceCreateSheet extends StatefulWidget {
   final CreateDraft? draft;
   final CreateDraftRepository? draftRepository;
   final String? initialMessage;
+  final CustomerLookupItem? initialCustomer;
   final Future<CompanyAcceptanceSubmitDecision> Function(
     CompanyAcceptanceCreateRequest request,
   )?
@@ -126,6 +128,12 @@ class _CompanyAcceptanceCreateSheetState
     _customerCodeController = TextEditingController(
       text: payload['customerCode']?.toString() ?? '',
     );
+    final initialCustomer = widget.initialCustomer;
+    if (_customerCodeController.text.trim().isEmpty &&
+        initialCustomer != null) {
+      _customerController.text = initialCustomer.displayLabel;
+      _customerCodeController.text = initialCustomer.customerCode.trim();
+    }
     _ettnController = TextEditingController(
       text: payload['ettn']?.toString() ?? '',
     );

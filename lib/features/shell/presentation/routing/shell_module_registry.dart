@@ -13,6 +13,7 @@ import 'package:furpa_merkez_terminal/features/legacy_tools/data/legacy_tools_re
 import 'package:furpa_merkez_terminal/features/legacy_tools/presentation/views/legacy_tool_pages.dart';
 import 'package:furpa_merkez_terminal/features/modules/presentation/views/module_placeholder_page.dart';
 import 'package:furpa_merkez_terminal/features/order_operations/given_company_orders/data/given_company_orders_repository.dart';
+import 'package:furpa_merkez_terminal/features/order_operations/given_company_orders/data/models/given_company_order_models.dart';
 import 'package:furpa_merkez_terminal/features/order_operations/given_company_orders/presentation/views/given_company_orders_page.dart';
 import 'package:furpa_merkez_terminal/features/order_operations/given_warehouse_orders/data/given_warehouse_orders_repository.dart';
 import 'package:furpa_merkez_terminal/features/order_operations/given_warehouse_orders/presentation/views/given_warehouse_orders_page.dart';
@@ -660,6 +661,25 @@ class ShellModuleRegistry {
           title: 'Cari Bul',
           subtitle: 'Cari sorgusu.',
           emptyMessage: 'Bu barkod icin cari onerisi bulunamadi.',
+          onOpenCompanyAcceptance:
+              context.hasPermission(
+                'mal-kabul-islemleri.firma-mal-kabulleri.create',
+              )
+              ? (navigationContext, customer) =>
+                    _openCompanyAcceptanceFromLookup(
+                      navigationContext: navigationContext,
+                      routeContext: context,
+                      customer: customer,
+                    )
+              : null,
+          onOpenCompanyReturn:
+              context.hasPermission('iade-islemleri.firma-iadeleri.create')
+              ? (navigationContext, customer) => _openCompanyReturnFromLookup(
+                  navigationContext: navigationContext,
+                  routeContext: context,
+                  customer: customer,
+                )
+              : null,
         ),
       ),
       ShellModuleRoute(
@@ -702,5 +722,68 @@ class ShellModuleRegistry {
         ),
       ),
     ];
+  }
+
+  Future<void> _openCompanyAcceptanceFromLookup({
+    required BuildContext navigationContext,
+    required ShellModuleRouteContext routeContext,
+    required CustomerLookupItem customer,
+  }) async {
+    await Navigator.of(navigationContext).push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) => CompanyAcceptancesPage(
+          repository: companyAcceptancesRepository,
+          offlineRepository: offlineCompanyAcceptancesRepository,
+          ordersRepository: givenCompanyOrdersRepository,
+          accessToken: routeContext.accessToken,
+          canCreate: true,
+          offlineSyncService: offlineSyncService,
+          mobileCustomerCatalogRepository: mobileCustomerCatalogLocalRepository,
+          mobileProductCatalogRepository: mobileProductCatalogLocalRepository,
+          currentUserId: routeContext.user.id,
+          defaultWarehouseNo: routeContext.user.warehouseNo,
+          userWarehouseName: routeContext.user.warehouseName,
+          draftRepository: createDraftRepository,
+          initialCustomer: customer,
+          openCreateOnStart: true,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openCompanyReturnFromLookup({
+    required BuildContext navigationContext,
+    required ShellModuleRouteContext routeContext,
+    required CustomerLookupItem customer,
+  }) async {
+    await Navigator.of(navigationContext).push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) => CompanyMovementsPage(
+          repository: companyReturnsRepository,
+          accessToken: routeContext.accessToken,
+          canCreate: true,
+          currentUserId: routeContext.user.id,
+          draftModuleKey: 'iade-islemleri.firma-iadeleri',
+          draftRepository: createDraftRepository,
+          pendingCreateRepository: pendingCreateRepository,
+          defaultWarehouseNo: routeContext.user.warehouseNo,
+          mobileCustomerCatalogRepository: mobileCustomerCatalogLocalRepository,
+          userWarehouseName: routeContext.user.warehouseName,
+          title: 'Firma Iadeleri',
+          subtitle: 'Firma iadeleri.',
+          createTitle: 'Yeni Iade',
+          createHelperText: 'Cari sec, urunleri ekle.',
+          createButtonLabel: 'Yeni Iade',
+          emptyListMessage: 'Secilen tarih araliginda firma iadesi bulunamadi.',
+          showCreateDocumentNoField: false,
+          despatchDriversRepository:
+              routeContext.hasPermission(_despatchDriverListPermission)
+              ? despatchDriversRepository
+              : null,
+          initialCustomer: customer,
+          openCreateOnStart: true,
+        ),
+      ),
+    );
   }
 }

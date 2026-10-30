@@ -11,7 +11,7 @@ import 'package:furpa_merkez_terminal/shared/widgets/section_card.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/terminal_ui_parts.dart';
 
 typedef WarehouseAcceptanceSubmitCallback =
-    Future<void> Function(WarehouseAcceptanceRequest request);
+    Future<bool> Function(WarehouseAcceptanceRequest request);
 
 class WarehouseAcceptancesPage extends StatefulWidget {
   const WarehouseAcceptancesPage({
@@ -111,34 +111,42 @@ class _WarehouseAcceptancesPageState extends State<WarehouseAcceptancesPage> {
 
     final navigation = Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (context) {
+        builder: (detailContext) {
           return ListenableBuilder(
             listenable: _controller,
             builder: (context, child) {
               return Scaffold(
                 appBar: AppBar(title: Text(item.documentNoLabel)),
                 body: SafeArea(
-                  child: ListView(
-                    padding: EdgeInsets.fromLTRB(
-                      16,
-                      16,
-                      16,
-                      20 + MediaQuery.paddingOf(context).bottom,
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+                    child: Column(
+                      children: <Widget>[
+                        _AcceptanceDocumentSummary(item: item),
+                        const SizedBox(height: 8),
+                        Expanded(
+                          child: _AcceptanceDetailBody(
+                            key: ValueKey(item.documentNoLabel),
+                            isReturn:
+                                _controller
+                                    .selectedAcceptanceDetail
+                                    ?.header
+                                    .isReturn ??
+                                item.isReturn,
+                            detail: _controller.selectedAcceptanceDetail,
+                            isLoading: _controller.isLoadingDetail,
+                            isSubmitting: _controller.isSubmitting,
+                            detailError: _controller.detailError,
+                            submitError: _controller.submitError,
+                            canSubmit: widget.canSubmit,
+                            onSubmit: (request) => _submitAcceptanceAndClose(
+                              detailContext,
+                              request,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
-                    children: <Widget>[
-                      _AcceptanceAccordionCard(
-                        item: item,
-                        isExpanded: true,
-                        detail: _controller.selectedAcceptanceDetail,
-                        isLoadingDetail: _controller.isLoadingDetail,
-                        isSubmitting: _controller.isSubmitting,
-                        detailError: _controller.detailError,
-                        submitError: _controller.submitError,
-                        canSubmit: widget.canSubmit,
-                        onSubmit: _submitAcceptance,
-                        onTap: () {},
-                      ),
-                    ],
                   ),
                 ),
               );
@@ -155,11 +163,22 @@ class _WarehouseAcceptancesPageState extends State<WarehouseAcceptancesPage> {
     }
   }
 
-  Future<void> _submitAcceptance(WarehouseAcceptanceRequest request) async {
+  Future<bool> _submitAcceptanceAndClose(
+    BuildContext detailContext,
+    WarehouseAcceptanceRequest request,
+  ) async {
+    final succeeded = await _submitAcceptance(request);
+    if (succeeded && detailContext.mounted) {
+      Navigator.of(detailContext).pop();
+    }
+    return succeeded;
+  }
+
+  Future<bool> _submitAcceptance(WarehouseAcceptanceRequest request) async {
     final result = await _controller.acceptShipment(request);
 
     if (!mounted) {
-      return;
+      return false;
     }
 
     final messenger = ScaffoldMessenger.of(context);
@@ -171,7 +190,7 @@ class _WarehouseAcceptancesPageState extends State<WarehouseAcceptancesPage> {
           content: Text(_controller.submitError ?? 'Mal kabul kaydedilemedi.'),
         ),
       );
-      return;
+      return false;
     }
 
     final documentType = result.isReturn ? 'iade' : 'sevk';
@@ -186,6 +205,7 @@ class _WarehouseAcceptancesPageState extends State<WarehouseAcceptancesPage> {
         ),
       ),
     );
+    return true;
   }
 
   @override
@@ -208,9 +228,7 @@ class _WarehouseAcceptancesPageState extends State<WarehouseAcceptancesPage> {
               const SizedBox(height: 16),
               _AcceptanceAccordionPanel(
                 controller: _controller,
-                canSubmit: widget.canSubmit,
                 onTap: _toggleSelection,
-                onSubmit: _submitAcceptance,
               ),
             ],
           ),
@@ -283,15 +301,11 @@ class _WarehouseAcceptanceListButton extends StatelessWidget {
 class _AcceptanceAccordionPanel extends StatelessWidget {
   const _AcceptanceAccordionPanel({
     required this.controller,
-    required this.canSubmit,
     required this.onTap,
-    required this.onSubmit,
   });
 
   final WarehouseAcceptancesController controller;
-  final bool canSubmit;
   final ValueChanged<WarehouseAcceptanceListItem> onTap;
-  final WarehouseAcceptanceSubmitCallback onSubmit;
 
   @override
   Widget build(BuildContext context) {
@@ -333,35 +347,6 @@ class _AcceptanceAccordionPanel extends StatelessWidget {
                       padding: const EdgeInsets.only(bottom: 12),
                       child: _AcceptanceAccordionCard(
                         item: item,
-                        isExpanded:
-                            (ModalRoute.of(context)?.isCurrent ?? true) &&
-                            controller.selectedAcceptance?.documentNoLabel ==
-                                item.documentNoLabel,
-                        detail:
-                            controller.selectedAcceptance?.documentNoLabel ==
-                                item.documentNoLabel
-                            ? controller.selectedAcceptanceDetail
-                            : null,
-                        isLoadingDetail:
-                            controller.selectedAcceptance?.documentNoLabel ==
-                                item.documentNoLabel &&
-                            controller.isLoadingDetail,
-                        isSubmitting:
-                            controller.selectedAcceptance?.documentNoLabel ==
-                                item.documentNoLabel &&
-                            controller.isSubmitting,
-                        detailError:
-                            controller.selectedAcceptance?.documentNoLabel ==
-                                item.documentNoLabel
-                            ? controller.detailError
-                            : null,
-                        submitError:
-                            controller.selectedAcceptance?.documentNoLabel ==
-                                item.documentNoLabel
-                            ? controller.submitError
-                            : null,
-                        canSubmit: canSubmit,
-                        onSubmit: onSubmit,
                         onTap: () => onTap(item),
                       ),
                     ),
@@ -375,28 +360,9 @@ class _AcceptanceAccordionPanel extends StatelessWidget {
 }
 
 class _AcceptanceAccordionCard extends StatelessWidget {
-  const _AcceptanceAccordionCard({
-    required this.item,
-    required this.isExpanded,
-    required this.detail,
-    required this.isLoadingDetail,
-    required this.isSubmitting,
-    required this.detailError,
-    required this.submitError,
-    required this.canSubmit,
-    required this.onSubmit,
-    required this.onTap,
-  });
+  const _AcceptanceAccordionCard({required this.item, required this.onTap});
 
   final WarehouseAcceptanceListItem item;
-  final bool isExpanded;
-  final WarehouseAcceptanceDetail? detail;
-  final bool isLoadingDetail;
-  final bool isSubmitting;
-  final String? detailError;
-  final String? submitError;
-  final bool canSubmit;
-  final WarehouseAcceptanceSubmitCallback onSubmit;
   final VoidCallback onTap;
 
   @override
@@ -404,7 +370,6 @@ class _AcceptanceAccordionCard extends StatelessWidget {
     final theme = Theme.of(context);
 
     return TerminalPdaRecordCard(
-      isSelected: isExpanded,
       onTap: onTap,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -421,9 +386,7 @@ class _AcceptanceAccordionCard extends StatelessWidget {
                 _StateBadge(state: item.shippingState),
                 const SizedBox(height: 4),
                 Icon(
-                  isExpanded
-                      ? Icons.keyboard_arrow_up_rounded
-                      : Icons.chevron_right_rounded,
+                  Icons.chevron_right_rounded,
                   size: 28,
                   color: theme.colorScheme.primary,
                 ),
@@ -449,28 +412,42 @@ class _AcceptanceAccordionCard extends StatelessWidget {
               ),
             ],
           ),
-          AnimatedSize(
-            duration: const Duration(milliseconds: 140),
-            curve: Curves.easeInOut,
-            child: isExpanded
-                ? Padding(
-                    padding: const EdgeInsets.only(top: 14),
-                    child: _AcceptanceDetailBody(
-                      key: ValueKey(item.documentNoLabel),
-                      isReturn: detail?.header.isReturn ?? item.isReturn,
-                      detail: detail,
-                      isLoading: isLoadingDetail,
-                      isSubmitting: isSubmitting,
-                      detailError: detailError,
-                      submitError: submitError,
-                      canSubmit: canSubmit,
-                      onSubmit: onSubmit,
-                    ),
-                  )
-                : const SizedBox.shrink(),
-          ),
         ],
       ),
+    );
+  }
+}
+
+class _AcceptanceDocumentSummary extends StatelessWidget {
+  const _AcceptanceDocumentSummary({required this.item});
+
+  final WarehouseAcceptanceListItem item;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: <Widget>[
+        _DocumentTypeBadge(isReturn: item.isReturn),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            '${item.sourceWarehouse} -> ${item.targetWarehouse}',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(
+              context,
+            ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w700),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Text(
+          '${AppFormatters.quantity(item.totalQuantity)} miktar',
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+            color: const Color(0xFF6B5A4A),
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ],
     );
   }
 }
@@ -653,189 +630,128 @@ class _AcceptanceReadyBodyState extends State<_AcceptanceReadyBody> {
   Widget build(BuildContext context) {
     final submitError = widget.submitError;
     final hasRequiredEDespatch = _hasRequiredEDespatch;
+    final statusMessage =
+        _validationMessage ??
+        submitError ??
+        (!hasRequiredEDespatch
+            ? 'Gonderen taraf e-irsaliyesi olusmadan kabul yapilamaz.'
+            : !widget.canSubmit
+            ? 'Bu kullanicida mal kabul kaydetme yetkisi yok.'
+            : null);
+    final statusIsError = _validationMessage != null || submitError != null;
+    final visibleDrafts = _visibleDrafts;
 
-    return TerminalPdaDetailPanel(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(
-                color: Theme.of(
-                  context,
-                ).colorScheme.outlineVariant.withAlpha(80),
-              ),
-            ),
-            child: Text(
-              'Her satirda varsayilan olarak ${widget.isReturn ? 'iade' : 'sevk'} miktari gelir. Gerekirse sayilan miktari guncelleyin.',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                height: 1.35,
-                color: const Color(0xFF5B4738),
-              ),
-            ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        TextField(
+          controller: _scanController,
+          onChanged: (value) {
+            setState(() {
+              _scanQuery = value;
+            });
+          },
+          decoration: InputDecoration(
+            isDense: true,
+            labelText: 'Stok kodu / barkod okut',
+            hintText: 'Kalemi bul',
+            prefixIcon: const Icon(Icons.qr_code_scanner_rounded),
+            suffixIcon: _scanQuery.trim().isEmpty
+                ? null
+                : IconButton(
+                    onPressed: () {
+                      _scanController.clear();
+                      setState(() {
+                        _scanQuery = '';
+                      });
+                    },
+                    tooltip: 'Temizle',
+                    icon: const Icon(Icons.close_rounded),
+                  ),
           ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: _scanController,
-            onChanged: (value) {
-              setState(() {
-                _scanQuery = value;
-              });
-            },
-            decoration: InputDecoration(
-              labelText: 'Stok kodu / barkod okut',
-              hintText: 'Kalemi hizli bul',
-              suffixIcon: _scanQuery.trim().isEmpty
-                  ? const Icon(Icons.qr_code_scanner_rounded)
-                  : IconButton(
-                      onPressed: () {
-                        _scanController.clear();
+        ),
+        const SizedBox(height: 6),
+        Text(
+          _scanQuery.trim().isEmpty
+              ? '${_drafts.length} kalem - Sayilan miktari kontrol edin.'
+              : '${visibleDrafts.length}/${_drafts.length} kalem eslesti.',
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+            color: const Color(0xFF6B5A4A),
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(height: 6),
+        Expanded(
+          child: visibleDrafts.isEmpty
+              ? const Center(
+                  child: _InfoBlock(
+                    message:
+                        'Okutulan kodla eslesen kalem bulunamadi. Kodu kontrol edin.',
+                  ),
+                )
+              : ListView.separated(
+                  key: const ValueKey<String>('warehouse-acceptance-lines'),
+                  keyboardDismissBehavior:
+                      ScrollViewKeyboardDismissBehavior.onDrag,
+                  padding: const EdgeInsets.only(bottom: 4),
+                  itemCount: visibleDrafts.length,
+                  separatorBuilder: (_, _) => const SizedBox(height: 6),
+                  itemBuilder: (context, index) {
+                    return _AcceptanceLineCard(
+                      draft: visibleDrafts[index],
+                      onChanged: () {
                         setState(() {
-                          _scanQuery = '';
-                        });
-                      },
-                      icon: const Icon(Icons.close_rounded),
-                    ),
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            _scanQuery.trim().isEmpty
-                ? '${_drafts.length} kalem hazir.'
-                : '${_visibleDrafts.length}/${_drafts.length} kalem eslesti.',
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: const Color(0xFF6B5A4A),
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(height: 12),
-          Text(
-            'Kalemler',
-            style: Theme.of(
-              context,
-            ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
-          ),
-          const SizedBox(height: 8),
-          if (_visibleDrafts.isEmpty)
-            const _InfoBlock(
-              message:
-                  'Okutulan kodla eslesen kalem bulunamadi. Stok kodunu veya arama metnini kontrol edin.',
-            )
-          else
-            Column(
-              children: _visibleDrafts
-                  .map(
-                    (draft) => Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
-                      child: _AcceptanceLineCard(
-                        draft: draft,
-                        onChanged: () {
-                          setState(() {
-                            _validationMessage = null;
-                          });
-                        },
-                      ),
-                    ),
-                  )
-                  .toList(growable: false),
-            ),
-          if (_hasDiscrepancy) ...<Widget>[
-            const SizedBox(height: 8),
-            InkWell(
-              borderRadius: BorderRadius.circular(14),
-              onTap: () {
-                setState(() {
-                  _allowDiscrepancy = !_allowDiscrepancy;
-                  _validationMessage = null;
-                });
-              },
-              child: Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFFFF5D9),
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: const Color(0xFFE8C667)),
-                ),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    Checkbox(
-                      value: _allowDiscrepancy,
-                      onChanged: (value) {
-                        setState(() {
-                          _allowDiscrepancy = value ?? false;
                           _validationMessage = null;
                         });
                       },
-                    ),
-                    Expanded(
-                      child: Padding(
-                        padding: const EdgeInsets.only(top: 4),
-                        child: Text(
-                          'Eksik veya fazla kabul oldugunu onayliyorum.',
-                          style: Theme.of(context).textTheme.bodyMedium
-                              ?.copyWith(
-                                color: const Color(0xFF6A4D00),
-                                fontWeight: FontWeight.w700,
-                                height: 1.35,
-                              ),
-                        ),
-                      ),
-                    ),
-                  ],
+                    );
+                  },
                 ),
-              ),
+        ),
+        if (_hasDiscrepancy)
+          CheckboxListTile(
+            dense: true,
+            contentPadding: EdgeInsets.zero,
+            visualDensity: VisualDensity.compact,
+            value: _allowDiscrepancy,
+            onChanged: (value) {
+              setState(() {
+                _allowDiscrepancy = value ?? false;
+                _validationMessage = null;
+              });
+            },
+            title: const Text(
+              'Eksik/fazla miktari onayliyorum',
+              style: TextStyle(fontWeight: FontWeight.w700),
             ),
-          ],
-          if (!hasRequiredEDespatch) ...<Widget>[
-            const SizedBox(height: 10),
-            const _InfoBlock(
-              message:
-                  'Kabul icin gonderen taraf e-irsaliyesi zorunlu. Sevk/iade e-irsaliye olarak gonderildikten sonra mal kabul yapilabilir.',
-            ),
-          ],
-          if (!widget.canSubmit) ...<Widget>[
-            const SizedBox(height: 10),
-            const _InfoBlock(
-              message:
-                  'Bu kullanicida mal kabul kaydetme yetkisi yok. Ekran salt okunur modda gosteriliyor.',
-            ),
-          ],
-          if (_validationMessage != null) ...<Widget>[
-            const SizedBox(height: 10),
-            _ErrorBlock(message: _validationMessage!),
-          ],
-          if (submitError != null) ...<Widget>[
-            const SizedBox(height: 10),
-            _ErrorBlock(message: submitError),
-          ],
-          const SizedBox(height: 12),
-          Align(
-            alignment: Alignment.centerRight,
-            child: FilledButton.icon(
-              onPressed:
-                  widget.canSubmit &&
-                      hasRequiredEDespatch &&
-                      !widget.isSubmitting
-                  ? _submit
-                  : null,
-              icon: widget.isSubmitting
-                  ? const SizedBox(
-                      height: 16,
-                      width: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.inventory_2_rounded),
-              label: Text(widget.isSubmitting ? 'Kaydediliyor...' : 'Kaydet'),
-            ),
+            controlAffinity: ListTileControlAffinity.leading,
           ),
+        if (statusMessage != null) ...<Widget>[
+          const SizedBox(height: 4),
+          if (statusIsError)
+            _ErrorBlock(message: statusMessage)
+          else
+            _InfoBlock(message: statusMessage),
         ],
-      ),
+        const SizedBox(height: 6),
+        SizedBox(
+          width: double.infinity,
+          child: FilledButton.icon(
+            onPressed:
+                widget.canSubmit && hasRequiredEDespatch && !widget.isSubmitting
+                ? _submit
+                : null,
+            icon: widget.isSubmitting
+                ? const SizedBox(
+                    height: 16,
+                    width: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.inventory_2_rounded),
+            label: Text(widget.isSubmitting ? 'Kaydediliyor...' : 'Kabul Et'),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -854,38 +770,10 @@ class _AcceptanceLineCard extends StatelessWidget {
       title: draft.stockName,
       showFullTitle: true,
       trailing: _DifferenceBadge(type: draft.differenceType),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          TerminalPdaInfoGrid(
-            minTileWidth: 90,
-            items: <TerminalPdaInfo>[
-              TerminalPdaInfo(label: 'Stok Kodu', value: draft.stockCode),
-              TerminalPdaInfo(
-                label: 'Evrak',
-                value: AppFormatters.quantity(draft.shippedQuantity),
-              ),
-              TerminalPdaInfo(label: 'Birim', value: draft.unitName),
-              TerminalPdaInfo(
-                label: 'Fark',
-                value: AppFormatters.quantity(draft.differenceValue.abs()),
-              ),
-            ],
-          ),
-          if (draft.extraInfo.isNotEmpty) ...<Widget>[
-            const SizedBox(height: 8),
-            Text(
-              draft.extraInfo,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: const Color(0xFF6B5A4A),
-              ),
-            ),
-          ],
-          const SizedBox(height: 10),
-          SizedBox(
-            width: 160,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final quantityField = SizedBox(
+            width: constraints.maxWidth < 330 ? double.infinity : 118,
             child: TextField(
               controller: draft.receivedQuantityController,
               keyboardType: const TextInputType.numberWithOptions(
@@ -894,11 +782,57 @@ class _AcceptanceLineCard extends StatelessWidget {
               inputFormatters: <TextInputFormatter>[
                 FilteringTextInputFormatter.allow(RegExp(r'[0-9,\.]')),
               ],
-              decoration: const InputDecoration(labelText: 'Sayilan miktar'),
+              decoration: const InputDecoration(
+                isDense: true,
+                labelText: 'Sayilan',
+              ),
               onChanged: (_) => onChanged(),
             ),
-          ),
-        ],
+          );
+          final stockInfo = Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Text(
+                '${draft.stockCode} | Evrak ${AppFormatters.quantity(draft.shippedQuantity)} ${draft.unitName}',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: const Color(0xFF4E4137),
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              if (draft.extraInfo.isNotEmpty) ...<Widget>[
+                const SizedBox(height: 3),
+                Text(
+                  draft.extraInfo,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: const Color(0xFF6B5A4A),
+                  ),
+                ),
+              ],
+            ],
+          );
+
+          if (constraints.maxWidth < 330) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: <Widget>[
+                stockInfo,
+                const SizedBox(height: 6),
+                quantityField,
+              ],
+            );
+          }
+
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: <Widget>[
+              Expanded(child: stockInfo),
+              const SizedBox(width: 8),
+              quantityField,
+            ],
+          );
+        },
       ),
     );
   }

@@ -24,6 +24,44 @@ import '../../support/memory_local_database.dart';
 import '../../support/pda_create_screen_contract.dart';
 
 void main() {
+  testWidgets('prefills customer carried from cari lookup', (tester) async {
+    const customer = CustomerLookupItem(
+      customerCode: 'CR001',
+      customerName: 'Tasinan Firma',
+      customerTitle: 'Tasinan Firma A.S.',
+      customerDisplayName: 'Tasinan Firma',
+      taxNumber: '1234567890',
+      representativeCode: '',
+      representativeName: '',
+      invoiceAddressNo: 1,
+      shippingAddressNo: 1,
+      isLocked: false,
+      isClosed: false,
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: CompanyMovementCreateSheet(
+            repository: _FakeCompanyMovementsRepository(),
+            accessToken: 'token',
+            defaultWarehouseNo: '50',
+            mobileCustomerCatalogRepository: _emptyCustomerCatalogRepository(),
+            title: 'Yeni Firma Iadesi',
+            helperText: '',
+            submitLabel: 'Kaydet',
+            initialCustomer: customer,
+          ),
+        ),
+      ),
+    );
+
+    final customerField = tester.widget<TextFormField>(
+      find.widgetWithText(TextFormField, 'Cari'),
+    );
+    expect(customerField.controller?.text, contains('Tasinan Firma'));
+  });
+
   testWidgets('opens detail page before detail request completes', (
     tester,
   ) async {

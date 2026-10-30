@@ -7,6 +7,7 @@ import 'package:furpa_merkez_terminal/features/company_movements/shared/data/com
 import 'package:furpa_merkez_terminal/features/company_movements/shared/data/models/company_movement_models.dart';
 import 'package:furpa_merkez_terminal/features/company_movements/shared/presentation/view_models/company_movements_controller.dart';
 import 'package:furpa_merkez_terminal/features/company_movements/shared/presentation/widgets/company_movement_create_sheet.dart';
+import 'package:furpa_merkez_terminal/features/order_operations/given_company_orders/data/models/given_company_order_models.dart';
 import 'package:furpa_merkez_terminal/features/return_operations/warehouse_returns/data/models/warehouse_return_models.dart';
 import 'package:furpa_merkez_terminal/features/return_operations/warehouse_returns/presentation/views/warehouse_return_pdf_preview_page.dart';
 import 'package:furpa_merkez_terminal/features/return_operations/warehouse_returns/presentation/widgets/warehouse_return_e_despatch_sheet.dart';
@@ -46,6 +47,8 @@ class CompanyMovementsPage extends StatefulWidget {
     this.emptyListMessage = 'Secilen tarih araliginda kayit bulunamadi.',
     this.showCreateDocumentNoField = true,
     this.despatchDriversRepository,
+    this.initialCustomer,
+    this.openCreateOnStart = false,
   });
 
   final CompanyMovementsRepository repository;
@@ -66,6 +69,8 @@ class CompanyMovementsPage extends StatefulWidget {
   final String emptyListMessage;
   final bool showCreateDocumentNoField;
   final DespatchDriversRepository? despatchDriversRepository;
+  final CustomerLookupItem? initialCustomer;
+  final bool openCreateOnStart;
 
   @override
   State<CompanyMovementsPage> createState() => _CompanyMovementsPageState();
@@ -92,6 +97,18 @@ class _CompanyMovementsPageState extends State<CompanyMovementsPage> {
     );
     _startDate = _controller.startDate;
     _endDate = _controller.endDate;
+    if (widget.openCreateOnStart && widget.initialCustomer != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          unawaited(
+            _openCreateSheet(
+              initialCustomer: widget.initialCustomer,
+              skipDraftPicker: true,
+            ),
+          );
+        }
+      });
+    }
     if (widget.canCreate && _controller.canCreate) {
       _isRestoringPendingCreate = true;
       unawaited(_restorePendingCreate());
@@ -284,10 +301,22 @@ class _CompanyMovementsPageState extends State<CompanyMovementsPage> {
     }
   }
 
-  Future<void> _openCreateSheet() async {
+  Future<void> _openCreateSheet({
+    CustomerLookupItem? initialCustomer,
+    bool skipDraftPicker = false,
+  }) async {
     CreateDraft? draft;
     final draftRepository = widget.draftRepository;
-    if (draftRepository != null && widget.draftModuleKey.isNotEmpty) {
+    if (draftRepository != null &&
+        widget.draftModuleKey.isNotEmpty &&
+        skipDraftPicker) {
+      draft = CreateDraft.empty(
+        moduleKey: widget.draftModuleKey,
+        userId: widget.currentUserId,
+        warehouseNo: widget.defaultWarehouseNo,
+        title: widget.createTitle,
+      );
+    } else if (draftRepository != null && widget.draftModuleKey.isNotEmpty) {
       final launch = await showCreateDraftPicker(
         context: context,
         repository: draftRepository,
@@ -330,6 +359,7 @@ class _CompanyMovementsPageState extends State<CompanyMovementsPage> {
           showDocumentNoField: widget.showCreateDocumentNoField,
           draft: draft,
           draftRepository: draftRepository,
+          initialCustomer: initialCustomer,
         );
       },
       onSubmit: (request) async {

@@ -37,6 +37,7 @@ class CompanyMovementCreateSheet extends StatefulWidget {
     this.showDocumentNoField = true,
     this.draft,
     this.draftRepository,
+    this.initialCustomer,
   });
 
   final CompanyMovementsRepository repository;
@@ -51,6 +52,7 @@ class CompanyMovementCreateSheet extends StatefulWidget {
   final bool showDocumentNoField;
   final CreateDraft? draft;
   final CreateDraftRepository? draftRepository;
+  final CustomerLookupItem? initialCustomer;
 
   @override
   State<CompanyMovementCreateSheet> createState() =>
@@ -85,6 +87,7 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
     _delivererController = TextEditingController();
     _receiverController = TextEditingController();
     _restoreDraft();
+    _applyInitialCustomer();
     _customerController.addListener(_scheduleDraftSave);
     _documentNoController.addListener(_scheduleDraftSave);
     _descriptionController.addListener(_scheduleDraftSave);
@@ -92,6 +95,16 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
     _receiverController.addListener(_scheduleDraftSave);
     WidgetsBinding.instance.addObserver(this);
     _restoringDraft = false;
+  }
+
+  void _applyInitialCustomer() {
+    final initialCustomer = widget.initialCustomer;
+    if (_selectedCustomer != null || initialCustomer == null) {
+      return;
+    }
+
+    _selectedCustomer = initialCustomer;
+    _customerController.text = initialCustomer.displayLabel;
   }
 
   @override

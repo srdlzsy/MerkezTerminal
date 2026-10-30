@@ -12,6 +12,7 @@ import 'package:furpa_merkez_terminal/features/acceptance_operations/offline_com
 import 'package:furpa_merkez_terminal/features/acceptance_operations/offline_company_acceptances/presentation/views/offline_company_acceptances_page.dart';
 import 'package:furpa_merkez_terminal/features/company_movements/shared/data/models/company_movement_models.dart';
 import 'package:furpa_merkez_terminal/features/order_operations/given_company_orders/data/given_company_orders_repository.dart';
+import 'package:furpa_merkez_terminal/features/order_operations/given_company_orders/data/models/given_company_order_models.dart';
 import 'package:furpa_merkez_terminal/shared/drafts/create_draft.dart';
 import 'package:furpa_merkez_terminal/shared/drafts/create_draft_picker.dart';
 import 'package:furpa_merkez_terminal/shared/drafts/create_draft_repository.dart';
@@ -41,6 +42,8 @@ class CompanyAcceptancesPage extends StatefulWidget {
     required this.defaultWarehouseNo,
     required this.userWarehouseName,
     this.draftRepository,
+    this.initialCustomer,
+    this.openCreateOnStart = false,
   });
 
   final CompanyAcceptancesRepository repository;
@@ -55,6 +58,8 @@ class CompanyAcceptancesPage extends StatefulWidget {
   final String defaultWarehouseNo;
   final String userWarehouseName;
   final CreateDraftRepository? draftRepository;
+  final CustomerLookupItem? initialCustomer;
+  final bool openCreateOnStart;
 
   @override
   State<CompanyAcceptancesPage> createState() => _CompanyAcceptancesPageState();
@@ -77,6 +82,18 @@ class _CompanyAcceptancesPageState extends State<CompanyAcceptancesPage> {
     _startDate = _controller.startDate;
     _endDate = _controller.endDate;
     unawaited(_controller.loadAcceptances());
+    if (widget.openCreateOnStart && widget.initialCustomer != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          unawaited(
+            _openCreateSheet(
+              initialCustomer: widget.initialCustomer,
+              skipDraftPicker: true,
+            ),
+          );
+        }
+      });
+    }
   }
 
   @override
@@ -189,6 +206,8 @@ class _CompanyAcceptancesPageState extends State<CompanyAcceptancesPage> {
   Future<void> _openCreateSheet({
     CreateDraft? resumeDraft,
     String? initialMessage,
+    CustomerLookupItem? initialCustomer,
+    bool skipDraftPicker = false,
   }) async {
     if (_isSubmittingCreate) {
       return;
@@ -197,7 +216,14 @@ class _CompanyAcceptancesPageState extends State<CompanyAcceptancesPage> {
     ScaffoldMessenger.of(context).clearSnackBars();
 
     CreateDraft? draft = resumeDraft;
-    if (draft == null && widget.draftRepository != null) {
+    if (draft == null && widget.draftRepository != null && skipDraftPicker) {
+      draft = CreateDraft.empty(
+        moduleKey: 'mal-kabul-islemleri.firma-mal-kabulleri',
+        userId: widget.currentUserId,
+        warehouseNo: widget.defaultWarehouseNo,
+        title: 'Yeni Firma Mal Kabul',
+      );
+    } else if (draft == null && widget.draftRepository != null) {
       final launch = await showCreateDraftPicker(
         context: context,
         repository: widget.draftRepository!,
@@ -237,6 +263,7 @@ class _CompanyAcceptancesPageState extends State<CompanyAcceptancesPage> {
               draft: draft,
               draftRepository: widget.draftRepository,
               initialMessage: initialMessage,
+              initialCustomer: initialCustomer,
               onSubmitRequest: (request) {
                 submittedInline = true;
                 return _submitCompanyAcceptanceInline(request, draft);
