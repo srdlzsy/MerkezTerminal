@@ -43,10 +43,54 @@ void main() {
     expect(find.textContaining('Her satirda varsayilan'), findsNothing);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('treats an equal decimal KG quantity as complete', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(320, 568);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: WarehouseAcceptancesPage(
+            repository: _FakeWarehouseAcceptancesRepository(
+              detailQuantity: 0.31999999999999995,
+            ),
+            accessToken: 'token',
+            defaultWarehouseNo: '56',
+            userWarehouseName: 'MANAV DEPO',
+            canSubmit: true,
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final document = find.text('F56.1');
+    await tester.ensureVisible(document);
+    await tester.tap(document);
+    await tester.pumpAndSettle();
+
+    final quantityField = find.widgetWithText(TextField, 'Sayilan');
+    expect(quantityField, findsOneWidget);
+    await tester.enterText(quantityField, '0.32');
+    await tester.pump();
+
+    expect(find.text('Tam'), findsOneWidget);
+    expect(find.text('Fazla'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
 }
 
 class _FakeWarehouseAcceptancesRepository
     implements WarehouseAcceptancesRepository {
+  _FakeWarehouseAcceptancesRepository({this.detailQuantity = 2});
+
+  final double detailQuantity;
+
   static const item = WarehouseShipmentListItem(
     documentDate: null,
     movementDate: null,
@@ -84,8 +128,8 @@ class _FakeWarehouseAcceptancesRepository
     required int documentOrderNo,
     required String warehouseNo,
   }) async {
-    return const WarehouseShipmentDetail(
-      header: WarehouseShipmentDetailHeader(
+    return WarehouseShipmentDetail(
+      header: const WarehouseShipmentDetailHeader(
         documentDate: null,
         movementDate: null,
         documentNo: 'IRS0001',
@@ -115,7 +159,7 @@ class _FakeWarehouseAcceptancesRepository
           stockName: 'MNV DOMATES SALKIM KG',
           unitName: 'KG',
           unitPointer: 1,
-          quantity: 2,
+          quantity: detailQuantity,
           unitPrice: 0,
           lineAmount: 0,
           description: '',

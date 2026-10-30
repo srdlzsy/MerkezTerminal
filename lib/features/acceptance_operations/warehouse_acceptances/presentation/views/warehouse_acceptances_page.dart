@@ -7,11 +7,14 @@ import 'package:furpa_merkez_terminal/features/acceptance_operations/warehouse_a
 import 'package:furpa_merkez_terminal/features/acceptance_operations/warehouse_acceptances/data/warehouse_acceptances_repository.dart';
 import 'package:furpa_merkez_terminal/features/acceptance_operations/warehouse_acceptances/presentation/view_models/warehouse_acceptances_controller.dart';
 import 'package:furpa_merkez_terminal/shared/formatters/app_formatters.dart';
+import 'package:furpa_merkez_terminal/shared/product_entry/product_entry_controller.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/section_card.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/terminal_ui_parts.dart';
 
 typedef WarehouseAcceptanceSubmitCallback =
     Future<bool> Function(WarehouseAcceptanceRequest request);
+
+const double _warehouseAcceptanceQuantityTolerance = 0.000001;
 
 class WarehouseAcceptancesPage extends StatefulWidget {
   const WarehouseAcceptancesPage({
@@ -893,7 +896,7 @@ class _AcceptanceLineDraft {
     required this.shippedQuantity,
     required this.extraInfo,
   }) : receivedQuantityController = TextEditingController(
-         text: AppFormatters.quantity(shippedQuantity).replaceAll('.', ''),
+         text: productEntryController.formatQuantity(shippedQuantity),
        );
 
   factory _AcceptanceLineDraft.fromDetailItem(
@@ -930,7 +933,12 @@ class _AcceptanceLineDraft {
     return double.tryParse(raw) ?? 0;
   }
 
-  double get differenceValue => receivedQuantity - shippedQuantity;
+  double get differenceValue {
+    final difference = receivedQuantity - shippedQuantity;
+    return difference.abs() <= _warehouseAcceptanceQuantityTolerance
+        ? 0
+        : difference;
+  }
 
   String get differenceType {
     if (differenceValue == 0) {
