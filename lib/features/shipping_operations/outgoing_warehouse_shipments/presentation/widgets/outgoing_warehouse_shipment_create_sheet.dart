@@ -68,6 +68,7 @@ class _OutgoingWarehouseShipmentCreateSheetState
   late DateTime _documentDate;
   late _ShipmentCreateMode _mode;
   late List<_ManualShipmentLineDraft> _manualLines;
+  late final String _clientRequestId;
   List<_LinkedShipmentLineDraft> _linkedLines = <_LinkedShipmentLineDraft>[];
   WarehouseLookupItem? _selectedTargetWarehouse;
   _SelectedWarehouseOrder? _selectedOrder;
@@ -85,6 +86,7 @@ class _OutgoingWarehouseShipmentCreateSheetState
   void initState() {
     super.initState();
     final payload = widget.draft?.payload ?? const <String, dynamic>{};
+    _clientRequestId = resolveDraftClientRequestId(payload);
     _targetWarehouseNoController = TextEditingController(
       text: payload['targetWarehouseNo']?.toString() ?? '',
     );
@@ -193,6 +195,7 @@ class _OutgoingWarehouseShipmentCreateSheetState
 
   Map<String, dynamic> _buildDraftPayload() {
     return <String, dynamic>{
+      'clientRequestId': _clientRequestId,
       'targetWarehouseNo': _targetWarehouseNoController.text,
       'transitWarehouseNo': _transitWarehouseNoController.text,
       'documentNo': _documentNoController.text,
@@ -1583,7 +1586,7 @@ class _OutgoingWarehouseShipmentCreateSheetState
     }
 
     final request = WarehouseShipmentCreateRequest(
-      clientRequestId: generateClientRequestId(),
+      clientRequestId: _clientRequestId,
       targetWarehouseNo: targetWarehouseNo,
       transitWarehouseNo: transitWarehouseNo,
       movementDate: _movementDate,
@@ -1593,11 +1596,18 @@ class _OutgoingWarehouseShipmentCreateSheetState
       lines: requestLines,
     );
 
-    await _draftSession.complete();
-    if (!mounted) {
-      return;
+    var completed = false;
+    try {
+      await _draftSession.complete();
+      if (!mounted) {
+        return;
+      }
+      completed = await TerminalCreateSubmitScope.submit(context, request);
+    } finally {
+      if (!completed) {
+        _draftSession.resumeAfterFailedSubmit();
+      }
     }
-    await TerminalCreateSubmitScope.submit(context, request);
   }
 
   List<WarehouseShipmentCreateLine>? _buildManualRequestLines() {

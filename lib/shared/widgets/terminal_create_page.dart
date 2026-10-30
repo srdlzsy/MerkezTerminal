@@ -78,8 +78,8 @@ class _TerminalCreatePageState<TResult>
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
-            'Islem sonucu ekranda tamamlanamadi. Ayni kaydi yeniden '
-            'gondermeden once listeyi yenileyin.',
+            'Kayit tamamlanamadi. Bilgiler taslakta korundu. '
+            'Baglantiyi kontrol edip Kaydet dugmesine yeniden basin.',
           ),
         ),
       );

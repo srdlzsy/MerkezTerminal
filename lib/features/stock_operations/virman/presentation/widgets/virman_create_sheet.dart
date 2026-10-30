@@ -49,6 +49,7 @@ class _VirmanCreateSheetState extends State<VirmanCreateSheet>
   late List<_VirmanDraftLine> _lines;
   late DateTime _movementDate;
   late DateTime _documentDate;
+  late final String _clientRequestId;
   String? _errorMessage;
   String? _conversionSuggestionMessage;
   late final CreateDraftSession _draftSession;
@@ -58,6 +59,7 @@ class _VirmanCreateSheetState extends State<VirmanCreateSheet>
   void initState() {
     super.initState();
     final payload = widget.draft?.payload ?? const <String, dynamic>{};
+    _clientRequestId = resolveDraftClientRequestId(payload);
     _descriptionController = TextEditingController(
       text: payload['description']?.toString() ?? '',
     );
@@ -122,6 +124,7 @@ class _VirmanCreateSheetState extends State<VirmanCreateSheet>
 
   Map<String, dynamic> _buildDraftPayload() {
     return <String, dynamic>{
+      'clientRequestId': _clientRequestId,
       'movementDate': _movementDate.toIso8601String(),
       'documentDate': _documentDate.toIso8601String(),
       'description': _descriptionController.text,
@@ -972,7 +975,7 @@ class _VirmanCreateSheetState extends State<VirmanCreateSheet>
     });
 
     final request = VirmanCreateRequest(
-      clientRequestId: generateClientRequestId(),
+      clientRequestId: _clientRequestId,
       movementDate: _movementDate,
       documentDate: _documentDate,
       documentNo: '',
@@ -980,11 +983,18 @@ class _VirmanCreateSheetState extends State<VirmanCreateSheet>
       lines: requestLines,
     );
 
-    await _draftSession.complete();
-    if (!mounted) {
-      return;
+    var completed = false;
+    try {
+      await _draftSession.complete();
+      if (!mounted) {
+        return;
+      }
+      completed = await TerminalCreateSubmitScope.submit(context, request);
+    } finally {
+      if (!completed) {
+        _draftSession.resumeAfterFailedSubmit();
+      }
     }
-    await TerminalCreateSubmitScope.submit(context, request);
   }
 
   @override

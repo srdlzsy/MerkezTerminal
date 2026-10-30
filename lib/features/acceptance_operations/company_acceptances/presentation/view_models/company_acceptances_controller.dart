@@ -187,6 +187,11 @@ class CompanyAcceptancesController extends ChangeNotifier
       _createError = error.message;
       notifySafely();
       return null;
+    } finally {
+      if (_isCreating) {
+        _isCreating = false;
+        notifySafely();
+      }
     }
   }
 

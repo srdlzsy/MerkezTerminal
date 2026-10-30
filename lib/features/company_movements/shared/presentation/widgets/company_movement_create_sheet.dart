@@ -68,6 +68,7 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
   late final TextEditingController _descriptionController;
   late final TextEditingController _delivererController;
   late final TextEditingController _receiverController;
+  late final String _clientRequestId;
   CustomerLookupItem? _selectedCustomer;
   String? _lookupError;
   Timer? _draftSaveTimer;
@@ -86,6 +87,9 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
     _descriptionController = TextEditingController();
     _delivererController = TextEditingController();
     _receiverController = TextEditingController();
+    _clientRequestId = resolveDraftClientRequestId(
+      widget.draft?.payload ?? const <String, dynamic>{},
+    );
     _restoreDraft();
     _applyInitialCustomer();
     _customerController.addListener(_scheduleDraftSave);
@@ -235,6 +239,7 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
 
   Map<String, dynamic> _draftPayload() {
     return <String, dynamic>{
+      'clientRequestId': _clientRequestId,
       'customerText': _customerController.text,
       'documentNo': _documentNoController.text,
       'description': _descriptionController.text,
@@ -933,7 +938,7 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
     }
 
     final request = CompanyMovementCreateRequest(
-      clientRequestId: generateClientRequestId(),
+      clientRequestId: _clientRequestId,
       customerCode: _selectedCustomer!.customerCode,
       movementDate: DateTime.now(),
       documentDate: DateTime.now(),

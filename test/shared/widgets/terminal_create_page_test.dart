@@ -76,4 +76,57 @@ void main() {
     expect(find.text('Kaydet'), findsNothing);
     expect(find.text('Yeni'), findsOneWidget);
   });
+
+  testWidgets('unlocks save after an unexpected submit error', (tester) async {
+    var submitCount = 0;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) => Scaffold(
+            body: TextButton(
+              onPressed: () {
+                unawaited(
+                  openTerminalCreatePage<String>(
+                    context: context,
+                    title: 'Yeni Kayit',
+                    builder: (context) => Center(
+                      child: FilledButton(
+                        onPressed: () =>
+                            TerminalCreateSubmitScope.submit(context, 'istek'),
+                        child: const Text('Kaydet'),
+                      ),
+                    ),
+                    onSubmit: (_) async {
+                      submitCount += 1;
+                      if (submitCount == 1) {
+                        throw StateError('test error');
+                      }
+                      return true;
+                    },
+                  ),
+                );
+              },
+              child: const Text('Yeni'),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Yeni'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Kaydet'));
+    await tester.pumpAndSettle();
+
+    expect(submitCount, 1);
+    expect(find.text('Kaydet'), findsOneWidget);
+    expect(find.textContaining('Bilgiler taslakta korundu'), findsOneWidget);
+
+    await tester.tap(find.text('Kaydet'));
+    await tester.pumpAndSettle();
+
+    expect(submitCount, 2);
+    expect(find.text('Yeni'), findsOneWidget);
+  });
 }

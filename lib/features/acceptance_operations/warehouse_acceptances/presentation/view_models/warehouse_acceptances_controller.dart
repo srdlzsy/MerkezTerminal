@@ -203,6 +203,11 @@ class WarehouseAcceptancesController extends ChangeNotifier
       _submitError = error.message;
       notifySafely();
       return null;
+    } finally {
+      if (_isSubmitting) {
+        _isSubmitting = false;
+        notifySafely();
+      }
     }
   }
 

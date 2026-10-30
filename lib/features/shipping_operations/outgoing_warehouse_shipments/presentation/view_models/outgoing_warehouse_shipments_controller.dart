@@ -240,6 +240,11 @@ class OutgoingWarehouseShipmentsController extends ChangeNotifier
       _createFailureKind = classifySafeCreateException(error);
       notifySafely();
       return null;
+    } finally {
+      if (_isCreating) {
+        _isCreating = false;
+        notifySafely();
+      }
     }
   }
 

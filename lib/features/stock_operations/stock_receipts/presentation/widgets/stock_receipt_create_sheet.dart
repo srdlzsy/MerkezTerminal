@@ -53,6 +53,7 @@ class _StockReceiptCreateSheetState extends State<StockReceiptCreateSheet>
   late final TextEditingController _descriptionController;
   late DateTime _movementDate;
   late DateTime _documentDate;
+  late final String _clientRequestId;
   String? _lookupError;
   late final CreateDraftSession _draftSession;
   String? _lastAddedProductKey;
@@ -63,6 +64,7 @@ class _StockReceiptCreateSheetState extends State<StockReceiptCreateSheet>
   void initState() {
     super.initState();
     final payload = widget.draft?.payload ?? const <String, dynamic>{};
+    _clientRequestId = resolveDraftClientRequestId(payload);
     _creatorController = TextEditingController(
       text: payload['creator']?.toString() ?? '',
     );
@@ -141,6 +143,7 @@ class _StockReceiptCreateSheetState extends State<StockReceiptCreateSheet>
 
   Map<String, dynamic> _buildDraftPayload() {
     return <String, dynamic>{
+      'clientRequestId': _clientRequestId,
       'creator': _creatorController.text,
       'acceptor': _acceptorController.text,
       'documentNo': _documentNoController.text,
@@ -691,7 +694,7 @@ class _StockReceiptCreateSheetState extends State<StockReceiptCreateSheet>
     }
 
     final request = StockReceiptCreateRequest(
-      clientRequestId: generateClientRequestId(),
+      clientRequestId: _clientRequestId,
       creator: _creatorController.text.trim(),
       acceptor: _acceptorController.text.trim(),
       movementDate: _movementDate,
@@ -713,11 +716,18 @@ class _StockReceiptCreateSheetState extends State<StockReceiptCreateSheet>
           .toList(growable: false),
     );
 
-    await _draftSession.complete();
-    if (!mounted) {
-      return;
+    var completed = false;
+    try {
+      await _draftSession.complete();
+      if (!mounted) {
+        return;
+      }
+      completed = await TerminalCreateSubmitScope.submit(context, request);
+    } finally {
+      if (!completed) {
+        _draftSession.resumeAfterFailedSubmit();
+      }
     }
-    await TerminalCreateSubmitScope.submit(context, request);
   }
 
   @override

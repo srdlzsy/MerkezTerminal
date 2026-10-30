@@ -49,6 +49,7 @@ class _InventoryCountCreateSheetState extends State<InventoryCountCreateSheet>
   late final TextEditingController _nameController;
   late DateTime _documentDate;
   late List<_InventoryLineDraft> _lines;
+  late final String _clientRequestId;
   String? _validationMessage;
   late final CreateDraftSession _draftSession;
   String? _lastAddedProductKey;
@@ -57,6 +58,7 @@ class _InventoryCountCreateSheetState extends State<InventoryCountCreateSheet>
   void initState() {
     super.initState();
     final payload = widget.draft?.payload ?? const <String, dynamic>{};
+    _clientRequestId = resolveDraftClientRequestId(payload);
     _nameController = TextEditingController(
       text: payload['name']?.toString() ?? '',
     );
@@ -110,6 +112,7 @@ class _InventoryCountCreateSheetState extends State<InventoryCountCreateSheet>
 
   Map<String, dynamic> _buildDraftPayload() {
     return <String, dynamic>{
+      'clientRequestId': _clientRequestId,
       'name': _nameController.text,
       'documentDate': _documentDate.toIso8601String(),
       'lines': _lines
@@ -722,17 +725,24 @@ class _InventoryCountCreateSheetState extends State<InventoryCountCreateSheet>
     }
 
     final request = InventoryCountCreateRequest(
-      clientRequestId: generateClientRequestId(),
+      clientRequestId: _clientRequestId,
       name: _nameController.text.trim(),
       documentDate: _documentDate,
       lines: requestLines,
     );
 
-    await _draftSession.complete();
-    if (!mounted) {
-      return;
+    var completed = false;
+    try {
+      await _draftSession.complete();
+      if (!mounted) {
+        return;
+      }
+      completed = await TerminalCreateSubmitScope.submit(context, request);
+    } finally {
+      if (!completed) {
+        _draftSession.resumeAfterFailedSubmit();
+      }
     }
-    await TerminalCreateSubmitScope.submit(context, request);
   }
 
   @override

@@ -159,6 +159,10 @@ class WarehouseOrdersController extends ChangeNotifier with SafeChangeNotifier {
   Future<WarehouseOrderCreateResult?> createOrder(
     WarehouseOrderCreateRequest request,
   ) async {
+    if (_isCreating) {
+      return null;
+    }
+
     if (!_repository.supportsCreate) {
       _createError = 'Bu ekranda yeni siparis olusturma desteklenmiyor.';
       notifySafely();
@@ -195,6 +199,11 @@ class WarehouseOrdersController extends ChangeNotifier with SafeChangeNotifier {
       _createError = safeCreateRetryErrorMessage(error);
       notifySafely();
       return null;
+    } finally {
+      if (_isCreating) {
+        _isCreating = false;
+        notifySafely();
+      }
     }
   }
 

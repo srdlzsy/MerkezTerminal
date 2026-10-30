@@ -160,6 +160,10 @@ class GivenCompanyOrdersController extends ChangeNotifier
   Future<CompanyOrderCreateResult?> createOrder(
     CompanyOrderCreateRequest request,
   ) async {
+    if (_isCreating) {
+      return null;
+    }
+
     if (!_repository.supportsCreate) {
       _createError = 'Bu ekranda yeni siparis olusturma desteklenmiyor.';
       notifySafely();
@@ -196,6 +200,11 @@ class GivenCompanyOrdersController extends ChangeNotifier
       _createError = safeCreateRetryErrorMessage(error);
       notifySafely();
       return null;
+    } finally {
+      if (_isCreating) {
+        _isCreating = false;
+        notifySafely();
+      }
     }
   }
 

@@ -247,7 +247,9 @@ String safeCreateRetryWaitMessage(Duration wait) {
 bool shouldKeepSafeCreatePending(SafeCreateFailureKind kind) {
   return kind == SafeCreateFailureKind.uncertain ||
       kind == SafeCreateFailureKind.processing ||
-      kind == SafeCreateFailureKind.waitAndCheck;
+      kind == SafeCreateFailureKind.waitAndCheck ||
+      kind == SafeCreateFailureKind.retrySameRequest ||
+      kind == SafeCreateFailureKind.queueBusy;
 }
 
 bool canStartNewSafeCreate(SafeCreateFailureKind kind) {
@@ -304,7 +306,7 @@ String _safeCreateRetryErrorMessageForKind(
   final message = switch (kind) {
     SafeCreateFailureKind.queueBusy =>
       'Kayit Mikro yazma sirasina giremedi. Bilgiler cihaz taslaginda '
-          'korundu; bu ekrandan otomatik tekrar gonderilmeyecek.',
+          'korundu. Biraz bekleyip Kaydet dugmesine yeniden basin.',
     SafeCreateFailureKind.processing =>
       'Kayit Mikro tarafinda halen isleniyor. Sonuc uygulama tarafindan '
           'otomatik kontrol edilecek; girdiginiz bilgiler korunuyor.',
@@ -335,8 +337,8 @@ String _safeCreateRetryErrorMessageForKind(
       'Kayit sonucu henuz kesinlesmedi. Girdiginiz bilgiler korunuyor ve '
           'sonuc uygulama tarafindan otomatik kontrol edilecek.',
     SafeCreateFailureKind.retrySameRequest =>
-      'Mikro tarafinda bu istege ait belge bulunmadigi dogrulandi. Saklanan '
-          'bilgiler cihaz taslaginda korundu; otomatik tekrar gonderilmedi.',
+      'Kaydin Mikro\'ya ulasmadigi kesinlesti. Bilgiler cihaz taslaginda '
+          'korundu. Baglantiyi kontrol edip Kaydet dugmesine yeniden basin.',
     SafeCreateFailureKind.statusNotFound =>
       'Bu guvenli kaydin sunucu durum izi bulunamadi. Yeni kimlik uretmeyin; '
           'destek birimine bildirin.',

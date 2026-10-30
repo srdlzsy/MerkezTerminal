@@ -53,6 +53,7 @@ class _WarehouseReturnCreateSheetState extends State<WarehouseReturnCreateSheet>
   late DateTime _movementDate;
   late DateTime _documentDate;
   late List<_ReturnLineDraft> _lines;
+  late final String _clientRequestId;
   WarehouseLookupItem? _selectedWarehouse;
   String? _validationMessage;
   late final CreateDraftSession _draftSession;
@@ -66,6 +67,7 @@ class _WarehouseReturnCreateSheetState extends State<WarehouseReturnCreateSheet>
   void initState() {
     super.initState();
     final payload = widget.draft?.payload ?? const <String, dynamic>{};
+    _clientRequestId = resolveDraftClientRequestId(payload);
     _targetWarehouseController = TextEditingController(
       text: payload['targetWarehouseNo']?.toString() ?? '',
     );
@@ -140,6 +142,7 @@ class _WarehouseReturnCreateSheetState extends State<WarehouseReturnCreateSheet>
 
   Map<String, dynamic> _buildDraftPayload() {
     return <String, dynamic>{
+      'clientRequestId': _clientRequestId,
       'targetWarehouseNo': _targetWarehouseController.text,
       'transitWarehouseNo': _transitWarehouseController.text,
       'description': _descriptionController.text,
@@ -840,7 +843,7 @@ class _WarehouseReturnCreateSheetState extends State<WarehouseReturnCreateSheet>
     }
 
     final request = WarehouseReturnCreateRequest(
-      clientRequestId: generateClientRequestId(),
+      clientRequestId: _clientRequestId,
       targetWarehouseNo: targetWarehouseNo,
       transitWarehouseNo: transitWarehouseNo,
       movementDate: _movementDate,
@@ -850,11 +853,18 @@ class _WarehouseReturnCreateSheetState extends State<WarehouseReturnCreateSheet>
       lines: requestLines,
     );
 
-    await _draftSession.complete();
-    if (!mounted) {
-      return;
+    var completed = false;
+    try {
+      await _draftSession.complete();
+      if (!mounted) {
+        return;
+      }
+      completed = await TerminalCreateSubmitScope.submit(context, request);
+    } finally {
+      if (!completed) {
+        _draftSession.resumeAfterFailedSubmit();
+      }
     }
-    await TerminalCreateSubmitScope.submit(context, request);
   }
 
   @override

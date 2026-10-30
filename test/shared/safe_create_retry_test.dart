@@ -73,7 +73,7 @@ void main() {
     );
   });
 
-  test('queue busy falls back to the editable form draft', () {
+  test('queue busy keeps the exact request with the editable draft', () {
     const conflict = ApiException(
       statusCode: 409,
       title: 'Conflict',
@@ -82,7 +82,7 @@ void main() {
     );
     final kind = classifySafeCreateException(conflict);
 
-    expect(shouldKeepSafeCreatePending(kind), isFalse);
+    expect(shouldKeepSafeCreatePending(kind), isTrue);
     expect(shouldCheckSafeCreateStatus(kind), isFalse);
     expect(canRetrySafeCreate(kind), isFalse);
     expect(canStartNewSafeCreate(kind), isFalse);
@@ -90,7 +90,7 @@ void main() {
     expect(safeCreateRetryErrorMessage(conflict), contains('taslaginda'));
   });
 
-  test('proven missing write does not start an automatic retry loop', () {
+  test('proven missing write keeps the exact request for explicit retry', () {
     const conflict = ApiException(
       statusCode: 409,
       title: 'Conflict',
@@ -101,10 +101,10 @@ void main() {
     final kind = classifySafeCreateException(conflict);
 
     expect(kind, SafeCreateFailureKind.retrySameRequest);
-    expect(shouldKeepSafeCreatePending(kind), isFalse);
+    expect(shouldKeepSafeCreatePending(kind), isTrue);
     expect(shouldCheckSafeCreateStatus(kind), isFalse);
     expect(canRetrySafeCreate(kind), isFalse);
-    expect(safeCreateRetryErrorMessage(conflict), contains('otomatik tekrar'));
+    expect(safeCreateRetryErrorMessage(conflict), contains('Kaydet'));
   });
 
   test('uncertain results are reconciled without a manual check action', () {

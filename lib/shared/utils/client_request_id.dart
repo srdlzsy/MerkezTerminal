@@ -22,3 +22,8 @@ String generateClientRequestId() {
       '${hex.substring(16, 20)}-'
       '${hex.substring(20)}';
 }
+
+String resolveDraftClientRequestId(Map<String, dynamic> payload) {
+  final saved = payload['clientRequestId']?.toString().trim() ?? '';
+  return saved.isEmpty ? generateClientRequestId() : saved;
+}

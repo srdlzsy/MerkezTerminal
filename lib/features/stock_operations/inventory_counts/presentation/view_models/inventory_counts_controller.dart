@@ -193,6 +193,11 @@ class InventoryCountsController extends ChangeNotifier with SafeChangeNotifier {
       _createError = error.message;
       notifySafely();
       return null;
+    } finally {
+      if (_isCreating) {
+        _isCreating = false;
+        notifySafely();
+      }
     }
   }
 

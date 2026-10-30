@@ -1045,6 +1045,7 @@ class _GivenWarehouseOrderCreateSheetState
       completed = await TerminalCreateSubmitScope.submit(context, request);
     } finally {
       if (mounted && !completed) {
+        _draftSession.resumeAfterFailedSubmit();
         setState(() => _isPreparingSubmit = false);
       }
     }

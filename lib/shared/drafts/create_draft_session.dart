@@ -86,6 +86,10 @@ class CreateDraftSession with WidgetsBindingObserver {
     _submitted = true;
   }
 
+  void resumeAfterFailedSubmit() {
+    _submitted = false;
+  }
+
   void dispose() {
     if (_disposed) {
       return;
