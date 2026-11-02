@@ -131,7 +131,7 @@ class _CompanyAcceptanceCreateSheetState
     final initialCustomer = widget.initialCustomer;
     if (_customerCodeController.text.trim().isEmpty &&
         initialCustomer != null) {
-      _customerController.text = initialCustomer.displayLabel;
+      _customerController.text = initialCustomer.lookupTitle;
       _customerCodeController.text = initialCustomer.customerCode.trim();
     }
     _ettnController = TextEditingController(
@@ -438,7 +438,7 @@ class _CompanyAcceptanceCreateSheetState
           _findCustomerByTaxNo(selectableCustomers, taxNoOrTckn) ??
           selectableCustomers.first;
       setState(() {
-        _customerController.text = selectedCustomer.displayLabel;
+        _customerController.text = selectedCustomer.lookupTitle;
         _customerCodeController.text = selectedCustomer.customerCode;
       });
       _draftSession.scheduleSave();
@@ -588,7 +588,7 @@ class _CompanyAcceptanceCreateSheetState
     }
 
     setState(() {
-      _customerController.text = selected.displayLabel;
+      _customerController.text = selected.lookupTitle;
       _customerCodeController.text = selected.customerCode;
       _lookupError = null;
     });
@@ -1497,7 +1497,7 @@ class _CompanyAcceptanceCreateSheetState
               dispatchQuantity: line.dispatchQuantity,
               acceptedQuantity: line.acceptedQuantity,
               unitPrice: line.unitPrice,
-              unitPointer: line.unitPointer,
+              unitPointer: 1,
               lastConsumingDate: line.lastConsumingDate,
               orderGuid: line.orderGuid,
               description: _trimForApi(
@@ -3055,7 +3055,7 @@ class _AcceptanceLineDraft {
       orderGuid = draft['orderGuid']?.toString().trim().isEmpty ?? true
           ? null
           : draft['orderGuid']?.toString();
-      unitPointer = int.tryParse(draft['unitPointer']?.toString() ?? '') ?? 1;
+      unitPointer = 1;
       final productJson = _acceptanceDraftMap(draft['selectedProduct']);
       if (productJson != null) {
         selectedProduct = SearchProductLookupItem.fromJson(productJson);
@@ -3115,7 +3115,7 @@ class _AcceptanceLineDraft {
       productManagerCode: '',
     );
     orderGuid = item.orderGuid;
-    unitPointer = item.unitPointer;
+    unitPointer = 1;
     previousDispatchQuantity = dispatchQuantity;
     for (final controller in _controllers) {
       controller.addListener(_notifyChanged);

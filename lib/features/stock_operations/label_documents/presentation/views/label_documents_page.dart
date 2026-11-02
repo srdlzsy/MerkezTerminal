@@ -826,11 +826,14 @@ class _LabelDocumentCreateSheetState extends State<LabelDocumentCreateSheet> {
           .toList(growable: false),
     );
 
-    await _draftSession.complete();
-    if (!mounted) {
-      return;
+    final completed = await TerminalCreateSubmitScope.submit(
+      context,
+      request,
+      prepare: _draftSession.complete,
+    );
+    if (!completed) {
+      _draftSession.resumeAfterFailedSubmit();
     }
-    Navigator.of(context).pop(request);
   }
 
   @override
@@ -857,42 +860,36 @@ class _LabelDocumentCreateSheetState extends State<LabelDocumentCreateSheet> {
             child: CustomScrollView(
               slivers: <Widget>[
                 _buildLazyLineSliver(),
-                SliverToBoxAdapter(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: <Widget>[
-                      const SizedBox(height: 16),
-                      if (_lines.every(_isBlankLine))
-                        const TerminalEmptyState(
-                          message: 'Etiket belgesi icin secilen urun yok.',
-                        ),
-                      if (_errorMessage != null) ...<Widget>[
-                        const SizedBox(height: 12),
-                        TerminalMessageBlock.error(message: _errorMessage!),
-                      ],
-                      const SizedBox(height: 12),
-                      Row(
-                        children: <Widget>[
-                          Expanded(
-                            child: OutlinedButton(
-                              onPressed: () => Navigator.of(context).pop(),
-                              child: const Text('Vazgec'),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: FilledButton.icon(
-                              onPressed: _submit,
-                              icon: const Icon(Icons.save_alt_rounded),
-                              label: const Text('Kaydet'),
-                            ),
-                          ),
-                        ],
+                if (_lines.every(_isBlankLine))
+                  const SliverPadding(
+                    padding: EdgeInsets.only(top: 8),
+                    sliver: SliverToBoxAdapter(
+                      child: TerminalEmptyState(
+                        message: 'Etiket belgesi icin secilen urun yok.',
                       ),
-                    ],
+                    ),
                   ),
-                ),
+                const SliverToBoxAdapter(child: SizedBox(height: 8)),
               ],
+            ),
+          ),
+          if (_errorMessage != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: TerminalMessageBlock.error(message: _errorMessage!),
+            ),
+          Padding(
+            padding: const EdgeInsets.only(top: 4, bottom: 4),
+            child: TerminalFormActionRow(
+              cancel: OutlinedButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('Vazgec'),
+              ),
+              submit: FilledButton.icon(
+                onPressed: _submit,
+                icon: const Icon(Icons.save_alt_rounded),
+                label: const Text('Kaydet'),
+              ),
             ),
           ),
         ],

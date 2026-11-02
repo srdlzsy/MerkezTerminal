@@ -77,6 +77,8 @@ void main() {
           'customerDisplayName': 'Test Cari',
           'representativeCode': 'S01',
           'taxNumber': '1234567890',
+          'selectionLabel':
+              'CR001 - Test Cari | Vergi 1234567890 | Temsilci S01',
         },
       },
     );
@@ -110,6 +112,8 @@ void main() {
 
     expect(delivererField.controller?.text, 'Ali');
     expect(receiverField.controller?.text, 'Veli');
+    expect(find.text('CR001 - Test Cari'), findsOneWidget);
+    expect(find.textContaining('Vergi No:'), findsNothing);
   });
 
   testWidgets('loads selected customer products with empty quantities', (
@@ -193,6 +197,7 @@ CreateDraft _selectedCustomerDraft() {
         'customerDisplayName': 'Test Cari',
         'representativeCode': 'S01',
         'taxNumber': '1234567890',
+        'selectionLabel': 'CR001 - Test Cari | Vergi 1234567890 | Temsilci S01',
       },
     },
   );

@@ -706,7 +706,7 @@ class _StockReceiptCreateSheetState extends State<StockReceiptCreateSheet>
             (line) => StockReceiptCreateLine(
               stockCode: line.selectedProduct!.stockCode,
               quantity: line.quantity,
-              unitPointer: line.unitPointer,
+              unitPointer: 1,
               description: line.descriptionController.text.trim(),
               partyCode: line.partyCodeController.text.trim(),
               lotNo: line.lotNo,
@@ -718,11 +718,11 @@ class _StockReceiptCreateSheetState extends State<StockReceiptCreateSheet>
 
     var completed = false;
     try {
-      await _draftSession.complete();
-      if (!mounted) {
-        return;
-      }
-      completed = await TerminalCreateSubmitScope.submit(context, request);
+      completed = await TerminalCreateSubmitScope.submit(
+        context,
+        request,
+        prepare: _draftSession.complete,
+      );
     } finally {
       if (!completed) {
         _draftSession.resumeAfterFailedSubmit();
@@ -764,19 +764,15 @@ class _StockReceiptCreateSheetState extends State<StockReceiptCreateSheet>
               child: CustomScrollView(
                 slivers: <Widget>[
                   _buildLazyLineSliver(),
-                  SliverToBoxAdapter(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: <Widget>[
-                        if (_lookupError != null) ...<Widget>[
-                          TerminalMessageBlock.error(message: _lookupError!),
-                        ],
-                      ],
-                    ),
-                  ),
+                  const SliverToBoxAdapter(child: SizedBox(height: 8)),
                 ],
               ),
             ),
+            if (_lookupError != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: TerminalMessageBlock.error(message: _lookupError!),
+              ),
             Padding(
               padding: const EdgeInsets.only(top: 4, bottom: 4),
               child: TerminalFormActionRow(

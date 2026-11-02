@@ -121,12 +121,72 @@ void main() {
 
     expect(submitCount, 1);
     expect(find.text('Kaydet'), findsOneWidget);
-    expect(find.textContaining('Bilgiler taslakta korundu'), findsOneWidget);
+    expect(find.textContaining('Bilgiler ekranda korunuyor'), findsOneWidget);
 
     await tester.tap(find.text('Kaydet'));
     await tester.pumpAndSettle();
 
     expect(submitCount, 2);
     expect(find.text('Yeni'), findsOneWidget);
+  });
+
+  testWidgets('locks the create page while local data is prepared', (
+    tester,
+  ) async {
+    final preparation = Completer<void>();
+    var submitCount = 0;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) => Scaffold(
+            body: TextButton(
+              onPressed: () {
+                unawaited(
+                  openTerminalCreatePage<String>(
+                    context: context,
+                    title: 'Yeni Kayit',
+                    builder: (context) => Center(
+                      child: FilledButton(
+                        onPressed: () => TerminalCreateSubmitScope.submit(
+                          context,
+                          'istek',
+                          prepare: () => preparation.future,
+                        ),
+                        child: const Text('Kaydet'),
+                      ),
+                    ),
+                    onSubmit: (_) async {
+                      submitCount += 1;
+                      return false;
+                    },
+                  ),
+                );
+              },
+              child: const Text('Yeni'),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Yeni'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Kaydet'));
+    await tester.pump();
+
+    expect(submitCount, 0);
+    expect(
+      find.text(
+        'Kayit yapiliyor. Sonuc kesinlesene kadar bu ekran acik kalacak.',
+      ),
+      findsOneWidget,
+    );
+
+    preparation.complete();
+    await tester.pumpAndSettle();
+
+    expect(submitCount, 1);
+    expect(find.text('Kaydet'), findsOneWidget);
   });
 }

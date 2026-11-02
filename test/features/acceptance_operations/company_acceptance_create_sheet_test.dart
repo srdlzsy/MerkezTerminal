@@ -32,6 +32,7 @@ void main() {
       shippingAddressNo: 1,
       isLocked: false,
       isClosed: false,
+      selectionLabel: 'CR001 - Tasinan Firma | Vergi 1234567890 | Temsilci S01',
     );
 
     await tester.pumpWidget(
@@ -61,7 +62,7 @@ void main() {
     final customerCodeField = tester.widget<TextFormField>(
       find.widgetWithText(TextFormField, 'Cari Kodu*'),
     );
-    expect(customerField.controller?.text, contains('Tasinan Firma'));
+    expect(customerField.controller?.text, 'CR001 - Tasinan Firma');
     expect(customerCodeField.controller?.text, 'CR001');
   });
 

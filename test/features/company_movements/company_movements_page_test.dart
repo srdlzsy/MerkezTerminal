@@ -37,6 +37,7 @@ void main() {
       shippingAddressNo: 1,
       isLocked: false,
       isClosed: false,
+      selectionLabel: 'CR001 - Tasinan Firma | Vergi 1234567890 | Temsilci S01',
     );
 
     await tester.pumpWidget(
@@ -59,7 +60,7 @@ void main() {
     final customerField = tester.widget<TextFormField>(
       find.widgetWithText(TextFormField, 'Cari'),
     );
-    expect(customerField.controller?.text, contains('Tasinan Firma'));
+    expect(customerField.controller?.text, 'CR001 - Tasinan Firma');
   });
 
   testWidgets('returns to cari lookup after cancelling carried create flow', (
@@ -288,7 +289,7 @@ void main() {
             ),
           ],
         ).toJson(),
-        updatedAt: DateTime(2026, 10, 1),
+        updatedAt: DateTime.now(),
         failureKind: 'uncertain',
       ),
     );
@@ -720,7 +721,7 @@ PendingCreateOperation _pendingCompanyMovement({required String failureKind}) {
         ),
       ],
     ).toJson(),
-    updatedAt: DateTime(2026, 10, 1),
+    updatedAt: DateTime.now(),
     failureKind: failureKind,
   );
 }

@@ -916,7 +916,7 @@ class _GivenCompanyOrderCreateSheetState
           quantity: quantity,
           recommendedQuantity: 0,
           unitPrice: unitPrice,
-          unitPointer: line.selectedProduct?.unitPointer ?? 1,
+          unitPointer: 1,
           description1: '',
           description2: '',
           packageCode: '',
@@ -947,11 +947,11 @@ class _GivenCompanyOrderCreateSheetState
     );
     var completed = false;
     try {
-      await _draftSession.complete();
-      if (!mounted) {
-        return;
-      }
-      completed = await TerminalCreateSubmitScope.submit(context, request);
+      completed = await TerminalCreateSubmitScope.submit(
+        context,
+        request,
+        prepare: _draftSession.complete,
+      );
     } finally {
       if (!completed) {
         _draftSession.resumeAfterFailedSubmit();
@@ -1034,24 +1034,15 @@ class _GivenCompanyOrderCreateSheetState
                       controller: _scrollController,
                       slivers: <Widget>[
                         _buildLazyLineSliver(theme),
-                        SliverPadding(
-                          padding: const EdgeInsets.fromLTRB(12, 6, 12, 12),
-                          sliver: SliverToBoxAdapter(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: <Widget>[
-                                if (_validationMessage != null) ...<Widget>[
-                                  _ValidationBlock(
-                                    message: _validationMessage!,
-                                  ),
-                                ],
-                              ],
-                            ),
-                          ),
-                        ),
+                        const SliverToBoxAdapter(child: SizedBox(height: 8)),
                       ],
                     ),
                   ),
+                  if (_validationMessage != null)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(12, 4, 12, 0),
+                      child: _ValidationBlock(message: _validationMessage!),
+                    ),
                   Padding(
                     padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
                     child: TerminalFormActionRow(
@@ -1098,7 +1089,7 @@ class _GivenCompanyOrderCreateSheetState
                 const SizedBox(width: 6),
                 Expanded(
                   child: Text(
-                    selectedCustomer.displayLabel,
+                    selectedCustomer.lookupTitle,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: theme.textTheme.labelLarge?.copyWith(
@@ -1190,16 +1181,10 @@ class _GivenCompanyOrderCreateSheetState
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
                   Text(
-                    _selectedCustomer!.displayLabel,
+                    _selectedCustomer!.lookupTitle,
                     style: theme.textTheme.titleSmall?.copyWith(
                       fontWeight: FontWeight.w700,
                     ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Temsilci: ${_selectedCustomer!.representativeCode.isEmpty ? '-' : _selectedCustomer!.representativeCode}'
-                    ' | Vergi No: ${_selectedCustomer!.displayTaxNumber.isEmpty ? '-' : _selectedCustomer!.displayTaxNumber}',
-                    style: theme.textTheme.bodySmall,
                   ),
                   const SizedBox(height: 6),
                   _buildDeliveryInfoRow(),

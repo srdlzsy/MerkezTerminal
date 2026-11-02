@@ -915,7 +915,6 @@ class _VirmanCreateSheetState extends State<VirmanCreateSheet>
       final quantity = double.tryParse(
         line.quantityController.text.trim().replaceAll(',', '.'),
       );
-      final unitPointer = int.tryParse(line.unitPointerController.text.trim());
       final lotNo = int.tryParse(line.lotNoController.text.trim()) ?? 0;
 
       if (stockCode.isEmpty) {
@@ -939,19 +938,12 @@ class _VirmanCreateSheetState extends State<VirmanCreateSheet>
         return;
       }
 
-      if (unitPointer == null || unitPointer <= 0) {
-        setState(() {
-          _errorMessage = 'Her satirda unitPointer sifirdan buyuk olmali.';
-        });
-        return;
-      }
-
       requestLines.add(
         VirmanCreateLine(
           stockCode: stockCode,
           movementType: movementType,
           quantity: quantity,
-          unitPointer: unitPointer,
+          unitPointer: 1,
           description: line.descriptionController.text.trim(),
           partyCode: line.partyCodeController.text.trim(),
           lotNo: lotNo,
@@ -985,11 +977,11 @@ class _VirmanCreateSheetState extends State<VirmanCreateSheet>
 
     var completed = false;
     try {
-      await _draftSession.complete();
-      if (!mounted) {
-        return;
-      }
-      completed = await TerminalCreateSubmitScope.submit(context, request);
+      completed = await TerminalCreateSubmitScope.submit(
+        context,
+        request,
+        prepare: _draftSession.complete,
+      );
     } finally {
       if (!completed) {
         _draftSession.resumeAfterFailedSubmit();
@@ -1078,20 +1070,15 @@ class _VirmanCreateSheetState extends State<VirmanCreateSheet>
                       ),
                     ),
                   _buildLazyLineSliver(),
-                  SliverToBoxAdapter(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: <Widget>[
-                        if (_errorMessage != null) ...<Widget>[
-                          const SizedBox(height: 8),
-                          TerminalMessageBlock.error(message: _errorMessage!),
-                        ],
-                      ],
-                    ),
-                  ),
+                  const SliverToBoxAdapter(child: SizedBox(height: 8)),
                 ],
               ),
             ),
+            if (_errorMessage != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: TerminalMessageBlock.error(message: _errorMessage!),
+              ),
             Padding(
               padding: const EdgeInsets.only(top: 4, bottom: 4),
               child: TerminalFormActionRow(

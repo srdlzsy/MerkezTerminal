@@ -53,7 +53,7 @@ class OfflineInventoryCountDraft {
               stockCode: item.stockCode,
               quantity: item.quantity,
               barcode: item.barcode,
-              unitPointer: item.unitPointer,
+              unitPointer: 1,
             ),
           )
           .toList(growable: false),
@@ -184,7 +184,7 @@ class OfflineInventoryCountDraft {
               stockName: '',
               barcode: item.barcode,
               quantity: item.quantity,
-              unitPointer: item.unitPointer,
+              unitPointer: 1,
             ),
           )
           .toList(growable: false),

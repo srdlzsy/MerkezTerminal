@@ -108,7 +108,7 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
     }
 
     _selectedCustomer = initialCustomer;
-    _customerController.text = initialCustomer.displayLabel;
+    _customerController.text = initialCustomer.lookupTitle;
   }
 
   @override
@@ -368,7 +368,7 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
 
     setState(() {
       _selectedCustomer = selected;
-      _customerController.text = selected.displayLabel;
+      _customerController.text = selected.lookupTitle;
       _lookupError = null;
     });
     _scheduleDraftSave();
@@ -967,13 +967,15 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
           .toList(growable: false),
     );
 
-    _draftSaveTimer?.cancel();
-    await _saveDraft();
-    if (!mounted) {
-      return;
-    }
-    _submitted = true;
-    final completed = await TerminalCreateSubmitScope.submit(context, request);
+    final completed = await TerminalCreateSubmitScope.submit(
+      context,
+      request,
+      prepare: () async {
+        _draftSaveTimer?.cancel();
+        await _saveDraft();
+        _submitted = true;
+      },
+    );
     if (!completed && mounted) {
       setState(() => _submitted = false);
     }
@@ -1042,19 +1044,15 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
               child: CustomScrollView(
                 slivers: <Widget>[
                   _buildLazyLineSliver(),
-                  SliverToBoxAdapter(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: <Widget>[
-                        if (_lookupError != null) ...<Widget>[
-                          TerminalMessageBlock.error(message: _lookupError!),
-                        ],
-                      ],
-                    ),
-                  ),
+                  const SliverToBoxAdapter(child: SizedBox(height: 8)),
                 ],
               ),
             ),
+            if (_lookupError != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: TerminalMessageBlock.error(message: _lookupError!),
+              ),
             Padding(
               padding: const EdgeInsets.only(top: 4, bottom: 4),
               child: TerminalFormActionRow(

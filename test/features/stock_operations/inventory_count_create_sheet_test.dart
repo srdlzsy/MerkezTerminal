@@ -1,9 +1,13 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:furpa_merkez_terminal/features/stock_operations/inventory_counts/data/inventory_counts_repository.dart';
 import 'package:furpa_merkez_terminal/features/stock_operations/inventory_counts/data/models/inventory_count_models.dart';
 import 'package:furpa_merkez_terminal/features/stock_operations/inventory_counts/presentation/widgets/inventory_count_create_sheet.dart';
 import 'package:furpa_merkez_terminal/shared/data/barcode_resolution_models.dart';
+import 'package:furpa_merkez_terminal/shared/drafts/create_draft.dart';
+import 'package:furpa_merkez_terminal/shared/drafts/create_draft_repository.dart';
 import 'package:furpa_merkez_terminal/shared/offline/mobile_product_catalog_repository.dart';
 
 import '../../support/barcode_resolution_test_data.dart';
@@ -110,6 +114,106 @@ void main() {
       expect(find.text('Test Urun: toplam 2 AD sayildi.'), findsOneWidget);
     },
   );
+
+  testWidgets('keeps pending-line validation visible on a small terminal', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(320, 568);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: InventoryCountCreateSheet(
+            repository: _FakeInventoryCountsRepository(),
+            accessToken: 'token',
+            defaultWarehouseNo: '110',
+            mobileProductCatalogRepository: MobileProductCatalogLocalRepository(
+              database: MemoryLocalDatabase(),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.enterText(
+      find.widgetWithText(TextFormField, 'Sayim Adi*'),
+      'Terminal Sayimi',
+    );
+    final lookup = find.widgetWithText(
+      TextFormField,
+      'Barkod / stok kodu / urun adi',
+    );
+    await tester.enterText(lookup, '8690000000012');
+    await tester.tap(find.widgetWithText(FilledButton, 'Urun').first);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.widgetWithText(FilledButton, 'Kaydet'));
+    await tester.pump();
+
+    final message = find.text('Secilen urunu once Ekle ile listeye alin.');
+    expect(message, findsOneWidget);
+    expect(tester.getBottomLeft(message).dy, lessThanOrEqualTo(568));
+  });
+
+  testWidgets('shows progress while the draft is prepared for submit', (
+    tester,
+  ) async {
+    final draftRepository = _ControllableDraftRepository();
+    final now = DateTime(2026, 11, 2);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: InventoryCountCreateSheet(
+            repository: _FakeInventoryCountsRepository(),
+            accessToken: 'token',
+            defaultWarehouseNo: '110',
+            mobileProductCatalogRepository: MobileProductCatalogLocalRepository(
+              database: MemoryLocalDatabase(),
+            ),
+            draft: CreateDraft(
+              id: 'inventory-draft',
+              moduleKey: 'inventory-counts',
+              userId: 'tester',
+              warehouseNo: '110',
+              title: 'Sayim',
+              createdAt: now,
+              updatedAt: now,
+              payload: const <String, dynamic>{},
+            ),
+            draftRepository: draftRepository,
+          ),
+        ),
+      ),
+    );
+
+    await tester.enterText(
+      find.widgetWithText(TextFormField, 'Sayim Adi*'),
+      'Terminal Sayimi',
+    );
+    await _addInventoryCountLine(tester);
+    await tester.pumpAndSettle();
+
+    draftRepository.blockNextSave();
+    await tester.tap(find.widgetWithText(FilledButton, 'Kaydet'));
+    await tester.pump();
+
+    expect(find.text('Hazirlaniyor...'), findsOneWidget);
+    expect(
+      tester
+          .widget<FilledButton>(
+            find.widgetWithText(FilledButton, 'Hazirlaniyor...'),
+          )
+          .onPressed,
+      isNull,
+    );
+
+    draftRepository.releaseSave();
+    await tester.pumpAndSettle();
+  });
 }
 
 Future<void> _addInventoryCountLine(WidgetTester tester) async {
@@ -183,4 +287,39 @@ class _FakeInventoryCountsRepository implements InventoryCountsRepository {
   }) async {
     return const <InventoryCountProductLookupItem>[];
   }
+}
+
+class _ControllableDraftRepository implements CreateDraftRepository {
+  Completer<void>? _saveCompleter;
+
+  void blockNextSave() {
+    _saveCompleter = Completer<void>();
+  }
+
+  void releaseSave() {
+    _saveCompleter?.complete();
+    _saveCompleter = null;
+  }
+
+  @override
+  Future<void> saveDraft(CreateDraft draft) async {
+    await _saveCompleter?.future;
+  }
+
+  @override
+  Future<void> deleteDraft(String id) async {}
+
+  @override
+  Future<void> deleteDrafts({
+    required String moduleKey,
+    required String userId,
+    required String warehouseNo,
+  }) async {}
+
+  @override
+  Future<List<CreateDraft>> fetchDrafts({
+    required String moduleKey,
+    required String userId,
+    required String warehouseNo,
+  }) async => const <CreateDraft>[];
 }

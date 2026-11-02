@@ -479,7 +479,7 @@ class _SuggestedCompanyOrdersPageState
     final selectedSupplier = _selectedSupplier;
     final supplierLabel = selectedSupplier == null
         ? 'Secilmedi'
-        : selectedSupplier.displayLabel;
+        : selectedSupplier.lookupTitle;
 
     return TerminalListHeaderCard(
       title: 'Onerilen Firma Siparisleri',

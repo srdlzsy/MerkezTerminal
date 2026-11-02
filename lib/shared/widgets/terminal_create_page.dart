@@ -6,15 +6,18 @@ typedef TerminalCreateSubmitHandler<TResult> =
 abstract final class TerminalCreateSubmitScope {
   static Future<bool> submit<TResult>(
     BuildContext context,
-    TResult result,
-  ) async {
+    TResult result, {
+    Future<void> Function()? prepare,
+  }) async {
     final scope = context
         .dependOnInheritedWidgetOfExactType<_TerminalCreateSubmitInherited>();
     if (scope == null) {
+      await prepare?.call();
+      if (!context.mounted) return false;
       Navigator.of(context).pop(result);
       return true;
     }
-    return scope.submit(result);
+    return scope.submit(result, prepare);
   }
 }
 
@@ -49,7 +52,7 @@ class _TerminalCreatePageState<TResult>
     extends State<_TerminalCreatePage<TResult>> {
   bool _isSubmitting = false;
 
-  Future<bool> _submit(Object? value) async {
+  Future<bool> _submit(Object? value, Future<void> Function()? prepare) async {
     final submit = widget.onSubmit;
     if (value is! TResult) {
       return false;
@@ -62,6 +65,8 @@ class _TerminalCreatePageState<TResult>
 
     setState(() => _isSubmitting = true);
     try {
+      await prepare?.call();
+      if (!mounted) return false;
       final completed = await submit(value);
       if (!mounted) return completed;
       if (completed) {
@@ -78,7 +83,7 @@ class _TerminalCreatePageState<TResult>
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
-            'Kayit tamamlanamadi. Bilgiler taslakta korundu. '
+            'Kayit tamamlanamadi. Bilgiler ekranda korunuyor. '
             'Baglantiyi kontrol edip Kaydet dugmesine yeniden basin.',
           ),
         ),
@@ -213,7 +218,8 @@ class _TerminalCreateSubmitInherited extends InheritedWidget {
     required super.child,
   });
 
-  final Future<bool> Function(Object? value) submit;
+  final Future<bool> Function(Object? value, Future<void> Function()? prepare)
+  submit;
 
   @override
   bool updateShouldNotify(_TerminalCreateSubmitInherited oldWidget) => false;

@@ -135,6 +135,20 @@ class _OfflineCompanyAcceptancesPageState
           mobileProductCatalogRepository: widget.mobileProductCatalogRepository,
         );
       },
+      onSubmit: (draft) async {
+        await widget.offlineRepository.saveDraft(draft);
+        unawaited(
+          RememberedFormValuesRepository().rememberAll(
+            warehouseNo: widget.defaultWarehouseNo,
+            values: <RememberedFormField, String>{
+              RememberedFormField.deliverer: draft.deliverer,
+              RememberedFormField.receiver: draft.receiver,
+            },
+          ),
+        );
+        await _loadDrafts();
+        return true;
+      },
     );
 
     if (draft == null) {
@@ -760,7 +774,7 @@ class _OfflineCompanyAcceptanceCreateSheetState
 
     setState(() {
       _selectedCustomer = selected;
-      _customerSearchController.text = selected.displayLabel;
+      _customerSearchController.text = selected.lookupTitle;
       _customerCodeController.text = selected.customerCode;
       _validationMessage = null;
     });
@@ -1376,7 +1390,7 @@ class _OfflineCompanyAcceptanceCreateSheetState
     });
   }
 
-  void _submit() {
+  Future<void> _submit() async {
     final form = _formKey.currentState;
 
     if (form == null || !validateCreateForm(_formKey)) {
@@ -1497,56 +1511,55 @@ class _OfflineCompanyAcceptanceCreateSheetState
       }
     }
 
-    Navigator.of(context).pop(
-      OfflineCompanyAcceptanceDraft(
-        id: generateClientRequestId(),
-        userId: widget.currentUserId,
-        warehouseNo: widget.defaultWarehouseNo,
-        customerCode: customerCode,
-        customerDisplayName:
-            _selectedCustomer?.customerDisplayName ??
-            _customerSearchController.text.trim(),
-        movementDate: _movementDate,
-        documentDate: _documentDate,
-        documentSerie: documentSerie,
-        documentOrderNo: documentOrderNo,
-        officialDocumentKind: null,
-        officialDocumentNo: null,
-        officialDocumentDate: null,
-        officialDocumentEttn: null,
-        deliverer: _delivererController.text.trim(),
-        receiver: _receiverController.text.trim(),
-        description: _descriptionController.text.trim(),
-        allowOrderOverReceiving: _allowOrderOverReceiving,
-        autoCreateReturnForPartialAcceptance:
-            _autoCreateReturnForPartialAcceptance,
-        createdAt: DateTime.now(),
-        status: OfflineRecordStatus.pending,
-        lastSyncAttemptAt: null,
-        lastError: null,
-        lines: activeLines
-            .map(
-              (line) => OfflineCompanyAcceptanceLine(
-                stockCode: line.stockCodeController.text.trim(),
-                stockName: line.stockNameController.text.trim(),
-                barcode: line.barcodeController.text.trim(),
-                dispatchQuantity: line.dispatchQuantity,
-                acceptedQuantity: line.acceptedQuantity,
-                unitPrice: line.unitPrice,
-                unitPointer: line.unitPointer,
-                lastConsumingDate: line.lastConsumingDate,
-                orderGuid: line.orderGuid,
-                description: line.descriptionController.text.trim(),
-                partyCode: line.partyCodeController.text.trim(),
-                lotNo: line.lotNo,
-                projectCode: line.projectCodeController.text.trim(),
-                customerResponsibilityCenter: '',
-                productResponsibilityCenter: '',
-              ),
-            )
-            .toList(growable: false),
-      ),
+    final draft = OfflineCompanyAcceptanceDraft(
+      id: generateClientRequestId(),
+      userId: widget.currentUserId,
+      warehouseNo: widget.defaultWarehouseNo,
+      customerCode: customerCode,
+      customerDisplayName:
+          _selectedCustomer?.customerDisplayName ??
+          _customerSearchController.text.trim(),
+      movementDate: _movementDate,
+      documentDate: _documentDate,
+      documentSerie: documentSerie,
+      documentOrderNo: documentOrderNo,
+      officialDocumentKind: null,
+      officialDocumentNo: null,
+      officialDocumentDate: null,
+      officialDocumentEttn: null,
+      deliverer: _delivererController.text.trim(),
+      receiver: _receiverController.text.trim(),
+      description: _descriptionController.text.trim(),
+      allowOrderOverReceiving: _allowOrderOverReceiving,
+      autoCreateReturnForPartialAcceptance:
+          _autoCreateReturnForPartialAcceptance,
+      createdAt: DateTime.now(),
+      status: OfflineRecordStatus.pending,
+      lastSyncAttemptAt: null,
+      lastError: null,
+      lines: activeLines
+          .map(
+            (line) => OfflineCompanyAcceptanceLine(
+              stockCode: line.stockCodeController.text.trim(),
+              stockName: line.stockNameController.text.trim(),
+              barcode: line.barcodeController.text.trim(),
+              dispatchQuantity: line.dispatchQuantity,
+              acceptedQuantity: line.acceptedQuantity,
+              unitPrice: line.unitPrice,
+              unitPointer: 1,
+              lastConsumingDate: line.lastConsumingDate,
+              orderGuid: line.orderGuid,
+              description: line.descriptionController.text.trim(),
+              partyCode: line.partyCodeController.text.trim(),
+              lotNo: line.lotNo,
+              projectCode: line.projectCodeController.text.trim(),
+              customerResponsibilityCenter: '',
+              productResponsibilityCenter: '',
+            ),
+          )
+          .toList(growable: false),
     );
+    await TerminalCreateSubmitScope.submit(context, draft);
   }
 
   @override
@@ -2303,9 +2316,7 @@ class _OfflineCompanyAcceptanceLineDraft {
       unitPriceController = TextEditingController(
         text: item.unitPrice.toString(),
       ),
-      unitPointerController = TextEditingController(
-        text: '${item.unitPointer}',
-      ),
+      unitPointerController = TextEditingController(text: '1'),
       descriptionController = TextEditingController(text: item.description),
       partyCodeController = TextEditingController(),
       lotNoController = TextEditingController(text: '0'),

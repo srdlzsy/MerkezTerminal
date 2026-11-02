@@ -107,6 +107,11 @@ class _OfflineInventoryCountsPageState
           mobileProductCatalogRepository: widget.mobileProductCatalogRepository,
         );
       },
+      onSubmit: (draft) async {
+        await widget.offlineRepository.saveDraft(draft);
+        await _loadDrafts();
+        return true;
+      },
     );
 
     if (draft == null) {
@@ -941,7 +946,7 @@ class _OfflineInventoryCountCreateSheetState
     );
   }
 
-  void _submit() {
+  Future<void> _submit() async {
     final form = _formKey.currentState;
 
     if (form == null || !validateCreateForm(_formKey)) {
@@ -966,31 +971,32 @@ class _OfflineInventoryCountCreateSheetState
       return;
     }
 
-    unawaited(TerminalFeedback.success());
-    Navigator.of(context).pop(
-      OfflineInventoryCountDraft(
-        id: generateClientRequestId(),
-        userId: widget.currentUserId,
-        warehouseNo: widget.defaultWarehouseNo,
-        name: _nameController.text.trim(),
-        documentDate: _documentDate,
-        createdAt: DateTime.now(),
-        status: OfflineRecordStatus.pending,
-        lastSyncAttemptAt: null,
-        lastError: null,
-        lines: activeLines
-            .map(
-              (line) => OfflineInventoryCountLine(
-                stockCode: line.stockCodeController.text.trim(),
-                stockName: line.stockNameController.text.trim(),
-                barcode: line.barcodeController.text.trim(),
-                quantity: line.quantity,
-                unitPointer: line.unitPointer,
-              ),
-            )
-            .toList(growable: false),
-      ),
+    final draft = OfflineInventoryCountDraft(
+      id: generateClientRequestId(),
+      userId: widget.currentUserId,
+      warehouseNo: widget.defaultWarehouseNo,
+      name: _nameController.text.trim(),
+      documentDate: _documentDate,
+      createdAt: DateTime.now(),
+      status: OfflineRecordStatus.pending,
+      lastSyncAttemptAt: null,
+      lastError: null,
+      lines: activeLines
+          .map(
+            (line) => OfflineInventoryCountLine(
+              stockCode: line.stockCodeController.text.trim(),
+              stockName: line.stockNameController.text.trim(),
+              barcode: line.barcodeController.text.trim(),
+              quantity: line.quantity,
+              unitPointer: 1,
+            ),
+          )
+          .toList(growable: false),
     );
+    final completed = await TerminalCreateSubmitScope.submit(context, draft);
+    if (completed) {
+      unawaited(TerminalFeedback.success());
+    }
   }
 
   @override
@@ -1079,20 +1085,15 @@ class _OfflineInventoryCountCreateSheetState
                 child: CustomScrollView(
                   slivers: <Widget>[
                     _buildLazyLineSliver(),
-                    SliverToBoxAdapter(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: <Widget>[
-                          if (_errorMessage != null) ...<Widget>[
-                            const SizedBox(height: 12),
-                            TerminalMessageBlock.error(message: _errorMessage!),
-                          ],
-                        ],
-                      ),
-                    ),
+                    const SliverToBoxAdapter(child: SizedBox(height: 8)),
                   ],
                 ),
               ),
+              if (_errorMessage != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: TerminalMessageBlock.error(message: _errorMessage!),
+                ),
               Padding(
                 padding: const EdgeInsets.only(top: 4, bottom: 4),
                 child: TerminalFormActionRow(

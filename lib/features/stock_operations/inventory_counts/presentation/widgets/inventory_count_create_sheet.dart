@@ -53,6 +53,7 @@ class _InventoryCountCreateSheetState extends State<InventoryCountCreateSheet>
   String? _validationMessage;
   late final CreateDraftSession _draftSession;
   String? _lastAddedProductKey;
+  bool _isPreparingSubmit = false;
 
   @override
   void initState() {
@@ -665,6 +666,10 @@ class _InventoryCountCreateSheetState extends State<InventoryCountCreateSheet>
   }
 
   Future<void> _submit() async {
+    if (_isPreparingSubmit) {
+      return;
+    }
+
     if (!validateCreateForm(_formKey)) {
       setState(() {
         _validationMessage = 'Lutfen zorunlu alanlari duzeltin.';
@@ -733,14 +738,32 @@ class _InventoryCountCreateSheetState extends State<InventoryCountCreateSheet>
 
     var completed = false;
     try {
-      await _draftSession.complete();
-      if (!mounted) {
-        return;
+      setState(() {
+        _isPreparingSubmit = true;
+        _validationMessage = null;
+      });
+      completed = await TerminalCreateSubmitScope.submit(
+        context,
+        request,
+        prepare: _draftSession.complete,
+      );
+    } catch (error, stackTrace) {
+      debugPrint('Inventory count submit preparation failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+      if (mounted) {
+        setState(() {
+          _validationMessage =
+              'Kayit hazirlanamadi. Bilgileriniz ekranda duruyor; '
+              'cihaz depolamasini kontrol edip yeniden deneyin.';
+        });
+        unawaited(TerminalFeedback.warning());
       }
-      completed = await TerminalCreateSubmitScope.submit(context, request);
     } finally {
       if (!completed) {
         _draftSession.resumeAfterFailedSubmit();
+        if (mounted) {
+          setState(() => _isPreparingSubmit = false);
+        }
       }
     }
   }
@@ -838,36 +861,38 @@ class _InventoryCountCreateSheetState extends State<InventoryCountCreateSheet>
                       controller: _scrollController,
                       slivers: <Widget>[
                         _buildLazyLineSliver(theme),
-                        SliverPadding(
-                          padding: const EdgeInsets.fromLTRB(12, 6, 12, 12),
-                          sliver: SliverToBoxAdapter(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: <Widget>[
-                                if (_validationMessage != null) ...<Widget>[
-                                  _ValidationBlock(
-                                    message: _validationMessage!,
-                                  ),
-                                ],
-                              ],
-                            ),
-                          ),
-                        ),
+                        const SliverToBoxAdapter(child: SizedBox(height: 8)),
                       ],
                     ),
                   ),
+                  if (_validationMessage != null)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(12, 4, 12, 0),
+                      child: _ValidationBlock(message: _validationMessage!),
+                    ),
                   Padding(
                     padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
                     child: TerminalFormActionRow(
                       submitFlex: 2,
                       cancel: OutlinedButton(
-                        onPressed: () => Navigator.of(context).pop(),
+                        onPressed: _isPreparingSubmit
+                            ? null
+                            : () => Navigator.of(context).pop(),
                         child: const Text('Vazgec'),
                       ),
                       submit: FilledButton.icon(
-                        onPressed: _submit,
-                        icon: const Icon(Icons.save_rounded),
-                        label: const Text('Kaydet'),
+                        onPressed: _isPreparingSubmit ? null : _submit,
+                        icon: _isPreparingSubmit
+                            ? const SizedBox.square(
+                                dimension: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2.2,
+                                ),
+                              )
+                            : const Icon(Icons.save_rounded),
+                        label: Text(
+                          _isPreparingSubmit ? 'Hazirlaniyor...' : 'Kaydet',
+                        ),
                       ),
                     ),
                   ),

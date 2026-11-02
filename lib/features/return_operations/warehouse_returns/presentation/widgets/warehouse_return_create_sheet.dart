@@ -833,7 +833,7 @@ class _WarehouseReturnCreateSheetState extends State<WarehouseReturnCreateSheet>
           stockCode: stockCode,
           quantity: line.quantity,
           unitPrice: line.unitPrice,
-          unitPointer: line.unitPointer,
+          unitPointer: 1,
           description: line.descriptionController.text.trim(),
           partyCode: line.partyCodeController.text.trim(),
           lotNo: line.lotNo,
@@ -855,11 +855,11 @@ class _WarehouseReturnCreateSheetState extends State<WarehouseReturnCreateSheet>
 
     var completed = false;
     try {
-      await _draftSession.complete();
-      if (!mounted) {
-        return;
-      }
-      completed = await TerminalCreateSubmitScope.submit(context, request);
+      completed = await TerminalCreateSubmitScope.submit(
+        context,
+        request,
+        prepare: _draftSession.complete,
+      );
     } finally {
       if (!completed) {
         _draftSession.resumeAfterFailedSubmit();
@@ -921,24 +921,15 @@ class _WarehouseReturnCreateSheetState extends State<WarehouseReturnCreateSheet>
                       controller: _scrollController,
                       slivers: <Widget>[
                         _buildLazyLineSliver(theme),
-                        SliverPadding(
-                          padding: const EdgeInsets.fromLTRB(12, 6, 12, 12),
-                          sliver: SliverToBoxAdapter(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: <Widget>[
-                                if (_validationMessage != null) ...<Widget>[
-                                  _ValidationBlock(
-                                    message: _validationMessage!,
-                                  ),
-                                ],
-                              ],
-                            ),
-                          ),
-                        ),
+                        const SliverToBoxAdapter(child: SizedBox(height: 8)),
                       ],
                     ),
                   ),
+                  if (_validationMessage != null)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(12, 4, 12, 0),
+                      child: _ValidationBlock(message: _validationMessage!),
+                    ),
                   Padding(
                     padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
                     child: TerminalFormActionRow(

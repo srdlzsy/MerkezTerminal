@@ -315,7 +315,7 @@ class SuggestedWarehouseOrdersController extends ChangeNotifier
               ? item.recommendedQuantity
               : item.suggestedOrderQuantity,
           unitPrice: item.unitPrice,
-          unitPointer: item.unitPointer,
+          unitPointer: 1,
           description: '',
           packageCode: '',
           projectCode: '',

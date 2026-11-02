@@ -1038,11 +1038,11 @@ class _GivenWarehouseOrderCreateSheetState
 
     var completed = false;
     try {
-      await _draftSession.complete();
-      if (!mounted) {
-        return;
-      }
-      completed = await TerminalCreateSubmitScope.submit(context, request);
+      completed = await TerminalCreateSubmitScope.submit(
+        context,
+        request,
+        prepare: _draftSession.complete,
+      );
     } finally {
       if (mounted && !completed) {
         _draftSession.resumeAfterFailedSubmit();
@@ -1465,17 +1465,15 @@ class _GivenWarehouseOrderCreateSheetState
                       controller: _scrollController,
                       slivers: <Widget>[
                         _buildLazyLineSliver(theme),
-                        if (_validationMessage != null)
-                          SliverPadding(
-                            padding: const EdgeInsets.fromLTRB(12, 6, 12, 4),
-                            sliver: SliverToBoxAdapter(
-                              child: _buildValidationMessage(theme),
-                            ),
-                          ),
                         const SliverToBoxAdapter(child: SizedBox(height: 6)),
                       ],
                     ),
                   ),
+                  if (_validationMessage != null)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(12, 4, 12, 0),
+                      child: _buildValidationMessage(theme),
+                    ),
                   _buildActionFooter(theme, compactHeight: compactHeight),
                 ],
               ),

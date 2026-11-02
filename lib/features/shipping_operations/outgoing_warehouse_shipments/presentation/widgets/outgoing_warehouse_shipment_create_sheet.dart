@@ -1598,11 +1598,11 @@ class _OutgoingWarehouseShipmentCreateSheetState
 
     var completed = false;
     try {
-      await _draftSession.complete();
-      if (!mounted) {
-        return;
-      }
-      completed = await TerminalCreateSubmitScope.submit(context, request);
+      completed = await TerminalCreateSubmitScope.submit(
+        context,
+        request,
+        prepare: _draftSession.complete,
+      );
     } finally {
       if (!completed) {
         _draftSession.resumeAfterFailedSubmit();
@@ -1725,7 +1725,7 @@ class _OutgoingWarehouseShipmentCreateSheetState
           stockCode: stockCode,
           quantity: quantity,
           unitPrice: line.selectedProduct?.price ?? line.unitPrice,
-          unitPointer: line.unitPointer,
+          unitPointer: 1,
           description: line.description,
           partyCode: line.partyCode,
           lotNo: line.lotNo,
@@ -1808,25 +1808,15 @@ class _OutgoingWarehouseShipmentCreateSheetState
                           _buildManualFilledLinesSliver()
                         else
                           _buildLinkedFilledLinesSliver(),
-                        SliverPadding(
-                          padding: const EdgeInsets.fromLTRB(12, 6, 12, 12),
-                          sliver: SliverToBoxAdapter(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: <Widget>[
-                                if (_validationMessage != null) ...<Widget>[
-                                  const SizedBox(height: 6),
-                                  _ValidationBlock(
-                                    message: _validationMessage!,
-                                  ),
-                                ],
-                              ],
-                            ),
-                          ),
-                        ),
+                        const SliverToBoxAdapter(child: SizedBox(height: 8)),
                       ],
                     ),
                   ),
+                  if (_validationMessage != null)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(12, 4, 12, 0),
+                      child: _ValidationBlock(message: _validationMessage!),
+                    ),
                   Padding(
                     padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
                     child: TerminalFormActionRow(
@@ -3585,7 +3575,7 @@ class _LinkedShipmentLineDraft {
       stockCode: item.stockCode,
       stockName: item.stockName,
       unitName: item.unitName,
-      unitPointer: item.unitPointer,
+      unitPointer: 1,
       orderQuantity: item.quantity,
       maxQuantity: item.remainingQuantity,
       unitPrice: item.unitPrice,
@@ -3612,7 +3602,7 @@ class _LinkedShipmentLineDraft {
       stockCode: json['stockCode']?.toString() ?? '',
       stockName: json['stockName']?.toString() ?? '',
       unitName: json['unitName']?.toString() ?? '',
-      unitPointer: int.tryParse(json['unitPointer']?.toString() ?? '') ?? 1,
+      unitPointer: 1,
       orderQuantity:
           double.tryParse(json['orderQuantity']?.toString() ?? '') ?? 0,
       maxQuantity: double.tryParse(json['maxQuantity']?.toString() ?? '') ?? 0,
