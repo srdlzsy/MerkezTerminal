@@ -14,6 +14,7 @@ import 'package:furpa_merkez_terminal/shared/product_entry/product_entry_control
 import 'package:furpa_merkez_terminal/shared/product_entry/product_entry_widgets.dart';
 import 'package:furpa_merkez_terminal/shared/utils/client_request_id.dart';
 import 'package:furpa_merkez_terminal/shared/utils/create_form_validation.dart';
+import 'package:furpa_merkez_terminal/shared/utils/terminal_document_line_order.dart';
 import 'package:furpa_merkez_terminal/shared/utils/terminal_feedback.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/barcode_camera_scan_page.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/section_card.dart';
@@ -913,10 +914,10 @@ class _OfflineInventoryCountCreateSheetState
   }
 
   List<_OfflineLineDraft> _committedLines() {
-    return <_OfflineLineDraft>[
+    return oldestEntryFirst(<_OfflineLineDraft>[
       for (var index = 0; index < _lines.length; index++)
         if (index != 0 && !_isBlankLine(_lines[index])) _lines[index],
-    ];
+    ]);
   }
 
   InventoryCountProductLookupItem _productFromLine(_OfflineLineDraft line) {

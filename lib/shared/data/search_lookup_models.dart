@@ -192,6 +192,15 @@ class SearchProductLookupItem {
       purchasePriceSource: resolution.purchasePriceSource,
       purchaseSupplierCode: resolution.purchaseSupplierCode,
       modelCode: resolution.productModelCode,
+      procurementType: resolution.procurementType,
+      sourceWarehouses: resolution.sourceWarehouses
+          .map(
+            (warehouse) => SearchProductSourceWarehouse(
+              warehouseNo: warehouse.warehouseNo,
+              warehouseName: warehouse.warehouseName,
+            ),
+          )
+          .toList(growable: false),
       hasPurchaseRequirement: resolution.hasPurchaseRequirement ?? false,
       unitName: resolution.matchedUnitName,
       unitMultiplier: resolution.unitsPerCase > 0

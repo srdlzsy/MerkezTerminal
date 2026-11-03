@@ -6,6 +6,7 @@ class BarcodeResolutionRequest {
     this.warehouseNo,
     this.operationType,
     this.targetWarehouseNo,
+    this.sourceWarehouseNo,
     this.supplierCode,
     this.companyCode,
     this.isRefund,
@@ -16,6 +17,7 @@ class BarcodeResolutionRequest {
   final String? warehouseNo;
   final String? operationType;
   final String? targetWarehouseNo;
+  final String? sourceWarehouseNo;
   final String? supplierCode;
   final String? companyCode;
   final bool? isRefund;
@@ -31,6 +33,8 @@ class BarcodeResolutionRequest {
         'operationType': operationType!.trim(),
       if ((targetWarehouseNo ?? '').trim().isNotEmpty)
         'targetWarehouseNo': targetWarehouseNo!.trim(),
+      if ((sourceWarehouseNo ?? '').trim().isNotEmpty)
+        'sourceWarehouseNo': sourceWarehouseNo!.trim(),
       if ((supplierCode ?? '').trim().isNotEmpty)
         'supplierCode': supplierCode!.trim(),
       if ((companyCode ?? '').trim().isNotEmpty)
@@ -87,6 +91,8 @@ class BarcodeResolutionResult {
     required this.purchaseRequirementReason,
     required this.salesPrice,
     required this.priceTypeCode,
+    this.procurementType = 'Unassigned',
+    this.sourceWarehouses = const <BarcodeResolutionSourceWarehouse>[],
     this.purchasePrice = 0,
     this.purchaseGrossPrice = 0,
     this.purchasePriceSource = '',
@@ -143,6 +149,8 @@ class BarcodeResolutionResult {
   final String purchaseRequirementReason;
   final double salesPrice;
   final int priceTypeCode;
+  final String procurementType;
+  final List<BarcodeResolutionSourceWarehouse> sourceWarehouses;
   final double purchasePrice;
   final double purchaseGrossPrice;
   final String purchasePriceSource;
@@ -268,6 +276,8 @@ class BarcodeResolutionResult {
       purchaseRequirementReason: _readString(json['purchaseRequirementReason']),
       salesPrice: _readDouble(json['salesPrice']),
       priceTypeCode: _readInt(json['priceTypeCode']),
+      procurementType: _readString(json['procurementType']),
+      sourceWarehouses: _readSourceWarehouses(json['sourceWarehouses']),
       purchasePrice: _readDouble(json['purchasePrice']),
       purchaseGrossPrice: _readDouble(json['purchaseGrossPrice']),
       purchasePriceSource: _readString(json['purchasePriceSource']),
@@ -279,6 +289,23 @@ class BarcodeResolutionResult {
       operationDecision: _readString(json['operationDecision']),
       warnings: _readStringList(json['warnings']),
       errors: _readStringList(json['errors']),
+    );
+  }
+}
+
+class BarcodeResolutionSourceWarehouse {
+  const BarcodeResolutionSourceWarehouse({
+    required this.warehouseNo,
+    required this.warehouseName,
+  });
+
+  final int warehouseNo;
+  final String warehouseName;
+
+  factory BarcodeResolutionSourceWarehouse.fromJson(JsonMap json) {
+    return BarcodeResolutionSourceWarehouse(
+      warehouseNo: _readInt(json['warehouseNo']),
+      warehouseName: _readString(json['warehouseName']),
     );
   }
 }
@@ -299,6 +326,21 @@ double _readCaseMultiplier(JsonMap json) {
   }
 
   return _readDouble(json['unitsPerCase']).abs();
+}
+
+List<BarcodeResolutionSourceWarehouse> _readSourceWarehouses(Object? value) {
+  if (value is! List) {
+    return const <BarcodeResolutionSourceWarehouse>[];
+  }
+
+  return value
+      .whereType<Map>()
+      .map(
+        (item) => BarcodeResolutionSourceWarehouse.fromJson(
+          Map<String, dynamic>.from(item),
+        ),
+      )
+      .toList(growable: false);
 }
 
 bool _readBool(Object? value) {

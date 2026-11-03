@@ -16,6 +16,7 @@ import 'package:furpa_merkez_terminal/shared/product_entry/product_entry_control
 import 'package:furpa_merkez_terminal/shared/product_entry/product_entry_widgets.dart';
 import 'package:furpa_merkez_terminal/shared/utils/client_request_id.dart';
 import 'package:furpa_merkez_terminal/shared/utils/create_form_validation.dart';
+import 'package:furpa_merkez_terminal/shared/utils/terminal_document_line_order.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/barcode_camera_scan_page.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/terminal_create_page.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/terminal_ui_parts.dart';
@@ -772,10 +773,41 @@ class _VirmanCreateSheetState extends State<VirmanCreateSheet>
   }
 
   List<_VirmanDraftLine> _committedLines() {
-    return <_VirmanDraftLine>[
+    final visibleLines = <_VirmanDraftLine>[
       for (var index = 0; index < _lines.length; index++)
         if (index != 0 && !_isBlankLine(_lines[index])) _lines[index],
     ];
+
+    final generatedLines = visibleLines
+        .where((line) => line.isConversionSuggestion)
+        .toList(growable: true);
+    final enteredLines = oldestEntryFirst(
+      visibleLines.where((line) => !line.isConversionSuggestion),
+    );
+    final orderedLines = <_VirmanDraftLine>[];
+
+    for (final line in enteredLines) {
+      orderedLines.add(line);
+      final sourceStockCode = line.stockCodeController.text
+          .trim()
+          .toUpperCase();
+      if (sourceStockCode.isEmpty) {
+        continue;
+      }
+
+      final matchingGeneratedLines = generatedLines
+          .where(
+            (candidate) =>
+                candidate.conversionSourceStockCode.trim().toUpperCase() ==
+                sourceStockCode,
+          )
+          .toList(growable: false);
+      orderedLines.addAll(matchingGeneratedLines);
+      generatedLines.removeWhere(matchingGeneratedLines.contains);
+    }
+
+    orderedLines.addAll(generatedLines);
+    return orderedLines;
   }
 
   Future<bool> _confirmDuplicateIncrease(

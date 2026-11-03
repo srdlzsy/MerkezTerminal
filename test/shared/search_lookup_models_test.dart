@@ -59,6 +59,10 @@ void main() {
       'purchaseGrossPrice': 90,
       'purchasePriceSource': 'LastPurchase',
       'purchaseSupplierCode': 'C001',
+      'procurementType': 'Warehouse',
+      'sourceWarehouses': <Map<String, dynamic>>[
+        <String, dynamic>{'warehouseNo': 53, 'warehouseName': 'ET DEPO'},
+      ],
       'matchedUnitName': 'ADET',
       'matchedUnitMultiplier': 1,
       'unitsPerCase': 1,
@@ -70,6 +74,8 @@ void main() {
     expect(item.purchaseGrossPrice, 90);
     expect(item.purchasePriceSource, 'LastPurchase');
     expect(item.purchaseSupplierCode, 'C001');
+    expect(item.procurementTypeLabel, 'Depo Urunu');
+    expect(item.sourceWarehouses.single.displayLabel, 'ET DEPO 53');
     expect(item.companyAcceptanceUnitPrice, 75);
   });
 

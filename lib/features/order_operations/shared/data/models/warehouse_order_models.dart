@@ -416,6 +416,15 @@ class ProductLookupItem {
       secondaryUnitName: resolution.unitsPerCase > 1 ? 'KOLI' : '',
       caseBarcode: resolution.caseBarcode,
       modelCode: resolution.productModelCode,
+      procurementType: resolution.procurementType,
+      sourceWarehouses: resolution.sourceWarehouses
+          .map(
+            (warehouse) => ProductSourceWarehouse(
+              warehouseNo: warehouse.warehouseNo,
+              warehouseName: warehouse.warehouseName,
+            ),
+          )
+          .toList(growable: false),
       hasPurchaseRequirement: resolution.hasPurchaseRequirement ?? false,
       isPassive: resolution.isPassive,
       isDelisted: resolution.isDelisted,

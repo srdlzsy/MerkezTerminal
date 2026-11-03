@@ -15,6 +15,7 @@ import 'package:furpa_merkez_terminal/shared/product_entry/product_entry_control
 import 'package:furpa_merkez_terminal/shared/product_entry/product_entry_widgets.dart';
 import 'package:furpa_merkez_terminal/shared/utils/client_request_id.dart';
 import 'package:furpa_merkez_terminal/shared/utils/create_form_validation.dart';
+import 'package:furpa_merkez_terminal/shared/utils/terminal_document_line_order.dart';
 import 'package:furpa_merkez_terminal/shared/utils/terminal_feedback.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/barcode_camera_scan_page.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/terminal_create_page.dart';
@@ -702,10 +703,10 @@ class _WarehouseReturnCreateSheetState extends State<WarehouseReturnCreateSheet>
   }
 
   List<_ReturnLineDraft> _committedLines() {
-    return <_ReturnLineDraft>[
+    return oldestEntryFirst(<_ReturnLineDraft>[
       for (var index = 0; index < _lines.length; index++)
         if (index != 0 && !_isBlankLine(_lines[index])) _lines[index],
-    ];
+    ]);
   }
 
   bool _applyProductToLine(_ReturnLineDraft line, ProductLookupItem product) {

@@ -22,6 +22,7 @@ import 'package:furpa_merkez_terminal/shared/utils/client_request_id.dart';
 import 'package:furpa_merkez_terminal/shared/utils/create_form_validation.dart';
 import 'package:furpa_merkez_terminal/shared/utils/e_despatch_qr_parser.dart';
 import 'package:furpa_merkez_terminal/shared/utils/safe_create_retry.dart';
+import 'package:furpa_merkez_terminal/shared/utils/terminal_document_line_order.dart';
 import 'package:furpa_merkez_terminal/shared/utils/terminal_feedback.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/barcode_camera_scan_page.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/terminal_ui_parts.dart';
@@ -1079,10 +1080,15 @@ class _CompanyAcceptanceCreateSheetState
   }
 
   List<_AcceptanceLineDraft> _committedLines() {
-    return <_AcceptanceLineDraft>[
+    final visibleLines = <_AcceptanceLineDraft>[
       for (var index = 0; index < _lines.length; index++)
         if (index != 0 && !_isBlankLine(_lines[index])) _lines[index],
     ];
+
+    return sourceLinesThenOldestManualEntry(
+      visibleLines,
+      isSourceLine: (line) => (line.orderGuid ?? '').trim().isNotEmpty,
+    );
   }
 
   bool _applyProductToLine(

@@ -633,11 +633,17 @@ class _CompactDraftEntryCard extends StatelessWidget {
                       Row(
                         children: <Widget>[
                           if (sourceLabel.isNotEmpty) ...<Widget>[
-                            _CompactProductSourceBadge(label: sourceLabel),
+                            Flexible(
+                              flex: 3,
+                              child: _CompactProductSourceBadge(
+                                label: sourceLabel,
+                              ),
+                            ),
                             const SizedBox(width: 4),
                           ],
                           if (subtitle.trim().isNotEmpty)
                             Expanded(
+                              flex: 2,
                               child: Text(
                                 subtitle,
                                 maxLines: 1,
@@ -699,6 +705,7 @@ class _CompactProductSourceBadge extends StatelessWidget {
       child: Text(
         label,
         maxLines: 1,
+        overflow: TextOverflow.ellipsis,
         style: theme.textTheme.labelSmall?.copyWith(
           height: 1,
           color: foregroundColor,

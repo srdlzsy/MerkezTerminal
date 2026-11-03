@@ -4,14 +4,65 @@ import 'package:furpa_merkez_terminal/features/green_grocer/product_cases/data/g
 import 'package:furpa_merkez_terminal/features/order_operations/given_warehouse_orders/presentation/widgets/given_warehouse_order_create_sheet.dart';
 import 'package:furpa_merkez_terminal/features/order_operations/shared/data/models/warehouse_order_models.dart';
 import 'package:furpa_merkez_terminal/features/order_operations/shared/data/warehouse_orders_repository.dart';
+import 'package:furpa_merkez_terminal/shared/data/barcode_resolution_models.dart';
+import 'package:furpa_merkez_terminal/shared/data/barcode_resolution_repository.dart';
 import 'package:furpa_merkez_terminal/shared/drafts/create_draft.dart';
 import 'package:furpa_merkez_terminal/shared/offline/mobile_warehouse_catalog_repository.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/terminal_create_page.dart';
 
+import '../../support/barcode_resolution_test_data.dart';
 import '../../support/memory_local_database.dart';
 import '../../support/pda_create_screen_contract.dart';
 
 void main() {
+  testWidgets('passes selected source warehouse while resolving a stock code', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 1000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final repository = _BarcodeAwareWarehouseOrdersRepository(
+      warehouses: const <WarehouseLookupItem>[
+        WarehouseLookupItem(
+          warehouseNo: 53,
+          warehouseName: 'ET-SARKUTERI DEPO',
+          address: '',
+          district: 'Osmangazi',
+          province: 'Bursa',
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: GivenWarehouseOrderCreateSheet(
+            repository: repository,
+            accessToken: 'token',
+            defaultWarehouseNo: '110',
+            mobileWarehouseCatalogRepository:
+                MobileWarehouseCatalogLocalRepository(
+                  database: MemoryLocalDatabase(),
+                ),
+          ),
+        ),
+      ),
+    );
+
+    await _pickWarehouse(tester, label: '53 - ET-SARKUTERI DEPO');
+    final productField = find
+        .widgetWithText(TextFormField, 'Barkod / stok kodu / urun adi')
+        .first;
+    await tester.enterText(productField, '023127');
+    await tester.tap(find.widgetWithText(FilledButton, 'Urun').first);
+    await tester.pumpAndSettle();
+
+    expect(repository.lastBarcodeRequest, isNotNull);
+    expect(repository.lastBarcodeRequest!.sourceWarehouseNo, '53');
+    expect(repository.lastBarcodeRequest!.operationType, 'order');
+  });
+
   testWidgets('renders create sheet labels without mojibake', (tester) async {
     tester.view.physicalSize = const Size(390, 1000);
     tester.view.devicePixelRatio = 1;
@@ -979,6 +1030,28 @@ class _FakeWarehouseOrdersRepository
     String? query,
   }) async {
     return warehouses;
+  }
+}
+
+class _BarcodeAwareWarehouseOrdersRepository
+    extends _FakeWarehouseOrdersRepository
+    implements BarcodeResolutionRepository {
+  _BarcodeAwareWarehouseOrdersRepository({required super.warehouses});
+
+  BarcodeResolutionRequest? lastBarcodeRequest;
+
+  @override
+  Future<BarcodeResolutionResult> resolveBarcode({
+    required String accessToken,
+    required BarcodeResolutionRequest request,
+  }) async {
+    lastBarcodeRequest = request;
+    return buildBarcodeResolutionResult(
+      barcode: request.barcode,
+      stockCode: request.barcode,
+      operationType: request.operationType ?? '',
+      screenCode: request.screenCode ?? '',
+    );
   }
 }
 

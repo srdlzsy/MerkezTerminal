@@ -18,6 +18,7 @@ import 'package:furpa_merkez_terminal/shared/product_entry/product_entry_control
 import 'package:furpa_merkez_terminal/shared/product_entry/product_entry_widgets.dart';
 import 'package:furpa_merkez_terminal/shared/utils/client_request_id.dart';
 import 'package:furpa_merkez_terminal/shared/utils/create_form_validation.dart';
+import 'package:furpa_merkez_terminal/shared/utils/terminal_document_line_order.dart';
 import 'package:furpa_merkez_terminal/shared/utils/terminal_feedback.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/barcode_camera_scan_page.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/section_card.dart';
@@ -1484,19 +1485,24 @@ class _OutgoingWarehouseShipmentCreateSheetState
       _linkedLines.isNotEmpty && !_isBlankLinkedLine(_linkedLines.first);
 
   List<_ManualShipmentLineDraft> _committedManualLines() {
-    return <_ManualShipmentLineDraft>[
+    return oldestEntryFirst(<_ManualShipmentLineDraft>[
       for (var index = 0; index < _manualLines.length; index++)
         if (index != 0 && !_isBlankManualLine(_manualLines[index]))
           _manualLines[index],
-    ];
+    ]);
   }
 
   List<_LinkedShipmentLineDraft> _committedLinkedLines() {
-    return <_LinkedShipmentLineDraft>[
+    final visibleLines = <_LinkedShipmentLineDraft>[
       for (var index = 0; index < _linkedLines.length; index++)
         if (index != 0 && !_isBlankLinkedLine(_linkedLines[index]))
           _linkedLines[index],
     ];
+
+    return sourceLinesThenOldestManualEntry(
+      visibleLines,
+      isSourceLine: (line) => line.isOrderLinked,
+    );
   }
 
   int _activeShipmentLineCount() {
