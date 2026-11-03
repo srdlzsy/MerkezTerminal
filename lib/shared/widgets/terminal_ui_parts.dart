@@ -3,6 +3,22 @@ import 'package:flutter/services.dart';
 
 const double terminalCreateMaximumQuantity = 100000;
 
+EdgeInsets terminalPdaListPagePadding(
+  BuildContext context, {
+  double bottom = 20,
+}) {
+  final width = MediaQuery.sizeOf(context).width;
+  final horizontal = width <= 360 ? 8.0 : (width <= 420 ? 12.0 : 16.0);
+  final top = width <= 360 ? 8.0 : 12.0;
+
+  return EdgeInsets.fromLTRB(
+    horizontal,
+    top,
+    horizontal,
+    bottom + MediaQuery.paddingOf(context).bottom,
+  );
+}
+
 Future<T?> showTerminalProductSelectionSheet<T>({
   required BuildContext context,
   required List<T> items,
@@ -1063,11 +1079,13 @@ class TerminalPdaInfoGrid extends StatelessWidget {
     required this.items,
     this.minTileWidth = 132,
     this.spacing = 6,
+    this.compact = false,
   });
 
   final List<TerminalPdaInfo> items;
   final double minTileWidth;
   final double spacing;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
@@ -1078,15 +1096,19 @@ class TerminalPdaInfoGrid extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final maxWidth = constraints.maxWidth;
+        final effectiveMinTileWidth = compact
+            ? 96.0
+            : constraints.hasBoundedWidth && maxWidth < 280
+            ? minTileWidth.clamp(96.0, 112.0)
+            : minTileWidth;
         final columns = constraints.hasBoundedWidth
-            ? ((maxWidth + spacing) / (minTileWidth + spacing)).floor().clamp(
-                1,
-                3,
-              )
+            ? ((maxWidth + spacing) / (effectiveMinTileWidth + spacing))
+                  .floor()
+                  .clamp(1, 3)
             : 1;
         final tileWidth = constraints.hasBoundedWidth
             ? (maxWidth - (spacing * (columns - 1))) / columns
-            : minTileWidth;
+            : effectiveMinTileWidth;
 
         return Wrap(
           spacing: spacing,
@@ -1098,6 +1120,7 @@ class TerminalPdaInfoGrid extends StatelessWidget {
                   child: TerminalPdaInfoTile(
                     label: item.label,
                     value: item.value,
+                    compact: compact,
                   ),
                 ),
               )
@@ -1113,10 +1136,12 @@ class TerminalPdaInfoTile extends StatelessWidget {
     super.key,
     required this.label,
     required this.value,
+    this.compact = false,
   });
 
   final String label;
   final String value;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
@@ -1124,8 +1149,11 @@ class TerminalPdaInfoTile extends StatelessWidget {
     final isPackageInfo = label.trim().toLowerCase() == 'koli ici';
 
     return Container(
-      constraints: const BoxConstraints(minHeight: 34),
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      constraints: BoxConstraints(minHeight: compact ? 32 : 34),
+      padding: EdgeInsets.symmetric(
+        horizontal: compact ? 6 : 8,
+        vertical: compact ? 3 : 4,
+      ),
       decoration: BoxDecoration(
         color: isPackageInfo
             ? const Color(0xFFFFF8E5)

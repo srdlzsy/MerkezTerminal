@@ -619,15 +619,10 @@ class _WarehouseReturnsPageState extends State<WarehouseReturnsPage> {
           top: false,
           bottom: true,
           child: ListView(
-            padding: EdgeInsets.fromLTRB(
-              16,
-              16,
-              16,
-              20 + MediaQuery.paddingOf(context).bottom,
-            ),
+            padding: terminalPdaListPagePadding(context),
             children: <Widget>[
               _buildHeader(),
-              const SizedBox(height: 16),
+              const SizedBox(height: 8),
               _ReturnsAccordionPanel(
                 controller: _controller,
                 direction: widget.direction,
@@ -751,11 +746,13 @@ class _ReturnsAccordionPanel extends StatelessWidget {
       subtitle: controller.isLoadingList
           ? 'Liste yenileniyor...'
           : '${controller.returns.length} kayit bulundu.',
+      dense: true,
+      framed: false,
       child: Column(
         children: <Widget>[
           if (controller.listError != null)
             Padding(
-              padding: const EdgeInsets.only(bottom: 16),
+              padding: const EdgeInsets.only(bottom: 8),
               child: _ErrorBlock(message: controller.listError!),
             ),
           if (controller.isLoadingList)
@@ -772,7 +769,7 @@ class _ReturnsAccordionPanel extends StatelessWidget {
               children: controller.returns
                   .map(
                     (item) => Padding(
-                      padding: const EdgeInsets.only(bottom: 16),
+                      padding: const EdgeInsets.only(bottom: 8),
                       child: _ReturnAccordionCard(
                         item: item,
                         direction: direction,
@@ -864,70 +861,44 @@ class _ReturnAccordionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
     return TerminalPdaRecordCard(
       isSelected: isExpanded,
       onTap: onTap,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    Text(
-                      item.documentNoLabel,
-                      style: theme.textTheme.headlineSmall?.copyWith(
-                        fontWeight: FontWeight.w800,
-                        color: const Color(0xFF1F1A16),
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      '${item.sourceWarehouse} -> ${item.targetWarehouse}',
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w700,
-                        color: const Color(0xFF3A2B20),
-                      ),
-                    ),
-                  ],
+          TerminalPdaCardHeader(
+            title: item.documentNoLabel,
+            subtitle: '${item.sourceWarehouse} -> ${item.targetWarehouse}',
+            trailing: Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                _StateBadge(state: item.shippingState),
+                const SizedBox(height: 4),
+                Icon(
+                  isExpanded
+                      ? Icons.keyboard_arrow_up_rounded
+                      : Icons.chevron_right_rounded,
+                  size: 26,
+                  color: Theme.of(context).colorScheme.primary,
                 ),
-              ),
-              const SizedBox(width: 12),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: <Widget>[
-                  _StateBadge(state: item.shippingState),
-                  const SizedBox(height: 10),
-                  Icon(
-                    isExpanded
-                        ? Icons.keyboard_arrow_up_rounded
-                        : Icons.keyboard_arrow_down_rounded,
-                    size: 30,
-                    color: theme.colorScheme.primary,
-                  ),
-                ],
-              ),
-            ],
+              ],
+            ),
           ),
-          const SizedBox(height: 14),
-          Wrap(
-            spacing: 12,
-            runSpacing: 12,
-            children: <Widget>[
-              _TileInfoPill(
+          const SizedBox(height: 8),
+          TerminalPdaInfoGrid(
+            compact: true,
+            items: <TerminalPdaInfo>[
+              TerminalPdaInfo(
                 label: 'Belge tarihi',
                 value: AppFormatters.dateOrDash(item.documentDate),
               ),
-              _TileInfoPill(
+              TerminalPdaInfo(
                 label: 'Iade tarihi',
                 value: AppFormatters.dateOrDash(item.movementDate),
               ),
-              _TileInfoPill(
+              TerminalPdaInfo(
                 label: direction == WarehouseReturnDirection.outgoing
                     ? 'Hedef depo'
                     : 'Kaynak depo',
@@ -935,8 +906,8 @@ class _ReturnAccordionCard extends StatelessWidget {
                     ? '${item.targetWarehouseNo}'
                     : '${item.sourceWarehouseNo}',
               ),
-              _TileInfoPill(label: 'Satir', value: '${item.lineCount}'),
-              _TileInfoPill(
+              TerminalPdaInfo(label: 'Satir', value: '${item.lineCount}'),
+              TerminalPdaInfo(
                 label: 'Toplam miktar',
                 value: AppFormatters.quantity(item.totalQuantity),
               ),
@@ -947,7 +918,7 @@ class _ReturnAccordionCard extends StatelessWidget {
             curve: Curves.easeInOut,
             child: isExpanded
                 ? Padding(
-                    padding: const EdgeInsets.only(top: 18),
+                    padding: const EdgeInsets.only(top: 8),
                     child: _ReturnDetailBody(
                       direction: direction,
                       detail: detail,
@@ -1264,10 +1235,10 @@ class _ReturnItemCard extends StatelessWidget {
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(8),
         border: Border.all(
           color: theme.colorScheme.outlineVariant.withAlpha(82),
         ),
@@ -1281,7 +1252,7 @@ class _ReturnItemCard extends StatelessWidget {
               Expanded(
                 child: Text(
                   item.stockName,
-                  maxLines: 1,
+                  maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: theme.textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.w800,
@@ -1315,36 +1286,6 @@ class _ReturnItemCard extends StatelessWidget {
             ),
           ],
         ],
-      ),
-    );
-  }
-}
-
-class _TileInfoPill extends StatelessWidget {
-  const _TileInfoPill({required this.label, required this.value});
-
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF7F1EA),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: Theme.of(context).colorScheme.outlineVariant.withAlpha(90),
-        ),
-      ),
-      child: Text(
-        '$label: $value',
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: Theme.of(context).textTheme.labelLarge?.copyWith(
-          color: const Color(0xFF231C17),
-          fontWeight: FontWeight.w700,
-        ),
       ),
     );
   }

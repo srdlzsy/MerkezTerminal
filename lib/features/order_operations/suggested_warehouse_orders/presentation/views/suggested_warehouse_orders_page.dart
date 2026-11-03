@@ -480,15 +480,10 @@ class _SuggestedWarehouseOrdersPageState
       top: false,
       bottom: true,
       child: ListView(
-        padding: EdgeInsets.fromLTRB(
-          16,
-          16,
-          16,
-          20 + MediaQuery.paddingOf(context).bottom,
-        ),
+        padding: terminalPdaListPagePadding(context),
         children: <Widget>[
           _buildHeader(context),
-          const SizedBox(height: 16),
+          const SizedBox(height: 8),
           _buildListSection(context),
         ],
       ),
@@ -622,6 +617,8 @@ class _SuggestedWarehouseOrdersPageState
       subtitle: _controller.isLoadingList
           ? 'Oneriler hesaplaniyor...'
           : '${_controller.items.length} urun bulundu.',
+      dense: true,
+      framed: false,
       child: Column(
         children: <Widget>[
           if (_pendingOperation != null) ...<Widget>[

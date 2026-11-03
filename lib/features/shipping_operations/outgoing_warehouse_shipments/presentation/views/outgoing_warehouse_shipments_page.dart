@@ -636,15 +636,10 @@ class _OutgoingWarehouseShipmentsPageState
           top: false,
           bottom: true,
           child: ListView(
-            padding: EdgeInsets.fromLTRB(
-              16,
-              16,
-              16,
-              20 + MediaQuery.paddingOf(context).bottom,
-            ),
+            padding: terminalPdaListPagePadding(context),
             children: <Widget>[
               _buildHeader(),
-              const SizedBox(height: 16),
+              const SizedBox(height: 8),
               _ShipmentAccordionPanel(
                 controller: _controller,
                 emptyListMessage: widget.emptyListMessage,
@@ -767,11 +762,13 @@ class _ShipmentAccordionPanel extends StatelessWidget {
       subtitle: controller.isLoadingList
           ? 'Liste yenileniyor...'
           : '${controller.shipments.length} kayit bulundu.',
+      dense: true,
+      framed: false,
       child: Column(
         children: <Widget>[
           if (controller.listError != null)
             Padding(
-              padding: const EdgeInsets.only(bottom: 16),
+              padding: const EdgeInsets.only(bottom: 8),
               child: _ErrorBlock(message: controller.listError!),
             ),
           if (controller.isLoadingList)
@@ -786,7 +783,7 @@ class _ShipmentAccordionPanel extends StatelessWidget {
               children: controller.shipments
                   .map(
                     (item) => Padding(
-                      padding: const EdgeInsets.only(bottom: 16),
+                      padding: const EdgeInsets.only(bottom: 8),
                       child: _ShipmentAccordionCard(
                         item: item,
                         isExpanded:
@@ -904,6 +901,7 @@ class _ShipmentAccordionCard extends StatelessWidget {
           ),
           const SizedBox(height: 10),
           TerminalPdaInfoGrid(
+            compact: true,
             items: <TerminalPdaInfo>[
               TerminalPdaInfo(
                 label: 'Belge Trh',
@@ -1232,10 +1230,10 @@ class _ShipmentItemCard extends StatelessWidget {
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(8),
         border: Border.all(
           color: theme.colorScheme.outlineVariant.withAlpha(82),
         ),
@@ -1249,7 +1247,7 @@ class _ShipmentItemCard extends StatelessWidget {
               Expanded(
                 child: Text(
                   item.stockName,
-                  maxLines: 1,
+                  maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: theme.textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.w800,

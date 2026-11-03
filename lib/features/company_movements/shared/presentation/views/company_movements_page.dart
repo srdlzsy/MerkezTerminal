@@ -684,15 +684,10 @@ class _CompanyMovementsPageState extends State<CompanyMovementsPage> {
           top: false,
           bottom: true,
           child: ListView(
-            padding: EdgeInsets.fromLTRB(
-              16,
-              16,
-              16,
-              20 + MediaQuery.paddingOf(context).bottom,
-            ),
+            padding: terminalPdaListPagePadding(context),
             children: <Widget>[
               _buildHeader(),
-              const SizedBox(height: 16),
+              const SizedBox(height: 8),
               _buildListCard(),
             ],
           ),
@@ -785,11 +780,13 @@ class _CompanyMovementsPageState extends State<CompanyMovementsPage> {
       subtitle: _controller.isLoadingList
           ? 'Liste yenileniyor...'
           : '${_controller.movements.length} kayit bulundu.',
+      dense: true,
+      framed: false,
       child: Column(
         children: <Widget>[
           if (_controller.listError != null)
             Padding(
-              padding: const EdgeInsets.only(bottom: 12),
+              padding: const EdgeInsets.only(bottom: 8),
               child: TerminalMessageBlock.error(
                 message: _controller.listError!,
               ),
@@ -810,7 +807,7 @@ class _CompanyMovementsPageState extends State<CompanyMovementsPage> {
                         _controller.selectedMovement?.documentNoLabel ==
                             item.documentNoLabel;
                     return Padding(
-                      padding: const EdgeInsets.only(bottom: 12),
+                      padding: const EdgeInsets.only(bottom: 8),
                       child: _MovementCard(
                         item: item,
                         detail: isExpanded
@@ -913,6 +910,7 @@ class _MovementCard extends StatelessWidget {
           ),
           const SizedBox(height: 10),
           TerminalPdaInfoGrid(
+            compact: true,
             items: <TerminalPdaInfo>[
               TerminalPdaInfo(
                 label: 'Belge Trh',

@@ -220,15 +220,10 @@ class _WarehouseAcceptancesPageState extends State<WarehouseAcceptancesPage> {
           top: false,
           bottom: true,
           child: ListView(
-            padding: EdgeInsets.fromLTRB(
-              16,
-              16,
-              16,
-              20 + MediaQuery.paddingOf(context).bottom,
-            ),
+            padding: terminalPdaListPagePadding(context),
             children: <Widget>[
               _buildHeader(),
-              const SizedBox(height: 16),
+              const SizedBox(height: 8),
               _AcceptanceAccordionPanel(
                 controller: _controller,
                 onTap: _toggleSelection,
@@ -325,11 +320,13 @@ class _AcceptanceAccordionPanel extends StatelessWidget {
       subtitle: controller.isLoadingList
           ? 'Liste yenileniyor...'
           : '${controller.acceptances.length} kayit bulundu.',
+      dense: true,
+      framed: false,
       child: Column(
         children: <Widget>[
           if (controller.listError != null)
             Padding(
-              padding: const EdgeInsets.only(bottom: 12),
+              padding: const EdgeInsets.only(bottom: 8),
               child: _ErrorBlock(message: controller.listError!),
             ),
           if (controller.isLoadingList)
@@ -347,7 +344,7 @@ class _AcceptanceAccordionPanel extends StatelessWidget {
               children: controller.acceptances
                   .map(
                     (item) => Padding(
-                      padding: const EdgeInsets.only(bottom: 12),
+                      padding: const EdgeInsets.only(bottom: 8),
                       child: _AcceptanceAccordionCard(
                         item: item,
                         onTap: () => onTap(item),
@@ -398,6 +395,7 @@ class _AcceptanceAccordionCard extends StatelessWidget {
           ),
           const SizedBox(height: 10),
           TerminalPdaInfoGrid(
+            compact: true,
             items: <TerminalPdaInfo>[
               TerminalPdaInfo(
                 label: 'Sevk Trh',

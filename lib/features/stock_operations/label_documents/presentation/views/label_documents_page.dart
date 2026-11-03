@@ -284,15 +284,10 @@ class _LabelDocumentsPageState extends State<LabelDocumentsPage> {
       top: false,
       bottom: true,
       child: ListView(
-        padding: EdgeInsets.fromLTRB(
-          16,
-          16,
-          16,
-          20 + MediaQuery.paddingOf(context).bottom,
-        ),
+        padding: terminalPdaListPagePadding(context),
         children: <Widget>[
           _buildHeader(),
-          const SizedBox(height: 16),
+          const SizedBox(height: 8),
           _buildBody(),
         ],
       ),
@@ -382,6 +377,8 @@ class _LabelDocumentsPageState extends State<LabelDocumentsPage> {
     return SectionCard(
       title: 'Etiket Belgeleri',
       subtitle: '${_documents.length} belge bulundu.',
+      dense: true,
+      framed: false,
       child: _buildDocumentsView(),
     );
   }
@@ -399,7 +396,7 @@ class _LabelDocumentsPageState extends State<LabelDocumentsPage> {
                 isSelected && _loadingDocumentId == item.documentId;
 
             return Padding(
-              padding: const EdgeInsets.only(bottom: 10),
+              padding: const EdgeInsets.only(bottom: 8),
               child: TerminalPdaRecordCard(
                 isSelected: isSelected,
                 onTap: () => _selectDocument(item),
@@ -425,6 +422,7 @@ class _LabelDocumentsPageState extends State<LabelDocumentsPage> {
                     ),
                     const SizedBox(height: 10),
                     TerminalPdaInfoGrid(
+                      compact: true,
                       items: <TerminalPdaInfo>[
                         TerminalPdaInfo(
                           label: 'Olusturma',

@@ -382,15 +382,10 @@ class _InventoryCountsPageState extends State<InventoryCountsPage> {
           top: false,
           bottom: true,
           child: ListView(
-            padding: EdgeInsets.fromLTRB(
-              16,
-              16,
-              16,
-              20 + MediaQuery.paddingOf(context).bottom,
-            ),
+            padding: terminalPdaListPagePadding(context),
             children: <Widget>[
               _buildHeader(),
-              const SizedBox(height: 16),
+              const SizedBox(height: 8),
               _InventoryCountsAccordionPanel(
                 controller: _controller,
                 onTap: _toggleSelection,
@@ -484,11 +479,13 @@ class _InventoryCountsAccordionPanel extends StatelessWidget {
       subtitle: controller.isLoadingList
           ? 'Liste yenileniyor...'
           : '${controller.counts.length} kayit bulundu.',
+      dense: true,
+      framed: false,
       child: Column(
         children: <Widget>[
           if (controller.listError != null)
             Padding(
-              padding: const EdgeInsets.only(bottom: 16),
+              padding: const EdgeInsets.only(bottom: 8),
               child: _ErrorBlock(message: controller.listError!),
             ),
           if (controller.isLoadingList)
@@ -505,7 +502,7 @@ class _InventoryCountsAccordionPanel extends StatelessWidget {
               children: controller.counts
                   .map(
                     (item) => Padding(
-                      padding: const EdgeInsets.only(bottom: 12),
+                      padding: const EdgeInsets.only(bottom: 8),
                       child: _InventoryCountAccordionCard(
                         item: item,
                         isExpanded:
@@ -594,6 +591,7 @@ class _InventoryCountAccordionCard extends StatelessWidget {
           ),
           const SizedBox(height: 10),
           TerminalPdaInfoGrid(
+            compact: true,
             items: <TerminalPdaInfo>[
               TerminalPdaInfo(
                 label: 'Belge Trh',
@@ -718,10 +716,10 @@ class _CountItemCard extends StatelessWidget {
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(8),
         border: Border.all(
           color: theme.colorScheme.outlineVariant.withAlpha(82),
         ),
@@ -734,7 +732,7 @@ class _CountItemCard extends StatelessWidget {
               Expanded(
                 child: Text(
                   item.stockName,
-                  maxLines: 1,
+                  maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: theme.textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.w800,

@@ -6,11 +6,15 @@ class SectionCard extends StatelessWidget {
     required this.title,
     required this.child,
     this.subtitle,
+    this.dense = false,
+    this.framed = true,
   });
 
   final String title;
   final String? subtitle;
   final Widget child;
+  final bool dense;
+  final bool framed;
 
   @override
   Widget build(BuildContext context) {
@@ -20,23 +24,29 @@ class SectionCard extends StatelessWidget {
       builder: (context, constraints) {
         final isCompact = constraints.maxWidth < 420;
 
+        final padding = framed
+            ? EdgeInsets.all(dense ? 6 : (isCompact ? 8 : 10))
+            : EdgeInsets.zero;
+
         return Container(
           width: double.infinity,
-          padding: EdgeInsets.all(isCompact ? 8 : 10),
-          decoration: BoxDecoration(
-            color: theme.colorScheme.surface,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(
-              color: theme.colorScheme.outlineVariant.withAlpha(100),
-            ),
-            boxShadow: <BoxShadow>[
-              BoxShadow(
-                color: Colors.black.withAlpha(5),
-                blurRadius: 7,
-                offset: const Offset(0, 2),
-              ),
-            ],
-          ),
+          padding: padding,
+          decoration: framed
+              ? BoxDecoration(
+                  color: theme.colorScheme.surface,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: theme.colorScheme.outlineVariant.withAlpha(100),
+                  ),
+                  boxShadow: <BoxShadow>[
+                    BoxShadow(
+                      color: Colors.black.withAlpha(5),
+                      blurRadius: 7,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                )
+              : null,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
@@ -44,10 +54,11 @@ class SectionCard extends StatelessWidget {
                 title,
                 maxLines: isCompact ? 2 : 1,
                 overflow: TextOverflow.ellipsis,
-                style: theme.textTheme.titleMedium?.copyWith(
-                  height: 1.08,
-                  fontWeight: FontWeight.w800,
-                ),
+                style:
+                    (dense
+                            ? theme.textTheme.titleSmall
+                            : theme.textTheme.titleMedium)
+                        ?.copyWith(height: 1.08, fontWeight: FontWeight.w800),
               ),
               if (subtitle != null) ...<Widget>[
                 const SizedBox(height: 2),
@@ -61,7 +72,7 @@ class SectionCard extends StatelessWidget {
                   ),
                 ),
               ],
-              SizedBox(height: isCompact ? 6 : 8),
+              SizedBox(height: dense ? 4 : (isCompact ? 6 : 8)),
               child,
             ],
           ),
