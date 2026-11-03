@@ -41,4 +41,53 @@ void main() {
       isEmpty,
     );
   });
+
+  test('keeps pending drafts bounded without deleting existing data', () async {
+    final repository = LocalOfflineInventoryCountsRepository(
+      database: MemoryLocalDatabase(),
+    );
+    for (
+      var index = 0;
+      index < LocalOfflineInventoryCountsRepository.maxDraftsPerScope;
+      index += 1
+    ) {
+      await repository.saveDraft(_inventoryDraft('count-$index'));
+    }
+
+    await expectLater(
+      repository.saveDraft(_inventoryDraft('count-over-limit')),
+      throwsA(isA<StateError>()),
+    );
+    final drafts = await repository.fetchDrafts(
+      userId: 'user-1',
+      warehouseNo: '110',
+    );
+    expect(
+      drafts,
+      hasLength(LocalOfflineInventoryCountsRepository.maxDraftsPerScope),
+    );
+    expect(drafts.map((item) => item.id), isNot(contains('count-over-limit')));
+  });
+}
+
+OfflineInventoryCountDraft _inventoryDraft(String id) {
+  return OfflineInventoryCountDraft.fromCreateRequest(
+    InventoryCountCreateRequest(
+      clientRequestId: id,
+      name: 'Test sayim',
+      documentDate: DateTime(2026, 11, 3),
+      lines: const <InventoryCountCreateLine>[
+        InventoryCountCreateLine(
+          stockCode: '000001',
+          quantity: 1,
+          barcode: '8690000000001',
+          unitPointer: 1,
+        ),
+      ],
+    ),
+    userId: 'user-1',
+    warehouseNo: '110',
+    status: OfflineRecordStatus.pending,
+    lastSyncAttemptAt: null,
+  );
 }

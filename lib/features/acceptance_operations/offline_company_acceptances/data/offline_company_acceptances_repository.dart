@@ -22,6 +22,7 @@ class LocalOfflineCompanyAcceptancesRepository
   static const String _completionStorageKey =
       'offline_company_acceptance_completed_v1';
   static const Duration _completionRetention = Duration(days: 7);
+  static const int maxDraftsPerScope = 20;
   final LocalDatabase _database;
 
   @override
@@ -57,6 +58,21 @@ class LocalOfflineCompanyAcceptancesRepository
       return;
     }
     final drafts = await _readAllDrafts();
+    final isExisting = drafts.any((item) => item.id == draft.id);
+    final scopeDraftCount = drafts
+        .where(
+          (item) => item.matchesContext(
+            userId: draft.userId,
+            warehouseNo: draft.warehouseNo,
+          ),
+        )
+        .length;
+    if (!isExisting && scopeDraftCount >= maxDraftsPerScope) {
+      throw StateError(
+        'En fazla $maxDraftsPerScope offline mal kabul taslagi saklanabilir. '
+        'Yeni kayit icin bekleyen bir taslagi gonderin veya silin.',
+      );
+    }
     final updated = <OfflineCompanyAcceptanceDraft>[
       draft,
       ...drafts.where((item) => item.id != draft.id),

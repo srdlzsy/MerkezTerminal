@@ -55,6 +55,7 @@ class _VirmanCreateSheetState extends State<VirmanCreateSheet>
   String? _conversionSuggestionMessage;
   late final CreateDraftSession _draftSession;
   String? _lastAddedProductKey;
+  bool _isProductLookupBusy = false;
 
   @override
   void initState() {
@@ -370,6 +371,20 @@ class _VirmanCreateSheetState extends State<VirmanCreateSheet>
   }
 
   Future<void> _searchProduct(_VirmanDraftLine line) async {
+    if (_isProductLookupBusy) {
+      return;
+    }
+    setState(() => _isProductLookupBusy = true);
+    try {
+      await _searchProductUnlocked(line);
+    } finally {
+      if (mounted) {
+        setState(() => _isProductLookupBusy = false);
+      }
+    }
+  }
+
+  Future<void> _searchProductUnlocked(_VirmanDraftLine line) async {
     final query = line.lookupController.text.trim();
     if (query.length < 2) {
       setState(() {
@@ -1178,6 +1193,7 @@ class _VirmanCreateSheetState extends State<VirmanCreateSheet>
         isEntrySlot: isEntrySlot,
         isFreshEntry: isFreshEntry,
         line: line,
+        isLookupBusy: _isProductLookupBusy,
         canRemove: !isFreshEntry && _lines.length > 1,
         onPickProduct: () => _searchProduct(line),
         onScanWithCamera: () => _scanProductWithCamera(line),
@@ -1196,6 +1212,7 @@ class _VirmanDraftLineCard extends StatelessWidget {
     required this.isEntrySlot,
     required this.isFreshEntry,
     required this.line,
+    required this.isLookupBusy,
     required this.canRemove,
     required this.onPickProduct,
     required this.onScanWithCamera,
@@ -1209,6 +1226,7 @@ class _VirmanDraftLineCard extends StatelessWidget {
   final bool isEntrySlot;
   final bool isFreshEntry;
   final _VirmanDraftLine line;
+  final bool isLookupBusy;
   final bool canRemove;
   final VoidCallback onPickProduct;
   final VoidCallback onScanWithCamera;
@@ -1251,6 +1269,7 @@ class _VirmanDraftLineCard extends StatelessWidget {
               field: ProductLookupField(
                 controller: line.lookupController,
                 focusNode: line.lookupFocusNode,
+                enabled: !isLookupBusy,
                 labelText: '$movementTitle urunu degistir',
                 onSubmit: onPickProduct,
               ),
@@ -1258,13 +1277,13 @@ class _VirmanDraftLineCard extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: <Widget>[
                   FilledButton.icon(
-                    onPressed: onPickProduct,
+                    onPressed: isLookupBusy ? null : onPickProduct,
                     icon: const Icon(Icons.search_rounded),
                     label: const Text('Urun'),
                   ),
                   const SizedBox(width: 8),
                   IconButton.filledTonal(
-                    onPressed: onScanWithCamera,
+                    onPressed: isLookupBusy ? null : onScanWithCamera,
                     tooltip: 'Kamera ile oku',
                     icon: const Icon(Icons.photo_camera_back_rounded),
                   ),
@@ -1334,6 +1353,7 @@ class _VirmanDraftLineCard extends StatelessWidget {
               field: ProductLookupField(
                 controller: line.lookupController,
                 focusNode: line.lookupFocusNode,
+                enabled: !isLookupBusy,
                 labelText: '$movementTitle urunu ara',
                 onSubmit: onPickProduct,
               ),
@@ -1341,13 +1361,13 @@ class _VirmanDraftLineCard extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: <Widget>[
                   FilledButton.icon(
-                    onPressed: onPickProduct,
+                    onPressed: isLookupBusy ? null : onPickProduct,
                     icon: const Icon(Icons.search_rounded),
                     label: const Text('Urun'),
                   ),
                   const SizedBox(width: 8),
                   IconButton.filledTonal(
-                    onPressed: onScanWithCamera,
+                    onPressed: isLookupBusy ? null : onScanWithCamera,
                     tooltip: 'Kamera ile oku',
                     icon: const Icon(Icons.photo_camera_back_rounded),
                   ),

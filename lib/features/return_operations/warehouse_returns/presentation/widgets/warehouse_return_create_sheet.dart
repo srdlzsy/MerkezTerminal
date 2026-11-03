@@ -187,6 +187,9 @@ class _WarehouseReturnCreateSheetState extends State<WarehouseReturnCreateSheet>
   }
 
   Future<void> _searchProduct(_ReturnLineDraft line) async {
+    if (line.isLookupStatusLoading) {
+      return;
+    }
     if (!_hasTargetWarehouse) {
       _showFeedback('Once hedef depoyu secin.');
       _refocusLine(line.lookupFocusNode);

@@ -55,6 +55,7 @@ class _InventoryCountCreateSheetState extends State<InventoryCountCreateSheet>
   late final CreateDraftSession _draftSession;
   String? _lastAddedProductKey;
   bool _isPreparingSubmit = false;
+  bool _isProductLookupBusy = false;
 
   @override
   void initState() {
@@ -143,6 +144,20 @@ class _InventoryCountCreateSheetState extends State<InventoryCountCreateSheet>
   }
 
   Future<void> _searchProduct(_InventoryLineDraft line) async {
+    if (_isProductLookupBusy) {
+      return;
+    }
+    setState(() => _isProductLookupBusy = true);
+    try {
+      await _searchProductUnlocked(line);
+    } finally {
+      if (mounted) {
+        setState(() => _isProductLookupBusy = false);
+      }
+    }
+  }
+
+  Future<void> _searchProductUnlocked(_InventoryLineDraft line) async {
     final query = line.barcodeController.text.trim();
     if (await _tryResolveBarcode(line, query)) {
       return;
@@ -947,6 +962,7 @@ class _InventoryCountCreateSheetState extends State<InventoryCountCreateSheet>
           field: ProductLookupField(
             controller: line.barcodeController,
             focusNode: line.barcodeFocusNode,
+            enabled: !_isProductLookupBusy,
             labelText: 'Barkod okut / urun degistir',
             onSubmit: () => _searchProduct(line),
           ),
@@ -954,13 +970,17 @@ class _InventoryCountCreateSheetState extends State<InventoryCountCreateSheet>
             mainAxisSize: MainAxisSize.min,
             children: <Widget>[
               FilledButton.icon(
-                onPressed: () => _searchProduct(line),
+                onPressed: _isProductLookupBusy
+                    ? null
+                    : () => _searchProduct(line),
                 icon: const Icon(Icons.search_rounded),
                 label: const Text('Urun'),
               ),
               const SizedBox(width: 8),
               IconButton.filledTonal(
-                onPressed: () => _scanProductWithCamera(line),
+                onPressed: _isProductLookupBusy
+                    ? null
+                    : () => _scanProductWithCamera(line),
                 tooltip: 'Kamera ile oku',
                 icon: const Icon(Icons.photo_camera_back_rounded),
               ),
@@ -1025,19 +1045,24 @@ class _InventoryCountCreateSheetState extends State<InventoryCountCreateSheet>
               field: ProductLookupField(
                 controller: line.barcodeController,
                 focusNode: line.barcodeFocusNode,
+                enabled: !_isProductLookupBusy,
                 onSubmit: () => _searchProduct(line),
               ),
               action: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: <Widget>[
                   FilledButton.icon(
-                    onPressed: () => _searchProduct(line),
+                    onPressed: _isProductLookupBusy
+                        ? null
+                        : () => _searchProduct(line),
                     icon: const Icon(Icons.search_rounded),
                     label: const Text('Urun'),
                   ),
                   const SizedBox(width: 8),
                   IconButton.filledTonal(
-                    onPressed: () => _scanProductWithCamera(line),
+                    onPressed: _isProductLookupBusy
+                        ? null
+                        : () => _scanProductWithCamera(line),
                     tooltip: 'Kamera ile oku',
                     icon: const Icon(Icons.photo_camera_back_rounded),
                   ),

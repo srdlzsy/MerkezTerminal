@@ -71,6 +71,7 @@ class _GivenWarehouseOrderCreateSheetState
   bool _isPreparingSubmit = false;
   bool _isGreenGrocerPreviewEnabled = true;
   bool _isLoadingSourceProducts = false;
+  bool _isProductLookupBusy = false;
   final ScrollController _scrollController = ScrollController();
   late final CreateDraftSession _draftSession;
   String? _lastAddedProductKey;
@@ -386,6 +387,20 @@ class _GivenWarehouseOrderCreateSheetState
   }
 
   Future<void> _searchProduct(_CreateLineDraft line) async {
+    if (_isProductLookupBusy) {
+      return;
+    }
+    setState(() => _isProductLookupBusy = true);
+    try {
+      await _searchProductUnlocked(line);
+    } finally {
+      if (mounted) {
+        setState(() => _isProductLookupBusy = false);
+      }
+    }
+  }
+
+  Future<void> _searchProductUnlocked(_CreateLineDraft line) async {
     if (!_hasWarehouseSelection) {
       _showFeedback('Once karsi depo secin, sonra kalem okutun.');
       _refocusLine(line.barcodeFocusNode);
@@ -1800,7 +1815,8 @@ class _GivenWarehouseOrderCreateSheetState
     required ThemeData theme,
   }) {
     final product = line.selectedProduct;
-    final canScan = _hasWarehouseSelection;
+    final hasWarehouseSelection = _hasWarehouseSelection;
+    final canScan = hasWarehouseSelection && !_isProductLookupBusy;
     final isEntrySlot = index == 0;
     final isFreshEntry = isEntrySlot && _isBlankLine(line);
     final isPendingEntry = isEntrySlot && !_isBlankLine(line);
@@ -1823,7 +1839,7 @@ class _GivenWarehouseOrderCreateSheetState
         informationLabels: product.sourceInformationLabels,
         onConfirm: () => _commitEntryLine(line),
         onCancel: () => _cancelPendingEntryLine(line),
-        scanRow: canScan
+        scanRow: hasWarehouseSelection
             ? TerminalResponsiveLookupRow(
                 field: ProductLookupField(
                   controller: line.barcodeController,
@@ -1899,7 +1915,7 @@ class _GivenWarehouseOrderCreateSheetState
           : null,
       child: Column(
         children: [
-          if (isFreshEntry && !canScan)
+          if (isFreshEntry && !hasWarehouseSelection)
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(10),

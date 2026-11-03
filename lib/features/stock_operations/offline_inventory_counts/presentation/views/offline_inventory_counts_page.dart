@@ -90,12 +90,22 @@ class _OfflineInventoryCountsPageState
 
       setState(() {
         _isLoading = false;
-        _errorMessage = error.toString().replaceFirst('Exception: ', '');
+        _errorMessage = userFacingErrorMessage(error);
       });
     }
   }
 
   Future<void> _openCreateSheet() async {
+    if (_drafts.length >=
+        LocalOfflineInventoryCountsRepository.maxDraftsPerScope) {
+      final message =
+          '${LocalOfflineInventoryCountsRepository.maxDraftsPerScope} bekleyen offline sayim taslagi var. Yeni kayit icin bir taslagi gonderin veya silin.';
+      setState(() => _errorMessage = message);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(message)));
+      return;
+    }
     final draft = await openTerminalCreatePage<OfflineInventoryCountDraft>(
       context: context,
       title: 'Yeni Offline Sayim',
@@ -181,7 +191,7 @@ class _OfflineInventoryCountsPageState
       }
 
       setState(() {
-        _errorMessage = error.toString().replaceFirst('Exception: ', '');
+        _errorMessage = userFacingErrorMessage(error);
       });
     } finally {
       if (mounted) {
@@ -448,6 +458,7 @@ class _OfflineInventoryCountCreateSheetState
   DateTime _documentDate = DateTime.now();
   String? _errorMessage;
   String? _lastAddedProductKey;
+  bool _isProductLookupBusy = false;
 
   @override
   void initState() {
@@ -482,6 +493,20 @@ class _OfflineInventoryCountCreateSheetState
   }
 
   Future<void> _searchProduct(_OfflineLineDraft line) async {
+    if (_isProductLookupBusy) {
+      return;
+    }
+    setState(() => _isProductLookupBusy = true);
+    try {
+      await _searchProductUnlocked(line);
+    } finally {
+      if (mounted) {
+        setState(() => _isProductLookupBusy = false);
+      }
+    }
+  }
+
+  Future<void> _searchProductUnlocked(_OfflineLineDraft line) async {
     final query = line.lookupController.text.trim();
 
     if (query.length < 2) {
@@ -493,7 +518,21 @@ class _OfflineInventoryCountCreateSheetState
       return;
     }
 
-    final products = await _searchProductsWithCatalogFallback(query);
+    List<InventoryCountProductLookupItem> products;
+    try {
+      products = await _searchProductsWithCatalogFallback(query);
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      unawaited(TerminalFeedback.warning());
+      setState(() {
+        _errorMessage =
+            '${userFacingErrorMessage(error)} Yerel urun katalogunu ana ekrandan yenileyip tekrar deneyin.';
+      });
+      _refocusLine(line.lookupFocusNode);
+      return;
+    }
 
     if (!mounted) {
       return;
@@ -1176,10 +1215,12 @@ class _OfflineInventoryCountCreateSheetState
         onCancel: () => _cancelPendingEntryLine(line),
         scanRow: TerminalResponsiveLookupRow(
           field: TerminalSubmitOnTab(
+            enabled: !_isProductLookupBusy,
             onSubmit: () => _searchProduct(line),
             child: TextField(
               controller: line.lookupController,
               focusNode: line.lookupFocusNode,
+              enabled: !_isProductLookupBusy,
               textInputAction: TextInputAction.search,
               onSubmitted: (_) => _searchProduct(line),
               decoration: const InputDecoration(
@@ -1188,12 +1229,14 @@ class _OfflineInventoryCountCreateSheetState
             ),
           ),
           action: FilledButton.icon(
-            onPressed: () => _searchProduct(line),
+            onPressed: _isProductLookupBusy ? null : () => _searchProduct(line),
             icon: const Icon(Icons.search_rounded),
             label: const Text('Bul'),
           ),
           trailingAction: IconButton.filledTonal(
-            onPressed: () => _scanProductWithCamera(line),
+            onPressed: _isProductLookupBusy
+                ? null
+                : () => _scanProductWithCamera(line),
             tooltip: 'Kamera ile oku',
             icon: const Icon(Icons.photo_camera_back_rounded),
           ),
@@ -1243,22 +1286,28 @@ class _OfflineInventoryCountCreateSheetState
         children: <Widget>[
           TerminalResponsiveLookupRow(
             field: TerminalSubmitOnTab(
+              enabled: !_isProductLookupBusy,
               onSubmit: () => _searchProduct(line),
               child: TextField(
                 controller: line.lookupController,
                 focusNode: line.lookupFocusNode,
+                enabled: !_isProductLookupBusy,
                 textInputAction: TextInputAction.search,
                 onSubmitted: (_) => _searchProduct(line),
                 decoration: const InputDecoration(labelText: 'Online urun ara'),
               ),
             ),
             action: FilledButton.icon(
-              onPressed: () => _searchProduct(line),
+              onPressed: _isProductLookupBusy
+                  ? null
+                  : () => _searchProduct(line),
               icon: const Icon(Icons.search_rounded),
               label: const Text('Bul'),
             ),
             trailingAction: IconButton.filledTonal(
-              onPressed: () => _scanProductWithCamera(line),
+              onPressed: _isProductLookupBusy
+                  ? null
+                  : () => _scanProductWithCamera(line),
               tooltip: 'Kamera ile oku',
               icon: const Icon(Icons.photo_camera_back_rounded),
             ),

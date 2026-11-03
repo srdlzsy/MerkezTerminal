@@ -798,7 +798,7 @@ void main() {
       find.widgetWithText(TextFormField, 'Cari Kodu*'),
       'CR001',
     );
-    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 350));
 
     final immediateDrafts = await draftRepository.fetchDrafts(
       moduleKey: 'mal-kabul-islemleri.firma-mal-kabulleri',

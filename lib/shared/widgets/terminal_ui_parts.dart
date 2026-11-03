@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+const double terminalCreateMaximumQuantity = 100000;
+
 Future<T?> showTerminalProductSelectionSheet<T>({
   required BuildContext context,
   required List<T> items,
@@ -1459,7 +1461,7 @@ class TerminalCompactProductLineCard extends StatelessWidget {
     this.onDelete,
     this.onMinimumReached,
     this.quantityStep = 1,
-    this.maximumQuantity,
+    this.maximumQuantity = terminalCreateMaximumQuantity,
     this.quantityInputFormatters = const <TextInputFormatter>[],
     this.quantityValidator,
   });
@@ -2117,19 +2119,21 @@ class _TerminalCompactQuantityControl extends StatelessWidget {
                   height: 1,
                   fontWeight: FontWeight.w900,
                 ),
-                validator:
-                    validator ??
-                    (value) {
-                      if (_readQuantity(value ?? '') <= 0) {
-                        return '';
-                      }
-                      final max = maximum;
-                      if (max != null && _readQuantity(value ?? '') > max) {
-                        return '';
-                      }
-
-                      return null;
-                    },
+                validator: (value) {
+                  final customError = validator?.call(value);
+                  if (customError != null) {
+                    return customError;
+                  }
+                  final quantity = _readQuantity(value ?? '');
+                  if (quantity <= 0) {
+                    return '';
+                  }
+                  final max = maximum;
+                  if (max != null && quantity > max) {
+                    return '';
+                  }
+                  return null;
+                },
               ),
             ),
           ),
@@ -2269,7 +2273,7 @@ class TerminalQuantityStepper extends StatelessWidget {
     this.label = 'Miktar*',
     this.step = 1,
     this.minimum = 0,
-    this.maximum,
+    this.maximum = terminalCreateMaximumQuantity,
     this.enabled = true,
     this.validator,
     this.onChanged,
@@ -2348,7 +2352,18 @@ class TerminalQuantityStepper extends StatelessWidget {
                   filled: true,
                   fillColor: theme.colorScheme.surface,
                 ),
-                validator: validator,
+                validator: (value) {
+                  final customError = validator?.call(value);
+                  if (customError != null) {
+                    return customError;
+                  }
+                  final max = maximum;
+                  final quantity = _readQuantity(value ?? '');
+                  if (max != null && quantity > max) {
+                    return 'En fazla ${_formatQuantity(max)}';
+                  }
+                  return null;
+                },
                 onTap: () => _keepQuantityFieldVisible(fieldContext),
                 onChanged: (value) {
                   _keepQuantityFieldVisible(fieldContext);

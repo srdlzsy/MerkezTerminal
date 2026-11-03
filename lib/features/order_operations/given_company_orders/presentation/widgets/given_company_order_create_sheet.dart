@@ -299,6 +299,9 @@ class _GivenCompanyOrderCreateSheetState
   }
 
   Future<void> _searchProduct(_CompanyOrderLineDraft line) async {
+    if (line.isLookupStatusLoading) {
+      return;
+    }
     final customer = _selectedCustomer;
     if (customer == null) {
       setState(() {

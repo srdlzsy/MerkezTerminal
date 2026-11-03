@@ -159,6 +159,9 @@ class _StockReceiptCreateSheetState extends State<StockReceiptCreateSheet>
   }
 
   Future<void> _searchProduct(_StockReceiptLineDraft line) async {
+    if (line.isLookupStatusLoading) {
+      return;
+    }
     final query = line.lookupController.text.trim();
 
     if (query.length < 2) {

@@ -597,6 +597,9 @@ class _CompanyAcceptanceCreateSheetState
   }
 
   Future<void> _searchProduct(_AcceptanceLineDraft line) async {
+    if (line.isLookupStatusLoading) {
+      return;
+    }
     final query = line.lookupController.text.trim();
 
     if (query.length < 2) {

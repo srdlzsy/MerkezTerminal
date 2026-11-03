@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:furpa_merkez_terminal/core/network/api_exception.dart';
 import 'package:furpa_merkez_terminal/features/stock_operations/label_documents/data/label_documents_repository.dart';
 import 'package:furpa_merkez_terminal/features/stock_operations/label_documents/data/models/label_document_models.dart';
 import 'package:furpa_merkez_terminal/shared/data/search_lookup_models.dart';
@@ -98,7 +99,7 @@ class _LabelDocumentsPageState extends State<LabelDocumentsPage> {
 
       setState(() {
         _isLoading = false;
-        _errorMessage = error.toString().replaceFirst('Exception: ', '');
+        _errorMessage = userFacingErrorMessage(error);
       });
     }
   }
@@ -144,7 +145,7 @@ class _LabelDocumentsPageState extends State<LabelDocumentsPage> {
         return;
       }
 
-      final message = error.toString().replaceFirst('Exception: ', '');
+      final message = userFacingErrorMessage(error);
       setState(() {
         _loadingDocumentId = null;
         _selectedDocument = null;
@@ -271,7 +272,7 @@ class _LabelDocumentsPageState extends State<LabelDocumentsPage> {
 
       setState(() {
         _isCreating = false;
-        _errorMessage = error.toString().replaceFirst('Exception: ', '');
+        _errorMessage = userFacingErrorMessage(error);
       });
       return false;
     }
@@ -658,10 +659,7 @@ class _LabelDocumentCreateSheetState extends State<LabelDocumentCreateSheet> {
       }
 
       setState(() {
-        line.setLookupStatus(
-          'API hata dondu: ${error.toString().replaceFirst('Exception: ', '').trim()}',
-          isError: true,
-        );
+        line.setLookupStatus(userFacingErrorMessage(error), isError: true);
       });
       _refocusLine(line.lookupFocusNode);
       return;

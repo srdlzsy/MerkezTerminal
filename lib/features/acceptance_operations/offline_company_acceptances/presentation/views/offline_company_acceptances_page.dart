@@ -115,12 +115,22 @@ class _OfflineCompanyAcceptancesPageState
 
       setState(() {
         _isLoading = false;
-        _errorMessage = error.toString().replaceFirst('Exception: ', '');
+        _errorMessage = userFacingErrorMessage(error);
       });
     }
   }
 
   Future<void> _openCreateSheet() async {
+    if (_drafts.length >=
+        LocalOfflineCompanyAcceptancesRepository.maxDraftsPerScope) {
+      final message =
+          '${LocalOfflineCompanyAcceptancesRepository.maxDraftsPerScope} bekleyen offline mal kabul taslagi var. Yeni kayit icin bir taslagi gonderin veya silin.';
+      setState(() => _errorMessage = message);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(message)));
+      return;
+    }
     final draft = await openTerminalCreatePage<OfflineCompanyAcceptanceDraft>(
       context: context,
       title: 'Yeni Offline Mal Kabul',
@@ -231,7 +241,7 @@ class _OfflineCompanyAcceptancesPageState
       }
 
       setState(() {
-        _errorMessage = error.toString().replaceFirst('Exception: ', '');
+        _errorMessage = userFacingErrorMessage(error);
       });
     } finally {
       if (mounted) {
@@ -632,6 +642,7 @@ class _OfflineCompanyAcceptanceCreateSheetState
   CustomerLookupItem? _selectedCustomer;
   String? _validationMessage;
   String? _lastAddedProductKey;
+  bool _isProductLookupBusy = false;
   _OfflineCompanyAcceptanceCreateStep _step =
       _OfflineCompanyAcceptanceCreateStep.document;
 
@@ -783,6 +794,22 @@ class _OfflineCompanyAcceptanceCreateSheetState
   }
 
   Future<void> _searchProduct(_OfflineCompanyAcceptanceLineDraft line) async {
+    if (_isProductLookupBusy) {
+      return;
+    }
+    setState(() => _isProductLookupBusy = true);
+    try {
+      await _searchProductUnlocked(line);
+    } finally {
+      if (mounted) {
+        setState(() => _isProductLookupBusy = false);
+      }
+    }
+  }
+
+  Future<void> _searchProductUnlocked(
+    _OfflineCompanyAcceptanceLineDraft line,
+  ) async {
     final query = line.lookupController.text.trim();
 
     if (query.length < 2) {
@@ -794,7 +821,21 @@ class _OfflineCompanyAcceptanceCreateSheetState
       return;
     }
 
-    final products = await _searchProductsWithCatalogFallback(query);
+    List<SearchProductLookupItem> products;
+    try {
+      products = await _searchProductsWithCatalogFallback(query);
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      unawaited(TerminalFeedback.warning());
+      setState(() {
+        _validationMessage =
+            '${userFacingErrorMessage(error)} Yerel urun katalogunu ana ekrandan yenileyip tekrar deneyin.';
+      });
+      _refocusLine(line.lookupFocusNode);
+      return;
+    }
 
     if (!mounted) {
       return;
@@ -1314,7 +1355,7 @@ class _OfflineCompanyAcceptanceCreateSheetState
       }
 
       setState(() {
-        _validationMessage = error.toString().replaceFirst('Exception: ', '');
+        _validationMessage = userFacingErrorMessage(error);
       });
       return;
     }
@@ -2200,18 +2241,21 @@ class _OfflineCompanyAcceptanceCreateSheetState
     final lookupField = ProductLookupField(
       controller: line.lookupController,
       focusNode: line.lookupFocusNode,
+      enabled: !_isProductLookupBusy,
       selectTextOnFocus: line.selectedProduct == null,
       onSubmit: () => _searchProduct(line),
     );
 
     final searchButton = FilledButton.icon(
-      onPressed: () => _searchProduct(line),
+      onPressed: _isProductLookupBusy ? null : () => _searchProduct(line),
       icon: const Icon(Icons.search_rounded),
       label: const Text('Urun'),
     );
 
     final scanButton = IconButton.filledTonal(
-      onPressed: () => _scanProductWithCamera(line),
+      onPressed: _isProductLookupBusy
+          ? null
+          : () => _scanProductWithCamera(line),
       tooltip: 'Kamera ile oku',
       icon: const Icon(Icons.photo_camera_back_rounded),
     );

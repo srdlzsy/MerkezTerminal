@@ -55,6 +55,30 @@ void main() {
     expect(repository.saved.single.payload['lineCount'], 2);
     expect(repository.deletedIds, isEmpty);
   });
+
+  test('coalesces rapid draft changes into one storage write', () async {
+    final repository = _MemoryDraftRepository();
+    var payloadValue = 'ilk';
+    final session = CreateDraftSession(
+      draft: _draft(),
+      repository: repository,
+      hasContent: () => true,
+      buildPayload: () => <String, dynamic>{'value': payloadValue},
+      buildTitle: () => 'Taslak',
+    );
+
+    session.scheduleSave();
+    payloadValue = 'ikinci';
+    session.scheduleSave();
+    payloadValue = 'son';
+    session.scheduleSave();
+    await Future<void>.delayed(const Duration(milliseconds: 350));
+    await session.flush();
+    session.dispose();
+
+    expect(repository.saveCount, 1);
+    expect(repository.saved.single.payload['value'], 'son');
+  });
 }
 
 CreateDraft _draft() {
@@ -74,6 +98,7 @@ CreateDraft _draft() {
 class _MemoryDraftRepository implements CreateDraftRepository {
   final List<CreateDraft> saved = <CreateDraft>[];
   final List<String> deletedIds = <String>[];
+  int saveCount = 0;
 
   @override
   Future<void> deleteDraft(String id) async {
@@ -96,6 +121,7 @@ class _MemoryDraftRepository implements CreateDraftRepository {
 
   @override
   Future<void> saveDraft(CreateDraft draft) async {
+    saveCount += 1;
     saved
       ..clear()
       ..add(draft);
