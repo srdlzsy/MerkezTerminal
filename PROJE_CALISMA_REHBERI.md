@@ -6,10 +6,10 @@ degisiklik yapmasi icin hazirlanmistir.
 
 Guncel durum:
 
-- Son guncelleme: 2026-08-03
+- Son guncelleme: 2026-11-11
 - Flutter uygulamasi: Furpa merkez el terminali / PDA arayuzu
-- Guncel paket versiyonu: `1.1.37+38`
-- Guncel test durumu: `flutter analyze` temiz, `flutter test` 93/93 basarili
+- Guncel paket versiyonu: `1.1.108+2108`
+- Guncel test durumu: `flutter analyze` temiz, `flutter test` 367/367 basarili
 - Ana tasarim hedefi: eski kullanici aliskanligini bozmadan hata yapmayi zorlastirmak
 
 ## 0. Hizli Yon Bulma
@@ -901,7 +901,7 @@ Guncel test durumu:
 
 ```text
 flutter analyze -> temiz
-flutter test    -> 93/93 basarili
+flutter test    -> 367/367 basarili
 ```
 
 Rutin komutlar:
@@ -955,13 +955,13 @@ test et:
 Paket versiyonu `pubspec.yaml` icindedir:
 
 ```yaml
-version: 1.1.107+2107
+version: 1.1.108+2108
 ```
 
 Burada:
 
-- `1.1.107` kullanicinin gordugu versionName
-- `+2107` Android versionCode
+- `1.1.108` kullanicinin gordugu versionName
+- `+2108` Android temel build numarasi
 
 Yeni release icin ikisi de bilincli artirilmalidir. Otomatik guncelleme
 penceresi kullanici versiyonunu karsilastirir; sadece build numarasini artirmak
@@ -1027,8 +1027,15 @@ Manifest ornegi:
 ```json
 {
   "version": "1.1.108",
-  "versionCode": 2108,
-  "apk": "http://10.0.0.100:802/Terminal/app-release.apk"
+  "apk": "http://10.0.0.100:802/Terminal/furpa-terminal-1.1.108-2108-universal.apk",
+  "android": {
+    "universalUrl": "http://10.0.0.100:802/Terminal/furpa-terminal-1.1.108-2108-universal.apk",
+    "apks": {
+      "arm64-v8a": "http://10.0.0.100:802/Terminal/furpa-terminal-1.1.108-2108-arm64-v8a.apk",
+      "armeabi-v7a": "http://10.0.0.100:802/Terminal/furpa-terminal-1.1.108-2108-armeabi-v7a.apk",
+      "x86_64": "http://10.0.0.100:802/Terminal/furpa-terminal-1.1.108-2108-x86_64.apk"
+    }
+  }
 }
 ```
 
