@@ -79,7 +79,7 @@ Ana kullanim mantigi:
 5. Create ekranlarinda barkod okutma ana akis olarak korunur.
 6. Bazi islemler online API'ye gider.
 7. Offline destekli islemler network yoksa local draft/kuyruk olarak saklanir.
-8. Uygulama online oldugunda bekleyen offline islemleri senkronize eder.
+8. Uygulama online oldugunda taslaklari kendiliginden create POST ile gondermez. Kullanici Kaydet dediginde ayni `clientRequestId` ve body ile islem baslar; sonucu belirsiz kalan kayitlarda sinirli durum sorgusu yapilir.
 
 Bu proje statik menulu bir uygulama degildir. Menu, yetki ve bazi davranislar
 backend datasina gore sekillenir.
@@ -88,7 +88,11 @@ backend datasina gore sekillenir.
 
 Backend/API kontrati icin ana referans:
 
-- `Yeni_UI_API_DOKUMANI.md`
+- `UI_API_DOKUMANI.md`: insan okunur entegrasyon ve is kurali rehberi
+- `API_SOZLESME_REFERANSI.md`: endpoint, method, yetki, parametre ve model alanlari
+- `API_SOZLESMESI.json`: makine tarafindan okunabilen OpenAPI sozlesmesi
+
+Bu uc dosya API reposundaki `docs/` klasorunun surumlenmis kopyalaridir. API endpoint veya DTO degisikliginden sonra terminal kopyalari da ayni commit doneminde yenilenmelidir.
 
 Bu dosya cok genis bir API katalogudur. Proje gelistirirken su ayrim onemlidir:
 
@@ -951,16 +955,16 @@ test et:
 Paket versiyonu `pubspec.yaml` icindedir:
 
 ```yaml
-version: 1.1.37+38
+version: 1.1.107+2107
 ```
 
 Burada:
 
-- `1.1.37` kullanicinin gordugu versionName
-- `+38` Android versionCode
+- `1.1.107` kullanicinin gordugu versionName
+- `+2107` Android versionCode
 
 Yeni release icin ikisi de bilincli artirilmalidir. Otomatik guncelleme
-penceresi kullanici versiyonunu karsilastirir; sadece `+38 -> +39` yapmak
+penceresi kullanici versiyonunu karsilastirir; sadece build numarasini artirmak
 yeterli olmayabilir.
 
 Release oncesi:
@@ -1022,7 +1026,8 @@ Manifest ornegi:
 
 ```json
 {
-  "version": "1.1.38",
+  "version": "1.1.108",
+  "versionCode": 2108,
   "apk": "http://10.0.0.100:802/Terminal/app-release.apk"
 }
 ```

@@ -683,24 +683,6 @@ class ShellModuleRegistry {
         ),
       ),
       ShellModuleRoute(
-        menuCodes: const <String>['packageBarcode'],
-        keywords: const <String>['koli barkodu'],
-        builder: (context) => PackageBarcodePage(
-          key: context.pageKey,
-          repository: legacyToolsRepository,
-          accessToken: context.accessToken,
-        ),
-      ),
-      ShellModuleRoute(
-        menuCodes: const <String>['piecesInBox'],
-        keywords: const <String>['koli ici adet'],
-        builder: (context) => PiecesInBoxPage(
-          key: context.pageKey,
-          repository: legacyToolsRepository,
-          accessToken: context.accessToken,
-        ),
-      ),
-      ShellModuleRoute(
         exactRouteKey: 'arama-islemleri.var-yok',
         menuCodes: const <String>['varyokStoklar'],
         keywords: const <String>['var yok', 'varyok'],

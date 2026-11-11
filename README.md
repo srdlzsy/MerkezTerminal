@@ -51,5 +51,5 @@ flutter build appbundle --release --dart-define=API_BASE_URL=http://10.0.0.100:7
 
 - Android release icin internet izni ve cleartext HTTP destegi acilmistir.
 - iOS tarafinda HTTP API icin App Transport Security istisnasi eklenmistir.
-- Verilen API adresi ozel ag IP'sidir (`192.168.x.x`). Uygulama sadece ayni agda veya VPN uzerinden bu sunucuya erisebilir.
+- Verilen API adresi ozel ag IP'sidir (`10.0.0.100`). Uygulama sadece ayni agda veya VPN uzerinden bu sunucuya erisebilir.
 - Web yayini dusunuluyorsa HTTP yerine HTTPS ve uygun CORS/proxy yapisi gereklidir.

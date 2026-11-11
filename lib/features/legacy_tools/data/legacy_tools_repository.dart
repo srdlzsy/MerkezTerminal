@@ -22,31 +22,6 @@ abstract class LegacyToolsRepository {
     required String query,
   });
 
-  Future<JsonMap> getPackageBarcodeForProduct({
-    required String accessToken,
-    required String barcode,
-    required String productCode,
-  });
-
-  Future<JsonMap> addPackageBarcodeForProduct({
-    required String accessToken,
-    required String barcode,
-    required String productCode,
-    required String packageBarcode,
-  });
-
-  Future<JsonMap> getCurrentProductByBarcode({
-    required String accessToken,
-    required String barcode,
-  });
-
-  Future<JsonMap> updateProductForPiecesInBox({
-    required String accessToken,
-    required String stockCode,
-    required String barcode,
-    required int piecesInBox,
-  });
-
   Future<List<CustomerLookupItem>> searchCustomersByBarcode({
     required String accessToken,
     required String barcode,
@@ -168,70 +143,6 @@ class ApiLegacyToolsRepository implements LegacyToolsRepository {
           ),
         )
         .toList(growable: false);
-  }
-
-  @override
-  Future<JsonMap> getPackageBarcodeForProduct({
-    required String accessToken,
-    required String barcode,
-    required String productCode,
-  }) {
-    return _apiClient.getJsonMap(
-      '/api/ProductBarcodes/GetPackageBarcodeForProduct',
-      accessToken: accessToken,
-      queryParameters: <String, String>{
-        'barcode': barcode,
-        'productCode': productCode,
-      },
-    );
-  }
-
-  @override
-  Future<JsonMap> addPackageBarcodeForProduct({
-    required String accessToken,
-    required String barcode,
-    required String productCode,
-    required String packageBarcode,
-  }) {
-    return _apiClient.postJsonMap(
-      '/api/ProductBarcodes/AddPackageBarcodeForProduct',
-      accessToken: accessToken,
-      body: <String, dynamic>{
-        'barcode': barcode,
-        'productCode': productCode,
-        'packageBarcode': packageBarcode,
-      },
-    );
-  }
-
-  @override
-  Future<JsonMap> getCurrentProductByBarcode({
-    required String accessToken,
-    required String barcode,
-  }) {
-    return _apiClient.getJsonMap(
-      '/api/products/GetCurrentByBarcode',
-      accessToken: accessToken,
-      queryParameters: <String, String>{'barcode': barcode},
-    );
-  }
-
-  @override
-  Future<JsonMap> updateProductForPiecesInBox({
-    required String accessToken,
-    required String stockCode,
-    required String barcode,
-    required int piecesInBox,
-  }) {
-    return _apiClient.postJsonMap(
-      '/api/Products/UpdateProductForPiecesInBox',
-      accessToken: accessToken,
-      body: <String, dynamic>{
-        'stockCode': stockCode,
-        'barcode': barcode,
-        'piecesInBox': piecesInBox,
-      },
-    );
   }
 
   @override

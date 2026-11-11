@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:furpa_merkez_terminal/core/network/api_client.dart';
 import 'package:furpa_merkez_terminal/core/network/api_exception.dart';
 import 'package:furpa_merkez_terminal/core/storage/local_database.dart';
 import 'package:furpa_merkez_terminal/features/legacy_tools/data/legacy_tools_repository.dart';
@@ -386,43 +385,6 @@ class _FakeLegacyToolsRepository implements LegacyToolsRepository {
     }
 
     return customers;
-  }
-
-  @override
-  Future<JsonMap> addPackageBarcodeForProduct({
-    required String accessToken,
-    required String barcode,
-    required String productCode,
-    required String packageBarcode,
-  }) {
-    throw UnimplementedError();
-  }
-
-  @override
-  Future<JsonMap> getCurrentProductByBarcode({
-    required String accessToken,
-    required String barcode,
-  }) {
-    throw UnimplementedError();
-  }
-
-  @override
-  Future<JsonMap> getPackageBarcodeForProduct({
-    required String accessToken,
-    required String barcode,
-    required String productCode,
-  }) {
-    throw UnimplementedError();
-  }
-
-  @override
-  Future<JsonMap> updateProductForPiecesInBox({
-    required String accessToken,
-    required String stockCode,
-    required String barcode,
-    required int piecesInBox,
-  }) {
-    throw UnimplementedError();
   }
 }
 
