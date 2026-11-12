@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 typedef TerminalCreateSubmitHandler<TResult> =
@@ -51,6 +53,15 @@ class _TerminalCreatePage<TResult> extends StatefulWidget {
 class _TerminalCreatePageState<TResult>
     extends State<_TerminalCreatePage<TResult>> {
   bool _isSubmitting = false;
+  _TerminalCreateSubmitPhase _submitPhase =
+      _TerminalCreateSubmitPhase.preparing;
+  Timer? _phaseTimer;
+
+  @override
+  void dispose() {
+    _phaseTimer?.cancel();
+    super.dispose();
+  }
 
   Future<bool> _submit(Object? value, Future<void> Function()? prepare) async {
     final submit = widget.onSubmit;
@@ -63,12 +74,22 @@ class _TerminalCreatePageState<TResult>
     }
     if (_isSubmitting) return false;
 
-    setState(() => _isSubmitting = true);
+    _phaseTimer?.cancel();
+    setState(() {
+      _isSubmitting = true;
+      _submitPhase = _TerminalCreateSubmitPhase.preparing;
+    });
     try {
       await prepare?.call();
       if (!mounted) return false;
+      setState(() => _submitPhase = _TerminalCreateSubmitPhase.sending);
+      _phaseTimer = Timer(const Duration(seconds: 2), () {
+        if (!mounted || !_isSubmitting) return;
+        setState(() => _submitPhase = _TerminalCreateSubmitPhase.checking);
+      });
       final completed = await submit(value);
       if (!mounted) return completed;
+      _phaseTimer?.cancel();
       if (completed) {
         Navigator.of(context).pop();
         return true;
@@ -77,6 +98,7 @@ class _TerminalCreatePageState<TResult>
       return false;
     } catch (error, stackTrace) {
       if (!mounted) return false;
+      _phaseTimer?.cancel();
       debugPrint('Create page submit failed unexpectedly: $error');
       debugPrintStack(stackTrace: stackTrace);
       setState(() => _isSubmitting = false);
@@ -187,16 +209,19 @@ class _TerminalCreatePageState<TResult>
                         BoxShadow(blurRadius: 18, color: Color(0x33000000)),
                       ],
                     ),
-                    child: const Row(
+                    child: Row(
                       children: <Widget>[
-                        SizedBox.square(
+                        const SizedBox.square(
                           dimension: 24,
                           child: CircularProgressIndicator(strokeWidth: 2.5),
                         ),
-                        SizedBox(width: 14),
+                        const SizedBox(width: 14),
                         Expanded(
                           child: Text(
-                            'Kayit yapiliyor. Sonuc kesinlesene kadar bu ekran acik kalacak.',
+                            _submitPhase.message,
+                            key: const ValueKey<String>(
+                              'terminal-create-submit-status',
+                            ),
                           ),
                         ),
                       ],
@@ -210,6 +235,17 @@ class _TerminalCreatePageState<TResult>
       ),
     );
   }
+}
+
+enum _TerminalCreateSubmitPhase { preparing, sending, checking }
+
+extension on _TerminalCreateSubmitPhase {
+  String get message => switch (this) {
+    _TerminalCreateSubmitPhase.preparing => 'Bilgiler hazirlaniyor...',
+    _TerminalCreateSubmitPhase.sending => 'Sunucuya gonderiliyor...',
+    _TerminalCreateSubmitPhase.checking =>
+      'Mikro sonucu kontrol ediliyor. Bu ekran acik kalacak.',
+  };
 }
 
 class _TerminalCreateSubmitInherited extends InheritedWidget {

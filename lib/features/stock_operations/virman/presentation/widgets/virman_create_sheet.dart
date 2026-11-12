@@ -17,6 +17,7 @@ import 'package:furpa_merkez_terminal/shared/product_entry/product_entry_widgets
 import 'package:furpa_merkez_terminal/shared/utils/client_request_id.dart';
 import 'package:furpa_merkez_terminal/shared/utils/create_form_validation.dart';
 import 'package:furpa_merkez_terminal/shared/utils/terminal_document_line_order.dart';
+import 'package:furpa_merkez_terminal/shared/utils/terminal_feedback.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/barcode_camera_scan_page.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/terminal_create_page.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/terminal_ui_parts.dart';
@@ -765,7 +766,10 @@ class _VirmanCreateSheetState extends State<VirmanCreateSheet>
     _rememberAddedProduct(product, movementType: nextMovementType);
 
     if (mergedIntoExisting) {
-      _showFeedback('Ayni barkod mevcut satira eklendi; miktar artirildi.');
+      _showFeedback(
+        'Ayni barkod mevcut satira eklendi; miktar artirildi.',
+        tone: TerminalFeedbackTone.success,
+      );
     }
     if (nextMovementType == 1) {
       final sourceLine = _committedLines().firstWhere(
@@ -917,18 +921,10 @@ class _VirmanCreateSheetState extends State<VirmanCreateSheet>
     return '';
   }
 
-  void _showFeedback(String message) {
-    final messenger = ScaffoldMessenger.maybeOf(context);
-    messenger?.hideCurrentSnackBar();
-    messenger?.showSnackBar(
-      SnackBar(
-        content: Text(message),
-        duration: const Duration(seconds: 2),
-        behavior: SnackBarBehavior.floating,
-        margin: const EdgeInsets.all(16),
-      ),
-    );
-  }
+  void _showFeedback(
+    String message, {
+    TerminalFeedbackTone tone = TerminalFeedbackTone.info,
+  }) => TerminalFeedback.showMessage(context, message, tone: tone);
 
   Future<void> _submit() async {
     if (!validateCreateForm(_formKey)) {
@@ -1156,11 +1152,15 @@ class _VirmanCreateSheetState extends State<VirmanCreateSheet>
       return const SliverToBoxAdapter(child: SizedBox.shrink());
     }
 
-    return SliverList(
-      delegate: SliverChildBuilderDelegate((context, visibleIndex) {
-        final index = indexes[visibleIndex];
-        return _buildLineCard(index);
-      }, childCount: indexes.length),
+    return TerminalSearchableLineSliver<int>(
+      items: indexes,
+      searchText: (index) {
+        final line = _lines[index];
+        final product = line.selectedProduct;
+        return '${product?.stockName ?? ''} ${product?.stockCode ?? ''} '
+            '${product?.barcode ?? ''} ${line.lookupController.text}';
+      },
+      itemBuilder: (context, index) => _buildLineCard(index),
     );
   }
 
@@ -1337,11 +1337,7 @@ class _VirmanDraftLineCard extends StatelessWidget {
       leading: Icon(_movementTypeIcon(movementType), color: movementColor),
       isEntryLine: isFreshEntry,
       trailing: canRemove
-          ? IconButton(
-              onPressed: onRemove,
-              icon: const Icon(Icons.delete_outline_rounded),
-              tooltip: 'Satiri sil',
-            )
+          ? TerminalLineDeleteButton(onPressed: onRemove)
           : null,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

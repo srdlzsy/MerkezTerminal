@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:furpa_merkez_terminal/features/auth/data/models/auth_models.dart';
 import 'package:furpa_merkez_terminal/features/shell/domain/menu_entry.dart';
+import 'package:furpa_merkez_terminal/shared/formatters/app_formatters.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/section_card.dart';
 
 class HomeDashboard extends StatelessWidget {
@@ -11,6 +12,12 @@ class HomeDashboard extends StatelessWidget {
     required this.onSelectMenu,
     this.offlineQueueCount = 0,
     this.offlineFailedCount = 0,
+    this.isConnectionVerified = false,
+    this.isConnectionChecking = false,
+    this.productCatalogCount = 0,
+    this.customerCatalogCount = 0,
+    this.warehouseCatalogCount = 0,
+    this.catalogUpdatedAt,
     this.installedVersionLabel = 'Okunuyor...',
     this.availableVersionLabel,
     this.isCheckingUpdate = false,
@@ -26,6 +33,12 @@ class HomeDashboard extends StatelessWidget {
   final ValueChanged<MenuEntry> onSelectMenu;
   final int offlineQueueCount;
   final int offlineFailedCount;
+  final bool isConnectionVerified;
+  final bool isConnectionChecking;
+  final int productCatalogCount;
+  final int customerCatalogCount;
+  final int warehouseCatalogCount;
+  final DateTime? catalogUpdatedAt;
   final String installedVersionLabel;
   final String? availableVersionLabel;
   final bool isCheckingUpdate;
@@ -51,6 +64,12 @@ class HomeDashboard extends StatelessWidget {
           user: user,
           offlineQueueCount: offlineQueueCount,
           offlineFailedCount: offlineFailedCount,
+          isConnectionVerified: isConnectionVerified,
+          isConnectionChecking: isConnectionChecking,
+          productCatalogCount: productCatalogCount,
+          customerCatalogCount: customerCatalogCount,
+          warehouseCatalogCount: warehouseCatalogCount,
+          catalogUpdatedAt: catalogUpdatedAt,
           installedVersionLabel: installedVersionLabel,
           availableVersionLabel: availableVersionLabel,
           isCheckingUpdate: isCheckingUpdate,
@@ -114,6 +133,12 @@ class _UserSummary extends StatelessWidget {
     required this.user,
     required this.offlineQueueCount,
     required this.offlineFailedCount,
+    required this.isConnectionVerified,
+    required this.isConnectionChecking,
+    required this.productCatalogCount,
+    required this.customerCatalogCount,
+    required this.warehouseCatalogCount,
+    required this.catalogUpdatedAt,
     required this.installedVersionLabel,
     required this.availableVersionLabel,
     required this.isCheckingUpdate,
@@ -127,6 +152,12 @@ class _UserSummary extends StatelessWidget {
   final CurrentUser user;
   final int offlineQueueCount;
   final int offlineFailedCount;
+  final bool isConnectionVerified;
+  final bool isConnectionChecking;
+  final int productCatalogCount;
+  final int customerCatalogCount;
+  final int warehouseCatalogCount;
+  final DateTime? catalogUpdatedAt;
   final String installedVersionLabel;
   final String? availableVersionLabel;
   final bool isCheckingUpdate;
@@ -208,13 +239,17 @@ class _UserSummary extends StatelessWidget {
                   height: 1.2,
                 ),
               ),
-              if (offlineQueueCount > 0) ...<Widget>[
-                const SizedBox(height: 7),
-                _OfflineStatusPill(
-                  offlineQueueCount: offlineQueueCount,
-                  offlineFailedCount: offlineFailedCount,
-                ),
-              ],
+              const SizedBox(height: 7),
+              _OfflineReadinessPanel(
+                offlineQueueCount: offlineQueueCount,
+                offlineFailedCount: offlineFailedCount,
+                isConnectionVerified: isConnectionVerified,
+                isConnectionChecking: isConnectionChecking,
+                productCatalogCount: productCatalogCount,
+                customerCatalogCount: customerCatalogCount,
+                warehouseCatalogCount: warehouseCatalogCount,
+                catalogUpdatedAt: catalogUpdatedAt,
+              ),
               const SizedBox(height: 7),
               _UpdateStatusRow(
                 installedVersionLabel: installedVersionLabel,
@@ -347,19 +382,43 @@ class _UpdateStatusRow extends StatelessWidget {
   }
 }
 
-class _OfflineStatusPill extends StatelessWidget {
-  const _OfflineStatusPill({
+class _OfflineReadinessPanel extends StatelessWidget {
+  const _OfflineReadinessPanel({
     required this.offlineQueueCount,
     required this.offlineFailedCount,
+    required this.isConnectionVerified,
+    required this.isConnectionChecking,
+    required this.productCatalogCount,
+    required this.customerCatalogCount,
+    required this.warehouseCatalogCount,
+    required this.catalogUpdatedAt,
   });
 
   final int offlineQueueCount;
   final int offlineFailedCount;
+  final bool isConnectionVerified;
+  final bool isConnectionChecking;
+  final int productCatalogCount;
+  final int customerCatalogCount;
+  final int warehouseCatalogCount;
+  final DateTime? catalogUpdatedAt;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final hasError = offlineFailedCount > 0;
+    final connectionLabel = isConnectionChecking
+        ? 'Kontrol ediliyor'
+        : isConnectionVerified
+        ? 'Online'
+        : 'Cevrimdisi';
+    final hasCatalog =
+        productCatalogCount > 0 ||
+        customerCatalogCount > 0 ||
+        warehouseCatalogCount > 0;
+    final updatedLabel = catalogUpdatedAt == null
+        ? 'Katalog yenilenmemis'
+        : 'Son katalog: ${AppFormatters.dateTime(catalogUpdatedAt!)}';
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
@@ -368,27 +427,76 @@ class _OfflineStatusPill extends StatelessWidget {
         borderRadius: BorderRadius.circular(7),
         border: Border.all(color: Colors.white.withAlpha(36)),
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: <Widget>[
-          Icon(
-            hasError
-                ? Icons.error_outline_rounded
-                : Icons.cloud_upload_outlined,
-            color: Colors.white,
-            size: 17,
-          ),
-          const SizedBox(width: 6),
-          Expanded(
-            child: Text(
-              hasError
-                  ? '$offlineQueueCount offline kayit, $offlineFailedCount hata'
-                  : '$offlineQueueCount offline kayit senkron bekliyor',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: theme.textTheme.labelSmall?.copyWith(
+          Row(
+            children: <Widget>[
+              Icon(
+                isConnectionVerified
+                    ? Icons.wifi_rounded
+                    : Icons.wifi_off_rounded,
                 color: Colors.white,
-                fontWeight: FontWeight.w900,
+                size: 16,
               ),
+              const SizedBox(width: 5),
+              Flexible(
+                flex: 3,
+                child: Text(
+                  connectionLabel,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Icon(
+                hasError
+                    ? Icons.error_outline_rounded
+                    : Icons.cloud_upload_outlined,
+                color: Colors.white,
+                size: 16,
+              ),
+              const SizedBox(width: 4),
+              Flexible(
+                flex: 5,
+                child: Text(
+                  hasError
+                      ? '$offlineQueueCount bekliyor, $offlineFailedCount hata'
+                      : '$offlineQueueCount evrak bekliyor',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.end,
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 3),
+          Text(
+            hasCatalog
+                ? 'Katalog: $productCatalogCount urun | '
+                      '$customerCatalogCount cari | $warehouseCatalogCount depo'
+                : 'Offline kataloglar henuz hazir degil',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: Colors.white.withAlpha(220),
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          Text(
+            updatedLabel,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: Colors.white.withAlpha(185),
             ),
           ),
         ],

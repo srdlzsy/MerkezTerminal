@@ -3,6 +3,136 @@ import 'package:flutter/services.dart';
 
 const double terminalCreateMaximumQuantity = 100000;
 
+class TerminalSearchableLineSliver<T> extends StatefulWidget {
+  const TerminalSearchableLineSliver({
+    super.key,
+    required this.items,
+    required this.searchText,
+    required this.itemBuilder,
+    this.searchThreshold = 8,
+    this.hintText = 'Kalemlerde ara',
+  });
+
+  final List<T> items;
+  final String Function(T item) searchText;
+  final Widget Function(BuildContext context, T item) itemBuilder;
+  final int searchThreshold;
+  final String hintText;
+
+  @override
+  State<TerminalSearchableLineSliver<T>> createState() =>
+      _TerminalSearchableLineSliverState<T>();
+}
+
+class _TerminalSearchableLineSliverState<T>
+    extends State<TerminalSearchableLineSliver<T>> {
+  final TextEditingController _controller = TextEditingController();
+  String _query = '';
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final showSearch =
+        widget.items.length >= widget.searchThreshold || _query.isNotEmpty;
+    final normalizedQuery = _normalize(_query);
+    final visibleItems = normalizedQuery.isEmpty
+        ? widget.items
+        : widget.items
+              .where(
+                (item) => _normalize(
+                  widget.searchText(item),
+                ).contains(normalizedQuery),
+              )
+              .toList(growable: false);
+    final showEmpty = showSearch && visibleItems.isEmpty;
+    final offset = showSearch ? 1 : 0;
+    final childCount = offset + (showEmpty ? 1 : visibleItems.length);
+
+    return SliverList(
+      delegate: SliverChildBuilderDelegate((context, index) {
+        if (showSearch && index == 0) {
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 5),
+            child: Row(
+              children: <Widget>[
+                Expanded(
+                  child: TextField(
+                    controller: _controller,
+                    textInputAction: TextInputAction.search,
+                    decoration: InputDecoration(
+                      hintText: widget.hintText,
+                      prefixIcon: const Icon(Icons.search_rounded, size: 20),
+                      suffixIcon: _query.isEmpty
+                          ? null
+                          : IconButton(
+                              tooltip: 'Aramayi temizle',
+                              onPressed: () {
+                                _controller.clear();
+                                setState(() => _query = '');
+                              },
+                              icon: const Icon(Icons.clear_rounded, size: 19),
+                            ),
+                      isDense: true,
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 8,
+                      ),
+                    ),
+                    onChanged: (value) => setState(() => _query = value),
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Container(
+                  constraints: const BoxConstraints(minWidth: 46),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 7,
+                    vertical: 7,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.surfaceContainerHigh,
+                    borderRadius: BorderRadius.circular(7),
+                  ),
+                  child: Text(
+                    '${visibleItems.length}/${widget.items.length}',
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
+
+        if (showEmpty) {
+          return const Padding(
+            padding: EdgeInsets.symmetric(vertical: 12),
+            child: Center(child: Text('Eslesen kalem bulunamadi.')),
+          );
+        }
+
+        return widget.itemBuilder(context, visibleItems[index - offset]);
+      }, childCount: childCount),
+    );
+  }
+
+  String _normalize(String value) => value
+      .trim()
+      .toLowerCase()
+      .replaceAll('ı', 'i')
+      .replaceAll('ş', 's')
+      .replaceAll('ğ', 'g')
+      .replaceAll('ü', 'u')
+      .replaceAll('ö', 'o')
+      .replaceAll('ç', 'c');
+}
+
 EdgeInsets terminalPdaListPagePadding(
   BuildContext context, {
   double bottom = 20,
@@ -1376,6 +1506,9 @@ class TerminalPdaLineCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final normalizedSubtitle = subtitle?.trim() ?? '';
+    final promoteSubtitle =
+        !isEntryLine && !showFullTitle && normalizedSubtitle.isNotEmpty;
 
     return Container(
       width: double.infinity,
@@ -1414,38 +1547,65 @@ class TerminalPdaLineCard extends StatelessWidget {
                   const SizedBox(width: 6),
                 ],
                 Expanded(
-                  child: Row(
-                    children: <Widget>[
-                      Flexible(
-                        child: Text(
-                          title,
-                          maxLines: showFullTitle ? null : 1,
-                          overflow: showFullTitle
-                              ? TextOverflow.visible
-                              : TextOverflow.ellipsis,
-                          style: theme.textTheme.titleSmall?.copyWith(
-                            height: 1.05,
-                            fontWeight: FontWeight.w900,
-                          ),
-                        ),
-                      ),
-                      if (subtitle != null) ...<Widget>[
-                        const SizedBox(width: 4),
-                        Expanded(
-                          child: Text(
-                            subtitle!,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: theme.textTheme.labelMedium?.copyWith(
-                              height: 1.05,
-                              color: theme.colorScheme.onSurface.withAlpha(150),
-                              fontWeight: FontWeight.w700,
+                  child: promoteSubtitle
+                      ? Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: <Widget>[
+                            Text(
+                              normalizedSubtitle,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: theme.textTheme.titleSmall?.copyWith(
+                                height: 1.08,
+                                fontWeight: FontWeight.w900,
+                              ),
                             ),
-                          ),
+                            const SizedBox(height: 1),
+                            Text(
+                              title,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: theme.textTheme.labelSmall?.copyWith(
+                                height: 1,
+                                color: theme.colorScheme.onSurfaceVariant,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ],
+                        )
+                      : Row(
+                          children: <Widget>[
+                            Flexible(
+                              child: Text(
+                                title,
+                                maxLines: showFullTitle ? null : 1,
+                                overflow: showFullTitle
+                                    ? TextOverflow.visible
+                                    : TextOverflow.ellipsis,
+                                style: theme.textTheme.titleSmall?.copyWith(
+                                  height: 1.05,
+                                  fontWeight: FontWeight.w900,
+                                ),
+                              ),
+                            ),
+                            if (normalizedSubtitle.isNotEmpty) ...<Widget>[
+                              const SizedBox(width: 4),
+                              Expanded(
+                                child: Text(
+                                  normalizedSubtitle,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: theme.textTheme.labelMedium?.copyWith(
+                                    height: 1.05,
+                                    color: theme.colorScheme.onSurface
+                                        .withAlpha(150),
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ],
                         ),
-                      ],
-                    ],
-                  ),
                 ),
                 if (trailing != null) ...<Widget>[
                   const SizedBox(width: 6),
@@ -1561,7 +1721,7 @@ class TerminalCompactProductLineCard extends StatelessWidget {
             warningLabel: warningLabel,
             isCompact: isTight,
             trailing: isTight
-                ? _TerminalLineDeleteButton(
+                ? TerminalLineDeleteButton(
                     enabled: canDelete,
                     onPressed: onDelete,
                   )
@@ -1595,7 +1755,7 @@ class TerminalCompactProductLineCard extends StatelessWidget {
                 ),
               if (!isTight) ...<Widget>[
                 const SizedBox(width: 4),
-                _TerminalLineDeleteButton(
+                TerminalLineDeleteButton(
                   enabled: canDelete,
                   onPressed: onDelete,
                 ),
@@ -1987,9 +2147,10 @@ class _TerminalCompactProductLineDetails extends StatelessWidget {
   }
 }
 
-class _TerminalLineDeleteButton extends StatelessWidget {
-  const _TerminalLineDeleteButton({
-    required this.enabled,
+class TerminalLineDeleteButton extends StatelessWidget {
+  const TerminalLineDeleteButton({
+    super.key,
+    this.enabled = true,
     required this.onPressed,
   });
 

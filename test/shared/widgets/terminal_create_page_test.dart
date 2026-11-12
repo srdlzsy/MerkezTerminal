@@ -58,10 +58,11 @@ void main() {
 
     expect(submitCount, 1);
     expect(find.text('Kaydet'), findsOneWidget);
+    expect(find.text('Sunucuya gonderiliyor...'), findsOneWidget);
+
+    await tester.pump(const Duration(seconds: 2));
     expect(
-      find.text(
-        'Kayit yapiliyor. Sonuc kesinlesene kadar bu ekran acik kalacak.',
-      ),
+      find.textContaining('Mikro sonucu kontrol ediliyor'),
       findsOneWidget,
     );
 
@@ -176,12 +177,7 @@ void main() {
     await tester.pump();
 
     expect(submitCount, 0);
-    expect(
-      find.text(
-        'Kayit yapiliyor. Sonuc kesinlesene kadar bu ekran acik kalacak.',
-      ),
-      findsOneWidget,
-    );
+    expect(find.text('Bilgiler hazirlaniyor...'), findsOneWidget);
 
     preparation.complete();
     await tester.pumpAndSettle();

@@ -515,10 +515,13 @@ class _SuggestedCompanyOrdersPageState
             ),
           ),
         ),
-        IconButton.filledTonal(
-          onPressed: isBusy ? null : _openSupplierLookup,
-          tooltip: 'Firma ara',
-          icon: const Icon(Icons.manage_search_rounded),
+        Tooltip(
+          message: 'Firma ara',
+          child: OutlinedButton.icon(
+            onPressed: isBusy ? null : _openSupplierLookup,
+            icon: const Icon(Icons.business_rounded, size: 18),
+            label: const Text('Firma Sec'),
+          ),
         ),
         TerminalFilterButton(
           label: 'Siparis',

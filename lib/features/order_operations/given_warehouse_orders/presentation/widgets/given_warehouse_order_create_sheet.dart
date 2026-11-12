@@ -811,7 +811,10 @@ class _GivenWarehouseOrderCreateSheetState
     _focusFreshEntryLine();
     _rememberAddedProduct(product);
     if (mergedIntoExisting) {
-      _showFeedback('Ayni barkod mevcut satira eklendi; miktar artirildi.');
+      _showFeedback(
+        'Ayni barkod mevcut satira eklendi; miktar artirildi.',
+        tone: TerminalFeedbackTone.success,
+      );
     }
   }
 
@@ -943,7 +946,10 @@ class _GivenWarehouseOrderCreateSheetState
     }
     _draftSession.scheduleSave();
     _focusFreshEntryLine();
-    _showFeedback('${removableLines.length} bos miktarli satir kaldirildi.');
+    _showFeedback(
+      '${removableLines.length} bos miktarli satir kaldirildi.',
+      tone: TerminalFeedbackTone.success,
+    );
   }
 
   Future<void> _submit() async {
@@ -1657,44 +1663,71 @@ class _GivenWarehouseOrderCreateSheetState
 
     return SizedBox(
       height: 40,
-      child: Row(
-        children: <Widget>[
-          Text(
-            'Satirlar',
-            style: theme.textTheme.titleSmall?.copyWith(
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-          const Spacer(),
-          if (_canLoadSourceWarehouseProducts)
-            Tooltip(
-              message: 'Depo urunleri',
-              child: IconButton.filledTonal(
-                onPressed: _isLoadingSourceProducts || !_hasWarehouseSelection
-                    ? null
-                    : _loadSourceWarehouseProducts,
-                icon: _isLoadingSourceProducts
-                    ? const SizedBox(
-                        width: 17,
-                        height: 17,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.playlist_add_rounded, size: 20),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final hasLoadAction = _canLoadSourceWarehouseProducts;
+          final hasClearAction = _emptyQuantityLineCount > 0;
+          final showTitle =
+              constraints.maxWidth >= 380 || !(hasLoadAction && hasClearAction);
+
+          Widget loadButton() => Tooltip(
+            message: 'Depo urunleri',
+            child: FilledButton.tonalIcon(
+              onPressed: _isLoadingSourceProducts || !_hasWarehouseSelection
+                  ? null
+                  : _loadSourceWarehouseProducts,
+              icon: _isLoadingSourceProducts
+                  ? const SizedBox(
+                      width: 17,
+                      height: 17,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.playlist_add_rounded, size: 17),
+              label: Text(_isLoadingSourceProducts ? 'Bekle' : 'Getir'),
+              style: FilledButton.styleFrom(
+                minimumSize: const Size(0, 36),
+                padding: const EdgeInsets.symmetric(horizontal: 8),
                 visualDensity: VisualDensity.compact,
               ),
             ),
-          if (_emptyQuantityLineCount > 0) ...<Widget>[
-            const SizedBox(width: 4),
-            Tooltip(
-              message: 'Boslari sil',
-              child: IconButton.filledTonal(
-                onPressed: _removeEmptyQuantityLines,
-                icon: const Icon(Icons.cleaning_services_rounded, size: 20),
+          );
+
+          Widget clearButton() => Tooltip(
+            message: 'Boslari sil',
+            child: FilledButton.tonalIcon(
+              onPressed: _removeEmptyQuantityLines,
+              icon: const Icon(Icons.cleaning_services_rounded, size: 17),
+              label: const Text('Boslari Sil'),
+              style: FilledButton.styleFrom(
+                minimumSize: const Size(0, 36),
+                padding: const EdgeInsets.symmetric(horizontal: 8),
                 visualDensity: VisualDensity.compact,
               ),
             ),
-          ],
-        ],
+          );
+
+          return Row(
+            children: <Widget>[
+              if (showTitle) ...<Widget>[
+                Text(
+                  'Satirlar',
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const Spacer(),
+              ],
+              if (hasLoadAction)
+                if (showTitle) loadButton() else Expanded(child: loadButton()),
+              if (hasLoadAction && hasClearAction) const SizedBox(width: 4),
+              if (hasClearAction)
+                if (showTitle)
+                  clearButton()
+                else
+                  Expanded(child: clearButton()),
+            ],
+          );
+        },
       ),
     );
   }
@@ -1782,15 +1815,21 @@ class _GivenWarehouseOrderCreateSheetState
 
     return SliverPadding(
       padding: const EdgeInsets.symmetric(horizontal: 12),
-      sliver: SliverList(
-        delegate: SliverChildBuilderDelegate((context, visibleIndex) {
-          final index = indexes[visibleIndex];
+      sliver: TerminalSearchableLineSliver<int>(
+        items: indexes,
+        searchText: (index) {
+          final line = _lines[index];
+          final product = line.selectedProduct;
+          return '${product?.stockName ?? ''} ${product?.stockCode ?? ''} '
+              '${product?.barcode ?? ''} ${line.stockCodeController.text}';
+        },
+        itemBuilder: (context, index) {
           return _buildLineCard(
             index: index,
             line: _lines[index],
             theme: theme,
           );
-        }, childCount: indexes.length),
+        },
       ),
     );
   }
@@ -1907,11 +1946,7 @@ class _GivenWarehouseOrderCreateSheetState
         color: theme.colorScheme.primary,
       ),
       trailing: !isFreshEntry && _lines.length > 1
-          ? IconButton(
-              onPressed: () => _removeLine(line),
-              icon: const Icon(Icons.delete_outline, size: 22),
-              tooltip: 'Satiri sil',
-            )
+          ? TerminalLineDeleteButton(onPressed: () => _removeLine(line))
           : null,
       child: Column(
         children: [
@@ -1988,18 +2023,10 @@ class _GivenWarehouseOrderCreateSheetState
   static DateTime _normalizeDate(DateTime value) =>
       DateTime(value.year, value.month, value.day);
 
-  void _showFeedback(String message) {
-    final messenger = ScaffoldMessenger.maybeOf(context);
-    messenger?.hideCurrentSnackBar();
-    messenger?.showSnackBar(
-      SnackBar(
-        content: Text(message),
-        duration: const Duration(seconds: 2),
-        behavior: SnackBarBehavior.floating,
-        margin: const EdgeInsets.all(16),
-      ),
-    );
-  }
+  void _showFeedback(
+    String message, {
+    TerminalFeedbackTone tone = TerminalFeedbackTone.info,
+  }) => TerminalFeedback.showMessage(context, message, tone: tone);
 }
 
 // ==================== LOOKUP SHEETS (Optimize edildi) ====================

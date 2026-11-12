@@ -1013,15 +1013,21 @@ class _WarehouseReturnCreateSheetState extends State<WarehouseReturnCreateSheet>
 
     return SliverPadding(
       padding: const EdgeInsets.symmetric(horizontal: 12),
-      sliver: SliverList(
-        delegate: SliverChildBuilderDelegate((context, visibleIndex) {
-          final index = indexes[visibleIndex];
+      sliver: TerminalSearchableLineSliver<int>(
+        items: indexes,
+        searchText: (index) {
+          final line = _lines[index];
+          final product = line.selectedProduct;
+          return '${product?.stockName ?? ''} ${product?.stockCode ?? ''} '
+              '${product?.barcode ?? ''} ${line.lookupController.text}';
+        },
+        itemBuilder: (context, index) {
           return _buildLineCard(
             theme: theme,
             index: index,
             line: _lines[index],
           );
-        }, childCount: indexes.length),
+        },
       ),
     );
   }
@@ -1128,11 +1134,7 @@ class _WarehouseReturnCreateSheetState extends State<WarehouseReturnCreateSheet>
       subtitle: product?.stockName,
       isEntryLine: isFreshEntry,
       trailing: !isFreshEntry && _lines.length > 1
-          ? IconButton(
-              onPressed: () => _removeLine(line),
-              icon: const Icon(Icons.delete_outline_rounded),
-              tooltip: 'Satiri sil',
-            )
+          ? TerminalLineDeleteButton(onPressed: () => _removeLine(line))
           : null,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1210,18 +1212,10 @@ class _WarehouseReturnCreateSheetState extends State<WarehouseReturnCreateSheet>
   static DateTime _normalizeDate(DateTime value) =>
       DateTime(value.year, value.month, value.day);
 
-  void _showFeedback(String message) {
-    final messenger = ScaffoldMessenger.maybeOf(context);
-    messenger?.hideCurrentSnackBar();
-    messenger?.showSnackBar(
-      SnackBar(
-        content: Text(message),
-        duration: const Duration(seconds: 2),
-        behavior: SnackBarBehavior.floating,
-        margin: const EdgeInsets.all(16),
-      ),
-    );
-  }
+  void _showFeedback(
+    String message, {
+    TerminalFeedbackTone tone = TerminalFeedbackTone.info,
+  }) => TerminalFeedback.showMessage(context, message, tone: tone);
 }
 
 class _ReturnLineDraft {

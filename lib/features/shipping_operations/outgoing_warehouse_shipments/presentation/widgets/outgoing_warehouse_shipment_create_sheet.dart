@@ -595,7 +595,7 @@ class _OutgoingWarehouseShipmentCreateSheetState
       }
 
       final message = error.detail ?? error.title;
-      _showFeedback(message);
+      _showFeedback(message, tone: TerminalFeedbackTone.error);
       unawaited(TerminalFeedback.error());
       return const _BarcodeResolutionAttempt.handledError();
     }
@@ -722,7 +722,7 @@ class _OutgoingWarehouseShipmentCreateSheetState
       setLookupStatus(message, isError: true);
       _validationMessage = message;
     });
-    _showFeedback(message);
+    _showFeedback(message, tone: TerminalFeedbackTone.error);
     unawaited(TerminalFeedback.error());
     _refocusLine(focusNode);
     return false;
@@ -740,7 +740,7 @@ class _OutgoingWarehouseShipmentCreateSheetState
       setState(() {
         setLookupStatus(message, isError: true);
       });
-      _showFeedback(message);
+      _showFeedback(message, tone: TerminalFeedbackTone.error);
       unawaited(TerminalFeedback.error());
       return false;
     }
@@ -752,7 +752,7 @@ class _OutgoingWarehouseShipmentCreateSheetState
     final warning = _actionableShipmentWarning(resolution);
     if (warning.isNotEmpty) {
       unawaited(TerminalFeedback.warning());
-      _showFeedback(warning);
+      _showFeedback(warning, tone: TerminalFeedbackTone.warning);
       return;
     }
 
@@ -765,6 +765,12 @@ class _OutgoingWarehouseShipmentCreateSheetState
   }) {
     _rememberAddedProduct(product);
     unawaited(TerminalFeedback.success());
+    _showFeedback(
+      mergedIntoExisting
+          ? 'Mevcut kalemin miktari artirildi: ${product.stockName}.'
+          : 'Kaleme eklendi: ${product.stockName}.',
+      tone: TerminalFeedbackTone.success,
+    );
   }
 
   Future<bool> _confirmManualDuplicateIncrease(
@@ -2025,16 +2031,23 @@ class _OutgoingWarehouseShipmentCreateSheetState
 
     return SliverPadding(
       padding: const EdgeInsets.symmetric(horizontal: 12),
-      sliver: SliverList(
-        delegate: SliverChildBuilderDelegate((context, visibleIndex) {
-          final index = filledIndexes[visibleIndex];
+      sliver: TerminalSearchableLineSliver<int>(
+        key: const ValueKey<String>('manual-shipment-lines'),
+        items: filledIndexes,
+        searchText: (index) {
+          final line = _manualLines[index];
+          final product = line.selectedProduct;
+          return '${product?.stockName ?? ''} ${product?.stockCode ?? ''} '
+              '${product?.barcode ?? ''} ${line.stockCodeController.text}';
+        },
+        itemBuilder: (context, index) {
           final line = _manualLines[index];
           return Padding(
             padding: EdgeInsets.only(
-              bottom: visibleIndex == filledIndexes.length - 1 ? 0 : 8,
+              bottom: index == filledIndexes.last ? 0 : 8,
             ),
             child: _ManualShipmentLineCard(
-              lineNumber: visibleIndex + 1,
+              lineNumber: filledIndexes.indexOf(index) + 1,
               isEntrySlot: false,
               isFreshEntry: false,
               line: line,
@@ -2047,7 +2060,7 @@ class _OutgoingWarehouseShipmentCreateSheetState
               onRemove: () => _removeManualLine(line),
             ),
           );
-        }, childCount: filledIndexes.length),
+        },
       ),
     );
   }
@@ -2060,16 +2073,24 @@ class _OutgoingWarehouseShipmentCreateSheetState
 
     return SliverPadding(
       padding: const EdgeInsets.symmetric(horizontal: 12),
-      sliver: SliverList(
-        delegate: SliverChildBuilderDelegate((context, visibleIndex) {
-          final index = filledIndexes[visibleIndex];
+      sliver: TerminalSearchableLineSliver<int>(
+        key: const ValueKey<String>('linked-shipment-lines'),
+        items: filledIndexes,
+        searchText: (index) {
+          final line = _linkedLines[index];
+          final product = line.selectedProduct;
+          return '${product?.stockName ?? line.stockName} '
+              '${product?.stockCode ?? line.stockCode} '
+              '${product?.barcode ?? line.barcodeController.text}';
+        },
+        itemBuilder: (context, index) {
           final line = _linkedLines[index];
           return Padding(
             padding: EdgeInsets.only(
-              bottom: visibleIndex == filledIndexes.length - 1 ? 0 : 8,
+              bottom: index == filledIndexes.last ? 0 : 8,
             ),
             child: _LinkedShipmentLineCard(
-              lineNumber: visibleIndex + 1,
+              lineNumber: filledIndexes.indexOf(index) + 1,
               isEntrySlot: false,
               isFreshEntry: false,
               line: line,
@@ -2083,7 +2104,7 @@ class _OutgoingWarehouseShipmentCreateSheetState
               onRemove: () => _removeLinkedLine(line),
             ),
           );
-        }, childCount: filledIndexes.length),
+        },
       ),
     );
   }
@@ -2200,11 +2221,10 @@ class _OutgoingWarehouseShipmentCreateSheetState
     return DateTime(value.year, value.month, value.day);
   }
 
-  void _showFeedback(String message) {
-    final messenger = ScaffoldMessenger.maybeOf(context);
-    messenger?.hideCurrentSnackBar();
-    messenger?.showSnackBar(SnackBar(content: Text(message)));
-  }
+  void _showFeedback(
+    String message, {
+    TerminalFeedbackTone tone = TerminalFeedbackTone.info,
+  }) => TerminalFeedback.showMessage(context, message, tone: tone);
 
   void _refocusLine(FocusNode focusNode) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -2330,11 +2350,7 @@ class _ManualShipmentLineCard extends StatelessWidget {
       subtitle: product?.stockName,
       isEntryLine: isFreshEntry,
       trailing: canRemove
-          ? IconButton(
-              onPressed: onRemove,
-              icon: const Icon(Icons.delete_outline_rounded),
-              tooltip: 'Satiri sil',
-            )
+          ? TerminalLineDeleteButton(onPressed: onRemove)
           : null,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -2568,11 +2584,7 @@ class _LinkedShipmentLineCard extends StatelessWidget {
           ? const _InfoPill(label: 'Bagli', value: 'Siparis')
           : null,
       trailing: canRemove
-          ? IconButton(
-              onPressed: onRemove,
-              icon: const Icon(Icons.delete_outline_rounded),
-              tooltip: 'Satiri sil',
-            )
+          ? TerminalLineDeleteButton(onPressed: onRemove)
           : null,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

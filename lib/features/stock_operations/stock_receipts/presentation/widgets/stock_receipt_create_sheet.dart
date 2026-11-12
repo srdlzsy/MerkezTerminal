@@ -329,7 +329,7 @@ class _StockReceiptCreateSheetState extends State<StockReceiptCreateSheet>
         line.setLookupStatus(message, isError: true);
         _lookupError = null;
       });
-      _showFeedback(message);
+      _showFeedback(message, tone: TerminalFeedbackTone.error);
       unawaited(TerminalFeedback.error());
       _refocusLine(line.lookupFocusNode);
       return true;
@@ -345,7 +345,7 @@ class _StockReceiptCreateSheetState extends State<StockReceiptCreateSheet>
         line.setLookupStatus(message, isError: true);
         _lookupError = null;
       });
-      _showFeedback(message);
+      _showFeedback(message, tone: TerminalFeedbackTone.error);
       unawaited(TerminalFeedback.error());
       _refocusLine(line.lookupFocusNode);
       return true;
@@ -381,7 +381,10 @@ class _StockReceiptCreateSheetState extends State<StockReceiptCreateSheet>
     _refocusLine(entryLine.lookupFocusNode);
     if (resolution.quickWarningMessage.isNotEmpty) {
       unawaited(TerminalFeedback.warning());
-      _showFeedback(resolution.quickWarningMessage);
+      _showFeedback(
+        resolution.quickWarningMessage,
+        tone: TerminalFeedbackTone.warning,
+      );
     } else {
       unawaited(TerminalFeedback.success());
     }
@@ -638,6 +641,7 @@ class _StockReceiptCreateSheetState extends State<StockReceiptCreateSheet>
       mergedIntoExisting
           ? 'Ayni barkod mevcut satira eklendi; miktar artirildi.'
           : 'Kaleme eklendi: ${product.stockName}.',
+      tone: TerminalFeedbackTone.success,
     );
   }
 
@@ -889,11 +893,15 @@ class _StockReceiptCreateSheetState extends State<StockReceiptCreateSheet>
       return const SliverToBoxAdapter(child: SizedBox.shrink());
     }
 
-    return SliverList(
-      delegate: SliverChildBuilderDelegate(
-        (context, visibleIndex) => _buildLineCard(indexes[visibleIndex]),
-        childCount: indexes.length,
-      ),
+    return TerminalSearchableLineSliver<int>(
+      items: indexes,
+      searchText: (index) {
+        final line = _lines[index];
+        final product = line.selectedProduct;
+        return '${product?.stockName ?? ''} ${product?.stockCode ?? ''} '
+            '${product?.barcode ?? ''} ${line.lookupController.text}';
+      },
+      itemBuilder: (context, index) => _buildLineCard(index),
     );
   }
 
@@ -1020,9 +1028,8 @@ class _StockReceiptCreateSheetState extends State<StockReceiptCreateSheet>
                   ),
                 ),
                 if (!isFreshEntry && _lines.length > 1)
-                  IconButton(
+                  TerminalLineDeleteButton(
                     onPressed: () => _removeLineAt(index),
-                    icon: const Icon(Icons.delete_outline_rounded),
                   ),
               ],
             ),
@@ -1113,18 +1120,10 @@ class _StockReceiptCreateSheetState extends State<StockReceiptCreateSheet>
     _draftSession.scheduleSave();
   }
 
-  void _showFeedback(String message) {
-    final messenger = ScaffoldMessenger.maybeOf(context);
-    messenger?.hideCurrentSnackBar();
-    messenger?.showSnackBar(
-      SnackBar(
-        content: Text(message),
-        duration: const Duration(seconds: 2),
-        behavior: SnackBarBehavior.floating,
-        margin: const EdgeInsets.all(16),
-      ),
-    );
-  }
+  void _showFeedback(
+    String message, {
+    TerminalFeedbackTone tone = TerminalFeedbackTone.info,
+  }) => TerminalFeedback.showMessage(context, message, tone: tone);
 
   String _resolvedBarcodeMessage(BarcodeResolutionResult resolution) {
     if (resolution.isVariableWeightBarcode) {

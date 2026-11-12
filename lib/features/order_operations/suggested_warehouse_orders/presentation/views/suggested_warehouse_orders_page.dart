@@ -533,10 +533,13 @@ class _SuggestedWarehouseOrdersPageState
             ),
           ),
         ),
-        IconButton.filledTonal(
-          onPressed: isBusy ? null : _openWarehouseLookup,
-          tooltip: 'Kaynak depo ara',
-          icon: const Icon(Icons.manage_search_rounded),
+        Tooltip(
+          message: 'Kaynak depo ara',
+          child: OutlinedButton.icon(
+            onPressed: isBusy ? null : _openWarehouseLookup,
+            icon: const Icon(Icons.warehouse_rounded, size: 18),
+            label: const Text('Depo Sec'),
+          ),
         ),
         TerminalFilterButton(
           label: 'Siparis',

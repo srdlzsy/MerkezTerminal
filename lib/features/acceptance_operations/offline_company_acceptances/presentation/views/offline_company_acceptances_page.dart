@@ -845,7 +845,10 @@ class _OfflineCompanyAcceptanceCreateSheetState
       setState(() {
         _validationMessage = 'Bu aramaya uygun urun bulunamadi.';
       });
-      _showFeedback('Bu aramaya uygun urun bulunamadi.');
+      _showFeedback(
+        'Bu aramaya uygun urun bulunamadi.',
+        tone: TerminalFeedbackTone.warning,
+      );
       _refocusLine(line.lookupFocusNode);
       return;
     }
@@ -1137,7 +1140,10 @@ class _OfflineCompanyAcceptanceCreateSheetState
     _rememberAddedProduct(product);
     unawaited(TerminalFeedback.success());
     if (mergedIntoExisting) {
-      _showFeedback('Ayni barkod mevcut satira eklendi; miktar artirildi.');
+      _showFeedback(
+        'Ayni barkod mevcut satira eklendi; miktar artirildi.',
+        tone: TerminalFeedbackTone.success,
+      );
     }
   }
 
@@ -1269,18 +1275,10 @@ class _OfflineCompanyAcceptanceCreateSheetState
         line.stockCodeController.text.trim().isEmpty;
   }
 
-  void _showFeedback(String message) {
-    final messenger = ScaffoldMessenger.maybeOf(context);
-    messenger?.hideCurrentSnackBar();
-    messenger?.showSnackBar(
-      SnackBar(
-        content: Text(message),
-        duration: const Duration(seconds: 2),
-        behavior: SnackBarBehavior.floating,
-        margin: const EdgeInsets.all(16),
-      ),
-    );
-  }
+  void _showFeedback(
+    String message, {
+    TerminalFeedbackTone tone = TerminalFeedbackTone.info,
+  }) => TerminalFeedback.showMessage(context, message, tone: tone);
 
   void _goToLinesStep() {
     if (!_validateDocumentStep()) {
@@ -1906,11 +1904,16 @@ class _OfflineCompanyAcceptanceCreateSheetState
       return const SliverToBoxAdapter(child: SizedBox.shrink());
     }
 
-    return SliverList(
-      delegate: SliverChildBuilderDelegate((context, visibleIndex) {
-        final index = indexes[visibleIndex];
-        return _buildLineCard(index);
-      }, childCount: indexes.length),
+    return TerminalSearchableLineSliver<int>(
+      items: indexes,
+      searchText: (index) {
+        final line = _lines[index];
+        final product = line.selectedProduct;
+        return '${product?.stockName ?? line.stockNameController.text} '
+            '${product?.stockCode ?? line.stockCodeController.text} '
+            '${product?.barcode ?? line.barcodeController.text}';
+      },
+      itemBuilder: (context, index) => _buildLineCard(index),
     );
   }
 
@@ -1995,11 +1998,7 @@ class _OfflineCompanyAcceptanceCreateSheetState
           if ((line.orderGuid ?? '').trim().isNotEmpty)
             const TerminalBadge(label: 'Siparisli'),
           if (!isFreshEntry && _lines.length > 1)
-            IconButton(
-              onPressed: () => _removeLineAt(index),
-              icon: const Icon(Icons.delete_outline_rounded),
-              tooltip: 'Satiri sil',
-            ),
+            TerminalLineDeleteButton(onPressed: () => _removeLineAt(index)),
         ],
       ),
       child: Column(

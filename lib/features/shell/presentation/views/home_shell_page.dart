@@ -50,6 +50,8 @@ class _HomeShellPageState extends State<HomeShellPage>
   bool _isSidebarExpanded = false;
   _OfflineQueueSummary _offlineQueueSummary =
       const _OfflineQueueSummary.empty();
+  _OfflineCatalogSummary _offlineCatalogSummary =
+      const _OfflineCatalogSummary.empty();
   Timer? _sessionContextRefreshTimer;
   bool _isWarehouseContextChecking = true;
   bool _isWarehouseContextVerified = false;
@@ -138,6 +140,12 @@ class _HomeShellPageState extends State<HomeShellPage>
             menus: availableMenus,
             offlineQueueCount: _offlineQueueSummary.total,
             offlineFailedCount: _offlineQueueSummary.failed,
+            isConnectionVerified: _isWarehouseContextVerified,
+            isConnectionChecking: _isWarehouseContextChecking,
+            productCatalogCount: _offlineCatalogSummary.productCount,
+            customerCatalogCount: _offlineCatalogSummary.customerCount,
+            warehouseCatalogCount: _offlineCatalogSummary.warehouseCount,
+            catalogUpdatedAt: _offlineCatalogSummary.lastCompletedAt,
             installedVersionLabel: widget.installedVersionLabel,
             availableVersionLabel: widget.availableVersionLabel,
             isCheckingUpdate: widget.isCheckingUpdate,
@@ -477,10 +485,32 @@ class _HomeShellPageState extends State<HomeShellPage>
           .moduleRegistry
           .offlineCompanyAcceptancesRepository
           .fetchDrafts(userId: user.id, warehouseNo: user.warehouseNo);
+      final productMetadata = await widget
+          .moduleRegistry
+          .mobileProductCatalogLocalRepository
+          .fetchMetadata(warehouseNo: user.warehouseNo);
+      final customerMetadata = await widget
+          .moduleRegistry
+          .mobileCustomerCatalogLocalRepository
+          .fetchMetadata();
+      final warehouseMetadata = await widget
+          .moduleRegistry
+          .mobileWarehouseCatalogLocalRepository
+          .fetchMetadata();
       final summary = _OfflineQueueSummary.fromStatuses(<OfflineRecordStatus>[
         ...inventoryDrafts.map((item) => item.status),
         ...companyAcceptanceDrafts.map((item) => item.status),
       ]);
+      final catalogSummary = _OfflineCatalogSummary(
+        productCount: productMetadata?.itemCount ?? 0,
+        customerCount: customerMetadata?.itemCount ?? 0,
+        warehouseCount: warehouseMetadata?.itemCount ?? 0,
+        lastCompletedAt: _latestDate(<DateTime?>[
+          productMetadata?.lastCompletedAt,
+          customerMetadata?.lastCompletedAt,
+          warehouseMetadata?.lastCompletedAt,
+        ]),
+      );
 
       if (!mounted) {
         return;
@@ -488,10 +518,21 @@ class _HomeShellPageState extends State<HomeShellPage>
 
       setState(() {
         _offlineQueueSummary = summary;
+        _offlineCatalogSummary = catalogSummary;
       });
     } catch (_) {
       // Minimal fake registries in widget tests do not expose offline stores.
     }
+  }
+
+  DateTime? _latestDate(Iterable<DateTime?> values) {
+    DateTime? latest;
+    for (final value in values) {
+      if (value != null && (latest == null || value.isAfter(latest))) {
+        latest = value;
+      }
+    }
+    return latest?.toLocal();
   }
 }
 
@@ -638,4 +679,24 @@ class _OfflineQueueSummary {
 
     return _OfflineQueueSummary(total: total, failed: failed);
   }
+}
+
+class _OfflineCatalogSummary {
+  const _OfflineCatalogSummary({
+    required this.productCount,
+    required this.customerCount,
+    required this.warehouseCount,
+    required this.lastCompletedAt,
+  });
+
+  const _OfflineCatalogSummary.empty()
+    : productCount = 0,
+      customerCount = 0,
+      warehouseCount = 0,
+      lastCompletedAt = null;
+
+  final int productCount;
+  final int customerCount;
+  final int warehouseCount;
+  final DateTime? lastCompletedAt;
 }

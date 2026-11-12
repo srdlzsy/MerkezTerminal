@@ -100,4 +100,38 @@ void main() {
 
     expect(compactChildTop, lessThan(regularChildTop));
   });
+
+  testWidgets('long create line list can be searched by product text', (
+    tester,
+  ) async {
+    final items = List<String>.generate(
+      8,
+      (index) => index == 6 ? '016129 MNV DOMATES 2700126' : 'STK-$index URUN',
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: CustomScrollView(
+            slivers: <Widget>[
+              TerminalSearchableLineSliver<String>(
+                items: items,
+                searchText: (item) => item,
+                itemBuilder: (context, item) => Text(item),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('Kalemlerde ara'), findsOneWidget);
+    expect(find.text('8/8'), findsOneWidget);
+    await tester.enterText(find.byType(TextField), 'domates');
+    await tester.pump();
+
+    expect(find.text('1/8'), findsOneWidget);
+    expect(find.text('016129 MNV DOMATES 2700126'), findsOneWidget);
+    expect(find.text('STK-0 URUN'), findsNothing);
+  });
 }

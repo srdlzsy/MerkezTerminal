@@ -246,7 +246,7 @@ class _InventoryCountCreateSheetState extends State<InventoryCountCreateSheet>
         return true;
       }
       final message = error.detail ?? error.title;
-      _showFeedback(message);
+      _showFeedback(message, tone: TerminalFeedbackTone.error);
       unawaited(TerminalFeedback.error());
       _refocusLine(line.barcodeFocusNode);
       return true;
@@ -261,7 +261,7 @@ class _InventoryCountCreateSheetState extends State<InventoryCountCreateSheet>
       setState(() {
         _validationMessage = message;
       });
-      _showFeedback(message);
+      _showFeedback(message, tone: TerminalFeedbackTone.error);
       unawaited(TerminalFeedback.error());
       _refocusLine(line.barcodeFocusNode);
       return true;
@@ -297,7 +297,10 @@ class _InventoryCountCreateSheetState extends State<InventoryCountCreateSheet>
     _refocusLine(entryLine.barcodeFocusNode);
     if (resolution.quickWarningMessage.isNotEmpty) {
       unawaited(TerminalFeedback.warning());
-      _showFeedback(resolution.quickWarningMessage);
+      _showFeedback(
+        resolution.quickWarningMessage,
+        tone: TerminalFeedbackTone.warning,
+      );
     } else {
       unawaited(TerminalFeedback.success());
     }
@@ -590,6 +593,7 @@ class _InventoryCountCreateSheetState extends State<InventoryCountCreateSheet>
     _showFeedback(
       '${product.stockName}: toplam '
       '${AppFormatters.quantity(totalQuantity)} ${product.unitName} sayildi.',
+      tone: TerminalFeedbackTone.success,
     );
   }
 
@@ -1031,11 +1035,7 @@ class _InventoryCountCreateSheetState extends State<InventoryCountCreateSheet>
         color: theme.colorScheme.primary,
       ),
       trailing: !isFreshEntry && _lines.length > 1
-          ? IconButton(
-              onPressed: () => _removeLine(line),
-              icon: const Icon(Icons.delete_outline, size: 22),
-              tooltip: 'Satiri sil',
-            )
+          ? TerminalLineDeleteButton(onPressed: () => _removeLine(line))
           : null,
       child: Column(
         children: <Widget>[
@@ -1145,15 +1145,21 @@ class _InventoryCountCreateSheetState extends State<InventoryCountCreateSheet>
 
     return SliverPadding(
       padding: const EdgeInsets.symmetric(horizontal: 12),
-      sliver: SliverList(
-        delegate: SliverChildBuilderDelegate((context, visibleIndex) {
-          final index = indexes[visibleIndex];
+      sliver: TerminalSearchableLineSliver<int>(
+        items: indexes,
+        searchText: (index) {
+          final line = _lines[index];
+          final product = line.selectedProduct;
+          return '${product?.stockName ?? ''} ${product?.stockCode ?? ''} '
+              '${product?.barcode ?? ''} ${line.stockCodeController.text}';
+        },
+        itemBuilder: (context, index) {
           return _buildLineCard(
             theme: theme,
             index: index,
             line: _lines[index],
           );
-        }, childCount: indexes.length),
+        },
       ),
     );
   }
@@ -1172,18 +1178,10 @@ class _InventoryCountCreateSheetState extends State<InventoryCountCreateSheet>
     ]);
   }
 
-  void _showFeedback(String message) {
-    final messenger = ScaffoldMessenger.maybeOf(context);
-    messenger?.hideCurrentSnackBar();
-    messenger?.showSnackBar(
-      SnackBar(
-        content: Text(message),
-        duration: const Duration(seconds: 2),
-        behavior: SnackBarBehavior.floating,
-        margin: const EdgeInsets.all(16),
-      ),
-    );
-  }
+  void _showFeedback(
+    String message, {
+    TerminalFeedbackTone tone = TerminalFeedbackTone.info,
+  }) => TerminalFeedback.showMessage(context, message, tone: tone);
 }
 
 class _InventoryLineDraft {

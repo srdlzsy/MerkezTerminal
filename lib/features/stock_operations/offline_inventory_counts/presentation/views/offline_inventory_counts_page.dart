@@ -543,7 +543,10 @@ class _OfflineInventoryCountCreateSheetState
       setState(() {
         _errorMessage = 'Bu aramaya uygun urun bulunamadi.';
       });
-      _showFeedback('Bu aramaya uygun urun bulunamadi.');
+      _showFeedback(
+        'Bu aramaya uygun urun bulunamadi.',
+        tone: TerminalFeedbackTone.warning,
+      );
       _refocusLine(line.lookupFocusNode);
       return;
     }
@@ -895,6 +898,7 @@ class _OfflineInventoryCountCreateSheetState
     _showFeedback(
       '${product.stockName}: toplam '
       '${AppFormatters.quantity(totalQuantity)} ${product.unitName} sayildi.',
+      tone: TerminalFeedbackTone.success,
     );
   }
 
@@ -973,18 +977,10 @@ class _OfflineInventoryCountCreateSheetState
     );
   }
 
-  void _showFeedback(String message) {
-    final messenger = ScaffoldMessenger.maybeOf(context);
-    messenger?.hideCurrentSnackBar();
-    messenger?.showSnackBar(
-      SnackBar(
-        content: Text(message),
-        duration: const Duration(seconds: 2),
-        behavior: SnackBarBehavior.floating,
-        margin: const EdgeInsets.all(16),
-      ),
-    );
-  }
+  void _showFeedback(
+    String message, {
+    TerminalFeedbackTone tone = TerminalFeedbackTone.info,
+  }) => TerminalFeedback.showMessage(context, message, tone: tone);
 
   Future<void> _submit() async {
     final form = _formKey.currentState;
@@ -1165,11 +1161,14 @@ class _OfflineInventoryCountCreateSheetState
       return const SliverToBoxAdapter(child: SizedBox.shrink());
     }
 
-    return SliverList(
-      delegate: SliverChildBuilderDelegate((context, visibleIndex) {
-        final index = indexes[visibleIndex];
-        return _buildLineCard(index);
-      }, childCount: indexes.length),
+    return TerminalSearchableLineSliver<int>(
+      items: indexes,
+      searchText: (index) {
+        final line = _lines[index];
+        return '${line.stockNameController.text} '
+            '${line.stockCodeController.text} ${line.barcodeController.text}';
+      },
+      itemBuilder: (context, index) => _buildLineCard(index),
     );
   }
 

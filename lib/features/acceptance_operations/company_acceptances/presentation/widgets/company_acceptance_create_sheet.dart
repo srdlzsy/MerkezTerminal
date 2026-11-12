@@ -1069,7 +1069,10 @@ class _CompanyAcceptanceCreateSheetState
     _rememberAddedProduct(product);
     unawaited(TerminalFeedback.success());
     if (mergedIntoExisting) {
-      _showFeedback('Ayni barkod mevcut satira eklendi; miktar artirildi.');
+      _showFeedback(
+        'Ayni barkod mevcut satira eklendi; miktar artirildi.',
+        tone: TerminalFeedbackTone.success,
+      );
     }
   }
 
@@ -2170,11 +2173,15 @@ class _CompanyAcceptanceCreateSheetState
       return const SliverToBoxAdapter(child: SizedBox.shrink());
     }
 
-    return SliverList(
-      delegate: SliverChildBuilderDelegate((context, visibleIndex) {
-        final index = indexes[visibleIndex];
-        return _buildLineCard(index);
-      }, childCount: indexes.length),
+    return TerminalSearchableLineSliver<int>(
+      items: indexes,
+      searchText: (index) {
+        final line = _lines[index];
+        final product = line.selectedProduct;
+        return '${product?.stockName ?? ''} ${product?.stockCode ?? ''} '
+            '${product?.barcode ?? ''} ${line.stockCodeController.text}';
+      },
+      itemBuilder: (context, index) => _buildLineCard(index),
     );
   }
 
@@ -2270,9 +2277,8 @@ class _CompanyAcceptanceCreateSheetState
                 if ((line.orderGuid ?? '').isNotEmpty)
                   const TerminalBadge(label: 'Siparisli'),
                 if (!isFreshEntry && _lines.length > 1)
-                  IconButton(
+                  TerminalLineDeleteButton(
                     onPressed: () => _removeLineAt(index),
-                    icon: const Icon(Icons.delete_outline_rounded),
                   ),
               ],
             ),
@@ -2801,18 +2807,10 @@ class _CompanyAcceptanceCreateSheetState
     return normalized.replaceAll('.', ',');
   }
 
-  void _showFeedback(String message) {
-    final messenger = ScaffoldMessenger.maybeOf(context);
-    messenger?.hideCurrentSnackBar();
-    messenger?.showSnackBar(
-      SnackBar(
-        content: Text(message),
-        duration: const Duration(seconds: 2),
-        behavior: SnackBarBehavior.floating,
-        margin: const EdgeInsets.all(16),
-      ),
-    );
-  }
+  void _showFeedback(
+    String message, {
+    TerminalFeedbackTone tone = TerminalFeedbackTone.info,
+  }) => TerminalFeedback.showMessage(context, message, tone: tone);
 
   void _refocusLine(FocusNode focusNode) {
     WidgetsBinding.instance.addPostFrameCallback((_) {

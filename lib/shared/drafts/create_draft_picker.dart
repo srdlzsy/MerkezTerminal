@@ -100,6 +100,12 @@ Future<CreateDraftLaunch?> showCreateDraftPicker({
                       itemBuilder: (context, index) {
                         final draft = drafts[index];
                         final summary = _draftSummary(draft);
+                        final formTitle = draft.title.isEmpty
+                            ? createTitle
+                            : draft.title;
+                        final displayTitle = summary.isEmpty
+                            ? formTitle
+                            : summary;
                         return Container(
                           padding: const EdgeInsets.fromLTRB(10, 8, 8, 8),
                           decoration: BoxDecoration(
@@ -124,9 +130,7 @@ Future<CreateDraftLaunch?> showCreateDraftPicker({
                                   const SizedBox(width: 8),
                                   Expanded(
                                     child: Text(
-                                      draft.title.isEmpty
-                                          ? createTitle
-                                          : draft.title,
+                                      displayTitle,
                                       maxLines: 2,
                                       overflow: TextOverflow.ellipsis,
                                       style: Theme.of(context)
@@ -164,12 +168,17 @@ Future<CreateDraftLaunch?> showCreateDraftPicker({
                                   ),
                                 ],
                               ),
-                              if (summary.isNotEmpty) ...<Widget>[
+                              if (summary.isNotEmpty &&
+                                  formTitle != displayTitle) ...<Widget>[
                                 const SizedBox(height: 3),
                                 Text(
-                                  summary,
+                                  formTitle,
                                   style: Theme.of(context).textTheme.bodySmall
-                                      ?.copyWith(fontWeight: FontWeight.w700),
+                                      ?.copyWith(
+                                        color: Theme.of(
+                                          context,
+                                        ).colorScheme.onSurfaceVariant,
+                                      ),
                                 ),
                               ],
                               const SizedBox(height: 3),
@@ -235,6 +244,9 @@ String _draftSummary(CreateDraft draft) {
   final warehouse = _firstMap(payload, const <String>[
     'selectedWarehouse',
     'selectedTargetWarehouse',
+    'selectedSourceWarehouse',
+    'targetWarehouse',
+    'sourceWarehouse',
   ]);
   if (warehouse != null) {
     final warehouseNo = warehouse['warehouseNo']?.toString().trim() ?? '';

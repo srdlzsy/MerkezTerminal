@@ -11,6 +11,7 @@ import 'package:furpa_merkez_terminal/shared/drafts/create_draft_repository.dart
 import 'package:furpa_merkez_terminal/shared/drafts/create_draft_session.dart';
 import 'package:furpa_merkez_terminal/shared/formatters/app_formatters.dart';
 import 'package:furpa_merkez_terminal/shared/product_entry/product_entry_widgets.dart';
+import 'package:furpa_merkez_terminal/shared/utils/terminal_feedback.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/barcode_camera_scan_page.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/section_card.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/terminal_create_page.dart';
@@ -908,11 +909,15 @@ class _LabelDocumentCreateSheetState extends State<LabelDocumentCreateSheet> {
       return const SliverToBoxAdapter(child: SizedBox.shrink());
     }
 
-    return SliverList(
-      delegate: SliverChildBuilderDelegate((context, visibleIndex) {
-        final index = indexes[visibleIndex];
-        return _buildLineCard(index);
-      }, childCount: indexes.length),
+    return TerminalSearchableLineSliver<int>(
+      items: indexes,
+      searchText: (index) {
+        final line = _lines[index];
+        final product = line.selectedProduct;
+        return '${product?.stockName ?? ''} ${product?.stockCode ?? ''} '
+            '${product?.barcode ?? ''} ${line.lookupController.text}';
+      },
+      itemBuilder: (context, index) => _buildLineCard(index),
     );
   }
 
@@ -945,11 +950,7 @@ class _LabelDocumentCreateSheetState extends State<LabelDocumentCreateSheet> {
         color: Theme.of(context).colorScheme.primary,
       ),
       trailing: !isFreshEntry && _lines.length > 1
-          ? IconButton(
-              onPressed: () => _removeLineAt(index),
-              icon: const Icon(Icons.delete_outline_rounded),
-              tooltip: 'Satiri sil',
-            )
+          ? TerminalLineDeleteButton(onPressed: () => _removeLineAt(index))
           : null,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1036,11 +1037,10 @@ class _LabelDocumentCreateSheetState extends State<LabelDocumentCreateSheet> {
     _draftSession.scheduleSave();
   }
 
-  void _showFeedback(String message) {
-    final messenger = ScaffoldMessenger.maybeOf(context);
-    messenger?.hideCurrentSnackBar();
-    messenger?.showSnackBar(SnackBar(content: Text(message)));
-  }
+  void _showFeedback(
+    String message, {
+    TerminalFeedbackTone tone = TerminalFeedbackTone.info,
+  }) => TerminalFeedback.showMessage(context, message, tone: tone);
 
   void _refocusLine(FocusNode focusNode) {
     WidgetsBinding.instance.addPostFrameCallback((_) {

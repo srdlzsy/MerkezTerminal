@@ -773,7 +773,10 @@ class _GivenCompanyOrderCreateSheetState
     _focusFreshEntryLine();
     _rememberAddedProduct(product);
     if (mergedIntoExisting) {
-      _showFeedback('Ayni barkod mevcut satira eklendi; miktar artirildi.');
+      _showFeedback(
+        'Ayni barkod mevcut satira eklendi; miktar artirildi.',
+        tone: TerminalFeedbackTone.success,
+      );
     }
   }
 
@@ -855,7 +858,10 @@ class _GivenCompanyOrderCreateSheetState
     }
     _draftSession.scheduleSave();
     _focusFreshEntryLine();
-    _showFeedback('${removableLines.length} bos miktarli satir kaldirildi.');
+    _showFeedback(
+      '${removableLines.length} bos miktarli satir kaldirildi.',
+      tone: TerminalFeedbackTone.success,
+    );
   }
 
   Future<void> _submit() async {
@@ -1274,15 +1280,21 @@ class _GivenCompanyOrderCreateSheetState
 
     return SliverPadding(
       padding: const EdgeInsets.symmetric(horizontal: 12),
-      sliver: SliverList(
-        delegate: SliverChildBuilderDelegate((context, visibleIndex) {
-          final index = indexes[visibleIndex];
+      sliver: TerminalSearchableLineSliver<int>(
+        items: indexes,
+        searchText: (index) {
+          final line = _lines[index];
+          final product = line.selectedProduct;
+          return '${product?.stockName ?? ''} ${product?.stockCode ?? ''} '
+              '${product?.barcode ?? ''} ${line.stockCodeController.text}';
+        },
+        itemBuilder: (context, index) {
           return _buildLineCard(
             theme: theme,
             index: index,
             line: _lines[index],
           );
-        }, childCount: indexes.length),
+        },
       ),
     );
   }
@@ -1411,11 +1423,7 @@ class _GivenCompanyOrderCreateSheetState
         color: theme.colorScheme.primary,
       ),
       trailing: !isFreshEntry && _lines.length > 1
-          ? IconButton(
-              onPressed: () => _removeLine(line),
-              icon: const Icon(Icons.delete_outline, size: 22),
-              tooltip: 'Satiri sil',
-            )
+          ? TerminalLineDeleteButton(onPressed: () => _removeLine(line))
           : null,
       child: Column(
         children: <Widget>[
@@ -1516,18 +1524,10 @@ class _GivenCompanyOrderCreateSheetState
     return DateTime(value.year, value.month, value.day);
   }
 
-  void _showFeedback(String message) {
-    final messenger = ScaffoldMessenger.maybeOf(context);
-    messenger?.hideCurrentSnackBar();
-    messenger?.showSnackBar(
-      SnackBar(
-        content: Text(message),
-        duration: const Duration(seconds: 2),
-        behavior: SnackBarBehavior.floating,
-        margin: const EdgeInsets.all(16),
-      ),
-    );
-  }
+  void _showFeedback(
+    String message, {
+    TerminalFeedbackTone tone = TerminalFeedbackTone.info,
+  }) => TerminalFeedback.showMessage(context, message, tone: tone);
 
   void _refocusLine(FocusNode focusNode) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
