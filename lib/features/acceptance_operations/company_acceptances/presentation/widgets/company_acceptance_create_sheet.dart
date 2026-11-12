@@ -1431,11 +1431,27 @@ class _CompanyAcceptanceCreateSheetState
         return;
       }
 
+      if (line.dispatchQuantity > 100000) {
+        _showStepError(
+          step: _CompanyAcceptanceCreateStep.lines,
+          message: '${index + 1}. satir icin irsaliye miktari en fazla 100000 olabilir.',
+        );
+        return;
+      }
+
       if (line.acceptedQuantity < 0) {
         _showStepError(
           step: _CompanyAcceptanceCreateStep.lines,
           message:
               '${index + 1}. satir icin fiili kabul miktari negatif olamaz.',
+        );
+        return;
+      }
+
+      if (line.acceptedQuantity > 100000) {
+        _showStepError(
+          step: _CompanyAcceptanceCreateStep.lines,
+          message: '${index + 1}. satir icin fiili kabul miktari en fazla 100000 olabilir.',
         );
         return;
       }
