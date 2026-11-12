@@ -166,7 +166,7 @@ Kurulumdan sonra ayni guncelleme tekrar cikiyorsa su noktalari kontrol et:
 ## 10. Terminalde Guncelleme Akisi
 
 - Home ekraninda kurulu `versionName` ve Android `versionCode` birlikte
-  gosterilir: `Surum 1.1.89 (90)`.
+  gosterilir: `Surum <versionName> (<versionCode>)`.
 - `Kontrol` dugmesiyle sunucu manifesti elle yeniden kontrol edilebilir.
 - Yeni surum varsa hedef surum Home ekraninda gorunur ve `Guncelle` dugmesi
   aktif olur.
