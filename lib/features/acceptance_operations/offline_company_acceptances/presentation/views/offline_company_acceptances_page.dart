@@ -1948,7 +1948,10 @@ class _OfflineCompanyAcceptanceCreateSheetState
             ? AppFormatters.quantity(selectedProduct.unitMultiplier)
             : null,
         priceLabel: line.unitPrice > 0
-            ? AppFormatters.currency(line.unitPrice)
+            ? _purchasePriceLabel(
+                line.unitPrice,
+                selectedProduct.purchaseGrossPrice,
+              )
             : null,
         warningLabel: selectedProduct.needsStatusAttention
             ? selectedProduct.statusWarningLabel
@@ -2020,7 +2023,10 @@ class _OfflineCompanyAcceptanceCreateSheetState
                   : null,
               barcode: line.barcodeController.text.trim(),
               priceLabel: line.unitPrice > 0
-                  ? AppFormatters.currency(line.unitPrice)
+                  ? _purchasePriceLabel(
+                      line.unitPrice,
+                      line.selectedProduct?.purchaseGrossPrice ?? 0,
+                    )
                   : null,
               highlightOnMount: displayLineNo == 1,
             ),
@@ -2331,6 +2337,15 @@ class _OfflineCompanyAcceptanceCreateSheetState
       },
     );
   }
+}
+
+String _purchasePriceLabel(double netPrice, double grossPrice) {
+  final netLabel = 'Net ${AppFormatters.currency(netPrice)}';
+  if (grossPrice <= 0 || (grossPrice - netPrice).abs() < 0.0001) {
+    return netLabel;
+  }
+
+  return '$netLabel | Brut ${AppFormatters.currency(grossPrice)}';
 }
 
 class _OfflineCompanyAcceptanceLineDraft {

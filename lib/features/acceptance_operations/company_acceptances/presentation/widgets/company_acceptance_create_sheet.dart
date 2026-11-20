@@ -1434,7 +1434,8 @@ class _CompanyAcceptanceCreateSheetState
       if (line.dispatchQuantity > 100000) {
         _showStepError(
           step: _CompanyAcceptanceCreateStep.lines,
-          message: '${index + 1}. satir icin irsaliye miktari en fazla 100000 olabilir.',
+          message:
+              '${index + 1}. satir icin irsaliye miktari en fazla 100000 olabilir.',
         );
         return;
       }
@@ -1451,7 +1452,8 @@ class _CompanyAcceptanceCreateSheetState
       if (line.acceptedQuantity > 100000) {
         _showStepError(
           step: _CompanyAcceptanceCreateStep.lines,
-          message: '${index + 1}. satir icin fiili kabul miktari en fazla 100000 olabilir.',
+          message:
+              '${index + 1}. satir icin fiili kabul miktari en fazla 100000 olabilir.',
         );
         return;
       }
@@ -2233,7 +2235,10 @@ class _CompanyAcceptanceCreateSheetState
             ? AppFormatters.quantity(selectedProduct.unitMultiplier)
             : null,
         priceLabel: line.unitPrice > 0
-            ? AppFormatters.currency(line.unitPrice)
+            ? _purchasePriceLabel(
+                line.unitPrice,
+                selectedProduct.purchaseGrossPrice,
+              )
             : null,
         warningLabel: selectedProduct.needsStatusAttention
             ? selectedProduct.statusWarningLabel
@@ -2318,7 +2323,10 @@ class _CompanyAcceptanceCreateSheetState
                     : null,
                 barcode: line.selectedProduct?.barcode,
                 priceLabel: line.unitPrice > 0
-                    ? AppFormatters.currency(line.unitPrice)
+                    ? _purchasePriceLabel(
+                        line.unitPrice,
+                        line.selectedProduct?.purchaseGrossPrice ?? 0,
+                      )
                     : null,
                 highlightOnMount: displayLineNo == 1,
               ),
@@ -2916,6 +2924,15 @@ class _CompanyAcceptanceCreateSheetState
   static DateTime _normalizedDate(DateTime value) {
     return DateTime(value.year, value.month, value.day);
   }
+}
+
+String _purchasePriceLabel(double netPrice, double grossPrice) {
+  final netLabel = 'Net ${AppFormatters.currency(netPrice)}';
+  if (grossPrice <= 0 || (grossPrice - netPrice).abs() < 0.0001) {
+    return netLabel;
+  }
+
+  return '$netLabel | Brut ${AppFormatters.currency(grossPrice)}';
 }
 
 bool _quantitiesEqual(double first, double second) {
