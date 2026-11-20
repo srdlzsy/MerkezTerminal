@@ -376,6 +376,7 @@ void main() {
     );
     expect(productName.style?.fontWeight, FontWeight.w900);
     expect(productName.maxLines, 2);
+    expect(productName.overflow, TextOverflow.ellipsis);
   });
 
   testWidgets('pda product line gives product name the full row', (

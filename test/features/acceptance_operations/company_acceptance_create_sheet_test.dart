@@ -262,10 +262,44 @@ void main() {
     await tester.tap(find.widgetWithText(FilledButton, 'Urun').first);
     await tester.pumpAndSettle();
 
-    expect(_quantityText(tester, 'Irsaliye Miktari*'), '1');
-    expect(_quantityText(tester, 'Fiili Kabul*'), '1');
+    expect(_quantityText(tester, 'Irs. Miktar*'), '1');
+    expect(_quantityText(tester, 'Fiili Miktar*'), '1');
     expect(find.text('Koli ici'), findsOneWidget);
     expect(find.text('12 KL'), findsOneWidget);
+  });
+
+  testWidgets('shows net and gross purchase price without sales price', (
+    tester,
+  ) async {
+    final repository = _FakeCompanyAcceptancesRepository()
+      ..products = <SearchProductLookupItem>[
+        _buildProduct(purchasePrice: 100, purchaseGrossPrice: 120),
+      ];
+
+    await _pumpCompanyAcceptance(tester, repository);
+    await _selectProductWithoutConfirm(tester);
+
+    expect(find.text('Net 100 TL | Brut 120 TL'), findsOneWidget);
+    expect(find.text('125 TL'), findsNothing);
+  });
+
+  testWidgets('rejects company acceptance quantity above shared maximum', (
+    tester,
+  ) async {
+    final repository = _FakeCompanyAcceptancesRepository()
+      ..products = <SearchProductLookupItem>[_buildProduct()];
+
+    await _pumpCompanyAcceptance(tester, repository);
+    await _selectProductWithoutConfirm(tester);
+    await tester.enterText(
+      find.widgetWithText(TextFormField, 'Irs. Miktar*'),
+      '100001',
+    );
+    await tester.pump();
+    await tester.tap(find.widgetWithText(FilledButton, 'Ekle').first);
+    await tester.pumpAndSettle();
+
+    expect(find.text('En fazla 100000'), findsOneWidget);
   });
 
   testWidgets('uses case barcode quantity and step for company acceptance', (
@@ -291,8 +325,8 @@ void main() {
     await tester.tap(find.widgetWithText(FilledButton, 'Urun').first);
     await tester.pumpAndSettle();
 
-    expect(_quantityText(tester, 'Irsaliye Miktari*'), '12');
-    expect(_quantityText(tester, 'Fiili Kabul*'), '12');
+    expect(_quantityText(tester, 'Irs. Miktar*'), '12');
+    expect(_quantityText(tester, 'Fiili Miktar*'), '12');
     expect(repository.lastBarcodeRequest?.operationType, 'receiving');
     expect(repository.lastBarcodeRequest?.companyCode, 'CR001');
     expect(repository.lastBarcodeRequest?.screenCode, 'firma-mal-kabulleri');
@@ -300,8 +334,8 @@ void main() {
     await tester.tap(find.byIcon(Icons.add_rounded).first);
     await tester.pump();
 
-    expect(_quantityText(tester, 'Irsaliye Miktari*'), '24');
-    expect(_quantityText(tester, 'Fiili Kabul*'), '24');
+    expect(_quantityText(tester, 'Irs. Miktar*'), '24');
+    expect(_quantityText(tester, 'Fiili Miktar*'), '24');
   });
 
   testWidgets('uses embedded quantity from variable weight barcode', (
@@ -327,8 +361,8 @@ void main() {
     await tester.tap(find.widgetWithText(FilledButton, 'Urun').first);
     await tester.pumpAndSettle();
 
-    expect(_quantityText(tester, 'Irsaliye Miktari*'), '4,11');
-    expect(_quantityText(tester, 'Fiili Kabul*'), '4,11');
+    expect(_quantityText(tester, 'Irs. Miktar*'), '4,11');
+    expect(_quantityText(tester, 'Fiili Miktar*'), '4,11');
   });
 
   testWidgets('does not add a delisted product to company acceptance', (
@@ -530,17 +564,11 @@ void main() {
 
     await _selectProductWithoutConfirm(tester);
 
-    expect(
-      find.widgetWithText(TextFormField, 'Irsaliye Miktari*'),
-      findsOneWidget,
-    );
-    expect(find.widgetWithText(TextFormField, 'Fiili Kabul*'), findsOneWidget);
+    expect(find.widgetWithText(TextFormField, 'Irs. Miktar*'), findsOneWidget);
+    expect(find.widgetWithText(TextFormField, 'Fiili Miktar*'), findsOneWidget);
 
-    final dispatchField = find.widgetWithText(
-      TextFormField,
-      'Irsaliye Miktari*',
-    );
-    final acceptedField = find.widgetWithText(TextFormField, 'Fiili Kabul*');
+    final dispatchField = find.widgetWithText(TextFormField, 'Irs. Miktar*');
+    final acceptedField = find.widgetWithText(TextFormField, 'Fiili Miktar*');
 
     await tester.enterText(dispatchField, '7');
     await tester.pump(const Duration(milliseconds: 400));
@@ -1006,7 +1034,11 @@ CustomerLookupItem _buildCustomer({
   );
 }
 
-SearchProductLookupItem _buildProduct({double unitMultiplier = 1}) {
+SearchProductLookupItem _buildProduct({
+  double unitMultiplier = 1,
+  double purchasePrice = 0,
+  double purchaseGrossPrice = 0,
+}) {
   return SearchProductLookupItem(
     warehouseNo: 110,
     barcode: '8690000000012',
@@ -1014,6 +1046,8 @@ SearchProductLookupItem _buildProduct({double unitMultiplier = 1}) {
     stockName: 'Test Urun',
     price: 125,
     priceTypeCode: 0,
+    purchasePrice: purchasePrice,
+    purchaseGrossPrice: purchaseGrossPrice,
     unitName: 'KL',
     unitMultiplier: unitMultiplier,
     secondaryUnitName: unitMultiplier > 1 ? 'KOLI' : '',

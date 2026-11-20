@@ -1431,11 +1431,11 @@ class _CompanyAcceptanceCreateSheetState
         return;
       }
 
-      if (line.dispatchQuantity > 100000) {
+      if (line.dispatchQuantity > terminalCreateMaximumQuantity) {
         _showStepError(
           step: _CompanyAcceptanceCreateStep.lines,
           message:
-              '${index + 1}. satir icin irsaliye miktari en fazla 100000 olabilir.',
+              '${index + 1}. satir icin irsaliye miktari en fazla ${terminalCreateMaximumQuantity.toInt()} olabilir.',
         );
         return;
       }
@@ -1449,11 +1449,11 @@ class _CompanyAcceptanceCreateSheetState
         return;
       }
 
-      if (line.acceptedQuantity > 100000) {
+      if (line.acceptedQuantity > terminalCreateMaximumQuantity) {
         _showStepError(
           step: _CompanyAcceptanceCreateStep.lines,
           message:
-              '${index + 1}. satir icin fiili kabul miktari en fazla 100000 olabilir.',
+              '${index + 1}. satir icin fiili kabul miktari en fazla ${terminalCreateMaximumQuantity.toInt()} olabilir.',
         );
         return;
       }
@@ -2227,7 +2227,7 @@ class _CompanyAcceptanceCreateSheetState
         stockName: selectedProduct.stockName,
         quantityController: line.dispatchQuantityController,
         title: 'Secilen urun',
-        quantityLabel: 'Irsaliye Miktari*',
+        quantityLabel: 'Irs. Miktar*',
         quantityStep: line.quantityStep,
         unitLabel: selectedProduct.unitName,
         barcode: selectedProduct.barcode,
@@ -2255,7 +2255,7 @@ class _CompanyAcceptanceCreateSheetState
         },
         onQuantityChanged: (_) => _handleDispatchQuantityChanged(line),
         secondaryQuantityController: line.acceptedQuantityController,
-        secondaryQuantityLabel: 'Fiili Kabul*',
+        secondaryQuantityLabel: 'Fiili Miktar*',
         secondaryQuantityStep: line.quantityStep,
         secondaryMaximumQuantity: line.dispatchQuantity,
         onSecondaryQuantityChanged: (_) => _handleAcceptedQuantityChanged(line),
@@ -2750,7 +2750,7 @@ class _CompanyAcceptanceCreateSheetState
     Widget dispatchField() {
       return TerminalQuantityStepper(
         controller: line.dispatchQuantityController,
-        label: 'Irsaliye Miktari*',
+        label: 'Irs. Miktar*',
         step: line.quantityStep,
         onMinimumReached: () {
           final index = _lines.indexOf(line);
@@ -2776,7 +2776,7 @@ class _CompanyAcceptanceCreateSheetState
     Widget acceptedField() {
       return TerminalQuantityStepper(
         controller: line.acceptedQuantityController,
-        label: 'Fiili Kabul*',
+        label: 'Fiili Miktar*',
         step: line.quantityStep,
         maximum: line.dispatchQuantity,
         onChanged: (_) => _handleAcceptedQuantityChanged(line),

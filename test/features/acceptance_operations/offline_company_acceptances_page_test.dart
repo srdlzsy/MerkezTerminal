@@ -552,10 +552,10 @@ void main() {
     await tester.pumpAndSettle();
 
     final dispatch = tester.widget<TextFormField>(
-      find.widgetWithText(TextFormField, 'Irsaliye Miktari*'),
+      find.widgetWithText(TextFormField, 'Irs. Miktar*'),
     );
     final accepted = tester.widget<TextFormField>(
-      find.widgetWithText(TextFormField, 'Fiili Kabul*'),
+      find.widgetWithText(TextFormField, 'Fiili Miktar*'),
     );
     expect(dispatch.controller?.text, '1');
     expect(accepted.controller?.text, '1');

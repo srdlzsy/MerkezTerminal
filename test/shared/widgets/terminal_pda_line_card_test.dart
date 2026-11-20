@@ -28,6 +28,7 @@ void main() {
     final lineLabel = tester.widget<Text>(find.text('Satir 1'));
 
     expect(productName.maxLines, 2);
+    expect(productName.overflow, TextOverflow.ellipsis);
     expect(productName.style?.fontWeight, FontWeight.w900);
     expect(lineLabel.style?.fontWeight, FontWeight.w700);
     expect(find.widgetWithText(FilledButton, 'Sil'), findsOneWidget);

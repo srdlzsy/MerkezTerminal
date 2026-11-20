@@ -1513,11 +1513,27 @@ class _OfflineCompanyAcceptanceCreateSheetState
         });
         return;
       }
+      if (line.dispatchQuantity > terminalCreateMaximumQuantity) {
+        setState(() {
+          _step = _OfflineCompanyAcceptanceCreateStep.lines;
+          _validationMessage =
+              '${index + 1}. satir icin irsaliye miktari en fazla ${terminalCreateMaximumQuantity.toInt()} olabilir.';
+        });
+        return;
+      }
       if (line.acceptedQuantity < 0) {
         setState(() {
           _step = _OfflineCompanyAcceptanceCreateStep.lines;
           _validationMessage =
               '${index + 1}. satir icin sayilan miktar negatif olamaz.';
+        });
+        return;
+      }
+      if (line.acceptedQuantity > terminalCreateMaximumQuantity) {
+        setState(() {
+          _step = _OfflineCompanyAcceptanceCreateStep.lines;
+          _validationMessage =
+              '${index + 1}. satir icin sayilan miktar en fazla ${terminalCreateMaximumQuantity.toInt()} olabilir.';
         });
         return;
       }
@@ -1941,7 +1957,7 @@ class _OfflineCompanyAcceptanceCreateSheetState
         stockName: selectedProduct.stockName,
         quantityController: line.dispatchQuantityController,
         title: 'Secilen urun',
-        quantityLabel: 'Irsaliye Miktari*',
+        quantityLabel: 'Irs. Miktar*',
         unitLabel: selectedProduct.unitName,
         barcode: line.barcodeController.text.trim(),
         packageLabel: selectedProduct.unitMultiplier > 1
@@ -1968,7 +1984,7 @@ class _OfflineCompanyAcceptanceCreateSheetState
         },
         onQuantityChanged: (_) => setState(() {}),
         secondaryQuantityController: line.acceptedQuantityController,
-        secondaryQuantityLabel: 'Fiili Kabul*',
+        secondaryQuantityLabel: 'Fiili Miktar*',
         secondaryMaximumQuantity: line.dispatchQuantity,
         onSecondaryQuantityChanged: (_) => setState(() {}),
         secondaryQuantityValidator: (_) {
@@ -2276,7 +2292,7 @@ class _OfflineCompanyAcceptanceCreateSheetState
     Widget dispatchField() {
       return TerminalQuantityStepper(
         controller: line.dispatchQuantityController,
-        label: 'Irsaliye Miktari*',
+        label: 'Irs. Miktar*',
         onMinimumReached: () {
           final index = _lines.indexOf(line);
           if (index < 0 || _lines.length <= 1) {
@@ -2300,7 +2316,7 @@ class _OfflineCompanyAcceptanceCreateSheetState
     Widget acceptedField() {
       return TerminalQuantityStepper(
         controller: line.acceptedQuantityController,
-        label: 'Sayilan Miktar*',
+        label: 'Fiili Miktar*',
         maximum: line.dispatchQuantity,
         onChanged: (_) => setState(() {}),
         validator: (_) {
