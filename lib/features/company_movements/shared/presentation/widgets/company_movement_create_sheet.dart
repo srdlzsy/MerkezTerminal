@@ -1012,6 +1012,7 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
             const SizedBox(height: 4),
             TerminalCreateInputDock(
               padding: EdgeInsets.zero,
+              compactChild: _buildEntryLineCard(),
               children: <Widget>[
                 TerminalResponsiveLookupRow(
                   field: TextFormField(
@@ -1110,7 +1111,7 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        if (constraints.maxWidth < 300) {
+        if (constraints.maxWidth < 220) {
           return Column(
             children: <Widget>[
               delivererField,

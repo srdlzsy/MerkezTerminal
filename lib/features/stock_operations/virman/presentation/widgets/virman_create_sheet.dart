@@ -1034,6 +1034,13 @@ class _VirmanCreateSheetState extends State<VirmanCreateSheet>
 
   @override
   Widget build(BuildContext context) {
+    final mediaQuery = MediaQuery.of(context);
+    final compactHeight =
+        mediaQuery.size.height - mediaQuery.viewInsets.bottom < 650;
+    final useCompactConfiguredInput =
+        (mediaQuery.size.width < 260 || mediaQuery.textScaler.scale(1) > 1.2) &&
+        _filledLineIndexes().isNotEmpty;
+
     return Padding(
       padding: const EdgeInsets.fromLTRB(10, 4, 10, 10),
       child: Form(
@@ -1060,44 +1067,47 @@ class _VirmanCreateSheetState extends State<VirmanCreateSheet>
             const SizedBox(height: 4),
             TerminalCreateInputDock(
               padding: EdgeInsets.zero,
-              children: <Widget>[
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 6,
-                  children: <Widget>[
-                    TerminalFilterButton(
-                      label: 'Hareket Tarihi',
-                      value: AppFormatters.date(_movementDate),
-                      onPressed: () => _pickDate(isMovementDate: true),
-                    ),
-                    TerminalFilterButton(
-                      label: 'Belge Tarihi',
-                      value: AppFormatters.date(_documentDate),
-                      onPressed: () => _pickDate(isMovementDate: false),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                TextFormField(
-                  controller: _descriptionController,
-                  maxLines: 1,
-                  decoration: const InputDecoration(
-                    labelText: 'Aciklama',
-                    isDense: true,
-                    contentPadding: EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 8,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 4),
-                TerminalSectionToolbar(
-                  title: 'Urun Ekle',
-                  actions: const <Widget>[],
-                ),
-                const SizedBox(height: 4),
-                _buildEntryLineCard(),
-              ],
+              compactChild: _buildEntryLineCard(),
+              children: useCompactConfiguredInput
+                  ? <Widget>[_buildEntryLineCard()]
+                  : <Widget>[
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 6,
+                        children: <Widget>[
+                          TerminalFilterButton(
+                            label: 'Hareket Tarihi',
+                            value: AppFormatters.date(_movementDate),
+                            onPressed: () => _pickDate(isMovementDate: true),
+                          ),
+                          TerminalFilterButton(
+                            label: 'Belge Tarihi',
+                            value: AppFormatters.date(_documentDate),
+                            onPressed: () => _pickDate(isMovementDate: false),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      TextFormField(
+                        controller: _descriptionController,
+                        maxLines: 1,
+                        decoration: const InputDecoration(
+                          labelText: 'Aciklama',
+                          isDense: true,
+                          contentPadding: EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 8,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      TerminalSectionToolbar(
+                        title: 'Urun Ekle',
+                        actions: const <Widget>[],
+                      ),
+                      const SizedBox(height: 4),
+                      _buildEntryLineCard(),
+                    ],
             ),
             const SizedBox(height: 4),
             Expanded(
@@ -1107,9 +1117,11 @@ class _VirmanCreateSheetState extends State<VirmanCreateSheet>
                     SliverToBoxAdapter(
                       child: Padding(
                         padding: const EdgeInsets.only(bottom: 6),
-                        child: TerminalMessageBlock.info(
-                          message: _conversionSuggestionMessage!,
-                        ),
+                        child: compactHeight
+                            ? _buildCompactConversionMessage(context)
+                            : TerminalMessageBlock.info(
+                                message: _conversionSuggestionMessage!,
+                              ),
                       ),
                     ),
                   _buildLazyLineSliver(),
@@ -1144,6 +1156,40 @@ class _VirmanCreateSheetState extends State<VirmanCreateSheet>
 
   Widget _buildEntryLineCard() {
     return _buildLineCard(0);
+  }
+
+  Widget _buildCompactConversionMessage(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      constraints: const BoxConstraints(minHeight: 32),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.primaryContainer.withAlpha(90),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: theme.colorScheme.primary.withAlpha(90)),
+      ),
+      child: Row(
+        children: <Widget>[
+          Icon(
+            Icons.auto_awesome_rounded,
+            size: 17,
+            color: theme.colorScheme.primary,
+          ),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              _conversionSuggestionMessage!,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.labelMedium?.copyWith(
+                color: theme.colorScheme.onPrimaryContainer,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _buildLazyLineSliver() {

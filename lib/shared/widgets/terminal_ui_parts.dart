@@ -683,7 +683,7 @@ class _TerminalActionGrid extends StatelessWidget {
 
   ButtonStyle _compactFilledButtonStyle() {
     return FilledButton.styleFrom(
-      minimumSize: const Size(0, 40),
+      minimumSize: const Size(0, 44),
       padding: const EdgeInsets.symmetric(horizontal: 8),
       tapTargetSize: MaterialTapTargetSize.shrinkWrap,
       visualDensity: VisualDensity.compact,
@@ -692,7 +692,7 @@ class _TerminalActionGrid extends StatelessWidget {
 
   ButtonStyle _compactOutlinedButtonStyle() {
     return OutlinedButton.styleFrom(
-      minimumSize: const Size(0, 40),
+      minimumSize: const Size(0, 44),
       padding: const EdgeInsets.symmetric(horizontal: 8),
       tapTargetSize: MaterialTapTargetSize.shrinkWrap,
       visualDensity: VisualDensity.compact,
@@ -850,7 +850,7 @@ class TerminalResponsiveLookupRow extends StatelessWidget {
     required this.field,
     required this.action,
     this.trailingAction,
-    this.breakpoint = 280,
+    this.breakpoint = 250,
     this.spacing = 8,
   });
 
@@ -864,9 +864,10 @@ class TerminalResponsiveLookupRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
+        final isUltraNarrow = constraints.maxWidth < 250;
         final trailing = trailingAction == null
             ? null
-            : _readableTrailingAction(trailingAction!);
+            : _readableTrailingAction(trailingAction!, compact: isUltraNarrow);
 
         if (constraints.maxWidth < breakpoint) {
           return Column(
@@ -888,11 +889,15 @@ class TerminalResponsiveLookupRow extends StatelessWidget {
           );
         }
 
+        final primaryAction = constraints.maxWidth < 230
+            ? _compactPrimaryAction(action)
+            : action;
+
         return Row(
           children: <Widget>[
             Expanded(child: field),
-            SizedBox(width: spacing + 4),
-            action,
+            SizedBox(width: isUltraNarrow ? spacing : spacing + 4),
+            primaryAction,
             if (trailing != null) ...<Widget>[
               SizedBox(width: spacing),
               trailing,
@@ -903,7 +908,42 @@ class TerminalResponsiveLookupRow extends StatelessWidget {
     );
   }
 
-  Widget _readableTrailingAction(Widget action) {
+  Widget _compactPrimaryAction(Widget action) {
+    final data = _TerminalHeaderActionData.from(action);
+    if (data == null || data.icon == null) {
+      return action;
+    }
+
+    final tooltip = data.label ?? 'Ara';
+    final style = IconButton.styleFrom(
+      minimumSize: const Size(44, 44),
+      padding: EdgeInsets.zero,
+      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      visualDensity: VisualDensity.compact,
+    );
+    return switch (data.style) {
+      _TerminalHeaderActionStyle.primary => IconButton.filled(
+        onPressed: data.onPressed,
+        tooltip: tooltip,
+        icon: data.icon!,
+        style: style,
+      ),
+      _TerminalHeaderActionStyle.tonal => IconButton.filledTonal(
+        onPressed: data.onPressed,
+        tooltip: tooltip,
+        icon: data.icon!,
+        style: style,
+      ),
+      _TerminalHeaderActionStyle.outlined => IconButton.outlined(
+        onPressed: data.onPressed,
+        tooltip: tooltip,
+        icon: data.icon!,
+        style: style,
+      ),
+    };
+  }
+
+  Widget _readableTrailingAction(Widget action, {required bool compact}) {
     if (action is! IconButton) {
       return action;
     }
@@ -914,6 +954,23 @@ class TerminalResponsiveLookupRow extends StatelessWidget {
         !normalized.contains('kamera') &&
         !normalized.contains('qr')) {
       return action;
+    }
+
+    if (compact) {
+      return IconButton.filledTonal(
+        onPressed: action.onPressed,
+        tooltip: tooltip.isEmpty ? 'Kamera ile oku' : tooltip,
+        icon: IconTheme.merge(
+          data: const IconThemeData(size: 18),
+          child: action.icon,
+        ),
+        style: IconButton.styleFrom(
+          minimumSize: const Size(44, 44),
+          padding: EdgeInsets.zero,
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          visualDensity: VisualDensity.compact,
+        ),
+      );
     }
 
     return Tooltip(
@@ -1161,6 +1218,8 @@ class TerminalSectionToolbar extends StatelessWidget {
   Widget build(BuildContext context) {
     final titleWidget = Text(
       title,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
       style: Theme.of(
         context,
       ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900, height: 1),
@@ -1183,8 +1242,8 @@ class TerminalSectionToolbar extends StatelessWidget {
 
         return Row(
           children: <Widget>[
-            titleWidget,
-            const Spacer(),
+            Expanded(child: titleWidget),
+            if (actions.isNotEmpty) SizedBox(width: spacing),
             for (var index = 0; index < actions.length; index += 1) ...<Widget>[
               if (index > 0) SizedBox(width: spacing),
               actions[index],
@@ -1612,7 +1671,7 @@ class TerminalPdaLineCard extends StatelessWidget {
                   IconButtonTheme(
                     data: IconButtonThemeData(
                       style: IconButton.styleFrom(
-                        minimumSize: const Size(38, 38),
+                        minimumSize: const Size(44, 44),
                         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                         padding: EdgeInsets.zero,
                       ),
@@ -2688,20 +2747,13 @@ class TerminalFormActionRow extends StatelessWidget {
     final mediaQuery = MediaQuery.of(context);
     final usableHeight = mediaQuery.size.height - mediaQuery.viewInsets.bottom;
     if (usableHeight < 430) {
-      return const SizedBox.shrink();
+      return SizedBox(height: 48, child: submit);
     }
 
     return LayoutBuilder(
       builder: (context, constraints) {
         if (constraints.maxWidth < breakpoint) {
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: <Widget>[
-              cancel,
-              SizedBox(height: spacing),
-              submit,
-            ],
-          );
+          return SizedBox(height: 48, child: submit);
         }
 
         return Row(
@@ -2720,20 +2772,20 @@ class TerminalCreateInputDock extends StatelessWidget {
   const TerminalCreateInputDock({
     super.key,
     required this.children,
+    required this.compactChild,
     this.padding = const EdgeInsets.fromLTRB(10, 4, 10, 4),
   });
 
   final List<Widget> children;
+  final Widget compactChild;
   final EdgeInsetsGeometry padding;
 
   @override
   Widget build(BuildContext context) {
     final mediaQuery = MediaQuery.of(context);
     final usableHeight = mediaQuery.size.height - mediaQuery.viewInsets.bottom;
-    final keyboardCompact = usableHeight < 430;
-    final visibleChildren = keyboardCompact && children.isNotEmpty
-        ? <Widget>[children.last]
-        : children;
+    final heightCompact = usableHeight < 430;
+    final visibleChildren = heightCompact ? <Widget>[compactChild] : children;
 
     return Padding(
       padding: padding,
@@ -2821,10 +2873,8 @@ class TerminalSheetHeader extends StatelessWidget {
     final theme = Theme.of(context);
     final mediaQuery = MediaQuery.of(context);
     final usableHeight = mediaQuery.size.height - mediaQuery.viewInsets.bottom;
-    if (usableHeight < 430) {
-      return const SizedBox.shrink();
-    }
-    final compactHeight = usableHeight < 500;
+    final compactHeight =
+        usableHeight < 500 || mediaQuery.textScaler.scale(1) > 1.2;
 
     return Container(
       padding: compactHeight ? const EdgeInsets.fromLTRB(8, 0, 4, 0) : padding,
@@ -2873,7 +2923,7 @@ class TerminalSheetHeader extends StatelessWidget {
                     ],
                   ],
                 ),
-                if (subtitle != null) ...<Widget>[
+                if (!compactHeight && subtitle != null) ...<Widget>[
                   const SizedBox(height: 2),
                   Text(
                     subtitle!,
@@ -2891,7 +2941,7 @@ class TerminalSheetHeader extends StatelessWidget {
             icon: const Icon(Icons.close_rounded, size: 20),
             tooltip: 'Kapat',
             padding: EdgeInsets.zero,
-            constraints: const BoxConstraints.tightFor(width: 32, height: 32),
+            constraints: const BoxConstraints.tightFor(width: 40, height: 40),
             style: IconButton.styleFrom(
               tapTargetSize: MaterialTapTargetSize.shrinkWrap,
             ),
@@ -3041,7 +3091,7 @@ class TerminalFilterButton extends StatelessWidget {
       child: OutlinedButton.icon(
         onPressed: onPressed,
         style: OutlinedButton.styleFrom(
-          minimumSize: const Size(120, 38),
+          minimumSize: const Size(120, 44),
           padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
           visualDensity: VisualDensity.compact,

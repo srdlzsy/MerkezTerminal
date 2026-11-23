@@ -1631,11 +1631,12 @@ class _OfflineCompanyAcceptanceCreateSheetState
   Widget build(BuildContext context) {
     final isDocumentStep =
         _step == _OfflineCompanyAcceptanceCreateStep.document;
+    final keyboardVisible = MediaQuery.viewInsetsOf(context).bottom > 0;
 
     return Material(
       color: Theme.of(context).scaffoldBackgroundColor,
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(12, 6, 12, 12),
+        padding: const EdgeInsets.fromLTRB(12, 6, 12, 10),
         child: Form(
           key: _formKey,
           autovalidateMode: createFormAutovalidateMode,
@@ -1649,9 +1650,12 @@ class _OfflineCompanyAcceptanceCreateSheetState
                 ],
                 padding: EdgeInsets.zero,
               ),
-              const SizedBox(height: 4),
-              _buildStepSelector(),
-              const SizedBox(height: 5),
+              if (!keyboardVisible) ...<Widget>[
+                const SizedBox(height: 4),
+                _buildStepSelector(),
+                const SizedBox(height: 5),
+              ] else
+                const SizedBox(height: 2),
               Expanded(
                 child: isDocumentStep
                     ? _buildDocumentStep()
@@ -1735,6 +1739,7 @@ class _OfflineCompanyAcceptanceCreateSheetState
       children: <Widget>[
         TerminalCreateInputDock(
           padding: const EdgeInsets.only(bottom: 4),
+          compactChild: _buildEntryLineCard(),
           children: <Widget>[
             _buildLineStepSummary(),
             if (_validationMessage != null) ...<Widget>[

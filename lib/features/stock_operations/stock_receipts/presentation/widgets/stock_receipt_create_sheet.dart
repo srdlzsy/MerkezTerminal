@@ -758,6 +758,7 @@ class _StockReceiptCreateSheetState extends State<StockReceiptCreateSheet>
             const SizedBox(height: 4),
             TerminalCreateInputDock(
               padding: EdgeInsets.zero,
+              compactChild: _buildEntryLineCard(),
               children: <Widget>[
                 _buildReceiptSetupSection(),
                 TerminalSectionToolbar(

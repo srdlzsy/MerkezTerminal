@@ -170,6 +170,26 @@ void main() {
       final lookupController = TextEditingController(text: '8690000000012');
       addTearDown(quantityController.dispose);
       addTearDown(lookupController.dispose);
+      final entryPanel = ProductDraftEntryPanel(
+        stockCode: 'STK-001',
+        stockName: 'Klavye Acik Test Urunu',
+        quantityController: quantityController,
+        unitLabel: 'ADET',
+        packageLabel: '12',
+        scanRow: TerminalResponsiveLookupRow(
+          field: ProductLookupField(
+            controller: lookupController,
+            onSubmit: () {},
+          ),
+          action: FilledButton.icon(
+            onPressed: () {},
+            icon: const Icon(Icons.search_rounded),
+            label: const Text('Urun'),
+          ),
+        ),
+        onConfirm: () {},
+        onCancel: () {},
+      );
 
       await tester.pumpWidget(
         MaterialApp(
@@ -179,34 +199,14 @@ void main() {
               viewInsets: EdgeInsets.only(bottom: 200),
             ),
             child: Scaffold(
+              resizeToAvoidBottomInset: false,
               body: Column(
                 children: <Widget>[
                   const SizedBox(height: 36),
                   TerminalCreateInputDock(
                     padding: EdgeInsets.zero,
-                    children: <Widget>[
-                      const Text('Ust bilgiler'),
-                      ProductDraftEntryPanel(
-                        stockCode: 'STK-001',
-                        stockName: 'Klavye Acik Test Urunu',
-                        quantityController: quantityController,
-                        unitLabel: 'ADET',
-                        packageLabel: '12',
-                        scanRow: TerminalResponsiveLookupRow(
-                          field: ProductLookupField(
-                            controller: lookupController,
-                            onSubmit: () {},
-                          ),
-                          action: FilledButton.icon(
-                            onPressed: () {},
-                            icon: const Icon(Icons.search_rounded),
-                            label: const Text('Urun'),
-                          ),
-                        ),
-                        onConfirm: () {},
-                        onCancel: () {},
-                      ),
-                    ],
+                    compactChild: entryPanel,
+                    children: <Widget>[const Text('Ust bilgiler'), entryPanel],
                   ),
                   const Expanded(child: SizedBox()),
                 ],
@@ -292,10 +292,15 @@ void main() {
             viewInsets: EdgeInsets.only(bottom: 200),
           ),
           child: Scaffold(
+            resizeToAvoidBottomInset: false,
             body: SizedBox(
               height: 220,
               child: TerminalCreateInputDock(
                 padding: EdgeInsets.zero,
+                compactChild: FilledButton(
+                  onPressed: () {},
+                  child: const Text('Kaleme Ekle'),
+                ),
                 children: <Widget>[
                   const SizedBox(height: 54),
                   TextFormField(
@@ -316,6 +321,7 @@ void main() {
 
     expect(tester.takeException(), isNull);
     expect(find.byType(SingleChildScrollView), findsNothing);
+    expect(find.text('Miktar'), findsNothing);
     expect(find.text('Kaleme Ekle'), findsOneWidget);
     expect(
       find.widgetWithText(FilledButton, 'Kaleme Ekle').hitTestable(),

@@ -164,7 +164,9 @@ void main() {
     expect(tester.getSize(_actionFinder('Yenile')).width, lessThan(110));
   });
 
-  testWidgets('stacks form actions on tiny terminal width', (tester) async {
+  testWidgets('keeps primary submit action full-width on tiny terminal width', (
+    tester,
+  ) async {
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
@@ -187,9 +189,13 @@ void main() {
     );
 
     expect(tester.takeException(), isNull);
+    expect(find.text('Vazgec'), findsNothing);
+    expect(find.text('Taslagi Kaydet'), findsOneWidget);
     expect(
-      _buttonTop(tester, 'Vazgec'),
-      lessThan(_buttonTop(tester, 'Taslagi Kaydet')),
+      tester
+          .getSize(find.widgetWithText(FilledButton, 'Taslagi Kaydet'))
+          .height,
+      greaterThanOrEqualTo(48),
     );
   });
 

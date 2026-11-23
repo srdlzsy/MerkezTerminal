@@ -1471,6 +1471,7 @@ class _GivenWarehouseOrderCreateSheetState
                       8,
                       compactHeight ? 2 : 4,
                     ),
+                    compactChild: _buildEntryLineCard(theme),
                     children: <Widget>[
                       _buildWarehouseSection(
                         theme,
@@ -1603,7 +1604,7 @@ class _GivenWarehouseOrderCreateSheetState
                   label: const Text('Sec'),
                 );
 
-                if (constraints.maxWidth < 280) {
+                if (constraints.maxWidth < 220) {
                   return Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: <Widget>[
@@ -1709,13 +1710,17 @@ class _GivenWarehouseOrderCreateSheetState
           return Row(
             children: <Widget>[
               if (showTitle) ...<Widget>[
-                Text(
-                  'Satirlar',
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.w800,
+                Expanded(
+                  child: Text(
+                    'Satirlar',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w800,
+                    ),
                   ),
                 ),
-                const Spacer(),
+                const SizedBox(width: 4),
               ],
               if (hasLoadAction)
                 if (showTitle) loadButton() else Expanded(child: loadButton()),

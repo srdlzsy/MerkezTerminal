@@ -1002,6 +1002,9 @@ class _GivenCompanyOrderCreateSheetState
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final mediaQuery = MediaQuery.of(context);
+    final compactHeight =
+        mediaQuery.size.height - mediaQuery.viewInsets.bottom < 650;
 
     return SafeArea(
       child: Padding(
@@ -1023,48 +1026,12 @@ class _GivenCompanyOrderCreateSheetState
                     elevated: true,
                   ),
                   TerminalCreateInputDock(
+                    compactChild: _buildEntryLineCard(theme),
                     children: <Widget>[
                       _buildCustomerSection(theme),
-                      const SizedBox(height: 5),
-                      TerminalSectionToolbar(
-                        title: 'Satirlar (${_activeLineCount()})',
-                        breakpoint: 430,
-                        actions: <Widget>[
-                          if (_selectedCustomer != null)
-                            FilledButton.tonalIcon(
-                              onPressed: _isLoadingCustomerProducts
-                                  ? null
-                                  : _loadCustomerProducts,
-                              icon: _isLoadingCustomerProducts
-                                  ? const SizedBox(
-                                      width: 16,
-                                      height: 16,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                      ),
-                                    )
-                                  : const Icon(
-                                      Icons.playlist_add_rounded,
-                                      size: 18,
-                                    ),
-                              label: Text(
-                                _isLoadingCustomerProducts
-                                    ? 'Yukleniyor'
-                                    : 'Firma urunleri',
-                              ),
-                            ),
-                          if (_emptyQuantityLineCount > 0)
-                            FilledButton.tonalIcon(
-                              onPressed: _removeEmptyQuantityLines,
-                              icon: const Icon(
-                                Icons.cleaning_services_rounded,
-                                size: 18,
-                              ),
-                              label: const Text('Boslari sil'),
-                            ),
-                        ],
-                      ),
-                      const SizedBox(height: 4),
+                      SizedBox(height: compactHeight ? 2 : 5),
+                      _buildLinesToolbar(theme, compactHeight: compactHeight),
+                      SizedBox(height: compactHeight ? 2 : 4),
                       _buildEntryLineCard(theme),
                     ],
                   ),
@@ -1236,6 +1203,128 @@ class _GivenCompanyOrderCreateSheetState
     );
   }
 
+  Widget _buildLinesToolbar(ThemeData theme, {required bool compactHeight}) {
+    final hasLoadAction = _selectedCustomer != null;
+    final hasClearAction = _emptyQuantityLineCount > 0;
+
+    if (!compactHeight) {
+      return TerminalSectionToolbar(
+        title: 'Satirlar (${_activeLineCount()})',
+        breakpoint: 430,
+        actions: <Widget>[
+          if (hasLoadAction)
+            FilledButton.tonalIcon(
+              onPressed: _isLoadingCustomerProducts
+                  ? null
+                  : _loadCustomerProducts,
+              icon: _isLoadingCustomerProducts
+                  ? const SizedBox.square(
+                      dimension: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.playlist_add_rounded, size: 18),
+              label: Text(
+                _isLoadingCustomerProducts ? 'Yukleniyor' : 'Firma urunleri',
+              ),
+            ),
+          if (hasClearAction)
+            FilledButton.tonalIcon(
+              onPressed: _removeEmptyQuantityLines,
+              icon: const Icon(Icons.cleaning_services_rounded, size: 18),
+              label: const Text('Boslari sil'),
+            ),
+        ],
+      );
+    }
+
+    return SizedBox(
+      height: 44,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final showTitle =
+              constraints.maxWidth >= 380 || !(hasLoadAction && hasClearAction);
+
+          Widget loadButton() => FilledButton.tonal(
+            onPressed: _isLoadingCustomerProducts
+                ? null
+                : _loadCustomerProducts,
+            style: FilledButton.styleFrom(
+              minimumSize: const Size(0, 44),
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: <Widget>[
+                if (_isLoadingCustomerProducts)
+                  const SizedBox.square(
+                    dimension: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                else
+                  const Icon(Icons.playlist_add_rounded, size: 17),
+                const SizedBox(width: 4),
+                Flexible(
+                  child: Text(
+                    _isLoadingCustomerProducts
+                        ? 'Bekle'
+                        : hasClearAction
+                        ? 'Urunler'
+                        : 'Firma urunleri',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+          );
+
+          Widget clearButton() => FilledButton.tonal(
+            onPressed: _removeEmptyQuantityLines,
+            style: FilledButton.styleFrom(
+              minimumSize: const Size(0, 44),
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+            ),
+            child: const Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: <Widget>[
+                Icon(Icons.cleaning_services_rounded, size: 17),
+                SizedBox(width: 4),
+                Flexible(
+                  child: Text(
+                    'Boslari sil',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+          );
+
+          return Row(
+            children: <Widget>[
+              if (showTitle) ...<Widget>[
+                Expanded(
+                  child: Text(
+                    'Satirlar (${_activeLineCount()})',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 4),
+              ],
+              if (hasLoadAction) Expanded(child: loadButton()),
+              if (hasLoadAction && hasClearAction) const SizedBox(width: 4),
+              if (hasClearAction) Expanded(child: clearButton()),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
   Widget _buildDeliveryInfoRow() {
     Widget deliveryField({
       required TextEditingController controller,
@@ -1277,7 +1366,7 @@ class _GivenCompanyOrderCreateSheetState
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        if (constraints.maxWidth < 300) {
+        if (constraints.maxWidth < 220) {
           return Column(
             children: <Widget>[
               delivererField,

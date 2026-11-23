@@ -106,7 +106,7 @@ class _TerminalCreatePageState<TResult>
         const SnackBar(
           content: Text(
             'Kayit tamamlanamadi. Bilgiler ekranda korunuyor. '
-            'Baglantiyi kontrol edip Kaydet dugmesine yeniden basin.',
+            'Sonucu kontrol etmeden Kaydet dugmesine yeniden basmayin.',
           ),
         ),
       );
@@ -117,119 +117,123 @@ class _TerminalCreatePageState<TResult>
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final mediaQuery = MediaQuery.of(context);
 
     return PopScope<TResult>(
       canPop: !_isSubmitting,
       child: Scaffold(
         resizeToAvoidBottomInset: true,
         backgroundColor: theme.colorScheme.surfaceContainerLowest,
-        body: Theme(
-          data: theme.copyWith(
-            inputDecorationTheme: theme.inputDecorationTheme.copyWith(
-              filled: true,
-              fillColor: theme.colorScheme.surface,
-              isDense: true,
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: 10,
-                vertical: 9,
-              ),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: BorderSide(
-                  color: theme.colorScheme.outlineVariant.withAlpha(120),
-                ),
-              ),
-            ),
-            filledButtonTheme: FilledButtonThemeData(
-              style: FilledButton.styleFrom(
-                minimumSize: const Size(0, 42),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
+        body: MediaQuery(
+          data: mediaQuery,
+          child: Theme(
+            data: theme.copyWith(
+              inputDecorationTheme: theme.inputDecorationTheme.copyWith(
+                filled: true,
+                fillColor: theme.colorScheme.surface,
+                isDense: true,
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 10,
                   vertical: 9,
                 ),
-                shape: RoundedRectangleBorder(
+                border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
                 ),
-                textStyle: theme.textTheme.labelLarge?.copyWith(
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            ),
-            outlinedButtonTheme: OutlinedButtonThemeData(
-              style: OutlinedButton.styleFrom(
-                minimumSize: const Size(0, 42),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 9,
-                ),
-                shape: RoundedRectangleBorder(
+                enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
-                ),
-                textStyle: theme.textTheme.labelLarge?.copyWith(
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            ),
-            iconButtonTheme: IconButtonThemeData(
-              style: IconButton.styleFrom(
-                minimumSize: const Size(40, 40),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-              ),
-            ),
-          ),
-          child: Stack(
-            children: <Widget>[
-              _TerminalCreateSubmitInherited(
-                submit: _submit,
-                child: IgnorePointer(
-                  ignoring: _isSubmitting,
-                  child: SafeArea(
-                    top: true,
-                    bottom: true,
-                    child: Builder(builder: widget.builder),
+                  borderSide: BorderSide(
+                    color: theme.colorScheme.outlineVariant.withAlpha(120),
                   ),
                 ),
               ),
-              if (_isSubmitting) ...<Widget>[
-                const ModalBarrier(dismissible: false, color: Colors.black38),
-                Center(
-                  child: Container(
-                    constraints: const BoxConstraints(maxWidth: 310),
-                    margin: const EdgeInsets.all(24),
-                    padding: const EdgeInsets.all(18),
-                    decoration: BoxDecoration(
-                      color: theme.colorScheme.surface,
-                      borderRadius: BorderRadius.circular(8),
-                      boxShadow: const <BoxShadow>[
-                        BoxShadow(blurRadius: 18, color: Color(0x33000000)),
-                      ],
+              filledButtonTheme: FilledButtonThemeData(
+                style: FilledButton.styleFrom(
+                  minimumSize: const Size(0, 48),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 9,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  textStyle: theme.textTheme.labelLarge?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+              outlinedButtonTheme: OutlinedButtonThemeData(
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size(0, 48),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 9,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  textStyle: theme.textTheme.labelLarge?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+              iconButtonTheme: IconButtonThemeData(
+                style: IconButton.styleFrom(
+                  minimumSize: const Size(44, 44),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+              ),
+            ),
+            child: Stack(
+              children: <Widget>[
+                _TerminalCreateSubmitInherited(
+                  submit: _submit,
+                  child: IgnorePointer(
+                    ignoring: _isSubmitting,
+                    child: SafeArea(
+                      top: true,
+                      bottom: true,
+                      child: Builder(builder: widget.builder),
                     ),
-                    child: Row(
-                      children: <Widget>[
-                        const SizedBox.square(
-                          dimension: 24,
-                          child: CircularProgressIndicator(strokeWidth: 2.5),
-                        ),
-                        const SizedBox(width: 14),
-                        Expanded(
-                          child: Text(
-                            _submitPhase.message,
-                            key: const ValueKey<String>(
-                              'terminal-create-submit-status',
+                  ),
+                ),
+                if (_isSubmitting) ...<Widget>[
+                  const ModalBarrier(dismissible: false, color: Colors.black38),
+                  Center(
+                    child: Container(
+                      constraints: const BoxConstraints(maxWidth: 310),
+                      margin: const EdgeInsets.all(24),
+                      padding: const EdgeInsets.all(18),
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.surface,
+                        borderRadius: BorderRadius.circular(8),
+                        boxShadow: const <BoxShadow>[
+                          BoxShadow(blurRadius: 18, color: Color(0x33000000)),
+                        ],
+                      ),
+                      child: Row(
+                        children: <Widget>[
+                          const SizedBox.square(
+                            dimension: 24,
+                            child: CircularProgressIndicator(strokeWidth: 2.5),
+                          ),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Text(
+                              _submitPhase.message,
+                              key: const ValueKey<String>(
+                                'terminal-create-submit-status',
+                              ),
                             ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
-                ),
+                ],
               ],
-            ],
+            ),
           ),
         ),
       ),

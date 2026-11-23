@@ -897,6 +897,7 @@ class _WarehouseReturnCreateSheetState extends State<WarehouseReturnCreateSheet>
                     elevated: true,
                   ),
                   TerminalCreateInputDock(
+                    compactChild: _buildEntryLineCard(theme),
                     children: <Widget>[
                       _buildHeaderSection(theme),
                       const SizedBox(height: 5),
@@ -1080,25 +1081,19 @@ class _WarehouseReturnCreateSheetState extends State<WarehouseReturnCreateSheet>
             labelText: 'Barkod okut / urun degistir',
             onSubmit: () => _searchProduct(line),
           ),
-          action: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: <Widget>[
-              FilledButton.icon(
-                onPressed: _hasTargetWarehouse && !line.isLookupStatusLoading
-                    ? () => _searchProduct(line)
-                    : null,
-                icon: const Icon(Icons.search_rounded),
-                label: const Text('Urun'),
-              ),
-              const SizedBox(width: 8),
-              IconButton.filledTonal(
-                onPressed: _hasTargetWarehouse && !line.isLookupStatusLoading
-                    ? () => _scanProduct(line)
-                    : null,
-                tooltip: 'Kamera ile oku',
-                icon: const Icon(Icons.photo_camera_back_rounded),
-              ),
-            ],
+          action: FilledButton.icon(
+            onPressed: _hasTargetWarehouse && !line.isLookupStatusLoading
+                ? () => _searchProduct(line)
+                : null,
+            icon: const Icon(Icons.search_rounded),
+            label: const Text('Urun'),
+          ),
+          trailingAction: IconButton.filledTonal(
+            onPressed: _hasTargetWarehouse && !line.isLookupStatusLoading
+                ? () => _scanProduct(line)
+                : null,
+            tooltip: 'Kamera ile oku',
+            icon: const Icon(Icons.photo_camera_back_rounded),
           ),
         ),
         quantityValidator: (_) {
@@ -1147,27 +1142,19 @@ class _WarehouseReturnCreateSheetState extends State<WarehouseReturnCreateSheet>
                 enabled: _hasTargetWarehouse && !line.isLookupStatusLoading,
                 onSubmit: () => _searchProduct(line),
               ),
-              action: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: <Widget>[
-                  FilledButton.icon(
-                    onPressed:
-                        _hasTargetWarehouse && !line.isLookupStatusLoading
-                        ? () => _searchProduct(line)
-                        : null,
-                    icon: const Icon(Icons.search_rounded),
-                    label: const Text('Urun'),
-                  ),
-                  const SizedBox(width: 8),
-                  IconButton.filledTonal(
-                    onPressed:
-                        _hasTargetWarehouse && !line.isLookupStatusLoading
-                        ? () => _scanProduct(line)
-                        : null,
-                    tooltip: 'Kamera ile oku',
-                    icon: const Icon(Icons.photo_camera_back_rounded),
-                  ),
-                ],
+              action: FilledButton.icon(
+                onPressed: _hasTargetWarehouse && !line.isLookupStatusLoading
+                    ? () => _searchProduct(line)
+                    : null,
+                icon: const Icon(Icons.search_rounded),
+                label: const Text('Urun'),
+              ),
+              trailingAction: IconButton.filledTonal(
+                onPressed: _hasTargetWarehouse && !line.isLookupStatusLoading
+                    ? () => _scanProduct(line)
+                    : null,
+                tooltip: 'Kamera ile oku',
+                icon: const Icon(Icons.photo_camera_back_rounded),
               ),
             )
           else if (product != null)

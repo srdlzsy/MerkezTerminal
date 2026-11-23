@@ -97,13 +97,18 @@ Future<void> _addVirmanLine(WidgetTester tester) async {
     matching: find.byType(EditableText),
   );
   await tester.enterText(lookup, '015550');
-  await tester.tap(find.widgetWithText(FilledButton, 'Urun').first);
+  final productButton = find.widgetWithText(FilledButton, 'Urun').hitTestable();
+  expect(productButton, findsOneWidget);
+  await tester.tap(productButton);
   await tester.pumpAndSettle();
-  await tester.enterText(
-    find.widgetWithText(TextFormField, 'Miktar').first,
-    '6',
-  );
-  await tester.tap(find.widgetWithText(FilledButton, 'Ekle').first);
+  final quantityField = find
+      .widgetWithText(TextFormField, 'Miktar')
+      .hitTestable();
+  expect(quantityField, findsOneWidget);
+  await tester.enterText(quantityField, '6');
+  final addButton = find.widgetWithText(FilledButton, 'Ekle').hitTestable();
+  expect(addButton, findsOneWidget);
+  await tester.tap(addButton);
   await tester.pumpAndSettle();
 }
 

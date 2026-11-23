@@ -814,6 +814,7 @@ class _InventoryCountCreateSheetState extends State<InventoryCountCreateSheet>
                     elevated: true,
                   ),
                   TerminalCreateInputDock(
+                    compactChild: _buildEntryLineCard(theme),
                     children: <Widget>[
                       LayoutBuilder(
                         builder: (context, constraints) {
@@ -842,7 +843,7 @@ class _InventoryCountCreateSheetState extends State<InventoryCountCreateSheet>
                             onPressed: _pickDate,
                           );
 
-                          if (constraints.maxWidth < 300) {
+                          if (constraints.maxWidth < 220) {
                             return Column(
                               crossAxisAlignment: CrossAxisAlignment.stretch,
                               children: <Widget>[

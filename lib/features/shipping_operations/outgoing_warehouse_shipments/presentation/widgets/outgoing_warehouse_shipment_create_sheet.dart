@@ -1782,53 +1782,72 @@ class _OutgoingWarehouseShipmentCreateSheetState
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final useCompactConfiguredInput =
+        MediaQuery.textScalerOf(context).scale(1) > 1.2 &&
+        _hasTargetWarehouseSelection;
+    final entrySection = _mode == _ShipmentCreateMode.manual
+        ? _buildManualEntrySection(theme)
+        : _buildOrderLinkedEntrySection(theme);
+    final hasPendingEntry = _mode == _ShipmentCreateMode.manual
+        ? _hasPendingManualEntryLine
+        : _hasPendingLinkedEntryLine;
 
     return SafeArea(
       child: Padding(
         padding: EdgeInsets.zero,
-        child: FractionallySizedBox(
-          heightFactor: 0.97,
-          child: Material(
-            color: theme.scaffoldBackgroundColor,
-            child: Form(
-              key: _formKey,
-              autovalidateMode: createFormAutovalidateMode,
-              child: Column(
-                children: <Widget>[
-                  TerminalSheetHeader(
-                    title: 'Yeni Giden Depolar Arasi Sevk',
-                    badges: <Widget>[
-                      TerminalLineCountBadge(count: _activeShipmentLineCount()),
-                    ],
-                    elevated: true,
-                  ),
-                  TerminalCreateInputDock(
-                    children: <Widget>[
-                      _buildShipmentSetupSection(theme),
-                      const SizedBox(height: 5),
+        child: Material(
+          color: theme.scaffoldBackgroundColor,
+          child: Form(
+            key: _formKey,
+            autovalidateMode: createFormAutovalidateMode,
+            child: Column(
+              children: <Widget>[
+                TerminalSheetHeader(
+                  title: 'Yeni Giden Depolar Arasi Sevk',
+                  badges: <Widget>[
+                    TerminalLineCountBadge(count: _activeShipmentLineCount()),
+                  ],
+                  elevated: true,
+                ),
+                TerminalCreateInputDock(
+                  compactChild: entrySection,
+                  children: useCompactConfiguredInput
+                      ? <Widget>[entrySection]
+                      : <Widget>[
+                          _buildShipmentSetupSection(theme),
+                          const SizedBox(height: 5),
+                          entrySection,
+                        ],
+                ),
+                Expanded(
+                  child: CustomScrollView(
+                    controller: _scrollController,
+                    slivers: <Widget>[
+                      if (_mode == _ShipmentCreateMode.manual &&
+                          !_hasTargetWarehouseSelection)
+                        const SliverToBoxAdapter(
+                          child: Padding(
+                            padding: EdgeInsets.fromLTRB(12, 4, 12, 4),
+                            child: _ValidationBlock(
+                              message:
+                                  'Manuel sevk satirlarina gecmeden once hedef depo secilmelidir.',
+                            ),
+                          ),
+                        ),
                       if (_mode == _ShipmentCreateMode.manual)
-                        _buildManualEntrySection(theme)
+                        _buildManualFilledLinesSliver()
                       else
-                        _buildOrderLinkedEntrySection(theme),
+                        _buildLinkedFilledLinesSliver(),
+                      const SliverToBoxAdapter(child: SizedBox(height: 8)),
                     ],
                   ),
-                  Expanded(
-                    child: CustomScrollView(
-                      controller: _scrollController,
-                      slivers: <Widget>[
-                        if (_mode == _ShipmentCreateMode.manual)
-                          _buildManualFilledLinesSliver()
-                        else
-                          _buildLinkedFilledLinesSliver(),
-                        const SliverToBoxAdapter(child: SizedBox(height: 8)),
-                      ],
-                    ),
+                ),
+                if (_validationMessage != null)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 4, 12, 0),
+                    child: _ValidationBlock(message: _validationMessage!),
                   ),
-                  if (_validationMessage != null)
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(12, 4, 12, 0),
-                      child: _ValidationBlock(message: _validationMessage!),
-                    ),
+                if (!hasPendingEntry)
                   Padding(
                     padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
                     child: TerminalFormActionRow(
@@ -1844,8 +1863,7 @@ class _OutgoingWarehouseShipmentCreateSheetState
                       ),
                     ),
                   ),
-                ],
-              ),
+              ],
             ),
           ),
         ),
@@ -1903,7 +1921,7 @@ class _OutgoingWarehouseShipmentCreateSheetState
             },
           );
 
-          if (constraints.maxWidth < 280) {
+          if (constraints.maxWidth < 220) {
             return Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: <Widget>[
@@ -1965,16 +1983,7 @@ class _OutgoingWarehouseShipmentCreateSheetState
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          if (!_hasTargetWarehouseSelection) ...<Widget>[
-            const _ValidationBlock(
-              message:
-                  'Manuel sevk satirlarina gecmeden once hedef depo secilmelidir.',
-            ),
-            const SizedBox(height: 6),
-          ],
-          _buildManualEntryLine(),
-        ],
+        children: <Widget>[_buildManualEntryLine()],
       ),
     );
   }
@@ -4057,7 +4066,7 @@ class _ShipmentModeButton extends StatelessWidget {
         onTap: onTap,
         borderRadius: BorderRadius.circular(8),
         child: SizedBox(
-          height: 34,
+          height: 40,
           child: Center(
             child: FittedBox(
               fit: BoxFit.scaleDown,

@@ -64,6 +64,67 @@ void main() {
     expect(tester.getTopLeft(find.byKey(contentKey)), const Offset(8, 8));
   });
 
+  testWidgets('short keyboard viewport keeps header identity visible', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MediaQuery(
+          data: const MediaQueryData(
+            size: Size(320, 480),
+            viewInsets: EdgeInsets.only(bottom: 180),
+          ),
+          child: const Scaffold(
+            resizeToAvoidBottomInset: false,
+            body: TerminalSheetHeader(
+              title: 'Yeni Depo Sevki',
+              subtitle: 'Uzun aciklama dar modda gizlenir',
+            ),
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('Yeni Depo Sevki'), findsOneWidget);
+    expect(find.text('Uzun aciklama dar modda gizlenir'), findsNothing);
+    expect(find.byTooltip('Kapat').hitTestable(), findsOneWidget);
+  });
+
+  testWidgets('short keyboard viewport keeps primary form action', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MediaQuery(
+          data: const MediaQueryData(
+            size: Size(320, 480),
+            viewInsets: EdgeInsets.only(bottom: 180),
+          ),
+          child: Scaffold(
+            resizeToAvoidBottomInset: false,
+            body: TerminalFormActionRow(
+              cancel: OutlinedButton(
+                onPressed: null,
+                child: const Text('Vazgec'),
+              ),
+              submit: FilledButton(
+                onPressed: null,
+                child: const Text('Kaydet'),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('Vazgec'), findsNothing);
+    expect(find.text('Kaydet'), findsOneWidget);
+    expect(
+      tester.getSize(find.widgetWithText(FilledButton, 'Kaydet')).height,
+      48,
+    );
+  });
+
   testWidgets('dense frameless section uses less vertical space', (
     tester,
   ) async {

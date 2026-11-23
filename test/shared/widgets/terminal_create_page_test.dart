@@ -123,6 +123,7 @@ void main() {
     expect(submitCount, 1);
     expect(find.text('Kaydet'), findsOneWidget);
     expect(find.textContaining('Bilgiler ekranda korunuyor'), findsOneWidget);
+    expect(find.textContaining('Sonucu kontrol etmeden'), findsOneWidget);
 
     await tester.tap(find.text('Kaydet'));
     await tester.pumpAndSettle();

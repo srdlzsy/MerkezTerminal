@@ -22,6 +22,8 @@ const List<PdaCreateScreenScenario> defaultPdaCreateScreenScenarios =
       PdaCreateScreenScenario(name: '320x640', size: Size(320, 640)),
       PdaCreateScreenScenario(name: '360x640', size: Size(360, 640)),
       PdaCreateScreenScenario(name: '320x568', size: Size(320, 568)),
+      PdaCreateScreenScenario(name: '280x568', size: Size(280, 568)),
+      PdaCreateScreenScenario(name: '240x568', size: Size(240, 568)),
       PdaCreateScreenScenario(
         name: '320x640 keyboard',
         size: Size(320, 640),
@@ -35,9 +37,15 @@ const List<PdaCreateScreenScenario> defaultPdaCreateScreenScenarios =
         hideKeyboardBeforeSave: true,
       ),
       PdaCreateScreenScenario(
+        name: '280x568 keyboard',
+        size: Size(280, 568),
+        keyboardInset: 180,
+        hideKeyboardBeforeSave: true,
+      ),
+      PdaCreateScreenScenario(
         name: '320x640 buyuk yazi',
         size: Size(320, 640),
-        textScale: 1.2,
+        textScale: 1.4,
       ),
     ];
 
@@ -80,24 +88,36 @@ Future<void> expectPdaCreateScreenContract(
         );
       }
 
-      await tester.pumpWidget(buildFrame(0));
-      await tester.pumpAndSettle();
-
-      if (prepare != null) {
-        await prepare(tester);
+      final recordedErrors = <FlutterErrorDetails>[];
+      final previousOnError = FlutterError.onError;
+      FlutterError.onError = (details) {
+        recordedErrors.add(details);
+        previousOnError?.call(details);
+      };
+      try {
+        await tester.pumpWidget(buildFrame(0));
         await tester.pumpAndSettle();
-      }
 
-      if (scenario.keyboardInset > 0) {
-        await tester.pumpWidget(buildFrame(scenario.keyboardInset));
-        await tester.pumpAndSettle();
+        if (prepare != null) {
+          await prepare(tester);
+          await tester.pumpAndSettle();
+        }
+
+        if (scenario.keyboardInset > 0) {
+          await tester.pumpWidget(buildFrame(scenario.keyboardInset));
+          await tester.pumpAndSettle();
+        }
+      } finally {
+        FlutterError.onError = previousOnError;
       }
 
       final layoutException = tester.takeException();
       expect(
         layoutException,
         isNull,
-        reason: '${scenario.name}: create ekrani overflow/hata vermemeli.',
+        reason:
+            '${scenario.name}: create ekrani overflow/hata vermemeli. '
+            '${recordedErrors.map((e) => e.toString()).join('\n')}',
       );
       expect(
         entryRowFinder,
@@ -223,7 +243,11 @@ Future<void> expectPdaCreateScreenContract(
       );
       expect(
         saveRect.bottom,
-        lessThanOrEqualTo(scenario.size.height),
+        lessThanOrEqualTo(
+          scenario.hideKeyboardBeforeSave
+              ? scenario.size.height
+              : scenario.size.height - scenario.keyboardInset,
+        ),
         reason: '${scenario.name}: kaydet butonu altta kesilmemeli.',
       );
       expect(
