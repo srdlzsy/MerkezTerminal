@@ -329,6 +329,7 @@ void main() {
     expect(_quantityText(tester, 'Fiili Miktar*'), '12');
     expect(repository.lastBarcodeRequest?.operationType, 'receiving');
     expect(repository.lastBarcodeRequest?.companyCode, 'CR001');
+    expect(repository.lastBarcodeRequest?.isRefund, isFalse);
     expect(repository.lastBarcodeRequest?.screenCode, 'firma-mal-kabulleri');
 
     await tester.tap(find.byIcon(Icons.add_rounded).first);
@@ -423,7 +424,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(
-      find.textContaining('Bu urun DLS durumunda ve listeye eklenemez'),
+      find.textContaining('Bu urun pasif veya DLS durumunda ve listeye eklenemez'),
       findsOneWidget,
     );
     expect(find.text('Satir 1'), findsNothing);

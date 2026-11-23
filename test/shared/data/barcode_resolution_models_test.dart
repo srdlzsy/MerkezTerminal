@@ -16,6 +16,17 @@ void main() {
     );
   });
 
+  test('writes explicit non-refund flag to barcode resolution query', () {
+    const request = BarcodeResolutionRequest(
+      barcode: '86944984',
+      warehouseNo: '106',
+      operationType: 'receiving',
+      isRefund: false,
+    );
+
+    expect(request.toQueryParameters(), containsPair('isRefund', 'false'));
+  });
+
   test('reads procurement and source warehouse information', () {
     final result = BarcodeResolutionResult.fromJson(<String, dynamic>{
       'isFound': true,

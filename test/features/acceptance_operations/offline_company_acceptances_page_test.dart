@@ -465,7 +465,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(
-      find.textContaining('Bu urun DLS durumunda ve listeye eklenemez'),
+      find.textContaining('Bu urun pasif veya DLS durumunda ve listeye eklenemez'),
       findsWidgets,
     );
     expect(find.text('Satir 1'), findsNothing);

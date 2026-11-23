@@ -997,14 +997,18 @@ class _OfflineCompanyAcceptanceCreateSheetState
     _OfflineCompanyAcceptanceLineDraft line,
     SearchProductLookupItem product,
   ) {
-    if (!product.isDelisted) {
+    final isUnavailable =
+        product.isPassive ||
+        product.isDelisted ||
+        product.stockName.trimLeft().toUpperCase().startsWith('DLS');
+    if (!isUnavailable) {
       return false;
     }
 
     final reason = product.delistReason.trim();
     final message =
-        'Bu urun DLS durumunda ve listeye eklenemez. '
-        'Lutfen yetkililere bildirin.${reason.isEmpty ? '' : ' DLS: $reason'}';
+        'Bu urun pasif veya DLS durumunda ve listeye eklenemez. '
+        'Lutfen yetkililere bildirin.${reason.isEmpty ? '' : ' Aciklama: $reason'}';
     setState(() => _validationMessage = message);
     unawaited(TerminalFeedback.warning());
     _showFeedback(message);

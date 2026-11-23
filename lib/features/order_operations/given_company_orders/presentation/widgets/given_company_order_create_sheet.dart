@@ -250,6 +250,11 @@ class _GivenCompanyOrderCreateSheetState
       final addedLines = <_CompanyOrderLineDraft>[];
       var skippedCount = 0;
       for (final product in products) {
+        if (_isUnavailableCompanyOrderProduct(product)) {
+          skippedCount += 1;
+          continue;
+        }
+
         final key = _productKey(
           stockCode: product.stockCode,
           barcode: product.barcode,
@@ -369,6 +374,18 @@ class _GivenCompanyOrderCreateSheetState
     }
     final pickedProduct = product;
 
+    if (_isUnavailableCompanyOrderProduct(pickedProduct)) {
+      setState(() {
+        line.setLookupStatus(
+          'Bu urun pasif veya DLS durumunda oldugu icin siparise eklenemez.',
+          isError: true,
+        );
+      });
+      unawaited(TerminalFeedback.error());
+      _refocusLine(line.barcodeFocusNode);
+      return;
+    }
+
     if (_increasePendingQuantityIfSameProduct(line, pickedProduct)) {
       _draftSession.scheduleSave();
       _refocusLine(line.barcodeFocusNode);
@@ -417,6 +434,7 @@ class _GivenCompanyOrderCreateSheetState
           warehouseNo: widget.defaultWarehouseNo,
           operationType: 'order',
           companyCode: customerCode,
+          isRefund: false,
           screenCode: 'verilen-firma-siparisleri',
         ),
       );
@@ -899,6 +917,7 @@ class _GivenCompanyOrderCreateSheetState
     final requestLines = <CompanyOrderCreateLine>[];
     for (var index = 0; index < activeLines.length; index += 1) {
       final line = activeLines[index];
+      final selectedProduct = line.selectedProduct;
       final stockCode = line.stockCodeController.text.trim();
       final quantity = productEntryController.readQuantity(
         line.quantityController.text,
@@ -912,6 +931,17 @@ class _GivenCompanyOrderCreateSheetState
       if (stockCode.isEmpty) {
         setState(() {
           _validationMessage = '${index + 1}. satir icin urun secin.';
+        });
+        return;
+      }
+
+      if (
+        selectedProduct != null &&
+        _isUnavailableCompanyOrderProduct(selectedProduct)
+      ) {
+        setState(() {
+          _validationMessage =
+              '${index + 1}. satirdaki $stockCode pasif veya DLS durumunda; siparis kaydedilemez.';
         });
         return;
       }
@@ -1914,7 +1944,7 @@ class _CompanyProductLookupSheetState
     extends State<_CompanyProductLookupSheet> {
   late final TextEditingController _queryController;
   bool _isLoading = false;
-  bool _hideDelistedProducts = false;
+  final bool _hideDelistedProducts = true;
   String? _errorMessage;
   List<CompanyOrderProductLookupItem> _items =
       const <CompanyOrderProductLookupItem>[];
@@ -1955,7 +1985,7 @@ class _CompanyProductLookupSheetState
         warehouseNo: widget.warehouseNo,
         customerCode: widget.customerCode,
         query: query,
-        includeDelisted: !_hideDelistedProducts,
+        includeDelisted: false,
       );
 
       if (!mounted) {
@@ -1963,7 +1993,9 @@ class _CompanyProductLookupSheetState
       }
 
       setState(() {
-        _items = items;
+        _items = items
+            .where((item) => !_isUnavailableCompanyOrderProduct(item))
+            .toList(growable: false);
         _isLoading = false;
       });
     } catch (error) {
@@ -1991,22 +2023,10 @@ class _CompanyProductLookupSheetState
       isEmpty: _items.isEmpty,
       emptyMessage: 'Sonuc bulunamadi.',
       filter: FilterChip(
-        label: const Text('Pasif/DLS gizle'),
-        avatar: Icon(
-          _hideDelistedProducts
-              ? Icons.visibility_off_rounded
-              : Icons.visibility_rounded,
-          size: 18,
-        ),
+        label: const Text('Pasif/DLS gizlenir'),
+        avatar: const Icon(Icons.visibility_off_rounded, size: 18),
         selected: _hideDelistedProducts,
-        onSelected: _isLoading
-            ? null
-            : (selected) {
-                setState(() => _hideDelistedProducts = selected);
-                if (_queryController.text.trim().length >= 2) {
-                  _load();
-                }
-              },
+        onSelected: null,
       ),
       child: ListView.separated(
         itemCount: _items.length,
@@ -2048,6 +2068,14 @@ class _CompanyProductLookupSheetState
       ),
     );
   }
+}
+
+bool _isUnavailableCompanyOrderProduct(
+  CompanyOrderProductLookupItem product,
+) {
+  return product.isPassive ||
+      product.isDelisted ||
+      product.stockName.trimLeft().toUpperCase().startsWith('DLS');
 }
 
 class _LookupScaffold extends StatelessWidget {

@@ -748,6 +748,7 @@ class _CompanyAcceptanceCreateSheetState
           warehouseNo: widget.defaultWarehouseNo,
           operationType: 'receiving',
           companyCode: _customerCodeController.text.trim(),
+          isRefund: false,
           screenCode: 'firma-mal-kabulleri',
         ),
       );
@@ -921,15 +922,19 @@ class _CompanyAcceptanceCreateSheetState
     _AcceptanceLineDraft line,
     SearchProductLookupItem product,
   ) {
-    if (!product.isDelisted) {
+    final isUnavailable =
+        product.isPassive ||
+        product.isDelisted ||
+        product.stockName.trimLeft().toUpperCase().startsWith('DLS');
+    if (!isUnavailable) {
       return false;
     }
 
     final reason = product.delistReason.trim();
     setState(() {
       line.setLookupStatus(
-        'Bu urun DLS durumunda ve listeye eklenemez. '
-        'Lutfen yetkililere bildirin.${reason.isEmpty ? '' : ' DLS: $reason'}',
+        'Bu urun pasif veya DLS durumunda ve listeye eklenemez. '
+        'Lutfen yetkililere bildirin.${reason.isEmpty ? '' : ' Aciklama: $reason'}',
         isError: true,
       );
       _lookupError = null;
