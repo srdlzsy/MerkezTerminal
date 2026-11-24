@@ -994,6 +994,10 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
 
   @override
   Widget build(BuildContext context) {
+    final mediaQuery = MediaQuery.of(context);
+    final useCompactConfiguredInput =
+        mediaQuery.size.width < 260 && _filledLineIndexes().isNotEmpty;
+
     return Padding(
       padding: const EdgeInsets.fromLTRB(10, 4, 10, 10),
       child: Form(
@@ -1013,43 +1017,44 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
             TerminalCreateInputDock(
               padding: EdgeInsets.zero,
               compactChild: _buildEntryLineCard(),
-              children: <Widget>[
-                TerminalResponsiveLookupRow(
-                  field: TextFormField(
-                    controller: _customerController,
-                    decoration: const InputDecoration(
-                      labelText: 'Cari',
-                      hintText: 'Cari adi veya kodu',
-                      isDense: true,
-                      contentPadding: EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 8,
-                      ),
-                    ),
-                    validator: (_) {
-                      if (_selectedCustomer == null) {
-                        return 'Cari secimi zorunludur.';
-                      }
+              children: useCompactConfiguredInput
+                  ? const <Widget>[]
+                  : <Widget>[
+                      TerminalResponsiveLookupRow(
+                        field: TextFormField(
+                          controller: _customerController,
+                          decoration: const InputDecoration(
+                            labelText: 'Cari',
+                            hintText: 'Cari adi veya kodu',
+                            isDense: true,
+                            contentPadding: EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 8,
+                            ),
+                          ),
+                          validator: (_) {
+                            if (_selectedCustomer == null) {
+                              return 'Cari secimi zorunludur.';
+                            }
 
-                      return null;
-                    },
-                  ),
-                  action: FilledButton.icon(
-                    onPressed: _searchCustomer,
-                    icon: const Icon(Icons.search_rounded),
-                    label: const Text('Bul'),
-                  ),
-                ),
-                const SizedBox(height: 4),
-                _buildDeliveryInfoRow(),
-                const SizedBox(height: 4),
-                TerminalSectionToolbar(
-                  title: 'Satirlar',
-                  actions: const <Widget>[],
-                ),
-                const SizedBox(height: 4),
-                _buildEntryLineCard(),
-              ],
+                            return null;
+                          },
+                        ),
+                        action: FilledButton.icon(
+                          onPressed: _searchCustomer,
+                          icon: const Icon(Icons.search_rounded),
+                          label: const Text('Bul'),
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      _buildDeliveryInfoRow(),
+                      const SizedBox(height: 4),
+                      TerminalSectionToolbar(
+                        title: 'Satirlar',
+                        actions: const <Widget>[],
+                      ),
+                      const SizedBox(height: 4),
+                    ],
             ),
             const SizedBox(height: 4),
             Expanded(
@@ -1111,7 +1116,7 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        if (constraints.maxWidth < 220) {
+        if (constraints.maxWidth < 260) {
           return Column(
             children: <Widget>[
               delivererField,

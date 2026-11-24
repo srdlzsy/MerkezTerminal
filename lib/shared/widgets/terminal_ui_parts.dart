@@ -1098,22 +1098,19 @@ class _TerminalLookupSearchFieldState extends State<TerminalLookupSearchField> {
   void _handleTap() {
     if (widget.suppressSoftKeyboard && !_softKeyboardEnabledByTap) {
       setState(() => _softKeyboardEnabledByTap = true);
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) {
-          return;
-        }
-
-        _focusNode.requestFocus();
-        SystemChannels.textInput.invokeMethod<void>('TextInput.show');
-        _moveCursorToEnd();
-      });
     }
 
     _moveCursorToEnd();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) {
-        _moveCursorToEnd();
+      if (!mounted) {
+        return;
       }
+
+      _focusNode.requestFocus();
+      if (widget.suppressSoftKeyboard) {
+        SystemChannels.textInput.invokeMethod<void>('TextInput.show');
+      }
+      _moveCursorToEnd();
     });
   }
 
@@ -2768,7 +2765,7 @@ class TerminalFormActionRow extends StatelessWidget {
   }
 }
 
-class TerminalCreateInputDock extends StatelessWidget {
+class TerminalCreateInputDock extends StatefulWidget {
   const TerminalCreateInputDock({
     super.key,
     required this.children,
@@ -2781,18 +2778,42 @@ class TerminalCreateInputDock extends StatelessWidget {
   final EdgeInsetsGeometry padding;
 
   @override
+  State<TerminalCreateInputDock> createState() =>
+      _TerminalCreateInputDockState();
+}
+
+class _TerminalCreateInputDockState extends State<TerminalCreateInputDock> {
+  bool _headerHasFocus = false;
+
+  @override
   Widget build(BuildContext context) {
     final mediaQuery = MediaQuery.of(context);
     final usableHeight = mediaQuery.size.height - mediaQuery.viewInsets.bottom;
     final heightCompact = usableHeight < 430;
-    final visibleChildren = heightCompact ? <Widget>[compactChild] : children;
+    final showHeader = !heightCompact || _headerHasFocus;
 
     return Padding(
-      padding: padding,
+      padding: widget.padding,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         mainAxisSize: MainAxisSize.min,
-        children: visibleChildren,
+        children: <Widget>[
+          if (showHeader && widget.children.isNotEmpty)
+            Focus(
+              skipTraversal: true,
+              onFocusChange: (hasFocus) {
+                if (_headerHasFocus != hasFocus) {
+                  setState(() => _headerHasFocus = hasFocus);
+                }
+              },
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                mainAxisSize: MainAxisSize.min,
+                children: widget.children,
+              ),
+            ),
+          widget.compactChild,
+        ],
       ),
     );
   }

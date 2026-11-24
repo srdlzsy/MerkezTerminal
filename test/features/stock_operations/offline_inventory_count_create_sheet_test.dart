@@ -31,6 +31,43 @@ void main() {
     );
   });
 
+  testWidgets('keeps offline count name editable with keyboard inset', (
+    tester,
+  ) async {
+    final subject = OfflineInventoryCountCreateSheet(
+      onlineRepository: _FakeInventoryCountsRepository(),
+      accessToken: 'token',
+      currentUserId: 'user-1',
+      defaultWarehouseNo: '110',
+      mobileProductCatalogRepository: MobileProductCatalogLocalRepository(
+        database: MemoryLocalDatabase(),
+      ),
+    );
+    Widget buildSubject(double keyboardInset) => MaterialApp(
+      home: MediaQuery(
+        data: MediaQueryData(
+          size: const Size(320, 568),
+          viewInsets: EdgeInsets.only(bottom: keyboardInset),
+        ),
+        child: Scaffold(body: subject),
+      ),
+    );
+
+    await tester.pumpWidget(buildSubject(0));
+
+    final countName = find.widgetWithText(TextFormField, 'Sayim Adi');
+    expect(countName.hitTestable(), findsOneWidget);
+    await tester.tap(countName);
+    await tester.enterText(countName, 'Offline Gece Sayimi');
+    await tester.pump();
+
+    await tester.pumpWidget(buildSubject(180));
+    await tester.pump();
+
+    expect(countName.hitTestable(), findsOneWidget);
+    expect(find.text('Offline Gece Sayimi'), findsOneWidget);
+  });
+
   testWidgets('shows the updated total after an offline repeat scan', (
     tester,
   ) async {

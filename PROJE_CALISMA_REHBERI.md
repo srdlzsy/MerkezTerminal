@@ -8,7 +8,7 @@ Guncel durum:
 
 - Son guncelleme: 2026-11-20
 - Flutter uygulamasi: Furpa merkez el terminali / PDA arayuzu
-- Guncel paket versiyonu: `1.1.109+2109`
+- Guncel paket versiyonu: `1.1.110+2110`
 - Guncel test durumu: `flutter analyze` temiz, `flutter test` 371/371 basarili
 - Ana tasarim hedefi: eski kullanici aliskanligini bozmadan hata yapmayi zorlastirmak
 
@@ -955,13 +955,13 @@ test et:
 Paket versiyonu `pubspec.yaml` icindedir:
 
 ```yaml
-version: 1.1.109+2109
+version: 1.1.110+2110
 ```
 
 Burada:
 
-- `1.1.109` kullanicinin gordugu versionName
-- `+2109` Android temel build numarasi
+- `1.1.110` kullanicinin gordugu versionName
+- `+2110` Android temel build numarasi
 
 Yeni release icin ikisi de bilincli artirilmalidir. Otomatik guncelleme
 penceresi kullanici versiyonunu karsilastirir; sadece build numarasini artirmak
@@ -1026,14 +1026,14 @@ Manifest ornegi:
 
 ```json
 {
-  "version": "1.1.109",
-  "apk": "http://10.0.0.100:802/Terminal/furpa-terminal-1.1.109-2109-universal.apk",
+  "version": "1.1.110",
+  "apk": "http://10.0.0.100:802/Terminal/furpa-terminal-1.1.110-2110-universal.apk",
   "android": {
-    "universalUrl": "http://10.0.0.100:802/Terminal/furpa-terminal-1.1.109-2109-universal.apk",
+    "universalUrl": "http://10.0.0.100:802/Terminal/furpa-terminal-1.1.110-2110-universal.apk",
     "apks": {
-      "arm64-v8a": "http://10.0.0.100:802/Terminal/furpa-terminal-1.1.109-2109-arm64-v8a.apk",
-      "armeabi-v7a": "http://10.0.0.100:802/Terminal/furpa-terminal-1.1.109-2109-armeabi-v7a.apk",
-      "x86_64": "http://10.0.0.100:802/Terminal/furpa-terminal-1.1.109-2109-x86_64.apk"
+      "arm64-v8a": "http://10.0.0.100:802/Terminal/furpa-terminal-1.1.110-2110-arm64-v8a.apk",
+      "armeabi-v7a": "http://10.0.0.100:802/Terminal/furpa-terminal-1.1.110-2110-armeabi-v7a.apk",
+      "x86_64": "http://10.0.0.100:802/Terminal/furpa-terminal-1.1.110-2110-x86_64.apk"
     }
   }
 }

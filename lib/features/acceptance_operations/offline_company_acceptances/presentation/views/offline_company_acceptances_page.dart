@@ -1747,7 +1747,6 @@ class _OfflineCompanyAcceptanceCreateSheetState
               TerminalMessageBlock.error(message: _validationMessage!),
             ],
             const SizedBox(height: 4),
-            _buildEntryLineCard(),
           ],
         ),
         const SizedBox(height: 4),

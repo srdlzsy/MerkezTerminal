@@ -843,7 +843,7 @@ class _InventoryCountCreateSheetState extends State<InventoryCountCreateSheet>
                             onPressed: _pickDate,
                           );
 
-                          if (constraints.maxWidth < 220) {
+                          if (constraints.maxWidth < 260) {
                             return Column(
                               crossAxisAlignment: CrossAxisAlignment.stretch,
                               children: <Widget>[
@@ -873,7 +873,6 @@ class _InventoryCountCreateSheetState extends State<InventoryCountCreateSheet>
                         actions: const <Widget>[],
                       ),
                       const SizedBox(height: 4),
-                      _buildEntryLineCard(theme),
                     ],
                   ),
 

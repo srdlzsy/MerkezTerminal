@@ -1480,7 +1480,6 @@ class _GivenWarehouseOrderCreateSheetState
                       SizedBox(height: compactHeight ? 2 : 5),
                       _buildLinesToolbar(theme, compactHeight: compactHeight),
                       SizedBox(height: compactHeight ? 2 : 4),
-                      _buildEntryLineCard(theme),
                     ],
                   ),
 
@@ -1604,7 +1603,7 @@ class _GivenWarehouseOrderCreateSheetState
                   label: const Text('Sec'),
                 );
 
-                if (constraints.maxWidth < 220) {
+                if (constraints.maxWidth < 260) {
                   return Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: <Widget>[

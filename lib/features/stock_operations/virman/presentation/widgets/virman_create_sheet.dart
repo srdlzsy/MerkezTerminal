@@ -1069,7 +1069,7 @@ class _VirmanCreateSheetState extends State<VirmanCreateSheet>
               padding: EdgeInsets.zero,
               compactChild: _buildEntryLineCard(),
               children: useCompactConfiguredInput
-                  ? <Widget>[_buildEntryLineCard()]
+                  ? const <Widget>[]
                   : <Widget>[
                       Wrap(
                         spacing: 8,
@@ -1106,7 +1106,6 @@ class _VirmanCreateSheetState extends State<VirmanCreateSheet>
                         actions: const <Widget>[],
                       ),
                       const SizedBox(height: 4),
-                      _buildEntryLineCard(),
                     ],
             ),
             const SizedBox(height: 4),

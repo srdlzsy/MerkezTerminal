@@ -1812,11 +1812,10 @@ class _OutgoingWarehouseShipmentCreateSheetState
                 TerminalCreateInputDock(
                   compactChild: entrySection,
                   children: useCompactConfiguredInput
-                      ? <Widget>[entrySection]
+                      ? const <Widget>[]
                       : <Widget>[
                           _buildShipmentSetupSection(theme),
                           const SizedBox(height: 5),
-                          entrySection,
                         ],
                 ),
                 Expanded(
@@ -1921,7 +1920,7 @@ class _OutgoingWarehouseShipmentCreateSheetState
             },
           );
 
-          if (constraints.maxWidth < 220) {
+          if (constraints.maxWidth < 260) {
             return Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: <Widget>[

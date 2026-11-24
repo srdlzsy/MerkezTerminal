@@ -467,7 +467,7 @@ class ProductDraftEntryPanel extends StatelessWidget {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final stackedBreakpoint = isCompact ? 220.0 : 560.0;
+        final stackedBreakpoint = isCompact ? 260.0 : 560.0;
         if (constraints.maxWidth < stackedBreakpoint) {
           return Column(
             children: <Widget>[
@@ -813,22 +813,19 @@ class _ProductLookupFieldState extends State<ProductLookupField> {
   void _handleTap() {
     if (widget.suppressSoftKeyboard && !_softKeyboardEnabledByTap) {
       setState(() => _softKeyboardEnabledByTap = true);
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) {
-          return;
-        }
-
-        _effectiveFocusNode.requestFocus();
-        SystemChannels.textInput.invokeMethod<void>('TextInput.show');
-        _moveCursorToEnd();
-      });
     }
 
     _moveCursorToEnd();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) {
-        _moveCursorToEnd();
+      if (!mounted) {
+        return;
       }
+
+      _effectiveFocusNode.requestFocus();
+      if (widget.suppressSoftKeyboard) {
+        SystemChannels.textInput.invokeMethod<void>('TextInput.show');
+      }
+      _moveCursorToEnd();
     });
   }
 

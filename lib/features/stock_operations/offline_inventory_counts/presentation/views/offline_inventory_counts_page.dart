@@ -1084,7 +1084,7 @@ class _OfflineInventoryCountCreateSheetState
                         onPressed: _pickDate,
                       );
 
-                      if (constraints.maxWidth < 220) {
+                      if (constraints.maxWidth < 260) {
                         return Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: <Widget>[
@@ -1114,7 +1114,6 @@ class _OfflineInventoryCountCreateSheetState
                     actions: const <Widget>[],
                   ),
                   const SizedBox(height: 4),
-                  _buildEntryLineCard(),
                 ],
               ),
               const SizedBox(height: 4),

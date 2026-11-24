@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:furpa_merkez_terminal/shared/product_entry/product_entry_widgets.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/terminal_ui_parts.dart';
@@ -39,14 +40,62 @@ void main() {
       await tester.pump();
       await tester.pump();
 
+      expect(tester.testTextInput.isVisible, isTrue);
       expect(controller.selection.isCollapsed, isTrue);
       expect(controller.selection.baseOffset, controller.text.length);
       expect(
         tester.widget<EditableText>(find.byType(EditableText)).keyboardType,
         TextInputType.text,
       );
+
+      tester.testTextInput.hide();
+      expect(focusNode.hasFocus, isTrue);
+      expect(tester.testTextInput.isVisible, isFalse);
+
+      await tester.tap(find.byType(TextFormField));
+      await tester.pump();
+      await tester.pump();
+
+      expect(tester.testTextInput.isVisible, isTrue);
     },
   );
+
+  for (final submitKey in <LogicalKeyboardKey>[
+    LogicalKeyboardKey.enter,
+    LogicalKeyboardKey.numpadEnter,
+    LogicalKeyboardKey.tab,
+  ]) {
+    testWidgets('scanner keeps full barcode and submits once with $submitKey', (
+      tester,
+    ) async {
+      final controller = TextEditingController();
+      final focusNode = FocusNode();
+      var submitCount = 0;
+      addTearDown(controller.dispose);
+      addTearDown(focusNode.dispose);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: ProductLookupField(
+              controller: controller,
+              focusNode: focusNode,
+              onSubmit: () => submitCount += 1,
+            ),
+          ),
+        ),
+      );
+
+      focusNode.requestFocus();
+      await tester.pump();
+      await tester.enterText(find.byType(TextFormField), '8690000000012');
+      await tester.sendKeyEvent(submitKey);
+      await tester.pump();
+
+      expect(controller.text, '8690000000012');
+      expect(submitCount, 1);
+    });
+  }
 
   testWidgets('terminal lookup search field autofocuses and selects query', (
     tester,
@@ -79,12 +128,22 @@ void main() {
     await tester.pump();
     await tester.pump();
 
+    expect(tester.testTextInput.isVisible, isTrue);
     expect(controller.selection.isCollapsed, isTrue);
     expect(controller.selection.baseOffset, controller.text.length);
     expect(
       tester.widget<EditableText>(find.byType(EditableText)).keyboardType,
       TextInputType.text,
     );
+
+    tester.testTextInput.hide();
+    expect(tester.testTextInput.isVisible, isFalse);
+
+    await tester.tap(find.byType(TextField));
+    await tester.pump();
+    await tester.pump();
+
+    expect(tester.testTextInput.isVisible, isTrue);
   });
 
   testWidgets('product draft entry panel fits compact terminal height', (
@@ -206,7 +265,7 @@ void main() {
                   TerminalCreateInputDock(
                     padding: EdgeInsets.zero,
                     compactChild: entryPanel,
-                    children: <Widget>[const Text('Ust bilgiler'), entryPanel],
+                    children: const <Widget>[Text('Ust bilgiler')],
                   ),
                   const Expanded(child: SizedBox()),
                 ],
@@ -307,10 +366,6 @@ void main() {
                     decoration: const InputDecoration(labelText: 'Miktar'),
                   ),
                   const SizedBox(height: 8),
-                  FilledButton(
-                    onPressed: () {},
-                    child: const Text('Kaleme Ekle'),
-                  ),
                 ],
               ),
             ),
@@ -333,6 +388,45 @@ void main() {
           .dy,
       lessThanOrEqualTo(220),
     );
+  });
+
+  testWidgets('input dock keeps upper field mounted while it is edited', (
+    tester,
+  ) async {
+    final controller = TextEditingController();
+    addTearDown(controller.dispose);
+
+    Widget buildSubject(double keyboardInset) => MaterialApp(
+      home: MediaQuery(
+        data: MediaQueryData(
+          size: const Size(320, 568),
+          viewInsets: EdgeInsets.only(bottom: keyboardInset),
+        ),
+        child: Scaffold(
+          body: TerminalCreateInputDock(
+            compactChild: const Text('Giris satiri'),
+            children: <Widget>[
+              TextFormField(
+                controller: controller,
+                decoration: const InputDecoration(labelText: 'Sayim Adi'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    await tester.pumpWidget(buildSubject(0));
+
+    final nameField = find.widgetWithText(TextFormField, 'Sayim Adi');
+    expect(nameField.hitTestable(), findsOneWidget);
+    await tester.tap(nameField);
+    await tester.pump();
+
+    await tester.pumpWidget(buildSubject(200));
+    await tester.pump();
+
+    expect(nameField.hitTestable(), findsOneWidget);
   });
 
   testWidgets('compact product line shows product identity and package info', (

@@ -765,7 +765,6 @@ class _StockReceiptCreateSheetState extends State<StockReceiptCreateSheet>
                   title: 'Satirlar',
                   actions: const <Widget>[],
                 ),
-                _buildEntryLineCard(),
               ],
             ),
             const SizedBox(height: 4),

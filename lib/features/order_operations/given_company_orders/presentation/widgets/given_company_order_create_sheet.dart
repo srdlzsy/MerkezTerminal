@@ -935,10 +935,8 @@ class _GivenCompanyOrderCreateSheetState
         return;
       }
 
-      if (
-        selectedProduct != null &&
-        _isUnavailableCompanyOrderProduct(selectedProduct)
-      ) {
+      if (selectedProduct != null &&
+          _isUnavailableCompanyOrderProduct(selectedProduct)) {
         setState(() {
           _validationMessage =
               '${index + 1}. satirdaki $stockCode pasif veya DLS durumunda; siparis kaydedilemez.';
@@ -1032,7 +1030,6 @@ class _GivenCompanyOrderCreateSheetState
                       SizedBox(height: compactHeight ? 2 : 5),
                       _buildLinesToolbar(theme, compactHeight: compactHeight),
                       SizedBox(height: compactHeight ? 2 : 4),
-                      _buildEntryLineCard(theme),
                     ],
                   ),
 
@@ -1366,7 +1363,7 @@ class _GivenCompanyOrderCreateSheetState
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        if (constraints.maxWidth < 220) {
+        if (constraints.maxWidth < 260) {
           return Column(
             children: <Widget>[
               delivererField,
@@ -2159,9 +2156,7 @@ class _CompanyProductLookupSheetState
   }
 }
 
-bool _isUnavailableCompanyOrderProduct(
-  CompanyOrderProductLookupItem product,
-) {
+bool _isUnavailableCompanyOrderProduct(CompanyOrderProductLookupItem product) {
   return product.isPassive ||
       product.isDelisted ||
       product.stockName.trimLeft().toUpperCase().startsWith('DLS');

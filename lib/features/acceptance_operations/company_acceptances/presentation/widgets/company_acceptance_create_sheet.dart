@@ -2005,7 +2005,6 @@ class _CompanyAcceptanceCreateSheetState
               TerminalMessageBlock.error(message: _lookupError!),
             ],
             const SizedBox(height: 4),
-            _buildEntryLineCard(),
           ],
         ),
         const SizedBox(height: 4),

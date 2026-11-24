@@ -14,7 +14,7 @@ icindeki temel build numarasindan farkli olabilir.
 Ornek:
 
 ```yaml
-version: 1.1.109+2109
+version: 1.1.110+2110
 ```
 
 Kontrol:
@@ -67,8 +67,8 @@ adi kullanmalidir. Sunucu klasorunu kendi ortamina gore degistir.
 
 ```powershell
 $ServerPath = "\\10.0.0.100\Terminal"
-$VersionName = "1.1.109"
-$BuildNumber = "2109"
+$VersionName = "1.1.110"
+$BuildNumber = "2110"
 $ReleaseId = "$VersionName-$BuildNumber"
 
 Copy-Item "build/app/outputs/flutter-apk/app-arm64-v8a-release.apk" "$ServerPath\furpa-terminal-$ReleaseId-arm64-v8a.apk" -Force
@@ -85,34 +85,34 @@ gercek `versionCode` degerleri tasidigi icin manifestte tek bir global
 `buildNumber` yayinlama. Guncelleme karari `version` uzerinden verilir; indirilen
 APK'nin gercek yapi numarasi kurulumdan once cihazdaki APK ile karsilastirilir.
 
-Ornek yeni manifest (`version: 1.1.109+2109` icin):
+Ornek yeni manifest (`version: 1.1.110+2110` icin):
 
 ```json
 {
-  "version": "1.1.109",
-  "apk": "http://10.0.0.100:802/Terminal/furpa-terminal-1.1.109-2109-universal.apk",
+  "version": "1.1.110",
+  "apk": "http://10.0.0.100:802/Terminal/furpa-terminal-1.1.110-2110-universal.apk",
   "android": {
-    "universalUrl": "http://10.0.0.100:802/Terminal/furpa-terminal-1.1.109-2109-universal.apk",
+    "universalUrl": "http://10.0.0.100:802/Terminal/furpa-terminal-1.1.110-2110-universal.apk",
     "apks": {
-      "arm64-v8a": "http://10.0.0.100:802/Terminal/furpa-terminal-1.1.109-2109-arm64-v8a.apk",
-      "armeabi-v7a": "http://10.0.0.100:802/Terminal/furpa-terminal-1.1.109-2109-armeabi-v7a.apk",
-      "x86_64": "http://10.0.0.100:802/Terminal/furpa-terminal-1.1.109-2109-x86_64.apk"
+      "arm64-v8a": "http://10.0.0.100:802/Terminal/furpa-terminal-1.1.110-2110-arm64-v8a.apk",
+      "armeabi-v7a": "http://10.0.0.100:802/Terminal/furpa-terminal-1.1.110-2110-armeabi-v7a.apk",
+      "x86_64": "http://10.0.0.100:802/Terminal/furpa-terminal-1.1.110-2110-x86_64.apk"
     }
   }
 }
 ```
 
-`version: 1.1.109+2109` ile uretilen APK'larda beklenen gercek kodlar:
+`version: 1.1.110+2110` ile uretilen APK'larda beklenen gercek kodlar:
 
 ```text
-universal:   2109
-armeabi-v7a: 3109
-arm64-v8a:   4109
-x86_64:      6109
+universal:   2110
+armeabi-v7a: 3110
+arm64-v8a:   4110
+x86_64:      6110
 ```
 
-Bu nedenle arm64 terminalde `4109` gorulmesi normaldir. Manifestte global
-`buildNumber: 2109` verilirse arm64 cihazdaki kurulu `4108` ile yanlis
+Bu nedenle arm64 terminalde `4110` gorulmesi normaldir. Manifestte global
+`buildNumber: 2110` verilirse arm64 cihazdaki kurulu `4109` ile yanlis
 karsilastirma yapilip guncelleme bulunamayabilir.
 
 Eski uygulamalar sadece `apk` alanini okur. Yeni uygulamalar cihaz ABI'sine uygun APK'yi `android.apks` icinden secer.
@@ -125,8 +125,8 @@ sunulursa kurulum ekrani acilmaz ve kullaniciya Turkce hata gosterilir.
 
 ```powershell
 Invoke-WebRequest "http://10.0.0.100:802/Terminal/version.json" | Select-Object -ExpandProperty Content
-Invoke-WebRequest "http://10.0.0.100:802/Terminal/furpa-terminal-1.1.109-2109-arm64-v8a.apk" -Method Head
-Invoke-WebRequest "http://10.0.0.100:802/Terminal/furpa-terminal-1.1.109-2109-armeabi-v7a.apk" -Method Head
+Invoke-WebRequest "http://10.0.0.100:802/Terminal/furpa-terminal-1.1.110-2110-arm64-v8a.apk" -Method Head
+Invoke-WebRequest "http://10.0.0.100:802/Terminal/furpa-terminal-1.1.110-2110-armeabi-v7a.apk" -Method Head
 ```
 
 Kontrol listesi:
@@ -175,4 +175,122 @@ Kurulumdan sonra ayni guncelleme tekrar cikiyorsa su noktalari kontrol et:
 - Kurulum iptal edilirse Home ekraninda durum acikca belirtilir ve ayni gecerli
   APK tekrar indirilmeden kurulum yeniden acilir.
 - Sonraki surum indirilirken eski APK cache dosyalari otomatik temizlenir.
+
+## 11. Canlida Sorun Cikaran Surumden Geri Donus
+
+Android, daha dusuk `versionCode` tasiyan APK'yi kurulu uygulamanin uzerine
+normal guncelleme olarak kurmaz. Ornegin `1.1.109` kurulu cihaza `1.1.108`
+APK'si dogrudan kurulamaz.
+
+Bu kural, APK dogru oldugu halde yeni kodun sahada hata cikarmasi durumunda da
+gecerlidir. Yani `1.1.109` canlida sorun cikardi diye saklanan `1.1.108` APK'si
+kurulu uygulamanin uzerine normal yoldan geri kurulamaz.
+
+Geri donus icin iki guvenli secenek vardir:
+
+1. Guncel dalda soruna neden olan commitleri geri alip yeni bir surum ve daha
+   yuksek build numarasiyla tekrar yayinlamak. Ornek: `1.1.110+2110`. Tavsiye
+   edilen yontem budur; sonraki API/veri uyumlulugu ile cihazdaki taslaklar ve
+   yerel veriler korunur.
+2. Uygulamayi cihazdan kaldirip eski APK'yi temiz kurmak. Bu yontem uygulamanin
+   cihazdaki yerel verilerini, kataloglarini ve gonderilmemis taslaklarini
+   silebilir; saha cihazlarinda normal geri donus yontemi olarak kullanilmaz.
+
+Yedek APK dosyasini saklamak yine faydalidir; ancak geri donus paketi olarak
+kullanilacaksa eski kod tabanindan daha yuksek `versionCode` ile yeni APK
+uretilmelidir. Debug ve release imzalari birbirinin uzerine kurulamaz.
+
+Her yayin icin son sorunsuz kaynak commit'i veya Git etiketi saklanmalidir.
+Ornek: `release/1.1.108`. Acil geri donuste tercihen sorunlu commitler guncel
+dalda `git revert` ile geri alinir. Eski kaynak dogrudan kullanilacaksa mevcut
+API sozlesmesi ve cihazdaki yerel veri formatiyla uyumlu oldugu kontrol edilir;
+sonra surum numarasi ileri alinir ve ayni release anahtariyla yeniden derlenir.
+
+### 1.1.108 Kaynak Siniri ve Geri Alinacak Commitler
+
+Bu depoda `1.1.108+2108` surumunu hazirlayan son kaynak commit'i:
+
+```text
+728d572 chore(release): 1.1.108+2108 surumunu ve dokumanlari hazirla
+```
+
+`1.1.108` sonrasinda uygulama davranisini degistiren commitler eskiden yeniye
+su siradadir:
+
+```text
+e4bfda0 feat(pda): create ve liste deneyimini optimize et
+ef8d093 Firma mal kabul miktar sinirini dogrula
+0f08c65 Firma mal kabul fiyat bilgisini netlestir
+09a0db3 feat(pda): firma mal kabul akisini netlestir ve 1.1.109'u hazirla
+6cddd36 Terminalde pasif ve DLS urun kontrollerini esitle
+49961a7 fix(pda): en dar ekran ve buyuk yazi duzenlerini guclendir
+```
+
+`6402729` yalnizca guncelleme rehberindeki kurulu surum etiketini aciklar;
+uygulama davranisini degistirmez. Birebir kaynak karsilastirmasi istenirse bu
+commit de 108 tabaninda bulunmaz, ancak canli hatayi olusturan kod degisikligi
+degildir.
+
+110 icin hazirlanan fakat henuz commitlenmemis degisikliklerin commit kimligi
+bu listede yer almaz. Bu degisiklikler commitlendikten sonra geri donus
+yapilacaksa, olusan 110 commit'i de once geri alinmalidir.
+
+#### Tavsiye Edilen Birebir 108 Tabanli Acil Paket
+
+Mevcut calisma dalini geri sarmak yerine 108 commit'inden ayri dal ac:
+
+```powershell
+git switch -c hotfix/1.1.111-from-108 728d572
+```
+
+Ardindan `pubspec.yaml` surumunu eskiye dusurmeden ileri al:
+
+```yaml
+version: 1.1.111+2111
+```
+
+Bu paket 108'in uygulama kodunu tasir fakat Android tarafinda 109/110 kurulu
+cihazlarin ustune kurulabilmesi icin daha yuksek surum numarasina sahip olur.
+Derlemeden once guncel API sozlesmesi, yerel veritabani ve taslak uyumlulugu
+mutlaka test edilmelidir.
+
+#### Mevcut Dalda Revert Ile Geri Donus
+
+110 degisiklikleri ayri bir commit olarak kaydedildikten sonra, once o commit'i;
+ardindan asagidaki commitleri en yeniden en eskiye geri al:
+
+```powershell
+git revert --no-commit 49961a7 6cddd36 09a0db3 0f08c65 ef8d093 e4bfda0
+```
+
+Sonra cakismalari cozup surumu mevcut canli surumden ileri bir numaraya getir,
+testleri calistir ve tek bir geri donus commit'i olustur. Kirli calisma agacinda
+`git revert`, `git reset --hard` veya dal degistirme uygulanmaz; once mevcut
+degisiklikler commitlenir ya da guvenli bir dala alinir.
+
+Not: Sadece sorunlu bir 109 davranisini kaldirmak isteniyorsa butun bu zinciri
+geri almak yerine ilgili commit secilerek revert edilmelidir. Yukaridaki tam
+liste, uygulama davranisini gercekten 108 tabanina dondurmek icindir.
+
+## 12. Kademeli Canli Yayin
+
+Yeni APK'lari sunucuya yuklemek tek basina tum cihazlari guncellemez.
+`version.json` eski surumde tutulurken yeni APK once pilot cihazlara elle
+kurulabilir.
+
+Tavsiye edilen sira:
+
+1. Her cihaz modelinden en az bir terminal sec: Zebra, Honeywell ve telefon.
+2. Yeni APK'yi bu 2-3 pilot cihaza elle kur.
+3. Giris, sayim adi yazma, 13 haneli barkod okutma, miktar girme, kaleme ekleme,
+   taslak, kaydetme ve uygulamayi yeniden acma akisini kontrol et.
+4. Offline sayim ve offline firma mal kabulde birer taslak olusturup geri ac.
+5. Pilot cihazlar temizse APK URL'lerini kontrol et ve `version.json` dosyasini
+   en son yayinla.
+6. Ilk 5-10 cihaz guncellendikten sonra hata kayitlarini izle; sorun yoksa tum
+   cihazlara devam et.
+
+Farkli kurulu surumler ayni anda bulunabilir. Ornegin `1.1.108` ve `1.1.109`
+kullanan cihazlar, paket adi ve release imzasi ayni oldugu surece dogrudan
+`1.1.110` surumune guncellenebilir. Ara surumleri tek tek kurmak gerekmez.
 

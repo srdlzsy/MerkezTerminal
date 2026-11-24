@@ -107,6 +107,53 @@ void main() {
     },
   );
 
+  for (final installedVersion in <String>['1.1.108', '1.1.109']) {
+    test(
+      '$installedVersion can update directly to 1.1.110 with ABI manifest',
+      () async {
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .setMockMethodCallHandler(channel, (call) async {
+              if (call.method == 'getAppVersion') {
+                return installedVersion;
+              }
+              if (call.method == 'getSupportedAbis') {
+                return <String>['arm64-v8a', 'armeabi-v7a'];
+              }
+              return null;
+            });
+
+        final service = AppUpdateService(
+          httpClient: MockClient((_) async {
+            return http.Response('''
+              {
+                "version": "1.1.110",
+                "apk": "http://updates.test/furpa-terminal-1.1.110-2110-universal.apk",
+                "android": {
+                  "apks": {
+                    "armeabi-v7a": "http://updates.test/furpa-terminal-1.1.110-2110-armeabi-v7a.apk",
+                    "arm64-v8a": "http://updates.test/furpa-terminal-1.1.110-2110-arm64-v8a.apk"
+                  }
+                }
+              }
+              ''', 200);
+          }),
+          manifestUri: Uri.parse('http://updates.test/version.json'),
+          channel: channel,
+        );
+
+        final updateInfo = await service.checkForUpdate();
+
+        expect(updateInfo?.currentVersion, installedVersion);
+        expect(updateInfo?.version, '1.1.110');
+        expect(updateInfo?.apkAbi, 'arm64-v8a');
+        expect(
+          updateInfo?.apkUri.toString(),
+          'http://updates.test/furpa-terminal-1.1.110-2110-arm64-v8a.apk',
+        );
+      },
+    );
+  }
+
   test(
     'checkForUpdate uses Android build number when manifest provides it',
     () async {

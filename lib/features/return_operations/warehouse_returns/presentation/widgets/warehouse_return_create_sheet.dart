@@ -917,7 +917,6 @@ class _WarehouseReturnCreateSheetState extends State<WarehouseReturnCreateSheet>
                         ],
                       ),
                       const SizedBox(height: 4),
-                      _buildEntryLineCard(theme),
                     ],
                   ),
 
