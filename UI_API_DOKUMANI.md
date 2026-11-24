@@ -2777,7 +2777,7 @@ Alan notlari:
 - `sqlText`, `blockedSqlText` ve `lastSqlText` icindeki string literal degerler backend tarafinda `***` ile maskelenir.
 - `Guvenli Yazmalar` Auth DB'deki idempotency/sonuc kayitlarini, `Canli SQL` ise Mikro SQL Server'daki gercek request, transaction ve kilitleri gosterir. Bir guvenli yazma kaydi tek basina kilit olusturmaz; SQL kilidi veya yavaslik create sonucunu belirsiz birakip bu kaydin `Processing`/`Failed` gorunmesine neden olabilir.
 - Root blocker uzun bir `SELECT` ise once sorgunun endpointi ve eksik indexi bulunmalidir. Zayiat/masraf listeleri production SQL Server'da `ReadUncommitted` ile calisir; bu ekranlar create yazilarini bekletmemelidir. Kalici hiz icin `IX_FR_STH_StokFisi_Liste`, zayiat/masraf readback'i icin `IX_FR_STH_StokFisi_Trace` kurulmalidir.
-- `STOK_HAREKETLERI` indexleri 218 milyon ve benzeri buyuk tablolarda yogun saatte kurulmaz. Acil iki index icin `docs/STOK_HAREKETLERI_STOK_FISI_ACIL_INDEXLERI.sql`, tum liste indexleri icin `docs/STOK_HAREKETLERI_LISTE_INDEXLERI.sql` kullanilir.
+- `STOK_HAREKETLERI` indexleri 218 milyon ve benzeri buyuk tablolarda yogun saatte kurulmaz. Tum kullanilan uygulama indexleri icin tek kaynak `docs/UYGULAMA_INDEXLERI.sql`, karar ve kullanim raporu ise `docs/MIKRO_SORGU_VE_INDEX_ENVANTERI.md` dosyasidir.
 - `recommendations[].code=stock-summary-trigger-contention`, Mikro `mye_STOK_HAREKETLERI_Trigger` icindeki `STOK_HAREKETLERI_OZET` guncellemelerinin `LCK_M_U` ile kuyruklandigini gosterir. Bu durumda API'nin tek-satir trigger batch profilinin yayinda oldugu kontrol edilir; bekleyen tum SPID'ler topluca sonlandirilmaz.
 - `recommendations[].code=mikro-unbounded-choose-count`, Mikro istemcisinden acilan filtresiz bir `*_CHOOSE_*` gorunumu uzerinde `SELECT COUNT(...)` calistigini gosterir. Bu sorgu bloke edilmis gorunmese bile cok yuksek fiziksel/mantiksal okuma ve `PAGEIOLATCH_SH` ureterek SQL Server diskini doyurabilir; firma mal kabul, sevk, iade ve detay gibi ilgisiz API isteklerinin 240-300 saniye sonra timeout olmasina neden olabilir.
 - `mikro-unbounded-choose-count` goruldugunde UI ilgili request satirindaki `hostName`, `programName`, `clientAddress`, `reads`, `logicalReads`, `elapsedMilliseconds` ve `sqlText` alanlarini birlikte gostermelidir. Ilk tercih, kullanicinin ilgili Mikro liste/rapor ekranini kaynak bilgisayarda kapatmasidir. Sorgu devam ederse oturum kimligi tekrar dogrulanir; komutun salt-okuma `SELECT` oldugu ve acik transaction bulunmadigi kontrol edildikten sonra yetkili kullanici kontrollu `Oturumu Sonlandir` aksiyonunu kullanabilir.
@@ -2890,11 +2890,14 @@ Yetki: `ayar-islemleri.veritabani-izleme.detail`
 Query:
 
 ```text
+searchText        opsiyonel; kayit/takip GUID'i, operasyon veya hata metni
 status            opsiyonel; Processing, Completed, Failed veya Cancelled
 operationCode     opsiyonel; tam operasyon kodu
 warehouseNo       opsiyonel; depo filtresi
 retryable         opsiyonel; true/false
 includeCompleted  opsiyonel; default false
+createdFromUtc    opsiyonel; olusturma zamani alt siniri, dahil
+createdToUtc      opsiyonel; olusturma zamani ust siniri, haric
 take              opsiyonel; default 100, max 500
 ```
 
@@ -2941,12 +2944,16 @@ Siniflandirilmis `errorCode` degerleri:
 | `CLIENT_REQUEST_PAYLOAD_MISMATCH` | `false` | Ayni `clientRequestId` farkli body ile kullanildi. |
 | `SAFE_WRITE_RETRY_ALLOWED` | `true` | Salt-okuma kontrolu belgenin hic olusmadigini kesinlestirdi; ayni snapshot/id ile POST'a izin verildi. |
 | `SAFE_WRITE_CANCELLED` | `false` | Kayit yetkili incelemesiyle iptal edildi; terminal pending kaydi temizleyebilir. |
+| `SAFE_WRITE_VALIDATION_REJECTED` | `false` | Istek Mikro yazimi baslamadan urun, miktar veya kaynak katalog dogrulamasinda reddedildi. Evrak uzlastirmasi gerekmez; veri duzeltilerek yeni islem baslatilir. |
 
 Alan ve filtre kurallari:
 
 - `status` filtresi yalniz `Processing`, `Completed`, `Failed` veya `Cancelled` kabul eder; baska deger `400 Bad Request` doner.
 - `status` acikca verilmisse bu filtre onceliklidir. Ornek `status=Completed&includeCompleted=false` yine yalniz tamamlanan kayitlari dondurur.
-- `status` verilmez ve `includeCompleted=false` ise sorgu yalniz dikkat bekleyen `Processing` ve `Failed` kayitlari dondurur; `Completed` ve `Cancelled` listeyi doldurmaz. Bu secenek "yalniz su anda aktif istekler" anlamina gelmez.
+- `status`, tarih ve arama verilmez, `includeCompleted=false` ise sorgu son 24 saatte dikkat bekleyen `Processing` ve sonuc gerektiren `Failed` kayitlarini dondurur; kullanicinin duzelterek yeniden baslatacagi dogrulama hatalari operasyon kuyrugunu doldurmaz.
+- Acik tarih araligi verildiginde 24 saatlik varsayilan pencere uygulanmaz. `includeCompleted=false` ise secilen araliktaki `Completed` ve `Cancelled` kayitlar yine gizlenir.
+- `searchText` gecerli bir GUID ise hem Auth DB kayit kimliginde hem terminal/web `clientRequestId` alaninda tam eslesme yapar ve kayit tamamlanmis olsa da bulunur. Metin aramasi operasyon kodu, hata kodu ve hata mesajinda calisir.
+- UI tarih alanlarini Istanbul gun sinirlari olarak UTC'ye cevirir. `createdToUtc` ust siniri haric oldugu icin tek gun filtresi yerel gunun ertesi gece yarisi ile gonderilir.
 - `retryable=true/false` yalniz typed degeri bu secimle eslesen kayitlari getirir; `retryable=null` olan eski/siniflandirilmamis kayitlar bu iki filtreye de girmez.
 - `ageSeconds`, response uretilirken `updatedAtUtc ?? createdAtUtc` ile su an arasindaki suredir. Islem calisma suresi degildir; tamamlanmis veya basarisiz kayitlarda son guncellemeden beri gecen sureyi gosterir.
 - Siralama once `Processing`, sonra son guncelleme tarihi azalan bicimdedir. Bu nedenle cok eski bir `Processing` kaydi yeni `Failed` kayitlardan once gorunebilir.
@@ -2975,6 +2982,8 @@ GET /api/ayar-islemleri/veritabani-izleme/guvenli-yazmalar?status=Failed&retryab
 GET /api/ayar-islemleri/veritabani-izleme/guvenli-yazmalar?status=Failed&retryable=false&take=100
 GET /api/ayar-islemleri/veritabani-izleme/guvenli-yazmalar?status=Completed&take=100
 GET /api/ayar-islemleri/veritabani-izleme/guvenli-yazmalar?status=Cancelled&take=100
+GET /api/ayar-islemleri/veritabani-izleme/guvenli-yazmalar?searchText=ff2ede2d-4ccb-4443-93f9-16f3e4a59446&take=100
+GET /api/ayar-islemleri/veritabani-izleme/guvenli-yazmalar?createdFromUtc=2026-11-17T21:00:00Z&createdToUtc=2026-11-18T21:00:00Z&take=100
 ```
 
 #### Guvenli Yazma Inceleme ve Sonuclandirma
@@ -2991,6 +3000,10 @@ GET  /api/ayar-islemleri/veritabani-izleme/guvenli-yazmalar/{id}/inceleme-gecmis
 ```
 
 `inceleme-gecmisi` endpointi `ayar-islemleri.veritabani-izleme.detail`, uc POST endpointi ayri `resolve-safe-write` yetkisini ister. Migration `AddSafeWriteReviewWorkflow`, audit tablosunu ve Administrator rolundeki bu yetkiyi olusturur.
+
+Bu GET yalniz manuel `safe_write_review_audits` satirlarini donmez. Kayit varsa her zaman en az sistem tarafindan uretilen `Created` olayini; kayit sonuclandiysa `CurrentState` olayini ve varsa yetkili inceleme olaylarini tek zaman cizelgesinde dondurur. `source=System` kaydin yasam dongusunu, `source=Review` yetkili kullanici kararini belirtir. Bu nedenle hic manuel inceleme yapilmamis bir kaydin zaman cizelgesi bos gelmez.
+
+`ClassifySafeWriteValidationFailures` migration'i, daha once verilen depo siparisi kaynak katalog dogrulamasinda kalip hata kodu bos birakilan eski kayitlari `SAFE_WRITE_VALIDATION_REJECTED + retryable=false` olarak siniflandirir. Yeni isteklerde ayni katalog ve koli dogrulamalari guvenli yazma rezervasyonundan once calisir; gecersiz istek `mobile_offline_sync_requests` tablosunda sahte bekleyen kayit biriktirmez.
 
 Ortak POST body:
 
@@ -5621,7 +5634,7 @@ operationType  opsiyonel; islem tipini verir, satira ekleme kararinda kullanilir
 targetWarehouseNo opsiyonel; hedef depo/model kod uygunlugu hesaplamak icin kullanilir; shipment icin bloklayici degildir
 supplierCode   opsiyonel; secili tedarikciye gore SATINALMA_SARTLARI kontrolu yapar; receiving/order icin karar motoruna dahil edilir
 companyCode    opsiyonel; supplierCode ile ayni anlamda geriye uyum alias'i
-isRefund       opsiyonel; false ise eski sistemdeki iade disi DLS filtresi uygulanir
+isRefund       opsiyonel; true ise iade baglami DLS engelini kaldirir; false/null tek basina engel degildir
 screenCode     opsiyonel; eski UI uyumu icin korunur, operationType bos ise ekran baglami gibi kullanilir
 ```
 
@@ -5650,7 +5663,8 @@ Onemli not:
 - `isSalesBlocked`, `isOrderBlocked`, `isGoodsAcceptanceBlocked` ve `isPassive` depo detay degerleri varsa depo ozelinden, yoksa stok kartindan hesaplanir.
 - `isAllowedForTargetWarehouse` hedef depo verilirse `DEPOLAR.dep_barkod_yazici_yolu` icindeki model kod listesine gore hesaplanir.
 - `operationType=shipment` icin hedef depo model kod sonucu bilgi olarak donebilir; fakat hedef depo model kodu sevkte `isUsableInOperation=false` yapmaz.
-- `operationType=shipment` icin `isSalesBlocked=true` bilgi/uyari olarak doner; pasif/DLS disinda tek basina satira eklemeyi bloklamaz.
+- DLS urunler firma mal kabul (`receiving`) ve siparis (`order`) baglaminda engellenir. Depo mal kabul, sevk, sayim, zayiat, iade, virman ve genel barkod sorgusunda DLS durumu tek basina blok uretmez. `isRefund=true` oldugunda iade baglami acikca serbesttir.
+- `operationType=shipment` icin `isSalesBlocked=true` bilgi/uyari olarak doner; pasif urun disinda tek basina satira eklemeyi bloklamaz.
 - `hasPurchaseRequirement`, `supplierCode/companyCode` verilirse veya operasyon `receiving`/`order` ise cari-stok uyum sonucudur. Secili cari icin stok kartindaki varsayilan tedarikci, secili depodaki stok-depo tedarikcisi veya depo/tarih kapsamindaki aktif `SATINALMA_SARTLARI` kaydindan biri yeterlidir.
 - `operationType=receiving` ve `operationType=order` icin bu uyum satira ekleme kararina zorunlu olarak girer. `operationType=return` da `supplierCode/companyCode` gonderildiginde ayni zorunlu kontrolu uygular; firma iadesine baska carinin urunu eklenemez.
 - `operationType=shipment` icin sirf `targetWarehouseNo` geldi diye satinalma sarti kontrolu calismaz ve satira ekleme bloklanmaz.
@@ -6085,7 +6099,7 @@ Onemli not:
 - `Database` yolunda EF Core `MikroWriteDbContext` ile transaction commit edilir ve commit sonrasinda ayni tam readback yapilir. Iki yolda da belge dogrulanmadan guvenli islem `Completed` olmaz.
 - `lines[]` icindeki her stok, Mikro yazimi baslamadan `outWarehouseNo` kaynak deposunun siparis katalogunda yeniden dogrulanir. Katalog; depo model kodlari, kaynak depodaki `STOK_DEPO_DETAYLARI` kaydi ve `sdp_sipdursun=0` kosullarindan olusur.
 - Readback seri/sira, tarih, giris-cikis depolari, aktif satir sayisi ve satir sirasi, stok kodu, miktar, birim, fiyat/tutar alanlarini kontrol eder. Mikro tarafinda normalize edilebilen paket/proje, sorumluluk merkezi ve tavsiye miktari gibi yardimci metadata tek basina icerik uyusmazligi olusturmaz.
-- Trace readback sorgularini buyuk Mikro tablolarinda hizlandirmak icin onerilen iki hedefli index scripti `docs/SIPARISLER_SAFE_CREATE_READBACK_INDEXLERI.sql` dosyasindadir. Canli index envanteriyle karsilastirilmadan ve dusuk trafik/bakim penceresi secilmeden uygulanmamalidir.
+- Trace readback sorgularini destekleyen hedefli indexler `docs/UYGULAMA_INDEXLERI.sql` katalogundadir. Canli index envanteriyle karsilastirilmadan ve dusuk trafik/bakim penceresi secilmeden uygulanmamalidir.
 - `documentSerie` backend tarafinda `F{islemDepoNo}` olarak uretilir.
 - `documentOrderNo` ayni seri icin test DB'deki mevcut maksimum sira okunarak uretilir; ilk evrak `0`, sonraki evraklar `1, 2...` seklinde gider.
 - `siparis-islemleri.verilen-depo-siparisleri.all-warehouses` yoksa `inWarehouseNo` sorulmaz; backend JWT icindeki kullanici deposunu kullanir. Bu yetki varsa baska depo adina siparis olusturulacaksa body'de opsiyonel `inWarehouseNo` gonderilebilir.
@@ -6481,7 +6495,7 @@ Onemli not:
 - Yazma yolu `MikroWriteRouting:IssuedCompanyOrder` ile secilir. `Database` dogrudan `MikroWriteDbContext`, `MikroApi` ise `SiparisKaydetV2` kullanir; request modeli degismez.
 - `SIPARISLER` tablosuna `sip_tip = 1`, `sip_cins = 0` olarak verilen firma siparisi yazar.
 - Readback seri/sira, tarih, depo/cari, aktif satir sayisi ve satir sirasi, stok kodu, miktar, birim, fiyat/tutar alanlarini kontrol eder. Aciklama, paket/proje, sorumluluk merkezi ve tavsiye miktari gibi Mikro tarafinda normalize edilebilen yardimci alanlar tek basina icerik uyusmazligi sayilmaz.
-- Trace readback sorgularini buyuk Mikro tablolarinda hizlandirmak icin onerilen iki hedefli index scripti `docs/SIPARISLER_SAFE_CREATE_READBACK_INDEXLERI.sql` dosyasindadir. Canli index envanteriyle karsilastirilmadan ve dusuk trafik/bakim penceresi secilmeden uygulanmamalidir.
+- Trace readback sorgularini destekleyen hedefli indexler `docs/UYGULAMA_INDEXLERI.sql` katalogundadir. Canli index envanteriyle karsilastirilmadan ve dusuk trafik/bakim penceresi secilmeden uygulanmamalidir.
 - `documentSerie` backend tarafinda `F{islemDepoNo}` olarak uretilir.
 - `documentOrderNo` ayni seri/tip/cins icin write DB'deki maksimum sira okunarak uretilir; ilk evrak `0`, sonraki evraklar `1, 2...` seklinde gider.
 - UI ilk Kaydet aninda bir GUID `clientRequestId` uretmeli ve kesin sonuc alana kadar ayni payload ile ayni kimligi kullanmalidir. Timeout veya network kopmasinda yeni kimlik uretmek ayni siparisin ikinci kez olusmasina yol acabilir.
@@ -7151,11 +7165,14 @@ Onemli not:
 
 - Yazma yolu `MikroWriteRouting:InterWarehouseShipment` ile secilir; mevcut config'te deger `Database`tir.
 - `Database` modunda EF Core uzerinden ayri `MikroWriteDbContext` ile yazma yapar. Write hedefi canli `MikroConnection` degil; `MikroWriteConnection` yoksa `testMikroConnection` kullanilir.
-- `MikroWriteBatching:InterWarehouseShipmentEnabled`, `CompanyReceivingEnabled` ve `CompanyReturnEnabled` ayarlari ilgili `Database` yazma yollarini birbirinden bagimsiz acip kapatir. Ayar acikken bir evrakin `STOK_HAREKETLERI` satirlari ayni SQL transaction'i icinde `SqlBulkCopy` ile yazilir; atomiklik korunur. Mikro'nun `mye_STOK_HAREKETLERI_Trigger` trigger'i cok satirli batch'te 22 milyon satirli `STOK_HAREKETLERI_OZET` tablosunda sayfa taramasi ve `LCK_M_U` zinciri olusturdugu icin bulk kopya `BatchSize=1` kullanir. Boylece trigger her satirda kendi hizli tek-satir kolunu calistirir; belge ancak tum satirlar ve bagli guncellemeler basariliysa commit edilir.
+- `MikroWriteBatching:InterWarehouseShipmentEnabled`, `WarehouseReturnEnabled`, `CompanyReceivingEnabled`, `CompanyReturnEnabled`, `StockReceiptEnabled`, `VirmanEnabled`, `AxataEnabled` ve `GreenGrocerReceivingEnabled` ayarlari ilgili `Database` yazma yollarini birbirinden bagimsiz acip kapatir. Ayar acikken bir evrakin `STOK_HAREKETLERI` satirlari ayni SQL transaction'i icinde `SqlBulkCopy` ile yazilir; atomiklik korunur. Mikro'nun `mye_STOK_HAREKETLERI_Trigger` trigger'i cok satirli batch'te buyuk `STOK_HAREKETLERI_OZET` tablosunda sayfa taramasi ve `LCK_M_U` zinciri olusturdugu icin bulk kopya `BatchSize=1` kullanir. Boylece trigger her satirda kendi hizli tek-satir kolunu calistirir; belge ancak tum satirlar ve bagli guncellemeler basariliysa commit edilir.
 - Firma mal kabulde normal kabul hareketleri tek batch, otomatik olusan firma iade evraki varsa onun satirlari ayri bir batch olarak yazilir. Boylece her belge kendi trigger calismasini bir kez yapar ve iki belge ayni transaction icinde birlikte commit/rollback olur.
 - Bulk yazma yalniz satirlarin SQL'e gonderilme seklini degistirir. `clientRequestId`, trace, duplicate kontrolu, belge numarasi, transaction, rollback, readback ve recovery davranisi aynen korunur.
 - Bulk yolunun timeout degeri `MikroWriteBatching:BulkCopyTimeoutSeconds` ile belirlenir; varsayilan `300` saniyedir. Ozellik kapatilirsa ayni endpoint ve response korunarak eski EF insert yoluna donulur.
-- Mevcut Production ayarinda uc akis da aktiftir. Sorun halinde ilgili akis `MikroWriteBatching__InterWarehouseShipmentEnabled=false`, `MikroWriteBatching__CompanyReceivingEnabled=false` veya `MikroWriteBatching__CompanyReturnEnabled=false` ortam degiskeniyle ya da ayni appsettings alaniyla tek basina eski EF insert yoluna dondurulebilir; ayar degisikliginden sonra API yeniden baslatilmalidir.
+- Mevcut Production ayarinda bu akislar aktiftir. Sorun halinde yalniz ilgili ayar ortam degiskeniyle veya appsettings alaninda `false` yapilarak eski EF insert yoluna dondurulebilir; ayar degisikliginden sonra API yeniden baslatilmalidir.
+
+- Depo iadesinin Mikro API rotasinda otomatik depo siparisi, depo iadesinin `clientRequestId` izini `ssip_special2/3` alanlarinda saklar. `ssip_special1` AXATA gonderim bayragi icin `0` kalir. Otomatik siparis olusup iade yazimi yarida kalirsa ayni istek yeniden calistiginda yeni siparis acilmaz; mevcut siparis satirlari icerik kontrolunden sonra tekrar kullanilir.
+- Stok anomali merkezindeki interaktif tarama en fazla 31 gunluk tarih araligini kabul eder. Daha uzun tarihli incelemeler canli Mikro sorgularini uzun sure mesgul etmemek icin parcalara bolunmelidir.
 - Production loglarinda EF Core `Database.Command`, `Database.Transaction` ve `Update` kategorileri `Critical` seviyesine alinmistir. Boylece ayni deadlock/SQL hatasinin EF tarafindan buyuk SQL metniyle birden fazla kez yazilmasi engellenir; uygulama use-case, retry/recovery ve exception middleware hata kayitlari tutulmaya devam eder.
 - `MikroApi` modunda `POST /Api/apiMethods/DahiliStokHareketKaydetV2` kullanilir ve olusan hareketler response/geri okuma ile mevcut response modeline cevrilir.
 - `MikroApi` modunda otomatik depo siparisi gerekiyorsa once `POST /Api/apiMethods/DepolarArasiSiparisKaydetV2` ile siparis olusturulur, olusan `ssip_Guid` degerleri geri okunur ve sevk satirlarina `sth_subesip_uid` olarak eklenir. Bu yolun API-only kalmasi icin `MikroWriteRouting:IssuedWarehouseOrder` de `MikroApi` olmalidir; aksi halde backend hata dondurur.
@@ -8781,11 +8798,11 @@ Genel kurallar:
 
 - Detay endpointleri Mikro read connection uzerinden okur; guncelleme endpointleri Mikro write connection uzerinden yazar.
 - Stok ve cari hareket belgelerinde `documentSerie` ve `documentOrderNo` zorunludur.
-- `documentType`, `movementType`, `movementKind`, `normalReturn` filtreleri opsiyoneldir. Seri-sira birden fazla evrak tipi/cins/iade kombinasyonuna denk gelirse backend `409 Conflict` doner; UI kullaniciya "evrak tipi/cins/iade filtresi ile daraltin" mesaji gostermelidir.
+- `documentType`, `movementType`, `movementKind`, `normalReturn`, `inputWarehouseNo` ve `outputWarehouseNo` filtreleri opsiyoneldir. Seri-sira birden fazla evrak tipi/cins/iade/depo rotasi kombinasyonuna denk gelirse backend `409 Conflict` doner; UI once `/eslesmeler` sonucunu listeleyip kullaniciya fiziksel evraki sectirmelidir.
 - Satir guncellemeleri `movementGuid` ile yapilir. UI detay response'undaki `lines[].movementGuid` degerini satir modelinde saklamalidir.
-- Sayim sonucu fisleri `warehouseNo + documentNo + documentDate` ile bulunur. Sayim satiri guncellemeleri `countGuid` ile yapilir; UI detay response'undaki `lines[].countGuid` degerini gizli anahtar olarak saklamalidir.
+- Sayim sonucu fisleri `warehouseNo + documentNo + documentDate` ile bulunur. Satirlardaki `sym_parti_kodu` evrak kimligi degildir; ayni sayim fisinde farkli partiler bulunabilir. Sayim satiri guncellemeleri `countGuid` ile yapilir; UI detay response'undaki `lines[].countGuid` degerini gizli anahtar olarak saklamalidir.
 - Sayim sonucunda `sym_kilitli = true` olan satir varsa update reddedilir. Sayim duzeltmede yeni fis/satir olusturma ve silme yoktur; mevcut satirlarin miktar, stok, barkod, birim ve yardimci kodlari duzeltilir.
-- Firma siparislerinde `documentSerie` ve `documentOrderNo` zorunludur; `orderType` (`SIPARISLER.sip_tip`), `orderKind` (`sip_cins`), `warehouseNo` ve `customerCode` opsiyonel daraltma filtreleridir.
+- Firma siparislerinde `documentSerie` ve `documentOrderNo` zorunludur; `orderType` (`SIPARISLER.sip_tip`), `orderKind` (`sip_cins`), `warehouseNo` ve `customerCode` opsiyonel daraltma filtreleridir. Ayni seri/sira/tip/cins altinda depo veya cari farkliysa kayitlar ayri fiziksel siparis olarak listelenir.
 - Depo siparislerinde `documentSerie` ve `documentOrderNo` zorunludur; `warehouseNo`, `inWarehouseNo` ve `outWarehouseNo` opsiyonel daraltma filtreleridir.
 - Siparis satir guncellemeleri `orderGuid` ile yapilir. UI detay response'undaki `lines[].orderGuid` degerini satir modelinde gizli anahtar olarak saklamalidir.
 - Request body'de `null` gelen alanlar degismez. Bos string gonderilirse ilgili metin alani bosaltma istegi olarak islenir.
@@ -8810,6 +8827,11 @@ Genel kurallar:
 - Depo karti ve cari karti endpointleri yeni kart olusturmaz; sadece mevcut Mikro kartini gunceller.
 - Cari kartinda `parentCustomerCode`, `defaultInputWarehouseNo`, `defaultOutputWarehouseNo` gonderilirse backend ilgili cari/depo kaydinin varligini kontrol eder.
 - Depo kartinda GPS alanlari icin `latitude` -90..90, `longitude` -180..180 araliginda olmalidir.
+- Ortak evrak bulucu yalniz `documentSerie + documentOrderNo` alir; `STOK_HAREKETLERI`, `CARI_HESAP_HAREKETLERI`, `SIPARISLER` ve `DEPOLAR_ARASI_SIPARISLER` tablolarini birlikte tarar.
+- Ayni seri/sirada birden fazla fiziksel evrak varsa UI otomatik guncelleme yapmaz. Kullanici tablo, tip, cins, normal/iade, cari ve depo rotasini gorerek bir aday secer; detay istegi secilen tam kimlikle yapilir.
+- Stok hareketlerinde fiziksel kimlik `seri + sira + evrak tipi + hareket cinsi + normal/iade + giris deposu + cikis deposu` olarak ele alinir. Ayni seri/sirada farkli rotalar tek evrakta birlestirilmez.
+- Depo siparislerinde fiziksel kimlik `seri + sira + giris deposu + cikis deposu` olarak ele alinir. Ayni seri/sirada farkli rotalar tek evrakta birlestirilmez.
+- Angular coklu secim satirlarinda kullaniciya Turkce adla birlikte Mikro kimlik kolonlari gosterilir: stok hareketinde `sth_evraktip/sth_tip/sth_cins/sth_normal_iade`, cari harekette `cha_evrak_tip/cha_tip/cha_cinsi/cha_normal_Iade`, firma siparisinde `sip_tip/sip_cins`, depo siparisinde `ssip_cikdepo/ssip_girdepo`, sayimda `sym_depono/sym_evrakno/sym_tarihi`.
 - UI alan isimlerini kendi icinde hardcoded map'lememelidir. Ekran acilisinda `GET /api/duzeltme-islemleri/mikro-evrak-duzenleme/alan-haritasi` cagrilip `displayName`, `mikroTable`, `mikroColumn`, `valueType`, `editable` alanlari kullanilmalidir.
 - Alan haritasinda `editable=false` olan alanlar response/lookup bilgisidir; UI bunlari gosterir ama PUT body icinde gondermez. Ornek: stok hareketi `unitPrice` response'ta hesaplanan alandir, Mikro'da direkt `sth_b_fiyat` kolonu yoktur.
 
@@ -8818,6 +8840,7 @@ Endpoint ozeti:
 | Endpoint | Request kaynagi | Request modeli | Response | Yetki |
 |---|---|---|---|---|
 | `GET /api/duzeltme-islemleri/mikro-evrak-duzenleme/alan-haritasi` | - | - | `MikroDocumentFieldCatalogDto` | `list` |
+| `GET /api/duzeltme-islemleri/mikro-evrak-duzenleme/evrak-eslesmeleri` | query | `MikroDocumentSearchHttpRequest` | `MikroDocumentCandidateDto[]` | `detail` |
 | `GET /api/duzeltme-islemleri/mikro-evrak-duzenleme/stok-kartlari` | query | `StockCardSearchHttpRequest` | `StockCardListItemDto[]` | `list` |
 | `GET /api/duzeltme-islemleri/mikro-evrak-duzenleme/stok-kartlari/{stockCode}` | path | `stockCode` | `StockCardDetailDto` | `detail` |
 | `PUT /api/duzeltme-islemleri/mikro-evrak-duzenleme/stok-kartlari/{stockCode}` | path + body | `StockCardPatchHttpRequest` | `StockCardUpdateResponse` | `update` |
@@ -8836,20 +8859,25 @@ Endpoint ozeti:
 | `GET /api/duzeltme-islemleri/mikro-evrak-duzenleme/cariler/{customerCode}/adresler` | path | `customerCode` | `CustomerAddressDto[]` | `detail` |
 | `PUT /api/duzeltme-islemleri/mikro-evrak-duzenleme/cariler/{customerCode}/adresler/{addressNo}` | path + body | `CustomerAddressPatchHttpRequest` | `CustomerAddressUpdateResponse` | `update` |
 | `GET /api/duzeltme-islemleri/mikro-evrak-duzenleme/stok-hareketleri` | query | `StockMovementDocumentLookupHttpRequest` | `StockMovementDocumentDto` | `detail` |
+| `GET /api/duzeltme-islemleri/mikro-evrak-duzenleme/stok-hareketleri/eslesmeler` | query | `StockMovementDocumentLookupHttpRequest` | `StockMovementDocumentDto[]` | `detail` |
 | `PUT /api/duzeltme-islemleri/mikro-evrak-duzenleme/stok-hareketleri` | body | `UpdateStockMovementDocumentHttpRequest` | `StockMovementDocumentUpdateResponse` | `update` |
 | `DELETE /api/duzeltme-islemleri/mikro-evrak-duzenleme/stok-hareketleri` | query | `StockMovementDocumentLookupHttpRequest` | `MikroDocumentDeleteResponse` | `delete` |
 | `GET /api/duzeltme-islemleri/mikro-evrak-duzenleme/sayim-sonuclari` | query | `InventoryCountDocumentLookupHttpRequest` | `InventoryCountDocumentDto` | `detail` |
+| `GET /api/duzeltme-islemleri/mikro-evrak-duzenleme/sayim-sonuclari/eslesmeler` | query | `InventoryCountDocumentSearchHttpRequest` | `InventoryCountDocumentDto[]` | `detail` |
 | `PUT /api/duzeltme-islemleri/mikro-evrak-duzenleme/sayim-sonuclari` | body | `UpdateInventoryCountDocumentHttpRequest` | `InventoryCountDocumentUpdateResponse` | `update` |
 | `GET /api/duzeltme-islemleri/mikro-evrak-duzenleme/banknot-takipleri/{banknoteTrackId}` | path + query | `banknoteTrackId`, `warehouseNo?: int` | `BanknoteTrackDto` | `detail` |
 | `PUT /api/duzeltme-islemleri/mikro-evrak-duzenleme/banknot-takipleri/{banknoteTrackId}` | path + query + body | `BanknoteTrackPatchHttpRequest` | `BanknoteTrackUpdateResponse` | `update` |
 | `DELETE /api/duzeltme-islemleri/mikro-evrak-duzenleme/banknot-takipleri/{banknoteTrackId}` | path + query | `banknoteTrackId`, `warehouseNo?: int` | `MikroDocumentDeleteResponse` | `delete` |
 | `GET /api/duzeltme-islemleri/mikro-evrak-duzenleme/cari-hareketleri` | query | `CustomerMovementDocumentLookupHttpRequest` | `CustomerMovementDocumentDto` | `detail` |
+| `GET /api/duzeltme-islemleri/mikro-evrak-duzenleme/cari-hareketleri/eslesmeler` | query | `CustomerMovementDocumentLookupHttpRequest` | `CustomerMovementDocumentDto[]` | `detail` |
 | `PUT /api/duzeltme-islemleri/mikro-evrak-duzenleme/cari-hareketleri` | body | `UpdateCustomerMovementDocumentHttpRequest` | `CustomerMovementDocumentUpdateResponse` | `update` |
 | `DELETE /api/duzeltme-islemleri/mikro-evrak-duzenleme/cari-hareketleri` | query | `CustomerMovementDocumentLookupHttpRequest` | `MikroDocumentDeleteResponse` | `delete` |
 | `GET /api/duzeltme-islemleri/mikro-evrak-duzenleme/firma-siparisleri` | query | `CompanyOrderDocumentLookupHttpRequest` | `CompanyOrderDocumentDto` | `detail` |
+| `GET /api/duzeltme-islemleri/mikro-evrak-duzenleme/firma-siparisleri/eslesmeler` | query | `CompanyOrderDocumentLookupHttpRequest` | `CompanyOrderDocumentDto[]` | `detail` |
 | `PUT /api/duzeltme-islemleri/mikro-evrak-duzenleme/firma-siparisleri` | body | `UpdateCompanyOrderDocumentHttpRequest` | `CompanyOrderDocumentUpdateResponse` | `update` |
 | `DELETE /api/duzeltme-islemleri/mikro-evrak-duzenleme/firma-siparisleri` | query | `CompanyOrderDocumentLookupHttpRequest` | `MikroDocumentDeleteResponse` | `delete` |
 | `GET /api/duzeltme-islemleri/mikro-evrak-duzenleme/depo-siparisleri` | query | `WarehouseOrderDocumentLookupHttpRequest` | `WarehouseOrderDocumentDto` | `detail` |
+| `GET /api/duzeltme-islemleri/mikro-evrak-duzenleme/depo-siparisleri/eslesmeler` | query | `WarehouseOrderDocumentLookupHttpRequest` | `WarehouseOrderDocumentDto[]` | `detail` |
 | `PUT /api/duzeltme-islemleri/mikro-evrak-duzenleme/depo-siparisleri` | body | `UpdateWarehouseOrderDocumentHttpRequest` | `WarehouseOrderDocumentUpdateResponse` | `update` |
 | `DELETE /api/duzeltme-islemleri/mikro-evrak-duzenleme/depo-siparisleri` | query | `WarehouseOrderDocumentLookupHttpRequest` | `MikroDocumentDeleteResponse` | `delete` |
 
@@ -11187,17 +11215,19 @@ Response:
 
 ### Kunye Etiket Yazdirma
 
-Belirli bir tarih icin kullanicinin deposuna ait kunye etiket kayitlarini Kasa Islemleri altindaki ayri menu route'undan getirir.
+Belirli bir tarih icin secilen depoya ait kunye etiket kayitlarini Kasa Islemleri altindaki ayri menu route'undan getirir. Depo secilmezse JWT icindeki kullanici deposu kullanilir.
 
-`GET /api/kasa-islemleri/kunye-etiket-yazdirma?dateToGet=2026-04-24`
+`GET /api/kasa-islemleri/kunye-etiket-yazdirma?dateToGet=2026-04-24&warehouseNo=110`
 
 Yetki:
 
-- yok; token gerekmez, herkese aciktir
+- `kasa-islemleri.kunye-etiket-yazdirma.list`
+- JWT deposundan farkli bir depo secmek icin `kasa-islemleri.kunye-etiket-yazdirma.all-warehouses`
 
 Not:
 
-- `warehouseNo` query ile alinmaz; dogrudan JWT icindeki kullanici deposu kullanilir
+- `warehouseNo` opsiyoneldir; verilmezse JWT icindeki kullanici deposu kullanilir
+- `warehouseNo` JWT deposundan farkliysa `all-warehouses` yetkisi zorunludur; yetkisiz istek `403` doner
 - response modeli `LabelTagDto` doner
 - veri Furpa tarafindaki `VwKunyeNet` view'undan okunur
 - eski `stok-islemleri.kunye-etiket-yazdirma.*` permission kodlari migration ile `kasa-islemleri...` altina tasinir
@@ -11237,11 +11267,12 @@ Varsayilan son 1 ay sorgusu:
 
 Yetki:
 
-- yok; token gerekmez, herkese aciktir
+- `kasa-islemleri.manav-kunye-etiket-yazdirma.list`
+- JWT deposundan farkli bir depo secmek icin `kasa-islemleri.manav-kunye-etiket-yazdirma.all-warehouses`
 
 Query:
 
-- `warehouseNo` zorunlu, 1 veya daha buyuk depo numarasi
+- `warehouseNo` opsiyonel, verilirse 1 veya daha buyuk depo numarasi; verilmezse JWT deposu kullanilir
 - `dateToGet` opsiyonel, verilirse sorgulanacak sevk tarihi
 
 Not:
@@ -11254,7 +11285,8 @@ Not:
 - `salesPrice` alani Mikro `dbo.fn_StokSatisFiyati(stockCode, '1', branchNo, '1')` fonksiyonundan gelir
 - `dateToGet` verilirse tarih filtresi secilen gunun tamamini kapsar; verilmezse `ShippingDate` son 1 ay ile sinirlanir
 - liste `ShippingDate desc` siralanir
-- menu permission kodu `kasa-islemleri.manav-kunye-etiket-yazdirma.page`; liste aksiyonu `kasa-islemleri.manav-kunye-etiket-yazdirma.list`; endpoint anonim oldugu icin API cagrisi token istemez
+- menu permission kodu `kasa-islemleri.manav-kunye-etiket-yazdirma.page`; liste aksiyonu `kasa-islemleri.manav-kunye-etiket-yazdirma.list`; endpoint JWT ister
+- JWT deposundan farkli bir depo icin `kasa-islemleri.manav-kunye-etiket-yazdirma.all-warehouses` zorunludur; yetkisiz istek `403` doner
 
 Response:
 
@@ -11280,6 +11312,51 @@ Response:
     "shippingDate": "2026-04-24T00:00:00",
     "manufacturer": "TEDARIKCI A",
     "productUnit": "KG"
+  }
+]
+```
+
+#### Manav Kod Listesi (MNV / MNVSF Kisa Satis Kodlari)
+
+Guncel Mikro stok kartlarindan (`MNV ` ve `.MNVSF ` on ekli aktif kartlar ve 7 haneli `27`/`29` baslayan master barkod tanimlari) kasa manav kisa satis kod listesini dinamik olarak olusturur. Urun isimlerindeki `MNV `, `.MNVSF `, parantez ve bosluk farkliliklarini normalize ederek (`Turkish_CI_AS`) `MNV` ve `MNVSF` kisa kodlarini eslestirir; meyve (`03.02.01.01`, `03.02.01.04`) ve sebze (`03.02.01.02`, `03.02.01.03`) gruplarina ayirir.
+
+`GET /api/kasa-islemleri/manav-kunye-etiket-yazdirma/kod-listesi`
+
+Yetki:
+
+- `kasa-islemleri.manav-kunye-etiket-yazdirma.list`
+
+Kurallar:
+
+- yalniz okuma yapar; hicbir Mikro kaydini degistirmez
+- iptal, pasif ve uygun barkodu olmayan kartlar listeye girmez
+- bir stok kartinda birden fazla uygun barkod varsa tek barkod (en kucuk barkod) kullanilir, satir cogalmaz
+- ayni eslesme adinda birden fazla MNVSF karti varsa en kucuk MNVSF kodu gosterilir; `mnvsfMatchCount` 1'den buyukse kart tanimlari kontrol edilmelidir
+- MNVSF karsiligi olmayan urunlerde `mnvsfCode` ve `mnvsfStockCode` null, `mnvsfMatchCount` 0 doner
+
+Response (`ManavCodeListItemDto[]`):
+
+```json
+[
+  {
+    "productGroup": "MEYVE ÇEŞİTLERİ",
+    "productName": "MNV ANANAS ADET",
+    "code": 741,
+    "mnvsfCode": 500,
+    "stockCode": "MNV-741",
+    "mnvsfStockCode": "MNVSF-500",
+    "categoryCode": "03.02.01.01",
+    "mnvsfMatchCount": 1
+  },
+  {
+    "productGroup": "MEYVE ÇEŞİTLERİ",
+    "productName": "MNV KABUKLU CEVİZ KG",
+    "code": 507,
+    "mnvsfCode": null,
+    "stockCode": "MNV-507",
+    "mnvsfStockCode": null,
+    "categoryCode": "03.02.01.01",
+    "mnvsfMatchCount": 0
   }
 ]
 ```
@@ -19438,7 +19515,9 @@ Operasyon modulu notlari:
 
 Trendyol Go Market baglanti katmani `api.tgoapis.com` adresini kullanir. Asagidaki tablo **bizim API'de kodlanmis route'lari** gosterir; TGO'nun tum Market API'sinin desteklendigi veya bu route'larin canlida dogrulandigi anlamina gelmez. Siparis, urun katalogu, sube bazli fiyat-stok, satis acma/kapama, batch sonucu, bazi paket aksiyonlari, fatura linki ve iade/itiraz icin manuel endpointler vardir. Webhook alicisi ve Mikro satis/fatura evragi olusturma yoktur. Kapsam matrisi, operasyon akislarinin ayrintilari ve resmi kaynaklar: [Trendyol Go Entegrasyonu](TRENDYOL_GO_ENTEGRASYONU.md).
 
-Fiyat/stok onizlemesi Mikro'da Trendyol Go icin ayrilan `TrendyolGo:PriceListNo` listesini kullanir; varsayilan fiyat listesi `3`, odeme plani `0`'dir. Liste `1` veya genel satis fiyati fallback olarak kullanilmaz. TGO'nun HTTP istegini kabul etmesi basari sayilmaz: `batchRequestId` kalici takip tablosuna yazilir, urun bazli sonuc worker tarafindan kesinlestirilir ve yalniz basarili urunler opsiyonel `TrendyolGo:BranchPosPriceSync` kuyruguna aktarilir.
+Fiyat/stok onizlemesi yonetim ayarindaki fiyat listesi ve odeme plani degerlerini kullanir; veritabaninda yonetim kaydi yoksa `TrendyolGo` config degerleri ilk kurulum varsayilani olur. Liste `1` veya genel satis fiyati fallback olarak kullanilmaz. TGO'nun HTTP istegini kabul etmesi basari sayilmaz: `batchRequestId` kalici takip tablosuna yazilir, urun bazli sonuc worker tarafindan kesinlestirilir ve yalniz basarili urunler opsiyonel sube POS kuyruguna aktarilir.
+
+Yonetim sekmesi magaza/depo eslesmelerini, genel ve magaza bazli stok rezervini, fiyat listesi/odeme planini, sube POS senkron anahtarini, resmi TGO kategori agacini, onayli Mikro kategori kurallarini ve urun bazli kategori istisnalarini Auth DB'de saklar. Token, sifre ve base URL gibi secret/deployment ayarlari bu endpointlerden degistirilmez. Kategori onceligi `urun istisnasi > kategori+ana grup > kategori > ana grup > celiskisiz eski esleme` seklindedir; sonuc yoksa urun `MappingRequired` kalir.
 
 POS sync varsayilan olarak depoya ait `BranchDetails.BranchIpAddress` adresini kullanir. Merkez veya farkli PostgreSQL sunucusu kullanan istisna depolar `WarehouseHosts` icinde depo no anahtariyla override edilir; depo `50` merkez PostgreSQL hostuna bu sekilde yonlendirilir. Tum depolar icin ortak host gerekirse `TrendyolGo:BranchPosPriceSync:Host` ayari kullanilabilir. `Password`, `AuthorizationToken`, `ApiKey` ve `ApiSecret` kaynak dosyaya yazilmaz; local gelistirmede User Secrets, canlida `TrendyolGo__BranchPosPriceSync__Password` dahil ortam degiskenleri kullanilir. PostgreSQL `pg_hba.conf` kullanici/veritabani yetkisi hazir olmadan POS sync acilmamalidir.
 
@@ -19502,6 +19581,15 @@ Endpointler:
 | `GET /api/entegrasyon-islemleri/trendyol-go/status` | - | `TrendyolGoConnectionStatusDto` | `list` |
 | `GET /api/entegrasyon-islemleri/trendyol-go` | - | `status` ile ayni cevap | `list` |
 | `GET /api/entegrasyon-islemleri/trendyol-go/stores` | - | `TrendyolGoStoreMappingDto[]` | `list` |
+| `GET /api/entegrasyon-islemleri/trendyol-go/management?categorySearch=` | query | `TrendyolGoAdministrationOverview` | `detail` |
+| `PUT /api/entegrasyon-islemleri/trendyol-go/management/settings` | `TrendyolGoRuntimeSettingsHttpRequest` | `TrendyolGoRuntimeSettingsDto` | `update` |
+| `PUT /api/entegrasyon-islemleri/trendyol-go/management/stores` | `TrendyolGoStoreSettingHttpRequest` | `TrendyolGoStoreSettingDto` | `update` |
+| `DELETE /api/entegrasyon-islemleri/trendyol-go/management/stores/{storeId}` | path | `204`; magaza tanimi pasif olur | `update` |
+| `POST /api/entegrasyon-islemleri/trendyol-go/management/categories/refresh` | body yok | `TrendyolGoCategorySyncResult` | `update` |
+| `PUT /api/entegrasyon-islemleri/trendyol-go/management/category-mappings` | `TrendyolGoCategoryMappingHttpRequest` | `TrendyolGoCategoryMappingDto` | `update` |
+| `DELETE /api/entegrasyon-islemleri/trendyol-go/management/category-mappings/{id}` | path | `204`; kural pasif olur | `update` |
+| `PUT /api/entegrasyon-islemleri/trendyol-go/management/product-overrides` | `TrendyolGoProductCategoryOverrideHttpRequest` | `TrendyolGoProductCategoryOverrideDto` | `update` |
+| `DELETE /api/entegrasyon-islemleri/trendyol-go/management/product-overrides/{id}` | path | `204`; istisna pasif olur | `update` |
 | `GET /api/entegrasyon-islemleri/trendyol-go/connection-test?storeId=402535` | query | `TrendyolGoConnectionStatusDto` | `detail` |
 | `GET /api/entegrasyon-islemleri/trendyol-go/orders` | query | TGO siparis JSON response'u | `list` |
 | `GET /api/entegrasyon-islemleri/trendyol-go/orders/by-number/{orderNumber}` | path | TGO siparis JSON response'u | `detail` |
@@ -19887,12 +19975,13 @@ Production gecici gorev notu:
 Production AXATA import calisma kurali:
 
 - `c01-outbound-delivery-import`, `c02-outbound-delivery-import`, `g01-inbound-atf-import` ve `g02-inbound-delivery-import` Production profilinde aciktir ve 5 dakikada bir calisir.
-- Basariyla AXATA'ya gonderilip Mikro gonderim bayragi dogrulanan C01, C02, G01 ve G02 siparisleri Belge Akis Takibi'ne `AxataOrderSent` adimiyla yazilir. Basariyla Mikro'ya yazilan veya mevcut Mikro kaydi kesin olarak dogrulanan C01, C02, C03, C4 ve G01 belgeleri `AxataDocumentImported`, G02 kabul basarisi ise `WarehouseReceivingAccepted` adimiyla izlenir. Deneme, erteleme ve basarisiz belge kayitlari basarili belge gibi akisa yazilmaz.
+- Basariyla AXATA'ya gonderilip Mikro gonderim bayragi dogrulanan C01, C02, G01 ve G02 siparisleri Belge Akis Takibi'ne `AxataOrderSent` adimiyla yazilir. Basariyla Mikro'ya yazilan veya mevcut Mikro kaydi kesin olarak dogrulanan C01, C02, C03, C4 ve G01 belgeleri `AxataDocumentImported`, G02 kabul basarisi ise `WarehouseReceivingAccepted` adimiyla izlenir. G01 guvenli eslesme/yazma hatalari `Failed` durumuyla ayni belge akisina kaydedilir; ayni hata tekrarlanirsa olay gecmisi sisirilmez ve sonraki basarili deneme ayni akisi tamamlar. Diger deneme/erteleme kayitlari basarili belge gibi yazilmaz.
 - Bu dort gorevde `ImportLookbackDays=14` kullanilir. Zamanlanmis worker bugun dahil son 14 gunluk AXATA kayitlarini isler; daha eski `Status=0` arsiv kayitlari her dongude yeniden taranarak yeni evraklari geciktirmez.
 - C01, C02 ve G02 zamanlanmis okumalarinda `AxataConnection` tanimliysa tarih/durum filtresi dogrudan AXATA SQL tablolarinda uygulanir. WCF, canli import/ack islemi ve SQL baglantisi bulunmayan manuel akislar icin korunur.
 - Eski bir belgenin kurtarilmasi gerekiyorsa belgeye ozel manuel `preview/import/rescue` route'u kullanilir. Manuel route'lar 14 gunluk worker penceresiyle sinirlanmaz.
 - C01/C02 belgesi iptal kodluysa veya sevk durumu iptal olup toplam miktari sifirsa Mikro'da bos fis uretilmez; AXATA kaydi tamamlandi olarak isaretlenir. Bu kayit worker'i surekli `Degraded` durumda tutmaz.
-- G01 icin ayni AXATA satir anahtarlari Mikro'da eksiksiz bulunursa ikinci hareket yazilmaz; yalniz AXATA satirlari tamamlandi olarak isaretlenir.
+- G01 satirlari `S16SIPN + S16IRSN` (siparis + irsaliye) bazinda gruplanir. Ayni siparisin ilk irsaliyesi siparis seri/sirasini kullanabilir; sonraki parcali irsaliyeler ayni seride guvenli `MAX+1` sira ile ayri Mikro evraki olarak acilir.
+- G01 duplicate/readback kontrolu once AXATA satir izlerini, bu izlerin bulunmadigi Mikro API yolunda ise `S16IRSN` tedarikci belge no + siparis satir GUID'i + miktar toplamlarini dogrular. Tum beklenen satirlar tek Mikro evrakinda eksiksizse ikinci hareket yazilmaz; yalniz AXATA satirlari tamamlandi olarak isaretlenir.
 - Siparis/satir/miktar eslesmesi gercekten uyusmuyorsa kayit AXATA'da bekler ve Mikro'ya tahmini belge yazilmaz. Kalici deneme durumu aciksa ayni bozuk belge 15 dakika, ikinci hatada 1 saat, ucuncu ve sonraki hatalarda 6 saat ertelenir; diger uygun belgeler ayni batch icinde islenmeye devam eder. Bu is verisi sorunu worker'i durmus veya `Unhealthy` yapmaz. Baglanti, timeout ve veritabani gibi altyapi hatalari ise job hatasi olarak izlenmeye devam eder.
 - Mikro yazisi veya mevcut Mikro kaydinin kesin readback dogrulamasi tamamlanmadan AXATA `Status=1` ack yapilmaz.
 
@@ -20111,13 +20200,16 @@ Not: Bu listede eski teknik route'lar da bulunabilir. Yeni UI icin oncelikli rou
   - response `AxataOutboundDeliveryImportExecuteDto`
 - `GET /api/integrations/axata-sync/live/axata/inbound-atf/g01/preview?take=20`
   - AXATA `getInboundATFListAsync` uzerinden `MovementType=G01`, `Status=0` bekleyen ATF satirlarini okur
-  - `S16SIPN=seri.sira` Mikro firma siparisi, `S16KALN` siparis satiri kabul edilir
+- `S16SIPN=seri.sira` Mikro firma siparisi, `S16KALN` siparis satiri kabul edilir; satirlar `S16SIPN + S16IRSN` ile ayri irsaliye belgelerine gruplanir
   - Mikro'ya veri yazmaz; `canImport`, siparis/miktar/duplicate durumunu doner
   - response `AxataG01InboundAtfPreviewDto`
 - `POST /api/integrations/axata-sync/live/axata/inbound-atf/g01/import`
   - uygun G01 ATF satirlarini Mikro `DocumentType=13` firma mal kabul hareketine cevirir
+- ilk irsaliyede siparis seri/sirasi kullanilabilir; ayni siparisin sonraki `S16IRSN` degerleri ayni seride `MAX+1` ile ayri evrak olur
   - `MikroWriteRouting:CompanyReceiving=Database` ise eski DB transaction yolu kullanilir ve `sip_teslim_miktar` backend tarafinda guncellenir
-  - `MikroWriteRouting:CompanyReceiving=MikroApi` ise `IrsaliyeKaydetV2` yolu kullanilir; backend olusan hareketlerde `sth_sip_uid` linklerini geri okuyup dogrulamadan AXATA ack atmaz
+- `MikroWriteRouting:CompanyReceiving=MikroApi` ise `IrsaliyeKaydetV2` yolu kullanilir; backend olusan hareketlerde `sth_sip_uid` linklerini, tedarikci belge numarasini ve miktar toplamlarini geri okuyup dogrulamadan AXATA ack atmaz
+- duplicate kontrolde AXATA satir izi yoksa tedarikci belge no + siparis satir GUID'i + miktar kaniti kullanilir; eksik veya birden fazla Mikro evrakina dagilmis kanit basarili sayilmaz
+- aktarilamayan G01 belge `Failed` olarak Belge Akis Takibi'ne yazilir; tekrarlanan ayni hata tek akista tutulur, sonraki basari akisi `Succeeded` durumuna ilerletir
   - `acknowledge=true` ise basarili yazimdan sonra `ENT016_IRS.S16STAT=1` yapar
   - body `AxataOutboundDeliveryImportExecuteHttpRequest`
   - response `AxataG01InboundAtfExecuteDto`
@@ -25733,7 +25825,7 @@ Bu bolum test hostundaki ApiExplorer ve Swagger metadata'sindan otomatik uretili
 | GET | `/api/ayar-islemleri/terminal-cihazlari/{id}` | JWT + ayar-islemleri.terminal-cihazlari.detail | path: id / string (uuid) (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: TerminalInstallationDto<br>404: ProblemDetails |
 | GET | `/api/ayar-islemleri/veritabani-izleme/anlik` | JWT + ayar-islemleri.veritabani-izleme.list |  | 401: ProblemDetails<br>403: ProblemDetails<br>200: DatabaseMonitoringSnapshotDto |
 | GET | `/api/ayar-islemleri/veritabani-izleme/genel-bakis` | JWT + ayar-islemleri.veritabani-izleme.list |  | 401: ProblemDetails<br>403: ProblemDetails<br>200: MonitoringOverviewDto |
-| GET | `/api/ayar-islemleri/veritabani-izleme/guvenli-yazmalar` | JWT + ayar-islemleri.veritabani-izleme.detail | query: Status / string<br>query: OperationCode / string<br>query: WarehouseNo / integer (int32)<br>query: Retryable / boolean<br>query: IncludeCompleted / boolean<br>query: Take / integer (int32) | 401: ProblemDetails<br>403: ProblemDetails<br>200: IReadOnlyCollection&lt;SafeWriteMonitoringItemDto&gt;<br>400: ProblemDetails |
+| GET | `/api/ayar-islemleri/veritabani-izleme/guvenli-yazmalar` | JWT + ayar-islemleri.veritabani-izleme.detail | query: SearchText / string<br>query: Status / string<br>query: OperationCode / string<br>query: WarehouseNo / integer (int32)<br>query: Retryable / boolean<br>query: IncludeCompleted / boolean<br>query: CreatedFromUtc / string (date-time)<br>query: CreatedToUtc / string (date-time)<br>query: Take / integer (int32) | 401: ProblemDetails<br>403: ProblemDetails<br>200: IReadOnlyCollection&lt;SafeWriteMonitoringItemDto&gt;<br>400: ProblemDetails |
 | GET | `/api/ayar-islemleri/veritabani-izleme/guvenli-yazmalar/{id}/inceleme-gecmisi` | JWT + ayar-islemleri.veritabani-izleme.detail | path: id / string (uuid) (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: IReadOnlyCollection&lt;SafeWriteReviewAuditDto&gt;<br>404: ProblemDetails |
 | POST | `/api/ayar-islemleri/veritabani-izleme/guvenli-yazmalar/{id}/iptal` | JWT + ayar-islemleri.veritabani-izleme.resolve-safe-write | path: id / string (uuid) (zorunlu)<br>body: request / SafeWriteReviewHttpRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: SafeWriteReviewResultDto<br>404: ProblemDetails |
 | POST | `/api/ayar-islemleri/veritabani-izleme/guvenli-yazmalar/{id}/tekrar-ac` | JWT + ayar-islemleri.veritabani-izleme.resolve-safe-write | path: id / string (uuid) (zorunlu)<br>body: request / SafeWriteReviewHttpRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: SafeWriteReviewResultDto<br>404: ProblemDetails |
@@ -25743,6 +25835,34 @@ Bu bolum test hostundaki ApiExplorer ve Swagger metadata'sindan otomatik uretili
 | GET | `/api/ayar-islemleri/veritabani-izleme/oturumlar/{sessionId}/rollback-durumu` | JWT + ayar-islemleri.veritabani-izleme.detail | path: sessionId / integer (int32) (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: DatabaseRollbackStatusDto |
 | POST | `/api/ayar-islemleri/veritabani-izleme/oturumlar/{sessionId}/sonlandir` | JWT + ayar-islemleri.veritabani-izleme.terminate-session | path: sessionId / integer (int32) (zorunlu)<br>body: request / TerminateDatabaseSessionHttpRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: DatabaseSessionTerminationDto<br>400: ProblemDetails<br>404: ProblemDetails<br>409: ProblemDetails |
 | GET | `/api/ayar-islemleri/veritabani-izleme/workerlar` | JWT + ayar-islemleri.veritabani-izleme.list |  | 401: ProblemDetails<br>403: ProblemDetails<br>200: WorkerMonitoringSnapshotDto |
+| GET | `/api/ayar-islemleri/yeni-kasa-yonetimi/genel-ayarlar` | JWT + ayar-islemleri.yeni-kasa-yonetimi.genel-ayarlar + ayar-islemleri.yeni-kasa-yonetimi.list |  | 401: ProblemDetails<br>403: ProblemDetails<br>200: YeniKasaAppSettingsDto |
+| PUT | `/api/ayar-islemleri/yeni-kasa-yonetimi/genel-ayarlar` | JWT + ayar-islemleri.yeni-kasa-yonetimi.genel-ayarlar + ayar-islemleri.yeni-kasa-yonetimi.update | body: request / UpdateYeniKasaAppSettingsRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>204: bildirilmemis |
+| POST | `/api/ayar-islemleri/yeni-kasa-yonetimi/genel-ayarlar/test-ftp` | JWT + ayar-islemleri.yeni-kasa-yonetimi.genel-ayarlar + ayar-islemleri.yeni-kasa-yonetimi.update | body: request / TestFtpConnectionRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: TestFtpConnectionResultDto |
+| GET | `/api/ayar-islemleri/yeni-kasa-yonetimi/hizli-tus/kategoriler` | JWT + ayar-islemleri.yeni-kasa-yonetimi.hizli-tuslar + ayar-islemleri.yeni-kasa-yonetimi.list |  | 401: ProblemDetails<br>403: ProblemDetails<br>200: IReadOnlyList&lt;YeniKasaFastAccessCategoryDto&gt; |
+| POST | `/api/ayar-islemleri/yeni-kasa-yonetimi/hizli-tus/kategoriler` | JWT + ayar-islemleri.yeni-kasa-yonetimi.create + ayar-islemleri.yeni-kasa-yonetimi.hizli-tuslar | body: request / CreateFastAccessCategoryRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>201: YeniKasaFastAccessCategoryDto |
+| PUT | `/api/ayar-islemleri/yeni-kasa-yonetimi/hizli-tus/kategoriler` | JWT + ayar-islemleri.yeni-kasa-yonetimi.hizli-tuslar + ayar-islemleri.yeni-kasa-yonetimi.update | body: request / UpdateFastAccessCategoryRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>204: bildirilmemis |
+| DELETE | `/api/ayar-islemleri/yeni-kasa-yonetimi/hizli-tus/kategoriler/{id}` | JWT + ayar-islemleri.yeni-kasa-yonetimi.delete + ayar-islemleri.yeni-kasa-yonetimi.hizli-tuslar | path: id / integer (int32) (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>204: bildirilmemis |
+| POST | `/api/ayar-islemleri/yeni-kasa-yonetimi/hizli-tus/urunler` | JWT + ayar-islemleri.yeni-kasa-yonetimi.create + ayar-islemleri.yeni-kasa-yonetimi.hizli-tuslar | body: request / CreateFastAccessItemRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>201: YeniKasaFastAccessItemDto |
+| GET | `/api/ayar-islemleri/yeni-kasa-yonetimi/hizli-tus/urunler/{categoryKey}` | JWT + ayar-islemleri.yeni-kasa-yonetimi.hizli-tuslar + ayar-islemleri.yeni-kasa-yonetimi.list | path: categoryKey / string (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: IReadOnlyList&lt;YeniKasaFastAccessItemDto&gt; |
+| DELETE | `/api/ayar-islemleri/yeni-kasa-yonetimi/hizli-tus/urunler/{id}` | JWT + ayar-islemleri.yeni-kasa-yonetimi.delete + ayar-islemleri.yeni-kasa-yonetimi.hizli-tuslar | path: id / integer (int32) (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>204: bildirilmemis |
+| GET | `/api/ayar-islemleri/yeni-kasa-yonetimi/musteri-ekrani/ayarlar` | JWT + ayar-islemleri.yeni-kasa-yonetimi.list + ayar-islemleri.yeni-kasa-yonetimi.musteri-ekrani |  | 401: ProblemDetails<br>403: ProblemDetails<br>200: IReadOnlyList&lt;YeniKasaDisplaySettingsDto&gt; |
+| PUT | `/api/ayar-islemleri/yeni-kasa-yonetimi/musteri-ekrani/ayarlar` | JWT + ayar-islemleri.yeni-kasa-yonetimi.musteri-ekrani + ayar-islemleri.yeni-kasa-yonetimi.update | body: request / UpdateYeniKasaDisplaySettingsRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>204: bildirilmemis |
+| GET | `/api/ayar-islemleri/yeni-kasa-yonetimi/musteri-ekrani/icerikler` | JWT + ayar-islemleri.yeni-kasa-yonetimi.list + ayar-islemleri.yeni-kasa-yonetimi.musteri-ekrani | query: pageType / string | 401: ProblemDetails<br>403: ProblemDetails<br>200: IReadOnlyList&lt;YeniKasaDisplayContentDto&gt; |
+| POST | `/api/ayar-islemleri/yeni-kasa-yonetimi/musteri-ekrani/icerikler` | JWT + ayar-islemleri.yeni-kasa-yonetimi.create + ayar-islemleri.yeni-kasa-yonetimi.musteri-ekrani | body: request / CreateYeniKasaDisplayContentRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>201: YeniKasaDisplayContentDto |
+| DELETE | `/api/ayar-islemleri/yeni-kasa-yonetimi/musteri-ekrani/icerikler/{id}` | JWT + ayar-islemleri.yeni-kasa-yonetimi.delete + ayar-islemleri.yeni-kasa-yonetimi.musteri-ekrani | path: id / integer (int32) (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>204: bildirilmemis |
+| PUT | `/api/ayar-islemleri/yeni-kasa-yonetimi/musteri-ekrani/siralama` | JWT + ayar-islemleri.yeni-kasa-yonetimi.musteri-ekrani + ayar-islemleri.yeni-kasa-yonetimi.update | body: request / UpdateDisplayContentsOrderRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>204: bildirilmemis |
+| GET | `/api/ayar-islemleri/yeni-kasa-yonetimi/musteri-gorsel/{fileName}` | Anonim | path: fileName / string (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: bildirilmemis<br>404: ProblemDetails |
+| GET | `/api/ayar-islemleri/yeni-kasa-yonetimi/odeme-yontemleri` | JWT + ayar-islemleri.yeni-kasa-yonetimi.list + ayar-islemleri.yeni-kasa-yonetimi.odeme-yontemleri |  | 401: ProblemDetails<br>403: ProblemDetails<br>200: IReadOnlyList&lt;YeniKasaPaymentMethodDto&gt; |
+| PUT | `/api/ayar-islemleri/yeni-kasa-yonetimi/odeme-yontemleri` | JWT + ayar-islemleri.yeni-kasa-yonetimi.odeme-yontemleri + ayar-islemleri.yeni-kasa-yonetimi.update | body: request / UpdateYeniKasaPaymentMethodRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>204: bildirilmemis |
+| GET | `/api/ayar-islemleri/yeni-kasa-yonetimi/odeme-yontemleri/lookups` | JWT + ayar-islemleri.yeni-kasa-yonetimi.list + ayar-islemleri.yeni-kasa-yonetimi.odeme-yontemleri |  | 401: ProblemDetails<br>403: ProblemDetails<br>200: YeniKasaPaymentMethodLookupsDto |
+| PUT | `/api/ayar-islemleri/yeni-kasa-yonetimi/odeme-yontemleri/siralama` | JWT + ayar-islemleri.yeni-kasa-yonetimi.odeme-yontemleri + ayar-islemleri.yeni-kasa-yonetimi.update | body: request / UpdatePaymentMethodsOrderRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>204: bildirilmemis |
+| GET | `/api/ayar-islemleri/yeni-kasa-yonetimi/stok-ara` | JWT + ayar-islemleri.yeni-kasa-yonetimi.hizli-tuslar + ayar-islemleri.yeni-kasa-yonetimi.list | query: q / string<br>query: take / integer (int32) | 401: ProblemDetails<br>403: ProblemDetails<br>200: IReadOnlyList&lt;YeniKasaStockLookupDto&gt; |
+| POST | `/api/ayar-islemleri/yeni-kasa-yonetimi/sync-push` | JWT + ayar-islemleri.yeni-kasa-yonetimi.genel-ayarlar + ayar-islemleri.yeni-kasa-yonetimi.update |  | 401: ProblemDetails<br>403: ProblemDetails<br>200: SyncPushResultDto |
+| GET | `/api/ayar-islemleri/yeni-kasa-yonetimi/urun-gorsel/{inventoryCode}` | Anonim | path: inventoryCode / string (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: bildirilmemis<br>404: ProblemDetails |
+| GET | `/api/ayar-islemleri/yeni-kasa-yonetimi/yetki-matrisi` | JWT + ayar-islemleri.yeni-kasa-yonetimi.list + ayar-islemleri.yeni-kasa-yonetimi.yetki-matrisi |  | 401: ProblemDetails<br>403: ProblemDetails<br>200: YeniKasaRolePermissionMatrixDto |
+| PUT | `/api/ayar-islemleri/yeni-kasa-yonetimi/yetki-matrisi` | JWT + ayar-islemleri.yeni-kasa-yonetimi.update + ayar-islemleri.yeni-kasa-yonetimi.yetki-matrisi | body: request / UpdateRolePermissionsRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>204: bildirilmemis |
+| POST | `/api/ayar-islemleri/yeni-kasa-yonetimi/yetki-matrisi/kopyala` | JWT + ayar-islemleri.yeni-kasa-yonetimi.update + ayar-islemleri.yeni-kasa-yonetimi.yetki-matrisi | body: request / CopyRolePermissionsRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: CopyRolePermissionsResultDto |
+| PUT | `/api/ayar-islemleri/yeni-kasa-yonetimi/yetki-matrisi/toplu` | JWT + ayar-islemleri.yeni-kasa-yonetimi.update + ayar-islemleri.yeni-kasa-yonetimi.yetki-matrisi | body: request / BulkUpdateRolePermissionsRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>204: bildirilmemis |
 | GET | `/api/duzeltme-islemleri/mikro-evrak-duzenleme/alan-haritasi` | JWT + duzeltme-islemleri.mikro-evrak-duzenleme.list |  | 401: ProblemDetails<br>403: ProblemDetails<br>200: MikroDocumentFieldCatalogDto |
 | DELETE | `/api/duzeltme-islemleri/mikro-evrak-duzenleme/banknot-takipleri/{banknoteTrackId}` | JWT + duzeltme-islemleri.mikro-evrak-duzenleme.delete | path: banknoteTrackId / string (uuid) (zorunlu)<br>query: warehouseNo / integer (int32) | 401: ProblemDetails<br>403: ProblemDetails<br>200: MikroDocumentDeleteResponse<br>400: ProblemDetails<br>404: ProblemDetails |
 | GET | `/api/duzeltme-islemleri/mikro-evrak-duzenleme/banknot-takipleri/{banknoteTrackId}` | JWT + duzeltme-islemleri.mikro-evrak-duzenleme.detail | path: banknoteTrackId / string (uuid) (zorunlu)<br>query: warehouseNo / integer (int32) | 401: ProblemDetails<br>403: ProblemDetails<br>200: BanknoteTrackDto<br>400: ProblemDetails<br>404: ProblemDetails |
@@ -25750,6 +25870,7 @@ Bu bolum test hostundaki ApiExplorer ve Swagger metadata'sindan otomatik uretili
 | DELETE | `/api/duzeltme-islemleri/mikro-evrak-duzenleme/cari-hareketleri` | JWT + duzeltme-islemleri.mikro-evrak-duzenleme.delete | query: DocumentSerie / string (zorunlu)<br>query: DocumentOrderNo / integer (int32)<br>query: DocumentType / integer (int32)<br>query: MovementType / integer (int32)<br>query: MovementKind / integer (int32)<br>query: NormalReturn / integer (int32)<br>query: CustomerCode / string<br>query: HardDelete / boolean | 401: ProblemDetails<br>403: ProblemDetails<br>200: MikroDocumentDeleteResponse<br>400: ProblemDetails<br>404: ProblemDetails<br>409: ProblemDetails |
 | GET | `/api/duzeltme-islemleri/mikro-evrak-duzenleme/cari-hareketleri` | JWT + duzeltme-islemleri.mikro-evrak-duzenleme.detail | query: DocumentSerie / string (zorunlu)<br>query: DocumentOrderNo / integer (int32)<br>query: DocumentType / integer (int32)<br>query: MovementType / integer (int32)<br>query: MovementKind / integer (int32)<br>query: NormalReturn / integer (int32)<br>query: CustomerCode / string<br>query: HardDelete / boolean | 401: ProblemDetails<br>403: ProblemDetails<br>200: CustomerMovementDocumentDto<br>400: ProblemDetails<br>404: ProblemDetails<br>409: ProblemDetails |
 | PUT | `/api/duzeltme-islemleri/mikro-evrak-duzenleme/cari-hareketleri` | JWT + duzeltme-islemleri.mikro-evrak-duzenleme.update | body: request / UpdateCustomerMovementDocumentHttpRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: CustomerMovementDocumentUpdateResponse<br>400: ProblemDetails<br>404: ProblemDetails<br>409: ProblemDetails |
+| GET | `/api/duzeltme-islemleri/mikro-evrak-duzenleme/cari-hareketleri/eslesmeler` | JWT + duzeltme-islemleri.mikro-evrak-duzenleme.detail | query: DocumentSerie / string (zorunlu)<br>query: DocumentOrderNo / integer (int32)<br>query: DocumentType / integer (int32)<br>query: MovementType / integer (int32)<br>query: MovementKind / integer (int32)<br>query: NormalReturn / integer (int32)<br>query: CustomerCode / string<br>query: HardDelete / boolean | 401: ProblemDetails<br>403: ProblemDetails<br>200: IReadOnlyCollection&lt;CustomerMovementDocumentDto&gt;<br>400: ProblemDetails |
 | GET | `/api/duzeltme-islemleri/mikro-evrak-duzenleme/cariler` | JWT + duzeltme-islemleri.mikro-evrak-duzenleme.list | query: SearchText / string<br>query: IncludePassive / boolean<br>query: Take / integer (int32) | 401: ProblemDetails<br>403: ProblemDetails<br>200: IReadOnlyCollection&lt;CustomerCardListItemDto&gt;<br>400: ProblemDetails |
 | GET | `/api/duzeltme-islemleri/mikro-evrak-duzenleme/cariler/{customerCode}` | JWT + duzeltme-islemleri.mikro-evrak-duzenleme.detail | path: customerCode / string (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: CustomerCardDetailDto<br>400: ProblemDetails<br>404: ProblemDetails |
 | PUT | `/api/duzeltme-islemleri/mikro-evrak-duzenleme/cariler/{customerCode}` | JWT + duzeltme-islemleri.mikro-evrak-duzenleme.update | path: customerCode / string (zorunlu)<br>body: request / CustomerCardPatchHttpRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: CustomerCardUpdateResponse<br>400: ProblemDetails<br>404: ProblemDetails |
@@ -25758,18 +25879,22 @@ Bu bolum test hostundaki ApiExplorer ve Swagger metadata'sindan otomatik uretili
 | DELETE | `/api/duzeltme-islemleri/mikro-evrak-duzenleme/depo-siparisleri` | JWT + duzeltme-islemleri.mikro-evrak-duzenleme.delete | query: DocumentSerie / string (zorunlu)<br>query: DocumentOrderNo / integer (int32)<br>query: WarehouseNo / integer (int32)<br>query: InWarehouseNo / integer (int32)<br>query: OutWarehouseNo / integer (int32)<br>query: HardDelete / boolean | 401: ProblemDetails<br>403: ProblemDetails<br>200: MikroDocumentDeleteResponse<br>400: ProblemDetails<br>404: ProblemDetails<br>409: ProblemDetails |
 | GET | `/api/duzeltme-islemleri/mikro-evrak-duzenleme/depo-siparisleri` | JWT + duzeltme-islemleri.mikro-evrak-duzenleme.detail | query: DocumentSerie / string (zorunlu)<br>query: DocumentOrderNo / integer (int32)<br>query: WarehouseNo / integer (int32)<br>query: InWarehouseNo / integer (int32)<br>query: OutWarehouseNo / integer (int32)<br>query: HardDelete / boolean | 401: ProblemDetails<br>403: ProblemDetails<br>200: WarehouseOrderDocumentDto<br>400: ProblemDetails<br>404: ProblemDetails<br>409: ProblemDetails |
 | PUT | `/api/duzeltme-islemleri/mikro-evrak-duzenleme/depo-siparisleri` | JWT + duzeltme-islemleri.mikro-evrak-duzenleme.update | body: request / UpdateWarehouseOrderDocumentHttpRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: WarehouseOrderDocumentUpdateResponse<br>400: ProblemDetails<br>404: ProblemDetails<br>409: ProblemDetails |
+| GET | `/api/duzeltme-islemleri/mikro-evrak-duzenleme/depo-siparisleri/eslesmeler` | JWT + duzeltme-islemleri.mikro-evrak-duzenleme.detail | query: DocumentSerie / string (zorunlu)<br>query: DocumentOrderNo / integer (int32)<br>query: WarehouseNo / integer (int32)<br>query: InWarehouseNo / integer (int32)<br>query: OutWarehouseNo / integer (int32)<br>query: HardDelete / boolean | 401: ProblemDetails<br>403: ProblemDetails<br>200: IReadOnlyCollection&lt;WarehouseOrderDocumentDto&gt;<br>400: ProblemDetails |
 | GET | `/api/duzeltme-islemleri/mikro-evrak-duzenleme/depolar` | JWT + duzeltme-islemleri.mikro-evrak-duzenleme.list | query: SearchText / string<br>query: IncludePassive / boolean<br>query: Take / integer (int32) | 401: ProblemDetails<br>403: ProblemDetails<br>200: IReadOnlyCollection&lt;WarehouseCardListItemDto&gt;<br>400: ProblemDetails |
 | GET | `/api/duzeltme-islemleri/mikro-evrak-duzenleme/depolar/{warehouseNo}` | JWT + duzeltme-islemleri.mikro-evrak-duzenleme.detail | path: warehouseNo / integer (int32) (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: WarehouseCardDetailDto<br>400: ProblemDetails<br>404: ProblemDetails |
 | PUT | `/api/duzeltme-islemleri/mikro-evrak-duzenleme/depolar/{warehouseNo}` | JWT + duzeltme-islemleri.mikro-evrak-duzenleme.update | path: warehouseNo / integer (int32) (zorunlu)<br>body: request / WarehouseCardPatchHttpRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: WarehouseCardUpdateResponse<br>400: ProblemDetails<br>404: ProblemDetails |
+| GET | `/api/duzeltme-islemleri/mikro-evrak-duzenleme/evrak-eslesmeleri` | JWT + duzeltme-islemleri.mikro-evrak-duzenleme.detail | query: DocumentSerie / string (zorunlu)<br>query: DocumentOrderNo / integer (int32) | 401: ProblemDetails<br>403: ProblemDetails<br>200: IReadOnlyCollection&lt;MikroDocumentCandidateDto&gt;<br>400: ProblemDetails |
 | DELETE | `/api/duzeltme-islemleri/mikro-evrak-duzenleme/firma-siparisleri` | JWT + duzeltme-islemleri.mikro-evrak-duzenleme.delete | query: DocumentSerie / string (zorunlu)<br>query: DocumentOrderNo / integer (int32)<br>query: OrderType / integer (int32)<br>query: OrderKind / integer (int32)<br>query: WarehouseNo / integer (int32)<br>query: CustomerCode / string<br>query: HardDelete / boolean | 401: ProblemDetails<br>403: ProblemDetails<br>200: MikroDocumentDeleteResponse<br>400: ProblemDetails<br>404: ProblemDetails<br>409: ProblemDetails |
 | GET | `/api/duzeltme-islemleri/mikro-evrak-duzenleme/firma-siparisleri` | JWT + duzeltme-islemleri.mikro-evrak-duzenleme.detail | query: DocumentSerie / string (zorunlu)<br>query: DocumentOrderNo / integer (int32)<br>query: OrderType / integer (int32)<br>query: OrderKind / integer (int32)<br>query: WarehouseNo / integer (int32)<br>query: CustomerCode / string<br>query: HardDelete / boolean | 401: ProblemDetails<br>403: ProblemDetails<br>200: CompanyOrderDocumentDto<br>400: ProblemDetails<br>404: ProblemDetails<br>409: ProblemDetails |
 | PUT | `/api/duzeltme-islemleri/mikro-evrak-duzenleme/firma-siparisleri` | JWT + duzeltme-islemleri.mikro-evrak-duzenleme.update | body: request / UpdateCompanyOrderDocumentHttpRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: CompanyOrderDocumentUpdateResponse<br>400: ProblemDetails<br>404: ProblemDetails<br>409: ProblemDetails |
+| GET | `/api/duzeltme-islemleri/mikro-evrak-duzenleme/firma-siparisleri/eslesmeler` | JWT + duzeltme-islemleri.mikro-evrak-duzenleme.detail | query: DocumentSerie / string (zorunlu)<br>query: DocumentOrderNo / integer (int32)<br>query: OrderType / integer (int32)<br>query: OrderKind / integer (int32)<br>query: WarehouseNo / integer (int32)<br>query: CustomerCode / string<br>query: HardDelete / boolean | 401: ProblemDetails<br>403: ProblemDetails<br>200: IReadOnlyCollection&lt;CompanyOrderDocumentDto&gt;<br>400: ProblemDetails |
 | GET | `/api/duzeltme-islemleri/mikro-evrak-duzenleme/sayim-sonuclari` | JWT + duzeltme-islemleri.mikro-evrak-duzenleme.detail | query: WarehouseNo / integer (int32)<br>query: DocumentNo / integer (int32)<br>query: DocumentDate / string (date-time) (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: InventoryCountDocumentDto<br>400: ProblemDetails<br>404: ProblemDetails<br>409: ProblemDetails |
 | PUT | `/api/duzeltme-islemleri/mikro-evrak-duzenleme/sayim-sonuclari` | JWT + duzeltme-islemleri.mikro-evrak-duzenleme.update | body: request / UpdateInventoryCountDocumentHttpRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: InventoryCountDocumentUpdateResponse<br>400: ProblemDetails<br>404: ProblemDetails<br>409: ProblemDetails |
-| DELETE | `/api/duzeltme-islemleri/mikro-evrak-duzenleme/stok-hareketleri` | JWT + duzeltme-islemleri.mikro-evrak-duzenleme.delete | query: DocumentSerie / string (zorunlu)<br>query: DocumentOrderNo / integer (int32)<br>query: DocumentType / integer (int32)<br>query: MovementType / integer (int32)<br>query: MovementKind / integer (int32)<br>query: NormalReturn / integer (int32)<br>query: WarehouseNo / integer (int32)<br>query: HardDelete / boolean | 401: ProblemDetails<br>403: ProblemDetails<br>200: MikroDocumentDeleteResponse<br>400: ProblemDetails<br>404: ProblemDetails<br>409: ProblemDetails |
-| GET | `/api/duzeltme-islemleri/mikro-evrak-duzenleme/stok-hareketleri` | JWT + duzeltme-islemleri.mikro-evrak-duzenleme.detail | query: DocumentSerie / string (zorunlu)<br>query: DocumentOrderNo / integer (int32)<br>query: DocumentType / integer (int32)<br>query: MovementType / integer (int32)<br>query: MovementKind / integer (int32)<br>query: NormalReturn / integer (int32)<br>query: WarehouseNo / integer (int32)<br>query: HardDelete / boolean | 401: ProblemDetails<br>403: ProblemDetails<br>200: StockMovementDocumentDto<br>400: ProblemDetails<br>404: ProblemDetails<br>409: ProblemDetails |
+| GET | `/api/duzeltme-islemleri/mikro-evrak-duzenleme/sayim-sonuclari/eslesmeler` | JWT + duzeltme-islemleri.mikro-evrak-duzenleme.detail | query: WarehouseNo / integer (int32)<br>query: DocumentNo / integer (int32) (zorunlu)<br>query: DocumentDate / string (date-time) | 401: ProblemDetails<br>403: ProblemDetails<br>200: IReadOnlyCollection&lt;InventoryCountDocumentDto&gt;<br>400: ProblemDetails |
+| DELETE | `/api/duzeltme-islemleri/mikro-evrak-duzenleme/stok-hareketleri` | JWT + duzeltme-islemleri.mikro-evrak-duzenleme.delete | query: DocumentSerie / string (zorunlu)<br>query: DocumentOrderNo / integer (int32)<br>query: DocumentType / integer (int32)<br>query: MovementType / integer (int32)<br>query: MovementKind / integer (int32)<br>query: NormalReturn / integer (int32)<br>query: WarehouseNo / integer (int32)<br>query: InputWarehouseNo / integer (int32)<br>query: OutputWarehouseNo / integer (int32)<br>query: HardDelete / boolean | 401: ProblemDetails<br>403: ProblemDetails<br>200: MikroDocumentDeleteResponse<br>400: ProblemDetails<br>404: ProblemDetails<br>409: ProblemDetails |
+| GET | `/api/duzeltme-islemleri/mikro-evrak-duzenleme/stok-hareketleri` | JWT + duzeltme-islemleri.mikro-evrak-duzenleme.detail | query: DocumentSerie / string (zorunlu)<br>query: DocumentOrderNo / integer (int32)<br>query: DocumentType / integer (int32)<br>query: MovementType / integer (int32)<br>query: MovementKind / integer (int32)<br>query: NormalReturn / integer (int32)<br>query: WarehouseNo / integer (int32)<br>query: InputWarehouseNo / integer (int32)<br>query: OutputWarehouseNo / integer (int32)<br>query: HardDelete / boolean | 401: ProblemDetails<br>403: ProblemDetails<br>200: StockMovementDocumentDto<br>400: ProblemDetails<br>404: ProblemDetails<br>409: ProblemDetails |
 | PUT | `/api/duzeltme-islemleri/mikro-evrak-duzenleme/stok-hareketleri` | JWT + duzeltme-islemleri.mikro-evrak-duzenleme.update | body: request / UpdateStockMovementDocumentHttpRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: StockMovementDocumentUpdateResponse<br>400: ProblemDetails<br>404: ProblemDetails<br>409: ProblemDetails |
-| GET | `/api/duzeltme-islemleri/mikro-evrak-duzenleme/stok-hareketleri/eslesmeler` | JWT + duzeltme-islemleri.mikro-evrak-duzenleme.detail | query: DocumentSerie / string (zorunlu)<br>query: DocumentOrderNo / integer (int32)<br>query: DocumentType / integer (int32)<br>query: MovementType / integer (int32)<br>query: MovementKind / integer (int32)<br>query: NormalReturn / integer (int32)<br>query: WarehouseNo / integer (int32)<br>query: HardDelete / boolean | 401: ProblemDetails<br>403: ProblemDetails<br>200: IReadOnlyCollection&lt;StockMovementDocumentDto&gt;<br>400: ProblemDetails |
+| GET | `/api/duzeltme-islemleri/mikro-evrak-duzenleme/stok-hareketleri/eslesmeler` | JWT + duzeltme-islemleri.mikro-evrak-duzenleme.detail | query: DocumentSerie / string (zorunlu)<br>query: DocumentOrderNo / integer (int32)<br>query: DocumentType / integer (int32)<br>query: MovementType / integer (int32)<br>query: MovementKind / integer (int32)<br>query: NormalReturn / integer (int32)<br>query: WarehouseNo / integer (int32)<br>query: InputWarehouseNo / integer (int32)<br>query: OutputWarehouseNo / integer (int32)<br>query: HardDelete / boolean | 401: ProblemDetails<br>403: ProblemDetails<br>200: IReadOnlyCollection&lt;StockMovementDocumentDto&gt;<br>400: ProblemDetails |
 | GET | `/api/duzeltme-islemleri/mikro-evrak-duzenleme/stok-kartlari` | JWT + duzeltme-islemleri.mikro-evrak-duzenleme.list | query: SearchText / string<br>query: IncludePassive / boolean<br>query: Take / integer (int32) | 401: ProblemDetails<br>403: ProblemDetails<br>200: IReadOnlyCollection&lt;StockCardListItemDto&gt;<br>400: ProblemDetails |
 | GET | `/api/duzeltme-islemleri/mikro-evrak-duzenleme/stok-kartlari/{stockCode}` | JWT + duzeltme-islemleri.mikro-evrak-duzenleme.detail | path: stockCode / string (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: StockCardDetailDto<br>400: ProblemDetails<br>404: ProblemDetails |
 | PUT | `/api/duzeltme-islemleri/mikro-evrak-duzenleme/stok-kartlari/{stockCode}` | JWT + duzeltme-islemleri.mikro-evrak-duzenleme.update | path: stockCode / string (zorunlu)<br>body: request / StockCardPatchHttpRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: StockCardUpdateResponse<br>400: ProblemDetails<br>404: ProblemDetails |
@@ -25813,6 +25938,15 @@ Bu bolum test hostundaki ApiExplorer ve Swagger metadata'sindan otomatik uretili
 | PUT | `/api/entegrasyon-islemleri/trendyol-go/claims/{claimId}/reject` | JWT + entegrasyon-islemleri.trendyol-go.update | path: claimId / string (zorunlu)<br>body: payload / JsonElement (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails |
 | GET | `/api/entegrasyon-islemleri/trendyol-go/connection-test` | JWT + entegrasyon-islemleri.trendyol-go.detail | query: storeId / integer (int64) | 401: ProblemDetails<br>403: ProblemDetails<br>200: TrendyolGoConnectionStatusDto |
 | POST | `/api/entegrasyon-islemleri/trendyol-go/invoice-links` | JWT + entegrasyon-islemleri.trendyol-go.update | body: payload / JsonElement (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails |
+| GET | `/api/entegrasyon-islemleri/trendyol-go/management` | JWT + entegrasyon-islemleri.trendyol-go.detail | query: categorySearch / string | 401: ProblemDetails<br>403: ProblemDetails<br>200: TrendyolGoAdministrationOverview |
+| POST | `/api/entegrasyon-islemleri/trendyol-go/management/categories/refresh` | JWT + entegrasyon-islemleri.trendyol-go.update |  | 401: ProblemDetails<br>403: ProblemDetails<br>200: TrendyolGoCategorySyncResult |
+| PUT | `/api/entegrasyon-islemleri/trendyol-go/management/category-mappings` | JWT + entegrasyon-islemleri.trendyol-go.update | body: request / TrendyolGoCategoryMappingHttpRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: TrendyolGoCategoryMappingDto |
+| DELETE | `/api/entegrasyon-islemleri/trendyol-go/management/category-mappings/{id}` | JWT + entegrasyon-islemleri.trendyol-go.update | path: id / string (uuid) (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>204: bildirilmemis |
+| PUT | `/api/entegrasyon-islemleri/trendyol-go/management/product-overrides` | JWT + entegrasyon-islemleri.trendyol-go.update | body: request / TrendyolGoProductCategoryOverrideHttpRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: TrendyolGoProductCategoryOverrideDto |
+| DELETE | `/api/entegrasyon-islemleri/trendyol-go/management/product-overrides/{id}` | JWT + entegrasyon-islemleri.trendyol-go.update | path: id / string (uuid) (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>204: bildirilmemis |
+| PUT | `/api/entegrasyon-islemleri/trendyol-go/management/settings` | JWT + entegrasyon-islemleri.trendyol-go.update | body: request / TrendyolGoRuntimeSettingsHttpRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: TrendyolGoRuntimeSettingsDto |
+| PUT | `/api/entegrasyon-islemleri/trendyol-go/management/stores` | JWT + entegrasyon-islemleri.trendyol-go.update | body: request / TrendyolGoStoreSettingHttpRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: TrendyolGoStoreSettingDto |
+| DELETE | `/api/entegrasyon-islemleri/trendyol-go/management/stores/{storeId}` | JWT + entegrasyon-islemleri.trendyol-go.update | path: storeId / integer (int64) (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>204: bildirilmemis |
 | GET | `/api/entegrasyon-islemleri/trendyol-go/orders` | JWT + entegrasyon-islemleri.trendyol-go.list | query: StoreId / integer (int64)<br>query: StartDate / integer (int64)<br>query: EndDate / integer (int64)<br>query: Page / integer (int32)<br>query: Size / integer (int32)<br>query: Status / string[]<br>query: SortDirection / string | 401: ProblemDetails<br>403: ProblemDetails<br>200: JsonElement |
 | GET | `/api/entegrasyon-islemleri/trendyol-go/orders/by-number/{orderNumber}` | JWT + entegrasyon-islemleri.trendyol-go.detail | path: orderNumber / string (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: JsonElement |
 | GET | `/api/entegrasyon-islemleri/trendyol-go/orders/{orderId}/invoice-amount` | JWT + entegrasyon-islemleri.trendyol-go.detail | path: orderId / string (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: JsonElement |
@@ -25838,6 +25972,7 @@ Bu bolum test hostundaki ApiExplorer ve Swagger metadata'sindan otomatik uretili
 | POST | `/api/entegrasyon-islemleri/trendyol-go/products/seller-attributes` | JWT + entegrasyon-islemleri.trendyol-go.update | body: payload / JsonElement (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails |
 | GET | `/api/entegrasyon-islemleri/trendyol-go/status` | JWT + entegrasyon-islemleri.trendyol-go.list |  | 401: ProblemDetails<br>403: ProblemDetails<br>200: TrendyolGoConnectionStatusDto |
 | GET | `/api/entegrasyon-islemleri/trendyol-go/stores` | JWT + entegrasyon-islemleri.trendyol-go.list |  | 401: ProblemDetails<br>403: ProblemDetails<br>200: IReadOnlyCollection&lt;TrendyolGoStoreMappingDto&gt; |
+| GET | `/api/entegrasyon-islemleri/trendyol-go/workflow-status` | JWT + entegrasyon-islemleri.trendyol-go.detail | query: take / integer (int32) | 401: ProblemDetails<br>403: ProblemDetails<br>200: TrendyolGoWorkflowStatusDto |
 | GET | `/api/entegrasyon-islemleri/uyumsoft/e-fatura` | JWT + entegrasyon-islemleri.uyumsoft-e-fatura.list |  | 401: ProblemDetails<br>403: ProblemDetails<br>200: UyumsoftConnectedServiceOverviewDto |
 | GET | `/api/entegrasyon-islemleri/uyumsoft/e-fatura/get/{operationName}` | JWT + entegrasyon-islemleri.uyumsoft-e-fatura.detail | path: operationName / string (zorunlu)<br>query: parameter / string[] | 401: ProblemDetails<br>403: ProblemDetails<br>200: UyumsoftOperationResponseDto<br>400: ProblemDetails |
 | POST | `/api/entegrasyon-islemleri/uyumsoft/e-fatura/get/{operationName}` | JWT + entegrasyon-islemleri.uyumsoft-e-fatura.detail | path: operationName / string (zorunlu)<br>body: request / UyumsoftOperationHttpRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: UyumsoftOperationResponseDto<br>400: ProblemDetails |
@@ -25964,45 +26099,45 @@ Bu bolum test hostundaki ApiExplorer ve Swagger metadata'sindan otomatik uretili
 | POST | `/api/integrations/axata-sync/advanced/{taskCode}/documents/outbox-batch` | JWT + entegrasyon-islemleri.axata-senkronizasyonu.create | path: taskCode / string (zorunlu)<br>body: request / AxataSynchronizationManualDocumentBatchExecuteHttpRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: AxataSynchronizationManualDocumentBatchDto<br>400: ProblemDetails<br>404: ProblemDetails<br>409: ProblemDetails |
 | GET | `/api/integrations/axata-sync/audit` | JWT + entegrasyon-islemleri.axata-senkronizasyonu.detail | query: StartDate / string (date-time)<br>query: EndDate / string (date-time)<br>query: WarehouseNo / integer (int32)<br>query: Take / integer (int32)<br>query: DocumentSerie / string<br>query: DocumentOrderNo / integer (int32)<br>query: Statuses / string | 401: ProblemDetails<br>403: ProblemDetails<br>200: AxataIntegrationAuditDto<br>400: ProblemDetails |
 | POST | `/api/integrations/axata-sync/c01/documents/{documentSerie}/{documentOrderNo}/import` | JWT + entegrasyon-islemleri.axata-senkronizasyonu.create | path: documentSerie / string (zorunlu)<br>path: documentOrderNo / integer (int32) (zorunlu)<br>body: request / AxataOutboundDeliveryDocumentImportExecuteHttpRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: AxataOutboundDeliveryImportExecuteDto<br>400: ProblemDetails<br>404: ProblemDetails |
-| GET | `/api/integrations/axata-sync/c01/documents/{documentSerie}/{documentOrderNo}/preview` | JWT + entegrasyon-islemleri.axata-senkronizasyonu.detail | path: documentSerie / string (zorunlu)<br>path: documentOrderNo / integer (int32) (zorunlu)<br>query: status / string | 401: ProblemDetails<br>403: ProblemDetails<br>200: AxataOutboundDeliveryImportPreviewDto<br>400: ProblemDetails<br>404: ProblemDetails |
+| GET | `/api/integrations/axata-sync/c01/documents/{documentSerie}/{documentOrderNo}/preview` | JWT + entegrasyon-islemleri.axata-senkronizasyonu.detail | path: documentSerie / string (zorunlu)<br>path: documentOrderNo / integer (int32) (zorunlu)<br>query: status / string<br>query: axataSequenceNo / integer (int64) | 401: ProblemDetails<br>403: ProblemDetails<br>200: AxataOutboundDeliveryImportPreviewDto<br>400: ProblemDetails<br>404: ProblemDetails |
 | POST | `/api/integrations/axata-sync/c01/import` | JWT + entegrasyon-islemleri.axata-senkronizasyonu.create | body: request / AxataOutboundDeliveryImportExecuteHttpRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: AxataOutboundDeliveryImportExecuteDto<br>400: ProblemDetails |
-| GET | `/api/integrations/axata-sync/c01/preview` | JWT + entegrasyon-islemleri.axata-senkronizasyonu.detail | query: Take / integer (int32) | 401: ProblemDetails<br>403: ProblemDetails<br>200: AxataOutboundDeliveryImportPreviewDto<br>400: ProblemDetails |
+| GET | `/api/integrations/axata-sync/c01/preview` | JWT + entegrasyon-islemleri.axata-senkronizasyonu.detail | query: Take / integer (int32)<br>query: Date / string (date-time) | 401: ProblemDetails<br>403: ProblemDetails<br>200: AxataOutboundDeliveryImportPreviewDto<br>400: ProblemDetails |
 | POST | `/api/integrations/axata-sync/c02/import` | JWT + entegrasyon-islemleri.axata-senkronizasyonu.create | body: request / AxataOutboundDeliveryImportExecuteHttpRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: AxataOutboundDeliveryImportExecuteDto<br>400: ProblemDetails |
-| GET | `/api/integrations/axata-sync/c02/preview` | JWT + entegrasyon-islemleri.axata-senkronizasyonu.detail | query: Take / integer (int32) | 401: ProblemDetails<br>403: ProblemDetails<br>200: AxataOutboundDeliveryImportPreviewDto<br>400: ProblemDetails |
+| GET | `/api/integrations/axata-sync/c02/preview` | JWT + entegrasyon-islemleri.axata-senkronizasyonu.detail | query: Take / integer (int32)<br>query: Date / string (date-time) | 401: ProblemDetails<br>403: ProblemDetails<br>200: AxataOutboundDeliveryImportPreviewDto<br>400: ProblemDetails |
 | POST | `/api/integrations/axata-sync/c03/import` | JWT + entegrasyon-islemleri.axata-senkronizasyonu.create | body: request / AxataOutboundDeliveryImportExecuteHttpRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: AxataOutboundDeliveryImportExecuteDto<br>400: ProblemDetails |
-| GET | `/api/integrations/axata-sync/c03/preview` | JWT + entegrasyon-islemleri.axata-senkronizasyonu.detail | query: Take / integer (int32) | 401: ProblemDetails<br>403: ProblemDetails<br>200: AxataOutboundDeliveryImportPreviewDto<br>400: ProblemDetails |
+| GET | `/api/integrations/axata-sync/c03/preview` | JWT + entegrasyon-islemleri.axata-senkronizasyonu.detail | query: Take / integer (int32)<br>query: Date / string (date-time) | 401: ProblemDetails<br>403: ProblemDetails<br>200: AxataOutboundDeliveryImportPreviewDto<br>400: ProblemDetails |
 | POST | `/api/integrations/axata-sync/c04/import` | JWT + entegrasyon-islemleri.axata-senkronizasyonu.create | body: request / AxataOutboundDeliveryImportExecuteHttpRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: AxataOutboundDeliveryImportExecuteDto<br>400: ProblemDetails |
-| GET | `/api/integrations/axata-sync/c04/preview` | JWT + entegrasyon-islemleri.axata-senkronizasyonu.detail | query: Take / integer (int32) | 401: ProblemDetails<br>403: ProblemDetails<br>200: AxataOutboundDeliveryImportPreviewDto<br>400: ProblemDetails |
+| GET | `/api/integrations/axata-sync/c04/preview` | JWT + entegrasyon-islemleri.axata-senkronizasyonu.detail | query: Take / integer (int32)<br>query: Date / string (date-time) | 401: ProblemDetails<br>403: ProblemDetails<br>200: AxataOutboundDeliveryImportPreviewDto<br>400: ProblemDetails |
 | GET | `/api/integrations/axata-sync/connection-test` | JWT + entegrasyon-islemleri.axata-senkronizasyonu.detail |  | 401: ProblemDetails<br>403: ProblemDetails<br>200: AxataSynchronizationConnectionTestDto |
 | GET | `/api/integrations/axata-sync/fetch-profiles` | JWT + entegrasyon-islemleri.axata-senkronizasyonu.detail |  | 401: ProblemDetails<br>403: ProblemDetails<br>200: AxataSynchronizationFetchProfilesOverviewDto |
 | POST | `/api/integrations/axata-sync/g02/documents/{documentSerie}/{documentOrderNo}/import` | JWT + entegrasyon-islemleri.axata-senkronizasyonu.create | path: documentSerie / string (zorunlu)<br>path: documentOrderNo / integer (int32) (zorunlu)<br>body: request / AxataOutboundDeliveryDocumentImportExecuteHttpRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: AxataOutboundDeliveryImportExecuteDto<br>400: ProblemDetails<br>404: ProblemDetails |
 | GET | `/api/integrations/axata-sync/g02/documents/{documentSerie}/{documentOrderNo}/preview` | JWT + entegrasyon-islemleri.axata-senkronizasyonu.detail | path: documentSerie / string (zorunlu)<br>path: documentOrderNo / integer (int32) (zorunlu)<br>query: status / string | 401: ProblemDetails<br>403: ProblemDetails<br>200: AxataOutboundDeliveryImportPreviewDto<br>400: ProblemDetails<br>404: ProblemDetails |
 | POST | `/api/integrations/axata-sync/g02/import` | JWT + entegrasyon-islemleri.axata-senkronizasyonu.create | body: request / AxataOutboundDeliveryImportExecuteHttpRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: AxataOutboundDeliveryImportExecuteDto<br>400: ProblemDetails |
-| GET | `/api/integrations/axata-sync/g02/preview` | JWT + entegrasyon-islemleri.axata-senkronizasyonu.detail | query: Take / integer (int32) | 401: ProblemDetails<br>403: ProblemDetails<br>200: AxataOutboundDeliveryImportPreviewDto<br>400: ProblemDetails |
+| GET | `/api/integrations/axata-sync/g02/preview` | JWT + entegrasyon-islemleri.axata-senkronizasyonu.detail | query: Take / integer (int32)<br>query: Date / string (date-time) | 401: ProblemDetails<br>403: ProblemDetails<br>200: AxataOutboundDeliveryImportPreviewDto<br>400: ProblemDetails |
 | GET | `/api/integrations/axata-sync/health` | JWT + entegrasyon-islemleri.axata-senkronizasyonu.detail |  | 401: ProblemDetails<br>403: ProblemDetails<br>200: AxataSynchronizationConnectionTestDto |
 | GET | `/api/integrations/axata-sync/is-merkezi` | JWT + entegrasyon-islemleri.axata-senkronizasyonu.list | query: StartDate / string (date-time)<br>query: EndDate / string (date-time)<br>query: WarehouseNo / integer (int32)<br>query: Take / integer (int32)<br>query: DocumentSerie / string<br>query: DocumentOrderNo / integer (int32)<br>query: Statuses / string | 401: ProblemDetails<br>403: ProblemDetails<br>200: AxataSynchronizationWorkbenchDto<br>400: ProblemDetails |
 | POST | `/api/integrations/axata-sync/jobs` | JWT + entegrasyon-islemleri.axata-senkronizasyonu.create | body: request / AxataSynchronizationExecuteHttpRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>202: AxataSynchronizationJobDto<br>400: ProblemDetails |
 | GET | `/api/integrations/axata-sync/jobs/{jobId}` | JWT + entegrasyon-islemleri.axata-senkronizasyonu.detail | path: jobId / string (uuid) (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: AxataSynchronizationJobDetailDto<br>404: ProblemDetails |
 | GET | `/api/integrations/axata-sync/live/audit/overview` | JWT + entegrasyon-islemleri.axata-senkronizasyonu.detail | query: StartDate / string (date-time)<br>query: EndDate / string (date-time)<br>query: WarehouseNo / integer (int32)<br>query: Take / integer (int32)<br>query: DocumentSerie / string<br>query: DocumentOrderNo / integer (int32)<br>query: Statuses / string | 401: ProblemDetails<br>403: ProblemDetails<br>200: AxataIntegrationAuditDto<br>400: ProblemDetails |
 | POST | `/api/integrations/axata-sync/live/axata/dynamic-census/import` | JWT + entegrasyon-islemleri.axata-senkronizasyonu.create | body: request / AxataOutboundDeliveryImportExecuteHttpRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: AxataDynamicCensusExecuteDto<br>400: ProblemDetails |
-| GET | `/api/integrations/axata-sync/live/axata/dynamic-census/preview` | JWT + entegrasyon-islemleri.axata-senkronizasyonu.detail | query: Take / integer (int32) | 401: ProblemDetails<br>403: ProblemDetails<br>200: AxataDynamicCensusPreviewDto<br>400: ProblemDetails |
+| GET | `/api/integrations/axata-sync/live/axata/dynamic-census/preview` | JWT + entegrasyon-islemleri.axata-senkronizasyonu.detail | query: Take / integer (int32)<br>query: Date / string (date-time) | 401: ProblemDetails<br>403: ProblemDetails<br>200: AxataDynamicCensusPreviewDto<br>400: ProblemDetails |
 | POST | `/api/integrations/axata-sync/live/axata/inbound-atf/g01/import` | JWT + entegrasyon-islemleri.axata-senkronizasyonu.create | body: request / AxataOutboundDeliveryImportExecuteHttpRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: AxataG01InboundAtfExecuteDto<br>400: ProblemDetails |
-| GET | `/api/integrations/axata-sync/live/axata/inbound-atf/g01/preview` | JWT + entegrasyon-islemleri.axata-senkronizasyonu.detail | query: Take / integer (int32) | 401: ProblemDetails<br>403: ProblemDetails<br>200: AxataG01InboundAtfPreviewDto<br>400: ProblemDetails |
+| GET | `/api/integrations/axata-sync/live/axata/inbound-atf/g01/preview` | JWT + entegrasyon-islemleri.axata-senkronizasyonu.detail | query: Take / integer (int32)<br>query: Date / string (date-time) | 401: ProblemDetails<br>403: ProblemDetails<br>200: AxataG01InboundAtfPreviewDto<br>400: ProblemDetails |
 | POST | `/api/integrations/axata-sync/live/axata/inbound-deliveries/g02/documents/{documentSerie}/{documentOrderNo}/import` | JWT + entegrasyon-islemleri.axata-senkronizasyonu.create | path: documentSerie / string (zorunlu)<br>path: documentOrderNo / integer (int32) (zorunlu)<br>body: request / AxataOutboundDeliveryDocumentImportExecuteHttpRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: AxataOutboundDeliveryImportExecuteDto<br>400: ProblemDetails<br>404: ProblemDetails |
 | GET | `/api/integrations/axata-sync/live/axata/inbound-deliveries/g02/documents/{documentSerie}/{documentOrderNo}/preview` | JWT + entegrasyon-islemleri.axata-senkronizasyonu.detail | path: documentSerie / string (zorunlu)<br>path: documentOrderNo / integer (int32) (zorunlu)<br>query: status / string | 401: ProblemDetails<br>403: ProblemDetails<br>200: AxataOutboundDeliveryImportPreviewDto<br>400: ProblemDetails<br>404: ProblemDetails |
 | POST | `/api/integrations/axata-sync/live/axata/inbound-deliveries/g02/import` | JWT + entegrasyon-islemleri.axata-senkronizasyonu.create | body: request / AxataOutboundDeliveryImportExecuteHttpRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: AxataOutboundDeliveryImportExecuteDto<br>400: ProblemDetails |
-| GET | `/api/integrations/axata-sync/live/axata/inbound-deliveries/g02/preview` | JWT + entegrasyon-islemleri.axata-senkronizasyonu.detail | query: Take / integer (int32) | 401: ProblemDetails<br>403: ProblemDetails<br>200: AxataOutboundDeliveryImportPreviewDto<br>400: ProblemDetails |
+| GET | `/api/integrations/axata-sync/live/axata/inbound-deliveries/g02/preview` | JWT + entegrasyon-islemleri.axata-senkronizasyonu.detail | query: Take / integer (int32)<br>query: Date / string (date-time) | 401: ProblemDetails<br>403: ProblemDetails<br>200: AxataOutboundDeliveryImportPreviewDto<br>400: ProblemDetails |
 | GET | `/api/integrations/axata-sync/live/axata/outbound-deliveries/by-date` | JWT + entegrasyon-islemleri.axata-senkronizasyonu.detail | query: Date / string (date-time) (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: AxataOutboundDeliveriesByDateDto<br>400: ProblemDetails |
 | POST | `/api/integrations/axata-sync/live/axata/outbound-deliveries/c01/documents/{documentSerie}/{documentOrderNo}/import` | JWT + entegrasyon-islemleri.axata-senkronizasyonu.create | path: documentSerie / string (zorunlu)<br>path: documentOrderNo / integer (int32) (zorunlu)<br>body: request / AxataOutboundDeliveryDocumentImportExecuteHttpRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: AxataOutboundDeliveryImportExecuteDto<br>400: ProblemDetails<br>404: ProblemDetails |
-| GET | `/api/integrations/axata-sync/live/axata/outbound-deliveries/c01/documents/{documentSerie}/{documentOrderNo}/preview` | JWT + entegrasyon-islemleri.axata-senkronizasyonu.detail | path: documentSerie / string (zorunlu)<br>path: documentOrderNo / integer (int32) (zorunlu)<br>query: status / string | 401: ProblemDetails<br>403: ProblemDetails<br>200: AxataOutboundDeliveryImportPreviewDto<br>400: ProblemDetails<br>404: ProblemDetails |
+| GET | `/api/integrations/axata-sync/live/axata/outbound-deliveries/c01/documents/{documentSerie}/{documentOrderNo}/preview` | JWT + entegrasyon-islemleri.axata-senkronizasyonu.detail | path: documentSerie / string (zorunlu)<br>path: documentOrderNo / integer (int32) (zorunlu)<br>query: status / string<br>query: axataSequenceNo / integer (int64) | 401: ProblemDetails<br>403: ProblemDetails<br>200: AxataOutboundDeliveryImportPreviewDto<br>400: ProblemDetails<br>404: ProblemDetails |
 | POST | `/api/integrations/axata-sync/live/axata/outbound-deliveries/c01/import` | JWT + entegrasyon-islemleri.axata-senkronizasyonu.create | body: request / AxataOutboundDeliveryImportExecuteHttpRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: AxataOutboundDeliveryImportExecuteDto<br>400: ProblemDetails |
-| GET | `/api/integrations/axata-sync/live/axata/outbound-deliveries/c01/preview` | JWT + entegrasyon-islemleri.axata-senkronizasyonu.detail | query: Take / integer (int32) | 401: ProblemDetails<br>403: ProblemDetails<br>200: AxataOutboundDeliveryImportPreviewDto<br>400: ProblemDetails |
+| GET | `/api/integrations/axata-sync/live/axata/outbound-deliveries/c01/preview` | JWT + entegrasyon-islemleri.axata-senkronizasyonu.detail | query: Take / integer (int32)<br>query: Date / string (date-time) | 401: ProblemDetails<br>403: ProblemDetails<br>200: AxataOutboundDeliveryImportPreviewDto<br>400: ProblemDetails |
 | POST | `/api/integrations/axata-sync/live/axata/outbound-deliveries/c02/import` | JWT + entegrasyon-islemleri.axata-senkronizasyonu.create | body: request / AxataOutboundDeliveryImportExecuteHttpRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: AxataOutboundDeliveryImportExecuteDto<br>400: ProblemDetails |
-| GET | `/api/integrations/axata-sync/live/axata/outbound-deliveries/c02/preview` | JWT + entegrasyon-islemleri.axata-senkronizasyonu.detail | query: Take / integer (int32) | 401: ProblemDetails<br>403: ProblemDetails<br>200: AxataOutboundDeliveryImportPreviewDto<br>400: ProblemDetails |
+| GET | `/api/integrations/axata-sync/live/axata/outbound-deliveries/c02/preview` | JWT + entegrasyon-islemleri.axata-senkronizasyonu.detail | query: Take / integer (int32)<br>query: Date / string (date-time) | 401: ProblemDetails<br>403: ProblemDetails<br>200: AxataOutboundDeliveryImportPreviewDto<br>400: ProblemDetails |
 | POST | `/api/integrations/axata-sync/live/axata/outbound-deliveries/c03/import` | JWT + entegrasyon-islemleri.axata-senkronizasyonu.create | body: request / AxataOutboundDeliveryImportExecuteHttpRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: AxataOutboundDeliveryImportExecuteDto<br>400: ProblemDetails |
-| GET | `/api/integrations/axata-sync/live/axata/outbound-deliveries/c03/preview` | JWT + entegrasyon-islemleri.axata-senkronizasyonu.detail | query: Take / integer (int32) | 401: ProblemDetails<br>403: ProblemDetails<br>200: AxataOutboundDeliveryImportPreviewDto<br>400: ProblemDetails |
+| GET | `/api/integrations/axata-sync/live/axata/outbound-deliveries/c03/preview` | JWT + entegrasyon-islemleri.axata-senkronizasyonu.detail | query: Take / integer (int32)<br>query: Date / string (date-time) | 401: ProblemDetails<br>403: ProblemDetails<br>200: AxataOutboundDeliveryImportPreviewDto<br>400: ProblemDetails |
 | POST | `/api/integrations/axata-sync/live/axata/outbound-deliveries/c04/import` | JWT + entegrasyon-islemleri.axata-senkronizasyonu.create | body: request / AxataOutboundDeliveryImportExecuteHttpRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: AxataOutboundDeliveryImportExecuteDto<br>400: ProblemDetails |
-| GET | `/api/integrations/axata-sync/live/axata/outbound-deliveries/c04/preview` | JWT + entegrasyon-islemleri.axata-senkronizasyonu.detail | query: Take / integer (int32) | 401: ProblemDetails<br>403: ProblemDetails<br>200: AxataOutboundDeliveryImportPreviewDto<br>400: ProblemDetails |
+| GET | `/api/integrations/axata-sync/live/axata/outbound-deliveries/c04/preview` | JWT + entegrasyon-islemleri.axata-senkronizasyonu.detail | query: Take / integer (int32)<br>query: Date / string (date-time) | 401: ProblemDetails<br>403: ProblemDetails<br>200: AxataOutboundDeliveryImportPreviewDto<br>400: ProblemDetails |
 | GET | `/api/integrations/axata-sync/live/axata/outbound-deliveries/preview` | JWT + entegrasyon-islemleri.axata-senkronizasyonu.detail | query: MovementType / string<br>query: Take / integer (int32) | 401: ProblemDetails<br>403: ProblemDetails<br>200: AxataOutboundDeliveryQueuePreviewDto<br>400: ProblemDetails |
 | POST | `/api/integrations/axata-sync/live/products/dispatch` | JWT + entegrasyon-islemleri.axata-senkronizasyonu.create | body: request / AxataProductSynchronizationDispatchHttpRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: AxataProductSynchronizationExecuteDto<br>400: ProblemDetails<br>404: ProblemDetails<br>409: ProblemDetails |
 | GET | `/api/integrations/axata-sync/live/products/preview` | JWT + entegrasyon-islemleri.axata-senkronizasyonu.detail | query: ProductCode / string<br>query: Take / integer (int32) | 401: ProblemDetails<br>403: ProblemDetails<br>200: AxataProductSynchronizationPreviewDto<br>400: ProblemDetails |
@@ -26027,23 +26162,23 @@ Bu bolum test hostundaki ApiExplorer ve Swagger metadata'sindan otomatik uretili
 | POST | `/api/integrations/axata-sync/manual/tasks/{taskCode}/documents/preview` | JWT + entegrasyon-islemleri.axata-senkronizasyonu.detail | path: taskCode / string (zorunlu)<br>body: request / AxataSynchronizationManualDocumentHttpRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: AxataSynchronizationManualDocumentDto<br>400: ProblemDetails<br>404: ProblemDetails |
 | POST | `/api/integrations/axata-sync/manual/tasks/{taskCode}/documents/preview-batch` | JWT + entegrasyon-islemleri.axata-senkronizasyonu.detail | path: taskCode / string (zorunlu)<br>body: request / AxataSynchronizationManualDocumentBatchHttpRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: AxataSynchronizationManualDocumentBatchDto<br>400: ProblemDetails<br>404: ProblemDetails |
 | POST | `/api/integrations/axata-sync/operations/c01-shipment/documents/{documentSerie}/{documentOrderNo}/import` | JWT + entegrasyon-islemleri.axata-senkronizasyonu.create | path: documentSerie / string (zorunlu)<br>path: documentOrderNo / integer (int32) (zorunlu)<br>body: request / AxataOutboundDeliveryDocumentImportExecuteHttpRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: AxataOutboundDeliveryImportExecuteDto<br>400: ProblemDetails<br>404: ProblemDetails |
-| GET | `/api/integrations/axata-sync/operations/c01-shipment/documents/{documentSerie}/{documentOrderNo}/preview` | JWT + entegrasyon-islemleri.axata-senkronizasyonu.detail | path: documentSerie / string (zorunlu)<br>path: documentOrderNo / integer (int32) (zorunlu)<br>query: status / string | 401: ProblemDetails<br>403: ProblemDetails<br>200: AxataOutboundDeliveryImportPreviewDto<br>400: ProblemDetails<br>404: ProblemDetails |
+| GET | `/api/integrations/axata-sync/operations/c01-shipment/documents/{documentSerie}/{documentOrderNo}/preview` | JWT + entegrasyon-islemleri.axata-senkronizasyonu.detail | path: documentSerie / string (zorunlu)<br>path: documentOrderNo / integer (int32) (zorunlu)<br>query: status / string<br>query: axataSequenceNo / integer (int64) | 401: ProblemDetails<br>403: ProblemDetails<br>200: AxataOutboundDeliveryImportPreviewDto<br>400: ProblemDetails<br>404: ProblemDetails |
 | POST | `/api/integrations/axata-sync/operations/c01-shipment/import` | JWT + entegrasyon-islemleri.axata-senkronizasyonu.create | body: request / AxataOutboundDeliveryImportExecuteHttpRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: AxataOutboundDeliveryImportExecuteDto<br>400: ProblemDetails |
-| GET | `/api/integrations/axata-sync/operations/c01-shipment/preview` | JWT + entegrasyon-islemleri.axata-senkronizasyonu.detail | query: Take / integer (int32) | 401: ProblemDetails<br>403: ProblemDetails<br>200: AxataOutboundDeliveryImportPreviewDto<br>400: ProblemDetails |
+| GET | `/api/integrations/axata-sync/operations/c01-shipment/preview` | JWT + entegrasyon-islemleri.axata-senkronizasyonu.detail | query: Take / integer (int32)<br>query: Date / string (date-time) | 401: ProblemDetails<br>403: ProblemDetails<br>200: AxataOutboundDeliveryImportPreviewDto<br>400: ProblemDetails |
 | POST | `/api/integrations/axata-sync/operations/c02-company-shipment/import` | JWT + entegrasyon-islemleri.axata-senkronizasyonu.create | body: request / AxataOutboundDeliveryImportExecuteHttpRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: AxataOutboundDeliveryImportExecuteDto<br>400: ProblemDetails |
-| GET | `/api/integrations/axata-sync/operations/c02-company-shipment/preview` | JWT + entegrasyon-islemleri.axata-senkronizasyonu.detail | query: Take / integer (int32) | 401: ProblemDetails<br>403: ProblemDetails<br>200: AxataOutboundDeliveryImportPreviewDto<br>400: ProblemDetails |
+| GET | `/api/integrations/axata-sync/operations/c02-company-shipment/preview` | JWT + entegrasyon-islemleri.axata-senkronizasyonu.detail | query: Take / integer (int32)<br>query: Date / string (date-time) | 401: ProblemDetails<br>403: ProblemDetails<br>200: AxataOutboundDeliveryImportPreviewDto<br>400: ProblemDetails |
 | POST | `/api/integrations/axata-sync/operations/c03-legacy-movement/import` | JWT + entegrasyon-islemleri.axata-senkronizasyonu.create | body: request / AxataOutboundDeliveryImportExecuteHttpRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: AxataOutboundDeliveryImportExecuteDto<br>400: ProblemDetails |
-| GET | `/api/integrations/axata-sync/operations/c03-legacy-movement/preview` | JWT + entegrasyon-islemleri.axata-senkronizasyonu.detail | query: Take / integer (int32) | 401: ProblemDetails<br>403: ProblemDetails<br>200: AxataOutboundDeliveryImportPreviewDto<br>400: ProblemDetails |
+| GET | `/api/integrations/axata-sync/operations/c03-legacy-movement/preview` | JWT + entegrasyon-islemleri.axata-senkronizasyonu.detail | query: Take / integer (int32)<br>query: Date / string (date-time) | 401: ProblemDetails<br>403: ProblemDetails<br>200: AxataOutboundDeliveryImportPreviewDto<br>400: ProblemDetails |
 | POST | `/api/integrations/axata-sync/operations/c04-legacy-transfer/import` | JWT + entegrasyon-islemleri.axata-senkronizasyonu.create | body: request / AxataOutboundDeliveryImportExecuteHttpRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: AxataOutboundDeliveryImportExecuteDto<br>400: ProblemDetails |
-| GET | `/api/integrations/axata-sync/operations/c04-legacy-transfer/preview` | JWT + entegrasyon-islemleri.axata-senkronizasyonu.detail | query: Take / integer (int32) | 401: ProblemDetails<br>403: ProblemDetails<br>200: AxataOutboundDeliveryImportPreviewDto<br>400: ProblemDetails |
+| GET | `/api/integrations/axata-sync/operations/c04-legacy-transfer/preview` | JWT + entegrasyon-islemleri.axata-senkronizasyonu.detail | query: Take / integer (int32)<br>query: Date / string (date-time) | 401: ProblemDetails<br>403: ProblemDetails<br>200: AxataOutboundDeliveryImportPreviewDto<br>400: ProblemDetails |
 | POST | `/api/integrations/axata-sync/operations/dynamic-census/import` | JWT + entegrasyon-islemleri.axata-senkronizasyonu.create | body: request / AxataOutboundDeliveryImportExecuteHttpRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: AxataDynamicCensusExecuteDto<br>400: ProblemDetails |
-| GET | `/api/integrations/axata-sync/operations/dynamic-census/preview` | JWT + entegrasyon-islemleri.axata-senkronizasyonu.detail | query: Take / integer (int32) | 401: ProblemDetails<br>403: ProblemDetails<br>200: AxataDynamicCensusPreviewDto<br>400: ProblemDetails |
+| GET | `/api/integrations/axata-sync/operations/dynamic-census/preview` | JWT + entegrasyon-islemleri.axata-senkronizasyonu.detail | query: Take / integer (int32)<br>query: Date / string (date-time) | 401: ProblemDetails<br>403: ProblemDetails<br>200: AxataDynamicCensusPreviewDto<br>400: ProblemDetails |
 | POST | `/api/integrations/axata-sync/operations/g01-company-receiving/import` | JWT + entegrasyon-islemleri.axata-senkronizasyonu.create | body: request / AxataOutboundDeliveryImportExecuteHttpRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: AxataG01InboundAtfExecuteDto<br>400: ProblemDetails |
-| GET | `/api/integrations/axata-sync/operations/g01-company-receiving/preview` | JWT + entegrasyon-islemleri.axata-senkronizasyonu.detail | query: Take / integer (int32) | 401: ProblemDetails<br>403: ProblemDetails<br>200: AxataG01InboundAtfPreviewDto<br>400: ProblemDetails |
+| GET | `/api/integrations/axata-sync/operations/g01-company-receiving/preview` | JWT + entegrasyon-islemleri.axata-senkronizasyonu.detail | query: Take / integer (int32)<br>query: Date / string (date-time) | 401: ProblemDetails<br>403: ProblemDetails<br>200: AxataG01InboundAtfPreviewDto<br>400: ProblemDetails |
 | POST | `/api/integrations/axata-sync/operations/g02-warehouse-receiving/documents/{documentSerie}/{documentOrderNo}/import` | JWT + entegrasyon-islemleri.axata-senkronizasyonu.create | path: documentSerie / string (zorunlu)<br>path: documentOrderNo / integer (int32) (zorunlu)<br>body: request / AxataOutboundDeliveryDocumentImportExecuteHttpRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: AxataOutboundDeliveryImportExecuteDto<br>400: ProblemDetails<br>404: ProblemDetails |
 | GET | `/api/integrations/axata-sync/operations/g02-warehouse-receiving/documents/{documentSerie}/{documentOrderNo}/preview` | JWT + entegrasyon-islemleri.axata-senkronizasyonu.detail | path: documentSerie / string (zorunlu)<br>path: documentOrderNo / integer (int32) (zorunlu)<br>query: status / string | 401: ProblemDetails<br>403: ProblemDetails<br>200: AxataOutboundDeliveryImportPreviewDto<br>400: ProblemDetails<br>404: ProblemDetails |
 | POST | `/api/integrations/axata-sync/operations/g02-warehouse-receiving/import` | JWT + entegrasyon-islemleri.axata-senkronizasyonu.create | body: request / AxataOutboundDeliveryImportExecuteHttpRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: AxataOutboundDeliveryImportExecuteDto<br>400: ProblemDetails |
-| GET | `/api/integrations/axata-sync/operations/g02-warehouse-receiving/preview` | JWT + entegrasyon-islemleri.axata-senkronizasyonu.detail | query: Take / integer (int32) | 401: ProblemDetails<br>403: ProblemDetails<br>200: AxataOutboundDeliveryImportPreviewDto<br>400: ProblemDetails |
+| GET | `/api/integrations/axata-sync/operations/g02-warehouse-receiving/preview` | JWT + entegrasyon-islemleri.axata-senkronizasyonu.detail | query: Take / integer (int32)<br>query: Date / string (date-time) | 401: ProblemDetails<br>403: ProblemDetails<br>200: AxataOutboundDeliveryImportPreviewDto<br>400: ProblemDetails |
 | GET | `/api/integrations/axata-sync/operations/outbound-delivery-queue/preview` | JWT + entegrasyon-islemleri.axata-senkronizasyonu.detail | query: MovementType / string<br>query: Take / integer (int32) | 401: ProblemDetails<br>403: ProblemDetails<br>200: AxataOutboundDeliveryQueuePreviewDto<br>400: ProblemDetails |
 | GET | `/api/integrations/axata-sync/operations/outbound-shipments/by-date` | JWT + entegrasyon-islemleri.axata-senkronizasyonu.detail | query: Date / string (date-time) (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: AxataOutboundDeliveriesByDateDto<br>400: ProblemDetails |
 | POST | `/api/integrations/axata-sync/operations/product-master/dispatch` | JWT + entegrasyon-islemleri.axata-senkronizasyonu.create | body: request / AxataProductSynchronizationDispatchHttpRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: AxataProductSynchronizationExecuteDto<br>400: ProblemDetails<br>404: ProblemDetails<br>409: ProblemDetails |
@@ -26124,6 +26259,8 @@ Bu bolum test hostundaki ApiExplorer ve Swagger metadata'sindan otomatik uretili
 | GET | `/api/kasa-islemleri/kasa-hareket-aktarimi/icmal-karsilastirma/excel` | JWT + kasa-islemleri.kasa-hareket-aktarimi.detail | query: Date / string (date-time) (zorunlu)<br>query: BranchNo / integer (int32)<br>query: CashRegisterNo / integer (int32)<br>query: Tolerance / number (double) | 401: ProblemDetails<br>403: ProblemDetails<br>200: FileContentResult<br>400: ProblemDetails |
 | POST | `/api/kasa-islemleri/kasa-hareket-aktarimi/iptal-belgeleri/aktar` | JWT + kasa-islemleri.kasa-hareket-aktarimi.create | body: request / KasaHareketImportHttpRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: KasaHareketImportResultDto<br>400: ProblemDetails |
 | GET | `/api/kasa-islemleri/kasa-hareket-aktarimi/kasa-z-detay` | JWT + kasa-islemleri.kasa-hareket-aktarimi.detail | query: Date / string (date-time) (zorunlu)<br>query: BranchNo / integer (int32) (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: KasaHareketKasaZDetayReportDto<br>400: ProblemDetails |
+| GET | `/api/kasa-islemleri/kasa-hareket-aktarimi/kdv-uyumsuzluk-raporu` | JWT + kasa-islemleri.kasa-hareket-aktarimi.detail | query: StartDate / string (date-time) (zorunlu)<br>query: EndDate / string (date-time) (zorunlu)<br>query: BranchNo / integer (int32)<br>query: TransferredToMikro / boolean | 401: ProblemDetails<br>403: ProblemDetails<br>200: KasaHareketVatMismatchReportDto<br>400: ProblemDetails |
+| GET | `/api/kasa-islemleri/kasa-hareket-aktarimi/kdv-uyumsuzluk-raporu/excel` | JWT + kasa-islemleri.kasa-hareket-aktarimi.detail | query: StartDate / string (date-time) (zorunlu)<br>query: EndDate / string (date-time) (zorunlu)<br>query: BranchNo / integer (int32)<br>query: TransferredToMikro / boolean | 401: ProblemDetails<br>403: ProblemDetails<br>200: FileContentResult<br>400: ProblemDetails |
 | DELETE | `/api/kasa-islemleri/kasa-hareket-aktarimi/mikro` | JWT + kasa-islemleri.kasa-hareket-aktarimi.update | body: request / KasaHareketMikroTransferHttpRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: KasaHareketProcedureResultDto<br>400: ProblemDetails |
 | POST | `/api/kasa-islemleri/kasa-hareket-aktarimi/mikro/aktar` | JWT + kasa-islemleri.kasa-hareket-aktarimi.create | body: request / KasaHareketMikroTransferHttpRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: KasaHareketProcedureResultDto<br>400: ProblemDetails |
 | POST | `/api/kasa-islemleri/kasa-hareket-aktarimi/mikro/aralik-aktar` | JWT + kasa-islemleri.kasa-hareket-aktarimi.create | body: request / KasaHareketMikroTransferRangeHttpRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: KasaHareketProcedureResultDto<br>400: ProblemDetails |
@@ -26171,8 +26308,9 @@ Bu bolum test hostundaki ApiExplorer ve Swagger metadata'sindan otomatik uretili
 | GET | `/api/kasa-islemleri/kasa-sayimlari/{documentSerie}/{documentOrderNo}/hediye-ceki-hareketleri` | JWT + kasa-islemleri.kasa-sayimlari.detail | path: documentSerie / string (zorunlu)<br>path: documentOrderNo / integer (int32) (zorunlu)<br>query: warehouseNo / integer (int32) | 401: ProblemDetails<br>403: ProblemDetails<br>200: IReadOnlyCollection&lt;GiftCheckMovementItemDto&gt;<br>400: ProblemDetails |
 | PUT | `/api/kasa-islemleri/kasa-sayimlari/{documentSerie}/{documentOrderNo}/hediye-ceki-hareketleri` | JWT + kasa-islemleri.kasa-sayimlari.update | path: documentSerie / string (zorunlu)<br>path: documentOrderNo / integer (int32) (zorunlu)<br>body: request / UpdateCashSummaryGiftChecksHttpRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: UpdateCashSummaryGiftChecksResponse<br>400: ProblemDetails<br>404: ProblemDetails |
 | GET | `/api/kasa-islemleri/kasa-sayimlari/{documentSerie}/{documentOrderNo}/z-rapor-toplam` | JWT + kasa-islemleri.kasa-sayimlari.detail | path: documentSerie / string (zorunlu)<br>path: documentOrderNo / integer (int32) (zorunlu)<br>query: warehouseNo / integer (int32) | 401: ProblemDetails<br>403: ProblemDetails<br>200: CashSummaryZReportTotalDto<br>400: ProblemDetails<br>404: ProblemDetails |
-| GET | `/api/kasa-islemleri/kunye-etiket-yazdirma` | JWT + kasa-islemleri.kunye-etiket-yazdirma.list | query: DateToGet / string (date-time) (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: IReadOnlyCollection&lt;LabelTagDto&gt;<br>400: ProblemDetails |
-| GET | `/api/kasa-islemleri/manav-kunye-etiket-yazdirma/detayli-etiketler` | Anonim | query: WarehouseNo / integer (int32) (zorunlu)<br>query: DateToGet / string (date-time) | 200: IReadOnlyCollection&lt;KunyeLabelTagDto&gt;<br>400: ProblemDetails |
+| GET | `/api/kasa-islemleri/kunye-etiket-yazdirma` | JWT + kasa-islemleri.kunye-etiket-yazdirma.list | query: DateToGet / string (date-time) (zorunlu)<br>query: WarehouseNo / integer (int32) | 401: ProblemDetails<br>403: ProblemDetails<br>200: IReadOnlyCollection&lt;LabelTagDto&gt;<br>400: ProblemDetails |
+| GET | `/api/kasa-islemleri/manav-kunye-etiket-yazdirma/detayli-etiketler` | JWT + kasa-islemleri.manav-kunye-etiket-yazdirma.list | query: WarehouseNo / integer (int32)<br>query: DateToGet / string (date-time) | 200: IReadOnlyCollection&lt;KunyeLabelTagDto&gt;<br>400: ProblemDetails<br>401: ProblemDetails<br>403: ProblemDetails |
+| GET | `/api/kasa-islemleri/manav-kunye-etiket-yazdirma/kod-listesi` | JWT + kasa-islemleri.manav-kunye-etiket-yazdirma.list |  | 200: IReadOnlyCollection&lt;ManavCodeListItemDto&gt;<br>401: ProblemDetails<br>403: ProblemDetails |
 | GET | `/api/kasa-islemleri/manav-mal-kabul-etiket/acceptance-records` | JWT + kasa-islemleri.manav-mal-kabul-etiket.list | query: Date / string (date-time) (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: IReadOnlyCollection&lt;ManavMalKabulVeEtiketAcceptanceRecordDto&gt;<br>400: ProblemDetails |
 | POST | `/api/kasa-islemleri/manav-mal-kabul-etiket/acceptance-records` | JWT + kasa-islemleri.manav-mal-kabul-etiket.create | body: request / SaveManavMalKabulVeEtiketAcceptanceRecordHttpRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>201: ManavMalKabulVeEtiketAcceptanceRecordDto<br>400: ProblemDetails |
 | POST | `/api/kasa-islemleri/manav-mal-kabul-etiket/acceptance-records/calculate` | JWT + kasa-islemleri.manav-mal-kabul-etiket.create | body: request / ManavMalKabulVeEtiketCalculationHttpRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: ManavMalKabulVeEtiketCalculationDto<br>400: ProblemDetails |
@@ -26248,6 +26386,12 @@ Bu bolum test hostundaki ApiExplorer ve Swagger metadata'sindan otomatik uretili
 | POST | `/api/mobile-sync/guvenli-yazmalar/{clientRequestId}/vazgec` | JWT | path: clientRequestId / string (uuid) (zorunlu) | 401: ProblemDetails<br>200: SafeWriteReviewResultDto<br>404: ProblemDetails<br>409: ProblemDetails |
 | POST | `/api/mobile-sync/guvenli-yazmalar/{clientRequestId}/yeniden-dogrula` | JWT | path: clientRequestId / string (uuid) (zorunlu)<br>body: request / RecheckMobileSafeWriteHttpRequest (zorunlu) | 401: ProblemDetails<br>200: SafeWriteReviewResultDto<br>400: ProblemDetails<br>404: ProblemDetails<br>409: ProblemDetails |
 | GET | `/api/mobile-sync/urun-fiyat-katalogu` | JWT + arama-islemleri.fiyat-gor.list | query: WarehouseNo / integer (int32)<br>query: Since / string (date-time)<br>query: Cursor / string<br>query: PageSize / integer (int32) | 401: ProblemDetails<br>200: MobileProductPriceCatalogResponse<br>400: ProblemDetails<br>403: ProblemDetails |
+| GET | `/api/operasyon-islemleri/axata-depo-operasyonlari/capacity` | JWT + operasyon-islemleri.axata-depo-kokpiti.list | query: warehouseNo / integer (int32) | 401: ProblemDetails<br>403: ProblemDetails<br>200: AxataCapacityDto |
+| GET | `/api/operasyon-islemleri/axata-depo-operasyonlari/documents` | JWT + operasyon-islemleri.axata-depo-kokpiti.list | query: startDate / string (date)<br>query: endDate / string (date)<br>query: documentType / string<br>query: movementType / string<br>query: status / string<br>query: searchTerm / string<br>query: skip / integer (int32)<br>query: take / integer (int32) | 401: ProblemDetails<br>403: ProblemDetails<br>200: AxataWarehouseDocumentListDto<br>400: ProblemDetails |
+| GET | `/api/operasyon-islemleri/axata-depo-operasyonlari/fill-rate` | JWT + operasyon-islemleri.axata-depo-kokpiti.list | query: startDate / string (date)<br>query: endDate / string (date)<br>query: targetStoreCode / string<br>query: warehouseNo / integer (int32)<br>query: take / integer (int32) | 401: ProblemDetails<br>403: ProblemDetails<br>200: AxataFillRateDto |
+| GET | `/api/operasyon-islemleri/axata-depo-operasyonlari/overview` | JWT + operasyon-islemleri.axata-depo-kokpiti.list | query: warehouseNo / integer (int32)<br>query: date / string (date) | 401: ProblemDetails<br>403: ProblemDetails<br>200: AxataWarehouseOverviewDto |
+| GET | `/api/operasyon-islemleri/axata-depo-operasyonlari/picking-performance` | JWT + operasyon-islemleri.axata-depo-kokpiti.list | query: startDate / string (date)<br>query: endDate / string (date)<br>query: warehouseNo / integer (int32)<br>query: take / integer (int32) | 401: ProblemDetails<br>403: ProblemDetails<br>200: AxataPickingPerformanceDto |
+| GET | `/api/operasyon-islemleri/axata-depo-operasyonlari/trace` | JWT + operasyon-islemleri.axata-depo-kokpiti.detail | query: searchTerm / string | 401: ProblemDetails<br>403: ProblemDetails<br>200: AxataDocumentTraceDto<br>400: ProblemDetails |
 | GET | `/api/operasyon-islemleri/belge-akis-takibi` | JWT + operasyon-islemleri.belge-akis-takibi.list | query: WarehouseNo / integer (int32)<br>query: StartDate / string (date-time)<br>query: EndDate / string (date-time)<br>query: DocumentType / FurpaMerkezApi.Domain.Entities.DocumentFlowType<br>query: Status / FurpaMerkezApi.Domain.Entities.DocumentFlowStatus<br>query: CurrentStep / FurpaMerkezApi.Domain.Entities.DocumentFlowStep<br>query: Direction / string<br>query: Category / string<br>query: Preset / string<br>query: Search / string<br>query: Skip / integer (int32)<br>query: Take / integer (int32) | 401: ProblemDetails<br>403: ProblemDetails<br>200: DocumentFlowListResponse<br>400: ProblemDetails |
 | GET | `/api/operasyon-islemleri/belge-akis-takibi/{id}` | JWT + operasyon-islemleri.belge-akis-takibi.detail | path: id / string (uuid) (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: DocumentFlowDetailDto<br>404: ProblemDetails |
 | GET | `/api/operasyon-islemleri/depo-operasyon-paneli` | JWT + operasyon-islemleri.depo-operasyon-paneli.list | query: date / string (date)<br>query: warehouseNo / integer (int32) | 401: ProblemDetails<br>403: ProblemDetails<br>200: WarehouseOperationsDashboardDto |
@@ -27373,6 +27517,7 @@ Enum degerleri JSON sozlesmesinde bulunur.
 | `generatedAtUtc` | string (date-time) | Hayir |  |
 | `headline` | string | Hayir | nullable |
 | `incidents` | FurpaMerkezApi.Application.Modules.AyarIslemleri.VeritabaniIzleme.DatabaseIncidentOverviewDto | Hayir |  |
+| `liveDatabase` | FurpaMerkezApi.Application.Modules.AyarIslemleri.VeritabaniIzleme.DatabaseMonitoringSnapshotDto | Hayir |  |
 | `overallStatus` | string | Hayir | nullable |
 | `overallStatusName` | string | Hayir | nullable |
 | `safeWrites` | FurpaMerkezApi.Application.Modules.AyarIslemleri.VeritabaniIzleme.SafeWriteMonitoringOverviewDto | Hayir |  |
@@ -27424,6 +27569,7 @@ Enum degerleri JSON sozlesmesinde bulunur.
 | `reviewedAtUtc` | string (date-time) | Hayir |  |
 | `reviewedByUserId` | string (uuid) | Hayir |  |
 | `safeWriteId` | string (uuid) | Hayir |  |
+| `source` | string | Hayir | nullable |
 
 ### FurpaMerkezApi.Application.Modules.AyarIslemleri.VeritabaniIzleme.SafeWriteReviewResultDto
 
@@ -27493,6 +27639,305 @@ Enum degerleri JSON sozlesmesinde bulunur.
 | `generatedAtUtc` | string (date-time) | Hayir |  |
 | `overallStatus` | string | Hayir | nullable |
 | `workers` | FurpaMerkezApi.Application.Modules.AyarIslemleri.VeritabaniIzleme.WorkerMonitoringItemDto[] | Hayir | nullable |
+
+### FurpaMerkezApi.Application.Modules.AyarIslemleri.YeniKasaYonetimi.Models.BulkRolePermissionUpdateItem
+
+| JSON alani | Tip | Zorunlu | Sinirlar |
+|---|---|---|---|
+| `permissionIds` | integer (int32)[] | Hayir | nullable |
+| `roleId` | integer (int32) | Hayir |  |
+
+### FurpaMerkezApi.Application.Modules.AyarIslemleri.YeniKasaYonetimi.Models.BulkUpdateRolePermissionsRequest
+
+| JSON alani | Tip | Zorunlu | Sinirlar |
+|---|---|---|---|
+| `roles` | FurpaMerkezApi.Application.Modules.AyarIslemleri.YeniKasaYonetimi.Models.BulkRolePermissionUpdateItem[] | Hayir | nullable |
+
+### FurpaMerkezApi.Application.Modules.AyarIslemleri.YeniKasaYonetimi.Models.CopyRolePermissionsRequest
+
+| JSON alani | Tip | Zorunlu | Sinirlar |
+|---|---|---|---|
+| `sourceRoleId` | integer (int32) | Hayir |  |
+| `targetRoleId` | integer (int32) | Hayir |  |
+
+### FurpaMerkezApi.Application.Modules.AyarIslemleri.YeniKasaYonetimi.Models.CopyRolePermissionsResultDto
+
+| JSON alani | Tip | Zorunlu | Sinirlar |
+|---|---|---|---|
+| `copiedPermissionCount` | integer (int32) | Hayir |  |
+| `isSuccess` | boolean | Hayir |  |
+| `message` | string | Hayir | nullable |
+
+### FurpaMerkezApi.Application.Modules.AyarIslemleri.YeniKasaYonetimi.Models.CreateFastAccessCategoryRequest
+
+| JSON alani | Tip | Zorunlu | Sinirlar |
+|---|---|---|---|
+| `description` | string | Hayir | nullable |
+| `name` | string | Hayir | nullable |
+
+### FurpaMerkezApi.Application.Modules.AyarIslemleri.YeniKasaYonetimi.Models.CreateFastAccessItemRequest
+
+| JSON alani | Tip | Zorunlu | Sinirlar |
+|---|---|---|---|
+| `barcode` | string | Hayir | nullable |
+| `base64Data` | string | Hayir | nullable |
+| `categoryKey` | string | Hayir | nullable |
+| `inventoryCode` | string | Hayir | nullable |
+
+### FurpaMerkezApi.Application.Modules.AyarIslemleri.YeniKasaYonetimi.Models.CreateYeniKasaDisplayContentRequest
+
+| JSON alani | Tip | Zorunlu | Sinirlar |
+|---|---|---|---|
+| `base64Data` | string | Hayir | nullable |
+| `endDate` | string (date-time) | Hayir | nullable |
+| `name` | string | Hayir | nullable |
+| `pageType` | string | Hayir | nullable |
+| `sirano` | integer (int32) | Hayir |  |
+| `startDate` | string (date-time) | Hayir | nullable |
+| `type` | string | Hayir | nullable |
+
+### FurpaMerkezApi.Application.Modules.AyarIslemleri.YeniKasaYonetimi.Models.DisplayContentOrderUpdateItem
+
+| JSON alani | Tip | Zorunlu | Sinirlar |
+|---|---|---|---|
+| `id` | integer (int32) | Hayir |  |
+| `sirano` | integer (int32) | Hayir |  |
+
+### FurpaMerkezApi.Application.Modules.AyarIslemleri.YeniKasaYonetimi.Models.PaymentMethodOrderUpdateItem
+
+| JSON alani | Tip | Zorunlu | Sinirlar |
+|---|---|---|---|
+| `id` | integer (int32) | Hayir |  |
+| `sirano` | integer (int32) | Hayir |  |
+| `status` | integer (int32) | Hayir |  |
+
+### FurpaMerkezApi.Application.Modules.AyarIslemleri.YeniKasaYonetimi.Models.SyncPushResultDto
+
+| JSON alani | Tip | Zorunlu | Sinirlar |
+|---|---|---|---|
+| `isSuccess` | boolean | Hayir |  |
+| `message` | string | Hayir | nullable |
+| `triggeredAtUtc` | string (date-time) | Hayir |  |
+
+### FurpaMerkezApi.Application.Modules.AyarIslemleri.YeniKasaYonetimi.Models.TestFtpConnectionRequest
+
+| JSON alani | Tip | Zorunlu | Sinirlar |
+|---|---|---|---|
+| `ftpFolderPath` | string | Hayir | nullable |
+| `ftpHost` | string | Hayir | nullable |
+| `ftpPassword` | string | Hayir | nullable |
+| `ftpPort` | integer (int32) | Hayir | nullable |
+| `ftpUsername` | string | Hayir | nullable |
+
+### FurpaMerkezApi.Application.Modules.AyarIslemleri.YeniKasaYonetimi.Models.TestFtpConnectionResultDto
+
+| JSON alani | Tip | Zorunlu | Sinirlar |
+|---|---|---|---|
+| `isSuccess` | boolean | Hayir |  |
+| `latencyMs` | integer (int64) | Hayir |  |
+| `message` | string | Hayir | nullable |
+
+### FurpaMerkezApi.Application.Modules.AyarIslemleri.YeniKasaYonetimi.Models.UpdateDisplayContentsOrderRequest
+
+| JSON alani | Tip | Zorunlu | Sinirlar |
+|---|---|---|---|
+| `items` | FurpaMerkezApi.Application.Modules.AyarIslemleri.YeniKasaYonetimi.Models.DisplayContentOrderUpdateItem[] | Hayir | nullable |
+
+### FurpaMerkezApi.Application.Modules.AyarIslemleri.YeniKasaYonetimi.Models.UpdateFastAccessCategoryRequest
+
+| JSON alani | Tip | Zorunlu | Sinirlar |
+|---|---|---|---|
+| `description` | string | Hayir | nullable |
+| `id` | integer (int32) | Hayir |  |
+| `name` | string | Hayir | nullable |
+
+### FurpaMerkezApi.Application.Modules.AyarIslemleri.YeniKasaYonetimi.Models.UpdatePaymentMethodsOrderRequest
+
+| JSON alani | Tip | Zorunlu | Sinirlar |
+|---|---|---|---|
+| `items` | FurpaMerkezApi.Application.Modules.AyarIslemleri.YeniKasaYonetimi.Models.PaymentMethodOrderUpdateItem[] | Hayir | nullable |
+
+### FurpaMerkezApi.Application.Modules.AyarIslemleri.YeniKasaYonetimi.Models.UpdateRolePermissionsRequest
+
+| JSON alani | Tip | Zorunlu | Sinirlar |
+|---|---|---|---|
+| `permissionIds` | integer (int32)[] | Hayir | nullable |
+| `roleId` | integer (int32) | Hayir |  |
+
+### FurpaMerkezApi.Application.Modules.AyarIslemleri.YeniKasaYonetimi.Models.UpdateYeniKasaAppSettingsRequest
+
+| JSON alani | Tip | Zorunlu | Sinirlar |
+|---|---|---|---|
+| `fisFaturaLimit` | number (double) | Hayir | nullable |
+| `fisGenislik` | string | Hayir | nullable |
+| `ftpHost` | string | Hayir | nullable |
+| `ftpPassword` | string | Hayir | nullable |
+| `ftpUsername` | string | Hayir | nullable |
+| `nakitLimit` | number (double) | Hayir | nullable |
+| `pavoFis` | integer (int32) | Hayir |  |
+| `printerDotsPerLine` | integer (int32) | Hayir | nullable |
+
+### FurpaMerkezApi.Application.Modules.AyarIslemleri.YeniKasaYonetimi.Models.UpdateYeniKasaDisplaySettingsRequest
+
+| JSON alani | Tip | Zorunlu | Sinirlar |
+|---|---|---|---|
+| `id` | integer (int32) | Hayir |  |
+| `isTwoSlider` | integer (int32) | Hayir |  |
+
+### FurpaMerkezApi.Application.Modules.AyarIslemleri.YeniKasaYonetimi.Models.UpdateYeniKasaPaymentMethodRequest
+
+| JSON alani | Tip | Zorunlu | Sinirlar |
+|---|---|---|---|
+| `brand` | string | Hayir | nullable |
+| `description` | string | Hayir | nullable |
+| `group` | string | Hayir | nullable |
+| `id` | integer (int32) | Hayir |  |
+| `name` | string | Hayir | nullable |
+| `pavoIsActive` | integer (int32) | Hayir |  |
+| `pavoMediator` | string | Hayir | nullable |
+| `pavoType` | string | Hayir | nullable |
+| `sirano` | integer (int32) | Hayir |  |
+| `status` | integer (int32) | Hayir |  |
+
+### FurpaMerkezApi.Application.Modules.AyarIslemleri.YeniKasaYonetimi.Models.YeniKasaAppSettingsDto
+
+| JSON alani | Tip | Zorunlu | Sinirlar |
+|---|---|---|---|
+| `createdAt` | string (date-time) | Hayir | nullable |
+| `fisFaturaLimit` | number (double) | Hayir | nullable |
+| `fisGenislik` | string | Hayir | nullable |
+| `ftpFolderPath` | string | Hayir | nullable |
+| `ftpHost` | string | Hayir | nullable |
+| `ftpPassword` | string | Hayir | nullable |
+| `ftpPort` | integer (int32) | Hayir | nullable |
+| `ftpUsername` | string | Hayir | nullable |
+| `id` | integer (int32) | Hayir |  |
+| `nakitLimit` | number (double) | Hayir | nullable |
+| `pavoFis` | integer (int32) | Hayir |  |
+| `printerDotsPerLine` | integer (int32) | Hayir | nullable |
+| `updatedAt` | string (date-time) | Hayir | nullable |
+
+### FurpaMerkezApi.Application.Modules.AyarIslemleri.YeniKasaYonetimi.Models.YeniKasaDisplayContentDto
+
+| JSON alani | Tip | Zorunlu | Sinirlar |
+|---|---|---|---|
+| `createdAt` | string (date-time) | Hayir | nullable |
+| `endDate` | string (date-time) | Hayir | nullable |
+| `id` | integer (int32) | Hayir |  |
+| `imageUrl` | string | Hayir | nullable |
+| `name` | string | Hayir | nullable |
+| `pageType` | string | Hayir | nullable |
+| `sirano` | integer (int32) | Hayir |  |
+| `startDate` | string (date-time) | Hayir | nullable |
+| `type` | string | Hayir | nullable |
+| `updatedAt` | string (date-time) | Hayir | nullable |
+
+### FurpaMerkezApi.Application.Modules.AyarIslemleri.YeniKasaYonetimi.Models.YeniKasaDisplaySettingsDto
+
+| JSON alani | Tip | Zorunlu | Sinirlar |
+|---|---|---|---|
+| `createdAt` | string (date-time) | Hayir | nullable |
+| `id` | integer (int32) | Hayir |  |
+| `isTwoSlider` | integer (int32) | Hayir |  |
+| `pageType` | string | Hayir | nullable |
+| `updatedAt` | string (date-time) | Hayir | nullable |
+
+### FurpaMerkezApi.Application.Modules.AyarIslemleri.YeniKasaYonetimi.Models.YeniKasaFastAccessCategoryDto
+
+| JSON alani | Tip | Zorunlu | Sinirlar |
+|---|---|---|---|
+| `categoryKey` | string | Hayir | nullable |
+| `createdAt` | string (date-time) | Hayir | nullable |
+| `description` | string | Hayir | nullable |
+| `id` | integer (int32) | Hayir |  |
+| `itemCount` | integer (int32) | Hayir |  |
+| `name` | string | Hayir | nullable |
+| `updatedAt` | string (date-time) | Hayir | nullable |
+
+### FurpaMerkezApi.Application.Modules.AyarIslemleri.YeniKasaYonetimi.Models.YeniKasaFastAccessItemDto
+
+| JSON alani | Tip | Zorunlu | Sinirlar |
+|---|---|---|---|
+| `barcode` | string | Hayir | nullable |
+| `categoryKey` | string | Hayir | nullable |
+| `createdAt` | string (date-time) | Hayir | nullable |
+| `id` | integer (int32) | Hayir |  |
+| `imagePath` | string | Hayir | nullable |
+| `imageUrl` | string | Hayir | nullable |
+| `inventoryCode` | string | Hayir | nullable |
+| `productName` | string | Hayir | nullable |
+| `updatedAt` | string (date-time) | Hayir | nullable |
+
+### FurpaMerkezApi.Application.Modules.AyarIslemleri.YeniKasaYonetimi.Models.YeniKasaPaymentLookupItemDto
+
+| JSON alani | Tip | Zorunlu | Sinirlar |
+|---|---|---|---|
+| `code` | string | Hayir | nullable |
+| `label` | string | Hayir | nullable |
+
+### FurpaMerkezApi.Application.Modules.AyarIslemleri.YeniKasaYonetimi.Models.YeniKasaPaymentMethodDto
+
+| JSON alani | Tip | Zorunlu | Sinirlar |
+|---|---|---|---|
+| `brand` | string | Hayir | nullable |
+| `description` | string | Hayir | nullable |
+| `group` | string | Hayir | nullable |
+| `id` | integer (int32) | Hayir |  |
+| `name` | string | Hayir | nullable |
+| `pavoIsActive` | integer (int32) | Hayir |  |
+| `pavoMediator` | string | Hayir | nullable |
+| `pavoType` | string | Hayir | nullable |
+| `sirano` | integer (int32) | Hayir |  |
+| `status` | integer (int32) | Hayir |  |
+
+### FurpaMerkezApi.Application.Modules.AyarIslemleri.YeniKasaYonetimi.Models.YeniKasaPaymentMethodLookupsDto
+
+| JSON alani | Tip | Zorunlu | Sinirlar |
+|---|---|---|---|
+| `brands` | FurpaMerkezApi.Application.Modules.AyarIslemleri.YeniKasaYonetimi.Models.YeniKasaPaymentLookupItemDto[] | Hayir | nullable |
+| `groups` | string[] | Hayir | nullable |
+
+### FurpaMerkezApi.Application.Modules.AyarIslemleri.YeniKasaYonetimi.Models.YeniKasaPermissionDto
+
+| JSON alani | Tip | Zorunlu | Sinirlar |
+|---|---|---|---|
+| `code` | string | Hayir | nullable |
+| `description` | string | Hayir | nullable |
+| `id` | integer (int32) | Hayir |  |
+| `name` | string | Hayir | nullable |
+
+### FurpaMerkezApi.Application.Modules.AyarIslemleri.YeniKasaYonetimi.Models.YeniKasaRoleDto
+
+| JSON alani | Tip | Zorunlu | Sinirlar |
+|---|---|---|---|
+| `description` | string | Hayir | nullable |
+| `id` | integer (int32) | Hayir |  |
+| `name` | string | Hayir | nullable |
+
+### FurpaMerkezApi.Application.Modules.AyarIslemleri.YeniKasaYonetimi.Models.YeniKasaRolePermissionDto
+
+| JSON alani | Tip | Zorunlu | Sinirlar |
+|---|---|---|---|
+| `permissionId` | integer (int32) | Hayir |  |
+| `roleId` | integer (int32) | Hayir |  |
+
+### FurpaMerkezApi.Application.Modules.AyarIslemleri.YeniKasaYonetimi.Models.YeniKasaRolePermissionMatrixDto
+
+| JSON alani | Tip | Zorunlu | Sinirlar |
+|---|---|---|---|
+| `permissions` | FurpaMerkezApi.Application.Modules.AyarIslemleri.YeniKasaYonetimi.Models.YeniKasaPermissionDto[] | Hayir | nullable |
+| `rolePermissions` | FurpaMerkezApi.Application.Modules.AyarIslemleri.YeniKasaYonetimi.Models.YeniKasaRolePermissionDto[] | Hayir | nullable |
+| `roles` | FurpaMerkezApi.Application.Modules.AyarIslemleri.YeniKasaYonetimi.Models.YeniKasaRoleDto[] | Hayir | nullable |
+
+### FurpaMerkezApi.Application.Modules.AyarIslemleri.YeniKasaYonetimi.Models.YeniKasaStockLookupDto
+
+| JSON alani | Tip | Zorunlu | Sinirlar |
+|---|---|---|---|
+| `barcode` | string | Hayir | nullable |
+| `salePrice` | number (double) | Hayir | nullable |
+| `stockCode` | string | Hayir | nullable |
+| `stockName` | string | Hayir | nullable |
+| `unit` | string | Hayir | nullable |
 
 ### FurpaMerkezApi.Application.Modules.Common.CompanyMovements.CompanyMovementDetailDto
 
@@ -27826,7 +28271,9 @@ Enum degerleri JSON sozlesmesinde bulunur.
 | `lineCount` | integer (int32) | Hayir |  |
 | `orderDate` | string (date-time) | Hayir | nullable |
 | `orderKind` | integer (int32) | Hayir |  |
+| `orderKindName` | string | Hayir | nullable |
 | `orderType` | integer (int32) | Hayir |  |
+| `orderTypeName` | string | Hayir | nullable |
 | `projectCode` | string | Hayir | nullable |
 | `sellerCode` | string | Hayir | nullable |
 | `stockResponsibilityCenter` | string | Hayir | nullable |
@@ -28034,12 +28481,16 @@ Enum degerleri JSON sozlesmesinde bulunur.
 | `documentOrderNo` | integer (int32) | Hayir |  |
 | `documentSerie` | string | Hayir | nullable |
 | `documentType` | integer (int32) | Hayir |  |
+| `documentTypeName` | string | Hayir | nullable |
 | `lastUpdatedAt` | string (date-time) | Hayir | nullable |
 | `lineCount` | integer (int32) | Hayir |  |
 | `movementDate` | string (date-time) | Hayir | nullable |
 | `movementKind` | integer (int32) | Hayir |  |
+| `movementKindName` | string | Hayir | nullable |
+| `movementTypeNames` | string[] | Hayir | nullable |
 | `movementTypes` | integer (int32)[] | Hayir | nullable |
 | `normalReturn` | integer (int32) | Hayir |  |
+| `normalReturnName` | string | Hayir | nullable |
 | `projectCode` | string | Hayir | nullable |
 | `responsibilityCenter` | string | Hayir | nullable |
 | `sellerCode` | string | Hayir | nullable |
@@ -28070,8 +28521,11 @@ Enum degerleri JSON sozlesmesinde bulunur.
 | `lastUpdatedAt` | string (date-time) | Hayir | nullable |
 | `movementGuid` | string (uuid) | Hayir |  |
 | `movementKind` | integer (int32) | Hayir |  |
+| `movementKindName` | string | Hayir | nullable |
 | `movementType` | integer (int32) | Hayir |  |
+| `movementTypeName` | string | Hayir | nullable |
 | `normalReturn` | integer (int32) | Hayir |  |
+| `normalReturnName` | string | Hayir | nullable |
 | `projectCode` | string | Hayir | nullable |
 | `quantity` | number (double) | Hayir |  |
 | `responsibilityCenter` | string | Hayir | nullable |
@@ -28149,6 +28603,40 @@ Enum degerleri JSON sozlesmesinde bulunur.
 |---|---|---|---|
 | `document` | FurpaMerkezApi.Application.Modules.DuzeltmeIslemleri.MikroEvrakDuzenleme.InventoryCountDocumentDto | Hayir |  |
 | `summary` | FurpaMerkezApi.Application.Modules.DuzeltmeIslemleri.MikroEvrakDuzenleme.MikroDocumentUpdateSummary | Hayir |  |
+
+### FurpaMerkezApi.Application.Modules.DuzeltmeIslemleri.MikroEvrakDuzenleme.MikroDocumentCandidateDto
+
+| JSON alani | Tip | Zorunlu | Sinirlar |
+|---|---|---|---|
+| `documentDate` | string (date-time) | Hayir | nullable |
+| `documentFamily` | string | Hayir | nullable |
+| `documentFamilyName` | string | Hayir | nullable |
+| `documentOrderNo` | integer (int32) | Hayir |  |
+| `documentSerie` | string | Hayir | nullable |
+| `documentType` | integer (int32) | Hayir | nullable |
+| `documentTypeName` | string | Hayir | nullable |
+| `inputWarehouseName` | string | Hayir | nullable |
+| `inputWarehouseNo` | integer (int32) | Hayir | nullable |
+| `lineCount` | integer (int32) | Hayir |  |
+| `mikroTable` | string | Hayir | nullable |
+| `movementKind` | integer (int32) | Hayir | nullable |
+| `movementKindName` | string | Hayir | nullable |
+| `movementTypeNames` | string[] | Hayir | nullable |
+| `movementTypes` | integer (int32)[] | Hayir | nullable |
+| `normalReturn` | integer (int32) | Hayir | nullable |
+| `normalReturnName` | string | Hayir | nullable |
+| `orderKind` | integer (int32) | Hayir | nullable |
+| `orderKindName` | string | Hayir | nullable |
+| `orderType` | integer (int32) | Hayir | nullable |
+| `orderTypeName` | string | Hayir | nullable |
+| `outputWarehouseName` | string | Hayir | nullable |
+| `outputWarehouseNo` | integer (int32) | Hayir | nullable |
+| `referenceCode` | string | Hayir | nullable |
+| `referenceName` | string | Hayir | nullable |
+| `totalAmount` | number (double) | Hayir |  |
+| `totalQuantity` | number (double) | Hayir |  |
+| `warehouseName` | string | Hayir | nullable |
+| `warehouseNo` | integer (int32) | Hayir | nullable |
 
 ### FurpaMerkezApi.Application.Modules.DuzeltmeIslemleri.MikroEvrakDuzenleme.MikroDocumentDeleteResponse
 
@@ -28307,6 +28795,7 @@ Enum degerleri JSON sozlesmesinde bulunur.
 | `documentOrderNo` | integer (int32) | Hayir |  |
 | `documentSerie` | string | Hayir | nullable |
 | `documentType` | integer (int32) | Hayir |  |
+| `documentTypeName` | string | Hayir | nullable |
 | `goodsAcceptanceDate` | string (date-time) | Hayir | nullable |
 | `inputWarehouseName` | string | Hayir | nullable |
 | `inputWarehouseNo` | integer (int32) | Hayir |  |
@@ -28317,8 +28806,11 @@ Enum degerleri JSON sozlesmesinde bulunur.
 | `movementGroupCode2` | string | Hayir | nullable |
 | `movementGroupCode3` | string | Hayir | nullable |
 | `movementKind` | integer (int32) | Hayir |  |
+| `movementKindName` | string | Hayir | nullable |
+| `movementTypeNames` | string[] | Hayir | nullable |
 | `movementTypes` | integer (int32)[] | Hayir | nullable |
 | `normalReturn` | integer (int32) | Hayir |  |
+| `normalReturnName` | string | Hayir | nullable |
 | `outputWarehouseName` | string | Hayir | nullable |
 | `outputWarehouseNo` | integer (int32) | Hayir |  |
 | `projectCode` | string | Hayir | nullable |
@@ -28490,6 +28982,7 @@ Enum degerleri JSON sozlesmesinde bulunur.
 | JSON alani | Tip | Zorunlu | Sinirlar |
 |---|---|---|---|
 | `closeReasonCode` | string | Hayir | nullable |
+| `closedLineCount` | integer (int32) | Hayir |  |
 | `createdAt` | string (date-time) | Hayir |  |
 | `deliveryDate` | string (date-time) | Hayir | nullable |
 | `description` | string | Hayir | nullable |
@@ -28502,6 +28995,7 @@ Enum degerleri JSON sozlesmesinde bulunur.
 | `isClosed` | boolean | Hayir |  |
 | `lastUpdatedAt` | string (date-time) | Hayir | nullable |
 | `lineCount` | integer (int32) | Hayir |  |
+| `openLineCount` | integer (int32) | Hayir |  |
 | `orderDate` | string (date-time) | Hayir | nullable |
 | `outWarehouseName` | string | Hayir | nullable |
 | `outWarehouseNo` | integer (int32) | Hayir |  |
@@ -28959,6 +29453,7 @@ Enum degerleri JSON sozlesmesinde bulunur.
 
 | JSON alani | Tip | Zorunlu | Sinirlar |
 |---|---|---|---|
+| `allowedAction` | string | Hayir | nullable |
 | `axataDate` | string (date-time) | Hayir | nullable |
 | `axataDeliveryNo` | string | Hayir | nullable |
 | `axataLineCount` | integer (int32) | Hayir |  |
@@ -28968,6 +29463,7 @@ Enum degerleri JSON sozlesmesinde bulunur.
 | `documentOrderNo` | integer (int32) | Hayir |  |
 | `documentSerie` | string | Hayir | nullable |
 | `existingLinkedMovementLineCount` | integer (int32) | Hayir |  |
+| `mikroCheckState` | string | Hayir | nullable |
 | `mikroDeliveredQuantity` | number (double) | Hayir |  |
 | `mikroOrderLineCount` | integer (int32) | Hayir |  |
 | `mikroOrderQuantity` | number (double) | Hayir |  |
@@ -29810,6 +30306,19 @@ Enum degerleri JSON sozlesmesinde bulunur.
 | `totalId` | integer (int32) | Hayir |  |
 | `zNo` | integer (int32) | Hayir |  |
 
+### FurpaMerkezApi.Application.Modules.EntegrasyonIslemleri.TrendyolGo.TrendyolGoAdministrationOverview
+
+| JSON alani | Tip | Zorunlu | Sinirlar |
+|---|---|---|---|
+| `activeCategoryCount` | integer (int32) | Hayir |  |
+| `activeLeafCategoryCount` | integer (int32) | Hayir |  |
+| `branchPosSyncTasks` | FurpaMerkezApi.Application.Modules.EntegrasyonIslemleri.TrendyolGo.TrendyolGoBranchPosSyncTaskDto[] | Hayir | nullable |
+| `categories` | FurpaMerkezApi.Application.Modules.EntegrasyonIslemleri.TrendyolGo.TrendyolGoCategoryDto[] | Hayir | nullable |
+| `categoryMappings` | FurpaMerkezApi.Application.Modules.EntegrasyonIslemleri.TrendyolGo.TrendyolGoCategoryMappingDto[] | Hayir | nullable |
+| `productOverrides` | FurpaMerkezApi.Application.Modules.EntegrasyonIslemleri.TrendyolGo.TrendyolGoProductCategoryOverrideDto[] | Hayir | nullable |
+| `runtimeSettings` | FurpaMerkezApi.Application.Modules.EntegrasyonIslemleri.TrendyolGo.TrendyolGoRuntimeSettingsDto | Hayir |  |
+| `stores` | FurpaMerkezApi.Application.Modules.EntegrasyonIslemleri.TrendyolGo.TrendyolGoStoreSettingDto[] | Hayir | nullable |
+
 ### FurpaMerkezApi.Application.Modules.EntegrasyonIslemleri.TrendyolGo.TrendyolGoBatchWorkflowDto
 
 | JSON alani | Tip | Zorunlu | Sinirlar |
@@ -29825,6 +30334,23 @@ Enum degerleri JSON sozlesmesinde bulunur.
 | `resultSummary` | string | Hayir | nullable |
 | `status` | string | Hayir | nullable |
 | `storeId` | integer (int64) | Hayir |  |
+| `warehouseNo` | integer (int32) | Hayir |  |
+
+### FurpaMerkezApi.Application.Modules.EntegrasyonIslemleri.TrendyolGo.TrendyolGoBranchPosSyncTaskDto
+
+| JSON alani | Tip | Zorunlu | Sinirlar |
+|---|---|---|---|
+| `attemptCount` | integer (int32) | Hayir |  |
+| `blockedItemCount` | integer (int32) | Hayir |  |
+| `completedAtUtc` | string (date-time) | Hayir | nullable |
+| `createdAtUtc` | string (date-time) | Hayir |  |
+| `id` | string (uuid) | Hayir |  |
+| `itemCount` | integer (int32) | Hayir |  |
+| `lastError` | string | Hayir | nullable |
+| `nextAttemptAtUtc` | string (date-time) | Hayir |  |
+| `status` | string | Hayir | nullable |
+| `storeId` | integer (int64) | Hayir |  |
+| `storeName` | string | Hayir | nullable |
 | `warehouseNo` | integer (int32) | Hayir |  |
 
 ### FurpaMerkezApi.Application.Modules.EntegrasyonIslemleri.TrendyolGo.TrendyolGoCatalogAutoCreateResult
@@ -29876,8 +30402,10 @@ Enum degerleri JSON sozlesmesinde bulunur.
 | JSON alani | Tip | Zorunlu | Sinirlar |
 |---|---|---|---|
 | `barcode` | string | Hayir | nullable |
+| `categoryMappingSource` | string | Hayir | nullable |
 | `mikroBrandCode` | string | Hayir | nullable |
 | `mikroCategoryCode` | string | Hayir | nullable |
+| `mikroMainGroupCode` | string | Hayir | nullable |
 | `mikroPrice` | number (double) | Hayir | nullable |
 | `productName` | string | Hayir | nullable |
 | `reason` | string | Hayir | nullable |
@@ -29886,6 +30414,40 @@ Enum degerleri JSON sozlesmesinde bulunur.
 | `trendyolBrandId` | integer (int64) | Hayir | nullable |
 | `trendyolCategoryId` | integer (int64) | Hayir | nullable |
 | `vatRate` | integer (int32) | Hayir | nullable |
+
+### FurpaMerkezApi.Application.Modules.EntegrasyonIslemleri.TrendyolGo.TrendyolGoCategoryDto
+
+| JSON alani | Tip | Zorunlu | Sinirlar |
+|---|---|---|---|
+| `categoryId` | integer (int64) | Hayir |  |
+| `isActive` | boolean | Hayir |  |
+| `isLeaf` | boolean | Hayir |  |
+| `name` | string | Hayir | nullable |
+| `parentCategoryId` | integer (int64) | Hayir | nullable |
+| `path` | string | Hayir | nullable |
+| `syncedAtUtc` | string (date-time) | Hayir |  |
+
+### FurpaMerkezApi.Application.Modules.EntegrasyonIslemleri.TrendyolGo.TrendyolGoCategoryMappingDto
+
+| JSON alani | Tip | Zorunlu | Sinirlar |
+|---|---|---|---|
+| `categoryId` | integer (int64) | Hayir |  |
+| `categoryName` | string | Hayir | nullable |
+| `categoryPath` | string | Hayir | nullable |
+| `id` | string (uuid) | Hayir |  |
+| `isActive` | boolean | Hayir |  |
+| `mikroCategoryCode` | string | Hayir | nullable |
+| `mikroMainGroupCode` | string | Hayir | nullable |
+| `updatedAtUtc` | string (date-time) | Hayir |  |
+| `updatedBy` | string | Hayir | nullable |
+
+### FurpaMerkezApi.Application.Modules.EntegrasyonIslemleri.TrendyolGo.TrendyolGoCategorySyncResult
+
+| JSON alani | Tip | Zorunlu | Sinirlar |
+|---|---|---|---|
+| `activeCount` | integer (int32) | Hayir |  |
+| `readCount` | integer (int32) | Hayir |  |
+| `syncedAtUtc` | string (date-time) | Hayir |  |
 
 ### FurpaMerkezApi.Application.Modules.EntegrasyonIslemleri.TrendyolGo.TrendyolGoConnectionStatusDto
 
@@ -30029,6 +30591,33 @@ Enum degerleri JSON sozlesmesinde bulunur.
 | `trendyolQuantity` | integer (int32) | Hayir | nullable |
 | `warehouseQuantity` | integer (int32) | Hayir | nullable |
 
+### FurpaMerkezApi.Application.Modules.EntegrasyonIslemleri.TrendyolGo.TrendyolGoProductCategoryOverrideDto
+
+| JSON alani | Tip | Zorunlu | Sinirlar |
+|---|---|---|---|
+| `categoryId` | integer (int64) | Hayir |  |
+| `categoryName` | string | Hayir | nullable |
+| `categoryPath` | string | Hayir | nullable |
+| `id` | string (uuid) | Hayir |  |
+| `isActive` | boolean | Hayir |  |
+| `stockCode` | string | Hayir | nullable |
+| `updatedAtUtc` | string (date-time) | Hayir |  |
+| `updatedBy` | string | Hayir | nullable |
+
+### FurpaMerkezApi.Application.Modules.EntegrasyonIslemleri.TrendyolGo.TrendyolGoRuntimeSettingsDto
+
+| JSON alani | Tip | Zorunlu | Sinirlar |
+|---|---|---|---|
+| `branchPosPriceSyncEnabled` | boolean | Hayir |  |
+| `defaultBrandId` | integer (int64) | Hayir |  |
+| `defaultCategoryId` | integer (int64) | Hayir |  |
+| `paymentPlanNo` | integer (int32) | Hayir |  |
+| `priceListNo` | integer (int32) | Hayir |  |
+| `source` | string | Hayir | nullable |
+| `stockReserveQuantity` | integer (int32) | Hayir |  |
+| `updatedAtUtc` | string (date-time) | Hayir | nullable |
+| `updatedBy` | string | Hayir | nullable |
+
 ### FurpaMerkezApi.Application.Modules.EntegrasyonIslemleri.TrendyolGo.TrendyolGoStoreMappingDto
 
 | JSON alani | Tip | Zorunlu | Sinirlar |
@@ -30036,6 +30625,26 @@ Enum degerleri JSON sozlesmesinde bulunur.
 | `storeId` | integer (int64) | Hayir |  |
 | `storeName` | string | Hayir | nullable |
 | `warehouseNo` | integer (int32) | Hayir |  |
+
+### FurpaMerkezApi.Application.Modules.EntegrasyonIslemleri.TrendyolGo.TrendyolGoStoreSettingDto
+
+| JSON alani | Tip | Zorunlu | Sinirlar |
+|---|---|---|---|
+| `isActive` | boolean | Hayir |  |
+| `source` | string | Hayir | nullable |
+| `stockReserveQuantity` | integer (int32) | Hayir | nullable |
+| `storeId` | integer (int64) | Hayir |  |
+| `storeName` | string | Hayir | nullable |
+| `updatedAtUtc` | string (date-time) | Hayir | nullable |
+| `updatedBy` | string | Hayir | nullable |
+| `warehouseNo` | integer (int32) | Hayir |  |
+
+### FurpaMerkezApi.Application.Modules.EntegrasyonIslemleri.TrendyolGo.TrendyolGoWorkflowStatusDto
+
+| JSON alani | Tip | Zorunlu | Sinirlar |
+|---|---|---|---|
+| `batchWorkflows` | FurpaMerkezApi.Application.Modules.EntegrasyonIslemleri.TrendyolGo.TrendyolGoBatchWorkflowDto[] | Hayir | nullable |
+| `branchPosSyncTasks` | FurpaMerkezApi.Application.Modules.EntegrasyonIslemleri.TrendyolGo.TrendyolGoBranchPosSyncTaskDto[] | Hayir | nullable |
 
 ### FurpaMerkezApi.Application.Modules.EntegrasyonIslemleri.UyumsoftServisleri.UyumsoftConnectedServiceOverviewDto
 
@@ -31805,6 +32414,7 @@ Enum degerleri JSON sozlesmesinde bulunur.
 |---|---|---|---|
 | `branchName` | string | Hayir | nullable |
 | `branchNo` | integer (int32) | Hayir |  |
+| `checkAmount` | number (double) | Hayir |  |
 | `currentAccountAmount` | number (double) | Hayir |  |
 | `currentStockDifference` | number (double) | Hayir |  |
 | `date` | string (date-time) | Hayir |  |
@@ -31814,15 +32424,23 @@ Enum degerleri JSON sozlesmesinde bulunur.
 | `expenseSlipStockAmount` | number (double) | Hayir |  |
 | `expenseSlipTransferredAmount` | number (double) | Hayir |  |
 | `hasDifference` | boolean | Hayir |  |
+| `hasReceiptTotalMismatch` | boolean | Hayir |  |
+| `hasSourceDataWarning` | boolean | Hayir |  |
+| `hasZReportMismatch` | boolean | Hayir |  |
 | `invoiceDifference` | number (double) | Hayir |  |
 | `invoiceStockAmount` | number (double) | Hayir |  |
 | `invoiceTransferredAmount` | number (double) | Hayir |  |
 | `netDifference` | number (double) | Hayir |  |
 | `netStockTurnover` | number (double) | Hayir |  |
 | `netTransferredTurnover` | number (double) | Hayir |  |
+| `pendingInvoiceAmount` | number (double) | Hayir |  |
+| `receiptLineHeaderDifference` | number (double) | Hayir |  |
 | `retailDifference` | number (double) | Hayir |  |
 | `retailStockAmount` | number (double) | Hayir |  |
 | `retailTransferredAmount` | number (double) | Hayir |  |
+| `sourceHeaderAmount` | number (double) | Hayir |  |
+| `sourceHeaderZReportDifference` | number (double) | Hayir |  |
+| `sourceZReportDifference` | number (double) | Hayir |  |
 | `stockMovementAmount` | number (double) | Hayir |  |
 | `transferredAmount` | number (double) | Hayir |  |
 | `transferredTurnoverDifference` | number (double) | Hayir |  |
@@ -31833,8 +32451,13 @@ Enum degerleri JSON sozlesmesinde bulunur.
 
 | JSON alani | Tip | Zorunlu | Sinirlar |
 |---|---|---|---|
+| `balancedCount` | integer (int32) | Hayir |  |
 | `differenceCount` | integer (int32) | Hayir |  |
+| `pendingInvoiceCount` | integer (int32) | Hayir |  |
+| `receiptMismatchCount` | integer (int32) | Hayir |  |
 | `rowCount` | integer (int32) | Hayir |  |
+| `sourceDataWarningCount` | integer (int32) | Hayir |  |
+| `totalCheckAmount` | number (double) | Hayir |  |
 | `totalCurrentAccountAmount` | number (double) | Hayir |  |
 | `totalCurrentStockDifference` | number (double) | Hayir |  |
 | `totalExcess` | number (double) | Hayir |  |
@@ -31848,15 +32471,22 @@ Enum degerleri JSON sozlesmesinde bulunur.
 | `totalNetDifference` | number (double) | Hayir |  |
 | `totalNetStockTurnover` | number (double) | Hayir |  |
 | `totalNetTransferredTurnover` | number (double) | Hayir |  |
+| `totalPendingInvoiceAmount` | number (double) | Hayir |  |
+| `totalReceiptLineHeaderDifference` | number (double) | Hayir |  |
 | `totalRetailDifference` | number (double) | Hayir |  |
 | `totalRetailStockAmount` | number (double) | Hayir |  |
 | `totalRetailTransferredAmount` | number (double) | Hayir |  |
 | `totalShortage` | number (double) | Hayir |  |
+| `totalSourceHeaderAmount` | number (double) | Hayir |  |
+| `totalSourceHeaderZReportDifference` | number (double) | Hayir |  |
+| `totalSourceZReportDifference` | number (double) | Hayir |  |
 | `totalStockMovementAmount` | number (double) | Hayir |  |
 | `totalTransferredAmount` | number (double) | Hayir |  |
 | `totalTransferredTurnoverDifference` | number (double) | Hayir |  |
 | `totalZReportAmount` | number (double) | Hayir |  |
 | `totalZReportTransferDifference` | number (double) | Hayir |  |
+| `transferDifferenceCount` | integer (int32) | Hayir |  |
+| `zReportMismatchCount` | integer (int32) | Hayir |  |
 
 ### FurpaMerkezApi.Application.Modules.KasaIslemleri.KasaHareketAktarimi.KasaHareketSatisMutabakatReportDto
 
@@ -31942,6 +32572,51 @@ Enum degerleri JSON sozlesmesinde bulunur.
 | `kasaNo` | integer (int32) | Hayir |  |
 | `tarih` | string (date-time) | Hayir |  |
 | `tutar` | number (double) | Hayir |  |
+
+### FurpaMerkezApi.Application.Modules.KasaIslemleri.KasaHareketAktarimi.KasaHareketVatMismatchReportDto
+
+| JSON alani | Tip | Zorunlu | Sinirlar |
+|---|---|---|---|
+| `branchNo` | integer (int32) | Hayir | nullable |
+| `endDate` | string (date-time) | Hayir |  |
+| `generatedAtUtc` | string (date-time) | Hayir |  |
+| `rows` | FurpaMerkezApi.Application.Modules.KasaIslemleri.KasaHareketAktarimi.KasaHareketVatMismatchRowDto[] | Hayir | nullable |
+| `startDate` | string (date-time) | Hayir |  |
+| `summary` | FurpaMerkezApi.Application.Modules.KasaIslemleri.KasaHareketAktarimi.KasaHareketVatMismatchSummaryDto | Hayir |  |
+| `transferredToMikro` | boolean | Hayir | nullable |
+
+### FurpaMerkezApi.Application.Modules.KasaIslemleri.KasaHareketAktarimi.KasaHareketVatMismatchRowDto
+
+| JSON alani | Tip | Zorunlu | Sinirlar |
+|---|---|---|---|
+| `branchName` | string | Hayir | nullable |
+| `branchNo` | integer (int32) | Hayir |  |
+| `cashRegisterNo` | integer (int32) | Hayir |  |
+| `currentVatAmount` | number (double) | Hayir |  |
+| `customerCurrentCode` | string | Hayir | nullable |
+| `date` | string (date-time) | Hayir |  |
+| `expectedVatAmount` | number (double) | Hayir |  |
+| `grossAmount` | number (double) | Hayir |  |
+| `invoiceId` | string (uuid) | Hayir |  |
+| `receiptNo` | integer (int32) | Hayir |  |
+| `transferredToMikro` | boolean | Hayir |  |
+| `vat18LineCount` | integer (int64) | Hayir |  |
+| `vat8LineCount` | integer (int64) | Hayir |  |
+| `vatDifference` | number (double) | Hayir |  |
+| `zNo` | string | Hayir | nullable |
+
+### FurpaMerkezApi.Application.Modules.KasaIslemleri.KasaHareketAktarimi.KasaHareketVatMismatchSummaryDto
+
+| JSON alani | Tip | Zorunlu | Sinirlar |
+|---|---|---|---|
+| `currentVatAmount` | number (double) | Hayir |  |
+| `documentCount` | integer (int32) | Hayir |  |
+| `expectedVatAmount` | number (double) | Hayir |  |
+| `grossAmount` | number (double) | Hayir |  |
+| `mismatchedLineCount` | integer (int64) | Hayir |  |
+| `pendingDocumentCount` | integer (int32) | Hayir |  |
+| `transferredDocumentCount` | integer (int32) | Hayir |  |
+| `vatDifference` | number (double) | Hayir |  |
 
 ### FurpaMerkezApi.Application.Modules.KasaIslemleri.KasaSayimlari.BanknoteMovementItemDto
 
@@ -32207,6 +32882,19 @@ Enum degerleri JSON sozlesmesinde bulunur.
 | `stockCode` | string | Hayir | nullable |
 | `stockName` | string | Hayir | nullable |
 | `takenTag` | string | Hayir | nullable |
+
+### FurpaMerkezApi.Application.Modules.KasaIslemleri.KunyeEtiketYazdirma.ManavCodeListItemDto
+
+| JSON alani | Tip | Zorunlu | Sinirlar |
+|---|---|---|---|
+| `categoryCode` | string | Hayir | nullable |
+| `code` | integer (int32) | Hayir |  |
+| `mnvsfCode` | integer (int32) | Hayir | nullable |
+| `mnvsfMatchCount` | integer (int32) | Hayir |  |
+| `mnvsfStockCode` | string | Hayir | nullable |
+| `productGroup` | string | Hayir | nullable |
+| `productName` | string | Hayir | nullable |
+| `stockCode` | string | Hayir | nullable |
 
 ### FurpaMerkezApi.Application.Modules.KasaIslemleri.ManavMalKabulVeEtiket.ManavMalKabulVeEtiketAcceptanceRecordDto
 
@@ -32972,6 +33660,343 @@ Enum degerleri JSON sozlesmesinde bulunur.
 | `pageSize` | integer (int32) | Hayir |  |
 | `since` | string (date-time) | Hayir | nullable |
 | `syncToken` | string (date-time) | Hayir | nullable |
+
+### FurpaMerkezApi.Application.Modules.OperasyonIslemleri.AxataDepoOperasyonlari.AxataActiveLoadingItem
+
+| JSON alani | Tip | Zorunlu | Sinirlar |
+|---|---|---|---|
+| `destinationCode` | string | Hayir | nullable |
+| `destinationName` | string | Hayir | nullable |
+| `lineCount` | integer (int32) | Hayir |  |
+| `picker` | string | Hayir | nullable |
+| `plate` | string | Hayir | nullable |
+| `ramp` | string | Hayir | nullable |
+| `shipmentNo` | integer (int32) | Hayir |  |
+| `shipmentYear` | integer (int32) | Hayir |  |
+| `startTime` | string | Hayir | nullable |
+
+### FurpaMerkezApi.Application.Modules.OperasyonIslemleri.AxataDepoOperasyonlari.AxataCapacityDto
+
+| JSON alani | Tip | Zorunlu | Sinirlar |
+|---|---|---|---|
+| `blockedLocations` | integer (int32) | Hayir |  |
+| `emptyLocations` | integer (int32) | Hayir |  |
+| `metadata` | FurpaMerkezApi.Application.Modules.OperasyonIslemleri.AxataDepoOperasyonlari.AxataOperationsMetadata | Hayir |  |
+| `occupancyRatePercentage` | number (double) | Hayir |  |
+| `occupiedLocations` | integer (int32) | Hayir |  |
+| `stockTypes` | FurpaMerkezApi.Application.Modules.OperasyonIslemleri.AxataDepoOperasyonlari.AxataStockTypeCapacityItem[] | Hayir | nullable |
+| `totalLocations` | integer (int32) | Hayir |  |
+| `zones` | FurpaMerkezApi.Application.Modules.OperasyonIslemleri.AxataDepoOperasyonlari.AxataZoneCapacityItem[] | Hayir | nullable |
+
+### FurpaMerkezApi.Application.Modules.OperasyonIslemleri.AxataDepoOperasyonlari.AxataDocumentTraceDto
+
+| JSON alani | Tip | Zorunlu | Sinirlar |
+|---|---|---|---|
+| `documentType` | string | Hayir | nullable |
+| `inbounds` | FurpaMerkezApi.Application.Modules.OperasyonIslemleri.AxataDepoOperasyonlari.AxataTraceInboundItem[] | Hayir | nullable |
+| `integrationQueues` | FurpaMerkezApi.Application.Modules.OperasyonIslemleri.AxataDepoOperasyonlari.AxataTraceQueueItem[] | Hayir | nullable |
+| `metadata` | FurpaMerkezApi.Application.Modules.OperasyonIslemleri.AxataDepoOperasyonlari.AxataOperationsMetadata | Hayir |  |
+| `mikroCrossCheck` | FurpaMerkezApi.Application.Modules.OperasyonIslemleri.AxataDepoOperasyonlari.AxataTraceMikroCrossCheck | Hayir |  |
+| `movementType` | string | Hayir | nullable |
+| `orderDate` | string (date) | Hayir | nullable |
+| `orderNo` | string | Hayir | nullable |
+| `orderStatus` | integer (int32) | Hayir | nullable |
+| `orderStatusDescription` | string | Hayir | nullable |
+| `pickingLogs` | FurpaMerkezApi.Application.Modules.OperasyonIslemleri.AxataDepoOperasyonlari.AxataTracePickingLogItem[] | Hayir | nullable |
+| `searchTerm` | string | Hayir | nullable |
+| `shipments` | FurpaMerkezApi.Application.Modules.OperasyonIslemleri.AxataDepoOperasyonlari.AxataTraceShipmentItem[] | Hayir | nullable |
+| `targetCode` | string | Hayir | nullable |
+| `targetName` | string | Hayir | nullable |
+
+### FurpaMerkezApi.Application.Modules.OperasyonIslemleri.AxataDepoOperasyonlari.AxataFillRateDto
+
+| JSON alani | Tip | Zorunlu | Sinirlar |
+|---|---|---|---|
+| `fullySuppliedLines` | integer (int32) | Hayir |  |
+| `metadata` | FurpaMerkezApi.Application.Modules.OperasyonIslemleri.AxataDepoOperasyonlari.AxataOperationsMetadata | Hayir |  |
+| `overallFillRate` | number (double) | Hayir |  |
+| `partiallySuppliedLines` | integer (int32) | Hayir |  |
+| `stores` | FurpaMerkezApi.Application.Modules.OperasyonIslemleri.AxataDepoOperasyonlari.AxataStoreFillRateItem[] | Hayir | nullable |
+| `topMissingSkus` | FurpaMerkezApi.Application.Modules.OperasyonIslemleri.AxataDepoOperasyonlari.AxataSkuFillRateItem[] | Hayir | nullable |
+| `totalOrderedLines` | integer (int32) | Hayir |  |
+| `unsuppliedLines` | integer (int32) | Hayir |  |
+
+### FurpaMerkezApi.Application.Modules.OperasyonIslemleri.AxataDepoOperasyonlari.AxataInboundOverview
+
+| JSON alani | Tip | Zorunlu | Sinirlar |
+|---|---|---|---|
+| `completedTodayCount` | integer (int32) | Hayir |  |
+| `pendingReceivingCount` | integer (int32) | Hayir |  |
+| `processingReceivingCount` | integer (int32) | Hayir |  |
+
+### FurpaMerkezApi.Application.Modules.OperasyonIslemleri.AxataDepoOperasyonlari.AxataOperationsMetadata
+
+| JSON alani | Tip | Zorunlu | Sinirlar |
+|---|---|---|---|
+| `dataSource` | string | Hayir | nullable |
+| `date` | string (date) | Hayir | nullable |
+| `freshness` | string | Hayir | nullable |
+| `generatedAtUtc` | string (date-time) | Hayir |  |
+| `warehouseNo` | integer (int32) | Hayir | nullable |
+
+### FurpaMerkezApi.Application.Modules.OperasyonIslemleri.AxataDepoOperasyonlari.AxataOutboundOverview
+
+| JSON alani | Tip | Zorunlu | Sinirlar |
+|---|---|---|---|
+| `pendingOrderCount` | integer (int32) | Hayir |  |
+| `pickingOrderCount` | integer (int32) | Hayir |  |
+| `shippedTodayCount` | integer (int32) | Hayir |  |
+| `shippedTodayQty` | number (double) | Hayir |  |
+
+### FurpaMerkezApi.Application.Modules.OperasyonIslemleri.AxataDepoOperasyonlari.AxataPendingOrderItem
+
+| JSON alani | Tip | Zorunlu | Sinirlar |
+|---|---|---|---|
+| `lineCount` | integer (int32) | Hayir |  |
+| `movementType` | string | Hayir | nullable |
+| `orderDate` | string (date) | Hayir |  |
+| `orderNo` | string | Hayir | nullable |
+| `targetCode` | string | Hayir | nullable |
+| `targetName` | string | Hayir | nullable |
+| `totalOrderQty` | number (double) | Hayir |  |
+
+### FurpaMerkezApi.Application.Modules.OperasyonIslemleri.AxataDepoOperasyonlari.AxataPickerPerformanceItem
+
+| JSON alani | Tip | Zorunlu | Sinirlar |
+|---|---|---|---|
+| `averageDurationMinutes` | number (double) | Hayir |  |
+| `completionRate` | number (double) | Hayir |  |
+| `totalLines` | integer (int32) | Hayir |  |
+| `totalPickTasks` | integer (int32) | Hayir |  |
+| `totalQuantity` | number (double) | Hayir |  |
+| `totalShipments` | integer (int32) | Hayir |  |
+| `unpickedLines` | integer (int32) | Hayir |  |
+| `userId` | string | Hayir | nullable |
+| `userName` | string | Hayir | nullable |
+
+### FurpaMerkezApi.Application.Modules.OperasyonIslemleri.AxataDepoOperasyonlari.AxataPickingPerformanceDto
+
+| JSON alani | Tip | Zorunlu | Sinirlar |
+|---|---|---|---|
+| `metadata` | FurpaMerkezApi.Application.Modules.OperasyonIslemleri.AxataDepoOperasyonlari.AxataOperationsMetadata | Hayir |  |
+| `pickers` | FurpaMerkezApi.Application.Modules.OperasyonIslemleri.AxataDepoOperasyonlari.AxataPickerPerformanceItem[] | Hayir | nullable |
+| `zones` | FurpaMerkezApi.Application.Modules.OperasyonIslemleri.AxataDepoOperasyonlari.AxataZonePerformanceItem[] | Hayir | nullable |
+
+### FurpaMerkezApi.Application.Modules.OperasyonIslemleri.AxataDepoOperasyonlari.AxataQueueOverview
+
+| JSON alani | Tip | Zorunlu | Sinirlar |
+|---|---|---|---|
+| `inboundWaitingIntegrationCount` | integer (int32) | Hayir |  |
+| `outboundWaitingIntegrationCount` | integer (int32) | Hayir |  |
+
+### FurpaMerkezApi.Application.Modules.OperasyonIslemleri.AxataDepoOperasyonlari.AxataSkuFillRateItem
+
+| JSON alani | Tip | Zorunlu | Sinirlar |
+|---|---|---|---|
+| `fillRatePercentage` | number (double) | Hayir |  |
+| `orderCount` | integer (int32) | Hayir |  |
+| `sku` | string | Hayir | nullable |
+| `skuName` | string | Hayir | nullable |
+| `totalMissingQty` | number (double) | Hayir |  |
+| `totalOrderedQty` | number (double) | Hayir |  |
+| `totalShippedQty` | number (double) | Hayir |  |
+
+### FurpaMerkezApi.Application.Modules.OperasyonIslemleri.AxataDepoOperasyonlari.AxataStockTypeCapacityItem
+
+| JSON alani | Tip | Zorunlu | Sinirlar |
+|---|---|---|---|
+| `locationCount` | integer (int32) | Hayir |  |
+| `typeCode` | string | Hayir | nullable |
+| `typeDescription` | string | Hayir | nullable |
+
+### FurpaMerkezApi.Application.Modules.OperasyonIslemleri.AxataDepoOperasyonlari.AxataStoreFillRateItem
+
+| JSON alani | Tip | Zorunlu | Sinirlar |
+|---|---|---|---|
+| `fillRatePercentage` | number (double) | Hayir |  |
+| `orderCount` | integer (int32) | Hayir |  |
+| `storeCode` | string | Hayir | nullable |
+| `storeName` | string | Hayir | nullable |
+| `totalLines` | integer (int32) | Hayir |  |
+| `totalMissingQty` | number (double) | Hayir |  |
+| `totalOrderedQty` | number (double) | Hayir |  |
+| `totalShippedQty` | number (double) | Hayir |  |
+
+### FurpaMerkezApi.Application.Modules.OperasyonIslemleri.AxataDepoOperasyonlari.AxataTraceInboundDetailItem
+
+| JSON alani | Tip | Zorunlu | Sinirlar |
+|---|---|---|---|
+| `expectedQty` | number (double) | Hayir |  |
+| `lineNo` | integer (int32) | Hayir |  |
+| `receivedQty` | number (double) | Hayir |  |
+| `sku` | string | Hayir | nullable |
+| `skuName` | string | Hayir | nullable |
+
+### FurpaMerkezApi.Application.Modules.OperasyonIslemleri.AxataDepoOperasyonlari.AxataTraceInboundItem
+
+| JSON alani | Tip | Zorunlu | Sinirlar |
+|---|---|---|---|
+| `details` | FurpaMerkezApi.Application.Modules.OperasyonIslemleri.AxataDepoOperasyonlari.AxataTraceInboundDetailItem[] | Hayir | nullable |
+| `documentNo` | string | Hayir | nullable |
+| `movementType` | string | Hayir | nullable |
+| `orderId` | integer (int64) | Hayir |  |
+| `receiptDate` | string (date) | Hayir | nullable |
+| `receiptNo` | string | Hayir | nullable |
+| `status` | integer (int32) | Hayir | nullable |
+| `statusDescription` | string | Hayir | nullable |
+| `supplierCode` | string | Hayir | nullable |
+| `supplierName` | string | Hayir | nullable |
+
+### FurpaMerkezApi.Application.Modules.OperasyonIslemleri.AxataDepoOperasyonlari.AxataTraceMikroCrossCheck
+
+| JSON alani | Tip | Zorunlu | Sinirlar |
+|---|---|---|---|
+| `closedLineCount` | integer (int32) | Hayir |  |
+| `decision` | string | Hayir | nullable |
+| `decisionCode` | string | Hayir | nullable |
+| `deliveredQuantity` | number (double) | Hayir |  |
+| `lineCount` | integer (int32) | Hayir |  |
+| `openLineCount` | integer (int32) | Hayir |  |
+| `orderDate` | string (date) | Hayir | nullable |
+| `orderFound` | boolean | Hayir |  |
+| `orderNo` | integer (int32) | Hayir | nullable |
+| `orderSerie` | string | Hayir | nullable |
+| `orderedQuantity` | number (double) | Hayir |  |
+| `shipments` | FurpaMerkezApi.Application.Modules.OperasyonIslemleri.AxataDepoOperasyonlari.AxataTraceMikroShipmentItem[] | Hayir | nullable |
+| `sourceWarehouseNo` | integer (int32) | Hayir | nullable |
+| `targetWarehouseNo` | integer (int32) | Hayir | nullable |
+| `warning` | string | Hayir | nullable |
+
+### FurpaMerkezApi.Application.Modules.OperasyonIslemleri.AxataDepoOperasyonlari.AxataTraceMikroShipmentItem
+
+| JSON alani | Tip | Zorunlu | Sinirlar |
+|---|---|---|---|
+| `documentDate` | string (date) | Hayir | nullable |
+| `documentOrderNo` | integer (int32) | Hayir |  |
+| `documentSerie` | string | Hayir | nullable |
+| `lineCount` | integer (int32) | Hayir |  |
+| `officialDocumentNo` | string | Hayir | nullable |
+| `quantity` | number (double) | Hayir |  |
+| `sourceWarehouseNo` | integer (int32) | Hayir | nullable |
+| `targetWarehouseNo` | integer (int32) | Hayir | nullable |
+
+### FurpaMerkezApi.Application.Modules.OperasyonIslemleri.AxataDepoOperasyonlari.AxataTracePickingLogItem
+
+| JSON alani | Tip | Zorunlu | Sinirlar |
+|---|---|---|---|
+| `location` | string | Hayir | nullable |
+| `logDate` | string | Hayir | nullable |
+| `logTime` | string | Hayir | nullable |
+| `palletNo` | string | Hayir | nullable |
+| `picker` | string | Hayir | nullable |
+| `quantity` | number (double) | Hayir |  |
+| `sequence` | integer (int32) | Hayir |  |
+| `sku` | string | Hayir | nullable |
+| `skuName` | string | Hayir | nullable |
+| `warehouse` | string | Hayir | nullable |
+| `zone` | string | Hayir | nullable |
+
+### FurpaMerkezApi.Application.Modules.OperasyonIslemleri.AxataDepoOperasyonlari.AxataTraceQueueItem
+
+| JSON alani | Tip | Zorunlu | Sinirlar |
+|---|---|---|---|
+| `creationDate` | string | Hayir | nullable |
+| `documentNo` | string | Hayir | nullable |
+| `queueType` | string | Hayir | nullable |
+| `status` | integer (int32) | Hayir |  |
+| `statusDescription` | string | Hayir | nullable |
+| `targetCode` | string | Hayir | nullable |
+
+### FurpaMerkezApi.Application.Modules.OperasyonIslemleri.AxataDepoOperasyonlari.AxataTraceShipmentDetailItem
+
+| JSON alani | Tip | Zorunlu | Sinirlar |
+|---|---|---|---|
+| `differenceQty` | number (double) | Hayir |  |
+| `itemOrderNo` | integer (int32) | Hayir |  |
+| `lineNo` | integer (int32) | Hayir |  |
+| `orderedQty` | number (double) | Hayir |  |
+| `shippedQty` | number (double) | Hayir |  |
+| `sku` | string | Hayir | nullable |
+| `skuName` | string | Hayir | nullable |
+
+### FurpaMerkezApi.Application.Modules.OperasyonIslemleri.AxataDepoOperasyonlari.AxataTraceShipmentItem
+
+| JSON alani | Tip | Zorunlu | Sinirlar |
+|---|---|---|---|
+| `details` | FurpaMerkezApi.Application.Modules.OperasyonIslemleri.AxataDepoOperasyonlari.AxataTraceShipmentDetailItem[] | Hayir | nullable |
+| `movementType` | string | Hayir | nullable |
+| `plate` | string | Hayir | nullable |
+| `ramp` | string | Hayir | nullable |
+| `shipmentDate` | string | Hayir | nullable |
+| `shipmentNo` | integer (int32) | Hayir |  |
+| `shipmentYear` | integer (int32) | Hayir |  |
+| `status` | integer (int32) | Hayir | nullable |
+| `statusDescription` | string | Hayir | nullable |
+
+### FurpaMerkezApi.Application.Modules.OperasyonIslemleri.AxataDepoOperasyonlari.AxataWarehouseDocumentListDto
+
+| JSON alani | Tip | Zorunlu | Sinirlar |
+|---|---|---|---|
+| `endDate` | string (date) | Hayir |  |
+| `items` | FurpaMerkezApi.Application.Modules.OperasyonIslemleri.AxataDepoOperasyonlari.AxataWarehouseDocumentListItem[] | Hayir | nullable |
+| `metadata` | FurpaMerkezApi.Application.Modules.OperasyonIslemleri.AxataDepoOperasyonlari.AxataOperationsMetadata | Hayir |  |
+| `skip` | integer (int32) | Hayir |  |
+| `startDate` | string (date) | Hayir |  |
+| `take` | integer (int32) | Hayir |  |
+| `totalCount` | integer (int32) | Hayir |  |
+
+### FurpaMerkezApi.Application.Modules.OperasyonIslemleri.AxataDepoOperasyonlari.AxataWarehouseDocumentListItem
+
+| JSON alani | Tip | Zorunlu | Sinirlar |
+|---|---|---|---|
+| `documentDate` | string (date) | Hayir | nullable |
+| `documentKey` | string | Hayir | nullable |
+| `documentNo` | string | Hayir | nullable |
+| `documentType` | string | Hayir | nullable |
+| `documentTypeDescription` | string | Hayir | nullable |
+| `flowState` | string | Hayir | nullable |
+| `isInTransit` | boolean | Hayir |  |
+| `lineCount` | integer (int32) | Hayir |  |
+| `movementType` | string | Hayir | nullable |
+| `quantity` | number (double) | Hayir |  |
+| `sourceCode` | string | Hayir | nullable |
+| `sourceName` | string | Hayir | nullable |
+| `status` | integer (int32) | Hayir |  |
+| `statusDescription` | string | Hayir | nullable |
+| `targetCode` | string | Hayir | nullable |
+| `targetName` | string | Hayir | nullable |
+| `vehiclePlate` | string | Hayir | nullable |
+
+### FurpaMerkezApi.Application.Modules.OperasyonIslemleri.AxataDepoOperasyonlari.AxataWarehouseOverviewDto
+
+| JSON alani | Tip | Zorunlu | Sinirlar |
+|---|---|---|---|
+| `activeLoadings` | FurpaMerkezApi.Application.Modules.OperasyonIslemleri.AxataDepoOperasyonlari.AxataActiveLoadingItem[] | Hayir | nullable |
+| `inbound` | FurpaMerkezApi.Application.Modules.OperasyonIslemleri.AxataDepoOperasyonlari.AxataInboundOverview | Hayir |  |
+| `metadata` | FurpaMerkezApi.Application.Modules.OperasyonIslemleri.AxataDepoOperasyonlari.AxataOperationsMetadata | Hayir |  |
+| `outbound` | FurpaMerkezApi.Application.Modules.OperasyonIslemleri.AxataDepoOperasyonlari.AxataOutboundOverview | Hayir |  |
+| `pendingOrders` | FurpaMerkezApi.Application.Modules.OperasyonIslemleri.AxataDepoOperasyonlari.AxataPendingOrderItem[] | Hayir | nullable |
+| `queues` | FurpaMerkezApi.Application.Modules.OperasyonIslemleri.AxataDepoOperasyonlari.AxataQueueOverview | Hayir |  |
+
+### FurpaMerkezApi.Application.Modules.OperasyonIslemleri.AxataDepoOperasyonlari.AxataZoneCapacityItem
+
+| JSON alani | Tip | Zorunlu | Sinirlar |
+|---|---|---|---|
+| `emptyLocations` | integer (int32) | Hayir |  |
+| `occupancyRatePercentage` | number (double) | Hayir |  |
+| `occupiedLocations` | integer (int32) | Hayir |  |
+| `totalLocations` | integer (int32) | Hayir |  |
+| `zone` | string | Hayir | nullable |
+
+### FurpaMerkezApi.Application.Modules.OperasyonIslemleri.AxataDepoOperasyonlari.AxataZonePerformanceItem
+
+| JSON alani | Tip | Zorunlu | Sinirlar |
+|---|---|---|---|
+| `totalLines` | integer (int32) | Hayir |  |
+| `totalQuantity` | number (double) | Hayir |  |
+| `totalShipments` | integer (int32) | Hayir |  |
+| `unpickedLines` | integer (int32) | Hayir |  |
+| `zoneCode` | string | Hayir | nullable |
 
 ### FurpaMerkezApi.Application.Modules.OperasyonIslemleri.BelgeAkisTakibi.DocumentFlowDetailDto
 
@@ -36146,9 +37171,11 @@ Enum degerleri JSON sozlesmesinde bulunur.
 | `documentSerie` | string | Evet | minLength=0; maxLength=20 |
 | `documentType` | integer (int32) | Hayir | min=0; max=255; nullable |
 | `hardDelete` | boolean | Hayir |  |
+| `inputWarehouseNo` | integer (int32) | Hayir | min=1; max=2147483647; nullable |
 | `movementKind` | integer (int32) | Hayir | min=0; max=255; nullable |
 | `movementType` | integer (int32) | Hayir | min=0; max=255; nullable |
 | `normalReturn` | integer (int32) | Hayir | min=0; max=255; nullable |
+| `outputWarehouseNo` | integer (int32) | Hayir | min=1; max=2147483647; nullable |
 | `warehouseNo` | integer (int32) | Hayir | min=1; max=2147483647; nullable |
 
 ### FurpaMerkezApi.WebApi.Controllers.Modules.DuzeltmeIslemleri.MikroEvrakDuzenleme.StockMovementHeaderPatchHttpRequest
@@ -36494,6 +37521,7 @@ Enum degerleri JSON sozlesmesinde bulunur.
 | JSON alani | Tip | Zorunlu | Sinirlar |
 |---|---|---|---|
 | `acknowledge` | boolean | Hayir |  |
+| `axataSequenceNo` | integer (int64) | Hayir | min=1; nullable |
 | `dateMode` | string | Hayir | minLength=0; maxLength=20; nullable |
 | `documentDate` | string (date-time) | Hayir | nullable |
 | `movementDate` | string (date-time) | Hayir | nullable |
@@ -36701,6 +37729,15 @@ Enum degerleri JSON sozlesmesinde bulunur.
 | `sendAll` | boolean | Hayir |  |
 | `storeId` | integer (int64) | Hayir | min=1 |
 
+### FurpaMerkezApi.WebApi.Controllers.Modules.EntegrasyonIslemleri.TrendyolGo.TrendyolGoCategoryMappingHttpRequest
+
+| JSON alani | Tip | Zorunlu | Sinirlar |
+|---|---|---|---|
+| `categoryId` | integer (int64) | Hayir | min=1 |
+| `id` | string (uuid) | Hayir | nullable |
+| `mikroCategoryCode` | string | Evet | minLength=1; maxLength=100 |
+| `mikroMainGroupCode` | string | Hayir | maxLength=100; nullable |
+
 ### FurpaMerkezApi.WebApi.Controllers.Modules.EntegrasyonIslemleri.TrendyolGo.TrendyolGoDirectPriceStockDispatchHttpRequest
 
 | JSON alani | Tip | Zorunlu | Sinirlar |
@@ -36732,6 +37769,33 @@ Enum degerleri JSON sozlesmesinde bulunur.
 | `previewHash` | string | Evet | minLength=1 |
 | `sendAll` | boolean | Hayir |  |
 | `storeId` | integer (int64) | Hayir | min=1 |
+
+### FurpaMerkezApi.WebApi.Controllers.Modules.EntegrasyonIslemleri.TrendyolGo.TrendyolGoProductCategoryOverrideHttpRequest
+
+| JSON alani | Tip | Zorunlu | Sinirlar |
+|---|---|---|---|
+| `categoryId` | integer (int64) | Hayir | min=1 |
+| `id` | string (uuid) | Hayir | nullable |
+| `stockCode` | string | Evet | minLength=1; maxLength=100 |
+
+### FurpaMerkezApi.WebApi.Controllers.Modules.EntegrasyonIslemleri.TrendyolGo.TrendyolGoRuntimeSettingsHttpRequest
+
+| JSON alani | Tip | Zorunlu | Sinirlar |
+|---|---|---|---|
+| `branchPosPriceSyncEnabled` | boolean | Hayir |  |
+| `paymentPlanNo` | integer (int32) | Hayir | min=0; max=100000 |
+| `priceListNo` | integer (int32) | Hayir | min=1; max=1000 |
+| `stockReserveQuantity` | integer (int32) | Hayir | min=0; max=100000 |
+
+### FurpaMerkezApi.WebApi.Controllers.Modules.EntegrasyonIslemleri.TrendyolGo.TrendyolGoStoreSettingHttpRequest
+
+| JSON alani | Tip | Zorunlu | Sinirlar |
+|---|---|---|---|
+| `isActive` | boolean | Hayir |  |
+| `stockReserveQuantity` | integer (int32) | Hayir | min=0; max=100000; nullable |
+| `storeId` | integer (int64) | Hayir | min=1 |
+| `storeName` | string | Evet | minLength=1; maxLength=300 |
+| `warehouseNo` | integer (int32) | Hayir | min=1; max=2147483647 |
 
 ### FurpaMerkezApi.WebApi.Controllers.Modules.FaturaIslemleri.FaturaGonderimi.InvoicePreviewHttpRequest
 
