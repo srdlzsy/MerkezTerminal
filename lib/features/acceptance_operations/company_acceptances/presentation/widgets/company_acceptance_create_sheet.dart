@@ -733,6 +733,7 @@ class _CompanyAcceptanceCreateSheetState
     if (!looksLikeDirectBarcodeInput(query)) {
       return false;
     }
+    final barcodeRequestId = ++line.barcodeRequestId;
 
     setState(() {
       line.setLookupStatus('Barkod cozumleniyor: $query', isLoading: true);
@@ -753,7 +754,10 @@ class _CompanyAcceptanceCreateSheetState
         ),
       );
     } on ApiException catch (error) {
-      if (error.statusCode == 0 || error.statusCode == 404) {
+      if (!mounted || barcodeRequestId != line.barcodeRequestId) {
+        return true;
+      }
+      if (error.statusCode == 404) {
         if (mounted) {
           setState(() {
             line.clearLookupStatus();
@@ -776,7 +780,7 @@ class _CompanyAcceptanceCreateSheetState
       return true;
     }
 
-    if (!mounted) {
+    if (!mounted || barcodeRequestId != line.barcodeRequestId) {
       return true;
     }
 
@@ -3190,6 +3194,7 @@ class _AcceptanceLineDraft {
   String? lookupStatusMessage;
   bool isLookupStatusLoading = false;
   bool isLookupStatusError = false;
+  int barcodeRequestId = 0;
   String? orderGuid;
   int unitPointer = 1;
   bool acceptedQuantityManuallyChanged = false;

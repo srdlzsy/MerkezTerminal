@@ -107,10 +107,12 @@ class ApiClient {
     String? accessToken,
     Map<String, String>? queryParameters,
     bool allowUnauthorizedRecovery = true,
+    Duration? timeout,
   }) async {
     final response = await _send(
       accessToken: accessToken,
       allowUnauthorizedRecovery: allowUnauthorizedRecovery,
+      timeout: timeout,
       request: (resolvedAccessToken) => _httpClient.get(
         _buildUri(path, queryParameters: queryParameters),
         headers: _buildHeaders(accessToken: resolvedAccessToken),
@@ -125,10 +127,12 @@ class ApiClient {
     String? accessToken,
     Map<String, String>? queryParameters,
     bool allowUnauthorizedRecovery = true,
+    Duration? timeout,
   }) async {
     final response = await _send(
       accessToken: accessToken,
       allowUnauthorizedRecovery: allowUnauthorizedRecovery,
+      timeout: timeout,
       request: (resolvedAccessToken) => _httpClient.get(
         _buildUri(path, queryParameters: queryParameters),
         headers: _buildHeaders(accessToken: resolvedAccessToken),

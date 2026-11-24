@@ -491,6 +491,7 @@ class _VirmanCreateSheetState extends State<VirmanCreateSheet>
       return false;
     }
     final resolver = repository as BarcodeResolutionRepository;
+    final barcodeRequestId = ++line.barcodeRequestId;
 
     setState(() {
       _errorMessage = null;
@@ -507,7 +508,10 @@ class _VirmanCreateSheetState extends State<VirmanCreateSheet>
         ),
       );
     } on ApiException catch (error) {
-      if (error.statusCode == 0 || error.statusCode == 404) {
+      if (!mounted || barcodeRequestId != line.barcodeRequestId) {
+        return true;
+      }
+      if (error.statusCode == 404) {
         return false;
       }
       if (!mounted) {
@@ -518,7 +522,7 @@ class _VirmanCreateSheetState extends State<VirmanCreateSheet>
       return true;
     }
 
-    if (!mounted) {
+    if (!mounted || barcodeRequestId != line.barcodeRequestId) {
       return true;
     }
     if (!resolution.isFound || !resolution.isUsableInOperation) {
@@ -1685,6 +1689,7 @@ class _VirmanDraftLine {
   double conversionMultiplier = 0;
   double quantityStep = 1;
   int suggestionRequestId = 0;
+  int barcodeRequestId = 0;
 
   String get barcode => selectedProduct?.barcode ?? '';
 

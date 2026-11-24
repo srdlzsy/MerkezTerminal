@@ -520,6 +520,7 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
       return false;
     }
     final resolver = repository as BarcodeResolutionRepository;
+    final barcodeRequestId = ++line.barcodeRequestId;
 
     setState(() {
       line.setLookupStatus('Barkod cozumleniyor: $query', isLoading: true);
@@ -540,7 +541,10 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
         ),
       );
     } on ApiException catch (error) {
-      if (error.statusCode == 0 || error.statusCode == 404) {
+      if (!mounted || barcodeRequestId != line.barcodeRequestId) {
+        return true;
+      }
+      if (error.statusCode == 404) {
         if (mounted) {
           setState(line.clearLookupStatus);
         }
@@ -556,7 +560,7 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
       return true;
     }
 
-    if (!mounted) {
+    if (!mounted || barcodeRequestId != line.barcodeRequestId) {
       return true;
     }
     if (!resolution.isFound || !resolution.isUsableInOperation) {
@@ -1437,6 +1441,7 @@ class _MovementLineDraft {
   bool isLookupStatusLoading = false;
   bool isLookupStatusError = false;
   double quantityStep = 1;
+  int barcodeRequestId = 0;
 
   double get quantity =>
       productEntryController.readQuantity(quantityController.text, fallback: 0);

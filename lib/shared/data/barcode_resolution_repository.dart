@@ -1,3 +1,4 @@
+import 'package:furpa_merkez_terminal/core/config/app_config.dart';
 import 'package:furpa_merkez_terminal/core/network/api_client.dart';
 import 'package:furpa_merkez_terminal/shared/data/barcode_resolution_models.dart';
 
@@ -23,6 +24,7 @@ class ApiBarcodeResolutionRepository implements BarcodeResolutionRepository {
       '/api/arama-islemleri/barkodlar/${request.encodedBarcode}/cozumle',
       accessToken: accessToken,
       queryParameters: request.toQueryParameters(),
+      timeout: AppConfig.barcodeLookupTimeout,
     );
 
     return BarcodeResolutionResult.fromJson(response);

@@ -339,6 +339,32 @@ void main() {
     expect(_quantityText(tester, 'Fiili Miktar*'), '24');
   });
 
+  testWidgets(
+    'does not start product fallback after barcode connection error',
+    (tester) async {
+      final repository = _FakeCompanyAcceptancesRepository()
+        ..barcodeError = const ApiException(
+          statusCode: 0,
+          title: 'Baglanti Hatasi',
+          detail: 'Sunucuya baglanilamadi. Tekrar deneyin.',
+        );
+
+      await _pumpCompanyAcceptance(tester, repository);
+      await _goToLineStepIfNeeded(tester);
+
+      final lookup = find.widgetWithText(
+        TextFormField,
+        'Barkod / stok kodu / urun adi',
+      );
+      await tester.enterText(lookup.first, '8690000000012');
+      await tester.tap(find.widgetWithText(FilledButton, 'Urun').first);
+      await tester.pumpAndSettle();
+
+      expect(repository.searchProductsCallCount, 0);
+      expect(find.textContaining('Sunucuya baglanilamadi'), findsOneWidget);
+    },
+  );
+
   testWidgets('uses embedded quantity from variable weight barcode', (
     tester,
   ) async {
@@ -424,7 +450,9 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(
-      find.textContaining('Bu urun pasif veya DLS durumunda ve listeye eklenemez'),
+      find.textContaining(
+        'Bu urun pasif veya DLS durumunda ve listeye eklenemez',
+      ),
       findsOneWidget,
     );
     expect(find.text('Satir 1'), findsNothing);
@@ -1070,6 +1098,8 @@ class _FakeCompanyAcceptancesRepository
   List<SearchProductLookupItem>? products;
   BarcodeResolutionResult? barcodeResolution;
   BarcodeResolutionRequest? lastBarcodeRequest;
+  ApiException? barcodeError;
+  int searchProductsCallCount = 0;
 
   @override
   Future<CompanyAcceptanceCreateResult> createAcceptance({
@@ -1135,6 +1165,7 @@ class _FakeCompanyAcceptancesRepository
     String? customerCode,
     bool includeDelisted = true,
   }) async {
+    searchProductsCallCount += 1;
     return products ??
         const <SearchProductLookupItem>[
           SearchProductLookupItem(
@@ -1165,6 +1196,10 @@ class _FakeCompanyAcceptancesRepository
     required BarcodeResolutionRequest request,
   }) async {
     lastBarcodeRequest = request;
+    final error = barcodeError;
+    if (error != null) {
+      throw error;
+    }
     final resolution = barcodeResolution;
     if (resolution != null) {
       return resolution;

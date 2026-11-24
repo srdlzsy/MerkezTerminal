@@ -527,10 +527,7 @@ void main() {
           }
 
           getCount += 1;
-          return http.Response(
-            '{"title":"Not Found","status":404}',
-            404,
-          );
+          return http.Response('{"title":"Not Found","status":404}', 404);
         }),
         createRequestTimeout: const Duration(seconds: 1),
         safeCreateStatusPollInterval: Duration.zero,
@@ -660,6 +657,33 @@ void main() {
 
     await expectLater(
       client.postCreateJsonMap('/api/test'),
+      throwsA(
+        isA<ApiException>()
+            .having((error) => error.statusCode, 'statusCode', 0)
+            .having(
+              (error) => error.title,
+              'title',
+              'Islem zaman asimina ugradi',
+            ),
+      ),
+    );
+  });
+
+  test('get requests can use a shorter operation timeout', () async {
+    final client = ApiClient(
+      baseUrl: 'http://localhost:5228',
+      httpClient: MockClient((request) async {
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+        return http.Response('{"ok":true}', 200);
+      }),
+      requestTimeout: const Duration(seconds: 1),
+    );
+
+    await expectLater(
+      client.getJsonMap(
+        '/api/arama-islemleri/barkodlar/123/cozumle',
+        timeout: const Duration(milliseconds: 5),
+      ),
       throwsA(
         isA<ApiException>()
             .having((error) => error.statusCode, 'statusCode', 0)

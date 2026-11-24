@@ -419,6 +419,7 @@ class _GivenCompanyOrderCreateSheetState
       return false;
     }
     final resolver = repository as BarcodeResolutionRepository;
+    final barcodeRequestId = ++line.barcodeRequestId;
 
     setState(() {
       line.setLookupStatus('Barkod cozumleniyor: $query', isLoading: true);
@@ -439,7 +440,10 @@ class _GivenCompanyOrderCreateSheetState
         ),
       );
     } on ApiException catch (error) {
-      if (error.statusCode == 0 || error.statusCode == 404) {
+      if (!mounted || barcodeRequestId != line.barcodeRequestId) {
+        return true;
+      }
+      if (error.statusCode == 404) {
         if (mounted) {
           setState(line.clearLookupStatus);
         }
@@ -455,7 +459,7 @@ class _GivenCompanyOrderCreateSheetState
       return true;
     }
 
-    if (!mounted) {
+    if (!mounted || barcodeRequestId != line.barcodeRequestId) {
       return true;
     }
     if (!resolution.isFound || !resolution.isUsableInOperation) {
@@ -1685,6 +1689,7 @@ class _CompanyOrderLineDraft {
   bool isLookupStatusLoading = false;
   bool isLookupStatusError = false;
   double quantityStep = 1;
+  int barcodeRequestId = 0;
   final TextEditingController barcodeController;
   final TextEditingController stockCodeController;
   final TextEditingController quantityController;

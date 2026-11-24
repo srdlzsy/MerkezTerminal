@@ -293,6 +293,7 @@ class _StockReceiptCreateSheetState extends State<StockReceiptCreateSheet>
     if (!looksLikeDirectBarcodeInput(query)) {
       return false;
     }
+    final barcodeRequestId = ++line.barcodeRequestId;
 
     setState(() {
       line.setLookupStatus('Barkod cozumleniyor: $query', isLoading: true);
@@ -311,7 +312,10 @@ class _StockReceiptCreateSheetState extends State<StockReceiptCreateSheet>
         ),
       );
     } on ApiException catch (error) {
-      if (error.statusCode == 0 || error.statusCode == 404) {
+      if (!mounted || barcodeRequestId != line.barcodeRequestId) {
+        return true;
+      }
+      if (error.statusCode == 404) {
         if (mounted) {
           setState(() {
             line.clearLookupStatus();
@@ -335,7 +339,7 @@ class _StockReceiptCreateSheetState extends State<StockReceiptCreateSheet>
       return true;
     }
 
-    if (!mounted) {
+    if (!mounted || barcodeRequestId != line.barcodeRequestId) {
       return true;
     }
 
@@ -1187,6 +1191,7 @@ class _StockReceiptLineDraft {
   String? lookupStatusMessage;
   bool isLookupStatusLoading = false;
   bool isLookupStatusError = false;
+  int barcodeRequestId = 0;
 
   double get quantity =>
       productEntryController.readQuantity(quantityController.text, fallback: 0);

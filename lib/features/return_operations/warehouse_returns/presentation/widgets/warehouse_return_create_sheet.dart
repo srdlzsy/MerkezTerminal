@@ -372,6 +372,7 @@ class _WarehouseReturnCreateSheetState extends State<WarehouseReturnCreateSheet>
     if (!looksLikeDirectBarcodeInput(query)) {
       return false;
     }
+    final barcodeRequestId = ++line.barcodeRequestId;
 
     setState(() {
       line.setLookupStatus('Barkod cozumleniyor: $query', isLoading: true);
@@ -391,7 +392,10 @@ class _WarehouseReturnCreateSheetState extends State<WarehouseReturnCreateSheet>
         ),
       );
     } on ApiException catch (error) {
-      if (error.statusCode == 0 || error.statusCode == 404) {
+      if (!mounted || barcodeRequestId != line.barcodeRequestId) {
+        return true;
+      }
+      if (error.statusCode == 404) {
         if (mounted) {
           setState(line.clearLookupStatus);
         }
@@ -411,7 +415,7 @@ class _WarehouseReturnCreateSheetState extends State<WarehouseReturnCreateSheet>
       return true;
     }
 
-    if (!mounted) {
+    if (!mounted || barcodeRequestId != line.barcodeRequestId) {
       return true;
     }
 
@@ -1251,6 +1255,7 @@ class _ReturnLineDraft {
   String? lookupStatusMessage;
   bool isLookupStatusLoading = false;
   bool isLookupStatusError = false;
+  int barcodeRequestId = 0;
 
   List<TextEditingController> get _controllers => <TextEditingController>[
     lookupController,

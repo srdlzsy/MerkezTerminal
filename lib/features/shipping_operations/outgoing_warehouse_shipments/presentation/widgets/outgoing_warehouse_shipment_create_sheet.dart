@@ -518,19 +518,29 @@ class _OutgoingWarehouseShipmentCreateSheetState
     if (!looksLikeDirectBarcodeInput(query)) {
       return false;
     }
+    final barcodeRequestId = ++line.barcodeRequestId;
 
     setState(() {
       line.setLookupStatus('Barkod cozumleniyor: $query', isLoading: true);
     });
 
     final attempt = await _resolveShipmentBarcode(query);
-    if (!mounted) {
+    if (!mounted || barcodeRequestId != line.barcodeRequestId) {
       return true;
     }
 
     if (attempt.shouldFallback) {
       setState(line.clearLookupStatus);
       return false;
+    }
+    if (attempt.errorMessage != null) {
+      setState(
+        () => line.setLookupStatus(attempt.errorMessage!, isError: true),
+      );
+      _showFeedback(attempt.errorMessage!, tone: TerminalFeedbackTone.error);
+      unawaited(TerminalFeedback.error());
+      _refocusLine(line.barcodeFocusNode);
+      return true;
     }
 
     final resolution = attempt.result;
@@ -549,19 +559,29 @@ class _OutgoingWarehouseShipmentCreateSheetState
     if (!looksLikeDirectBarcodeInput(query)) {
       return false;
     }
+    final barcodeRequestId = ++line.barcodeRequestId;
 
     setState(() {
       line.setLookupStatus('Barkod cozumleniyor: $query', isLoading: true);
     });
 
     final attempt = await _resolveShipmentBarcode(query);
-    if (!mounted) {
+    if (!mounted || barcodeRequestId != line.barcodeRequestId) {
       return true;
     }
 
     if (attempt.shouldFallback) {
       setState(line.clearLookupStatus);
       return false;
+    }
+    if (attempt.errorMessage != null) {
+      setState(
+        () => line.setLookupStatus(attempt.errorMessage!, isError: true),
+      );
+      _showFeedback(attempt.errorMessage!, tone: TerminalFeedbackTone.error);
+      unawaited(TerminalFeedback.error());
+      _refocusLine(line.barcodeFocusNode);
+      return true;
     }
 
     final resolution = attempt.result;
@@ -590,14 +610,13 @@ class _OutgoingWarehouseShipmentCreateSheetState
         ),
       );
     } on ApiException catch (error) {
-      if (error.statusCode == 0 || error.statusCode == 404) {
+      if (error.statusCode == 404) {
         return const _BarcodeResolutionAttempt.fallback();
       }
 
-      final message = error.detail ?? error.title;
-      _showFeedback(message, tone: TerminalFeedbackTone.error);
-      unawaited(TerminalFeedback.error());
-      return const _BarcodeResolutionAttempt.handledError();
+      return _BarcodeResolutionAttempt.handledError(
+        error.detail ?? error.title,
+      );
     }
   }
 
@@ -3376,18 +3395,21 @@ class _LookupScaffold extends StatelessWidget {
 
 class _BarcodeResolutionAttempt {
   const _BarcodeResolutionAttempt.resolved(this.result)
-    : shouldFallback = false;
+    : shouldFallback = false,
+      errorMessage = null;
 
   const _BarcodeResolutionAttempt.fallback()
     : result = null,
-      shouldFallback = true;
+      shouldFallback = true,
+      errorMessage = null;
 
-  const _BarcodeResolutionAttempt.handledError()
+  const _BarcodeResolutionAttempt.handledError(this.errorMessage)
     : result = null,
       shouldFallback = false;
 
   final BarcodeResolutionResult? result;
   final bool shouldFallback;
+  final String? errorMessage;
 }
 
 class _ManualShipmentLineDraft {
@@ -3421,6 +3443,7 @@ class _ManualShipmentLineDraft {
   String? lookupStatusMessage;
   bool isLookupStatusLoading = false;
   bool isLookupStatusError = false;
+  int barcodeRequestId = 0;
 
   List<TextEditingController> get _controllers => <TextEditingController>[
     stockCodeController,
@@ -3544,6 +3567,7 @@ class _LinkedShipmentLineDraft {
   final VoidCallback? onChanged;
   ProductLookupItem? selectedProduct;
   double quantityStep;
+  int barcodeRequestId = 0;
 
   String get stockCode => stockCodeController.text;
   String get stockName => stockNameController.text;

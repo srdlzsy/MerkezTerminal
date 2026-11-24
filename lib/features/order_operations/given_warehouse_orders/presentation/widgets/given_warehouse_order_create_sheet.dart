@@ -500,6 +500,7 @@ class _GivenWarehouseOrderCreateSheetState
       return false;
     }
     final resolver = repository as BarcodeResolutionRepository;
+    final barcodeRequestId = ++line.barcodeRequestId;
 
     setState(() {
       line.setProductCaseStatus('Barkod cozumleniyor: $query', isLoading: true);
@@ -519,7 +520,10 @@ class _GivenWarehouseOrderCreateSheetState
         ),
       );
     } on ApiException catch (error) {
-      if (error.statusCode == 0 || error.statusCode == 404) {
+      if (!mounted || barcodeRequestId != line.barcodeRequestId) {
+        return true;
+      }
+      if (error.statusCode == 404) {
         if (mounted) {
           setState(line.clearProductCaseStatus);
         }
@@ -535,7 +539,7 @@ class _GivenWarehouseOrderCreateSheetState
       return true;
     }
 
-    if (!mounted) {
+    if (!mounted || barcodeRequestId != line.barcodeRequestId) {
       return true;
     }
     if (!resolution.isFound || !resolution.isUsableInOperation) {
@@ -2459,6 +2463,7 @@ class _CreateLineDraft {
   final TextEditingController quantityController;
   final FocusNode barcodeFocusNode = FocusNode();
   final VoidCallback? onChanged;
+  int barcodeRequestId = 0;
   ProductLookupItem? selectedProduct;
   GreenGrocerProductCaseResolutionResult? productCaseResolution;
   String? productCaseStatusMessage;

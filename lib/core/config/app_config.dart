@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 abstract final class AppConfig {
   static const String appName = 'Furpa Merkez Terminal';
   static const Duration requestTimeout = Duration(seconds: 300);
+  static const Duration barcodeLookupTimeout = Duration(seconds: 15);
   static const Duration createRequestTimeout = Duration(minutes: 5);
   static const String _defaultBaseUrl = 'http://10.0.0.100:7508';
   static const String updateManifestUrl = String.fromEnvironment(

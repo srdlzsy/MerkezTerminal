@@ -226,6 +226,7 @@ class _InventoryCountCreateSheetState extends State<InventoryCountCreateSheet>
     if (!looksLikeDirectBarcodeInput(query)) {
       return false;
     }
+    final barcodeRequestId = ++line.barcodeRequestId;
 
     BarcodeResolutionResult resolution;
     try {
@@ -239,7 +240,10 @@ class _InventoryCountCreateSheetState extends State<InventoryCountCreateSheet>
         ),
       );
     } on ApiException catch (error) {
-      if (error.statusCode == 0) {
+      if (!mounted || barcodeRequestId != line.barcodeRequestId) {
+        return true;
+      }
+      if (error.statusCode == 404) {
         return false;
       }
       if (!mounted) {
@@ -252,7 +256,7 @@ class _InventoryCountCreateSheetState extends State<InventoryCountCreateSheet>
       return true;
     }
 
-    if (!mounted) {
+    if (!mounted || barcodeRequestId != line.barcodeRequestId) {
       return true;
     }
 
@@ -1210,6 +1214,7 @@ class _InventoryLineDraft {
   final TextEditingController quantityController;
   final FocusNode barcodeFocusNode = FocusNode();
   final VoidCallback? onChanged;
+  int barcodeRequestId = 0;
 
   List<TextEditingController> get _controllers => <TextEditingController>[
     barcodeController,
