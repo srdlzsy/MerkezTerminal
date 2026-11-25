@@ -72,6 +72,7 @@ void main() {
       expect(requestedUri?.queryParameters['sourceWarehouseNo'], '50');
       expect(requestedUri?.queryParameters['stockName'], 'aytac');
       expect(requestedUri?.queryParameters['includeDelisted'], 'false');
+      expect(requestedUri?.queryParameters['operationType'], 'order');
       expect(requestedUri?.queryParameters['take'], '150');
     },
   );

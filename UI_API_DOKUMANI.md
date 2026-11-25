@@ -4281,6 +4281,7 @@ Yeni tablolar:
 
 - `green_grocer_product_case_profiles`: stok bazli kasa/koli/manuel cevrim kuralidir.
 - `green_grocer_order_line_snapshots`: siparis aninda kullanilan kasa/koli girisi, ortalama/katsayi, Mikro'ya yazilan tahmini KG/ADET ve Mikro siparis satir GUID'i bilgisini sabitler.
+- `green_grocer_order_line_snapshots` ve `green_grocer_shipment_line_records` destek tablolaridir. Bu tablolar yoksa/okunamazsa ana Mikro siparis ve sevk yazimi durmaz; siparis detayi ve raporlar kasa snapshot bilgisi olmadan, sevk ise klasik Mikro kurallariyla devam eder. Kumulatif tolerans ve gelismis sevk denetimi icin migration'larin uygulanmasi onerilir.
 
 Feature flag:
 
@@ -4537,7 +4538,10 @@ Ortalama yoksa response hata listeleyerek doner:
 
 UI onerisi:
 
-- Siparis ekraninda kullanici yine kasa/koli girer.
+- Siparis ekraninda KG urunlerde kullanici kasa, otomatik profilsiz ADET urunlerde
+  dogrudan adet girer. Mikro stok kartinda ikinci birim/koli katsayisi bulunmasi
+  ADET girisini otomatik olarak koliye cevirmez. Gercek koli girisi gereken ADET
+  urunlerde `Pack + FixedUnitsPerCase` urun profili tanimlanmalidir.
 - Barkod/stok secildikten sonra `resolution-preview` cagrilir.
 - `isUsable=false` ise satir ekletilmez; `errors.first` kullaniciya gosterilir.
 - `confidence=Medium` ise satir eklenebilir ama uyari gosterilir.
@@ -5300,7 +5304,9 @@ Not:
 - UI menusu olarak gorunen `FiyatGor` ve `CariBul` endpointleri kendi `list` permission'larini ister.
 - `Son Kunye` endpoint'i anonim cagrilabilir; login olmadan kullanilacaksa `warehouseNo` query parametresi zorunludur.
 - Mikro tarafinda sadece SELECT/read-only mantigiyla calisir.
-- Urun arama `dbo.__StokveFiyatArama_Gokhan` stored procedure'u ile yapilir.
+- Urun arama Mikro stok, fiyat, depo detayi, birim ve barkod tablolarina salt-okunur,
+  parametrik sorguyla yapilir. Yalniz gonderilen filtre SQL'e eklenir; eski
+  `dbo.__StokveFiyatArama_Gokhan` prosedurune bagimli degildir.
 - Mobil barkod okutma senaryolarinda genel `urunler` listesi yerine once `barkodlar/{barcode}/cozumle` endpoint'i tercih edilmelidir.
 - Barkod okutma, cozumleme, satira ekleme, fiyat/cari bulma ve barkod tanimlatma karar akisi icin kisa rehber: `docs/BARKOD_COZUMLEME_VE_ARAMA_REHBERI.md`.
 - Mobil offline fiyat okutma icin tekil `fiyat-gor` endpointleri yerine `GET /api/mobile-sync/urun-fiyat-katalogu` ile depo bazli katalog cihaza indirilmelidir.
@@ -25761,14 +25767,14 @@ Bu bolum test hostundaki ApiExplorer ve Swagger metadata'sindan otomatik uretili
 |---|---|---|---|---|
 | GET | `/` | Anonim |  | 200: bildirilmemis |
 | GET | `/api/arama-islemleri/barkodlar/{barcode}/cariler` | JWT + arama-islemleri.cari-bul.list | path: barcode / string (zorunlu)<br>query: WarehouseNo / integer (int32)<br>query: Take / integer (int32) | 401: ProblemDetails<br>200: BarcodeCustomerSuggestionResponse<br>400: ProblemDetails<br>403: ProblemDetails |
-| GET | `/api/arama-islemleri/barkodlar/{barcode}/cozumle` | JWT | path: barcode / string (zorunlu)<br>query: WarehouseNo / integer (int32)<br>query: OperationType / string<br>query: TargetWarehouseNo / integer (int32)<br>query: SourceWarehouseNo / integer (int32)<br>query: SupplierCode / string<br>query: CompanyCode / string<br>query: IsRefund / boolean<br>query: ScreenCode / string | 401: ProblemDetails<br>200: BarcodeResolutionDto<br>400: ProblemDetails |
+| GET | `/api/arama-islemleri/barkodlar/{barcode}/cozumle` | JWT | path: barcode / string (zorunlu)<br>query: WarehouseNo / integer (int32)<br>query: OperationType / string<br>query: TargetWarehouseNo / integer (int32)<br>query: SourceWarehouseNo / integer (int32)<br>query: SupplierCode / string<br>query: CompanyCode / string<br>query: IsRefund / boolean<br>query: ScreenCode / string | 401: ProblemDetails<br>200: BarcodeResolutionDto<br>400: ProblemDetails<br>504: ProblemDetails |
 | GET | `/api/arama-islemleri/barkodlar/{barcode}/fiyat` | JWT + arama-islemleri.fiyat-gor.list | path: barcode / string (zorunlu)<br>query: WarehouseNo / integer (int32)<br>query: SourceWarehouseNo / integer (int32)<br>query: IncludeDelisted / boolean<br>query: Take / integer (int32) | 401: ProblemDetails<br>200: IReadOnlyCollection&lt;ProductLookupItemDto&gt;<br>400: ProblemDetails<br>403: ProblemDetails |
 | GET | `/api/arama-islemleri/cari-bul` | JWT + arama-islemleri.cari-bul.list | query: Barcode / string (zorunlu)<br>query: WarehouseNo / integer (int32)<br>query: Take / integer (int32) | 401: ProblemDetails<br>200: BarcodeCustomerSuggestionResponse<br>400: ProblemDetails<br>403: ProblemDetails |
 | GET | `/api/arama-islemleri/cariler` | JWT | query: SearchText / string (zorunlu)<br>query: Take / integer (int32) | 401: ProblemDetails<br>200: IReadOnlyCollection&lt;CustomerLookupItemDto&gt;<br>400: ProblemDetails |
 | GET | `/api/arama-islemleri/depolar` | JWT | query: SearchText / string<br>query: WarehouseNo / integer (int32)<br>query: Take / integer (int32) | 401: ProblemDetails<br>200: IReadOnlyCollection&lt;WarehouseLookupItemDto&gt;<br>400: ProblemDetails |
 | GET | `/api/arama-islemleri/depolar/kaynaklar` | JWT | query: SearchText / string<br>query: Take / integer (int32) | 401: ProblemDetails<br>200: IReadOnlyCollection&lt;SourceWarehouseLookupItemDto&gt; |
-| GET | `/api/arama-islemleri/fiyat-gor` | JWT + arama-islemleri.fiyat-gor.list | query: WarehouseNo / integer (int32)<br>query: Barcode / string<br>query: StockCode / string<br>query: StockName / string<br>query: SupplierCode / string<br>query: CompanyCode / string<br>query: SourceWarehouseNo / integer (int32)<br>query: IncludeDelisted / boolean<br>query: Take / integer (int32) | 401: ProblemDetails<br>200: IReadOnlyCollection&lt;ProductLookupItemDto&gt;<br>400: ProblemDetails<br>403: ProblemDetails |
-| GET | `/api/arama-islemleri/urunler` | JWT | query: WarehouseNo / integer (int32)<br>query: Barcode / string<br>query: StockCode / string<br>query: StockName / string<br>query: SupplierCode / string<br>query: CompanyCode / string<br>query: SourceWarehouseNo / integer (int32)<br>query: IncludeDelisted / boolean<br>query: Take / integer (int32) | 401: ProblemDetails<br>200: IReadOnlyCollection&lt;ProductLookupItemDto&gt;<br>400: ProblemDetails |
+| GET | `/api/arama-islemleri/fiyat-gor` | JWT + arama-islemleri.fiyat-gor.list | query: WarehouseNo / integer (int32)<br>query: Barcode / string<br>query: StockCode / string<br>query: StockName / string<br>query: SupplierCode / string<br>query: CompanyCode / string<br>query: SourceWarehouseNo / integer (int32)<br>query: IncludeDelisted / boolean<br>query: OperationType / string<br>query: Take / integer (int32) | 401: ProblemDetails<br>200: IReadOnlyCollection&lt;ProductLookupItemDto&gt;<br>400: ProblemDetails<br>403: ProblemDetails |
+| GET | `/api/arama-islemleri/urunler` | JWT | query: WarehouseNo / integer (int32)<br>query: Barcode / string<br>query: StockCode / string<br>query: StockName / string<br>query: SupplierCode / string<br>query: CompanyCode / string<br>query: SourceWarehouseNo / integer (int32)<br>query: IncludeDelisted / boolean<br>query: OperationType / string<br>query: Take / integer (int32) | 401: ProblemDetails<br>200: IReadOnlyCollection&lt;ProductLookupItemDto&gt;<br>400: ProblemDetails |
 | GET | `/api/arama-islemleri/urunler/{stockCode}/cari-onerileri` | JWT | path: stockCode / string (zorunlu)<br>query: WarehouseNo / integer (int32)<br>query: Take / integer (int32) | 401: ProblemDetails<br>200: ProductCustomerSuggestionResponse<br>400: ProblemDetails |
 | GET | `/api/arama-islemleri/urunler/{stockCode}/son-kunye` | Anonim | path: stockCode / string (zorunlu)<br>query: WarehouseNo / integer (int32) | 401: ProblemDetails<br>200: ProductLatestTagDto<br>400: ProblemDetails |
 | GET | `/api/arama-islemleri/var-yok` | JWT + arama-islemleri.var-yok.list | query: WarehouseNo / integer (int32)<br>query: Barcode / string<br>query: StockCode / string<br>query: StockName / string<br>query: IncludeDelisted / boolean<br>query: Take / integer (int32) | 401: ProblemDetails<br>200: IReadOnlyCollection&lt;ProductAvailabilityItemDto&gt;<br>400: ProblemDetails<br>403: ProblemDetails |
@@ -26040,8 +26046,10 @@ Bu bolum test hostundaki ApiExplorer ve Swagger metadata'sindan otomatik uretili
 | GET | `/api/green-grocer/operations/ozet` | JWT + green-grocer.operations.list | query: StartDate / string (date-time)<br>query: EndDate / string (date-time)<br>query: WarehouseNo / integer (int32)<br>query: TypeCode / string<br>query: Search / string<br>query: OnlyWithActivity / boolean<br>query: Take / integer (int32) | 401: ProblemDetails<br>403: ProblemDetails<br>200: GreenGrocerOperationsOverviewDto<br>400: ProblemDetails |
 | DELETE | `/api/green-grocer/orders` | JWT + green-grocer.reports.update | query: DocumentSerie / string (zorunlu)<br>query: DocumentOrderNo / integer (int32) (zorunlu)<br>query: WarehouseNo / integer (int32) | 401: ProblemDetails<br>403: ProblemDetails<br>200: DeleteGreenGrocerOrderResponse<br>400: ProblemDetails<br>404: ProblemDetails<br>409: ProblemDetails |
 | GET | `/api/green-grocer/product-case-profiles` | JWT + green-grocer.product-case-profiles.list | query: Search / string<br>query: IncludeInactive / boolean<br>query: Take / integer (int32) | 401: ProblemDetails<br>403: ProblemDetails<br>200: IReadOnlyCollection&lt;GreenGrocerProductCaseProfileDto&gt;<br>400: ProblemDetails<br>409: ProblemDetails |
-| POST | `/api/green-grocer/product-case-profiles/cozumleme-onizleme` | JWT + green-grocer.product-case-profiles.list | body: request / GreenGrocerProductCaseResolutionHttpRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: GreenGrocerProductCaseResolutionDto<br>400: ProblemDetails<br>404: ProblemDetails<br>409: ProblemDetails |
-| POST | `/api/green-grocer/product-case-profiles/resolution-preview` | JWT + green-grocer.product-case-profiles.list | body: request / GreenGrocerProductCaseResolutionHttpRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: GreenGrocerProductCaseResolutionDto<br>400: ProblemDetails<br>404: ProblemDetails<br>409: ProblemDetails |
+| GET | `/api/green-grocer/product-case-profiles/capabilities` | JWT |  | 401: ProblemDetails<br>403: ProblemDetails<br>200: GreenGrocerProductCaseCapabilitiesDto |
+| POST | `/api/green-grocer/product-case-profiles/cozumleme-onizleme` | JWT + siparis-islemleri.verilen-depo-siparisleri.create | body: request / GreenGrocerProductCaseResolutionHttpRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: GreenGrocerProductCaseResolutionDto<br>400: ProblemDetails<br>404: ProblemDetails<br>409: ProblemDetails |
+| POST | `/api/green-grocer/product-case-profiles/resolution-preview` | JWT + siparis-islemleri.verilen-depo-siparisleri.create | body: request / GreenGrocerProductCaseResolutionHttpRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: GreenGrocerProductCaseResolutionDto<br>400: ProblemDetails<br>404: ProblemDetails<br>409: ProblemDetails |
+| GET | `/api/green-grocer/product-case-profiles/yetenekler` | JWT |  | 401: ProblemDetails<br>403: ProblemDetails<br>200: GreenGrocerProductCaseCapabilitiesDto |
 | DELETE | `/api/green-grocer/product-case-profiles/{stockCode}` | JWT + green-grocer.product-case-profiles.delete | path: stockCode / string (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>204: bildirilmemis<br>404: ProblemDetails<br>409: ProblemDetails |
 | GET | `/api/green-grocer/product-case-profiles/{stockCode}` | JWT + green-grocer.product-case-profiles.detail | path: stockCode / string (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: GreenGrocerProductCaseProfileDto<br>404: ProblemDetails<br>409: ProblemDetails |
 | PUT | `/api/green-grocer/product-case-profiles/{stockCode}` | JWT + green-grocer.product-case-profiles.update | path: stockCode / string (zorunlu)<br>body: request / SaveGreenGrocerProductCaseProfileHttpRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: GreenGrocerProductCaseProfileDto<br>400: ProblemDetails<br>404: ProblemDetails<br>409: ProblemDetails |
@@ -26509,7 +26517,7 @@ Bu bolum test hostundaki ApiExplorer ve Swagger metadata'sindan otomatik uretili
 | GET | `/api/sevk-islemleri/depolar-arasi-sevkler/gelen` | JWT + sevk-islemleri.gelen-depolar-arasi-sevkler.list | query: WarehouseNo / integer (int32)<br>query: StartDate / string (date-time) (zorunlu)<br>query: EndDate / string (date-time) (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: IReadOnlyCollection&lt;WarehouseShippingListItemDto&gt;<br>400: ProblemDetails |
 | GET | `/api/sevk-islemleri/depolar-arasi-sevkler/gelen/{documentSerie}/{documentOrderNo}` | JWT + sevk-islemleri.gelen-depolar-arasi-sevkler.detail | path: documentSerie / string (zorunlu)<br>path: documentOrderNo / integer (int32) (zorunlu)<br>query: warehouseNo / integer (int32) | 401: ProblemDetails<br>403: ProblemDetails<br>200: WarehouseShippingDetailDto<br>400: ProblemDetails<br>404: ProblemDetails |
 | GET | `/api/sevk-islemleri/depolar-arasi-sevkler/giden` | JWT + sevk-islemleri.giden-depolar-arasi-sevkler.list | query: WarehouseNo / integer (int32)<br>query: StartDate / string (date-time) (zorunlu)<br>query: EndDate / string (date-time) (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: IReadOnlyCollection&lt;WarehouseShippingListItemDto&gt;<br>400: ProblemDetails |
-| POST | `/api/sevk-islemleri/depolar-arasi-sevkler/giden` | JWT + sevk-islemleri.giden-depolar-arasi-sevkler.create | body: request / CreateInterWarehouseShipmentHttpRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>201: CreateInterWarehouseShipmentResponse<br>400: ProblemDetails<br>404: ProblemDetails |
+| POST | `/api/sevk-islemleri/depolar-arasi-sevkler/giden` | JWT + sevk-islemleri.giden-depolar-arasi-sevkler.create | body: request / CreateInterWarehouseShipmentHttpRequest (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>201: CreateInterWarehouseShipmentResponse<br>400: ProblemDetails<br>404: ProblemDetails<br>409: ProblemDetails |
 | GET | `/api/sevk-islemleri/depolar-arasi-sevkler/giden/offline-sync/{clientRequestId}` | JWT + sevk-islemleri.giden-depolar-arasi-sevkler.create | path: clientRequestId / string (uuid) (zorunlu) | 401: ProblemDetails<br>403: ProblemDetails<br>200: OfflineSyncStatusDto&lt;CreateInterWarehouseShipmentResponse&gt;<br>404: ProblemDetails<br>409: ProblemDetails |
 | DELETE | `/api/sevk-islemleri/depolar-arasi-sevkler/giden/{documentSerie}/{documentOrderNo}` | JWT + sevk-islemleri.giden-depolar-arasi-sevkler.delete | path: documentSerie / string (zorunlu)<br>path: documentOrderNo / integer (int32) (zorunlu)<br>query: warehouseNo / integer (int32) | 401: ProblemDetails<br>403: ProblemDetails<br>200: DeleteWarehouseShippingDocumentResponse<br>400: ProblemDetails<br>404: ProblemDetails<br>409: ProblemDetails |
 | GET | `/api/sevk-islemleri/depolar-arasi-sevkler/giden/{documentSerie}/{documentOrderNo}` | JWT + sevk-islemleri.giden-depolar-arasi-sevkler.detail | path: documentSerie / string (zorunlu)<br>path: documentOrderNo / integer (int32) (zorunlu)<br>query: warehouseNo / integer (int32) | 401: ProblemDetails<br>403: ProblemDetails<br>200: WarehouseShippingDetailDto<br>400: ProblemDetails<br>404: ProblemDetails |
@@ -26974,9 +26982,12 @@ Enum degerleri JSON sozlesmesinde bulunur.
 | `isOrderBlocked` | boolean | Hayir |  |
 | `isPassive` | boolean | Hayir |  |
 | `isSalesBlocked` | boolean | Hayir |  |
+| `isUsableInOperation` | boolean | Hayir |  |
 | `isVariableWeightBarcode` | boolean | Hayir |  |
 | `lookupBarcode` | string | Hayir | nullable |
 | `modelCode` | string | Hayir | nullable |
+| `operationDecision` | string | Hayir | nullable |
+| `operationDecisionCode` | string | Hayir | nullable |
 | `orderBlockCode` | integer (int32) | Hayir | nullable |
 | `price` | number (double) | Hayir |  |
 | `priceTypeCode` | integer (int32) | Hayir |  |
@@ -31172,6 +31183,17 @@ Enum degerleri JSON sozlesmesinde bulunur.
 | `statusCode` | string | Hayir | nullable |
 | `statusName` | string | Hayir | nullable |
 
+### FurpaMerkezApi.Application.Modules.GreenGrocer.ProductCases.GreenGrocerProductCaseCapabilitiesDto
+
+| JSON alani | Tip | Zorunlu | Sinirlar |
+|---|---|---|---|
+| `defaultOverDeliveryTolerancePercent` | number (double) | Hayir |  |
+| `enabled` | boolean | Hayir |  |
+| `modelCodes` | string[] | Hayir | nullable |
+| `orderLinkingEnabled` | boolean | Hayir |  |
+| `severeOverDeliveryMultiplier` | number (double) | Hayir |  |
+| `sourceWarehouseNo` | integer (int32) | Hayir |  |
+
 ### FurpaMerkezApi.Application.Modules.GreenGrocer.ProductCases.GreenGrocerProductCaseProfileDto
 
 | JSON alani | Tip | Zorunlu | Sinirlar |
@@ -31223,7 +31245,9 @@ Enum degerleri JSON sozlesmesinde bulunur.
 | `microUnit` | string | Hayir | nullable |
 | `modelCode` | string | Hayir | nullable |
 | `modelName` | string | Hayir | nullable |
+| `overDeliveryTolerancePercent` | number (double) | Hayir |  |
 | `requiresManualApproval` | boolean | Hayir |  |
+| `severeOverDeliveryMultiplier` | number (double) | Hayir |  |
 | `stockCode` | string | Hayir | nullable |
 | `stockName` | string | Hayir | nullable |
 | `unit1` | string | Hayir | nullable |
@@ -35899,6 +35923,7 @@ Enum degerleri JSON sozlesmesinde bulunur.
 |---|---|---|---|
 | `actualShippedCaseCount` | number (double) | Hayir | nullable |
 | `actualShippedQuantity` | number (double) | Hayir | nullable |
+| `allowOrderLinking` | boolean | Hayir |  |
 | `averageCaseCount` | integer (int32) | Hayir | nullable |
 | `averageKgPerCase` | number (double) | Hayir | nullable |
 | `averageRecordCount` | integer (int32) | Hayir | nullable |
@@ -35910,6 +35935,9 @@ Enum degerleri JSON sozlesmesinde bulunur.
 | `inputMode` | string | Hayir | nullable |
 | `inputQuantity` | number (double) | Hayir |  |
 | `microUnit` | string | Hayir | nullable |
+| `overDeliveryTolerancePercent` | number (double) | Hayir |  |
+| `requiresManualApproval` | boolean | Hayir |  |
+| `severeOverDeliveryMultiplier` | number (double) | Hayir |  |
 | `status` | string | Hayir | nullable |
 | `unitsPerCase` | number (double) | Hayir | nullable |
 
@@ -38500,6 +38528,8 @@ Enum degerleri JSON sozlesmesinde bulunur.
 |---|---|---|---|
 | `customerResponsibilityCenter` | string | Hayir | minLength=0; maxLength=25; nullable |
 | `description` | string | Hayir | minLength=0; maxLength=50; nullable |
+| `greenGrocerOverDeliveryConfirmed` | boolean | Hayir |  |
+| `greenGrocerReferenceOrderLineGuid` | string (uuid) | Hayir | nullable |
 | `lotNo` | integer (int32) | Hayir | min=0; max=2147483647 |
 | `partyCode` | string | Hayir | minLength=0; maxLength=25; nullable |
 | `productResponsibilityCenter` | string | Hayir | minLength=0; maxLength=25; nullable |

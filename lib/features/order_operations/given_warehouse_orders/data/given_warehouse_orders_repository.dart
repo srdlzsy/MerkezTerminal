@@ -166,6 +166,7 @@ class ApiGivenWarehouseOrdersRepository
         'sourceWarehouseNo': sourceWarehouseNo.toString(),
       'take': '150',
       if (!includeDelisted) 'includeDelisted': 'false',
+      'operationType': 'order',
       if (isBarcodeQuery)
         'barcode': normalizedQuery
       else if (isStockCodeQuery)

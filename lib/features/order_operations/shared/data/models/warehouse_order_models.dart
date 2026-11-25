@@ -328,6 +328,9 @@ class ProductLookupItem {
     this.isPassive = false,
     this.isDelisted = false,
     this.delistReason = '',
+    this.isUsableInOperation = true,
+    this.operationDecisionCode = '',
+    this.operationDecision = '',
     required this.isOrderBlocked,
   });
 
@@ -347,6 +350,9 @@ class ProductLookupItem {
   final bool isPassive;
   final bool isDelisted;
   final String delistReason;
+  final bool isUsableInOperation;
+  final String operationDecisionCode;
+  final String operationDecision;
   final bool isOrderBlocked;
 
   String get displayLabel => '$stockCode - $stockName';
@@ -414,6 +420,11 @@ class ProductLookupItem {
       isPassive: _readBool(json['isPassive']),
       isDelisted: _readBool(json['isDelisted']),
       delistReason: _readString(json['delistReason']),
+      isUsableInOperation: json.containsKey('isUsableInOperation')
+          ? _readBool(json['isUsableInOperation'])
+          : true,
+      operationDecisionCode: _readString(json['operationDecisionCode']),
+      operationDecision: _readString(json['operationDecision']),
       isOrderBlocked: _readBool(json['isOrderBlocked']),
     );
   }
@@ -447,6 +458,8 @@ class ProductLookupItem {
       isPassive: resolution.isPassive,
       isDelisted: resolution.isDelisted,
       delistReason: resolution.delistReason,
+      isUsableInOperation: resolution.isUsableInOperation,
+      operationDecision: resolution.operationDecision,
       isOrderBlocked: resolution.isOrderBlocked,
     );
   }

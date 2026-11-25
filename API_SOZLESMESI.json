@@ -1498,6 +1498,13 @@
             }
           },
           {
+            "name": "OperationType",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "name": "Take",
             "in": "query",
             "schema": {
@@ -1653,6 +1660,13 @@
             "in": "query",
             "schema": {
               "type": "boolean"
+            }
+          },
+          {
+            "name": "OperationType",
+            "in": "query",
+            "schema": {
+              "type": "string"
             }
           },
           {
@@ -107951,6 +107965,17 @@
           "unitPointer": {
             "type": "integer",
             "format": "int32"
+          },
+          "isUsableInOperation": {
+            "type": "boolean"
+          },
+          "operationDecisionCode": {
+            "type": "string",
+            "nullable": true
+          },
+          "operationDecision": {
+            "type": "string",
+            "nullable": true
           }
         },
         "additionalProperties": false

@@ -300,7 +300,7 @@ class TerminalProductLookupTile extends StatelessWidget {
   final List<String> informationLabels;
   final bool showWarning;
   final bool showFullText;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {

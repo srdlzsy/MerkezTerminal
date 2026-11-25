@@ -585,7 +585,18 @@ class _GivenWarehouseOrderCreateSheetState
           sourceWarehouseNo: _selectedSourceWarehouseNo,
         );
         if (products.length == 1) {
-          product = products.single;
+          final candidate = products.single;
+          if (!candidate.isUsableInOperation) {
+            final message = candidate.operationDecision.isNotEmpty
+                ? candidate.operationDecision
+                : 'Urun depo siparisi icin kullanilamaz.';
+            setState(() => line.setProductCaseStatus(message, isError: true));
+            _showFeedback(message, tone: TerminalFeedbackTone.error);
+            unawaited(TerminalFeedback.error());
+            _refocusLine(line.barcodeFocusNode);
+            return;
+          }
+          product = candidate;
         }
       } catch (_) {
         product = null;
@@ -706,6 +717,7 @@ class _GivenWarehouseOrderCreateSheetState
     if (!resolution.isFound || !resolution.isUsableInOperation) {
       final message = resolution.quickErrorMessage;
       setState(() => line.setProductCaseStatus(message, isError: true));
+      _showFeedback(message, tone: TerminalFeedbackTone.error);
       unawaited(TerminalFeedback.error());
       _refocusLine(line.barcodeFocusNode);
       return true;
@@ -2296,23 +2308,71 @@ class _GivenWarehouseOrderCreateSheetState
               ),
             )
           else if (isFreshEntry)
-            TerminalResponsiveLookupRow(
-              field: ProductLookupField(
-                controller: line.barcodeController,
-                focusNode: line.barcodeFocusNode,
-                enabled: canScan,
-                onSubmit: () => _searchProduct(line),
-              ),
-              action: FilledButton.icon(
-                onPressed: canScan ? () => _searchProduct(line) : null,
-                icon: const Icon(Icons.search_rounded),
-                label: const Text('Urun'),
-              ),
-              trailingAction: IconButton.filledTonal(
-                onPressed: canScan ? () => _scanProductWithCamera(line) : null,
-                tooltip: 'Kamera ile oku',
-                icon: const Icon(Icons.photo_camera_back_rounded),
-              ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                TerminalResponsiveLookupRow(
+                  field: ProductLookupField(
+                    controller: line.barcodeController,
+                    focusNode: line.barcodeFocusNode,
+                    enabled: canScan,
+                    onSubmit: () => _searchProduct(line),
+                  ),
+                  action: FilledButton.icon(
+                    onPressed: canScan ? () => _searchProduct(line) : null,
+                    icon: const Icon(Icons.search_rounded),
+                    label: const Text('Urun'),
+                  ),
+                  trailingAction: IconButton.filledTonal(
+                    onPressed: canScan
+                        ? () => _scanProductWithCamera(line)
+                        : null,
+                    tooltip: 'Kamera ile oku',
+                    icon: const Icon(Icons.photo_camera_back_rounded),
+                  ),
+                ),
+                if (line.productCaseStatusMessage != null) ...[
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      color: line.isProductCaseStatusError
+                          ? theme.colorScheme.errorContainer
+                          : theme.colorScheme.secondaryContainer,
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (line.isProductCaseStatusLoading)
+                          const SizedBox.square(
+                            dimension: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        else
+                          Icon(
+                            line.isProductCaseStatusError
+                                ? Icons.error_outline_rounded
+                                : Icons.info_outline_rounded,
+                            size: 18,
+                          ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            line.productCaseStatusMessage!,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ],
             )
           else if (product != null)
             TerminalPdaInfoGrid(
@@ -2629,7 +2689,11 @@ class _ProductLookupSheetState extends State<_ProductLookupSheet> {
         return;
       }
       setState(() {
-        _items = items;
+        _items = _hideDelistedProducts
+            ? items
+                  .where((item) => item.isUsableInOperation)
+                  .toList(growable: false)
+            : items;
         _isLoading = false;
       });
     } catch (error) {
@@ -2696,7 +2760,7 @@ class _ProductLookupSheetState extends State<_ProductLookupSheet> {
                       ),
                       const SizedBox(height: 8),
                       FilterChip(
-                        label: const Text('Pasif/DLS gizle'),
+                        label: const Text('Kilitli urunleri gizle'),
                         avatar: Icon(
                           _hideDelistedProducts
                               ? Icons.visibility_off_rounded
@@ -2731,15 +2795,20 @@ class _ProductLookupSheetState extends State<_ProductLookupSheet> {
                           separatorBuilder: (_, _) => const SizedBox(height: 4),
                           itemBuilder: (context, index) {
                             final item = _items[index];
+                            final isUsable = item.isUsableInOperation;
                             return TerminalProductLookupTile(
                               title: item.displayLabel,
-                              subtitle:
-                                  'Birim: ${item.unitName} | Fiyat: ${AppFormatters.currency(item.price)}',
+                              subtitle: isUsable
+                                  ? 'Birim: ${item.unitName} | Fiyat: ${AppFormatters.currency(item.price)}'
+                                  : item.operationDecision,
                               informationLabels: item.sourceInformationLabels,
                               showWarning:
+                                  !isUsable ||
                                   item.isOrderBlocked ||
                                   item.needsStatusAttention,
-                              onTap: () => Navigator.of(context).pop(item),
+                              onTap: isUsable
+                                  ? () => Navigator.of(context).pop(item)
+                                  : null,
                             );
                           },
                         ),
@@ -2975,5 +3044,8 @@ Map<String, dynamic> _warehouseOrderProductJson(ProductLookupItem item) {
     'isDelisted': item.isDelisted,
     'delistReason': item.delistReason,
     'isOrderBlocked': item.isOrderBlocked,
+    'isUsableInOperation': item.isUsableInOperation,
+    'operationDecisionCode': item.operationDecisionCode,
+    'operationDecision': item.operationDecision,
   };
 }
