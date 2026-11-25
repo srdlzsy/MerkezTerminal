@@ -1,6 +1,10 @@
 import 'package:furpa_merkez_terminal/core/network/api_client.dart';
 
 abstract class GreenGrocerProductCasesRepository {
+  Future<GreenGrocerProductCaseCapabilities> getCapabilities({
+    required String accessToken,
+  });
+
   Future<GreenGrocerProductCaseResolutionResult> resolvePreview({
     required String accessToken,
     required GreenGrocerProductCaseResolutionRequest request,
@@ -13,6 +17,17 @@ class ApiGreenGrocerProductCasesRepository
     : _apiClient = apiClient;
 
   final ApiClient _apiClient;
+
+  @override
+  Future<GreenGrocerProductCaseCapabilities> getCapabilities({
+    required String accessToken,
+  }) async {
+    final response = await _apiClient.getJsonMap(
+      '/api/green-grocer/product-case-profiles/capabilities',
+      accessToken: accessToken,
+    );
+    return GreenGrocerProductCaseCapabilities.fromJson(response);
+  }
 
   @override
   Future<GreenGrocerProductCaseResolutionResult> resolvePreview({
@@ -80,6 +95,8 @@ class GreenGrocerProductCaseResolutionResult {
     required this.confidence,
     required this.requiresManualApproval,
     required this.isOrderLinkable,
+    this.overDeliveryTolerancePercent = 20,
+    this.severeOverDeliveryMultiplier = 1.5,
     required this.isUsable,
     required this.warnings,
     required this.errors,
@@ -107,6 +124,8 @@ class GreenGrocerProductCaseResolutionResult {
   final String confidence;
   final bool requiresManualApproval;
   final bool isOrderLinkable;
+  final double overDeliveryTolerancePercent;
+  final double severeOverDeliveryMultiplier;
   final bool isUsable;
   final List<String> warnings;
   final List<String> errors;
@@ -162,6 +181,13 @@ class GreenGrocerProductCaseResolutionResult {
   }
 
   factory GreenGrocerProductCaseResolutionResult.fromJson(JsonMap json) {
+    final overDeliveryTolerancePercent = _readNullableDouble(
+      json['overDeliveryTolerancePercent'],
+    );
+    final severeOverDeliveryMultiplier = _readNullableDouble(
+      json['severeOverDeliveryMultiplier'],
+    );
+
     return GreenGrocerProductCaseResolutionResult(
       stockCode: _readString(json['stockCode']),
       stockName: _readString(json['stockName']),
@@ -185,9 +211,66 @@ class GreenGrocerProductCaseResolutionResult {
       confidence: _readString(json['confidence']),
       requiresManualApproval: _readBool(json['requiresManualApproval']),
       isOrderLinkable: _readBool(json['isOrderLinkable']),
+      overDeliveryTolerancePercent:
+          overDeliveryTolerancePercent != null &&
+              overDeliveryTolerancePercent >= 0
+          ? overDeliveryTolerancePercent
+          : 20,
+      severeOverDeliveryMultiplier:
+          severeOverDeliveryMultiplier != null &&
+              severeOverDeliveryMultiplier > 1
+          ? severeOverDeliveryMultiplier
+          : 1.5,
       isUsable: _readBool(json['isUsable']),
       warnings: _readStringList(json['warnings']),
       errors: _readStringList(json['errors']),
+    );
+  }
+}
+
+class GreenGrocerProductCaseCapabilities {
+  const GreenGrocerProductCaseCapabilities({
+    required this.enabled,
+    required this.orderLinkingEnabled,
+    required this.sourceWarehouseNo,
+    required this.modelCodes,
+    required this.defaultOverDeliveryTolerancePercent,
+    required this.severeOverDeliveryMultiplier,
+  });
+
+  final bool enabled;
+  final bool orderLinkingEnabled;
+  final int sourceWarehouseNo;
+  final List<String> modelCodes;
+  final double defaultOverDeliveryTolerancePercent;
+  final double severeOverDeliveryMultiplier;
+
+  factory GreenGrocerProductCaseCapabilities.fromJson(JsonMap json) {
+    final defaultOverDeliveryTolerancePercent = _readNullableDouble(
+      json['defaultOverDeliveryTolerancePercent'],
+    );
+    final severeOverDeliveryMultiplier = _readNullableDouble(
+      json['severeOverDeliveryMultiplier'],
+    );
+    final modelCodes = json.containsKey('modelCodes')
+        ? _readStringList(json['modelCodes'])
+        : const <String>['10', '11', '12', '23'];
+
+    return GreenGrocerProductCaseCapabilities(
+      enabled: _readBool(json['enabled']),
+      orderLinkingEnabled: _readBool(json['orderLinkingEnabled']),
+      sourceWarehouseNo: _readInt(json['sourceWarehouseNo']),
+      modelCodes: modelCodes,
+      defaultOverDeliveryTolerancePercent:
+          defaultOverDeliveryTolerancePercent != null &&
+              defaultOverDeliveryTolerancePercent >= 0
+          ? defaultOverDeliveryTolerancePercent
+          : 20,
+      severeOverDeliveryMultiplier:
+          severeOverDeliveryMultiplier != null &&
+              severeOverDeliveryMultiplier > 1
+          ? severeOverDeliveryMultiplier
+          : 1.5,
     );
   }
 }
@@ -220,6 +303,15 @@ double _readDouble(Object? value) {
   }
 
   return double.tryParse(value?.toString() ?? '') ?? 0;
+}
+
+double? _readNullableDouble(Object? value) {
+  if (value is num) {
+    return value.toDouble();
+  }
+
+  final raw = value?.toString().trim() ?? '';
+  return raw.isEmpty ? null : double.tryParse(raw);
 }
 
 int _readInt(Object? value) {

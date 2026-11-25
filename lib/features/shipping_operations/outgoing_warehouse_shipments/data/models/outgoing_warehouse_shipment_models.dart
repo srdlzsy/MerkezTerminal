@@ -327,6 +327,8 @@ class WarehouseShipmentCreateRequest {
 class WarehouseShipmentCreateLine {
   const WarehouseShipmentCreateLine({
     this.warehouseOrderLineGuid,
+    this.greenGrocerReferenceOrderLineGuid,
+    this.greenGrocerOverDeliveryConfirmed = false,
     required this.stockCode,
     required this.quantity,
     required this.unitPrice,
@@ -338,6 +340,8 @@ class WarehouseShipmentCreateLine {
   });
 
   final String? warehouseOrderLineGuid;
+  final String? greenGrocerReferenceOrderLineGuid;
+  final bool greenGrocerOverDeliveryConfirmed;
   final String stockCode;
   final double quantity;
   final double unitPrice;
@@ -352,6 +356,11 @@ class WarehouseShipmentCreateLine {
       if (warehouseOrderLineGuid != null &&
           warehouseOrderLineGuid!.trim().isNotEmpty)
         'warehouseOrderLineGuid': warehouseOrderLineGuid,
+      if (greenGrocerReferenceOrderLineGuid != null &&
+          greenGrocerReferenceOrderLineGuid!.trim().isNotEmpty)
+        'greenGrocerReferenceOrderLineGuid': greenGrocerReferenceOrderLineGuid,
+      if (greenGrocerOverDeliveryConfirmed)
+        'greenGrocerOverDeliveryConfirmed': true,
       'stockCode': stockCode,
       'quantity': quantity,
       'unitPrice': unitPrice,
@@ -366,6 +375,11 @@ class WarehouseShipmentCreateLine {
   factory WarehouseShipmentCreateLine.fromJson(JsonMap json) {
     return WarehouseShipmentCreateLine(
       warehouseOrderLineGuid: _readString(json['warehouseOrderLineGuid']),
+      greenGrocerReferenceOrderLineGuid: _readString(
+        json['greenGrocerReferenceOrderLineGuid'],
+      ),
+      greenGrocerOverDeliveryConfirmed:
+          json['greenGrocerOverDeliveryConfirmed'] == true,
       stockCode: _readString(json['stockCode']),
       quantity: _readDouble(json['quantity']),
       unitPrice: _readDouble(json['unitPrice']),

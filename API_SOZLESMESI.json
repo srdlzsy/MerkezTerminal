@@ -2615,6 +2615,26 @@
                 }
               }
             }
+          },
+          "504": {
+            "description": "Gateway Timeout",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/Microsoft.AspNetCore.Mvc.ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Microsoft.AspNetCore.Mvc.ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Microsoft.AspNetCore.Mvc.ProblemDetails"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -25669,6 +25689,26 @@
                 }
               }
             }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/Microsoft.AspNetCore.Mvc.ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Microsoft.AspNetCore.Mvc.ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Microsoft.AspNetCore.Mvc.ProblemDetails"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -40536,6 +40576,156 @@
         ]
       }
     },
+    "/api/green-grocer/product-case-profiles/capabilities": {
+      "get": {
+        "tags": [
+          "GreenGrocerProductCases"
+        ],
+        "responses": {
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/Microsoft.AspNetCore.Mvc.ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Microsoft.AspNetCore.Mvc.ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Microsoft.AspNetCore.Mvc.ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/Microsoft.AspNetCore.Mvc.ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Microsoft.AspNetCore.Mvc.ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Microsoft.AspNetCore.Mvc.ProblemDetails"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/FurpaMerkezApi.Application.Modules.GreenGrocer.ProductCases.GreenGrocerProductCaseCapabilitiesDto"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FurpaMerkezApi.Application.Modules.GreenGrocer.ProductCases.GreenGrocerProductCaseCapabilitiesDto"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FurpaMerkezApi.Application.Modules.GreenGrocer.ProductCases.GreenGrocerProductCaseCapabilitiesDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ],
+        "x-permissions": [ ]
+      }
+    },
+    "/api/green-grocer/product-case-profiles/yetenekler": {
+      "get": {
+        "tags": [
+          "GreenGrocerProductCases"
+        ],
+        "responses": {
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/Microsoft.AspNetCore.Mvc.ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Microsoft.AspNetCore.Mvc.ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Microsoft.AspNetCore.Mvc.ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/Microsoft.AspNetCore.Mvc.ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Microsoft.AspNetCore.Mvc.ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Microsoft.AspNetCore.Mvc.ProblemDetails"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/FurpaMerkezApi.Application.Modules.GreenGrocer.ProductCases.GreenGrocerProductCaseCapabilitiesDto"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FurpaMerkezApi.Application.Modules.GreenGrocer.ProductCases.GreenGrocerProductCaseCapabilitiesDto"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FurpaMerkezApi.Application.Modules.GreenGrocer.ProductCases.GreenGrocerProductCaseCapabilitiesDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ],
+        "x-permissions": [ ]
+      }
+    },
     "/api/green-grocer/product-case-profiles": {
       "get": {
         "tags": [
@@ -41241,7 +41431,7 @@
           }
         ],
         "x-permissions": [
-          "green-grocer.product-case-profiles.list"
+          "siparis-islemleri.verilen-depo-siparisleri.create"
         ]
       }
     },
@@ -41397,7 +41587,7 @@
           }
         ],
         "x-permissions": [
-          "green-grocer.product-case-profiles.list"
+          "siparis-islemleri.verilen-depo-siparisleri.create"
         ]
       }
     },
@@ -121024,6 +121214,37 @@
         },
         "additionalProperties": false
       },
+      "FurpaMerkezApi.Application.Modules.GreenGrocer.ProductCases.GreenGrocerProductCaseCapabilitiesDto": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "orderLinkingEnabled": {
+            "type": "boolean"
+          },
+          "sourceWarehouseNo": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "modelCodes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "nullable": true
+          },
+          "defaultOverDeliveryTolerancePercent": {
+            "type": "number",
+            "format": "double"
+          },
+          "severeOverDeliveryMultiplier": {
+            "type": "number",
+            "format": "double"
+          }
+        },
+        "additionalProperties": false
+      },
       "FurpaMerkezApi.Application.Modules.GreenGrocer.ProductCases.GreenGrocerProductCaseProfileDto": {
         "type": "object",
         "properties": {
@@ -121226,6 +121447,14 @@
           },
           "isOrderLinkable": {
             "type": "boolean"
+          },
+          "overDeliveryTolerancePercent": {
+            "type": "number",
+            "format": "double"
+          },
+          "severeOverDeliveryMultiplier": {
+            "type": "number",
+            "format": "double"
           },
           "isUsable": {
             "type": "boolean"
@@ -135958,6 +136187,20 @@
             "type": "string",
             "nullable": true
           },
+          "requiresManualApproval": {
+            "type": "boolean"
+          },
+          "allowOrderLinking": {
+            "type": "boolean"
+          },
+          "overDeliveryTolerancePercent": {
+            "type": "number",
+            "format": "double"
+          },
+          "severeOverDeliveryMultiplier": {
+            "type": "number",
+            "format": "double"
+          },
           "actualShippedQuantity": {
             "type": "number",
             "format": "double",
@@ -145831,6 +146074,14 @@
             "type": "string",
             "format": "uuid",
             "nullable": true
+          },
+          "greenGrocerReferenceOrderLineGuid": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "greenGrocerOverDeliveryConfirmed": {
+            "type": "boolean"
           },
           "unitPrice": {
             "minimum": 0,

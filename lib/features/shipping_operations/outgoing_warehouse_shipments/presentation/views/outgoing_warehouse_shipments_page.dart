@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:furpa_merkez_terminal/core/network/api_exception.dart';
 import 'package:furpa_merkez_terminal/core/utils/default_filter_dates.dart';
+import 'package:furpa_merkez_terminal/features/green_grocer/product_cases/data/green_grocer_product_cases_repository.dart';
 import 'package:furpa_merkez_terminal/features/order_operations/received_warehouse_orders/data/received_warehouse_orders_repository.dart';
 import 'package:furpa_merkez_terminal/features/return_operations/warehouse_returns/data/models/warehouse_return_models.dart';
 import 'package:furpa_merkez_terminal/features/return_operations/warehouse_returns/presentation/views/warehouse_return_pdf_preview_page.dart';
@@ -34,6 +35,7 @@ class OutgoingWarehouseShipmentsPage extends StatefulWidget {
     required this.canCreate,
     required this.defaultWarehouseNo,
     required this.mobileWarehouseCatalogRepository,
+    this.greenGrocerProductCasesRepository,
     required this.userWarehouseName,
     required this.title,
     required this.subtitle,
@@ -51,6 +53,7 @@ class OutgoingWarehouseShipmentsPage extends StatefulWidget {
   final bool canCreate;
   final String defaultWarehouseNo;
   final MobileWarehouseCatalogLocalRepository mobileWarehouseCatalogRepository;
+  final GreenGrocerProductCasesRepository? greenGrocerProductCasesRepository;
   final String userWarehouseName;
   final String title;
   final String subtitle;
@@ -263,6 +266,8 @@ class _OutgoingWarehouseShipmentsPageState
               defaultWarehouseNo: widget.defaultWarehouseNo,
               mobileWarehouseCatalogRepository:
                   widget.mobileWarehouseCatalogRepository,
+              greenGrocerProductCasesRepository:
+                  widget.greenGrocerProductCasesRepository,
               draft: draft,
               draftRepository: widget.draftRepository,
             );

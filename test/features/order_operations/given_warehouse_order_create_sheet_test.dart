@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:furpa_merkez_terminal/features/green_grocer/product_cases/data/green_grocer_product_cases_repository.dart';
@@ -904,6 +906,233 @@ void main() {
         lineJson['greenGrocerCase'] as Map<String, dynamic>;
     expect(greenGrocerCaseJson['inputMode'], 'Case');
     expect(greenGrocerCaseJson['microUnit'], 'KG');
+    expect(greenGrocerCaseJson['overDeliveryTolerancePercent'], 20);
+    expect(greenGrocerCaseJson['severeOverDeliveryMultiplier'], 1.5);
+  });
+
+  testWidgets(
+    'shows manav mode banner and live KG estimate when editing quantity',
+    (tester) async {
+      tester.view.physicalSize = const Size(390, 1000);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final greenGrocerRepository = _FakeGreenGrocerProductCasesRepository();
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: GivenWarehouseOrderCreateSheet(
+              repository: _FakeWarehouseOrdersRepository(
+                warehouses: const <WarehouseLookupItem>[
+                  WarehouseLookupItem(
+                    warehouseNo: 56,
+                    warehouseName: 'MANAV DEPO',
+                    address: '',
+                    district: 'Osmangazi',
+                    province: 'Bursa',
+                  ),
+                ],
+                product: const ProductLookupItem(
+                  warehouseNo: 56,
+                  barcode: '8690000000012',
+                  stockCode: '015792',
+                  stockName: 'MNV Test Urun',
+                  modelCode: '10',
+                  price: 125,
+                  unitName: 'KASA',
+                  isOrderBlocked: false,
+                ),
+              ),
+              accessToken: 'token',
+              defaultWarehouseNo: '110',
+              greenGrocerProductCasesRepository: greenGrocerRepository,
+              greenGrocerProductCasesEnabled: true,
+              mobileWarehouseCatalogRepository:
+                  MobileWarehouseCatalogLocalRepository(
+                    database: MemoryLocalDatabase(),
+                  ),
+            ),
+          ),
+        ),
+      );
+
+      await _pickWarehouse(tester, label: '56 - MANAV DEPO');
+      expect(
+        find.byKey(const ValueKey<String>('green-grocer-order-mode-banner')),
+        findsOneWidget,
+      );
+
+      await _pickWarehouseOrderProduct(tester);
+      // Preserves resolved KG estimate after Ekle commits the line.
+      expect(find.text('1 kasa ~= 3,75 KG'), findsOneWidget);
+
+      final quantityField = find.byWidgetPredicate(
+        (widget) => widget is TextFormField && widget.controller?.text == '1',
+      );
+      await tester.enterText(quantityField.first, '4');
+      await tester.pump();
+      // Live local estimate updates immediately before debounce finishes.
+      expect(find.text('4 kasa ~= 15 KG'), findsOneWidget);
+
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pumpAndSettle();
+      expect(greenGrocerRepository.requests.last.inputQuantity, 4);
+      expect(find.text('4 kasa ~= 15 KG'), findsOneWidget);
+    },
+  );
+
+  testWidgets('waits for capabilities before enabling save', (tester) async {
+    tester.view.physicalSize = const Size(390, 1000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final capabilitiesGate = Completer<void>();
+    final greenGrocerRepository = _FakeGreenGrocerProductCasesRepository(
+      capabilitiesGate: capabilitiesGate.future,
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: GivenWarehouseOrderCreateSheet(
+            repository: _FakeWarehouseOrdersRepository(
+              warehouses: const <WarehouseLookupItem>[],
+              product: null,
+            ),
+            accessToken: 'token',
+            defaultWarehouseNo: '110',
+            greenGrocerProductCasesRepository: greenGrocerRepository,
+            greenGrocerProductCasesEnabled: true,
+            mobileWarehouseCatalogRepository:
+                MobileWarehouseCatalogLocalRepository(
+                  database: MemoryLocalDatabase(),
+                ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    final loadingButton = find.widgetWithText(
+      FilledButton,
+      'Ayarlar yukleniyor...',
+    );
+    expect(loadingButton, findsOneWidget);
+    expect(tester.widget<FilledButton>(loadingButton).onPressed, isNull);
+
+    capabilitiesGate.complete();
+    await tester.pumpAndSettle();
+
+    final saveButton = find.widgetWithText(FilledButton, 'Kaydet');
+    expect(saveButton, findsOneWidget);
+    expect(tester.widget<FilledButton>(saveButton).onPressed, isNotNull);
+  });
+
+  testWidgets('stops waiting for capabilities after the safe timeout', (
+    tester,
+  ) async {
+    final capabilitiesGate = Completer<void>();
+    final greenGrocerRepository = _FakeGreenGrocerProductCasesRepository(
+      capabilitiesGate: capabilitiesGate.future,
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: GivenWarehouseOrderCreateSheet(
+            repository: _FakeWarehouseOrdersRepository(
+              warehouses: const <WarehouseLookupItem>[],
+              product: null,
+            ),
+            accessToken: 'token',
+            defaultWarehouseNo: '110',
+            greenGrocerProductCasesRepository: greenGrocerRepository,
+            greenGrocerProductCasesEnabled: true,
+            mobileWarehouseCatalogRepository:
+                MobileWarehouseCatalogLocalRepository(
+                  database: MemoryLocalDatabase(),
+                ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    expect(find.text('Ayarlar yukleniyor...'), findsOneWidget);
+
+    await tester.pump(const Duration(seconds: 10));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Kaydet'), findsOneWidget);
+    expect(find.text('Ayarlar yukleniyor...'), findsNothing);
+  });
+
+  testWidgets('uses capability model codes for manav resolution', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 1000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final greenGrocerRepository = _FakeGreenGrocerProductCasesRepository(
+      capabilities: const GreenGrocerProductCaseCapabilities(
+        enabled: true,
+        orderLinkingEnabled: false,
+        sourceWarehouseNo: 56,
+        modelCodes: <String>['99'],
+        defaultOverDeliveryTolerancePercent: 20,
+        severeOverDeliveryMultiplier: 1.5,
+      ),
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: GivenWarehouseOrderCreateSheet(
+            repository: _FakeWarehouseOrdersRepository(
+              warehouses: const <WarehouseLookupItem>[
+                WarehouseLookupItem(
+                  warehouseNo: 56,
+                  warehouseName: 'MANAV DEPO',
+                  address: '',
+                  district: 'Osmangazi',
+                  province: 'Bursa',
+                ),
+              ],
+              product: const ProductLookupItem(
+                warehouseNo: 56,
+                barcode: '8690000000099',
+                stockCode: '099999',
+                stockName: 'Dinamik Model Urunu',
+                modelCode: '99',
+                price: 125,
+                unitName: 'KASA',
+                isOrderBlocked: false,
+              ),
+            ),
+            accessToken: 'token',
+            defaultWarehouseNo: '110',
+            greenGrocerProductCasesRepository: greenGrocerRepository,
+            greenGrocerProductCasesEnabled: true,
+            mobileWarehouseCatalogRepository:
+                MobileWarehouseCatalogLocalRepository(
+                  database: MemoryLocalDatabase(),
+                ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await _pickWarehouse(tester, label: '56 - MANAV DEPO');
+    await _pickWarehouseOrderProduct(tester);
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pumpAndSettle();
+
+    expect(greenGrocerRepository.requests, isNotEmpty);
+    expect(greenGrocerRepository.requests.last.stockCode, '099999');
   });
 }
 
@@ -1057,8 +1286,33 @@ class _BarcodeAwareWarehouseOrdersRepository
 
 class _FakeGreenGrocerProductCasesRepository
     implements GreenGrocerProductCasesRepository {
+  _FakeGreenGrocerProductCasesRepository({
+    this.capabilities = const GreenGrocerProductCaseCapabilities(
+      enabled: true,
+      orderLinkingEnabled: false,
+      sourceWarehouseNo: 56,
+      modelCodes: <String>['10', '11', '12', '23'],
+      defaultOverDeliveryTolerancePercent: 20,
+      severeOverDeliveryMultiplier: 1.5,
+    ),
+    this.capabilitiesGate,
+  });
+
   final List<GreenGrocerProductCaseResolutionRequest> requests =
       <GreenGrocerProductCaseResolutionRequest>[];
+  final GreenGrocerProductCaseCapabilities capabilities;
+  final Future<void>? capabilitiesGate;
+
+  @override
+  Future<GreenGrocerProductCaseCapabilities> getCapabilities({
+    required String accessToken,
+  }) async {
+    final gate = capabilitiesGate;
+    if (gate != null) {
+      await gate;
+    }
+    return capabilities;
+  }
 
   @override
   Future<GreenGrocerProductCaseResolutionResult> resolvePreview({

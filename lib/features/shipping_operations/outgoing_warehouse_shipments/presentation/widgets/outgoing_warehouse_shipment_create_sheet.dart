@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:furpa_merkez_terminal/core/config/app_config.dart';
 import 'package:furpa_merkez_terminal/core/network/api_exception.dart';
+import 'package:furpa_merkez_terminal/features/green_grocer/product_cases/data/green_grocer_product_cases_repository.dart';
 import 'package:furpa_merkez_terminal/features/order_operations/received_warehouse_orders/data/received_warehouse_orders_repository.dart';
 import 'package:furpa_merkez_terminal/features/order_operations/shared/data/models/warehouse_order_models.dart';
 import 'package:furpa_merkez_terminal/features/shipping_operations/outgoing_warehouse_shipments/data/models/outgoing_warehouse_shipment_models.dart';
@@ -27,6 +28,10 @@ import 'package:furpa_merkez_terminal/shared/widgets/terminal_ui_parts.dart';
 
 enum _ShipmentCreateMode { manual, orderLinked }
 
+enum _GreenGrocerShipmentSeverity { normal, warning, critical }
+
+enum _LinkedShipmentFilter { all, pending, scanned, exceeded }
+
 const double _maxShipmentLineQuantity = 10000;
 const List<TextInputFormatter> _shipmentQuantityInputFormatters =
     <TextInputFormatter>[_ShipmentQuantityInputFormatter()];
@@ -40,6 +45,7 @@ class OutgoingWarehouseShipmentCreateSheet extends StatefulWidget {
     required this.accessToken,
     required this.defaultWarehouseNo,
     required this.mobileWarehouseCatalogRepository,
+    this.greenGrocerProductCasesRepository,
     this.draft,
     this.draftRepository,
   });
@@ -49,6 +55,7 @@ class OutgoingWarehouseShipmentCreateSheet extends StatefulWidget {
   final String accessToken;
   final String defaultWarehouseNo;
   final MobileWarehouseCatalogLocalRepository mobileWarehouseCatalogRepository;
+  final GreenGrocerProductCasesRepository? greenGrocerProductCasesRepository;
   final CreateDraft? draft;
   final CreateDraftRepository? draftRepository;
 
@@ -73,10 +80,12 @@ class _OutgoingWarehouseShipmentCreateSheetState
   List<_LinkedShipmentLineDraft> _linkedLines = <_LinkedShipmentLineDraft>[];
   WarehouseLookupItem? _selectedTargetWarehouse;
   _SelectedWarehouseOrder? _selectedOrder;
+  _LinkedShipmentFilter _linkedFilter = _LinkedShipmentFilter.all;
   String? _validationMessage;
   final ScrollController _scrollController = ScrollController();
   late final CreateDraftSession _draftSession;
   String? _lastAddedProductKey;
+  GreenGrocerProductCaseCapabilities? _greenGrocerCapabilities;
 
   bool get _hasTargetWarehouseSelection {
     return _selectedTargetWarehouse != null ||
@@ -157,6 +166,26 @@ class _OutgoingWarehouseShipmentCreateSheetState
       _documentNoController,
       _descriptionController,
     ]);
+    unawaited(_loadGreenGrocerCapabilities());
+  }
+
+  Future<void> _loadGreenGrocerCapabilities() async {
+    final repository = widget.greenGrocerProductCasesRepository;
+    if (repository == null) {
+      return;
+    }
+
+    try {
+      final capabilities = await repository.getCapabilities(
+        accessToken: widget.accessToken,
+      );
+      if (mounted) {
+        setState(() => _greenGrocerCapabilities = capabilities);
+      }
+    } on Object {
+      // Older API releases may not expose capabilities yet. The API still
+      // validates shipment safety; keep the legacy terminal fallback here.
+    }
   }
 
   @override
@@ -310,6 +339,7 @@ class _OutgoingWarehouseShipmentCreateSheetState
         line.dispose();
       }
       _selectedOrder = selectedOrder;
+      _linkedFilter = _LinkedShipmentFilter.all;
       _linkedLines = linkedLines;
       _ensureFreshLinkedEntryLine();
       _validationMessage = null;
@@ -1027,21 +1057,78 @@ class _OutgoingWarehouseShipmentCreateSheetState
     }
 
     var mergedIntoExisting = false;
+    _LinkedShipmentLineDraft? updatedLine;
     setState(() {
-      mergedIntoExisting = _applyProductToLinkedLine(
+      updatedLine = _applyProductToLinkedLine(
         line,
         product,
         syncQuantityStep: true,
       );
+      mergedIntoExisting = updatedLine != null && !identical(updatedLine, line);
       _ensureFreshLinkedEntryLine();
       _validationMessage = null;
     });
     _draftSession.scheduleSave();
     _focusFreshLinkedEntryLine();
-    _notifySuccessfulProductAdd(
-      product: product,
-      mergedIntoExisting: mergedIntoExisting,
+    if (!_notifyLinkedLineOverDelivery(updatedLine ?? line, product: product)) {
+      _notifySuccessfulProductAdd(
+        product: product,
+        mergedIntoExisting: mergedIntoExisting,
+      );
+    }
+  }
+
+  bool _notifyLinkedLineOverDelivery(
+    _LinkedShipmentLineDraft targetLine, {
+    required ProductLookupItem product,
+  }) {
+    final snapshot = targetLine.greenGrocerCase;
+    if (snapshot == null || snapshot.estimatedQuantity <= 0) {
+      return false;
+    }
+
+    final actual = productEntryController.readQuantity(
+      targetLine.quantityController.text,
+      fallback: 0,
     );
+    if (actual <= 0) {
+      return false;
+    }
+
+    final severity = _greenGrocerShipmentSeverity(targetLine, actual);
+    if (severity == _GreenGrocerShipmentSeverity.normal) {
+      return false;
+    }
+
+    _rememberAddedProduct(product);
+    final expected = snapshot.estimatedQuantity;
+    final previous = snapshot.actualShippedQuantity ?? 0;
+    final total = previous + actual;
+    if (severity == _GreenGrocerShipmentSeverity.critical) {
+      final ratio = total / expected;
+      unawaited(TerminalFeedback.error());
+      _showFeedback(
+        'KRITIK ASIM: ${product.stockName} — Beklenen '
+        '${AppFormatters.quantity(expected)} ${snapshot.microUnit}, '
+        'onceki ${AppFormatters.quantity(previous)}, '
+        'bu sevk ${AppFormatters.quantity(actual)}, '
+        'toplam ${AppFormatters.quantity(total)} ${snapshot.microUnit} '
+        '(${AppFormatters.quantity(double.parse(ratio.toStringAsFixed(2)))}x)!',
+        tone: TerminalFeedbackTone.error,
+      );
+      return true;
+    }
+
+    final overPercent = ((actual - expected) / expected * 100).round();
+    unawaited(TerminalFeedback.warning());
+    _showFeedback(
+      'TOLERANS ASILDI: ${product.stockName} — Beklenen '
+      '${AppFormatters.quantity(expected)} ${snapshot.microUnit}, '
+      'Fiili ${AppFormatters.quantity(actual)} ${snapshot.microUnit} '
+      '(+%$overPercent).',
+      tone: TerminalFeedbackTone.warning,
+    );
+    return true;
   }
 
   void _cancelPendingManualEntryLine(_ManualShipmentLineDraft line) {
@@ -1316,7 +1403,7 @@ class _OutgoingWarehouseShipmentCreateSheetState
     );
   }
 
-  bool _applyProductToLinkedLine(
+  _LinkedShipmentLineDraft _applyProductToLinkedLine(
     _LinkedShipmentLineDraft line,
     ProductLookupItem product, {
     bool syncQuantityStep = false,
@@ -1325,7 +1412,7 @@ class _OutgoingWarehouseShipmentCreateSheetState
 
     if (existingLine == null) {
       line.applyProduct(product);
-      return false;
+      return line;
     }
 
     final quantityText = productEntryController.mergedQuantityText(
@@ -1339,7 +1426,16 @@ class _OutgoingWarehouseShipmentCreateSheetState
       existingLine.quantityStep = line.quantityStep;
     }
     _recycleMergedLinkedLine(line, createReplacement: _createLinkedLine);
-    return true;
+    final existingIndex = _linkedLines.indexOf(existingLine);
+    if (existingIndex > 1) {
+      _linkedLines = <_LinkedShipmentLineDraft>[
+        _linkedLines.first,
+        existingLine,
+        for (var i = 1; i < _linkedLines.length; i += 1)
+          if (i != existingIndex) _linkedLines[i],
+      ];
+    }
+    return existingLine;
   }
 
   _LinkedShipmentLineDraft? _findLinkedMergeTarget(
@@ -1607,13 +1703,31 @@ class _OutgoingWarehouseShipmentCreateSheetState
       return;
     }
 
-    final requestLines = switch (_mode) {
+    var requestLines = switch (_mode) {
       _ShipmentCreateMode.manual => _buildManualRequestLines(),
       _ShipmentCreateMode.orderLinked => _buildLinkedRequestLines(),
     };
 
     if (requestLines == null || requestLines.isEmpty) {
       return;
+    }
+
+    if (_mode == _ShipmentCreateMode.orderLinked) {
+      final greenGrocerWarnings = _greenGrocerWarningLines();
+      if (greenGrocerWarnings.isNotEmpty) {
+        final confirmed = await _confirmGreenGrocerWarnings(
+          greenGrocerWarnings,
+        );
+        if (!confirmed || !mounted) {
+          return;
+        }
+      }
+      requestLines = _buildLinkedRequestLines(
+        greenGrocerWarningsConfirmed: greenGrocerWarnings.isNotEmpty,
+      );
+      if (requestLines == null || requestLines.isEmpty) {
+        return;
+      }
     }
 
     final request = WarehouseShipmentCreateRequest(
@@ -1696,7 +1810,9 @@ class _OutgoingWarehouseShipmentCreateSheetState
     return lines;
   }
 
-  List<WarehouseShipmentCreateLine>? _buildLinkedRequestLines() {
+  List<WarehouseShipmentCreateLine>? _buildLinkedRequestLines({
+    bool greenGrocerWarningsConfirmed = false,
+  }) {
     if (_selectedOrder == null) {
       setState(() {
         _validationMessage =
@@ -1718,6 +1834,11 @@ class _OutgoingWarehouseShipmentCreateSheetState
 
     for (var index = 0; index < activeLines.length; index += 1) {
       final line = activeLines[index];
+      if (_shouldDetachGreenGrocerOrderLink(line) &&
+          line.quantityController.text.trim().isEmpty) {
+        continue;
+      }
+
       final stockCode = line.stockCode.trim();
       final lineLabel = '${index + 1}. siparis satiri';
       final quantity = _readValidShipmentQuantity(
@@ -1739,6 +1860,23 @@ class _OutgoingWarehouseShipmentCreateSheetState
         return null;
       }
 
+      if (_greenGrocerShipmentSeverity(line, quantity) ==
+          _GreenGrocerShipmentSeverity.critical) {
+        final snapshot = line.greenGrocerCase;
+        final expected = snapshot?.estimatedQuantity ?? 0;
+        final previous = snapshot?.actualShippedQuantity ?? 0;
+        setState(() {
+          _validationMessage =
+              '$lineLabel kritik manav sevk sinirini asiyor. '
+              'Beklenen ${AppFormatters.quantity(expected)}, '
+              'onceki ${AppFormatters.quantity(previous)}, '
+              'bu sevk ${AppFormatters.quantity(quantity)}, '
+              'toplam ${AppFormatters.quantity(previous + quantity)}. '
+              'Miktari duzeltin.';
+        });
+        return null;
+      }
+
       final isQuantityLimited = _isLinkedLineQuantityLimited(line);
       if (isQuantityLimited && quantity > line.maxQuantity) {
         setState(() {
@@ -1753,6 +1891,11 @@ class _OutgoingWarehouseShipmentCreateSheetState
           warehouseOrderLineGuid: _shouldDetachGreenGrocerOrderLink(line)
               ? null
               : line.lineGuid,
+          greenGrocerReferenceOrderLineGuid: line.greenGrocerCase == null
+              ? null
+              : line.lineGuid,
+          greenGrocerOverDeliveryConfirmed:
+              line.greenGrocerCase != null && greenGrocerWarningsConfirmed,
           stockCode: stockCode,
           quantity: quantity,
           unitPrice: line.selectedProduct?.price ?? line.unitPrice,
@@ -1774,6 +1917,88 @@ class _OutgoingWarehouseShipmentCreateSheetState
     }
 
     return lines;
+  }
+
+  List<String> _greenGrocerWarningLines() {
+    final warningLines = <String>[];
+    for (final line in _committedLinkedLines()) {
+      final greenGrocerCase = line.greenGrocerCase;
+      if (greenGrocerCase == null) {
+        continue;
+      }
+      final quantity = productEntryController.readQuantity(
+        line.quantityController.text,
+        fallback: 0,
+      );
+      if (quantity <= 0) {
+        continue;
+      }
+      final severity = _greenGrocerShipmentSeverity(line, quantity);
+      if (severity == _GreenGrocerShipmentSeverity.warning ||
+          greenGrocerCase.requiresManualApproval) {
+        final previous = greenGrocerCase.actualShippedQuantity ?? 0;
+        warningLines.add(
+          '${line.stockCode}: beklenen '
+          '${AppFormatters.quantity(greenGrocerCase.estimatedQuantity)} '
+          '${greenGrocerCase.microUnit}, onceki '
+          '${AppFormatters.quantity(previous)}, bu sevk '
+          '${AppFormatters.quantity(quantity)}, toplam '
+          '${AppFormatters.quantity(previous + quantity)} '
+          '${greenGrocerCase.microUnit}',
+        );
+      }
+    }
+
+    return warningLines;
+  }
+
+  Future<bool> _confirmGreenGrocerWarnings(List<String> warningLines) async {
+    return await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Manav sevk miktarini onayla'),
+            content: Text(
+              'Asagidaki satirlar tolerans disinda veya manuel onayli:\n\n'
+              '${warningLines.join('\n')}\n\nFiili miktarlar dogruysa devam edin.',
+            ),
+            actions: <Widget>[
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: const Text('Geri Don'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.of(context).pop(true),
+                child: const Text('Onayla ve Devam Et'),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+  }
+
+  _GreenGrocerShipmentSeverity _greenGrocerShipmentSeverity(
+    _LinkedShipmentLineDraft line,
+    double actualQuantity,
+  ) {
+    final snapshot = line.greenGrocerCase;
+    if (snapshot == null || snapshot.estimatedQuantity <= 0) {
+      return _GreenGrocerShipmentSeverity.normal;
+    }
+
+    final totalActualQuantity =
+        (snapshot.actualShippedQuantity ?? 0) + actualQuantity;
+    final warningLimit =
+        snapshot.estimatedQuantity *
+        (1 + (snapshot.overDeliveryTolerancePercent / 100));
+    final criticalLimit =
+        snapshot.estimatedQuantity * snapshot.severeOverDeliveryMultiplier;
+    if (totalActualQuantity >= criticalLimit) {
+      return _GreenGrocerShipmentSeverity.critical;
+    }
+    if (totalActualQuantity > warningLimit) {
+      return _GreenGrocerShipmentSeverity.warning;
+    }
+    return _GreenGrocerShipmentSeverity.normal;
   }
 
   double? _readValidShipmentQuantity({
@@ -2007,8 +2232,9 @@ class _OutgoingWarehouseShipmentCreateSheetState
   }
 
   Widget _buildOrderLinkedEntrySection(ThemeData theme) {
+    final selectedOrder = _selectedOrder;
     return Container(
-      padding: const EdgeInsets.all(8),
+      padding: const EdgeInsets.all(6),
       decoration: BoxDecoration(
         color: theme.colorScheme.surface,
         borderRadius: BorderRadius.circular(12),
@@ -2019,35 +2245,207 @@ class _OutgoingWarehouseShipmentCreateSheetState
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          SizedBox(
-            width: double.infinity,
-            child: OutlinedButton.icon(
-              onPressed: _pickWarehouseOrder,
-              icon: const Icon(Icons.fact_check_outlined),
-              label: Text(
-                _selectedOrder == null
-                    ? 'Depo Siparisi Sec'
-                    : 'Siparisi Degistir',
+          if (selectedOrder == null)
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: _pickWarehouseOrder,
+                icon: const Icon(Icons.fact_check_outlined),
+                label: const Text('Depo Siparisi Sec'),
+              ),
+            )
+          else ...<Widget>[
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.fromLTRB(8, 4, 4, 4),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.primaryContainer.withAlpha(45),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: theme.colorScheme.primary.withAlpha(45),
+                ),
+              ),
+              child: Row(
+                children: <Widget>[
+                  Icon(
+                    Icons.fact_check_outlined,
+                    size: 16,
+                    color: theme.colorScheme.primary,
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      '${selectedOrder.item.documentNoLabel} · '
+                      '${selectedOrder.item.outWarehouseName} -> '
+                      '${selectedOrder.item.inWarehouseName}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        fontWeight: FontWeight.w800,
+                        color: theme.colorScheme.onPrimaryContainer,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  TextButton(
+                    onPressed: _pickWarehouseOrder,
+                    style: TextButton.styleFrom(
+                      minimumSize: const Size(0, 32),
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      visualDensity: VisualDensity.compact,
+                    ),
+                    child: const Text('Degistir'),
+                  ),
+                ],
               ),
             ),
-          ),
-          if (_selectedOrder != null) ...<Widget>[
-            const SizedBox(height: 6),
-            Text(
-              '${_selectedOrder!.item.documentNoLabel} - ${_selectedOrder!.item.outWarehouseName} -> ${_selectedOrder!.item.inWarehouseName}',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                fontWeight: FontWeight.w700,
-                color: Theme.of(context).colorScheme.primary,
-              ),
-            ),
-            const SizedBox(height: 6),
+            const SizedBox(height: 5),
             _buildLinkedEntryLine(),
+            if (_linkedFilledLineIndexes().isNotEmpty) ...<Widget>[
+              const SizedBox(height: 5),
+              _buildLinkedOrderFilterBar(theme),
+            ],
           ],
         ],
       ),
     );
+  }
+
+  Widget _buildLinkedOrderFilterBar(ThemeData theme) {
+    final allIndexes = _linkedFilledLineIndexes();
+    final listenables = <Listenable>[
+      for (final index in allIndexes) _linkedLines[index].quantityController,
+    ];
+
+    return AnimatedBuilder(
+      animation: Listenable.merge(listenables),
+      builder: (context, _) {
+        var pendingCount = 0;
+        var scannedCount = 0;
+        var exceededCount = 0;
+
+        for (final index in allIndexes) {
+          final line = _linkedLines[index];
+          final qty = productEntryController.readQuantity(
+            line.quantityController.text,
+            fallback: 0,
+          );
+          if (qty <= 0) {
+            pendingCount += 1;
+          } else {
+            scannedCount += 1;
+            if (_isLinkedLineExceeded(line, qty)) {
+              exceededCount += 1;
+            }
+          }
+        }
+
+        Widget chip({
+          required _LinkedShipmentFilter filter,
+          required String label,
+          bool emphasizeDanger = false,
+        }) {
+          final selected = _linkedFilter == filter;
+          final activeColor = emphasizeDanger
+              ? theme.colorScheme.error
+              : theme.colorScheme.primary;
+          return InkWell(
+            onTap: () => setState(() => _linkedFilter = filter),
+            borderRadius: BorderRadius.circular(14),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: selected
+                    ? activeColor
+                    : emphasizeDanger
+                    ? theme.colorScheme.errorContainer.withAlpha(140)
+                    : theme.colorScheme.surfaceContainerHighest.withAlpha(120),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                  color: selected
+                      ? activeColor
+                      : emphasizeDanger
+                      ? theme.colorScheme.error.withAlpha(120)
+                      : theme.colorScheme.outlineVariant,
+                ),
+              ),
+              child: Text(
+                label,
+                style: theme.textTheme.labelSmall?.copyWith(
+                  fontWeight: FontWeight.w800,
+                  color: selected
+                      ? theme.colorScheme.onPrimary
+                      : emphasizeDanger
+                      ? theme.colorScheme.error
+                      : theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ),
+          );
+        }
+
+        return SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: <Widget>[
+              chip(
+                filter: _LinkedShipmentFilter.all,
+                label: 'Tumu (${allIndexes.length})',
+              ),
+              const SizedBox(width: 5),
+              chip(
+                filter: _LinkedShipmentFilter.pending,
+                label: 'Bekleyen ($pendingCount)',
+              ),
+              const SizedBox(width: 5),
+              chip(
+                filter: _LinkedShipmentFilter.scanned,
+                label: 'Okutulan ($scannedCount)',
+              ),
+              if (exceededCount > 0) ...<Widget>[
+                const SizedBox(width: 5),
+                chip(
+                  filter: _LinkedShipmentFilter.exceeded,
+                  label: 'Asan ($exceededCount)',
+                  emphasizeDanger: true,
+                ),
+              ],
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  bool _isLinkedLineExceeded(_LinkedShipmentLineDraft line, double qty) {
+    if (qty <= 0) {
+      return false;
+    }
+    if (line.greenGrocerCase != null) {
+      final severity = _greenGrocerShipmentSeverity(line, qty);
+      return severity == _GreenGrocerShipmentSeverity.warning ||
+          severity == _GreenGrocerShipmentSeverity.critical;
+    }
+    if (_isLinkedLineQuantityLimited(line) && line.maxQuantity > 0) {
+      return qty > line.maxQuantity;
+    }
+    return false;
+  }
+
+  bool _matchesLinkedFilter(_LinkedShipmentLineDraft line) {
+    if (_linkedFilter == _LinkedShipmentFilter.all) {
+      return true;
+    }
+    final qty = productEntryController.readQuantity(
+      line.quantityController.text,
+      fallback: 0,
+    );
+    return switch (_linkedFilter) {
+      _LinkedShipmentFilter.all => true,
+      _LinkedShipmentFilter.pending => qty <= 0,
+      _LinkedShipmentFilter.scanned => qty > 0,
+      _LinkedShipmentFilter.exceeded => _isLinkedLineExceeded(line, qty),
+    };
   }
 
   Widget _buildManualFilledLinesSliver() {
@@ -2093,9 +2491,41 @@ class _OutgoingWarehouseShipmentCreateSheetState
   }
 
   Widget _buildLinkedFilledLinesSliver() {
-    final filledIndexes = _linkedFilledLineIndexes();
-    if (filledIndexes.isEmpty) {
+    final allFilledIndexes = _linkedFilledLineIndexes();
+    if (allFilledIndexes.isEmpty) {
       return const SliverToBoxAdapter(child: SizedBox.shrink());
+    }
+
+    final filledIndexes = allFilledIndexes
+        .where((index) => _matchesLinkedFilter(_linkedLines[index]))
+        .toList(growable: false);
+    if (filledIndexes.isEmpty) {
+      return SliverToBoxAdapter(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: Theme.of(
+                context,
+              ).colorScheme.surfaceContainerHighest.withAlpha(90),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Row(
+              children: <Widget>[
+                const Expanded(
+                  child: Text('Secili filtrede gosterilecek satir yok.'),
+                ),
+                TextButton(
+                  onPressed: () =>
+                      setState(() => _linkedFilter = _LinkedShipmentFilter.all),
+                  child: const Text('Tumunu Goster'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
     }
 
     return SliverPadding(
@@ -2123,6 +2553,7 @@ class _OutgoingWarehouseShipmentCreateSheetState
               line: line,
               isReadyForScanning: _hasTargetWarehouseSelection,
               isQuantityLimited: _isLinkedLineQuantityLimited(line),
+              allowEmptyQuantity: _shouldDetachGreenGrocerOrderLink(line),
               canRemove: true,
               onPickProduct: () => _pickLinkedProduct(line),
               onScanWithCamera: () => _scanLinkedProductWithCamera(line),
@@ -2198,12 +2629,13 @@ class _OutgoingWarehouseShipmentCreateSheetState
       return true;
     }
 
-    return !_isGreenGrocerOrderLinkingEnabled &&
-        _isGreenGrocerSourceWarehouse &&
-        _isGreenGrocerShipmentModel(
-          modelCode: item.modelCode,
-          stockName: item.stockName,
-        );
+    return item.greenGrocerCase != null ||
+        (!_isGreenGrocerOrderLinkingEnabled &&
+            _isGreenGrocerSourceWarehouse &&
+            _isGreenGrocerShipmentModel(
+              modelCode: item.modelCode,
+              stockName: item.stockName,
+            ));
   }
 
   bool _isLinkedLineQuantityLimited(_LinkedShipmentLineDraft line) {
@@ -2211,6 +2643,10 @@ class _OutgoingWarehouseShipmentCreateSheetState
   }
 
   bool _shouldDetachGreenGrocerOrderLink(_LinkedShipmentLineDraft line) {
+    if (line.greenGrocerCase != null) {
+      return !line.greenGrocerCase!.allowOrderLinking;
+    }
+
     return !_isGreenGrocerOrderLinkingEnabled &&
         _isGreenGrocerSourceWarehouse &&
         _isGreenGrocerShipmentModel(
@@ -2220,10 +2656,18 @@ class _OutgoingWarehouseShipmentCreateSheetState
   }
 
   bool get _isGreenGrocerOrderLinkingEnabled {
-    return AppConfig.greenGrocerProductCasesOrderLinkingEnabled;
+    return _greenGrocerCapabilities?.orderLinkingEnabled ??
+        AppConfig.greenGrocerProductCasesOrderLinkingEnabled;
   }
 
   bool get _isGreenGrocerSourceWarehouse {
+    final capabilities = _greenGrocerCapabilities;
+    if (capabilities != null) {
+      return capabilities.enabled &&
+          _parseInt(widget.defaultWarehouseNo) ==
+              capabilities.sourceWarehouseNo;
+    }
+
     return _parseInt(widget.defaultWarehouseNo) == 56;
   }
 
@@ -2232,9 +2676,10 @@ class _OutgoingWarehouseShipmentCreateSheetState
     required String stockName,
   }) {
     final normalizedModelCode = modelCode.trim();
-    if (normalizedModelCode == '10' ||
-        normalizedModelCode == '11' ||
-        normalizedModelCode == '12') {
+    final modelCodes =
+        _greenGrocerCapabilities?.modelCodes ??
+        const <String>['10', '11', '12', '23'];
+    if (modelCodes.contains(normalizedModelCode)) {
       return true;
     }
 
@@ -2473,6 +2918,7 @@ class _LinkedShipmentLineCard extends StatelessWidget {
     required this.line,
     required this.isReadyForScanning,
     required this.isQuantityLimited,
+    this.allowEmptyQuantity = false,
     required this.canRemove,
     required this.onPickProduct,
     required this.onScanWithCamera,
@@ -2487,6 +2933,7 @@ class _LinkedShipmentLineCard extends StatelessWidget {
   final _LinkedShipmentLineDraft line;
   final bool isReadyForScanning;
   final bool isQuantityLimited;
+  final bool allowEmptyQuantity;
   final bool canRemove;
   final VoidCallback onPickProduct;
   final VoidCallback onScanWithCamera;
@@ -2566,40 +3013,55 @@ class _LinkedShipmentLineCard extends StatelessWidget {
     }
 
     if (!isFreshEntry) {
-      return TerminalCompactProductLineCard(
-        key: ObjectKey(line),
-        lineNo: lineNumber,
-        stockCode: line.stockCode,
-        stockName: line.stockName,
-        quantityController: line.quantityController,
-        unitLabel: line.unitName,
-        packageLabel: product != null && product.unitMultiplier > 1
-            ? AppFormatters.quantity(product.unitMultiplier)
-            : null,
-        barcode: product?.barcode,
-        quantityStep: line.quantityStep,
-        priceLabel: isQuantityLimited
-            ? 'Kalan ${AppFormatters.quantity(line.maxQuantity)}'
-            : line.isOrderLinked
-            ? 'Sip. ${AppFormatters.quantity(line.orderQuantity)}'
-            : null,
-        warningLabel: _joinShipmentWarningLabels(<String>[
-          ?productStatusWarning,
-          if (line.isOrderLinked) isQuantityLimited ? 'Siparisli' : 'Manav',
-        ]),
-        maximumQuantity: _effectiveShipmentMaximumQuantity(
-          isQuantityLimited ? line.maxQuantity : null,
-        ),
-        quantityInputFormatters: _shipmentQuantityInputFormatters,
-        quantityValidator: (value) => _shipmentQuantityFieldError(
-          value,
-          maximum: isQuantityLimited ? line.maxQuantity : null,
-          maximumMessage: 'Kalan asildi',
-        ),
-        highlightOnMount: lineNumber == 1,
-        canDelete: canRemove,
-        onDelete: onRemove,
-        onMinimumReached: canRemove ? onRemove : null,
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          TerminalCompactProductLineCard(
+            key: ObjectKey(line),
+            lineNo: lineNumber,
+            stockCode: line.stockCode,
+            stockName: line.stockName,
+            quantityController: line.quantityController,
+            unitLabel: line.unitName,
+            packageLabel: product != null && product.unitMultiplier > 1
+                ? AppFormatters.quantity(product.unitMultiplier)
+                : null,
+            barcode: product?.barcode,
+            quantityStep: line.quantityStep,
+            priceLabel: isQuantityLimited
+                ? 'Kalan ${AppFormatters.quantity(line.maxQuantity)}'
+                : line.isOrderLinked
+                ? 'Sip. ${AppFormatters.quantity(line.orderQuantity)}'
+                : null,
+            warningLabel: _joinShipmentWarningLabels(<String>[
+              ?productStatusWarning,
+              if (line.isOrderLinked) isQuantityLimited ? 'Siparisli' : 'Manav',
+            ]),
+            maximumQuantity: _effectiveShipmentMaximumQuantity(
+              isQuantityLimited ? line.maxQuantity : null,
+            ),
+            quantityInputFormatters: _shipmentQuantityInputFormatters,
+            allowEmptyQuantity: allowEmptyQuantity,
+            quantityValidator: (value) {
+              if (allowEmptyQuantity && (value ?? '').trim().isEmpty) {
+                return null;
+              }
+              return _shipmentQuantityFieldError(
+                value,
+                maximum: isQuantityLimited ? line.maxQuantity : null,
+                maximumMessage: 'Kalan asildi',
+              );
+            },
+            highlightOnMount: lineNumber == 1,
+            canDelete: canRemove,
+            onDelete: onRemove,
+            onMinimumReached: canRemove ? onRemove : null,
+          ),
+          if (line.greenGrocerCase != null) ...<Widget>[
+            const SizedBox(height: 6),
+            _GreenGrocerShipmentBand(line: line),
+          ],
+        ],
       );
     }
 
@@ -3532,6 +3994,7 @@ class _LinkedShipmentLineDraft {
     required this.lotNo,
     required this.projectCode,
     required this.warehouseOrderNo,
+    this.greenGrocerCase,
     this.quantityStep = 1,
     this.selectedProduct,
     this.onChanged,
@@ -3562,6 +4025,7 @@ class _LinkedShipmentLineDraft {
   final int lotNo;
   final String projectCode;
   final String warehouseOrderNo;
+  final WarehouseOrderLineGreenGrocerCase? greenGrocerCase;
   final TextEditingController quantityController;
   final FocusNode barcodeFocusNode = FocusNode();
   final VoidCallback? onChanged;
@@ -3634,6 +4098,7 @@ class _LinkedShipmentLineDraft {
       lotNo: 0,
       projectCode: item.projectCode,
       warehouseOrderNo: '',
+      greenGrocerCase: item.greenGrocerCase,
       onChanged: onChanged,
     );
   }
@@ -3646,6 +4111,7 @@ class _LinkedShipmentLineDraft {
     final selectedProduct = productJson == null
         ? null
         : ProductLookupItem.fromJson(productJson);
+    final greenGrocerJson = _shipmentDraftMap(json['greenGrocerCase']);
     final draft = _LinkedShipmentLineDraft(
       lineGuid: json['lineGuid']?.toString() ?? '',
       modelCode: json['modelCode']?.toString() ?? '',
@@ -3662,6 +4128,9 @@ class _LinkedShipmentLineDraft {
       lotNo: int.tryParse(json['lotNo']?.toString() ?? '') ?? 0,
       projectCode: json['projectCode']?.toString() ?? '',
       warehouseOrderNo: json['warehouseOrderNo']?.toString() ?? '',
+      greenGrocerCase: greenGrocerJson == null
+          ? null
+          : WarehouseOrderLineGreenGrocerCase.fromJson(greenGrocerJson),
       quantityStep: _shipmentQuantityStep(json['quantityStep']),
       selectedProduct: selectedProduct,
       onChanged: onChanged,
@@ -3748,6 +4217,7 @@ class _LinkedShipmentLineDraft {
       'lotNo': lotNo,
       'projectCode': projectCode,
       'warehouseOrderNo': warehouseOrderNo,
+      'greenGrocerCase': greenGrocerCase?.toJson(),
       'quantity': quantityController.text,
       'quantityStep': quantityStep,
       'selectedProduct': selectedProduct == null
@@ -4165,6 +4635,189 @@ class _DateField extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _GreenGrocerShipmentBand extends StatelessWidget {
+  const _GreenGrocerShipmentBand({required this.line});
+
+  final _LinkedShipmentLineDraft line;
+
+  @override
+  Widget build(BuildContext context) {
+    final snapshot = line.greenGrocerCase!;
+    return AnimatedBuilder(
+      animation: line.quantityController,
+      builder: (context, child) {
+        final actual = productEntryController.readQuantity(
+          line.quantityController.text,
+          fallback: 0,
+        );
+        final expected = snapshot.estimatedQuantity;
+        final previous = snapshot.actualShippedQuantity ?? 0;
+        final total = previous + actual;
+        final isPending = actual <= 0;
+        final warningLimit = expected > 0
+            ? expected * (1 + (snapshot.overDeliveryTolerancePercent / 100))
+            : 0.0;
+        final criticalLimit = expected > 0
+            ? expected * snapshot.severeOverDeliveryMultiplier
+            : 0.0;
+        final severity = isPending || expected <= 0
+            ? _GreenGrocerShipmentSeverity.normal
+            : total >= criticalLimit
+            ? _GreenGrocerShipmentSeverity.critical
+            : total > warningLimit || snapshot.requiresManualApproval
+            ? _GreenGrocerShipmentSeverity.warning
+            : _GreenGrocerShipmentSeverity.normal;
+
+        final color = isPending
+            ? Colors.blueGrey.shade600
+            : switch (severity) {
+                _GreenGrocerShipmentSeverity.normal => Colors.teal.shade700,
+                _GreenGrocerShipmentSeverity.warning => Colors.amber.shade900,
+                _GreenGrocerShipmentSeverity.critical => Colors.red.shade800,
+              };
+        final icon = isPending
+            ? Icons.hourglass_empty_rounded
+            : switch (severity) {
+                _GreenGrocerShipmentSeverity.normal =>
+                  Icons.check_circle_outline_rounded,
+                _GreenGrocerShipmentSeverity.warning =>
+                  Icons.warning_amber_rounded,
+                _GreenGrocerShipmentSeverity.critical =>
+                  Icons.error_outline_rounded,
+              };
+
+        final String status;
+        if (isPending) {
+          status = 'Bekliyor';
+        } else if (severity == _GreenGrocerShipmentSeverity.critical &&
+            expected > 0) {
+          final ratio = double.parse((total / expected).toStringAsFixed(2));
+          status = 'KRITIK ${AppFormatters.quantity(ratio)}x';
+        } else if (severity == _GreenGrocerShipmentSeverity.warning) {
+          if (expected > 0 && total > warningLimit) {
+            final overPercent = ((total - expected) / expected * 100).round();
+            status = '+%$overPercent Onay';
+          } else {
+            status = 'Onay gerekli';
+          }
+        } else {
+          status = 'Uygun';
+        }
+
+        final difference = total - expected;
+        final progress = expected > 0
+            ? (total / expected).clamp(0.0, 1.0)
+            : 0.0;
+        final detailText = isPending
+            ? '${AppFormatters.quantity(snapshot.inputQuantity)} '
+                  '${snapshot.displayInputMode} talep = '
+                  '${AppFormatters.quantity(expected)} ${snapshot.microUnit} | '
+                  '${previous > 0 ? 'Onceki ${AppFormatters.quantity(previous)} | ' : ''}'
+                  'Bu sevk henuz okutulmadi'
+            : '${AppFormatters.quantity(snapshot.inputQuantity)} '
+                  '${snapshot.displayInputMode} = '
+                  '${AppFormatters.quantity(expected)} ${snapshot.microUnit} | '
+                  '${previous > 0 ? 'Onceki ${AppFormatters.quantity(previous)} | ' : ''}'
+                  'Bu ${AppFormatters.quantity(actual)} | '
+                  'Toplam ${AppFormatters.quantity(total)} | '
+                  'Fark ${difference >= 0 ? '+' : ''}'
+                  '${AppFormatters.quantity(difference)}';
+        final compactText = isPending
+            ? previous > 0
+                  ? 'Onceki ${AppFormatters.quantity(previous)} | '
+                        'Hedef ${AppFormatters.quantity(expected)} ${snapshot.microUnit}'
+                  : 'Hedef ${AppFormatters.quantity(expected)} ${snapshot.microUnit}'
+            : previous > 0
+            ? 'Onceki ${AppFormatters.quantity(previous)} | '
+                  'Bu ${AppFormatters.quantity(actual)} | '
+                  'Toplam ${AppFormatters.quantity(total)} ${snapshot.microUnit}'
+            : 'Hedef ${AppFormatters.quantity(expected)} | '
+                  'Bu ${AppFormatters.quantity(actual)} | '
+                  'Fark ${difference >= 0 ? '+' : ''}'
+                  '${AppFormatters.quantity(difference)} ${snapshot.microUnit}';
+
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+          decoration: BoxDecoration(
+            color: color.withValues(
+              alpha: severity == _GreenGrocerShipmentSeverity.critical
+                  ? 0.14
+                  : 0.08,
+            ),
+            border: Border.all(
+              color: color.withValues(
+                alpha: severity == _GreenGrocerShipmentSeverity.critical
+                    ? 0.75
+                    : 0.45,
+              ),
+              width: severity == _GreenGrocerShipmentSeverity.critical
+                  ? 1.4
+                  : 1,
+            ),
+            borderRadius: BorderRadius.circular(6),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: <Widget>[
+              Row(
+                children: <Widget>[
+                  Icon(icon, color: color, size: 17),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Tooltip(
+                      message: detailText,
+                      child: Text(
+                        compactText,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: color,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: color.withValues(alpha: 0.14),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text(
+                      status,
+                      maxLines: 1,
+                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                        color: color,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              if (expected > 0) ...<Widget>[
+                const SizedBox(height: 5),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(2),
+                  child: LinearProgressIndicator(
+                    value: progress,
+                    minHeight: 3,
+                    backgroundColor: color.withValues(alpha: 0.16),
+                    valueColor: AlwaysStoppedAnimation<Color>(color),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        );
+      },
     );
   }
 }

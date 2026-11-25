@@ -165,6 +165,10 @@ class WarehouseOrderLineGreenGrocerCase {
     this.averageCaseCount,
     this.coefficientOfVariation,
     required this.confidence,
+    this.requiresManualApproval = false,
+    this.allowOrderLinking = false,
+    this.overDeliveryTolerancePercent = 20,
+    this.severeOverDeliveryMultiplier = 1.5,
     this.actualShippedQuantity,
     this.actualShippedCaseCount,
     this.status = '',
@@ -182,6 +186,10 @@ class WarehouseOrderLineGreenGrocerCase {
   final double? averageCaseCount;
   final double? coefficientOfVariation;
   final String confidence;
+  final bool requiresManualApproval;
+  final bool allowOrderLinking;
+  final double overDeliveryTolerancePercent;
+  final double severeOverDeliveryMultiplier;
   final double? actualShippedQuantity;
   final double? actualShippedCaseCount;
   final String status;
@@ -213,6 +221,10 @@ class WarehouseOrderLineGreenGrocerCase {
       if (coefficientOfVariation != null)
         'coefficientOfVariation': coefficientOfVariation,
       'confidence': confidence,
+      'requiresManualApproval': requiresManualApproval,
+      'allowOrderLinking': allowOrderLinking,
+      'overDeliveryTolerancePercent': overDeliveryTolerancePercent,
+      'severeOverDeliveryMultiplier': severeOverDeliveryMultiplier,
     };
   }
 
@@ -243,6 +255,12 @@ class WarehouseOrderLineGreenGrocerCase {
         json['coefficientOfVariation'],
       ),
       confidence: _readString(json['confidence']),
+      requiresManualApproval: _readBool(json['requiresManualApproval']),
+      allowOrderLinking: _readBool(json['allowOrderLinking']),
+      overDeliveryTolerancePercent:
+          _readNullableDouble(json['overDeliveryTolerancePercent']) ?? 20,
+      severeOverDeliveryMultiplier:
+          _readNullableDouble(json['severeOverDeliveryMultiplier']) ?? 1.5,
       actualShippedQuantity: _readNullableDouble(json['actualShippedQuantity']),
       actualShippedCaseCount: _readNullableDouble(
         json['actualShippedCaseCount'],

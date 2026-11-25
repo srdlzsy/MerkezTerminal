@@ -608,6 +608,10 @@ void main() {
       expect(request!.lines.single.stockCode, '015792');
       expect(request!.lines.single.quantity, closeTo(3.5, 0.000001));
       expect(request!.lines.single.warehouseOrderLineGuid, isNull);
+      expect(
+        request!.lines.single.greenGrocerReferenceOrderLineGuid,
+        'manav-order-line-guid',
+      );
     },
   );
 
@@ -723,6 +727,116 @@ void main() {
       expect(request!.lines.single.stockCode, '015792');
       expect(request!.lines.single.quantity, closeTo(30, 0.000001));
       expect(request!.lines.single.warehouseOrderLineGuid, isNull);
+    },
+  );
+
+  testWidgets(
+    'shows order filter bar, pending/critical badges, and allows partial manav submit',
+    (tester) async {
+      tester.view.physicalSize = const Size(390, 1000);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      WarehouseShipmentCreateRequest? request;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Builder(
+              builder: (context) {
+                return FilledButton(
+                  onPressed: () async {
+                    request =
+                        await showModalBottomSheet<
+                          WarehouseShipmentCreateRequest
+                        >(
+                          context: context,
+                          isScrollControlled: true,
+                          builder: (_) => OutgoingWarehouseShipmentCreateSheet(
+                            repository:
+                                _FakeOutgoingWarehouseShipmentsRepository(
+                                  barcodeResolutionBuilder: (request) {
+                                    final embeddedQuantity =
+                                        request.barcode == '2700000040000'
+                                        ? 40.0
+                                        : 20.0;
+                                    return buildBarcodeResolutionResult(
+                                      barcode: request.barcode,
+                                      warehouseNo: 56,
+                                      stockCode: '015792',
+                                      stockName: 'MNV Test Urun',
+                                      unitName: 'KG',
+                                      unitMultiplier: 1,
+                                      isVariableWeightBarcode: true,
+                                      embeddedQuantity: embeddedQuantity,
+                                      embeddedQuantityUnit: 'KG',
+                                      operationType:
+                                          request.operationType ?? '',
+                                      screenCode: request.screenCode ?? '',
+                                    );
+                                  },
+                                ),
+                            receivedWarehouseOrdersRepository:
+                                _TwoLineGreenGrocerReceivedWarehouseOrdersRepository(),
+                            accessToken: 'token',
+                            defaultWarehouseNo: '56',
+                            mobileWarehouseCatalogRepository:
+                                _emptyWarehouseCatalogRepository(),
+                          ),
+                        );
+                  },
+                  child: const Text('Ac'),
+                );
+              },
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.text('Ac'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(TextField, 'Hedef depo no*'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('50 - MERKEZ DEPO'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Siparisli'));
+      await tester.pumpAndSettle();
+      await _dragShipmentCreateScroll(tester);
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.widgetWithText(OutlinedButton, 'Depo Siparisi Sec'),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('MNV.2001'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Tumu (2)'), findsOneWidget);
+      expect(find.text('Bekleyen (2)'), findsOneWidget);
+      expect(find.text('Okutulan (0)'), findsOneWidget);
+      expect(find.text('Bekliyor'), findsNWidgets(2));
+      expect(find.textContaining('Onceki 10'), findsOneWidget);
+
+      // Previous 10 + current 20 reaches the inclusive 30 KG tolerance limit.
+      await _enterShipmentBarcode(tester, barcode: '2700000020000');
+      expect(find.text('Bekleyen (1)'), findsOneWidget);
+      expect(find.text('Okutulan (1)'), findsOneWidget);
+      expect(find.text('Uygun'), findsOneWidget);
+
+      // Submit ships only the 1 scanned line and skips the untouched empty Manav line.
+      await tester.scrollUntilVisible(
+        find.text('Kaydet'),
+        200,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.tap(find.widgetWithText(FilledButton, 'Kaydet'));
+      await tester.pumpAndSettle();
+
+      expect(request, isNotNull);
+      expect(request!.lines, hasLength(1));
+      expect(request!.lines.single.stockCode, '015792');
+      expect(request!.lines.single.quantity, closeTo(20, 0.000001));
     },
   );
 }
@@ -1053,6 +1167,19 @@ class _GreenGrocerReceivedWarehouseOrdersRepository
         projectCode: '',
         modelCode: '10',
         lineGuid: 'manav-order-line-guid',
+        greenGrocerCase: WarehouseOrderLineGreenGrocerCase(
+          inputQuantity: 3,
+          inputMode: 'Case',
+          conversionMode: 'LabelAverageKgPerCase',
+          estimatedQuantity: 25,
+          microUnit: 'KG',
+          averageKgPerCase: 8.333,
+          averageSource: 'LabelHistory',
+          confidence: 'High',
+          allowOrderLinking: false,
+          overDeliveryTolerancePercent: 20,
+          severeOverDeliveryMultiplier: 1.5,
+        ),
       ),
     ],
   );
@@ -1210,4 +1337,129 @@ class _FakeReceivedWarehouseOrdersRepository
   }) async {
     return const <WarehouseLookupItem>[];
   }
+}
+
+class _TwoLineGreenGrocerReceivedWarehouseOrdersRepository
+    extends _GreenGrocerReceivedWarehouseOrdersRepository {
+  @override
+  Future<WarehouseOrderDetail> fetchOrderDetail({
+    required String accessToken,
+    required String documentSerie,
+    required int documentOrderNo,
+    required String warehouseNo,
+  }) async => const WarehouseOrderDetail(
+    header: WarehouseOrderDetailHeader(
+      documentKey: 'MNV-2001',
+      documentDate: null,
+      deliveryDate: null,
+      documentSerie: 'MNV',
+      documentOrderNo: 2001,
+      documentNumber: 'MNV.2001',
+      warehouseNo: 56,
+      warehouseName: 'MANAV DEPO',
+      relatedWarehouseNo: 50,
+      relatedWarehouseName: 'MERKEZ DEPO',
+      inWarehouseNo: 56,
+      inWarehouseName: 'MANAV DEPO',
+      outWarehouseNo: 50,
+      outWarehouseName: 'MERKEZ DEPO',
+      lineCount: 2,
+      totalQuantity: 5,
+      totalDeliveredQuantity: 0,
+      totalRemainingQuantity: 5,
+      totalAmount: 0,
+      isClosed: false,
+    ),
+    items: <WarehouseOrderDetailItem>[
+      WarehouseOrderDetailItem(
+        lineNo: 1,
+        stockCode: '015792',
+        stockName: 'MNV Test Urun',
+        unitName: 'KG',
+        unitPointer: 1,
+        quantity: 3,
+        deliveredQuantity: 0,
+        remainingQuantity: 3,
+        unitPrice: 0,
+        lineAmount: 0,
+        isClosed: false,
+        description: '',
+        packageCode: '',
+        projectCode: '',
+        modelCode: '10',
+        lineGuid: 'manav-order-line-guid-1',
+        greenGrocerCase: WarehouseOrderLineGreenGrocerCase(
+          inputQuantity: 3,
+          inputMode: 'Case',
+          conversionMode: 'LabelAverageKgPerCase',
+          estimatedQuantity: 25,
+          microUnit: 'KG',
+          averageKgPerCase: 8.333,
+          averageSource: 'LabelHistory',
+          confidence: 'High',
+          allowOrderLinking: false,
+          overDeliveryTolerancePercent: 20,
+          severeOverDeliveryMultiplier: 1.5,
+          actualShippedQuantity: 10,
+        ),
+      ),
+      WarehouseOrderDetailItem(
+        lineNo: 2,
+        stockCode: '015799',
+        stockName: 'MNV Ikinci Urun',
+        unitName: 'KG',
+        unitPointer: 1,
+        quantity: 2,
+        deliveredQuantity: 0,
+        remainingQuantity: 2,
+        unitPrice: 0,
+        lineAmount: 0,
+        isClosed: false,
+        description: '',
+        packageCode: '',
+        projectCode: '',
+        modelCode: '10',
+        lineGuid: 'manav-order-line-guid-2',
+        greenGrocerCase: WarehouseOrderLineGreenGrocerCase(
+          inputQuantity: 2,
+          inputMode: 'Case',
+          conversionMode: 'LabelAverageKgPerCase',
+          estimatedQuantity: 15,
+          microUnit: 'KG',
+          averageKgPerCase: 7.5,
+          averageSource: 'LabelHistory',
+          confidence: 'High',
+          allowOrderLinking: false,
+          overDeliveryTolerancePercent: 20,
+          severeOverDeliveryMultiplier: 1.5,
+        ),
+      ),
+    ],
+  );
+
+  @override
+  Future<List<WarehouseOrderListItem>> fetchOrders({
+    required String accessToken,
+    required WarehouseOrderListFilter filter,
+  }) async => const <WarehouseOrderListItem>[
+    WarehouseOrderListItem(
+      documentKey: 'MNV-2001',
+      documentDate: null,
+      documentSerie: 'MNV',
+      documentOrderNo: 2001,
+      documentNumber: 'MNV.2001',
+      warehouseNo: 56,
+      warehouseName: 'MANAV DEPO',
+      relatedWarehouseNo: 50,
+      relatedWarehouseName: 'MERKEZ DEPO',
+      inWarehouseNo: 56,
+      inWarehouseName: 'MANAV DEPO',
+      outWarehouseNo: 50,
+      outWarehouseName: 'MERKEZ DEPO',
+      lineCount: 2,
+      totalQuantity: 5,
+      totalAmount: 0,
+      deliveryDate: null,
+    ),
+  ];
 }

@@ -1708,6 +1708,7 @@ class TerminalCompactProductLineCard extends StatelessWidget {
     this.maximumQuantity = terminalCreateMaximumQuantity,
     this.quantityInputFormatters = const <TextInputFormatter>[],
     this.quantityValidator,
+    this.allowEmptyQuantity = false,
   });
 
   final int lineNo;
@@ -1728,6 +1729,7 @@ class TerminalCompactProductLineCard extends StatelessWidget {
   final double? maximumQuantity;
   final List<TextInputFormatter> quantityInputFormatters;
   final FormFieldValidator<String>? quantityValidator;
+  final bool allowEmptyQuantity;
 
   @override
   Widget build(BuildContext context) {
@@ -1794,6 +1796,7 @@ class TerminalCompactProductLineCard extends StatelessWidget {
                     maximum: maximumQuantity,
                     inputFormatters: quantityInputFormatters,
                     validator: quantityValidator,
+                    allowEmptyQuantity: allowEmptyQuantity,
                     onMinimumReached: onMinimumReached,
                   ),
                 )
@@ -1806,6 +1809,7 @@ class TerminalCompactProductLineCard extends StatelessWidget {
                     maximum: maximumQuantity,
                     inputFormatters: quantityInputFormatters,
                     validator: quantityValidator,
+                    allowEmptyQuantity: allowEmptyQuantity,
                     onMinimumReached: onMinimumReached,
                   ),
                 ),
@@ -2308,6 +2312,7 @@ class _TerminalCompactQuantityControl extends StatelessWidget {
     this.maximum,
     this.inputFormatters = const <TextInputFormatter>[],
     this.validator,
+    this.allowEmptyQuantity = false,
     required this.onMinimumReached,
   });
 
@@ -2316,6 +2321,7 @@ class _TerminalCompactQuantityControl extends StatelessWidget {
   final double? maximum;
   final List<TextInputFormatter> inputFormatters;
   final FormFieldValidator<String>? validator;
+  final bool allowEmptyQuantity;
   final VoidCallback? onMinimumReached;
 
   @override
@@ -2365,6 +2371,9 @@ class _TerminalCompactQuantityControl extends StatelessWidget {
                   fontWeight: FontWeight.w900,
                 ),
                 validator: (value) {
+                  if (allowEmptyQuantity && (value ?? '').trim().isEmpty) {
+                    return null;
+                  }
                   final customError = validator?.call(value);
                   if (customError != null) {
                     return customError;

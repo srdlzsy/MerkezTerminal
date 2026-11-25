@@ -346,6 +346,7 @@ class ShellModuleRegistry {
           defaultWarehouseNo: context.user.warehouseNo,
           mobileWarehouseCatalogRepository:
               mobileWarehouseCatalogLocalRepository,
+          greenGrocerProductCasesRepository: greenGrocerProductCasesRepository,
           userWarehouseName: context.user.warehouseName,
           title: 'Giden Depo Sevkleri',
           subtitle: 'Depolar arasi sevkler.',
