@@ -7597,7 +7597,7 @@
             "name": "Take",
             "in": "query",
             "schema": {
-              "maximum": 100,
+              "maximum": 500,
               "minimum": 1,
               "type": "integer",
               "format": "int32"
@@ -7750,7 +7750,7 @@
             "name": "Take",
             "in": "query",
             "schema": {
-              "maximum": 100,
+              "maximum": 500,
               "minimum": 1,
               "type": "integer",
               "format": "int32"
@@ -20267,6 +20267,140 @@
         "x-permissions": [
           "ayar-islemleri.b2b-ayarlari.list"
         ]
+      },
+      "post": {
+        "tags": [
+          "B2BAyarlari"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FurpaMerkezApi.WebApi.Controllers.Modules.AyarIslemleri.B2BAyarlari.CreateB2BUserHttpRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FurpaMerkezApi.WebApi.Controllers.Modules.AyarIslemleri.B2BAyarlari.CreateB2BUserHttpRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/FurpaMerkezApi.WebApi.Controllers.Modules.AyarIslemleri.B2BAyarlari.CreateB2BUserHttpRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/Microsoft.AspNetCore.Mvc.ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Microsoft.AspNetCore.Mvc.ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Microsoft.AspNetCore.Mvc.ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/Microsoft.AspNetCore.Mvc.ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Microsoft.AspNetCore.Mvc.ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Microsoft.AspNetCore.Mvc.ProblemDetails"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Created",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/FurpaMerkezApi.Application.Modules.AyarIslemleri.Ayarlar.B2BUserDetailDto"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FurpaMerkezApi.Application.Modules.AyarIslemleri.Ayarlar.B2BUserDetailDto"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FurpaMerkezApi.Application.Modules.AyarIslemleri.Ayarlar.B2BUserDetailDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/Microsoft.AspNetCore.Mvc.ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Microsoft.AspNetCore.Mvc.ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Microsoft.AspNetCore.Mvc.ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/Microsoft.AspNetCore.Mvc.ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Microsoft.AspNetCore.Mvc.ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Microsoft.AspNetCore.Mvc.ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ],
+        "x-permissions": [
+          "ayar-islemleri.b2b-ayarlari.create"
+        ]
       }
     },
     "/api/ayar-islemleri/b2b-ayarlari/kullanicilar/{userId}": {
@@ -20510,6 +20644,26 @@
                 }
               }
             }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/Microsoft.AspNetCore.Mvc.ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Microsoft.AspNetCore.Mvc.ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Microsoft.AspNetCore.Mvc.ProblemDetails"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -20519,6 +20673,329 @@
         ],
         "x-permissions": [
           "ayar-islemleri.b2b-ayarlari.update"
+        ]
+      }
+    },
+    "/api/ayar-islemleri/b2b-ayarlari/kullanicilar/{userId}/sifre-sifirla": {
+      "post": {
+        "tags": [
+          "B2BAyarlari"
+        ],
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FurpaMerkezApi.WebApi.Controllers.Modules.AyarIslemleri.B2BAyarlari.ResetB2BUserPasswordHttpRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FurpaMerkezApi.WebApi.Controllers.Modules.AyarIslemleri.B2BAyarlari.ResetB2BUserPasswordHttpRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/FurpaMerkezApi.WebApi.Controllers.Modules.AyarIslemleri.B2BAyarlari.ResetB2BUserPasswordHttpRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/Microsoft.AspNetCore.Mvc.ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Microsoft.AspNetCore.Mvc.ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Microsoft.AspNetCore.Mvc.ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/Microsoft.AspNetCore.Mvc.ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Microsoft.AspNetCore.Mvc.ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Microsoft.AspNetCore.Mvc.ProblemDetails"
+                }
+              }
+            }
+          },
+          "204": {
+            "description": "No Content"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/Microsoft.AspNetCore.Mvc.ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Microsoft.AspNetCore.Mvc.ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Microsoft.AspNetCore.Mvc.ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/Microsoft.AspNetCore.Mvc.ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Microsoft.AspNetCore.Mvc.ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Microsoft.AspNetCore.Mvc.ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ],
+        "x-permissions": [
+          "ayar-islemleri.b2b-ayarlari.update"
+        ]
+      }
+    },
+    "/api/ayar-islemleri/b2b-ayarlari/menuler": {
+      "get": {
+        "tags": [
+          "B2BAyarlari"
+        ],
+        "responses": {
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/Microsoft.AspNetCore.Mvc.ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Microsoft.AspNetCore.Mvc.ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Microsoft.AspNetCore.Mvc.ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/Microsoft.AspNetCore.Mvc.ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Microsoft.AspNetCore.Mvc.ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Microsoft.AspNetCore.Mvc.ProblemDetails"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/FurpaMerkezApi.Application.Modules.AyarIslemleri.Ayarlar.B2BMenuOptionDto"
+                  }
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/FurpaMerkezApi.Application.Modules.AyarIslemleri.Ayarlar.B2BMenuOptionDto"
+                  }
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/FurpaMerkezApi.Application.Modules.AyarIslemleri.Ayarlar.B2BMenuOptionDto"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ],
+        "x-permissions": [
+          "ayar-islemleri.b2b-ayarlari.list"
+        ]
+      }
+    },
+    "/api/ayar-islemleri/b2b-ayarlari/cariler": {
+      "get": {
+        "tags": [
+          "B2BAyarlari"
+        ],
+        "parameters": [
+          {
+            "name": "Search",
+            "in": "query",
+            "schema": {
+              "maxLength": 100,
+              "minLength": 0,
+              "type": "string"
+            }
+          },
+          {
+            "name": "Take",
+            "in": "query",
+            "schema": {
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/Microsoft.AspNetCore.Mvc.ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Microsoft.AspNetCore.Mvc.ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Microsoft.AspNetCore.Mvc.ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/Microsoft.AspNetCore.Mvc.ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Microsoft.AspNetCore.Mvc.ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Microsoft.AspNetCore.Mvc.ProblemDetails"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/FurpaMerkezApi.Application.Modules.AyarIslemleri.Ayarlar.B2BAccountLookupDto"
+                  }
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/FurpaMerkezApi.Application.Modules.AyarIslemleri.Ayarlar.B2BAccountLookupDto"
+                  }
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/FurpaMerkezApi.Application.Modules.AyarIslemleri.Ayarlar.B2BAccountLookupDto"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ],
+        "x-permissions": [
+          "ayar-islemleri.b2b-ayarlari.list"
         ]
       }
     },
@@ -63771,6 +64248,152 @@
         ]
       }
     },
+    "/api/duzeltme-islemleri/mikro-evrak-duzenleme/stok-kartlari/{stockCode}/depolar/toplu": {
+      "put": {
+        "tags": [
+          "MikroEvrakDuzenleme"
+        ],
+        "parameters": [
+          {
+            "name": "stockCode",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FurpaMerkezApi.WebApi.Controllers.Modules.DuzeltmeIslemleri.MikroEvrakDuzenleme.StockCardWarehouseBulkPatchHttpRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FurpaMerkezApi.WebApi.Controllers.Modules.DuzeltmeIslemleri.MikroEvrakDuzenleme.StockCardWarehouseBulkPatchHttpRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/FurpaMerkezApi.WebApi.Controllers.Modules.DuzeltmeIslemleri.MikroEvrakDuzenleme.StockCardWarehouseBulkPatchHttpRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/Microsoft.AspNetCore.Mvc.ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Microsoft.AspNetCore.Mvc.ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Microsoft.AspNetCore.Mvc.ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/Microsoft.AspNetCore.Mvc.ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Microsoft.AspNetCore.Mvc.ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Microsoft.AspNetCore.Mvc.ProblemDetails"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/FurpaMerkezApi.Application.Modules.DuzeltmeIslemleri.MikroEvrakDuzenleme.StockCardWarehouseBulkUpdateResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FurpaMerkezApi.Application.Modules.DuzeltmeIslemleri.MikroEvrakDuzenleme.StockCardWarehouseBulkUpdateResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FurpaMerkezApi.Application.Modules.DuzeltmeIslemleri.MikroEvrakDuzenleme.StockCardWarehouseBulkUpdateResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/Microsoft.AspNetCore.Mvc.ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Microsoft.AspNetCore.Mvc.ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Microsoft.AspNetCore.Mvc.ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/Microsoft.AspNetCore.Mvc.ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Microsoft.AspNetCore.Mvc.ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Microsoft.AspNetCore.Mvc.ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ],
+        "x-permissions": [
+          "duzeltme-islemleri.mikro-evrak-duzenleme.update"
+        ]
+      }
+    },
     "/api/duzeltme-islemleri/mikro-evrak-duzenleme/depolar": {
       "get": {
         "tags": [
@@ -65344,6 +65967,152 @@
         ],
         "x-permissions": [
           "duzeltme-islemleri.mikro-evrak-duzenleme.delete"
+        ]
+      }
+    },
+    "/api/duzeltme-islemleri/mikro-evrak-duzenleme/stok-kartlari/{stockCode}/satis-fiyatlari/toplu": {
+      "put": {
+        "tags": [
+          "MikroEvrakDuzenleme"
+        ],
+        "parameters": [
+          {
+            "name": "stockCode",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FurpaMerkezApi.WebApi.Controllers.Modules.DuzeltmeIslemleri.MikroEvrakDuzenleme.StockSalesPriceBulkUpsertHttpRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FurpaMerkezApi.WebApi.Controllers.Modules.DuzeltmeIslemleri.MikroEvrakDuzenleme.StockSalesPriceBulkUpsertHttpRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/FurpaMerkezApi.WebApi.Controllers.Modules.DuzeltmeIslemleri.MikroEvrakDuzenleme.StockSalesPriceBulkUpsertHttpRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/Microsoft.AspNetCore.Mvc.ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Microsoft.AspNetCore.Mvc.ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Microsoft.AspNetCore.Mvc.ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/Microsoft.AspNetCore.Mvc.ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Microsoft.AspNetCore.Mvc.ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Microsoft.AspNetCore.Mvc.ProblemDetails"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/FurpaMerkezApi.Application.Modules.DuzeltmeIslemleri.MikroEvrakDuzenleme.StockSalesPriceBulkUpsertResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FurpaMerkezApi.Application.Modules.DuzeltmeIslemleri.MikroEvrakDuzenleme.StockSalesPriceBulkUpsertResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FurpaMerkezApi.Application.Modules.DuzeltmeIslemleri.MikroEvrakDuzenleme.StockSalesPriceBulkUpsertResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/Microsoft.AspNetCore.Mvc.ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Microsoft.AspNetCore.Mvc.ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Microsoft.AspNetCore.Mvc.ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/Microsoft.AspNetCore.Mvc.ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Microsoft.AspNetCore.Mvc.ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Microsoft.AspNetCore.Mvc.ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ],
+        "x-permissions": [
+          "duzeltme-islemleri.mikro-evrak-duzenleme.update"
         ]
       }
     },
@@ -108082,6 +108851,28 @@
         },
         "additionalProperties": false
       },
+      "FurpaMerkezApi.Application.Modules.AyarIslemleri.Ayarlar.B2BAccountLookupDto": {
+        "type": "object",
+        "properties": {
+          "accountId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "accountCode": {
+            "type": "string",
+            "nullable": true
+          },
+          "accountTitle": {
+            "type": "string",
+            "nullable": true
+          },
+          "taxNumber": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
       "FurpaMerkezApi.Application.Modules.AyarIslemleri.Ayarlar.B2BBulletinDto": {
         "type": "object",
         "properties": {
@@ -108104,6 +108895,36 @@
         },
         "additionalProperties": false
       },
+      "FurpaMerkezApi.Application.Modules.AyarIslemleri.Ayarlar.B2BMenuOptionDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "menuName": {
+            "type": "string",
+            "nullable": true
+          },
+          "menuRoute": {
+            "type": "string",
+            "nullable": true
+          },
+          "menuIcon": {
+            "type": "string",
+            "nullable": true
+          },
+          "menuGroupId": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "menuGroupName": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
       "FurpaMerkezApi.Application.Modules.AyarIslemleri.Ayarlar.B2BUserAccountDto": {
         "type": "object",
         "properties": {
@@ -108116,6 +108937,14 @@
             "format": "uuid"
           },
           "category": {
+            "type": "string",
+            "nullable": true
+          },
+          "accountCode": {
+            "type": "string",
+            "nullable": true
+          },
+          "accountTitle": {
             "type": "string",
             "nullable": true
           }
@@ -108156,6 +108985,17 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/FurpaMerkezApi.Application.Modules.AyarIslemleri.Ayarlar.B2BUserAccountDto"
+            },
+            "nullable": true
+          },
+          "accountCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "categories": {
+            "type": "array",
+            "items": {
+              "type": "string"
             },
             "nullable": true
           }
@@ -113425,6 +114265,55 @@
         },
         "additionalProperties": false
       },
+      "FurpaMerkezApi.Application.Modules.DuzeltmeIslemleri.MikroEvrakDuzenleme.StockCardWarehouseBulkUpdateItemDto": {
+        "type": "object",
+        "properties": {
+          "warehouseNo": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "warehouseName": {
+            "type": "string",
+            "nullable": true
+          },
+          "succeeded": {
+            "type": "boolean"
+          },
+          "errorMessage": {
+            "type": "string",
+            "nullable": true
+          },
+          "warehouseSettings": {
+            "$ref": "#/components/schemas/FurpaMerkezApi.Application.Modules.DuzeltmeIslemleri.MikroEvrakDuzenleme.StockCardWarehouseSettingsDto"
+          }
+        },
+        "additionalProperties": false
+      },
+      "FurpaMerkezApi.Application.Modules.DuzeltmeIslemleri.MikroEvrakDuzenleme.StockCardWarehouseBulkUpdateResponse": {
+        "type": "object",
+        "properties": {
+          "requestedCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "succeededCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "failedCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FurpaMerkezApi.Application.Modules.DuzeltmeIslemleri.MikroEvrakDuzenleme.StockCardWarehouseBulkUpdateItemDto"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
       "FurpaMerkezApi.Application.Modules.DuzeltmeIslemleri.MikroEvrakDuzenleme.StockCardWarehouseSettingsDto": {
         "type": "object",
         "properties": {
@@ -113837,6 +114726,55 @@
           },
           "document": {
             "$ref": "#/components/schemas/FurpaMerkezApi.Application.Modules.DuzeltmeIslemleri.MikroEvrakDuzenleme.StockMovementDocumentDto"
+          }
+        },
+        "additionalProperties": false
+      },
+      "FurpaMerkezApi.Application.Modules.DuzeltmeIslemleri.MikroEvrakDuzenleme.StockSalesPriceBulkUpsertItemDto": {
+        "type": "object",
+        "properties": {
+          "warehouseNo": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "warehouseName": {
+            "type": "string",
+            "nullable": true
+          },
+          "succeeded": {
+            "type": "boolean"
+          },
+          "errorMessage": {
+            "type": "string",
+            "nullable": true
+          },
+          "salesPrice": {
+            "$ref": "#/components/schemas/FurpaMerkezApi.Application.Modules.DuzeltmeIslemleri.MikroEvrakDuzenleme.StockSalesPriceDto"
+          }
+        },
+        "additionalProperties": false
+      },
+      "FurpaMerkezApi.Application.Modules.DuzeltmeIslemleri.MikroEvrakDuzenleme.StockSalesPriceBulkUpsertResponse": {
+        "type": "object",
+        "properties": {
+          "requestedCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "succeededCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "failedCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FurpaMerkezApi.Application.Modules.DuzeltmeIslemleri.MikroEvrakDuzenleme.StockSalesPriceBulkUpsertItemDto"
+            },
+            "nullable": true
           }
         },
         "additionalProperties": false
@@ -121248,6 +122186,15 @@
           "orderLinkingEnabled": {
             "type": "boolean"
           },
+          "requireOrderUserManualApproval": {
+            "type": "boolean"
+          },
+          "authDbProfileStorageEnabled": {
+            "type": "boolean"
+          },
+          "authDbTrackingEnabled": {
+            "type": "boolean"
+          },
           "sourceWarehouseNo": {
             "type": "integer",
             "format": "int32"
@@ -121496,6 +122443,38 @@
             "items": {
               "type": "string"
             },
+            "nullable": true
+          },
+          "calculationTier": {
+            "type": "string",
+            "nullable": true
+          },
+          "averageWindowDaysUsed": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "labelAgeDays": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "priorAverageKgPerCase": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "driftPercent": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "driftDetected": {
+            "type": "boolean"
+          },
+          "alternativeAverageKgPerCase": {
+            "type": "number",
+            "format": "double",
             "nullable": true
           }
         },
@@ -122048,6 +123027,30 @@
           "coefficientOfVariation": {
             "type": "number",
             "format": "double",
+            "nullable": true
+          },
+          "calculationTier": {
+            "type": "string",
+            "nullable": true
+          },
+          "requiresManualApproval": {
+            "type": "boolean"
+          },
+          "manualApprovalConfirmed": {
+            "type": "boolean"
+          },
+          "actualShippedQuantity": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "actualShippedCaseCount": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "shipmentStatus": {
+            "type": "string",
             "nullable": true
           }
         },
@@ -136239,6 +137242,38 @@
           "status": {
             "type": "string",
             "nullable": true
+          },
+          "calculationTier": {
+            "type": "string",
+            "nullable": true
+          },
+          "averageWindowDaysUsed": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "labelAgeDays": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "priorAverageKgPerCase": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "driftPercent": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "manualApprovalConfirmed": {
+            "type": "boolean"
+          },
+          "approvedKgPerCase": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
           }
         },
         "additionalProperties": false
@@ -138255,6 +139290,86 @@
         },
         "additionalProperties": false
       },
+      "FurpaMerkezApi.WebApi.Controllers.Modules.AyarIslemleri.B2BAyarlari.B2BUserAccountInputHttpRequest": {
+        "required": [
+          "accountId"
+        ],
+        "type": "object",
+        "properties": {
+          "accountId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "category": {
+            "maxLength": 50,
+            "minLength": 0,
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "FurpaMerkezApi.WebApi.Controllers.Modules.AyarIslemleri.B2BAyarlari.CreateB2BUserHttpRequest": {
+        "required": [
+          "password",
+          "userEndDate",
+          "userFullName",
+          "userMail"
+        ],
+        "type": "object",
+        "properties": {
+          "userFullName": {
+            "maxLength": 70,
+            "minLength": 0,
+            "type": "string"
+          },
+          "userMail": {
+            "maxLength": 150,
+            "minLength": 0,
+            "type": "string",
+            "format": "email"
+          },
+          "password": {
+            "maxLength": 100,
+            "minLength": 6,
+            "type": "string"
+          },
+          "status": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "menus": {
+            "type": "string",
+            "nullable": true
+          },
+          "userEndDate": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "accounts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FurpaMerkezApi.WebApi.Controllers.Modules.AyarIslemleri.B2BAyarlari.B2BUserAccountInputHttpRequest"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "FurpaMerkezApi.WebApi.Controllers.Modules.AyarIslemleri.B2BAyarlari.ResetB2BUserPasswordHttpRequest": {
+        "required": [
+          "newPassword"
+        ],
+        "type": "object",
+        "properties": {
+          "newPassword": {
+            "maxLength": 100,
+            "minLength": 6,
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
       "FurpaMerkezApi.WebApi.Controllers.Modules.AyarIslemleri.B2BAyarlari.SaveB2BBulletinHttpRequest": {
         "required": [
           "definition",
@@ -138308,6 +139423,13 @@
           "userEndDate": {
             "type": "string",
             "format": "date-time"
+          },
+          "accounts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FurpaMerkezApi.WebApi.Controllers.Modules.AyarIslemleri.B2BAyarlari.B2BUserAccountInputHttpRequest"
+            },
+            "nullable": true
           }
         },
         "additionalProperties": false
@@ -140938,6 +142060,30 @@
         },
         "additionalProperties": false
       },
+      "FurpaMerkezApi.WebApi.Controllers.Modules.DuzeltmeIslemleri.MikroEvrakDuzenleme.StockCardWarehouseBulkPatchHttpRequest": {
+        "required": [
+          "patch"
+        ],
+        "type": "object",
+        "properties": {
+          "warehouseNos": {
+            "maxItems": 500,
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int32"
+            },
+            "nullable": true
+          },
+          "applyToAllActiveWarehouses": {
+            "type": "boolean"
+          },
+          "patch": {
+            "$ref": "#/components/schemas/FurpaMerkezApi.WebApi.Controllers.Modules.DuzeltmeIslemleri.MikroEvrakDuzenleme.StockCardWarehousePatchHttpRequest"
+          }
+        },
+        "additionalProperties": false
+      },
       "FurpaMerkezApi.WebApi.Controllers.Modules.DuzeltmeIslemleri.MikroEvrakDuzenleme.StockCardWarehousePatchHttpRequest": {
         "type": "object",
         "properties": {
@@ -141351,6 +142497,58 @@
             "type": "integer",
             "format": "int32",
             "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "FurpaMerkezApi.WebApi.Controllers.Modules.DuzeltmeIslemleri.MikroEvrakDuzenleme.StockSalesPriceBulkUpsertHttpRequest": {
+        "type": "object",
+        "properties": {
+          "warehouseNos": {
+            "maxItems": 500,
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int32"
+            },
+            "nullable": true
+          },
+          "applyToAllActiveWarehouses": {
+            "type": "boolean"
+          },
+          "priceListNo": {
+            "maximum": 2147483647,
+            "minimum": 1,
+            "type": "integer",
+            "format": "int32"
+          },
+          "paymentPlanNo": {
+            "maximum": 2147483647,
+            "minimum": 0,
+            "type": "integer",
+            "format": "int32"
+          },
+          "unitPointer": {
+            "maximum": 4,
+            "minimum": 1,
+            "type": "integer",
+            "format": "int32"
+          },
+          "price": {
+            "type": "number",
+            "format": "double"
+          },
+          "currencyType": {
+            "maximum": 255,
+            "minimum": 0,
+            "type": "integer",
+            "format": "int32"
+          },
+          "changeReason": {
+            "maximum": 255,
+            "minimum": 0,
+            "type": "integer",
+            "format": "int32"
           }
         },
         "additionalProperties": false
@@ -146108,6 +147306,12 @@
           "greenGrocerOverDeliveryConfirmed": {
             "type": "boolean"
           },
+          "greenGrocerActualCaseCount": {
+            "maximum": 100000,
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
           "unitPrice": {
             "minimum": 0,
             "type": "number",
@@ -146624,6 +147828,64 @@
             "maxLength": 30,
             "minLength": 0,
             "type": "string"
+          },
+          "requiresManualApproval": {
+            "type": "boolean"
+          },
+          "allowOrderLinking": {
+            "type": "boolean"
+          },
+          "overDeliveryTolerancePercent": {
+            "maximum": 1000,
+            "minimum": 0,
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "severeOverDeliveryMultiplier": {
+            "maximum": 100,
+            "minimum": 1.0001,
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "calculationTier": {
+            "maxLength": 10,
+            "minLength": 0,
+            "type": "string",
+            "nullable": true
+          },
+          "averageWindowDaysUsed": {
+            "maximum": 365,
+            "minimum": 1,
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "labelAgeDays": {
+            "maximum": 3650,
+            "minimum": 0,
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "priorAverageKgPerCase": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "driftPercent": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "manualApprovalConfirmed": {
+            "type": "boolean"
+          },
+          "approvedKgPerCase": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
           }
         },
         "additionalProperties": false
