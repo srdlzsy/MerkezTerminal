@@ -1041,12 +1041,13 @@ class _VirmanCreateSheetState extends State<VirmanCreateSheet>
     final mediaQuery = MediaQuery.of(context);
     final compactHeight =
         mediaQuery.size.height - mediaQuery.viewInsets.bottom < 650;
+    final hasPendingEntry = _lines.isNotEmpty && !_isBlankLine(_lines.first);
     final useCompactConfiguredInput =
         (mediaQuery.size.width < 260 || mediaQuery.textScaler.scale(1) > 1.2) &&
-        _filledLineIndexes().isNotEmpty;
+        (_filledLineIndexes().isNotEmpty || hasPendingEntry);
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(10, 4, 10, 10),
+      padding: EdgeInsets.fromLTRB(10, 4, 10, compactHeight ? 4 : 10),
       child: Form(
         key: _formKey,
         autovalidateMode: createFormAutovalidateMode,
@@ -1236,7 +1237,7 @@ class _VirmanCreateSheetState extends State<VirmanCreateSheet>
         .length;
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
+      padding: EdgeInsets.only(bottom: isEntrySlot ? 0 : 8),
       child: _VirmanDraftLineCard(
         lineNumber: displayLineNo,
         isEntrySlot: isEntrySlot,
@@ -1289,7 +1290,6 @@ class _VirmanDraftLineCard extends StatelessWidget {
     final product = line.selectedProduct;
     final movementType = line.movementType;
     final movementTitle = _movementTypeTitle(movementType);
-    final movementSubtitle = _movementTypeSubtitle(movementType);
     final movementColor = _movementTypeForegroundColor(movementType, context);
     final packageLabel = product != null
         ? _packageLabelForProduct(product)
@@ -1304,13 +1304,12 @@ class _VirmanDraftLineCard extends StatelessWidget {
             stockName: product.stockName,
             quantityController: line.quantityController,
             quantityStep: line.quantityStep,
-            unitLabel: '${product.unitName} | $movementTitle',
+            unitLabel: product.unitName,
             packageLabel: packageLabel,
             barcode: product.barcode,
-            priceLabel: movementSubtitle,
-            warningLabel: product.price > 0
-                ? AppFormatters.currency(product.price)
-                : null,
+            priceLabel: product.price > 0
+                ? '$movementTitle · ${AppFormatters.currency(product.price)}'
+                : movementTitle,
             informationLabels: product.sourceInformationLabels,
             onConfirm: onConfirmPending,
             onCancel: onCancelPending,
@@ -1319,24 +1318,18 @@ class _VirmanDraftLineCard extends StatelessWidget {
                 controller: line.lookupController,
                 focusNode: line.lookupFocusNode,
                 enabled: !isLookupBusy,
-                labelText: '$movementTitle urunu degistir',
+                labelText: 'Barkod / stok / urun',
                 onSubmit: onPickProduct,
               ),
-              action: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: <Widget>[
-                  FilledButton.icon(
-                    onPressed: isLookupBusy ? null : onPickProduct,
-                    icon: const Icon(Icons.search_rounded),
-                    label: const Text('Urun'),
-                  ),
-                  const SizedBox(width: 8),
-                  IconButton.filledTonal(
-                    onPressed: isLookupBusy ? null : onScanWithCamera,
-                    tooltip: 'Kamera ile oku',
-                    icon: const Icon(Icons.photo_camera_back_rounded),
-                  ),
-                ],
+              action: FilledButton.icon(
+                onPressed: isLookupBusy ? null : onPickProduct,
+                icon: const Icon(Icons.search_rounded),
+                label: const Text('Urun'),
+              ),
+              trailingAction: IconButton.filledTonal(
+                onPressed: isLookupBusy ? null : onScanWithCamera,
+                tooltip: 'Kamera ile oku',
+                icon: const Icon(Icons.photo_camera_back_rounded),
               ),
             ),
             quantityValidator: (value) {
@@ -1366,10 +1359,12 @@ class _VirmanDraftLineCard extends StatelessWidget {
             stockName: product.stockName,
             quantityController: line.quantityController,
             quantityStep: line.quantityStep,
-            unitLabel: '${product.unitName} | $movementTitle',
+            unitLabel: product.unitName,
             packageLabel: packageLabel,
             barcode: product.barcode,
-            priceLabel: movementSubtitle,
+            priceLabel: product.price > 0
+                ? '$movementTitle · ${AppFormatters.currency(product.price)}'
+                : movementTitle,
             highlightOnMount: lineNumber == 1,
             canDelete: canRemove,
             onDelete: onRemove,
@@ -1382,7 +1377,7 @@ class _VirmanDraftLineCard extends StatelessWidget {
 
     return TerminalPdaLineCard(
       title: isFreshEntry ? 'Virman urunu ekle' : 'Satir $lineNumber',
-      subtitle: isFreshEntry ? movementSubtitle : product?.stockName,
+      subtitle: isFreshEntry ? null : product?.stockName,
       leading: Icon(_movementTypeIcon(movementType), color: movementColor),
       isEntryLine: isFreshEntry,
       trailing: canRemove
@@ -1392,31 +1387,25 @@ class _VirmanDraftLineCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
           _buildMovementTypeSelector(context),
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
           if (isFreshEntry)
             TerminalResponsiveLookupRow(
               field: ProductLookupField(
                 controller: line.lookupController,
                 focusNode: line.lookupFocusNode,
                 enabled: !isLookupBusy,
-                labelText: '$movementTitle urunu ara',
+                labelText: 'Barkod / stok / urun',
                 onSubmit: onPickProduct,
               ),
-              action: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: <Widget>[
-                  FilledButton.icon(
-                    onPressed: isLookupBusy ? null : onPickProduct,
-                    icon: const Icon(Icons.search_rounded),
-                    label: const Text('Urun'),
-                  ),
-                  const SizedBox(width: 8),
-                  IconButton.filledTonal(
-                    onPressed: isLookupBusy ? null : onScanWithCamera,
-                    tooltip: 'Kamera ile oku',
-                    icon: const Icon(Icons.photo_camera_back_rounded),
-                  ),
-                ],
+              action: FilledButton.icon(
+                onPressed: isLookupBusy ? null : onPickProduct,
+                icon: const Icon(Icons.search_rounded),
+                label: const Text('Urun'),
+              ),
+              trailingAction: IconButton.filledTonal(
+                onPressed: isLookupBusy ? null : onScanWithCamera,
+                tooltip: 'Kamera ile oku',
+                icon: const Icon(Icons.photo_camera_back_rounded),
               ),
             )
           else if (product != null)
@@ -1554,8 +1543,8 @@ class _VirmanMovementTypeOption extends StatelessWidget {
         onTap: onTap,
         borderRadius: BorderRadius.circular(8),
         child: Container(
-          constraints: const BoxConstraints(minHeight: 54),
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+          constraints: const BoxConstraints(minHeight: 38),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(8),
             border: Border.all(color: borderColor, width: selected ? 1.4 : 1),
@@ -1563,53 +1552,37 @@ class _VirmanMovementTypeOption extends StatelessWidget {
           child: Row(
             children: <Widget>[
               Container(
-                width: 28,
-                height: 28,
+                width: 24,
+                height: 24,
                 decoration: BoxDecoration(
                   color: foregroundColor.withAlpha(selected ? 36 : 20),
                   borderRadius: BorderRadius.circular(999),
                 ),
                 child: Icon(
                   _movementTypeIcon(movementType),
-                  size: 17,
+                  size: 15,
                   color: foregroundColor,
                 ),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: 6),
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: <Widget>[
-                    Text(
-                      _movementTypeTitle(movementType),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.labelLarge?.copyWith(
-                        height: 1.05,
-                        color: foregroundColor,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      _movementTypeSubtitle(movementType),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.labelSmall?.copyWith(
-                        height: 1.05,
-                        color: theme.colorScheme.onSurface.withAlpha(150),
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ],
+                child: Text(
+                  _movementTypeTitle(movementType),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    fontSize: 12.5,
+                    height: 1.05,
+                    color: foregroundColor,
+                    fontWeight: FontWeight.w900,
+                  ),
                 ),
               ),
               if (selected) ...<Widget>[
                 const SizedBox(width: 4),
                 Icon(
                   Icons.check_circle_rounded,
-                  size: 17,
+                  size: 16,
                   color: foregroundColor,
                 ),
               ],
@@ -1849,14 +1822,6 @@ String _movementTypeTitle(int movementType) {
     1 => 'Cikis urunu',
     0 => 'Giris urunu',
     _ => _movementTypeLabel(movementType),
-  };
-}
-
-String _movementTypeSubtitle(int movementType) {
-  return switch (movementType) {
-    1 => 'Parcalanacak / stoktan duser',
-    0 => 'Olusacak / stoga girer',
-    _ => 'Virman satiri',
   };
 }
 

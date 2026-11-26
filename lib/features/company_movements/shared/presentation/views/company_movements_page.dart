@@ -881,7 +881,8 @@ class _MovementCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    final docDate = AppFormatters.dateOrDash(item.documentDate);
+    final moveDate = AppFormatters.dateOrDash(item.movementDate);
 
     return TerminalPdaRecordCard(
       isSelected: isExpanded,
@@ -892,34 +893,21 @@ class _MovementCard extends StatelessWidget {
           TerminalPdaCardHeader(
             title: item.documentNoLabel,
             subtitle: item.customerDisplayName,
-            trailing: Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              mainAxisSize: MainAxisSize.min,
-              children: <Widget>[
-                TerminalBadge(label: '${item.lineCount} satir'),
-                const SizedBox(height: 4),
-                Icon(
-                  isExpanded
-                      ? Icons.keyboard_arrow_up_rounded
-                      : Icons.chevron_right_rounded,
-                  size: 26,
-                  color: theme.colorScheme.primary,
-                ),
-              ],
+            trailing: TerminalPdaCardTrailing(
+              badges: <Widget>[TerminalBadge(label: '${item.lineCount} satir')],
+              isExpanded: isExpanded,
             ),
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 6),
           TerminalPdaInfoGrid(
             compact: true,
             items: <TerminalPdaInfo>[
               TerminalPdaInfo(
-                label: 'Belge Trh',
-                value: AppFormatters.dateOrDash(item.documentDate),
+                label: docDate == moveDate ? 'Tarih' : 'Belge Trh',
+                value: docDate,
               ),
-              TerminalPdaInfo(
-                label: 'Hareket',
-                value: AppFormatters.dateOrDash(item.movementDate),
-              ),
+              if (docDate != moveDate)
+                TerminalPdaInfo(label: 'Hareket', value: moveDate),
               TerminalPdaInfo(
                 label: 'Miktar',
                 value: AppFormatters.quantity(item.totalQuantity),
@@ -1108,61 +1096,41 @@ class _MovementDetailBody extends StatelessWidget {
           if (detail!.items.isEmpty)
             const TerminalEmptyState(message: 'Bu evrakta kalem bulunamadi.')
           else
-            Column(
-              children: detail!.items
-                  .map((item) {
-                    final extra = <String>[
-                      'Kod ${item.stockCode}',
-                      'Birim ${item.unitName}',
-                      'Miktar ${AppFormatters.quantity(item.quantity)}',
-                      if (item.unitPrice > 0)
-                        'Fiyat ${AppFormatters.currency(item.unitPrice)}',
-                      if (item.lineAmount > 0)
-                        'Tutar ${AppFormatters.currency(item.lineAmount)}',
-                    ].join(' | ');
-
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
-                      child: Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(14),
-                          border: Border.all(
-                            color: Theme.of(
-                              context,
-                            ).colorScheme.outlineVariant.withAlpha(82),
+            Builder(
+              builder: (context) {
+                final zeroBased = detail!.items.any((item) => item.lineNo == 0);
+                return Column(
+                  children: detail!.items
+                      .asMap()
+                      .entries
+                      .map((entry) {
+                        final item = entry.value;
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 6),
+                          child: TerminalDetailLineCard(
+                            lineNo: terminalDisplayLineNo(
+                              item.lineNo,
+                              entry.key,
+                              zeroBasedList: zeroBased,
+                            ),
+                            stockName: item.stockName,
+                            stockCode: item.stockCode,
+                            quantityLabel:
+                                '${AppFormatters.quantity(item.quantity)} ${item.unitName}'
+                                    .trim(),
+                            priceFacts: <String>[
+                              if (item.unitPrice > 0)
+                                'Fiyat ${AppFormatters.currency(item.unitPrice)}',
+                              if (item.lineAmount > 0)
+                                'Tutar ${AppFormatters.currency(item.lineAmount)}',
+                            ],
+                            note: item.description,
                           ),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: <Widget>[
-                            Row(
-                              children: <Widget>[
-                                Expanded(
-                                  child: Text(
-                                    item.stockName,
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .titleSmall
-                                        ?.copyWith(fontWeight: FontWeight.w800),
-                                  ),
-                                ),
-                                TerminalBadge(label: 'Satir ${item.lineNo}'),
-                              ],
-                            ),
-                            const SizedBox(height: 6),
-                            Text(
-                              extra,
-                              style: Theme.of(context).textTheme.bodyMedium,
-                            ),
-                          ],
-                        ),
-                      ),
-                    );
-                  })
-                  .toList(growable: false),
+                        );
+                      })
+                      .toList(growable: false),
+                );
+              },
             ),
         ],
       ),

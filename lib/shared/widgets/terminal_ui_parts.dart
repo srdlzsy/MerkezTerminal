@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 
 const double terminalCreateMaximumQuantity = 100000;
@@ -376,6 +379,7 @@ class TerminalListHeaderCard extends StatelessWidget {
     required this.title,
     required this.filters,
     this.subtitle,
+    this.showSubtitleOnCompact = false,
     this.infoChips = const <Widget>[],
     this.showInfoChips = false,
     this.actions = const <Widget>[],
@@ -384,6 +388,7 @@ class TerminalListHeaderCard extends StatelessWidget {
 
   final String title;
   final String? subtitle;
+  final bool showSubtitleOnCompact;
   final List<Widget> infoChips;
   final bool showInfoChips;
   final List<Widget> filters;
@@ -472,7 +477,9 @@ class TerminalListHeaderCard extends StatelessWidget {
                     fontWeight: FontWeight.w800,
                   ),
                 ),
-                if (subtitle != null) ...<Widget>[
+                if (subtitle != null &&
+                    subtitle!.trim().isNotEmpty &&
+                    (!isCompact || showSubtitleOnCompact)) ...<Widget>[
                   const SizedBox(height: 2),
                   Text(
                     subtitle!,
@@ -612,21 +619,33 @@ class _TerminalActionGrid extends StatelessWidget {
       return Tooltip(message: tooltip, child: button);
     }
 
+    final iconStyle = IconButton.styleFrom(
+      minimumSize: const Size(40, 40),
+      fixedSize: const Size(40, 40),
+      padding: EdgeInsets.zero,
+      iconSize: 20,
+      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      visualDensity: VisualDensity.standard,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+    );
     return switch (data.style) {
       _TerminalHeaderActionStyle.primary => IconButton.filled(
         onPressed: data.onPressed,
         tooltip: tooltip,
         icon: icon,
+        style: iconStyle,
       ),
       _TerminalHeaderActionStyle.tonal => IconButton.filledTonal(
         onPressed: data.onPressed,
         tooltip: tooltip,
         icon: icon,
+        style: iconStyle,
       ),
       _TerminalHeaderActionStyle.outlined => IconButton.outlined(
         onPressed: data.onPressed,
         tooltip: tooltip,
         icon: icon,
+        style: iconStyle,
       ),
     };
   }
@@ -683,19 +702,21 @@ class _TerminalActionGrid extends StatelessWidget {
 
   ButtonStyle _compactFilledButtonStyle() {
     return FilledButton.styleFrom(
-      minimumSize: const Size(0, 44),
-      padding: const EdgeInsets.symmetric(horizontal: 8),
+      minimumSize: const Size(0, 40),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
       tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-      visualDensity: VisualDensity.compact,
+      visualDensity: VisualDensity.standard,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
     );
   }
 
   ButtonStyle _compactOutlinedButtonStyle() {
     return OutlinedButton.styleFrom(
-      minimumSize: const Size(0, 44),
-      padding: const EdgeInsets.symmetric(horizontal: 8),
+      minimumSize: const Size(0, 40),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
       tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-      visualDensity: VisualDensity.compact,
+      visualDensity: VisualDensity.standard,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
     );
   }
 
@@ -889,20 +910,68 @@ class TerminalResponsiveLookupRow extends StatelessWidget {
           );
         }
 
+        final theme = Theme.of(context);
+        final rowTheme = theme.copyWith(
+          filledButtonTheme: FilledButtonThemeData(
+            style: FilledButton.styleFrom(
+              minimumSize: const Size(0, 42),
+              padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 0),
+              iconSize: 18,
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              visualDensity: VisualDensity.standard,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+              textStyle: theme.textTheme.labelLarge?.copyWith(
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+          outlinedButtonTheme: OutlinedButtonThemeData(
+            style: OutlinedButton.styleFrom(
+              minimumSize: const Size(0, 42),
+              padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 0),
+              iconSize: 18,
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              visualDensity: VisualDensity.standard,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+          ),
+          iconButtonTheme: IconButtonThemeData(
+            style: IconButton.styleFrom(
+              minimumSize: const Size(42, 42),
+              fixedSize: const Size(42, 42),
+              padding: EdgeInsets.zero,
+              iconSize: 20,
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              visualDensity: VisualDensity.standard,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+          ),
+        );
+
         final primaryAction = constraints.maxWidth < 230
             ? _compactPrimaryAction(action)
             : action;
 
-        return Row(
-          children: <Widget>[
-            Expanded(child: field),
-            SizedBox(width: isUltraNarrow ? spacing : spacing + 4),
-            primaryAction,
-            if (trailing != null) ...<Widget>[
-              SizedBox(width: spacing),
-              trailing,
+        return Theme(
+          data: rowTheme,
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: <Widget>[
+              Expanded(child: field),
+              SizedBox(width: isUltraNarrow ? 4 : 6),
+              primaryAction,
+              if (trailing != null) ...<Widget>[
+                SizedBox(width: isUltraNarrow ? 4 : 6),
+                trailing,
+              ],
             ],
-          ],
+          ),
         );
       },
     );
@@ -965,10 +1034,12 @@ class TerminalResponsiveLookupRow extends StatelessWidget {
           child: action.icon,
         ),
         style: IconButton.styleFrom(
-          minimumSize: const Size(44, 44),
+          minimumSize: const Size(42, 42),
+          fixedSize: const Size(42, 42),
           padding: EdgeInsets.zero,
           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-          visualDensity: VisualDensity.compact,
+          visualDensity: VisualDensity.standard,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         ),
       );
     }
@@ -983,10 +1054,11 @@ class TerminalResponsiveLookupRow extends StatelessWidget {
         ),
         label: const Text('Oku'),
         style: FilledButton.styleFrom(
-          minimumSize: const Size(64, 44),
-          padding: const EdgeInsets.symmetric(horizontal: 8),
+          minimumSize: const Size(54, 42),
+          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 0),
           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-          visualDensity: VisualDensity.compact,
+          visualDensity: VisualDensity.standard,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         ),
       ),
     );
@@ -1279,18 +1351,42 @@ class TerminalPdaInfoGrid extends StatelessWidget {
       return const SizedBox.shrink();
     }
 
+    if (compact) {
+      return LayoutBuilder(
+        builder: (context, constraints) {
+          final maxWidth = constraints.hasBoundedWidth
+              ? constraints.maxWidth
+              : double.infinity;
+          return Wrap(
+            spacing: 8,
+            runSpacing: 4,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: items
+                .map(
+                  (item) => _TerminalCompactInfoChip(
+                    label: item.label,
+                    value: item.value,
+                    maxWidth: maxWidth,
+                  ),
+                )
+                .toList(growable: false),
+          );
+        },
+      );
+    }
+
     return LayoutBuilder(
       builder: (context, constraints) {
         final maxWidth = constraints.maxWidth;
-        final effectiveMinTileWidth = compact
-            ? 96.0
-            : constraints.hasBoundedWidth && maxWidth < 280
-            ? minTileWidth.clamp(96.0, 112.0)
+        final effectiveMinTileWidth =
+            constraints.hasBoundedWidth && maxWidth < 280
+            ? minTileWidth.clamp(108.0, 124.0)
             : minTileWidth;
+        final maxColumns = items.length.clamp(1, 3);
         final columns = constraints.hasBoundedWidth
             ? ((maxWidth + spacing) / (effectiveMinTileWidth + spacing))
                   .floor()
-                  .clamp(1, 3)
+                  .clamp(1, maxColumns)
             : 1;
         final tileWidth = constraints.hasBoundedWidth
             ? (maxWidth - (spacing * (columns - 1))) / columns
@@ -1317,6 +1413,83 @@ class TerminalPdaInfoGrid extends StatelessWidget {
   }
 }
 
+class _TerminalCompactInfoChip extends StatelessWidget {
+  const _TerminalCompactInfoChip({
+    required this.label,
+    required this.value,
+    required this.maxWidth,
+  });
+
+  final String label;
+  final String value;
+  final double maxWidth;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isPackageInfo = label.trim().toLowerCase() == 'koli ici';
+
+    final content = Row(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.baseline,
+      textBaseline: TextBaseline.alphabetic,
+      children: <Widget>[
+        Text(
+          label,
+          style: theme.textTheme.labelSmall?.copyWith(
+            fontSize: 10.5,
+            letterSpacing: 0,
+            height: 1.1,
+            color: isPackageInfo
+                ? const Color(0xFF7A4A00)
+                : const Color(0xFF5F6C7B),
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(width: 3),
+        Flexible(
+          child: Text(
+            value,
+            maxLines: 2,
+            softWrap: true,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.bodySmall?.copyWith(
+              fontSize: 12,
+              letterSpacing: 0,
+              height: 1.12,
+              color: isPackageInfo
+                  ? const Color(0xFF553600)
+                  : const Color(0xFF1C2D40),
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ),
+      ],
+    );
+
+    final bounded = maxWidth.isFinite
+        ? ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: maxWidth),
+            child: content,
+          )
+        : content;
+
+    if (!isPackageInfo) {
+      return bounded;
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF8E5),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: const Color(0xFFE5B84F).withAlpha(150)),
+      ),
+      child: bounded,
+    );
+  }
+}
+
 class TerminalPdaInfoTile extends StatelessWidget {
   const TerminalPdaInfoTile({
     super.key,
@@ -1335,10 +1508,10 @@ class TerminalPdaInfoTile extends StatelessWidget {
     final isPackageInfo = label.trim().toLowerCase() == 'koli ici';
 
     return Container(
-      constraints: BoxConstraints(minHeight: compact ? 32 : 34),
+      constraints: BoxConstraints(minHeight: compact ? 28 : 34),
       padding: EdgeInsets.symmetric(
         horizontal: compact ? 6 : 8,
-        vertical: compact ? 3 : 4,
+        vertical: compact ? 2 : 4,
       ),
       decoration: BoxDecoration(
         color: isPackageInfo
@@ -1360,6 +1533,7 @@ class TerminalPdaInfoTile extends StatelessWidget {
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: theme.textTheme.labelSmall?.copyWith(
+              fontSize: 11,
               color: isPackageInfo
                   ? const Color(0xFF7A4A00)
                   : const Color(0xFF5F6C7B),
@@ -1369,10 +1543,11 @@ class TerminalPdaInfoTile extends StatelessWidget {
           const SizedBox(height: 1),
           Text(
             value,
-            maxLines: 1,
+            maxLines: 2,
             overflow: TextOverflow.ellipsis,
             style: theme.textTheme.titleSmall?.copyWith(
-              height: 1.05,
+              fontSize: 13,
+              height: 1.12,
               color: isPackageInfo
                   ? const Color(0xFF553600)
                   : const Color(0xFF1C2D40),
@@ -1419,7 +1594,7 @@ class TerminalPdaRecordCard extends StatelessWidget {
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 140),
           width: double.infinity,
-          constraints: const BoxConstraints(minHeight: 66),
+          constraints: const BoxConstraints(minHeight: 50),
           decoration: BoxDecoration(
             color: backgroundColor,
             borderRadius: BorderRadius.circular(8),
@@ -1448,7 +1623,7 @@ class TerminalPdaRecordCard extends StatelessWidget {
                 ),
               ),
               Padding(
-                padding: const EdgeInsets.fromLTRB(13, 8, 8, 8),
+                padding: const EdgeInsets.fromLTRB(11, 6, 8, 6),
                 child: child,
               ),
             ],
@@ -1535,6 +1710,438 @@ class TerminalPdaDetailPanel extends StatelessWidget {
         ),
       ),
       child: child,
+    );
+  }
+}
+
+final RegExp _terminalTechnicalUuidPattern = RegExp(
+  r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$',
+);
+
+/// Filtrelenmis kullanici aciklamasi dondurur; bos veya ham teknik GUID/UUID
+/// iceren kayitlari depo operatorunun ekranindan gizler.
+String? terminalDisplayableNote(String? raw) {
+  final trimmed = (raw ?? '').trim();
+  if (trimmed.isEmpty) {
+    return null;
+  }
+  if (_terminalTechnicalUuidPattern.hasMatch(trimmed)) {
+    return null;
+  }
+  return trimmed;
+}
+
+/// 0 tabanli veya eksik gelen satir numaralarini her zaman 1 tabanli gosterir.
+int terminalDisplayLineNo(
+  int rawLineNo,
+  int index, {
+  bool zeroBasedList = false,
+}) {
+  if (zeroBasedList) {
+    return rawLineNo + 1;
+  }
+  return rawLineNo <= 0 ? index + 1 : rawLineNo;
+}
+
+/// Liste kartlarinda durum rozet(ler)ini ve acma okunu tek yatay satirda
+/// hizalayarak baslik altindaki olu dikey boslugu kaldirir.
+class TerminalPdaCardTrailing extends StatelessWidget {
+  const TerminalPdaCardTrailing({
+    super.key,
+    this.badges = const <Widget>[],
+    this.isExpanded = false,
+    this.isLoading = false,
+    this.showChevron = true,
+  });
+
+  final List<Widget> badges;
+  final bool isExpanded;
+  final bool isLoading;
+  final bool showChevron;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final trailingIndicator = isLoading
+        ? const SizedBox(
+            width: 18,
+            height: 18,
+            child: CircularProgressIndicator(strokeWidth: 2.2),
+          )
+        : showChevron
+        ? Icon(
+            isExpanded
+                ? Icons.keyboard_arrow_up_rounded
+                : Icons.chevron_right_rounded,
+            size: 22,
+            color: theme.colorScheme.primary,
+          )
+        : null;
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: <Widget>[
+        for (var i = 0; i < badges.length; i += 1) ...<Widget>[
+          if (i > 0) const SizedBox(width: 4),
+          badges[i],
+        ],
+        if (trailingIndicator != null) ...<Widget>[
+          if (badges.isNotEmpty) const SizedBox(width: 4),
+          trailingIndicator,
+        ],
+      ],
+    );
+  }
+}
+
+/// Detay sayfalarindaki urun kalemleri icin sifir-'...' 2 satirli kompakt kart.
+/// Ustte satir no + urun adi + vurgulu miktar; altta kod/barkod/fiyat/ek bilgi
+/// Wrap ile tam okunur; ham UUID aciklamalari otomatik filtrelenir.
+class TerminalDetailLineCard extends StatelessWidget {
+  const TerminalDetailLineCard({
+    super.key,
+    required this.lineNo,
+    required this.stockName,
+    this.stockCode,
+    this.barcode,
+    this.quantityLabel,
+    this.badgeLabel,
+    this.secondaryFacts = const <String>[],
+    this.priceFacts = const <String>[],
+    this.note,
+  });
+
+  final int lineNo;
+  final String stockName;
+  final String? stockCode;
+  final String? barcode;
+  final String? quantityLabel;
+  final String? badgeLabel;
+  final List<String> secondaryFacts;
+  final List<String> priceFacts;
+  final String? note;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final code = (stockCode ?? '').trim();
+    final codeBarcode = (barcode ?? '').trim();
+    final qty = (quantityLabel ?? '').trim();
+    final badge = (badgeLabel ?? '').trim();
+    final cleanNote = terminalDisplayableNote(note);
+    final visibleSecondary = secondaryFacts
+        .map((item) => item.trim())
+        .where((item) => item.isNotEmpty)
+        .toList(growable: false);
+    final visiblePrices = priceFacts
+        .map((item) => item.trim())
+        .where((item) => item.isNotEmpty)
+        .toList(growable: false);
+
+    final baseStyle = theme.textTheme.labelSmall?.copyWith(
+      fontSize: 11.5,
+      height: 1.18,
+      color: theme.colorScheme.onSurfaceVariant,
+      fontWeight: FontWeight.w700,
+    );
+    final codeStyle = baseStyle?.copyWith(
+      color: theme.colorScheme.onSurface.withAlpha(215),
+      fontWeight: FontWeight.w800,
+    );
+    final priceStyle = baseStyle?.copyWith(
+      color: const Color(0xFF1C2D40),
+      fontWeight: FontWeight.w800,
+    );
+    final dotStyle = baseStyle?.copyWith(
+      color: theme.colorScheme.onSurfaceVariant.withAlpha(140),
+    );
+
+    final metaSegments = <Widget>[];
+    void addMeta(Widget widget) {
+      if (metaSegments.isNotEmpty) {
+        metaSegments.add(Text(' · ', style: dotStyle));
+      }
+      metaSegments.add(widget);
+    }
+
+    if (code.isNotEmpty) {
+      addMeta(Text(code, style: codeStyle));
+    }
+    if (codeBarcode.isNotEmpty) {
+      addMeta(Text(codeBarcode, style: baseStyle));
+    }
+    for (final fact in visibleSecondary) {
+      addMeta(Text(fact, style: baseStyle));
+    }
+    for (final price in visiblePrices) {
+      addMeta(Text(price, style: priceStyle));
+    }
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(8, 7, 8, 7),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: theme.colorScheme.outlineVariant.withAlpha(96),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Container(
+                width: 24,
+                height: 24,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.surfaceContainerHigh,
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(
+                    color: theme.colorScheme.outlineVariant.withAlpha(110),
+                  ),
+                ),
+                child: Text(
+                  lineNo.toString().padLeft(2, '0'),
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    height: 1,
+                    color: theme.colorScheme.onSurface,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  stockName.trim().isEmpty ? 'Urun adi bulunamadi' : stockName,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontSize: 13.5,
+                    height: 1.15,
+                    fontWeight: FontWeight.w900,
+                    color: const Color(0xFF182230),
+                  ),
+                ),
+              ),
+              if (qty.isNotEmpty || badge.isNotEmpty) ...<Widget>[
+                const SizedBox(width: 6),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    if (qty.isNotEmpty)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 7,
+                          vertical: 3,
+                        ),
+                        decoration: BoxDecoration(
+                          color: theme.colorScheme.primaryContainer.withAlpha(
+                            165,
+                          ),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          qty,
+                          style: theme.textTheme.labelMedium?.copyWith(
+                            fontSize: 12,
+                            height: 1.05,
+                            color: theme.colorScheme.onPrimaryContainer,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                      ),
+                    if (badge.isNotEmpty) ...<Widget>[
+                      if (qty.isNotEmpty) const SizedBox(height: 3),
+                      TerminalBadge(label: badge),
+                    ],
+                  ],
+                ),
+              ],
+            ],
+          ),
+          if (metaSegments.isNotEmpty) ...<Widget>[
+            const SizedBox(height: 4),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Padding(
+                  padding: const EdgeInsets.only(top: 1),
+                  child: Icon(
+                    Icons.qr_code_scanner_rounded,
+                    size: 14,
+                    color: theme.colorScheme.onSurface.withAlpha(185),
+                  ),
+                ),
+                const SizedBox(width: 5),
+                Expanded(
+                  child: Wrap(
+                    spacing: 0,
+                    runSpacing: 2,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: metaSegments,
+                  ),
+                ),
+              ],
+            ),
+          ],
+          if (cleanNote != null) ...<Widget>[
+            const SizedBox(height: 4),
+            Text(
+              cleanNote,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.bodySmall?.copyWith(
+                fontSize: 11.5,
+                height: 1.2,
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// Detay ekranlarinda E-Irsaliye aksiyonlarini kompakt tek seritte sunar.
+class TerminalEDespatchActionStrip extends StatelessWidget {
+  const TerminalEDespatchActionStrip({
+    super.key,
+    required this.canSendEDespatch,
+    required this.canViewEDespatchPdf,
+    required this.isSendingEDespatch,
+    required this.isLoadingPdf,
+    required this.onSendEDespatch,
+    required this.onShowPdf,
+  });
+
+  final bool canSendEDespatch;
+  final bool canViewEDespatchPdf;
+  final bool isSendingEDespatch;
+  final bool isLoadingPdf;
+  final VoidCallback onSendEDespatch;
+  final VoidCallback onShowPdf;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: <Color>[Color(0xFF1F4369), Color(0xFF315D8D)],
+        ),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          Row(
+            children: <Widget>[
+              const Icon(
+                Icons.receipt_long_rounded,
+                size: 16,
+                color: Colors.white,
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  'E-Irsaliye Islemleri',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          if (canSendEDespatch) ...<Widget>[
+            const SizedBox(height: 3),
+            Text(
+              'Plaka, sofor ve TCKN bilgileri gonderim aninda istenir.',
+              style: theme.textTheme.bodySmall?.copyWith(
+                fontSize: 11.5,
+                color: Colors.white.withAlpha(220),
+                height: 1.2,
+              ),
+            ),
+          ],
+          const SizedBox(height: 7),
+          Wrap(
+            spacing: 8,
+            runSpacing: 6,
+            children: <Widget>[
+              if (canSendEDespatch)
+                FilledButton.icon(
+                  onPressed: isSendingEDespatch || isLoadingPdf
+                      ? null
+                      : onSendEDespatch,
+                  style: FilledButton.styleFrom(
+                    minimumSize: const Size(0, 38),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 6,
+                    ),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    visualDensity: VisualDensity.compact,
+                    backgroundColor: const Color(0xFFF7C948),
+                    foregroundColor: const Color(0xFF1E2C3A),
+                  ),
+                  icon: isSendingEDespatch
+                      ? const SizedBox(
+                          height: 15,
+                          width: 15,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.send_rounded, size: 17),
+                  label: Text(
+                    isSendingEDespatch
+                        ? 'Gonderiliyor...'
+                        : 'E-Irsaliyeye Cevir',
+                  ),
+                ),
+              if (canViewEDespatchPdf)
+                OutlinedButton.icon(
+                  onPressed: isSendingEDespatch || isLoadingPdf
+                      ? null
+                      : onShowPdf,
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size(0, 38),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 6,
+                    ),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    visualDensity: VisualDensity.compact,
+                    foregroundColor: Colors.white,
+                    side: BorderSide(color: Colors.white.withAlpha(110)),
+                  ),
+                  icon: isLoadingPdf
+                      ? const SizedBox(
+                          height: 15,
+                          width: 15,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.picture_as_pdf_rounded, size: 17),
+                  label: Text(isLoadingPdf ? 'Hazirlaniyor...' : 'PDF Goster'),
+                ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }
@@ -1687,6 +2294,8 @@ class TerminalPdaLineCard extends StatelessWidget {
   }
 }
 
+enum _TerminalProductCardDensity { ultraNarrow, narrow, medium, wide }
+
 class TerminalCompactProductLineCard extends StatelessWidget {
   const TerminalCompactProductLineCard({
     super.key,
@@ -1744,17 +2353,17 @@ class TerminalCompactProductLineCard extends StatelessWidget {
         return Container(
           width: double.infinity,
           margin: const EdgeInsets.only(bottom: 4),
-          padding: const EdgeInsets.fromLTRB(6, 5, 6, 5),
+          padding: const EdgeInsets.fromLTRB(7, 4, 7, 4),
           decoration: BoxDecoration(
             color: Color.lerp(
               theme.colorScheme.surface,
               theme.colorScheme.secondaryContainer,
               emphasis * 0.7,
             ),
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(10),
             border: Border.all(
               color: Color.lerp(
-                theme.colorScheme.outlineVariant.withAlpha(96),
+                theme.colorScheme.outlineVariant.withAlpha(115),
                 theme.colorScheme.secondary,
                 emphasis,
               )!,
@@ -1766,8 +2375,15 @@ class TerminalCompactProductLineCard extends StatelessWidget {
       },
       child: LayoutBuilder(
         builder: (context, constraints) {
-          // PDA ekranlarinda urun kimligi miktar kontrollerinden once okunur.
-          final isTight = constraints.maxWidth < 430;
+          // Responsive kirilimlar ekran genisligine degil, kartin gercek
+          // kullanilabilir genisligine gore belirlenir.
+          final density = _resolveDensity(constraints.maxWidth);
+          final isDesktopRow = constraints.maxWidth >= 560;
+          final deleteButton = TerminalLineDeleteButton(
+            enabled: canDelete,
+            onPressed: onDelete,
+            compactIconOnly: true,
+          );
           final details = _TerminalCompactProductLineDetails(
             lineNo: lineNo,
             stockCode: stockCode,
@@ -1776,99 +2392,116 @@ class TerminalCompactProductLineCard extends StatelessWidget {
             priceLabel: priceLabel,
             barcode: barcode,
             packageLabel: packageLabel,
-            warningLabel: warningLabel,
-            isCompact: isTight,
-            trailing: isTight
-                ? TerminalLineDeleteButton(
-                    enabled: canDelete,
-                    onPressed: onDelete,
-                  )
-                : null,
+            density: density,
+            showUnitInMeta: false,
+            trailing: isDesktopRow ? null : deleteButton,
           );
-          final controls = Row(
-            mainAxisSize: isTight ? MainAxisSize.max : MainAxisSize.min,
-            children: <Widget>[
-              if (isTight)
-                Expanded(
-                  child: _TerminalCompactQuantityControl(
-                    controller: quantityController,
-                    step: quantityStep,
-                    maximum: maximumQuantity,
-                    inputFormatters: quantityInputFormatters,
-                    validator: quantityValidator,
-                    allowEmptyQuantity: allowEmptyQuantity,
-                    onMinimumReached: onMinimumReached,
-                  ),
-                )
-              else
-                SizedBox(
-                  width: 150,
-                  child: _TerminalCompactQuantityControl(
-                    controller: quantityController,
-                    step: quantityStep,
-                    maximum: maximumQuantity,
-                    inputFormatters: quantityInputFormatters,
-                    validator: quantityValidator,
-                    allowEmptyQuantity: allowEmptyQuantity,
-                    onMinimumReached: onMinimumReached,
-                  ),
-                ),
-              if (!isTight) ...<Widget>[
-                const SizedBox(width: 4),
-                TerminalLineDeleteButton(
-                  enabled: canDelete,
-                  onPressed: onDelete,
-                ),
-              ],
-            ],
+          final quantityControl = _TerminalCompactQuantityControl(
+            controller: quantityController,
+            unitLabel: unitLabel,
+            step: quantityStep,
+            maximum: maximumQuantity,
+            inputFormatters: quantityInputFormatters,
+            validator: quantityValidator,
+            allowEmptyQuantity: allowEmptyQuantity,
+            onMinimumReached: onMinimumReached,
           );
 
-          final content = isTight
-              ? Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    details,
-                    const SizedBox(height: 4),
-                    controls,
-                  ],
-                )
-              : Row(
+          final content = isDesktopRow
+              ? Row(
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: <Widget>[
                     Expanded(child: details),
                     const SizedBox(width: 8),
-                    controls,
+                    SizedBox(width: 196, child: quantityControl),
+                    const SizedBox(width: 4),
+                    deleteButton,
+                  ],
+                )
+              : Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    details,
+                    const SizedBox(height: 4),
+                    quantityControl,
                   ],
                 );
 
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: <Widget>[content, _buildPackageMultipleAdvisory(context)],
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[content, _buildWarningBanner(context)],
           );
         },
       ),
     );
   }
 
-  Widget _buildPackageMultipleAdvisory(BuildContext context) {
+  static _TerminalProductCardDensity _resolveDensity(double maxWidth) {
+    if (maxWidth < 250) {
+      return _TerminalProductCardDensity.ultraNarrow;
+    }
+    if (maxWidth < 312) {
+      return _TerminalProductCardDensity.narrow;
+    }
+    if (maxWidth < 350) {
+      return _TerminalProductCardDensity.medium;
+    }
+    return _TerminalProductCardDensity.wide;
+  }
+
+  Widget _buildWarningBanner(BuildContext context) {
     return ValueListenableBuilder<TextEditingValue>(
       valueListenable: quantityController,
       builder: (context, value, _) {
-        final warning = _packageMultipleWarning(value.text);
-        if (warning == null) {
+        final explicitWarning = (warningLabel ?? '').trim();
+        final packageWarning = _packageMultipleWarning(value.text);
+        final message = explicitWarning.isNotEmpty
+            ? explicitWarning
+            : packageWarning;
+        if (message == null || message.isEmpty) {
           return const SizedBox.shrink();
         }
 
+        final isError = explicitWarning.isNotEmpty;
+        final theme = Theme.of(context);
+        final background = isError
+            ? theme.colorScheme.errorContainer.withAlpha(155)
+            : const Color(0xFFFFF4DE);
+        final borderColor = isError
+            ? theme.colorScheme.error.withAlpha(80)
+            : const Color(0xFFE5B84F).withAlpha(135);
+        final foreground = isError
+            ? theme.colorScheme.error
+            : const Color(0xFF8A5A00);
+
         return Padding(
-          padding: const EdgeInsets.only(top: 5),
-          child: Text(
-            warning,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              height: 1.05,
-              color: const Color(0xFF8A5A00),
-              fontWeight: FontWeight.w800,
+          padding: const EdgeInsets.only(top: 4),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+            decoration: BoxDecoration(
+              color: background,
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(color: borderColor),
+            ),
+            child: Row(
+              children: <Widget>[
+                Icon(Icons.warning_amber_rounded, size: 14, color: foreground),
+                const SizedBox(width: 5),
+                Expanded(
+                  child: Text(
+                    message,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      height: 1.05,
+                      color: foreground,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
         );
@@ -1960,17 +2593,17 @@ class TerminalCompactProductLineSummary extends StatelessWidget {
       builder: (context, emphasis, child) {
         return Container(
           width: double.infinity,
-          padding: const EdgeInsets.fromLTRB(6, 5, 6, 5),
+          padding: const EdgeInsets.fromLTRB(8, 5, 8, 5),
           decoration: BoxDecoration(
             color: Color.lerp(
               theme.colorScheme.surface,
               theme.colorScheme.secondaryContainer,
               emphasis * 0.7,
             ),
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(10),
             border: Border.all(
               color: Color.lerp(
-                theme.colorScheme.outlineVariant.withAlpha(96),
+                theme.colorScheme.outlineVariant.withAlpha(115),
                 theme.colorScheme.secondary,
                 emphasis,
               )!,
@@ -1981,11 +2614,17 @@ class TerminalCompactProductLineSummary extends StatelessWidget {
         );
       },
       child: LayoutBuilder(
-        builder: (context, constraints) => Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: <Widget>[
-            Expanded(
-              child: _TerminalCompactProductLineDetails(
+        builder: (context, constraints) {
+          final density = TerminalCompactProductLineCard._resolveDensity(
+            constraints.maxWidth,
+          );
+          final warning = (warningLabel ?? '').trim();
+
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              _TerminalCompactProductLineDetails(
                 lineNo: lineNo,
                 stockCode: stockCode,
                 stockName: stockName,
@@ -1993,13 +2632,173 @@ class TerminalCompactProductLineSummary extends StatelessWidget {
                 priceLabel: priceLabel,
                 barcode: barcode,
                 packageLabel: packageLabel,
-                warningLabel: warningLabel,
-                isCompact: constraints.maxWidth < 430,
+                density: density,
+                showUnitInMeta: true,
                 trailing: trailing,
               ),
+              if (warning.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Text(
+                    warning,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      height: 1.05,
+                      color: theme.colorScheme.error,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+class TerminalDualQuantityProductLineCard extends StatelessWidget {
+  const TerminalDualQuantityProductLineCard({
+    super.key,
+    required this.lineNo,
+    required this.stockCode,
+    required this.stockName,
+    required this.primaryQuantity,
+    required this.secondaryQuantity,
+    this.unitLabel,
+    this.priceLabel,
+    this.barcode,
+    this.packageLabel,
+    this.statusBadge,
+    this.footerBanner,
+    this.highlightOnMount = false,
+    this.canDelete = true,
+    this.onDelete,
+  });
+
+  final int lineNo;
+  final String stockCode;
+  final String stockName;
+  final Widget primaryQuantity;
+  final Widget secondaryQuantity;
+  final String? unitLabel;
+  final String? priceLabel;
+  final String? barcode;
+  final String? packageLabel;
+  final Widget? statusBadge;
+  final Widget? footerBanner;
+  final bool highlightOnMount;
+  final bool canDelete;
+  final VoidCallback? onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return TweenAnimationBuilder<double>(
+      key: const ValueKey<String>('terminal-dual-product-line-highlight'),
+      tween: Tween<double>(begin: highlightOnMount ? 1 : 0, end: 0),
+      duration: const Duration(milliseconds: 900),
+      curve: Curves.easeOutCubic,
+      builder: (context, emphasis, child) {
+        return Container(
+          width: double.infinity,
+          margin: const EdgeInsets.only(bottom: 6),
+          padding: const EdgeInsets.fromLTRB(8, 5, 8, 6),
+          decoration: BoxDecoration(
+            color: Color.lerp(
+              theme.colorScheme.surface,
+              theme.colorScheme.secondaryContainer,
+              emphasis * 0.7,
             ),
-          ],
-        ),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: Color.lerp(
+                theme.colorScheme.outlineVariant.withAlpha(115),
+                theme.colorScheme.secondary,
+                emphasis,
+              )!,
+              width: 1 + (emphasis * 0.5),
+            ),
+          ),
+          child: child,
+        );
+      },
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final density = TerminalCompactProductLineCard._resolveDensity(
+            constraints.maxWidth,
+          );
+          final trailingWidgets = <Widget>[
+            ?statusBadge,
+            if (canDelete && onDelete != null)
+              TerminalLineDeleteButton(
+                enabled: canDelete,
+                onPressed: onDelete,
+                compactIconOnly: true,
+              ),
+          ];
+          final trailing = trailingWidgets.isEmpty
+              ? null
+              : trailingWidgets.length == 1
+              ? trailingWidgets.first
+              : Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    for (
+                      var i = 0;
+                      i < trailingWidgets.length;
+                      i += 1
+                    ) ...<Widget>[
+                      if (i > 0) const SizedBox(width: 4),
+                      trailingWidgets[i],
+                    ],
+                  ],
+                );
+          // Iki tam miktar stepper'i yalniz gercekten genis kartlarda yan yana
+          // konur; kucuk PDA ekranlarinda etiketlerin ve uyarilarin kesilmemesi
+          // icin iki temiz tam genislik satir kullanilir.
+          final useSideBySide = constraints.maxWidth >= 420;
+
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              _TerminalCompactProductLineDetails(
+                lineNo: lineNo,
+                stockCode: stockCode,
+                stockName: stockName,
+                unitLabel: unitLabel,
+                priceLabel: priceLabel,
+                barcode: barcode,
+                packageLabel: packageLabel,
+                density: density,
+                showUnitInMeta: true,
+                trailing: trailing,
+              ),
+              const SizedBox(height: 6),
+              if (useSideBySide)
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Expanded(child: primaryQuantity),
+                    const SizedBox(width: 10),
+                    Expanded(child: secondaryQuantity),
+                  ],
+                )
+              else ...<Widget>[
+                primaryQuantity,
+                const SizedBox(height: 6),
+                secondaryQuantity,
+              ],
+              if (footerBanner != null) ...<Widget>[
+                const SizedBox(height: 6),
+                footerBanner!,
+              ],
+            ],
+          );
+        },
       ),
     );
   }
@@ -2014,8 +2813,8 @@ class _TerminalCompactProductLineDetails extends StatelessWidget {
     required this.priceLabel,
     required this.barcode,
     required this.packageLabel,
-    required this.warningLabel,
-    required this.isCompact,
+    required this.density,
+    required this.showUnitInMeta,
     this.trailing,
   });
 
@@ -2026,128 +2825,144 @@ class _TerminalCompactProductLineDetails extends StatelessWidget {
   final String? priceLabel;
   final String? barcode;
   final String? packageLabel;
-  final String? warningLabel;
-  final bool isCompact;
+  final _TerminalProductCardDensity density;
+  final bool showUnitInMeta;
   final Widget? trailing;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final normalizedName = stockName.trim().isEmpty
+        ? 'Urun adi bulunamadi'
+        : stockName;
+    final lineBadge = Container(
+      width: 26,
+      height: 26,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHigh,
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(
+          color: theme.colorScheme.outlineVariant.withAlpha(110),
+        ),
+      ),
+      child: Text(
+        lineNo.toString().padLeft(2, '0'),
+        style: theme.textTheme.labelMedium?.copyWith(
+          height: 1,
+          color: theme.colorScheme.onSurface,
+          fontWeight: FontWeight.w900,
+        ),
+      ),
+    );
+    final nameWidget = GestureDetector(
+      onLongPress: () => _showFullProductDetails(context, normalizedName),
+      child: Text(
+        normalizedName,
+        key: const ValueKey<String>('terminal-product-line-name'),
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
+        style: theme.textTheme.titleSmall?.copyWith(
+          fontSize: 13.5,
+          height: 1.12,
+          color: theme.colorScheme.onSurface,
+          fontWeight: FontWeight.w900,
+        ),
+      ),
+    );
+    final metaBlock = _buildMetadataBlock(theme);
+    final useFullWidthMeta =
+        density == _TerminalProductCardDensity.ultraNarrow ||
+        density == _TerminalProductCardDensity.narrow ||
+        (priceLabel ?? '').trim().isNotEmpty;
+
+    if (useFullWidthMeta) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: <Widget>[
+              lineBadge,
+              const SizedBox(width: 6),
+              Expanded(child: nameWidget),
+              if (trailing != null) ...<Widget>[
+                const SizedBox(width: 4),
+                trailing!,
+              ],
+            ],
+          ),
+          if (metaBlock != null) ...<Widget>[
+            const SizedBox(height: 2),
+            metaBlock,
+          ],
+        ],
+      );
+    }
 
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
-        Container(
-          width: isCompact ? 30 : 24,
-          height: isCompact ? 30 : 24,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: isCompact
-                ? theme.colorScheme.primary
-                : theme.colorScheme.surfaceContainerHighest,
-            borderRadius: BorderRadius.circular(6),
-          ),
-          child: Text(
-            lineNo.toString().padLeft(2, '0'),
-            style: theme.textTheme.labelLarge?.copyWith(
-              height: 1,
-              color: isCompact
-                  ? theme.colorScheme.onPrimary
-                  : theme.colorScheme.onSurfaceVariant,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-        ),
-        const SizedBox(width: 7),
         Expanded(
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             mainAxisSize: MainAxisSize.min,
             children: <Widget>[
               Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: <Widget>[
-                  Expanded(
-                    child: Text(
-                      stockName.trim().isEmpty
-                          ? 'Urun adi bulunamadi'
-                          : stockName,
-                      key: const ValueKey<String>('terminal-product-line-name'),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.titleSmall?.copyWith(
-                        height: 1.08,
-                        color: theme.colorScheme.onSurface,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                  ),
-                  if (trailing != null) ...<Widget>[
-                    const SizedBox(width: 5),
-                    trailing!,
-                  ],
+                  lineBadge,
+                  const SizedBox(width: 6),
+                  Expanded(child: nameWidget),
                 ],
               ),
-              if (stockCode.trim().isNotEmpty ||
-                  (isCompact && (barcode ?? '').trim().isNotEmpty)) ...<Widget>[
-                const SizedBox(height: 1),
-                Wrap(
-                  spacing: 7,
-                  runSpacing: 1,
-                  children: <Widget>[
-                    if (stockCode.trim().isNotEmpty)
-                      Text(
-                        stockCode.trim(),
-                        style: theme.textTheme.labelSmall?.copyWith(
-                          height: 1,
-                          color: theme.colorScheme.onSurfaceVariant,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                    if (isCompact && (barcode ?? '').trim().isNotEmpty)
-                      Text(
-                        barcode!.trim(),
-                        style: theme.textTheme.labelSmall?.copyWith(
-                          height: 1,
-                          color: theme.colorScheme.onSurfaceVariant,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                  ],
-                ),
+              if (metaBlock != null) ...<Widget>[
+                const SizedBox(height: 3),
+                metaBlock,
               ],
-              const SizedBox(height: 3),
-              if (isCompact)
-                _buildCompactMeta(theme)
-              else
-                Wrap(
-                  spacing: 5,
-                  runSpacing: 3,
-                  children: <Widget>[
-                    if (stockCode.trim().isNotEmpty)
-                      _TerminalMiniLineMeta(text: stockCode),
-                    if ((unitLabel ?? '').trim().isNotEmpty)
-                      _TerminalMiniLineMeta(text: unitLabel!),
-                    if ((packageLabel ?? '').trim().isNotEmpty)
-                      _TerminalMiniLineMeta(
-                        text: 'Koli ici $_packageInfoValue',
-                        isPackage: true,
-                      ),
-                    if ((priceLabel ?? '').trim().isNotEmpty)
-                      _TerminalMiniLineMeta(text: priceLabel!),
-                    if ((barcode ?? '').trim().isNotEmpty)
-                      _TerminalMiniLineMeta(text: barcode!),
-                    if ((warningLabel ?? '').trim().isNotEmpty)
-                      _TerminalMiniLineMeta(
-                        text: warningLabel!,
-                        color: theme.colorScheme.error,
-                      ),
-                  ],
-                ),
             ],
           ),
         ),
+        if (trailing != null) ...<Widget>[const SizedBox(width: 4), trailing!],
       ],
+    );
+  }
+
+  Future<void> _showFullProductDetails(
+    BuildContext context,
+    String displayName,
+  ) {
+    final code = stockCode.trim();
+    final codeBarcode = (barcode ?? '').trim();
+    final unit = (unitLabel ?? '').trim();
+    final packageInfo = _packageInfoValue;
+    final price = (priceLabel ?? '').trim();
+
+    return showDialog<void>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text(displayName),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              if (code.isNotEmpty) Text('Stok kodu: $code'),
+              if (codeBarcode.isNotEmpty) Text('Barkod: $codeBarcode'),
+              if (unit.isNotEmpty) Text('Birim: $unit'),
+              if (packageInfo.isNotEmpty) Text('Koli ici: $packageInfo'),
+              if (price.isNotEmpty) Text('Fiyat: $price'),
+            ],
+          ),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Kapat'),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -2165,43 +2980,226 @@ class _TerminalCompactProductLineDetails extends StatelessWidget {
     return unit.isEmpty ? label : '$label $unit';
   }
 
-  Widget _buildCompactMeta(ThemeData theme) {
-    final metaStyle = theme.textTheme.labelSmall?.copyWith(
-      height: 1.05,
+  Widget? _buildMetadataBlock(ThemeData theme) {
+    final code = stockCode.trim();
+    final codeBarcode = (barcode ?? '').trim();
+    final unit = (unitLabel ?? '').trim();
+    final packageInfo = _packageInfoValue;
+    final price = (priceLabel ?? '').trim();
+
+    final baseStyle = theme.textTheme.labelSmall?.copyWith(
+      fontSize: density == _TerminalProductCardDensity.narrow ? 10.8 : 11.2,
+      letterSpacing: 0,
+      height: 1.15,
       color: theme.colorScheme.onSurfaceVariant,
       fontWeight: FontWeight.w700,
     );
+    final codeStyle = baseStyle?.copyWith(
+      color: theme.colorScheme.onSurface.withAlpha(215),
+      fontWeight: FontWeight.w800,
+    );
+    final packageStyle = baseStyle?.copyWith(
+      color: const Color(0xFF7A4A00),
+      fontWeight: FontWeight.w800,
+    );
+    final separatorStyle = baseStyle?.copyWith(
+      color: theme.colorScheme.onSurfaceVariant.withAlpha(150),
+    );
+    final codeIconColor = theme.colorScheme.onSurface.withAlpha(200);
+    final packageIconColor = packageInfo.isNotEmpty
+        ? const Color(0xFF8A5A00)
+        : codeIconColor;
+
+    Widget dot() => Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 3),
+      child: Text('·', style: separatorStyle),
+    );
+
+    final canUseSingleLine =
+        density == _TerminalProductCardDensity.wide &&
+        price.isEmpty &&
+        !(showUnitInMeta && unit.isNotEmpty && packageInfo.isNotEmpty);
+
+    // Genis duzen (>= 400 dp ekran / >= 350 dp kart): yalniz fiyat yoksa ve
+    // alan sayisi sigiyorsa tek satirda goster; barkod/koli/fiyat asla kesilmez.
+    if (canUseSingleLine) {
+      final hasAny =
+          code.isNotEmpty ||
+          codeBarcode.isNotEmpty ||
+          packageInfo.isNotEmpty ||
+          (showUnitInMeta && unit.isNotEmpty);
+      if (!hasAny) {
+        return null;
+      }
+
+      final segments = <Widget>[];
+      void addSegment(Widget widget) {
+        if (segments.isNotEmpty) {
+          segments.add(dot());
+        }
+        segments.add(widget);
+      }
+
+      if (code.isNotEmpty) {
+        addSegment(Text(code, style: codeStyle));
+      }
+      if (codeBarcode.isNotEmpty) {
+        addSegment(Text(codeBarcode, style: baseStyle));
+      }
+      if (showUnitInMeta && unit.isNotEmpty) {
+        addSegment(Text(unit, style: codeStyle));
+      }
+      if (packageInfo.isNotEmpty) {
+        addSegment(Text('Koli ici $packageInfo', style: packageStyle));
+      }
+
+      return Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Icon(
+            Icons.qr_code_scanner_rounded,
+            size: 14,
+            color: codeIconColor,
+          ),
+          const SizedBox(width: 5),
+          Expanded(
+            child: Wrap(
+              spacing: 0,
+              runSpacing: 2,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: segments,
+            ),
+          ),
+        ],
+      );
+    }
+
+    // 2 satirli temiz duzen (dar/orta veya fiyat+koli iceren genis kartlar):
+    // Satir 1: Stok kodu · Barkod (genis/orta kartta birim de eklenebilir)
+    // Satir 2: Koli ici ve fiyat Wrap ile tam okunur; hicbir deger '...' olmaz.
+    final lines = <Widget>[];
+    final includeUnitOnLine1 =
+        (density == _TerminalProductCardDensity.medium ||
+            density == _TerminalProductCardDensity.wide) &&
+        showUnitInMeta &&
+        unit.isNotEmpty;
+
+    if (code.isNotEmpty || codeBarcode.isNotEmpty) {
+      final line1Segments = <Widget>[];
+      void addLine1(Widget widget) {
+        if (line1Segments.isNotEmpty) {
+          line1Segments.add(dot());
+        }
+        line1Segments.add(widget);
+      }
+
+      if (code.isNotEmpty) {
+        addLine1(Text(code, style: codeStyle));
+      }
+      if (codeBarcode.isNotEmpty) {
+        addLine1(Text(codeBarcode, style: baseStyle));
+      }
+      if (includeUnitOnLine1) {
+        addLine1(Text(unit, style: codeStyle));
+      }
+
+      lines.add(
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Icon(
+              Icons.qr_code_scanner_rounded,
+              size: 14,
+              color: codeIconColor,
+            ),
+            const SizedBox(width: 5),
+            Expanded(
+              child: Wrap(
+                spacing: 0,
+                runSpacing: 2,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: line1Segments,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final includeUnitOnLine2 =
+        showUnitInMeta && !includeUnitOnLine1 && unit.isNotEmpty;
+    final needsSecondLine =
+        packageInfo.isNotEmpty || price.isNotEmpty || includeUnitOnLine2;
+
+    if (needsSecondLine) {
+      final line2Segments = <Widget>[];
+      void addLine2(Widget widget) {
+        if (line2Segments.isNotEmpty) {
+          line2Segments.add(dot());
+        }
+        line2Segments.add(widget);
+      }
+
+      if (includeUnitOnLine2) {
+        addLine2(Text(unit, style: codeStyle));
+        if (packageInfo.isNotEmpty) {
+          addLine2(Text('Koli ici $packageInfo', style: packageStyle));
+        }
+        if (price.isNotEmpty) {
+          addLine2(Text(price, style: baseStyle));
+        }
+      } else {
+        if (!showUnitInMeta &&
+            density != _TerminalProductCardDensity.medium &&
+            density != _TerminalProductCardDensity.wide &&
+            unit.isNotEmpty &&
+            packageInfo.isNotEmpty) {
+          addLine2(Text('$unit · Koli ici $packageInfo', style: packageStyle));
+        } else if (packageInfo.isNotEmpty) {
+          addLine2(Text('Koli ici $packageInfo', style: packageStyle));
+        }
+        if (price.isNotEmpty) {
+          addLine2(Text(price, style: baseStyle));
+        }
+      }
+
+      if (line2Segments.isNotEmpty) {
+        lines.add(
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Icon(
+                Icons.inventory_2_outlined,
+                size: 14,
+                color: packageIconColor,
+              ),
+              const SizedBox(width: 5),
+              Expanded(
+                child: Wrap(
+                  spacing: 0,
+                  runSpacing: 2,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: line2Segments,
+                ),
+              ),
+            ],
+          ),
+        );
+      }
+    }
+
+    if (lines.isEmpty) {
+      return null;
+    }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
       children: <Widget>[
-        Wrap(
-          spacing: 4,
-          runSpacing: 2,
-          children: <Widget>[
-            if ((unitLabel ?? '').trim().isNotEmpty)
-              _TerminalMiniLineMeta(text: unitLabel!.trim(), isUnit: true),
-            if ((packageLabel ?? '').trim().isNotEmpty)
-              _TerminalMiniLineMeta(
-                text: 'Koli ici $_packageInfoValue',
-                isPackage: true,
-              ),
-            if ((priceLabel ?? '').trim().isNotEmpty)
-              Text(
-                priceLabel!.trim(),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: metaStyle,
-              ),
-          ],
-        ),
-        if ((warningLabel ?? '').trim().isNotEmpty)
-          Text(
-            warningLabel!.trim(),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: metaStyle?.copyWith(color: theme.colorScheme.error),
-          ),
+        for (var i = 0; i < lines.length; i += 1) ...<Widget>[
+          if (i > 0) const SizedBox(height: 2),
+          lines[i],
+        ],
       ],
     );
   }
@@ -2212,14 +3210,41 @@ class TerminalLineDeleteButton extends StatelessWidget {
     super.key,
     this.enabled = true,
     required this.onPressed,
+    this.compactIconOnly = false,
   });
 
   final bool enabled;
   final VoidCallback? onPressed;
+  final bool compactIconOnly;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    if (compactIconOnly) {
+      return IconButton(
+        onPressed: enabled ? onPressed : null,
+        tooltip: 'Satiri sil',
+        icon: const Icon(Icons.delete_outline_rounded, size: 20),
+        constraints: const BoxConstraints.tightFor(width: 44, height: 44),
+        padding: EdgeInsets.zero,
+        style: IconButton.styleFrom(
+          foregroundColor: theme.colorScheme.error,
+          backgroundColor: theme.colorScheme.errorContainer.withAlpha(85),
+          disabledForegroundColor: theme.colorScheme.onSurface.withAlpha(70),
+          disabledBackgroundColor: theme.colorScheme.surfaceContainerHighest,
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
+            side: BorderSide(
+              color: enabled
+                  ? theme.colorScheme.error.withAlpha(70)
+                  : theme.colorScheme.outlineVariant.withAlpha(70),
+            ),
+          ),
+        ),
+      );
+    }
+
     return Tooltip(
       message: 'Satiri sil',
       child: FilledButton.icon(
@@ -2242,73 +3267,11 @@ class TerminalLineDeleteButton extends StatelessWidget {
   }
 }
 
-class _TerminalMiniLineMeta extends StatelessWidget {
-  const _TerminalMiniLineMeta({
-    required this.text,
-    this.color,
-    this.isPackage = false,
-    this.isUnit = false,
-  });
-
-  final String text;
-  final Color? color;
-  final bool isPackage;
-  final bool isUnit;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final effectiveColor =
-        color ??
-        (isPackage ? const Color(0xFF7A4A00) : const Color(0xFF607080));
-
-    if (isPackage || isUnit) {
-      final backgroundColor = isPackage
-          ? const Color(0xFFFFF4D6)
-          : theme.colorScheme.primaryContainer.withAlpha(115);
-      final borderColor = isPackage
-          ? const Color(0xFFE5B84F).withAlpha(120)
-          : theme.colorScheme.primary.withAlpha(70);
-      final foregroundColor = isPackage
-          ? effectiveColor
-          : theme.colorScheme.onPrimaryContainer;
-      return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-        decoration: BoxDecoration(
-          color: backgroundColor,
-          borderRadius: BorderRadius.circular(5),
-          border: Border.all(color: borderColor),
-        ),
-        child: Text(
-          text,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: theme.textTheme.labelSmall?.copyWith(
-            height: 1.05,
-            color: foregroundColor,
-            fontWeight: FontWeight.w900,
-          ),
-        ),
-      );
-    }
-
-    return Text(
-      text,
-      maxLines: 1,
-      overflow: TextOverflow.ellipsis,
-      style: theme.textTheme.labelSmall?.copyWith(
-        height: 1.05,
-        color: effectiveColor,
-        fontWeight: FontWeight.w700,
-      ),
-    );
-  }
-}
-
-class _TerminalCompactQuantityControl extends StatelessWidget {
+class _TerminalCompactQuantityControl extends StatefulWidget {
   const _TerminalCompactQuantityControl({
     required this.controller,
     required this.step,
+    this.unitLabel,
     this.maximum,
     this.inputFormatters = const <TextInputFormatter>[],
     this.validator,
@@ -2317,6 +3280,7 @@ class _TerminalCompactQuantityControl extends StatelessWidget {
   });
 
   final TextEditingController controller;
+  final String? unitLabel;
   final double step;
   final double? maximum;
   final List<TextInputFormatter> inputFormatters;
@@ -2325,77 +3289,221 @@ class _TerminalCompactQuantityControl extends StatelessWidget {
   final VoidCallback? onMinimumReached;
 
   @override
+  State<_TerminalCompactQuantityControl> createState() =>
+      _TerminalCompactQuantityControlState();
+}
+
+class _TerminalCompactQuantityControlState
+    extends State<_TerminalCompactQuantityControl> {
+  final FocusNode _focusNode = FocusNode();
+
+  @override
+  void initState() {
+    super.initState();
+    _focusNode.addListener(_handleFocusChange);
+  }
+
+  @override
+  void dispose() {
+    _focusNode.removeListener(_handleFocusChange);
+    _focusNode.dispose();
+    super.dispose();
+  }
+
+  void _handleFocusChange() {
+    if (_focusNode.hasFocus && widget.controller.text.isNotEmpty) {
+      widget.controller.selection = TextSelection(
+        baseOffset: 0,
+        extentOffset: widget.controller.text.length,
+      );
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Container(
-      height: 44,
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest.withAlpha(145),
-        borderRadius: BorderRadius.circular(7),
-      ),
+    final unit = (widget.unitLabel ?? '').trim();
+
+    return SizedBox(
+      height: 48,
       child: Row(
         children: <Widget>[
           _TerminalCompactQuantityButton(
             icon: Icons.remove_rounded,
             tooltip: 'Azalt',
             isPrimary: false,
-            onPressed: () => _changeBy(context, -step),
+            onPressed: () => _changeBy(context, -widget.step),
           ),
+          const SizedBox(width: 6),
           Expanded(
-            child: SizedBox(
-              height: 34,
-              child: TextFormField(
-                controller: controller,
-                textAlign: TextAlign.center,
-                keyboardType: const TextInputType.numberWithOptions(
-                  decimal: true,
-                ),
-                inputFormatters: <TextInputFormatter>[
-                  FilteringTextInputFormatter.allow(RegExp(r'[0-9,\.]')),
-                  ...inputFormatters,
-                ],
-                decoration: const InputDecoration(
-                  border: InputBorder.none,
-                  enabledBorder: InputBorder.none,
-                  focusedBorder: InputBorder.none,
-                  errorBorder: InputBorder.none,
-                  focusedErrorBorder: InputBorder.none,
-                  isDense: true,
-                  contentPadding: EdgeInsets.symmetric(
-                    horizontal: 4,
-                    vertical: 7,
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () => _focusNode.requestFocus(),
+              child: Container(
+                height: 48,
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.primaryContainer.withAlpha(115),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: theme.colorScheme.primary.withAlpha(50),
                   ),
                 ),
-                style: theme.textTheme.titleSmall?.copyWith(
-                  height: 1,
-                  fontWeight: FontWeight.w900,
+                alignment: Alignment.center,
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    return ValueListenableBuilder<TextEditingValue>(
+                      valueListenable: widget.controller,
+                      builder: (context, value, _) {
+                        final qtyStyle = theme.textTheme.titleMedium?.copyWith(
+                          fontSize: 19,
+                          height: 1.05,
+                          color: theme.colorScheme.onPrimaryContainer,
+                          fontWeight: FontWeight.w900,
+                        );
+                        final unitStyle = theme.textTheme.labelMedium?.copyWith(
+                          fontSize: 11.5,
+                          height: 1,
+                          color: theme.colorScheme.onPrimaryContainer.withAlpha(
+                            210,
+                          ),
+                          fontWeight: FontWeight.w900,
+                        );
+
+                        Widget buildQuantityField() => TextFormField(
+                          controller: widget.controller,
+                          focusNode: _focusNode,
+                          textAlign: TextAlign.center,
+                          textInputAction: TextInputAction.done,
+                          onFieldSubmitted: (_) => _focusNode.unfocus(),
+                          keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true,
+                          ),
+                          inputFormatters: <TextInputFormatter>[
+                            FilteringTextInputFormatter.allow(
+                              RegExp(r'[0-9,\.]'),
+                            ),
+                            ...widget.inputFormatters,
+                          ],
+                          decoration: InputDecoration(
+                            border: InputBorder.none,
+                            enabledBorder: InputBorder.none,
+                            focusedBorder: InputBorder.none,
+                            errorBorder: InputBorder.none,
+                            focusedErrorBorder: InputBorder.none,
+                            filled: false,
+                            isDense: true,
+                            hintText: widget.allowEmptyQuantity ? '0' : null,
+                            hintStyle: qtyStyle?.copyWith(
+                              color: theme.colorScheme.onPrimaryContainer
+                                  .withAlpha(90),
+                            ),
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 2,
+                              vertical: 10,
+                            ),
+                          ),
+                          style: qtyStyle,
+                          validator: (value) {
+                            if (widget.allowEmptyQuantity &&
+                                (value ?? '').trim().isEmpty) {
+                              return null;
+                            }
+                            final customError = widget.validator?.call(value);
+                            if (customError != null) {
+                              return customError;
+                            }
+                            final quantity = _readQuantity(value ?? '');
+                            if (quantity <= 0) {
+                              return '';
+                            }
+                            final max = widget.maximum;
+                            if (max != null && quantity > max) {
+                              return '';
+                            }
+                            return null;
+                          },
+                        );
+
+                        if (unit.isEmpty) {
+                          return buildQuantityField();
+                        }
+
+                        final textScaler = MediaQuery.textScalerOf(context);
+                        final textDirection = Directionality.of(context);
+                        final sample = value.text.trim().isEmpty
+                            ? '0'
+                            : value.text.trim();
+                        final qtyPainter = TextPainter(
+                          text: TextSpan(text: sample, style: qtyStyle),
+                          maxLines: 1,
+                          textDirection: textDirection,
+                          textScaler: textScaler,
+                        )..layout();
+                        final unitPainter = TextPainter(
+                          text: TextSpan(text: unit, style: unitStyle),
+                          maxLines: 1,
+                          textDirection: textDirection,
+                          textScaler: textScaler,
+                        )..layout();
+
+                        const gap = 5.0;
+                        final maxAvailable = constraints.maxWidth;
+                        final maxUnitWidth = (maxAvailable * 0.42).clamp(
+                          24.0,
+                          maxAvailable,
+                        );
+                        final effectiveUnitWidth = unitPainter.width.clamp(
+                          0.0,
+                          maxUnitWidth,
+                        );
+                        final maxQtyWidth =
+                            (maxAvailable - effectiveUnitWidth - gap).clamp(
+                              28.0,
+                              maxAvailable,
+                            );
+                        final desiredQtyWidth = (qtyPainter.width + 12.0).clamp(
+                          28.0,
+                          maxQtyWidth,
+                        );
+
+                        return Center(
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: <Widget>[
+                              SizedBox(
+                                width: desiredQtyWidth,
+                                child: buildQuantityField(),
+                              ),
+                              const SizedBox(width: gap),
+                              ConstrainedBox(
+                                constraints: BoxConstraints(
+                                  maxWidth: maxUnitWidth,
+                                ),
+                                child: Text(
+                                  unit,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: unitStyle,
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    );
+                  },
                 ),
-                validator: (value) {
-                  if (allowEmptyQuantity && (value ?? '').trim().isEmpty) {
-                    return null;
-                  }
-                  final customError = validator?.call(value);
-                  if (customError != null) {
-                    return customError;
-                  }
-                  final quantity = _readQuantity(value ?? '');
-                  if (quantity <= 0) {
-                    return '';
-                  }
-                  final max = maximum;
-                  if (max != null && quantity > max) {
-                    return '';
-                  }
-                  return null;
-                },
               ),
             ),
           ),
+          const SizedBox(width: 6),
           _TerminalCompactQuantityButton(
             icon: Icons.add_rounded,
             tooltip: 'Artir',
             isPrimary: true,
-            onPressed: () => _changeBy(context, step),
+            onPressed: () => _changeBy(context, widget.step),
           ),
         ],
       ),
@@ -2403,17 +3511,18 @@ class _TerminalCompactQuantityControl extends StatelessWidget {
   }
 
   Future<void> _changeBy(BuildContext context, double delta) async {
-    final current = _readQuantity(controller.text);
+    final current = _readQuantity(widget.controller.text);
     var next = current + delta;
     if (next < 0) {
       next = 0;
     }
-    final max = maximum;
+    final max = widget.maximum;
     if (max != null && next > max) {
       next = max;
     }
 
-    final reachesMinimum = delta < 0 && next <= 0 && onMinimumReached != null;
+    final reachesMinimum =
+        delta < 0 && next <= 0 && widget.onMinimumReached != null;
     if (reachesMinimum) {
       final confirmed = await showDialog<bool>(
         context: context,
@@ -2442,12 +3551,12 @@ class _TerminalCompactQuantityControl extends StatelessWidget {
       }
     }
 
-    controller.text = _formatCompactQuantity(next);
-    controller.selection = TextSelection.collapsed(
-      offset: controller.text.length,
+    widget.controller.text = _formatCompactQuantity(next);
+    widget.controller.selection = TextSelection.collapsed(
+      offset: widget.controller.text.length,
     );
     if (reachesMinimum) {
-      onMinimumReached?.call();
+      widget.onMinimumReached?.call();
     }
   }
 
@@ -2490,37 +3599,44 @@ class _TerminalCompactQuantityButton extends StatelessWidget {
     final buttonStyle = IconButton.styleFrom(
       foregroundColor: isPrimary
           ? theme.colorScheme.onPrimary
-          : theme.colorScheme.onInverseSurface,
+          : theme.colorScheme.onSurface,
       backgroundColor: isPrimary
           ? theme.colorScheme.primary
-          : theme.colorScheme.inverseSurface,
-      tapTargetSize: MaterialTapTargetSize.padded,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(7)),
+          : theme.colorScheme.surface,
+      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(8),
+        side: BorderSide(
+          color: isPrimary
+              ? theme.colorScheme.primary
+              : theme.colorScheme.outlineVariant,
+        ),
+      ),
     );
 
     if (isPrimary) {
       return IconButton.filled(
         onPressed: onPressed,
-        icon: Icon(icon, size: 18),
+        icon: Icon(icon, size: 22),
         tooltip: tooltip,
-        constraints: const BoxConstraints.tightFor(width: 44, height: 44),
+        constraints: const BoxConstraints.tightFor(width: 48, height: 48),
         padding: EdgeInsets.zero,
         style: buttonStyle,
       );
     }
 
-    return IconButton.filledTonal(
+    return IconButton.outlined(
       onPressed: onPressed,
-      icon: Icon(icon, size: 18),
+      icon: Icon(icon, size: 22),
       tooltip: tooltip,
-      constraints: const BoxConstraints.tightFor(width: 44, height: 44),
+      constraints: const BoxConstraints.tightFor(width: 48, height: 48),
       padding: EdgeInsets.zero,
       style: buttonStyle,
     );
   }
 }
 
-class TerminalQuantityStepper extends StatelessWidget {
+class TerminalQuantityStepper extends StatefulWidget {
   const TerminalQuantityStepper({
     super.key,
     required this.controller,
@@ -2551,96 +3667,181 @@ class TerminalQuantityStepper extends StatelessWidget {
   final bool dense;
 
   @override
+  State<TerminalQuantityStepper> createState() =>
+      _TerminalQuantityStepperState();
+}
+
+class _TerminalQuantityStepperState extends State<TerminalQuantityStepper> {
+  final ValueNotifier<String?> _errorNotifier = ValueNotifier<String?>(null);
+  Timer? _ensureVisibleTimer;
+
+  @override
+  void dispose() {
+    _ensureVisibleTimer?.cancel();
+    _errorNotifier.dispose();
+    super.dispose();
+  }
+
+  void _setErrorText(String? error) {
+    if (_errorNotifier.value == error) {
+      return;
+    }
+    if (SchedulerBinding.instance.schedulerPhase ==
+        SchedulerPhase.persistentCallbacks) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _errorNotifier.value != error) {
+          _errorNotifier.value = error;
+        }
+      });
+      return;
+    }
+    _errorNotifier.value = error;
+  }
+
+  String? _resolveError(String? value) {
+    final customError = widget.validator?.call(value);
+    if (customError != null) {
+      return customError;
+    }
+    final max = widget.maximum;
+    final quantity = _readQuantity(value ?? '');
+    if (max != null && quantity > max) {
+      return 'En fazla ${_formatQuantity(max)}';
+    }
+    return null;
+  }
+
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final buttonSize = dense ? 40.0 : 44.0;
-    final iconSize = dense ? 18.0 : 20.0;
-    final gap = dense ? 3.0 : 6.0;
-    final verticalPadding = dense ? 5.0 : 8.0;
+    final buttonSize = widget.dense ? 42.0 : 44.0;
+    final iconSize = widget.dense ? 19.0 : 20.0;
+    final gap = widget.dense ? 4.0 : 6.0;
+    final verticalPadding = widget.dense ? 7.0 : 9.0;
 
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
       children: <Widget>[
-        IconButton.filledTonal(
-          onPressed: enabled ? () => _changeBy(context, -step) : null,
-          icon: Icon(Icons.remove_rounded, size: iconSize),
-          tooltip: 'Azalt',
-          constraints: BoxConstraints.tightFor(
-            width: buttonSize,
-            height: buttonSize,
-          ),
-          padding: EdgeInsets.zero,
-          style: IconButton.styleFrom(
-            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-          ),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: <Widget>[
+            IconButton.filledTonal(
+              onPressed: widget.enabled
+                  ? () => _changeBy(context, -widget.step)
+                  : null,
+              icon: Icon(Icons.remove_rounded, size: iconSize),
+              tooltip: 'Azalt',
+              constraints: BoxConstraints.tightFor(
+                width: buttonSize,
+                height: buttonSize,
+              ),
+              padding: EdgeInsets.zero,
+              style: IconButton.styleFrom(
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+            ),
+            SizedBox(width: gap),
+            Expanded(
+              child: Builder(
+                builder: (fieldContext) {
+                  return TextFormField(
+                    controller: widget.controller,
+                    enabled: widget.enabled,
+                    textAlign: TextAlign.center,
+                    textInputAction: TextInputAction.done,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    scrollPadding: EdgeInsets.only(
+                      left: 24,
+                      top: 24,
+                      right: 24,
+                      bottom: MediaQuery.viewInsetsOf(context).bottom + 180,
+                    ),
+                    inputFormatters: <TextInputFormatter>[
+                      FilteringTextInputFormatter.allow(RegExp(r'[0-9,\.]')),
+                      ...widget.inputFormatters,
+                    ],
+                    decoration: InputDecoration(
+                      labelText: widget.label,
+                      isDense: true,
+                      errorStyle: const TextStyle(height: 0.01, fontSize: 0),
+                      contentPadding: EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: verticalPadding,
+                      ),
+                      filled: true,
+                      fillColor: theme.colorScheme.surface,
+                    ),
+                    validator: (value) {
+                      final error = _resolveError(value);
+                      _setErrorText(error);
+                      return error == null ? null : '';
+                    },
+                    onTap: () => _keepQuantityFieldVisible(fieldContext),
+                    onChanged: (value) {
+                      _keepQuantityFieldVisible(fieldContext);
+                      if (_errorNotifier.value != null) {
+                        _setErrorText(_resolveError(value));
+                      }
+                      widget.onChanged?.call(value);
+                    },
+                    onFieldSubmitted: (_) => widget.onSubmitted?.call(),
+                  );
+                },
+              ),
+            ),
+            SizedBox(width: gap),
+            IconButton.filled(
+              onPressed: widget.enabled
+                  ? () => _changeBy(context, widget.step)
+                  : null,
+              icon: Icon(Icons.add_rounded, size: iconSize),
+              tooltip: 'Artir',
+              constraints: BoxConstraints.tightFor(
+                width: buttonSize,
+                height: buttonSize,
+              ),
+              padding: EdgeInsets.zero,
+              style: IconButton.styleFrom(
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+            ),
+          ],
         ),
-        SizedBox(width: gap),
-        Expanded(
-          child: Builder(
-            builder: (fieldContext) {
-              return TextFormField(
-                controller: controller,
-                enabled: enabled,
-                textAlign: TextAlign.center,
-                textInputAction: TextInputAction.done,
-                keyboardType: const TextInputType.numberWithOptions(
-                  decimal: true,
-                ),
-                scrollPadding: EdgeInsets.only(
-                  left: 24,
-                  top: 24,
-                  right: 24,
-                  bottom: MediaQuery.viewInsetsOf(context).bottom + 180,
-                ),
-                inputFormatters: <TextInputFormatter>[
-                  FilteringTextInputFormatter.allow(RegExp(r'[0-9,\.]')),
-                  ...inputFormatters,
-                ],
-                decoration: InputDecoration(
-                  labelText: label,
-                  isDense: true,
-                  contentPadding: EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: verticalPadding,
+        ValueListenableBuilder<String?>(
+          valueListenable: _errorNotifier,
+          builder: (context, errorText, _) {
+            if (errorText == null || errorText.trim().isEmpty) {
+              return const SizedBox.shrink();
+            }
+            return Padding(
+              padding: const EdgeInsets.only(top: 3),
+              child: Row(
+                children: <Widget>[
+                  Icon(
+                    Icons.error_outline_rounded,
+                    size: 13,
+                    color: theme.colorScheme.error,
                   ),
-                  filled: true,
-                  fillColor: theme.colorScheme.surface,
-                ),
-                validator: (value) {
-                  final customError = validator?.call(value);
-                  if (customError != null) {
-                    return customError;
-                  }
-                  final max = maximum;
-                  final quantity = _readQuantity(value ?? '');
-                  if (max != null && quantity > max) {
-                    return 'En fazla ${_formatQuantity(max)}';
-                  }
-                  return null;
-                },
-                onTap: () => _keepQuantityFieldVisible(fieldContext),
-                onChanged: (value) {
-                  _keepQuantityFieldVisible(fieldContext);
-                  onChanged?.call(value);
-                },
-                onFieldSubmitted: (_) => onSubmitted?.call(),
-              );
-            },
-          ),
-        ),
-        SizedBox(width: gap),
-        IconButton.filled(
-          onPressed: enabled ? () => _changeBy(context, step) : null,
-          icon: Icon(Icons.add_rounded, size: iconSize),
-          tooltip: 'Artir',
-          constraints: BoxConstraints.tightFor(
-            width: buttonSize,
-            height: buttonSize,
-          ),
-          padding: EdgeInsets.zero,
-          style: IconButton.styleFrom(
-            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-          ),
+                  const SizedBox(width: 4),
+                  Expanded(
+                    child: Text(
+                      errorText,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        height: 1.1,
+                        color: theme.colorScheme.error,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
         ),
       ],
     );
@@ -2661,21 +3862,25 @@ class TerminalQuantityStepper extends StatelessWidget {
     }
 
     WidgetsBinding.instance.addPostFrameCallback((_) => ensureVisible());
-    Future<void>.delayed(const Duration(milliseconds: 320), ensureVisible);
+    _ensureVisibleTimer?.cancel();
+    _ensureVisibleTimer = Timer(
+      const Duration(milliseconds: 320),
+      ensureVisible,
+    );
   }
 
   Future<void> _changeBy(BuildContext context, double delta) async {
-    final current = _readQuantity(controller.text);
+    final current = _readQuantity(widget.controller.text);
     var next = current + delta;
-    if (next < minimum) {
-      next = minimum;
+    if (next < widget.minimum) {
+      next = widget.minimum;
     }
-    final max = maximum;
+    final max = widget.maximum;
     if (max != null && next > max) {
       next = max;
     }
     final reachesMinimum =
-        delta < 0 && next <= minimum && onMinimumReached != null;
+        delta < 0 && next <= widget.minimum && widget.onMinimumReached != null;
     if (reachesMinimum) {
       final confirmed = await showDialog<bool>(
         context: context,
@@ -2703,13 +3908,16 @@ class TerminalQuantityStepper extends StatelessWidget {
         return;
       }
     }
-    controller.text = _formatQuantity(next);
-    controller.selection = TextSelection.collapsed(
-      offset: controller.text.length,
+    widget.controller.text = _formatQuantity(next);
+    widget.controller.selection = TextSelection.collapsed(
+      offset: widget.controller.text.length,
     );
-    onChanged?.call(controller.text);
+    if (_errorNotifier.value != null) {
+      _setErrorText(_resolveError(widget.controller.text));
+    }
+    widget.onChanged?.call(widget.controller.text);
     if (reachesMinimum) {
-      onMinimumReached?.call();
+      widget.onMinimumReached?.call();
     }
   }
 

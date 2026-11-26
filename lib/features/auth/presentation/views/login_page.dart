@@ -60,6 +60,9 @@ class _LoginPageState extends State<LoginPage> {
   Widget build(BuildContext context) {
     final errorMessage = _localError ?? widget.sessionController.errorMessage;
 
+    final width = MediaQuery.sizeOf(context).width;
+    final isCompact = width <= 360;
+
     return Scaffold(
       resizeToAvoidBottomInset: true,
       body: DecoratedBox(
@@ -69,10 +72,10 @@ class _LoginPageState extends State<LoginPage> {
           child: Center(
             child: SingleChildScrollView(
               padding: EdgeInsets.fromLTRB(
-                20,
-                24,
-                20,
-                28 + MediaQuery.paddingOf(context).bottom,
+                isCompact ? 10 : 20,
+                isCompact ? 12 : 24,
+                isCompact ? 10 : 20,
+                (isCompact ? 16 : 28) + MediaQuery.paddingOf(context).bottom,
               ),
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 420),
@@ -113,12 +116,13 @@ class _LoginFormCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final isCompact = MediaQuery.sizeOf(context).width <= 360;
 
     return Container(
-      padding: const EdgeInsets.all(26),
+      padding: EdgeInsets.all(isCompact ? 16 : 26),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(28),
+        borderRadius: BorderRadius.circular(isCompact ? 16 : 28),
         border: Border.all(
           color: theme.colorScheme.outlineVariant.withAlpha(88),
         ),
@@ -133,8 +137,13 @@ class _LoginFormCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: <Widget>[
-          const Center(child: FurpaBrandLockup(scale: 1, showCaption: true)),
-          const SizedBox(height: 24),
+          Center(
+            child: FurpaBrandLockup(
+              scale: isCompact ? 0.84 : 1,
+              showCaption: true,
+            ),
+          ),
+          SizedBox(height: isCompact ? 14 : 24),
           Text(
             'Oturum Ac',
             textAlign: TextAlign.center,

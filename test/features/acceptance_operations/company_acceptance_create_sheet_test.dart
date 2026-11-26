@@ -233,7 +233,7 @@ void main() {
       await _pickProduct(tester);
 
       expect(find.text('Giris satiri'), findsOneWidget);
-      expect(find.text('Satir 1'), findsOneWidget);
+      expect(find.text('01'), findsOneWidget);
       expect(find.text('Test Urun'), findsOneWidget);
       expect(find.text('015792'), findsOneWidget);
       expect(find.text('KL'), findsOneWidget);
@@ -256,7 +256,7 @@ void main() {
 
     final lookup = find.widgetWithText(
       TextFormField,
-      'Barkod / stok kodu / urun adi',
+      'Barkod / stok / urun',
     );
     await tester.enterText(lookup.first, 'Test Urun');
     await tester.tap(find.widgetWithText(FilledButton, 'Urun').first);
@@ -319,7 +319,7 @@ void main() {
 
     final lookup = find.widgetWithText(
       TextFormField,
-      'Barkod / stok kodu / urun adi',
+      'Barkod / stok / urun',
     );
     await tester.enterText(lookup.first, '18690000000012');
     await tester.tap(find.widgetWithText(FilledButton, 'Urun').first);
@@ -354,7 +354,7 @@ void main() {
 
       final lookup = find.widgetWithText(
         TextFormField,
-        'Barkod / stok kodu / urun adi',
+        'Barkod / stok / urun',
       );
       await tester.enterText(lookup.first, '8690000000012');
       await tester.tap(find.widgetWithText(FilledButton, 'Urun').first);
@@ -382,7 +382,7 @@ void main() {
 
     final lookup = find.widgetWithText(
       TextFormField,
-      'Barkod / stok kodu / urun adi',
+      'Barkod / stok / urun',
     );
     await tester.enterText(lookup.first, '2700174041103');
     await tester.tap(find.widgetWithText(FilledButton, 'Urun').first);
@@ -443,7 +443,7 @@ void main() {
     await _goToLineStepIfNeeded(tester);
     final lookupFinder = find.widgetWithText(
       TextFormField,
-      'Barkod / stok kodu / urun adi',
+      'Barkod / stok / urun',
     );
     await tester.enterText(lookupFinder.first, '8690000000099');
     await tester.tap(find.widgetWithText(FilledButton, 'Urun').first);
@@ -494,7 +494,7 @@ void main() {
 
     expect(find.text('Giris satiri'), findsOneWidget);
     expect(
-      find.widgetWithText(TextFormField, 'Barkod / stok kodu / urun adi'),
+      find.widgetWithText(TextFormField, 'Barkod / stok / urun'),
       findsOneWidget,
     );
     expect(tester.takeException(), isNull);
@@ -557,7 +557,7 @@ void main() {
     );
     expect(
       find
-          .widgetWithText(TextFormField, 'Barkod / stok kodu / urun adi')
+          .widgetWithText(TextFormField, 'Barkod / stok / urun')
           .evaluate(),
       isEmpty,
     );
@@ -612,7 +612,7 @@ void main() {
     expect(tester.widget<TextFormField>(acceptedField).controller?.text, '5');
 
     final lookupField = tester.widget<TextFormField>(
-      find.widgetWithText(TextFormField, 'Barkod / stok kodu / urun adi').first,
+      find.widgetWithText(TextFormField, 'Barkod / stok / urun').first,
     );
     expect(lookupField.controller?.text, isEmpty);
     expect(lookupField.controller?.selection.isCollapsed, isTrue);
@@ -966,7 +966,7 @@ Future<void> _selectProductWithoutConfirm(WidgetTester tester) async {
 
   final lookupFinder = find.widgetWithText(
     TextFormField,
-    'Barkod / stok kodu / urun adi',
+    'Barkod / stok / urun',
   );
 
   await tester.enterText(lookupFinder.first, '8690000000012');
@@ -990,7 +990,7 @@ Future<void> _confirmPendingProduct(WidgetTester tester) async {
 
 Future<void> _goToLineStepIfNeeded(WidgetTester tester) async {
   if (find
-      .widgetWithText(TextFormField, 'Barkod / stok kodu / urun adi')
+      .widgetWithText(TextFormField, 'Barkod / stok / urun')
       .evaluate()
       .isNotEmpty) {
     return;

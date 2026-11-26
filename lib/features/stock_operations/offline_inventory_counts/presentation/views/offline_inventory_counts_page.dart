@@ -455,6 +455,7 @@ class _OfflineInventoryCountCreateSheetState
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   final TextEditingController _nameController = TextEditingController();
   final List<_OfflineLineDraft> _lines = <_OfflineLineDraft>[];
+  late final String _draftId;
   DateTime _documentDate = DateTime.now();
   String? _errorMessage;
   String? _lastAddedProductKey;
@@ -463,6 +464,7 @@ class _OfflineInventoryCountCreateSheetState
   @override
   void initState() {
     super.initState();
+    _draftId = generateClientRequestId();
     _lines.add(_OfflineLineDraft());
   }
 
@@ -1008,7 +1010,7 @@ class _OfflineInventoryCountCreateSheetState
     }
 
     final draft = OfflineInventoryCountDraft(
-      id: generateClientRequestId(),
+      id: _draftId,
       userId: widget.currentUserId,
       warehouseNo: widget.defaultWarehouseNo,
       name: _nameController.text.trim(),

@@ -8,6 +8,7 @@ import 'package:furpa_merkez_terminal/features/acceptance_operations/warehouse_a
 import 'package:furpa_merkez_terminal/features/acceptance_operations/warehouse_acceptances/presentation/view_models/warehouse_acceptances_controller.dart';
 import 'package:furpa_merkez_terminal/shared/formatters/app_formatters.dart';
 import 'package:furpa_merkez_terminal/shared/product_entry/product_entry_controller.dart';
+import 'package:furpa_merkez_terminal/shared/product_entry/product_entry_widgets.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/section_card.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/terminal_ui_parts.dart';
 
@@ -122,11 +123,11 @@ class _WarehouseAcceptancesPageState extends State<WarehouseAcceptancesPage> {
                 appBar: AppBar(title: Text(item.documentNoLabel)),
                 body: SafeArea(
                   child: Padding(
-                    padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+                    padding: terminalPdaListPagePadding(context),
                     child: Column(
                       children: <Widget>[
                         _AcceptanceDocumentSummary(item: item),
-                        const SizedBox(height: 8),
+                        const SizedBox(height: 6),
                         Expanded(
                           child: _AcceptanceDetailBody(
                             key: ValueKey(item.documentNoLabel),
@@ -367,8 +368,6 @@ class _AcceptanceAccordionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
     return TerminalPdaRecordCard(
       onTap: onTap,
       child: Column(
@@ -377,23 +376,14 @@ class _AcceptanceAccordionCard extends StatelessWidget {
           TerminalPdaCardHeader(
             title: item.documentNoLabel,
             subtitle: '${item.sourceWarehouse} -> ${item.targetWarehouse}',
-            trailing: Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              mainAxisSize: MainAxisSize.min,
-              children: <Widget>[
+            trailing: TerminalPdaCardTrailing(
+              badges: <Widget>[
                 _DocumentTypeBadge(isReturn: item.isReturn),
-                const SizedBox(height: 6),
                 _StateBadge(state: item.shippingState),
-                const SizedBox(height: 4),
-                Icon(
-                  Icons.chevron_right_rounded,
-                  size: 28,
-                  color: theme.colorScheme.primary,
-                ),
               ],
             ),
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 6),
           TerminalPdaInfoGrid(
             compact: true,
             items: <TerminalPdaInfo>[
@@ -527,6 +517,7 @@ class _AcceptanceReadyBody extends StatefulWidget {
 class _AcceptanceReadyBodyState extends State<_AcceptanceReadyBody> {
   late final List<_AcceptanceLineDraft> _drafts;
   late final TextEditingController _scanController;
+  late final FocusNode _scanFocusNode;
   bool _allowDiscrepancy = false;
   String? _validationMessage;
   String _scanQuery = '';
@@ -538,15 +529,38 @@ class _AcceptanceReadyBodyState extends State<_AcceptanceReadyBody> {
         .map(_AcceptanceLineDraft.fromDetailItem)
         .toList(growable: false);
     _scanController = TextEditingController();
+    _scanFocusNode = FocusNode();
+    _scanController.addListener(_handleScanTextChanged);
+    _focusScanField();
   }
 
   @override
   void dispose() {
+    _scanController.removeListener(_handleScanTextChanged);
     _scanController.dispose();
+    _scanFocusNode.dispose();
     for (final draft in _drafts) {
       draft.dispose();
     }
     super.dispose();
+  }
+
+  void _handleScanTextChanged() {
+    final nextQuery = _scanController.text;
+    if (nextQuery == _scanQuery) {
+      return;
+    }
+    setState(() {
+      _scanQuery = nextQuery;
+    });
+  }
+
+  void _focusScanField() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _scanFocusNode.requestFocus();
+      }
+    });
   }
 
   List<_AcceptanceLineDraft> get _visibleDrafts {
@@ -645,43 +659,40 @@ class _AcceptanceReadyBodyState extends State<_AcceptanceReadyBody> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
-        TextField(
+        ProductLookupField(
           controller: _scanController,
-          onChanged: (value) {
-            setState(() {
-              _scanQuery = value;
-            });
-          },
-          decoration: InputDecoration(
-            isDense: true,
-            labelText: 'Stok kodu / barkod okut',
-            hintText: 'Kalemi bul',
-            prefixIcon: const Icon(Icons.qr_code_scanner_rounded),
-            suffixIcon: _scanQuery.trim().isEmpty
-                ? null
-                : IconButton(
-                    onPressed: () {
-                      _scanController.clear();
-                      setState(() {
-                        _scanQuery = '';
-                      });
-                    },
-                    tooltip: 'Temizle',
-                    icon: const Icon(Icons.close_rounded),
-                  ),
-          ),
+          focusNode: _scanFocusNode,
+          autofocus: true,
+          suppressSoftKeyboard: true,
+          labelText: 'Stok kodu / barkod okut',
+          hintText: 'Kalemi bul',
+          onSubmit: _focusScanField,
+          suffixIcon: _scanQuery.trim().isEmpty
+              ? const Icon(Icons.qr_code_scanner_rounded, size: 18)
+              : IconButton(
+                  onPressed: () {
+                    _scanController.clear();
+                    setState(() {
+                      _scanQuery = '';
+                    });
+                    _focusScanField();
+                  },
+                  tooltip: 'Temizle',
+                  icon: const Icon(Icons.close_rounded, size: 18),
+                ),
         ),
-        const SizedBox(height: 6),
+        const SizedBox(height: 5),
         Text(
           _scanQuery.trim().isEmpty
-              ? '${_drafts.length} kalem - Sayilan miktari kontrol edin.'
+              ? '${_drafts.length} kalem · Sayilan miktari kontrol edin.'
               : '${visibleDrafts.length}/${_drafts.length} kalem eslesti.',
           style: Theme.of(context).textTheme.bodySmall?.copyWith(
-            color: const Color(0xFF6B5A4A),
+            fontSize: 11.5,
+            color: const Color(0xFF536171),
             fontWeight: FontWeight.w700,
           ),
         ),
-        const SizedBox(height: 6),
+        const SizedBox(height: 5),
         Expanded(
           child: visibleDrafts.isEmpty
               ? const Center(
@@ -699,6 +710,7 @@ class _AcceptanceReadyBodyState extends State<_AcceptanceReadyBody> {
                   separatorBuilder: (_, _) => const SizedBox(height: 6),
                   itemBuilder: (context, index) {
                     return _AcceptanceLineCard(
+                      lineNo: index + 1,
                       draft: visibleDrafts[index],
                       onChanged: () {
                         setState(() {
@@ -758,8 +770,13 @@ class _AcceptanceReadyBodyState extends State<_AcceptanceReadyBody> {
 }
 
 class _AcceptanceLineCard extends StatelessWidget {
-  const _AcceptanceLineCard({required this.draft, required this.onChanged});
+  const _AcceptanceLineCard({
+    required this.lineNo,
+    required this.draft,
+    required this.onChanged,
+  });
 
+  final int lineNo;
   final _AcceptanceLineDraft draft;
   final VoidCallback onChanged;
 
@@ -767,73 +784,119 @@ class _AcceptanceLineCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return TerminalPdaLineCard(
-      title: draft.stockName,
-      showFullTitle: true,
-      trailing: _DifferenceBadge(type: draft.differenceType),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final quantityField = SizedBox(
-            width: constraints.maxWidth < 330 ? double.infinity : 118,
-            child: TextField(
-              controller: draft.receivedQuantityController,
-              keyboardType: const TextInputType.numberWithOptions(
-                decimal: true,
-              ),
-              inputFormatters: <TextInputFormatter>[
-                FilteringTextInputFormatter.allow(RegExp(r'[0-9,\.]')),
-              ],
-              decoration: const InputDecoration(
-                isDense: true,
-                labelText: 'Sayilan',
-              ),
-              onChanged: (_) => onChanged(),
-            ),
-          );
-          final stockInfo = Column(
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(
+          color: theme.colorScheme.outlineVariant.withAlpha(115),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
-              Text(
-                '${draft.stockCode} | Evrak ${AppFormatters.quantity(draft.shippedQuantity)} ${draft.unitName}',
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: const Color(0xFF4E4137),
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              if (draft.extraInfo.isNotEmpty) ...<Widget>[
-                const SizedBox(height: 3),
-                Text(
-                  draft.extraInfo,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: const Color(0xFF6B5A4A),
+              Container(
+                width: 24,
+                height: 24,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.surfaceContainerHigh,
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(
+                    color: theme.colorScheme.outlineVariant.withAlpha(110),
                   ),
                 ),
-              ],
+                child: Text(
+                  lineNo.toString().padLeft(2, '0'),
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    height: 1,
+                    color: theme.colorScheme.onSurface,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  draft.stockName,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontSize: 13.5,
+                    height: 1.12,
+                    fontWeight: FontWeight.w900,
+                    color: const Color(0xFF182230),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 6),
+              _DifferenceBadge(type: draft.differenceType),
             ],
-          );
-
-          if (constraints.maxWidth < 330) {
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: <Widget>[
-                stockInfo,
-                const SizedBox(height: 6),
-                quantityField,
-              ],
-            );
-          }
-
-          return Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
+          ),
+          const SizedBox(height: 4),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
-              Expanded(child: stockInfo),
-              const SizedBox(width: 8),
-              quantityField,
+              Icon(
+                Icons.qr_code_scanner_rounded,
+                size: 14,
+                color: theme.colorScheme.onSurface.withAlpha(185),
+              ),
+              const SizedBox(width: 5),
+              Expanded(
+                child: Wrap(
+                  spacing: 6,
+                  runSpacing: 2,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: <Widget>[
+                    Text(
+                      draft.stockCode,
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        fontSize: 11.5,
+                        color: theme.colorScheme.onSurface.withAlpha(215),
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    Text(
+                      'Evrak ${AppFormatters.quantity(draft.shippedQuantity)} ${draft.unitName}',
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        fontSize: 11.5,
+                        color: const Color(0xFF1C2D40),
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    if (draft.extraInfo.isNotEmpty)
+                      Text(
+                        draft.extraInfo,
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          fontSize: 11,
+                          color: theme.colorScheme.onSurfaceVariant,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
             ],
-          );
-        },
+          ),
+          const SizedBox(height: 6),
+          TerminalQuantityStepper(
+            controller: draft.receivedQuantityController,
+            label: 'Sayilan',
+            minimum: 0,
+            dense: true,
+            inputFormatters: <TextInputFormatter>[
+              FilteringTextInputFormatter.allow(RegExp(r'[0-9,\.]')),
+            ],
+            onChanged: (_) => onChanged(),
+          ),
+        ],
       ),
     );
   }
@@ -900,11 +963,12 @@ class _AcceptanceLineDraft {
   factory _AcceptanceLineDraft.fromDetailItem(
     WarehouseAcceptanceDetailItem item,
   ) {
+    final cleanNote = terminalDisplayableNote(item.description);
     final extra = <String>[
-      if (item.description.isNotEmpty) 'Aciklama ${item.description}',
+      ?cleanNote,
       if (item.partyCode.isNotEmpty) 'Parti ${item.partyCode}',
       if (item.lotNo > 0) 'Lot ${item.lotNo}',
-    ].join(' | ');
+    ].join(' · ');
 
     return _AcceptanceLineDraft(
       movementGuid: item.movementGuid,
@@ -1001,14 +1065,14 @@ class _DifferenceBadge extends StatelessWidget {
     };
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
         color: background,
         borderRadius: BorderRadius.circular(999),
       ),
       child: Text(
         label,
-        style: Theme.of(context).textTheme.labelLarge?.copyWith(
+        style: Theme.of(context).textTheme.labelMedium?.copyWith(
           color: foreground,
           fontWeight: FontWeight.w800,
         ),
@@ -1031,14 +1095,14 @@ class _StateBadge extends StatelessWidget {
     };
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
         color: background,
         borderRadius: BorderRadius.circular(999),
       ),
       child: Text(
         _shippingStateLabel(state),
-        style: Theme.of(context).textTheme.labelLarge?.copyWith(
+        style: Theme.of(context).textTheme.labelMedium?.copyWith(
           color: foreground,
           fontWeight: FontWeight.w800,
         ),
@@ -1062,14 +1126,14 @@ class _DocumentTypeBadge extends StatelessWidget {
         : const Color(0xFF32598B);
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
         color: background,
         borderRadius: BorderRadius.circular(999),
       ),
       child: Text(
         isReturn ? 'Iade' : 'Sevk',
-        style: Theme.of(context).textTheme.labelLarge?.copyWith(
+        style: Theme.of(context).textTheme.labelMedium?.copyWith(
           color: foreground,
           fontWeight: FontWeight.w800,
         ),

@@ -12,7 +12,7 @@ class ProductLookupField extends StatefulWidget {
     this.selectTextOnFocus = true,
     this.suppressSoftKeyboard = true,
     this.enabled = true,
-    this.labelText = 'Barkod / stok kodu / urun adi',
+    this.labelText = 'Barkod / stok / urun',
     this.hintText,
     this.keyboardType,
     this.validator,
@@ -113,10 +113,13 @@ class ProductDraftEntryPanel extends StatelessWidget {
             usableHeight < 700 ||
             keyboardHeight > 0 ||
             (constraints.hasBoundedHeight && constraints.maxHeight < 360);
+        final isTightHeight =
+            constraints.hasBoundedHeight && constraints.maxHeight <= 240;
         final body = _buildBody(
           context,
           isCompact: isCompact,
-          includeActions: !isCompact,
+          isTightHeight: isTightHeight,
+          includeActions: true,
         );
 
         if (!isCompact) {
@@ -138,7 +141,7 @@ class ProductDraftEntryPanel extends StatelessWidget {
           title: stockName,
           subtitle: _compactMetaSummary,
           sourceLabel: _sourceTypeLabel,
-          actions: _buildActionButtons(isCompact: true),
+          isTightHeight: isTightHeight,
           child: body,
         );
       },
@@ -148,28 +151,38 @@ class ProductDraftEntryPanel extends StatelessWidget {
   Widget _buildBody(
     BuildContext context, {
     required bool isCompact,
+    required bool isTightHeight,
     required bool includeActions,
   }) {
     final effectiveScanRow = _scanRowFor(isCompact: isCompact);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
       children: <Widget>[
         if (effectiveScanRow != null) ...<Widget>[
           effectiveScanRow,
-          SizedBox(height: isCompact ? 4 : 10),
+          SizedBox(height: isTightHeight ? 3 : (isCompact ? 5 : 10)),
         ],
         if (!isCompact)
           TerminalPdaInfoGrid(minTileWidth: 92, spacing: 6, items: _infoItems),
         if (isCompact && _compactInfoItems.isNotEmpty) ...<Widget>[
-          _CompactProductInfoStrip(items: _compactInfoItems),
-          const SizedBox(height: 1),
+          _CompactProductInfoStrip(
+            items: _compactInfoItems,
+            singleRowScaleDown: isTightHeight,
+          ),
+          SizedBox(height: isTightHeight ? 2 : 4),
         ],
-        SizedBox(height: isCompact ? 3 : 10),
+        if (!isCompact) const SizedBox(height: 10),
         _buildQuantityInputs(isCompact: isCompact),
         _buildQuantityAdvisory(context, isCompact: isCompact),
-        SizedBox(height: isCompact ? 3 : 10),
-        if (includeActions) _buildActionButtons(isCompact: isCompact),
+        if (includeActions) ...<Widget>[
+          SizedBox(height: isTightHeight ? 4 : (isCompact ? 6 : 10)),
+          _buildActionButtons(
+            isCompact: isCompact,
+            isTightHeight: isTightHeight,
+          ),
+        ],
       ],
     );
   }
@@ -363,37 +376,57 @@ class ProductDraftEntryPanel extends StatelessWidget {
     return fixed.replaceFirst(RegExp(r'\.?0+$'), '').replaceAll('.', ',');
   }
 
-  Widget _buildActionButtons({required bool isCompact}) {
+  Widget _buildActionButtons({
+    required bool isCompact,
+    bool isTightHeight = false,
+  }) {
     if (isCompact) {
+      final buttonHeight = isTightHeight ? 38.0 : 42.0;
       return Row(
         children: <Widget>[
-          SizedBox(
-            width: 76,
-            height: 44,
-            child: OutlinedButton(
+          Expanded(
+            flex: 4,
+            child: OutlinedButton.icon(
               onPressed: onCancel,
-              style: OutlinedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 6),
-                minimumSize: const Size(76, 44),
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              icon: const Icon(Icons.close_rounded, size: 17),
+              label: const Text(
+                'Vazgec',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
-              child: const Text('Vazgec'),
+              style: OutlinedButton.styleFrom(
+                minimumSize: Size(0, buttonHeight),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                visualDensity: VisualDensity.standard,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
             ),
           ),
           const SizedBox(width: 6),
           Expanded(
+            flex: 5,
             child: FilledButton.icon(
               onPressed: onConfirm,
-              icon: const Icon(Icons.playlist_add_rounded, size: 18),
+              icon: const Icon(Icons.add_circle_outline_rounded, size: 18),
               label: Text(
                 confirmLabel,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
               style: FilledButton.styleFrom(
-                minimumSize: const Size.fromHeight(44),
-                padding: const EdgeInsets.symmetric(horizontal: 8),
+                minimumSize: Size(0, buttonHeight),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 0,
+                ),
                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                visualDensity: VisualDensity.standard,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
               ),
             ),
           ),
@@ -403,13 +436,23 @@ class ProductDraftEntryPanel extends StatelessWidget {
 
     final cancelButton = OutlinedButton.icon(
       onPressed: onCancel,
-      icon: const Icon(Icons.clear_rounded),
+      icon: const Icon(Icons.close_rounded, size: 18),
       label: const Text('Vazgec'),
+      style: OutlinedButton.styleFrom(
+        minimumSize: const Size(0, 44),
+        visualDensity: VisualDensity.standard,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      ),
     );
     final confirmButton = FilledButton.icon(
       onPressed: onConfirm,
-      icon: const Icon(Icons.playlist_add_rounded),
+      icon: const Icon(Icons.add_circle_outline_rounded, size: 19),
       label: Text(confirmLabel),
+      style: FilledButton.styleFrom(
+        minimumSize: const Size(0, 44),
+        visualDensity: VisualDensity.standard,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      ),
     );
 
     return LayoutBuilder(
@@ -467,7 +510,7 @@ class ProductDraftEntryPanel extends StatelessWidget {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final stackedBreakpoint = isCompact ? 260.0 : 560.0;
+        const stackedBreakpoint = 420.0;
         if (constraints.maxWidth < stackedBreakpoint) {
           return Column(
             children: <Widget>[
@@ -519,56 +562,67 @@ class _CompactProductInfo {
 }
 
 class _CompactProductInfoStrip extends StatelessWidget {
-  const _CompactProductInfoStrip({required this.items});
+  const _CompactProductInfoStrip({
+    required this.items,
+    this.singleRowScaleDown = false,
+  });
 
   final List<_CompactProductInfo> items;
+  final bool singleRowScaleDown;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-
-    return Align(
-      alignment: Alignment.centerLeft,
-      child: FittedBox(
-        fit: BoxFit.scaleDown,
-        alignment: Alignment.centerLeft,
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: <Widget>[
-            for (var index = 0; index < items.length; index++) ...<Widget>[
-              if (index > 0) const SizedBox(width: 4),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-                decoration: BoxDecoration(
-                  color: items[index].isPackage
-                      ? const Color(0xFFFFF4D6)
-                      : theme.colorScheme.surface.withAlpha(190),
-                  borderRadius: BorderRadius.circular(6),
-                  border: Border.all(
-                    color: items[index].isPackage
-                        ? const Color(0xFFE5B84F).withAlpha(150)
-                        : theme.colorScheme.outlineVariant.withAlpha(95),
-                  ),
-                ),
-                child: Text(
-                  '${items[index].label}: ${items[index].value}',
-                  maxLines: 1,
-                  style: theme.textTheme.labelSmall?.copyWith(
-                    height: 1.05,
-                    color: items[index].isPackage
-                        ? const Color(0xFF7A4A00)
-                        : const Color(0xFF4B5F73),
-                    fontWeight: items[index].isPackage
-                        ? FontWeight.w900
-                        : FontWeight.w800,
-                  ),
-                ),
-              ),
-            ],
-          ],
+    final chips = <Widget>[
+      for (final item in items)
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+          decoration: BoxDecoration(
+            color: item.isPackage
+                ? const Color(0xFFFFF4D6)
+                : theme.colorScheme.surface.withAlpha(200),
+            borderRadius: BorderRadius.circular(6),
+            border: Border.all(
+              color: item.isPackage
+                  ? const Color(0xFFE5B84F).withAlpha(150)
+                  : theme.colorScheme.outlineVariant.withAlpha(95),
+            ),
+          ),
+          child: Text(
+            '${item.label}: ${item.value}',
+            style: theme.textTheme.labelSmall?.copyWith(
+              fontSize: 11,
+              letterSpacing: 0,
+              height: 1.1,
+              color: item.isPackage
+                  ? const Color(0xFF7A4A00)
+                  : const Color(0xFF4B5F73),
+              fontWeight: item.isPackage ? FontWeight.w900 : FontWeight.w800,
+            ),
+          ),
         ),
-      ),
-    );
+    ];
+
+    if (singleRowScaleDown) {
+      return Align(
+        alignment: Alignment.centerLeft,
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.centerLeft,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              for (var i = 0; i < chips.length; i += 1) ...<Widget>[
+                if (i > 0) const SizedBox(width: 4),
+                chips[i],
+              ],
+            ],
+          ),
+        ),
+      );
+    }
+
+    return Wrap(spacing: 4, runSpacing: 3, children: chips);
   }
 }
 
@@ -577,15 +631,15 @@ class _CompactDraftEntryCard extends StatelessWidget {
     required this.title,
     required this.subtitle,
     required this.sourceLabel,
-    required this.actions,
     required this.child,
+    this.isTightHeight = false,
   });
 
   final String title;
   final String subtitle;
   final String sourceLabel;
-  final Widget actions;
   final Widget child;
+  final bool isTightHeight;
 
   @override
   Widget build(BuildContext context) {
@@ -593,8 +647,13 @@ class _CompactDraftEntryCard extends StatelessWidget {
 
     return Container(
       width: double.infinity,
-      margin: const EdgeInsets.only(bottom: 6),
-      padding: const EdgeInsets.fromLTRB(6, 3, 6, 3),
+      margin: EdgeInsets.only(bottom: isTightHeight ? 2 : 6),
+      padding: EdgeInsets.fromLTRB(
+        7,
+        isTightHeight ? 4 : 6,
+        7,
+        isTightHeight ? 4 : 6,
+      ),
       decoration: BoxDecoration(
         color: theme.colorScheme.primaryContainer.withAlpha(42),
         borderRadius: BorderRadius.circular(8),
@@ -612,8 +671,16 @@ class _CompactDraftEntryCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: <Widget>[
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
-              const Icon(Icons.inventory_2_rounded, size: 18),
+              Padding(
+                padding: const EdgeInsets.only(top: 1),
+                child: Icon(
+                  Icons.inventory_2_rounded,
+                  size: 17,
+                  color: theme.colorScheme.primary,
+                ),
+              ),
               const SizedBox(width: 6),
               Expanded(
                 child: Column(
@@ -622,36 +689,34 @@ class _CompactDraftEntryCard extends StatelessWidget {
                   children: <Widget>[
                     Text(
                       title,
-                      maxLines: 2,
+                      maxLines: isTightHeight ? 1 : 2,
                       overflow: TextOverflow.ellipsis,
                       style: theme.textTheme.titleSmall?.copyWith(
-                        height: 1.05,
+                        fontSize: 13.5,
+                        height: 1.08,
                         fontWeight: FontWeight.w900,
                       ),
                     ),
-                    if (sourceLabel.isNotEmpty || subtitle.trim().isNotEmpty)
+                    if (sourceLabel.isNotEmpty ||
+                        subtitle.trim().isNotEmpty) ...<Widget>[
+                      const SizedBox(height: 2),
                       Row(
                         children: <Widget>[
                           if (sourceLabel.isNotEmpty) ...<Widget>[
-                            Flexible(
-                              flex: 3,
-                              child: _CompactProductSourceBadge(
-                                label: sourceLabel,
-                              ),
-                            ),
-                            const SizedBox(width: 4),
+                            _CompactProductSourceBadge(label: sourceLabel),
+                            const SizedBox(width: 5),
                           ],
                           if (subtitle.trim().isNotEmpty)
                             Expanded(
-                              flex: 2,
                               child: Text(
                                 subtitle,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: theme.textTheme.labelMedium?.copyWith(
-                                  height: 1,
+                                  fontSize: 11.5,
+                                  height: 1.05,
                                   color: theme.colorScheme.onSurface.withAlpha(
-                                    150,
+                                    165,
                                   ),
                                   fontWeight: FontWeight.w700,
                                 ),
@@ -659,14 +724,13 @@ class _CompactDraftEntryCard extends StatelessWidget {
                             ),
                         ],
                       ),
+                    ],
                   ],
                 ),
               ),
-              const SizedBox(width: 6),
-              SizedBox(width: 142, child: actions),
             ],
           ),
-          const SizedBox(height: 4),
+          SizedBox(height: isTightHeight ? 4 : 6),
           child,
         ],
       ),
@@ -768,11 +832,16 @@ class _ProductLookupFieldState extends State<ProductLookupField> {
         onTap: _handleTap,
         decoration: InputDecoration(
           labelText: widget.labelText,
+          labelStyle: Theme.of(context).textTheme.bodySmall?.copyWith(
+            fontSize: 12.5,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
           hintText: widget.hintText,
           isDense: true,
+          constraints: const BoxConstraints(minHeight: 42, maxHeight: 42),
           contentPadding: const EdgeInsets.symmetric(
-            horizontal: 10,
-            vertical: 8,
+            horizontal: 8,
+            vertical: 10,
           ),
           suffixIcon: widget.suffixIcon,
         ),

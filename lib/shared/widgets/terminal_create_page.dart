@@ -81,6 +81,24 @@ class _TerminalCreatePageState<TResult>
     });
     try {
       await prepare?.call();
+    } catch (error, stackTrace) {
+      if (!mounted) return false;
+      debugPrint('Create page local preparation failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+      setState(() => _isSubmitting = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Bilgiler cihaz taslagina yazilamadi. Islem sunucuya '
+            'gonderilmedi. Cihaz depolamasini kontrol edip Kaydet '
+            'dugmesine yeniden basin.',
+          ),
+        ),
+      );
+      return false;
+    }
+
+    try {
       if (!mounted) return false;
       setState(() => _submitPhase = _TerminalCreateSubmitPhase.sending);
       _phaseTimer = Timer(const Duration(seconds: 2), () {

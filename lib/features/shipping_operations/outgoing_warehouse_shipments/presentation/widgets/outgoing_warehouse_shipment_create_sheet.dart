@@ -3029,14 +3029,11 @@ class _LinkedShipmentLineCard extends StatelessWidget {
             barcode: product?.barcode,
             quantityStep: line.quantityStep,
             priceLabel: isQuantityLimited
-                ? 'Kalan ${AppFormatters.quantity(line.maxQuantity)}'
+                ? 'Kalan ${AppFormatters.quantity(line.maxQuantity)} · Siparisli'
                 : line.isOrderLinked
-                ? 'Sip. ${AppFormatters.quantity(line.orderQuantity)}'
+                ? 'Sip. ${AppFormatters.quantity(line.orderQuantity)} · Manav'
                 : null,
-            warningLabel: _joinShipmentWarningLabels(<String>[
-              ?productStatusWarning,
-              if (line.isOrderLinked) isQuantityLimited ? 'Siparisli' : 'Manav',
-            ]),
+            warningLabel: productStatusWarning,
             maximumQuantity: _effectiveShipmentMaximumQuantity(
               isQuantityLimited ? line.maxQuantity : null,
             ),
@@ -4559,11 +4556,13 @@ class _ShipmentModeButton extends StatelessWidget {
         onTap: onTap,
         borderRadius: BorderRadius.circular(8),
         child: SizedBox(
-          height: 40,
-          child: Center(
-            child: FittedBox(
-              fit: BoxFit.scaleDown,
-              child: Row(
+          height: 38,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 6),
+            child: Center(
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: <Widget>[
                   Icon(
@@ -4588,6 +4587,7 @@ class _ShipmentModeButton extends StatelessWidget {
               ),
             ),
           ),
+        ),
         ),
       ),
     );

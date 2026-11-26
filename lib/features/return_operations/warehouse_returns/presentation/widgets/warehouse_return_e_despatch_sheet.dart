@@ -280,7 +280,7 @@ class _WarehouseReturnEDespatchSheetState
                   ),
                   child: Text(
                     widget.onSearchDrivers == null
-                        ? 'Dokumana gore bu alanlar create ekraninda degil, tam gonderim aninda zorunlu alinmali.'
+                        ? 'Plaka, sofor ve TCKN bilgileri e-irsaliye gonderim aninda zorunlu alinir.'
                         : 'Kayitli sofor secilirse driverId gonderilir. Secmeden devam edilirse manuel plaka, sofor ve TCKN bilgileri kullanilir.',
                     style: Theme.of(
                       context,

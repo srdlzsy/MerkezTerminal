@@ -910,7 +910,7 @@ Future<Finder> _findShipmentLookupField(WidgetTester tester) async {
 Finder _shipmentLookupFields() {
   final defaultField = find.widgetWithText(
     TextFormField,
-    'Barkod / stok kodu / urun adi',
+    'Barkod / stok / urun',
   );
   if (defaultField.evaluate().isNotEmpty) {
     return defaultField;

@@ -22,6 +22,7 @@ import 'package:furpa_merkez_terminal/shared/offline/mobile_customer_catalog_rep
 import 'package:furpa_merkez_terminal/shared/offline/mobile_product_catalog_repository.dart';
 import 'package:furpa_merkez_terminal/shared/offline/offline_sync_service.dart';
 import 'package:furpa_merkez_terminal/shared/utils/completed_create_cleanup.dart';
+import 'package:furpa_merkez_terminal/shared/utils/post_create_refresh.dart';
 import 'package:furpa_merkez_terminal/shared/utils/safe_create_retry.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/section_card.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/terminal_create_page.dart';
@@ -352,9 +353,11 @@ class _CompanyAcceptancesPageState extends State<CompanyAcceptancesPage> {
             return;
           }
           await _deleteFormDraftBestEffort(draft);
-          await _controller.loadAcceptances(
-            preferredDocumentSerie: result?.documentSerie,
-            preferredDocumentOrderNo: result?.documentOrderNo,
+          await refreshAfterSuccessfulCreate(
+            () => _controller.loadAcceptances(
+              preferredDocumentSerie: result?.documentSerie,
+              preferredDocumentOrderNo: result?.documentOrderNo,
+            ),
           );
           if (!mounted) {
             return;
@@ -473,6 +476,10 @@ class _CompanyAcceptancesPageState extends State<CompanyAcceptancesPage> {
 
       if (failureKind ==
           SafeCreateFailureKind.officialDocumentAlreadyReceived) {
+        await _deleteFormDraftBestEffort(draft);
+        if (!mounted) {
+          return;
+        }
         unawaited(_controller.loadAcceptances());
         ScaffoldMessenger.of(context)
           ..clearSnackBars()
@@ -560,9 +567,11 @@ class _CompanyAcceptancesPageState extends State<CompanyAcceptancesPage> {
             );
           }
           await _deleteFormDraftBestEffort(draft);
-          await _controller.loadAcceptances(
-            preferredDocumentSerie: result?.documentSerie,
-            preferredDocumentOrderNo: result?.documentOrderNo,
+          await refreshAfterSuccessfulCreate(
+            () => _controller.loadAcceptances(
+              preferredDocumentSerie: result?.documentSerie,
+              preferredDocumentOrderNo: result?.documentOrderNo,
+            ),
           );
           if (mounted) {
             final message = result == null
@@ -628,6 +637,7 @@ class _CompanyAcceptancesPageState extends State<CompanyAcceptancesPage> {
       final failureKind = classifySafeCreateException(error);
       if (failureKind ==
           SafeCreateFailureKind.officialDocumentAlreadyReceived) {
+        await _deleteFormDraftBestEffort(draft);
         unawaited(_controller.loadAcceptances());
         return CompanyAcceptanceSubmitDecision(
           closeForm: true,
@@ -877,12 +887,9 @@ class _CompanyAcceptancesPageState extends State<CompanyAcceptancesPage> {
                         (ModalRoute.of(context)?.isCurrent ?? true) &&
                         _controller.selectedAcceptance?.documentNoLabel ==
                             item.documentNoLabel;
-                    final detail = isExpanded
-                        ? _controller.selectedAcceptanceDetail
-                        : null;
 
                     return Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
+                      padding: const EdgeInsets.only(bottom: 6),
                       child: TerminalPdaRecordCard(
                         isSelected: isExpanded,
                         onTap: () => _toggleSelection(item),
@@ -892,34 +899,17 @@ class _CompanyAcceptancesPageState extends State<CompanyAcceptancesPage> {
                             TerminalPdaCardHeader(
                               title: item.documentNoLabel,
                               subtitle: item.customerDisplayName,
-                              trailing: Column(
-                                crossAxisAlignment: CrossAxisAlignment.end,
-                                mainAxisSize: MainAxisSize.min,
-                                children: <Widget>[
+                              trailing: TerminalPdaCardTrailing(
+                                badges: <Widget>[
                                   TerminalBadge(
                                     label: '${item.lineCount} satir',
                                   ),
-                                  const SizedBox(height: 4),
-                                  if (isExpanded && _controller.isLoadingDetail)
-                                    const SizedBox(
-                                      width: 22,
-                                      height: 22,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2.4,
-                                      ),
-                                    )
-                                  else
-                                    Icon(
-                                      Icons.chevron_right_rounded,
-                                      size: 28,
-                                      color: Theme.of(
-                                        context,
-                                      ).colorScheme.primary,
-                                    ),
                                 ],
+                                isLoading:
+                                    isExpanded && _controller.isLoadingDetail,
                               ),
                             ),
-                            const SizedBox(height: 10),
+                            const SizedBox(height: 6),
                             TerminalPdaInfoGrid(
                               compact: true,
                               items: <TerminalPdaInfo>[
@@ -940,16 +930,9 @@ class _CompanyAcceptancesPageState extends State<CompanyAcceptancesPage> {
                             if (isExpanded &&
                                 !_controller.isLoadingDetail &&
                                 _controller.detailError != null) ...<Widget>[
-                              const SizedBox(height: 8),
+                              const SizedBox(height: 6),
                               TerminalMessageBlock.error(
                                 message: _controller.detailError!,
-                              ),
-                            ] else if (isExpanded &&
-                                !_controller.isLoadingDetail &&
-                                detail == null) ...<Widget>[
-                              const SizedBox(height: 8),
-                              const TerminalMessageBlock.info(
-                                message: 'Detay ayri sayfada aciliyor.',
                               ),
                             ],
                           ],
@@ -973,26 +956,20 @@ class _CompanyAcceptanceSummaryCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SectionCard(
-      title: 'Mal Kabul Detayi',
-      subtitle: item.documentNoLabel,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          TerminalPdaInfoGrid(
-            items: <TerminalPdaInfo>[
-              TerminalPdaInfo(label: 'Belge', value: item.documentNoLabel),
-              TerminalPdaInfo(label: 'Cari', value: item.customerDisplayName),
-              TerminalPdaInfo(
-                label: 'Belge Trh',
-                value: AppFormatters.dateOrDash(item.documentDate),
-              ),
-              TerminalPdaInfo(
-                label: 'Toplam Kabul',
-                value: AppFormatters.quantity(item.totalQuantity),
-              ),
-              TerminalPdaInfo(label: 'Satir', value: '${item.lineCount}'),
-            ],
+      title: item.customerDisplayName,
+      dense: true,
+      child: TerminalPdaInfoGrid(
+        compact: true,
+        items: <TerminalPdaInfo>[
+          TerminalPdaInfo(
+            label: 'Belge Trh',
+            value: AppFormatters.dateOrDash(item.documentDate),
           ),
+          TerminalPdaInfo(
+            label: 'Toplam Kabul',
+            value: AppFormatters.quantity(item.totalQuantity),
+          ),
+          TerminalPdaInfo(label: 'Satir', value: '${item.lineCount}'),
         ],
       ),
     );
@@ -1012,42 +989,28 @@ class _CompanyAcceptanceDetailSection extends StatelessWidget {
       );
     }
 
+    final zeroBased = detail.items.any((line) => line.lineNo == 0);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: detail.items
-          .map((line) {
+          .asMap()
+          .entries
+          .map((entry) {
+            final line = entry.value;
             return Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: TerminalPdaDetailPanel(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    Text(
-                      line.stockName,
-                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    TerminalPdaInfoGrid(
-                      items: <TerminalPdaInfo>[
-                        TerminalPdaInfo(label: 'Kod', value: line.stockCode),
-                        TerminalPdaInfo(
-                          label: 'Miktar',
-                          value: AppFormatters.quantity(line.quantity),
-                        ),
-                        TerminalPdaInfo(label: 'Birim', value: line.unitName),
-                      ],
-                    ),
-                    if (line.description.isNotEmpty) ...<Widget>[
-                      const SizedBox(height: 4),
-                      Text(
-                        line.description,
-                        style: Theme.of(context).textTheme.bodySmall,
-                      ),
-                    ],
-                  ],
+              padding: const EdgeInsets.only(bottom: 6),
+              child: TerminalDetailLineCard(
+                lineNo: terminalDisplayLineNo(
+                  line.lineNo,
+                  entry.key,
+                  zeroBasedList: zeroBased,
                 ),
+                stockName: line.stockName,
+                stockCode: line.stockCode,
+                quantityLabel:
+                    '${AppFormatters.quantity(line.quantity)} ${line.unitName}'
+                        .trim(),
+                note: line.description,
               ),
             );
           })

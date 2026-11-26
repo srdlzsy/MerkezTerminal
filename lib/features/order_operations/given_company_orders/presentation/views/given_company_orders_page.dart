@@ -746,7 +746,8 @@ class _CompanyOrderAccordionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    final docDate = AppFormatters.dateOrDash(item.documentDate);
+    final deliveryDate = AppFormatters.dateOrDash(item.deliveryDate);
 
     return TerminalPdaRecordCard(
       isSelected: isExpanded,
@@ -757,34 +758,21 @@ class _CompanyOrderAccordionCard extends StatelessWidget {
           TerminalPdaCardHeader(
             title: item.documentNoLabel,
             subtitle: item.customerDisplayName,
-            trailing: Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              mainAxisSize: MainAxisSize.min,
-              children: <Widget>[
-                TerminalBadge(label: '${item.lineCount} satir'),
-                const SizedBox(height: 4),
-                Icon(
-                  isExpanded
-                      ? Icons.keyboard_arrow_up_rounded
-                      : Icons.chevron_right_rounded,
-                  size: 26,
-                  color: theme.colorScheme.primary,
-                ),
-              ],
+            trailing: TerminalPdaCardTrailing(
+              badges: <Widget>[TerminalBadge(label: '${item.lineCount} satir')],
+              isExpanded: isExpanded,
             ),
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 6),
           TerminalPdaInfoGrid(
             compact: true,
             items: <TerminalPdaInfo>[
               TerminalPdaInfo(
-                label: 'Belge Trh',
-                value: AppFormatters.dateOrDash(item.documentDate),
+                label: docDate == deliveryDate ? 'Tarih' : 'Belge Trh',
+                value: docDate,
               ),
-              TerminalPdaInfo(
-                label: 'Teslim',
-                value: AppFormatters.dateOrDash(item.deliveryDate),
-              ),
+              if (docDate != deliveryDate)
+                TerminalPdaInfo(label: 'Teslim', value: deliveryDate),
               TerminalPdaInfo(
                 label: 'Miktar',
                 value: AppFormatters.quantity(item.totalQuantity),
@@ -797,12 +785,8 @@ class _CompanyOrderAccordionCard extends StatelessWidget {
                 label: 'Tutar',
                 value: AppFormatters.currency(item.totalAmount),
               ),
-              TerminalPdaInfo(
-                label: 'Adres',
-                value: item.customerAddress.isEmpty
-                    ? '-'
-                    : item.customerAddress,
-              ),
+              if (item.customerAddress.trim().isNotEmpty)
+                TerminalPdaInfo(label: 'Adres', value: item.customerAddress),
             ],
           ),
           AnimatedSize(
@@ -882,12 +866,22 @@ class _ItemsList extends StatelessWidget {
       return const _EmptyState(message: 'Bu sipariste kalem bulunamadi.');
     }
 
+    final zeroBased = items.any((item) => item.lineNo == 0);
     return Column(
       children: items
+          .asMap()
+          .entries
           .map(
-            (item) => Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: _OrderItemCard(item: item),
+            (entry) => Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: _OrderItemCard(
+                item: entry.value,
+                displayLineNo: terminalDisplayLineNo(
+                  entry.value.lineNo,
+                  entry.key,
+                  zeroBasedList: zeroBased,
+                ),
+              ),
             ),
           )
           .toList(growable: false),
@@ -896,106 +890,30 @@ class _ItemsList extends StatelessWidget {
 }
 
 class _OrderItemCard extends StatelessWidget {
-  const _OrderItemCard({required this.item});
+  const _OrderItemCard({required this.item, required this.displayLineNo});
 
   final CompanyOrderDetailItem item;
+  final int displayLineNo;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final summary = <String>[
-      'Kod ${item.stockCode}',
-      'Birim ${item.unitName}',
-      'Miktar ${AppFormatters.quantity(item.quantity)}',
-      'Teslim ${AppFormatters.quantity(item.deliveredQuantity)}',
-      'Kalan ${AppFormatters.quantity(item.remainingQuantity)}',
-      if (item.unitPrice > 0) 'Fiyat ${AppFormatters.currency(item.unitPrice)}',
-      if (item.lineAmount > 0)
-        'Tutar ${AppFormatters.currency(item.lineAmount)}',
-    ].join(' | ');
-    final detail = <String>[
-      if (item.description.trim().isNotEmpty) 'Aciklama ${item.description}',
-      if (item.isClosed) 'Durum Kapali',
-    ].join(' | ');
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(8),
-      decoration: BoxDecoration(
-        color: const Color(0xFFFFFCF8),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: theme.colorScheme.outlineVariant.withAlpha(82),
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: <Widget>[
-              Expanded(
-                child: Text(
-                  item.stockName,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w800,
-                    color: const Color(0xFF231C17),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 10),
-              _AccentBadge(label: 'Satir ${item.lineNo}'),
-            ],
-          ),
-          const SizedBox(height: 6),
-          Text(
-            summary,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: const Color(0xFF6B5A4A),
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          if (detail.isNotEmpty) ...<Widget>[
-            const SizedBox(height: 4),
-            Text(
-              detail,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: const Color(0xFF6B5A4A),
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-class _AccentBadge extends StatelessWidget {
-  const _AccentBadge({required this.label});
-
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.primary.withAlpha(18),
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Text(
-        label,
-        style: Theme.of(context).textTheme.labelLarge?.copyWith(
-          color: Theme.of(context).colorScheme.primary,
-          fontWeight: FontWeight.w800,
-        ),
-      ),
+    return TerminalDetailLineCard(
+      lineNo: displayLineNo,
+      stockName: item.stockName,
+      stockCode: item.stockCode,
+      quantityLabel:
+          '${AppFormatters.quantity(item.quantity)} ${item.unitName}'.trim(),
+      badgeLabel: item.isClosed ? 'Kapali' : null,
+      secondaryFacts: <String>[
+        'Teslim ${AppFormatters.quantity(item.deliveredQuantity)}',
+        'Kalan ${AppFormatters.quantity(item.remainingQuantity)}',
+      ],
+      priceFacts: <String>[
+        if (item.unitPrice > 0) 'Fiyat ${AppFormatters.currency(item.unitPrice)}',
+        if (item.lineAmount > 0)
+          'Tutar ${AppFormatters.currency(item.lineAmount)}',
+      ],
+      note: item.description,
     );
   }
 }

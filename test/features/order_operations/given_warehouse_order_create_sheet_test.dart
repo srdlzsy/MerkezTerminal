@@ -54,7 +54,7 @@ void main() {
 
     await _pickWarehouse(tester, label: '53 - ET-SARKUTERI DEPO');
     final productField = find
-        .widgetWithText(TextFormField, 'Barkod / stok kodu / urun adi')
+        .widgetWithText(TextFormField, 'Barkod / stok / urun')
         .first;
     await tester.enterText(productField, '023127');
     await tester.tap(find.widgetWithText(FilledButton, 'Urun').first);
@@ -141,7 +141,7 @@ void main() {
       expect(tester.takeException(), isNull);
 
       expect(
-        find.widgetWithText(TextFormField, 'Barkod / stok kodu / urun adi'),
+        find.widgetWithText(TextFormField, 'Barkod / stok / urun'),
         findsWidgets,
       );
       expect(find.widgetWithText(FilledButton, 'Urun'), findsWidgets);
@@ -419,7 +419,7 @@ void main() {
     await _pickWarehouse(tester);
 
     final productField = find
-        .widgetWithText(TextFormField, 'Barkod / stok kodu / urun adi')
+        .widgetWithText(TextFormField, 'Barkod / stok / urun')
         .first;
     await tester.ensureVisible(productField);
     await tester.enterText(productField, '8690000000012');
@@ -1148,7 +1148,7 @@ Future<void> _pickWarehouse(
 
 Future<void> _pickWarehouseOrderProduct(WidgetTester tester) async {
   final productField = find
-      .widgetWithText(TextFormField, 'Barkod / stok kodu / urun adi')
+      .widgetWithText(TextFormField, 'Barkod / stok / urun')
       .first;
   await tester.ensureVisible(productField);
   await tester.enterText(productField, '8690000000012');

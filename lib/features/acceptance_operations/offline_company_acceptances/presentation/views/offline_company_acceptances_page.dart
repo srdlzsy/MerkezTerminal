@@ -628,6 +628,7 @@ class _OfflineCompanyAcceptanceCreateSheetState
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   final List<_OfflineCompanyAcceptanceLineDraft> _lines =
       <_OfflineCompanyAcceptanceLineDraft>[];
+  late final String _draftId;
   late final TextEditingController _customerSearchController;
   late final TextEditingController _customerCodeController;
   late final TextEditingController _documentSerieController;
@@ -649,6 +650,7 @@ class _OfflineCompanyAcceptanceCreateSheetState
   @override
   void initState() {
     super.initState();
+    _draftId = generateClientRequestId();
     _customerSearchController = TextEditingController();
     _customerCodeController = TextEditingController();
     _documentSerieController = TextEditingController();
@@ -1577,7 +1579,7 @@ class _OfflineCompanyAcceptanceCreateSheetState
     }
 
     final draft = OfflineCompanyAcceptanceDraft(
-      id: generateClientRequestId(),
+      id: _draftId,
       userId: widget.currentUserId,
       warehouseNo: widget.defaultWarehouseNo,
       customerCode: customerCode,
@@ -2007,65 +2009,51 @@ class _OfflineCompanyAcceptanceCreateSheetState
       );
     }
 
+    if (!isFreshEntry) {
+      return TerminalDualQuantityProductLineCard(
+        key: ObjectKey(line),
+        lineNo: displayLineNo,
+        stockCode: line.stockCodeController.text.trim(),
+        stockName: line.stockNameController.text.trim(),
+        unitLabel: line.selectedProduct?.unitName,
+        packageLabel:
+            line.selectedProduct != null &&
+                line.selectedProduct!.unitMultiplier > 1
+            ? AppFormatters.quantity(line.selectedProduct!.unitMultiplier)
+            : null,
+        barcode: line.barcodeController.text.trim(),
+        priceLabel: line.unitPrice > 0
+            ? _purchasePriceLabel(
+                line.unitPrice,
+                line.selectedProduct?.purchaseGrossPrice ?? 0,
+              )
+            : null,
+        statusBadge: (line.orderGuid ?? '').trim().isNotEmpty
+            ? const TerminalBadge(label: 'Siparisli')
+            : null,
+        highlightOnMount: displayLineNo == 1,
+        canDelete: _lines.length > 1,
+        onDelete: () => _removeLineAt(index),
+        primaryQuantity: _buildDispatchQuantityField(line),
+        secondaryQuantity: _buildAcceptedQuantityField(line),
+        footerBanner: line.returnQuantity > 0
+            ? TerminalMessageBlock.info(
+                message:
+                    'Iade farki ${AppFormatters.quantity(line.returnQuantity)}. ${_autoCreateReturnForPartialAcceptance ? 'Firma iadesi olusur, e-irsaliye manuel gonderilir.' : 'Otomatik iade kapali; fark manuel iade bekler.'}',
+              )
+            : null,
+      );
+    }
+
     return TerminalPdaLineCard(
-      title: isFreshEntry ? 'Giris satiri' : 'Satir $displayLineNo',
-      subtitle: line.stockNameController.text.trim().isEmpty
-          ? (isFreshEntry ? 'Okutmaya hazir' : 'Urun secilmedi')
-          : line.stockNameController.text.trim(),
-      isEntryLine: isFreshEntry,
+      title: 'Giris satiri',
+      subtitle: 'Okutmaya hazir',
+      isEntryLine: true,
       leading: Icon(
-        isFreshEntry
-            ? Icons.qr_code_scanner_rounded
-            : Icons.inventory_2_rounded,
+        Icons.qr_code_scanner_rounded,
         color: Theme.of(context).colorScheme.primary,
       ),
-      trailing: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: <Widget>[
-          if ((line.orderGuid ?? '').trim().isNotEmpty)
-            const TerminalBadge(label: 'Siparisli'),
-          if (!isFreshEntry && _lines.length > 1)
-            TerminalLineDeleteButton(onPressed: () => _removeLineAt(index)),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          if (isFreshEntry)
-            _buildProductLookupRow(line)
-          else ...<Widget>[
-            TerminalCompactProductLineSummary(
-              key: ObjectKey(line),
-              lineNo: displayLineNo,
-              stockCode: line.stockCodeController.text.trim(),
-              stockName: line.stockNameController.text.trim(),
-              unitLabel: line.selectedProduct?.unitName,
-              packageLabel:
-                  line.selectedProduct != null &&
-                      line.selectedProduct!.unitMultiplier > 1
-                  ? AppFormatters.quantity(line.selectedProduct!.unitMultiplier)
-                  : null,
-              barcode: line.barcodeController.text.trim(),
-              priceLabel: line.unitPrice > 0
-                  ? _purchasePriceLabel(
-                      line.unitPrice,
-                      line.selectedProduct?.purchaseGrossPrice ?? 0,
-                    )
-                  : null,
-              highlightOnMount: displayLineNo == 1,
-            ),
-            const SizedBox(height: 10),
-            _buildQuantityFields(line),
-          ],
-          if (line.returnQuantity > 0) ...<Widget>[
-            const SizedBox(height: 8),
-            TerminalMessageBlock.info(
-              message:
-                  'Iade farki ${AppFormatters.quantity(line.returnQuantity)}. ${_autoCreateReturnForPartialAcceptance ? 'Firma iadesi olusur, e-irsaliye manuel gonderilir.' : 'Otomatik iade kapali; fark manuel iade bekler.'}',
-            ),
-          ],
-        ],
-      ),
+      child: _buildProductLookupRow(line),
     );
   }
 
@@ -2199,7 +2187,7 @@ class _OfflineCompanyAcceptanceCreateSheetState
           value: _allowOrderOverReceiving,
           title: const Text('Siparis kalanindan fazla kabul etmeye izin ver'),
           subtitle: const Text(
-            'Backend fazla miktari siparissiz hareket olarak ayirabilir.',
+            'Fazla miktar siparissiz kabul olarak kaydedilebilir.',
           ),
           contentPadding: EdgeInsets.zero,
           onChanged: (value) {
@@ -2296,68 +2284,46 @@ class _OfflineCompanyAcceptanceCreateSheetState
     );
   }
 
-  Widget _buildQuantityFields(_OfflineCompanyAcceptanceLineDraft line) {
-    Widget dispatchField() {
-      return TerminalQuantityStepper(
-        controller: line.dispatchQuantityController,
-        label: 'Irs. Miktar*',
-        onMinimumReached: () {
-          final index = _lines.indexOf(line);
-          if (index < 0 || _lines.length <= 1) {
-            return;
-          }
-          setState(() {
-            line.dispose();
-            _lines.removeAt(index);
-          });
-        },
-        onChanged: (_) => setState(() {}),
-        validator: (_) {
-          if (line.dispatchQuantity <= 0) {
-            return 'Miktar > 0';
-          }
-          return null;
-        },
-      );
-    }
-
-    Widget acceptedField() {
-      return TerminalQuantityStepper(
-        controller: line.acceptedQuantityController,
-        label: 'Fiili Miktar*',
-        maximum: line.dispatchQuantity,
-        onChanged: (_) => setState(() {}),
-        validator: (_) {
-          if (line.acceptedQuantity < 0) {
-            return 'Negatif olamaz';
-          }
-          if (line.acceptedQuantity > line.dispatchQuantity) {
-            return 'Irsaliyeyi gecemez';
-          }
-          return null;
-        },
-      );
-    }
-
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        if (constraints.maxWidth < 280) {
-          return Column(
-            children: <Widget>[
-              dispatchField(),
-              const SizedBox(height: 10),
-              acceptedField(),
-            ],
-          );
+  Widget _buildDispatchQuantityField(_OfflineCompanyAcceptanceLineDraft line) {
+    return TerminalQuantityStepper(
+      controller: line.dispatchQuantityController,
+      label: 'Irs. Miktar*',
+      dense: true,
+      onMinimumReached: () {
+        final index = _lines.indexOf(line);
+        if (index < 0 || _lines.length <= 1) {
+          return;
         }
+        setState(() {
+          line.dispose();
+          _lines.removeAt(index);
+        });
+      },
+      onChanged: (_) => setState(() {}),
+      validator: (_) {
+        if (line.dispatchQuantity <= 0) {
+          return 'Miktar > 0';
+        }
+        return null;
+      },
+    );
+  }
 
-        return Row(
-          children: <Widget>[
-            Expanded(child: dispatchField()),
-            const SizedBox(width: 12),
-            Expanded(child: acceptedField()),
-          ],
-        );
+  Widget _buildAcceptedQuantityField(_OfflineCompanyAcceptanceLineDraft line) {
+    return TerminalQuantityStepper(
+      controller: line.acceptedQuantityController,
+      label: 'Fiili Miktar*',
+      dense: true,
+      maximum: line.dispatchQuantity,
+      onChanged: (_) => setState(() {}),
+      validator: (_) {
+        if (line.acceptedQuantity < 0) {
+          return 'Negatif olamaz';
+        }
+        if (line.acceptedQuantity > line.dispatchQuantity) {
+          return 'Irsaliyeyi gecemez';
+        }
+        return null;
       },
     );
   }

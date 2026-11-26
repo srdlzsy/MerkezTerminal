@@ -11,6 +11,7 @@ import 'package:furpa_merkez_terminal/shared/drafts/create_draft_repository.dart
 import 'package:furpa_merkez_terminal/shared/drafts/create_draft_session.dart';
 import 'package:furpa_merkez_terminal/shared/formatters/app_formatters.dart';
 import 'package:furpa_merkez_terminal/shared/product_entry/product_entry_widgets.dart';
+import 'package:furpa_merkez_terminal/shared/utils/completed_create_cleanup.dart';
 import 'package:furpa_merkez_terminal/shared/utils/terminal_feedback.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/barcode_camera_scan_page.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/section_card.dart';
@@ -262,8 +263,11 @@ class _LabelDocumentsPageState extends State<LabelDocumentsPage> {
           ),
         ),
       );
-      if (draft != null) {
-        await widget.draftRepository?.deleteDraft(draft.id);
+      if (draft != null && widget.draftRepository != null) {
+        await deleteCompletedDraftBestEffort(
+          draftRepository: widget.draftRepository!,
+          draftId: draft.id,
+        );
       }
       return true;
     } catch (error) {
@@ -406,32 +410,17 @@ class _LabelDocumentsPageState extends State<LabelDocumentsPage> {
                   children: <Widget>[
                     TerminalPdaCardHeader(
                       title: '#${item.documentId}',
-                      subtitle: 'Etiket belgesi',
-                      trailing: isLoadingDetail
-                          ? const SizedBox(
-                              width: 22,
-                              height: 22,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2.4,
-                              ),
-                            )
-                          : Icon(
-                              Icons.chevron_right_rounded,
-                              size: 28,
-                              color: Theme.of(context).colorScheme.primary,
-                            ),
+                      trailing: TerminalPdaCardTrailing(
+                        isLoading: isLoadingDetail,
+                      ),
                     ),
-                    const SizedBox(height: 10),
+                    const SizedBox(height: 6),
                     TerminalPdaInfoGrid(
                       compact: true,
                       items: <TerminalPdaInfo>[
                         TerminalPdaInfo(
                           label: 'Olusturma',
                           value: AppFormatters.dateTimeOrDash(item.createDate),
-                        ),
-                        const TerminalPdaInfo(
-                          label: 'Detay',
-                          value: 'Ayri sayfada ac',
                         ),
                       ],
                     ),
@@ -460,22 +449,14 @@ class _LabelDocumentDetailPage extends StatelessWidget {
       appBar: AppBar(title: Text('#${document.documentId}')),
       body: SafeArea(
         child: ListView(
-          padding: EdgeInsets.fromLTRB(
-            16,
-            16,
-            16,
-            20 + MediaQuery.paddingOf(context).bottom,
-          ),
+          padding: terminalPdaListPagePadding(context),
           children: <Widget>[
             SectionCard(
               title: 'Etiket Belgesi',
-              subtitle: 'Belge detaylari',
+              dense: true,
               child: TerminalPdaInfoGrid(
+                compact: true,
                 items: <TerminalPdaInfo>[
-                  TerminalPdaInfo(
-                    label: 'Belge',
-                    value: '#${document.documentId}',
-                  ),
                   TerminalPdaInfo(
                     label: 'Olusturma',
                     value: AppFormatters.dateTimeOrDash(document.createDate),
@@ -484,23 +465,28 @@ class _LabelDocumentDetailPage extends StatelessWidget {
                 ],
               ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 8),
             SectionCard(
               title: 'Urunler',
               subtitle: products.isEmpty
                   ? 'Bu belgeye bagli urun bulunamadi.'
                   : '${products.length} urun bulundu.',
+              dense: true,
+              framed: false,
               child: products.isEmpty
                   ? const TerminalEmptyState(
                       message: 'Bu belgeye bagli urun bulunamadi.',
                     )
                   : Column(
                       children: products
+                          .asMap()
+                          .entries
                           .map(
-                            (product) => Padding(
-                              padding: const EdgeInsets.only(bottom: 8),
+                            (entry) => Padding(
+                              padding: const EdgeInsets.only(bottom: 6),
                               child: _LabelDocumentProductCard(
-                                product: product,
+                                lineNo: entry.key + 1,
+                                product: entry.value,
                               ),
                             ),
                           )
@@ -515,35 +501,21 @@ class _LabelDocumentDetailPage extends StatelessWidget {
 }
 
 class _LabelDocumentProductCard extends StatelessWidget {
-  const _LabelDocumentProductCard({required this.product});
+  const _LabelDocumentProductCard({
+    required this.lineNo,
+    required this.product,
+  });
 
+  final int lineNo;
   final LabelDocumentProduct product;
 
   @override
   Widget build(BuildContext context) {
-    return TerminalPdaDetailPanel(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          Text(
-            product.productName,
-            style: Theme.of(
-              context,
-            ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800),
-          ),
-          const SizedBox(height: 8),
-          TerminalPdaInfoGrid(
-            items: <TerminalPdaInfo>[
-              TerminalPdaInfo(label: 'Kod', value: product.productCode),
-            ],
-          ),
-          const SizedBox(height: 6),
-          _LabelDocumentFullInfo(
-            label: 'Barkod',
-            value: product.barcode.isEmpty ? '-' : product.barcode,
-          ),
-        ],
-      ),
+    return TerminalDetailLineCard(
+      lineNo: lineNo,
+      stockName: product.productName,
+      stockCode: product.productCode,
+      barcode: product.barcode.trim().isEmpty ? null : product.barcode.trim(),
     );
   }
 }

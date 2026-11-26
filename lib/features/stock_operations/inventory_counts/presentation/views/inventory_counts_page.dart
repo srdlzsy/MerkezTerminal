@@ -14,6 +14,8 @@ import 'package:furpa_merkez_terminal/shared/drafts/create_draft_repository.dart
 import 'package:furpa_merkez_terminal/shared/formatters/app_formatters.dart';
 import 'package:furpa_merkez_terminal/shared/offline/mobile_product_catalog_repository.dart';
 import 'package:furpa_merkez_terminal/shared/offline/offline_sync_service.dart';
+import 'package:furpa_merkez_terminal/shared/utils/completed_create_cleanup.dart';
+import 'package:furpa_merkez_terminal/shared/utils/post_create_refresh.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/section_card.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/terminal_create_page.dart';
 import 'package:furpa_merkez_terminal/shared/widgets/terminal_ui_parts.dart';
@@ -201,13 +203,18 @@ class _InventoryCountsPageState extends State<InventoryCountsPage> {
       switch (submission.status) {
         case OfflineSubmissionStatus.synced:
         case OfflineSubmissionStatus.recovered:
-          if (draft != null) {
-            await widget.draftRepository?.deleteDraft(draft.id);
+          if (draft != null && widget.draftRepository != null) {
+            await deleteCompletedDraftBestEffort(
+              draftRepository: widget.draftRepository!,
+              draftId: draft.id,
+            );
           }
           final result = submission.onlineResult;
-          await _controller.loadCounts(
-            preferredDocumentNo: result?.documentNo,
-            preferredDocumentDate: result?.documentDate,
+          await refreshAfterSuccessfulCreate(
+            () => _controller.loadCounts(
+              preferredDocumentNo: result?.documentNo,
+              preferredDocumentDate: result?.documentDate,
+            ),
           );
           if (!mounted) {
             return false;
@@ -562,8 +569,6 @@ class _InventoryCountAccordionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
     return TerminalPdaRecordCard(
       isSelected: isExpanded,
       onTap: onTap,
@@ -573,23 +578,12 @@ class _InventoryCountAccordionCard extends StatelessWidget {
           TerminalPdaCardHeader(
             title: item.name.isEmpty ? '#${item.documentNo}' : item.name,
             subtitle: 'Belge #${item.documentNo}',
-            trailing: Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              mainAxisSize: MainAxisSize.min,
-              children: <Widget>[
-                TerminalBadge(label: '${item.lineCount} satir'),
-                const SizedBox(height: 4),
-                Icon(
-                  isExpanded
-                      ? Icons.keyboard_arrow_up_rounded
-                      : Icons.chevron_right_rounded,
-                  size: 26,
-                  color: theme.colorScheme.primary,
-                ),
-              ],
+            trailing: TerminalPdaCardTrailing(
+              badges: <Widget>[TerminalBadge(label: '${item.lineCount} satir')],
+              isExpanded: isExpanded,
             ),
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 6),
           TerminalPdaInfoGrid(
             compact: true,
             items: <TerminalPdaInfo>[
@@ -671,15 +665,31 @@ class _DetailBody extends StatelessWidget {
           if (currentDetail.items.isEmpty)
             const _EmptyState(message: 'Bu sayimda kalem bulunamadi.')
           else
-            Column(
-              children: currentDetail.items
-                  .map(
-                    (item) => Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
-                      child: _CountItemCard(item: item),
-                    ),
-                  )
-                  .toList(growable: false),
+            Builder(
+              builder: (context) {
+                final zeroBased = currentDetail.items.any(
+                  (item) => item.rowNo == 0,
+                );
+                return Column(
+                  children: currentDetail.items
+                      .asMap()
+                      .entries
+                      .map(
+                        (entry) => Padding(
+                          padding: const EdgeInsets.only(bottom: 6),
+                          child: _CountItemCard(
+                            item: entry.value,
+                            displayLineNo: terminalDisplayLineNo(
+                              entry.value.rowNo,
+                              entry.key,
+                              zeroBasedList: zeroBased,
+                            ),
+                          ),
+                        ),
+                      )
+                      .toList(growable: false),
+                );
+              },
             ),
         ],
       ),
@@ -688,109 +698,33 @@ class _DetailBody extends StatelessWidget {
 }
 
 class _CountItemCard extends StatelessWidget {
-  const _CountItemCard({required this.item});
+  const _CountItemCard({required this.item, required this.displayLineNo});
 
   final InventoryCountLineItem item;
+  final int displayLineNo;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final summary = <String>[
-      'Kod ${item.stockCode}',
-      'Barkod ${item.barcode.isEmpty ? '-' : item.barcode}',
-      'Birim ${item.unitName}',
-      'Toplam ${AppFormatters.quantity(item.totalQuantity)}',
-    ].join(' | ');
-    final detail = <String>[
-      if (item.quantity1 > 0)
-        'Miktar 1 ${AppFormatters.quantity(item.quantity1)}',
-      if (item.quantity2 > 0)
-        'Miktar 2 ${AppFormatters.quantity(item.quantity2)}',
-      if (item.quantity3 > 0)
-        'Miktar 3 ${AppFormatters.quantity(item.quantity3)}',
-      if (item.quantity4 > 0)
-        'Miktar 4 ${AppFormatters.quantity(item.quantity4)}',
-      if (item.quantity5 > 0)
-        'Miktar 5 ${AppFormatters.quantity(item.quantity5)}',
-    ].join(' | ');
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(8),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: theme.colorScheme.outlineVariant.withAlpha(82),
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          Row(
-            children: <Widget>[
-              Expanded(
-                child: Text(
-                  item.stockName,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w800,
-                    color: const Color(0xFF231C17),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 10),
-              _Badge(label: 'Satir ${item.rowNo}'),
-            ],
-          ),
-          const SizedBox(height: 6),
-          Text(
-            summary,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: const Color(0xFF6B5A4A),
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          if (detail.isNotEmpty) ...<Widget>[
-            const SizedBox(height: 4),
-            Text(
-              detail,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: const Color(0xFF6B5A4A),
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-class _Badge extends StatelessWidget {
-  const _Badge({required this.label});
-
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.primary.withAlpha(18),
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Text(
-        label,
-        style: Theme.of(context).textTheme.labelLarge?.copyWith(
-          color: Theme.of(context).colorScheme.primary,
-          fontWeight: FontWeight.w800,
-        ),
-      ),
+    return TerminalDetailLineCard(
+      lineNo: displayLineNo,
+      stockName: item.stockName,
+      stockCode: item.stockCode,
+      barcode: item.barcode.trim().isEmpty ? null : item.barcode.trim(),
+      quantityLabel:
+          '${AppFormatters.quantity(item.totalQuantity)} ${item.unitName}'
+              .trim(),
+      secondaryFacts: <String>[
+        if (item.quantity1 > 0)
+          'Miktar 1: ${AppFormatters.quantity(item.quantity1)}',
+        if (item.quantity2 > 0)
+          'Miktar 2: ${AppFormatters.quantity(item.quantity2)}',
+        if (item.quantity3 > 0)
+          'Miktar 3: ${AppFormatters.quantity(item.quantity3)}',
+        if (item.quantity4 > 0)
+          'Miktar 4: ${AppFormatters.quantity(item.quantity4)}',
+        if (item.quantity5 > 0)
+          'Miktar 5: ${AppFormatters.quantity(item.quantity5)}',
+      ],
     );
   }
 }

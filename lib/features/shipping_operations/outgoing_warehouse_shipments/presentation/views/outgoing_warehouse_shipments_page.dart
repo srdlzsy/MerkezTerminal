@@ -485,16 +485,12 @@ class _OutgoingWarehouseShipmentsPageState
                 appBar: AppBar(title: Text(item.documentNoLabel)),
                 body: SafeArea(
                   child: ListView(
-                    padding: EdgeInsets.fromLTRB(
-                      16,
-                      16,
-                      16,
-                      20 + MediaQuery.paddingOf(context).bottom,
-                    ),
+                    padding: terminalPdaListPagePadding(context),
                     children: <Widget>[
                       _ShipmentAccordionCard(
                         item: item,
                         isExpanded: true,
+                        isDetailPage: true,
                         detail: _controller.selectedShipmentDetail,
                         isLoadingDetail: _controller.isLoadingDetail,
                         detailError: _controller.detailError,
@@ -848,6 +844,7 @@ class _ShipmentAccordionCard extends StatelessWidget {
   const _ShipmentAccordionCard({
     required this.item,
     required this.isExpanded,
+    this.isDetailPage = false,
     required this.detail,
     required this.isLoadingDetail,
     required this.detailError,
@@ -863,6 +860,7 @@ class _ShipmentAccordionCard extends StatelessWidget {
 
   final WarehouseShipmentListItem item;
   final bool isExpanded;
+  final bool isDetailPage;
   final WarehouseShipmentDetail? detail;
   final bool isLoadingDetail;
   final String? detailError;
@@ -877,7 +875,54 @@ class _ShipmentAccordionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    final docDate = AppFormatters.dateOrDash(item.documentDate);
+    final moveDate = AppFormatters.dateOrDash(item.movementDate);
+    final infoItems = <TerminalPdaInfo>[
+      TerminalPdaInfo(
+        label: docDate == moveDate ? 'Tarih' : 'Belge Trh',
+        value: docDate,
+      ),
+      if (docDate != moveDate)
+        TerminalPdaInfo(label: 'Sevk Trh', value: moveDate),
+      TerminalPdaInfo(
+        label: 'Miktar',
+        value: AppFormatters.quantity(item.totalQuantity),
+      ),
+    ];
+
+    if (isDetailPage) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          TerminalPdaDetailPanel(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                TerminalPdaCardHeader(
+                  title: '${item.sourceWarehouse} -> ${item.targetWarehouse}',
+                  trailing: _StateBadge(state: item.shippingState),
+                ),
+                const SizedBox(height: 6),
+                TerminalPdaInfoGrid(compact: true, items: infoItems),
+              ],
+            ),
+          ),
+          const SizedBox(height: 8),
+          _ShipmentDetailBody(
+            detail: detail,
+            isLoading: isLoadingDetail,
+            errorMessage: detailError,
+            canSendEDespatch: canSendEDespatch,
+            canViewEDespatchPdf: canViewEDespatchPdf,
+            lastEDespatchResult: lastEDespatchResult,
+            isSendingEDespatch: isSendingEDespatch,
+            isLoadingPdf: isLoadingPdf,
+            onSendEDespatch: onSendEDespatch,
+            onShowPdf: onShowPdf,
+          ),
+        ],
+      );
+    }
 
     return TerminalPdaRecordCard(
       isSelected: isExpanded,
@@ -888,46 +933,19 @@ class _ShipmentAccordionCard extends StatelessWidget {
           TerminalPdaCardHeader(
             title: item.documentNoLabel,
             subtitle: '${item.sourceWarehouse} -> ${item.targetWarehouse}',
-            trailing: Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              mainAxisSize: MainAxisSize.min,
-              children: <Widget>[
-                _StateBadge(state: item.shippingState),
-                const SizedBox(height: 4),
-                Icon(
-                  isExpanded
-                      ? Icons.keyboard_arrow_up_rounded
-                      : Icons.chevron_right_rounded,
-                  size: 26,
-                  color: theme.colorScheme.primary,
-                ),
-              ],
+            trailing: TerminalPdaCardTrailing(
+              badges: <Widget>[_StateBadge(state: item.shippingState)],
+              isExpanded: isExpanded,
             ),
           ),
-          const SizedBox(height: 10),
-          TerminalPdaInfoGrid(
-            compact: true,
-            items: <TerminalPdaInfo>[
-              TerminalPdaInfo(
-                label: 'Belge Trh',
-                value: AppFormatters.dateOrDash(item.documentDate),
-              ),
-              TerminalPdaInfo(
-                label: 'Sevk Trh',
-                value: AppFormatters.dateOrDash(item.movementDate),
-              ),
-              TerminalPdaInfo(
-                label: 'Miktar',
-                value: AppFormatters.quantity(item.totalQuantity),
-              ),
-            ],
-          ),
+          const SizedBox(height: 6),
+          TerminalPdaInfoGrid(compact: true, items: infoItems),
           AnimatedSize(
             duration: const Duration(milliseconds: 140),
             curve: Curves.easeInOut,
             child: isExpanded
                 ? Padding(
-                    padding: const EdgeInsets.only(top: 12),
+                    padding: const EdgeInsets.only(top: 10),
                     child: _ShipmentDetailBody(
                       detail: detail,
                       isLoading: isLoadingDetail,
@@ -995,7 +1013,7 @@ class _ShipmentDetailBody extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
           if (canSendEDespatch || canViewEDespatchPdf) ...<Widget>[
-            _ShipmentActionStrip(
+            TerminalEDespatchActionStrip(
               canSendEDespatch: canSendEDespatch,
               canViewEDespatchPdf: canViewEDespatchPdf,
               isSendingEDespatch: isSendingEDespatch,
@@ -1003,122 +1021,20 @@ class _ShipmentDetailBody extends StatelessWidget {
               onSendEDespatch: onSendEDespatch,
               onShowPdf: onShowPdf,
             ),
-            const SizedBox(height: 18),
+            const SizedBox(height: 8),
           ],
           if (lastEDespatchResult case final result?) ...<Widget>[
-            const SizedBox(height: 18),
             _ShipmentEDespatchResultCard(result: result),
+            const SizedBox(height: 8),
           ],
-          const SizedBox(height: 18),
           Text(
-            'Kalemler',
+            'Kalemler (${detail!.items.length})',
             style: Theme.of(
               context,
-            ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
+            ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 6),
           _ShipmentItemsList(items: detail!.items),
-        ],
-      ),
-    );
-  }
-}
-
-class _ShipmentActionStrip extends StatelessWidget {
-  const _ShipmentActionStrip({
-    required this.canSendEDespatch,
-    required this.canViewEDespatchPdf,
-    required this.isSendingEDespatch,
-    required this.isLoadingPdf,
-    required this.onSendEDespatch,
-    required this.onShowPdf,
-  });
-
-  final bool canSendEDespatch;
-  final bool canViewEDespatchPdf;
-  final bool isSendingEDespatch;
-  final bool isLoadingPdf;
-  final VoidCallback onSendEDespatch;
-  final VoidCallback onShowPdf;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: <Color>[Color(0xFF1F4369), Color(0xFF315D8D)],
-        ),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          Text(
-            'E-Irsaliye Islemleri',
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              color: Colors.white,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Plaka, sofor ve TCKN bilgileri create ekraninda degil, tam gonderim aninda istenir.',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: Colors.white.withAlpha(225),
-              height: 1.45,
-            ),
-          ),
-          const SizedBox(height: 16),
-          Wrap(
-            spacing: 12,
-            runSpacing: 12,
-            children: <Widget>[
-              if (canSendEDespatch)
-                FilledButton.icon(
-                  onPressed: isSendingEDespatch || isLoadingPdf
-                      ? null
-                      : onSendEDespatch,
-                  style: FilledButton.styleFrom(
-                    backgroundColor: const Color(0xFFF7C948),
-                    foregroundColor: const Color(0xFF1E2C3A),
-                  ),
-                  icon: isSendingEDespatch
-                      ? const SizedBox(
-                          height: 16,
-                          width: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.send_rounded),
-                  label: Text(
-                    isSendingEDespatch
-                        ? 'Gonderiliyor...'
-                        : 'E-Irsaliyeye Cevir',
-                  ),
-                ),
-              if (canViewEDespatchPdf)
-                OutlinedButton.icon(
-                  onPressed: isSendingEDespatch || isLoadingPdf
-                      ? null
-                      : onShowPdf,
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: Colors.white,
-                    side: BorderSide(color: Colors.white.withAlpha(82)),
-                  ),
-                  icon: isLoadingPdf
-                      ? const SizedBox(
-                          height: 16,
-                          width: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.picture_as_pdf_rounded),
-                  label: Text(isLoadingPdf ? 'Hazirlaniyor...' : 'PDF Goster'),
-                ),
-            ],
-          ),
         ],
       ),
     );
@@ -1199,12 +1115,22 @@ class _ShipmentItemsList extends StatelessWidget {
       return const _EmptyState(message: 'Bu sevkte kalem bulunamadi.');
     }
 
+    final zeroBased = items.any((item) => item.lineNo == 0);
     return Column(
       children: items
+          .asMap()
+          .entries
           .map(
-            (item) => Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: _ShipmentItemCard(item: item),
+            (entry) => Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: _ShipmentItemCard(
+                item: entry.value,
+                displayLineNo: terminalDisplayLineNo(
+                  entry.value.lineNo,
+                  entry.key,
+                  zeroBasedList: zeroBased,
+                ),
+              ),
             ),
           )
           .toList(growable: false),
@@ -1213,80 +1139,29 @@ class _ShipmentItemsList extends StatelessWidget {
 }
 
 class _ShipmentItemCard extends StatelessWidget {
-  const _ShipmentItemCard({required this.item});
+  const _ShipmentItemCard({required this.item, required this.displayLineNo});
 
   final WarehouseShipmentDetailItem item;
+  final int displayLineNo;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final summary = <String>[
-      'Kod ${item.stockCode}',
-      'Miktar ${AppFormatters.quantity(item.quantity)}',
-      'Birim ${item.unitName}',
-      if (item.unitPrice > 0) 'Fiyat ${AppFormatters.currency(item.unitPrice)}',
-      if (item.lineAmount > 0)
-        'Tutar ${AppFormatters.currency(item.lineAmount)}',
-    ].join(' | ');
-    final detail = <String>[
-      if (item.warehouseOrderNo.isNotEmpty) 'Siparis ${item.warehouseOrderNo}',
-      if (item.description.isNotEmpty) 'Aciklama ${item.description}',
-    ].join(' | ');
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(8),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: theme.colorScheme.outlineVariant.withAlpha(82),
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: <Widget>[
-              Expanded(
-                child: Text(
-                  item.stockName,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w800,
-                    color: const Color(0xFF231C17),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 10),
-              _PillBadge(label: 'Satir ${item.lineNo}'),
-            ],
-          ),
-          const SizedBox(height: 6),
-          Text(
-            summary,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: const Color(0xFF6B5A4A),
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          if (detail.isNotEmpty) ...<Widget>[
-            const SizedBox(height: 4),
-            Text(
-              detail,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: const Color(0xFF6B5A4A),
-              ),
-            ),
-          ],
-        ],
-      ),
+    return TerminalDetailLineCard(
+      lineNo: displayLineNo,
+      stockName: item.stockName,
+      stockCode: item.stockCode,
+      quantityLabel:
+          '${AppFormatters.quantity(item.quantity)} ${item.unitName}'.trim(),
+      secondaryFacts: <String>[
+        if (item.warehouseOrderNo.trim().isNotEmpty)
+          'Siparis ${item.warehouseOrderNo.trim()}',
+      ],
+      priceFacts: <String>[
+        if (item.unitPrice > 0) 'Fiyat ${AppFormatters.currency(item.unitPrice)}',
+        if (item.lineAmount > 0)
+          'Tutar ${AppFormatters.currency(item.lineAmount)}',
+      ],
+      note: item.description,
     );
   }
 }
@@ -1354,30 +1229,6 @@ class _StateBadge extends StatelessWidget {
         _shippingStateLabel(state),
         style: Theme.of(context).textTheme.labelLarge?.copyWith(
           color: foreground,
-          fontWeight: FontWeight.w800,
-        ),
-      ),
-    );
-  }
-}
-
-class _PillBadge extends StatelessWidget {
-  const _PillBadge({required this.label});
-
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.primary.withAlpha(18),
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Text(
-        label,
-        style: Theme.of(context).textTheme.labelLarge?.copyWith(
-          color: Theme.of(context).colorScheme.primary,
           fontWeight: FontWeight.w800,
         ),
       ),

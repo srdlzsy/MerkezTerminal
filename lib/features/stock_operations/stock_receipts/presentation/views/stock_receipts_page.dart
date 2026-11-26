@@ -644,12 +644,9 @@ class _StockReceiptsPageState extends State<StockReceiptsPage> {
                         (ModalRoute.of(context)?.isCurrent ?? true) &&
                         _controller.selectedReceipt?.documentNoLabel ==
                             item.documentNoLabel;
-                    final detail = isExpanded
-                        ? _controller.selectedReceiptDetail
-                        : null;
 
                     return Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
+                      padding: const EdgeInsets.only(bottom: 6),
                       child: TerminalPdaRecordCard(
                         isSelected: isExpanded,
                         onTap: () => _toggleSelection(item),
@@ -661,34 +658,17 @@ class _StockReceiptsPageState extends State<StockReceiptsPage> {
                               subtitle: item.creator.isEmpty
                                   ? 'Olusturan -'
                                   : 'Olusturan ${item.creator}',
-                              trailing: Column(
-                                crossAxisAlignment: CrossAxisAlignment.end,
-                                mainAxisSize: MainAxisSize.min,
-                                children: <Widget>[
+                              trailing: TerminalPdaCardTrailing(
+                                badges: <Widget>[
                                   TerminalBadge(
                                     label: '${item.lineCount} satir',
                                   ),
-                                  const SizedBox(height: 4),
-                                  if (isExpanded && _controller.isLoadingDetail)
-                                    const SizedBox(
-                                      width: 22,
-                                      height: 22,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2.4,
-                                      ),
-                                    )
-                                  else
-                                    Icon(
-                                      Icons.chevron_right_rounded,
-                                      size: 28,
-                                      color: Theme.of(
-                                        context,
-                                      ).colorScheme.primary,
-                                    ),
                                 ],
+                                isLoading:
+                                    isExpanded && _controller.isLoadingDetail,
                               ),
                             ),
-                            const SizedBox(height: 10),
+                            const SizedBox(height: 6),
                             TerminalPdaInfoGrid(
                               compact: true,
                               items: <TerminalPdaInfo>[
@@ -715,16 +695,9 @@ class _StockReceiptsPageState extends State<StockReceiptsPage> {
                             if (isExpanded &&
                                 !_controller.isLoadingDetail &&
                                 _controller.detailError != null) ...<Widget>[
-                              const SizedBox(height: 8),
+                              const SizedBox(height: 6),
                               TerminalMessageBlock.error(
                                 message: _controller.detailError!,
-                              ),
-                            ] else if (isExpanded &&
-                                !_controller.isLoadingDetail &&
-                                detail == null) ...<Widget>[
-                              const SizedBox(height: 8),
-                              const TerminalMessageBlock.info(
-                                message: 'Detay ayri sayfada aciliyor.',
                               ),
                             ],
                           ],
@@ -755,33 +728,26 @@ class _StockReceiptSummaryCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SectionCard(
-      title: 'Fis Detayi',
-      subtitle: item.documentNoLabel,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          TerminalPdaInfoGrid(
-            items: <TerminalPdaInfo>[
-              TerminalPdaInfo(label: 'Belge', value: item.documentNoLabel),
-              TerminalPdaInfo(
-                label: 'Olusturan',
-                value: item.creator.isEmpty ? '-' : item.creator,
-              ),
-              TerminalPdaInfo(
-                label: 'Belge Trh',
-                value: AppFormatters.dateOrDash(item.documentDate),
-              ),
-              TerminalPdaInfo(
-                label: 'Toplam',
-                value: AppFormatters.quantity(item.totalQuantity),
-              ),
-              TerminalPdaInfo(
-                label: 'Tutar',
-                value: AppFormatters.currency(item.totalAmount),
-              ),
-              TerminalPdaInfo(label: 'Satir', value: '${item.lineCount}'),
-            ],
+      title: 'Fis Ozeti',
+      dense: true,
+      child: TerminalPdaInfoGrid(
+        compact: true,
+        items: <TerminalPdaInfo>[
+          if (item.creator.trim().isNotEmpty)
+            TerminalPdaInfo(label: 'Olusturan', value: item.creator),
+          TerminalPdaInfo(
+            label: 'Belge Trh',
+            value: AppFormatters.dateOrDash(item.documentDate),
           ),
+          TerminalPdaInfo(
+            label: 'Toplam',
+            value: AppFormatters.quantity(item.totalQuantity),
+          ),
+          TerminalPdaInfo(
+            label: 'Tutar',
+            value: AppFormatters.currency(item.totalAmount),
+          ),
+          TerminalPdaInfo(label: 'Satir', value: '${item.lineCount}'),
         ],
       ),
     );
@@ -802,40 +768,25 @@ class _StockReceiptDetailSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: detail.items
-          .map((line) {
+          .asMap()
+          .entries
+          .map((entry) {
+            final line = entry.value;
             return Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: TerminalPdaDetailPanel(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    Text(
-                      line.stockName,
-                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    TerminalPdaInfoGrid(
-                      items: <TerminalPdaInfo>[
-                        TerminalPdaInfo(label: 'Kod', value: line.stockCode),
-                        TerminalPdaInfo(
-                          label: 'Miktar',
-                          value: AppFormatters.quantity(line.quantity),
-                        ),
-                        TerminalPdaInfo(label: 'Birim', value: line.unitName),
-                        TerminalPdaInfo(
-                          label: 'B.Fiyat',
-                          value: AppFormatters.currency(line.unitPrice),
-                        ),
-                        TerminalPdaInfo(
-                          label: 'Tutar',
-                          value: AppFormatters.currency(line.lineAmount),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
+              padding: const EdgeInsets.only(bottom: 6),
+              child: TerminalDetailLineCard(
+                lineNo: entry.key + 1,
+                stockName: line.stockName,
+                stockCode: line.stockCode,
+                quantityLabel:
+                    '${AppFormatters.quantity(line.quantity)} ${line.unitName}'
+                        .trim(),
+                priceFacts: <String>[
+                  if (line.unitPrice > 0)
+                    'B.Fiyat ${AppFormatters.currency(line.unitPrice)}',
+                  if (line.lineAmount > 0)
+                    'Tutar ${AppFormatters.currency(line.lineAmount)}',
+                ],
               ),
             );
           })

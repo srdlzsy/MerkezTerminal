@@ -186,4 +186,67 @@ void main() {
     expect(submitCount, 1);
     expect(find.text('Kaydet'), findsOneWidget);
   });
+
+  testWidgets('does not submit when local preparation fails and unlocks save', (
+    tester,
+  ) async {
+    var prepareCount = 0;
+    var submitCount = 0;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) => Scaffold(
+            body: TextButton(
+              onPressed: () {
+                unawaited(
+                  openTerminalCreatePage<String>(
+                    context: context,
+                    title: 'Yeni Kayit',
+                    builder: (context) => Center(
+                      child: FilledButton(
+                        onPressed: () => TerminalCreateSubmitScope.submit(
+                          context,
+                          'istek',
+                          prepare: () async {
+                            prepareCount += 1;
+                            if (prepareCount == 1) {
+                              throw StateError('local storage unavailable');
+                            }
+                          },
+                        ),
+                        child: const Text('Kaydet'),
+                      ),
+                    ),
+                    onSubmit: (_) async {
+                      submitCount += 1;
+                      return true;
+                    },
+                  ),
+                );
+              },
+              child: const Text('Yeni'),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Yeni'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Kaydet'));
+    await tester.pumpAndSettle();
+
+    expect(prepareCount, 1);
+    expect(submitCount, 0);
+    expect(find.text('Kaydet'), findsOneWidget);
+    expect(find.textContaining('Islem sunucuya gonderilmedi'), findsOneWidget);
+
+    await tester.tap(find.text('Kaydet'));
+    await tester.pumpAndSettle();
+
+    expect(prepareCount, 2);
+    expect(submitCount, 1);
+    expect(find.text('Yeni'), findsOneWidget);
+  });
 }

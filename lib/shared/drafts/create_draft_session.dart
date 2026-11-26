@@ -95,6 +95,13 @@ class CreateDraftSession with WidgetsBindingObserver {
     _submitted = true;
   }
 
+  void markSubmittedWithoutFlush() {
+    _timer?.cancel();
+    _timer = null;
+    _dirty = false;
+    _submitted = true;
+  }
+
   void resumeAfterFailedSubmit() {
     _submitted = false;
     _dirty = true;

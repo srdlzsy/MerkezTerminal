@@ -204,7 +204,7 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
 
     final meaningful = _hasMeaningfulDraftContent;
     final payload = _draftPayload();
-    _draftSaveQueue = _draftSaveQueue.then((_) {
+    Future<void> persist() {
       if (!meaningful) {
         return repository.deleteDraft(draft.id);
       }
@@ -216,7 +216,12 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
           payload: payload,
         ),
       );
-    });
+    }
+
+    _draftSaveQueue = _draftSaveQueue.then(
+      (_) => persist(),
+      onError: (Object error, StackTrace stackTrace) => persist(),
+    );
     return _draftSaveQueue;
   }
 
@@ -999,8 +1004,10 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
   @override
   Widget build(BuildContext context) {
     final mediaQuery = MediaQuery.of(context);
+    final hasPendingEntry = _lines.isNotEmpty && !_isBlankLine(_lines.first);
     final useCompactConfiguredInput =
-        mediaQuery.size.width < 260 && _filledLineIndexes().isNotEmpty;
+        (mediaQuery.size.width < 260 || mediaQuery.textScaler.scale(1) > 1.2) &&
+        (_filledLineIndexes().isNotEmpty || hasPendingEntry);
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(10, 4, 10, 10),

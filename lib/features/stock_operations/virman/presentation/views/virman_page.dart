@@ -622,12 +622,13 @@ class _VirmanPageState extends State<VirmanPage> {
                         (ModalRoute.of(context)?.isCurrent ?? true) &&
                         _controller.selectedVirman?.documentNoLabel ==
                             item.documentNoLabel;
-                    final detail = isExpanded
-                        ? _controller.selectedVirmanDetail
-                        : null;
+                    final docDate = AppFormatters.dateOrDash(item.documentDate);
+                    final moveDate = AppFormatters.dateOrDash(
+                      item.movementDate,
+                    );
 
                     return Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
+                      padding: const EdgeInsets.only(bottom: 6),
                       child: TerminalPdaRecordCard(
                         isSelected: isExpanded,
                         onTap: () => _toggleSelection(item),
@@ -636,52 +637,32 @@ class _VirmanPageState extends State<VirmanPage> {
                           children: <Widget>[
                             TerminalPdaCardHeader(
                               title: item.documentNoLabel,
-                              subtitle: item.description.isEmpty
-                                  ? 'Virman'
-                                  : item.description,
-                              trailing: Column(
-                                crossAxisAlignment: CrossAxisAlignment.end,
-                                mainAxisSize: MainAxisSize.min,
-                                children: <Widget>[
+                              subtitle:
+                                  terminalDisplayableNote(item.description) ??
+                                  'Virman',
+                              trailing: TerminalPdaCardTrailing(
+                                badges: <Widget>[
                                   TerminalBadge(
                                     label: '${item.lineCount} satir',
                                   ),
-                                  const SizedBox(height: 4),
-                                  if (isExpanded && _controller.isLoadingDetail)
-                                    const SizedBox(
-                                      width: 22,
-                                      height: 22,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2.4,
-                                      ),
-                                    )
-                                  else
-                                    Icon(
-                                      Icons.chevron_right_rounded,
-                                      size: 28,
-                                      color: Theme.of(
-                                        context,
-                                      ).colorScheme.primary,
-                                    ),
                                 ],
+                                isLoading:
+                                    isExpanded && _controller.isLoadingDetail,
                               ),
                             ),
-                            const SizedBox(height: 10),
+                            const SizedBox(height: 6),
                             TerminalPdaInfoGrid(
                               compact: true,
                               items: <TerminalPdaInfo>[
                                 TerminalPdaInfo(
                                   label: 'Belge Trh',
-                                  value: AppFormatters.dateOrDash(
-                                    item.documentDate,
-                                  ),
+                                  value: docDate,
                                 ),
-                                TerminalPdaInfo(
-                                  label: 'Hareket',
-                                  value: AppFormatters.dateOrDash(
-                                    item.movementDate,
+                                if (moveDate != docDate)
+                                  TerminalPdaInfo(
+                                    label: 'Hareket',
+                                    value: moveDate,
                                   ),
-                                ),
                                 if (_hasVirmanFlowSummary(
                                   incomingLineCount: item.incomingLineCount,
                                   outgoingLineCount: item.outgoingLineCount,
@@ -717,16 +698,9 @@ class _VirmanPageState extends State<VirmanPage> {
                             if (isExpanded &&
                                 !_controller.isLoadingDetail &&
                                 _controller.detailError != null) ...<Widget>[
-                              const SizedBox(height: 8),
+                              const SizedBox(height: 6),
                               TerminalMessageBlock.error(
                                 message: _controller.detailError!,
-                              ),
-                            ] else if (isExpanded &&
-                                !_controller.isLoadingDetail &&
-                                detail == null) ...<Widget>[
-                              const SizedBox(height: 8),
-                              const TerminalMessageBlock.info(
-                                message: 'Detay ayri sayfada aciliyor.',
                               ),
                             ],
                           ],
@@ -799,47 +773,19 @@ class _VirmanDetailSection extends StatelessWidget {
           ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900),
         ),
       ),
-      ...lines.map((line) {
+      ...lines.asMap().entries.map((entry) {
+        final line = entry.value;
         return Padding(
-          padding: const EdgeInsets.only(bottom: 8),
-          child: TerminalPdaDetailPanel(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Row(
-                  children: <Widget>[
-                    Expanded(
-                      child: Text(
-                        line.stockName,
-                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    TerminalBadge(label: _movementTypeLabel(line.movementType)),
-                  ],
-                ),
-                const SizedBox(height: 6),
-                TerminalPdaInfoGrid(
-                  items: <TerminalPdaInfo>[
-                    TerminalPdaInfo(label: 'Kod', value: line.stockCode),
-                    TerminalPdaInfo(
-                      label: 'Miktar',
-                      value: AppFormatters.quantity(line.quantity),
-                    ),
-                    TerminalPdaInfo(label: 'Birim', value: line.unitName),
-                  ],
-                ),
-                if (line.description.isNotEmpty) ...<Widget>[
-                  const SizedBox(height: 4),
-                  Text(
-                    'Aciklama ${line.description}',
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
-                ],
-              ],
-            ),
+          padding: const EdgeInsets.only(bottom: 6),
+          child: TerminalDetailLineCard(
+            lineNo: entry.key + 1,
+            stockName: line.stockName,
+            stockCode: line.stockCode,
+            quantityLabel:
+                '${AppFormatters.quantity(line.quantity)} ${line.unitName}'
+                    .trim(),
+            badgeLabel: _movementTypeLabel(line.movementType),
+            note: line.description,
           ),
         );
       }),

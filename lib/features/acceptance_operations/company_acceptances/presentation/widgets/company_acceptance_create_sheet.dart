@@ -1587,7 +1587,7 @@ class _CompanyAcceptanceCreateSheetState
         return;
       }
       if (decision.closeForm) {
-        await _draftSession.complete();
+        _draftSession.markSubmittedWithoutFlush();
         if (mounted) {
           Navigator.of(context).pop(request);
         }
@@ -2029,6 +2029,7 @@ class _CompanyAcceptanceCreateSheetState
       decoration: const InputDecoration(
         labelText: 'Cari Kodu*',
         hintText: 'Internet yoksa elle girin',
+        counterText: '',
         isDense: true,
         contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       ),
@@ -2284,87 +2285,61 @@ class _CompanyAcceptanceCreateSheetState
       );
     }
 
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: Theme.of(context).colorScheme.outlineVariant.withAlpha(90),
-          ),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            Row(
-              children: <Widget>[
-                Expanded(
-                  child: Text(
-                    isFreshEntry ? 'Giris satiri' : 'Satir $displayLineNo',
-                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                ),
-                if ((line.orderGuid ?? '').isNotEmpty)
-                  const TerminalBadge(label: 'Siparisli'),
-                if (!isFreshEntry && _lines.length > 1)
-                  TerminalLineDeleteButton(
-                    onPressed: () => _removeLineAt(index),
-                  ),
-              ],
-            ),
-            if (isFreshEntry)
-              _buildProductLookupRow(line)
-            else
-              TerminalCompactProductLineSummary(
-                key: ObjectKey(line),
-                lineNo: displayLineNo,
-                stockCode: line.stockCodeController.text.trim(),
-                stockName:
-                    line.selectedProduct?.stockName ??
-                    line.lookupController.text.trim(),
-                unitLabel: line.selectedProduct?.unitName,
-                packageLabel:
-                    line.selectedProduct != null &&
-                        line.selectedProduct!.unitMultiplier > 1
-                    ? AppFormatters.quantity(
-                        line.selectedProduct!.unitMultiplier,
-                      )
-                    : null,
-                barcode: line.selectedProduct?.barcode,
-                priceLabel: line.unitPrice > 0
-                    ? _purchasePriceLabel(
-                        line.unitPrice,
-                        line.selectedProduct?.purchaseGrossPrice ?? 0,
-                      )
-                    : null,
-                highlightOnMount: displayLineNo == 1,
-              ),
-            if (isFreshEntry && line.lookupStatusMessage != null) ...<Widget>[
-              const SizedBox(height: 8),
-              if (line.isLookupStatusLoading)
-                TerminalMessageBlock.loading(message: line.lookupStatusMessage!)
-              else if (line.isLookupStatusError)
-                TerminalMessageBlock.error(message: line.lookupStatusMessage!)
-              else
-                TerminalMessageBlock.info(message: line.lookupStatusMessage!),
-            ],
-            if (!isFreshEntry) ...<Widget>[
-              const SizedBox(height: 12),
-              _buildQuantityFields(line),
-            ],
-            if (line.returnQuantity > 0) ...<Widget>[
-              const SizedBox(height: 8),
-              TerminalMessageBlock.info(
+    if (!isFreshEntry) {
+      return TerminalDualQuantityProductLineCard(
+        key: ObjectKey(line),
+        lineNo: displayLineNo,
+        stockCode: line.stockCodeController.text.trim(),
+        stockName:
+            line.selectedProduct?.stockName ??
+            line.lookupController.text.trim(),
+        unitLabel: line.selectedProduct?.unitName,
+        packageLabel:
+            line.selectedProduct != null &&
+                line.selectedProduct!.unitMultiplier > 1
+            ? AppFormatters.quantity(line.selectedProduct!.unitMultiplier)
+            : null,
+        barcode: line.selectedProduct?.barcode,
+        priceLabel: line.unitPrice > 0
+            ? _purchasePriceLabel(
+                line.unitPrice,
+                line.selectedProduct?.purchaseGrossPrice ?? 0,
+              )
+            : null,
+        statusBadge: (line.orderGuid ?? '').isNotEmpty
+            ? const TerminalBadge(label: 'Siparisli')
+            : null,
+        highlightOnMount: displayLineNo == 1,
+        canDelete: _lines.length > 1,
+        onDelete: () => _removeLineAt(index),
+        primaryQuantity: _buildDispatchQuantityField(line),
+        secondaryQuantity: _buildAcceptedQuantityField(line),
+        footerBanner: line.returnQuantity > 0
+            ? TerminalMessageBlock.info(
                 message:
                     'Iade farki ${AppFormatters.quantity(line.returnQuantity)}. ${_autoCreateReturnForPartialAcceptance ? 'Firma iadesi olusur, e-irsaliye manuel gonderilir.' : 'Otomatik iade kapali; fark manuel iade bekler.'}',
-              ),
-            ],
+              )
+            : null,
+      );
+    }
+
+    return TerminalPdaLineCard(
+      title: 'Giris satiri',
+      isEntryLine: true,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          _buildProductLookupRow(line),
+          if (line.lookupStatusMessage != null) ...<Widget>[
+            const SizedBox(height: 6),
+            if (line.isLookupStatusLoading)
+              TerminalMessageBlock.loading(message: line.lookupStatusMessage!)
+            else if (line.isLookupStatusError)
+              TerminalMessageBlock.error(message: line.lookupStatusMessage!)
+            else
+              TerminalMessageBlock.info(message: line.lookupStatusMessage!),
           ],
-        ),
+        ],
       ),
     );
   }
@@ -2450,6 +2425,7 @@ class _CompanyAcceptanceCreateSheetState
                     decoration: const InputDecoration(
                       labelText: 'Evrak Serisi*',
                       hintText: 'Orn. ST12026',
+                      counterText: '',
                       isDense: true,
                       contentPadding: EdgeInsets.symmetric(
                         horizontal: 12,
@@ -2489,6 +2465,7 @@ class _CompanyAcceptanceCreateSheetState
                     maxLengthEnforcement: MaxLengthEnforcement.none,
                     decoration: const InputDecoration(
                       labelText: 'Teslim Eden',
+                      counterText: '',
                       isDense: true,
                       contentPadding: EdgeInsets.symmetric(
                         horizontal: 12,
@@ -2512,6 +2489,7 @@ class _CompanyAcceptanceCreateSheetState
                     maxLengthEnforcement: MaxLengthEnforcement.none,
                     decoration: const InputDecoration(
                       labelText: 'Teslim Alan',
+                      counterText: '',
                       isDense: true,
                       contentPadding: EdgeInsets.symmetric(
                         horizontal: 12,
@@ -2535,6 +2513,7 @@ class _CompanyAcceptanceCreateSheetState
                     maxLines: 2,
                     decoration: const InputDecoration(
                       labelText: 'Aciklama',
+                      counterText: '',
                       isDense: true,
                       contentPadding: EdgeInsets.symmetric(
                         horizontal: 12,
@@ -2556,8 +2535,7 @@ class _CompanyAcceptanceCreateSheetState
         _CompactCheckboxTile(
           value: _allowOrderOverReceiving,
           title: 'Siparis kalanindan fazla kabul etmeye izin ver',
-          subtitle:
-              'Backend fazla miktari siparissiz hareket olarak ayirabilir.',
+          subtitle: 'Fazla miktar siparissiz kabul olarak kaydedilebilir.',
           onChanged: (value) {
             setState(() {
               _allowOrderOverReceiving = value ?? false;
@@ -2620,35 +2598,11 @@ class _CompanyAcceptanceCreateSheetState
       icon: const Icon(Icons.qr_code_scanner_rounded),
     );
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        if (constraints.maxWidth < 430) {
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: <Widget>[
-              fixedLookupField,
-              const SizedBox(height: 6),
-              Row(
-                children: <Widget>[
-                  Expanded(child: resolveButton),
-                  const SizedBox(width: 8),
-                  scanButton,
-                ],
-              ),
-            ],
-          );
-        }
-
-        return Row(
-          children: <Widget>[
-            Expanded(child: fixedLookupField),
-            const SizedBox(width: 8),
-            resolveButton,
-            const SizedBox(width: 8),
-            scanButton,
-          ],
-        );
-      },
+    return TerminalResponsiveLookupRow(
+      field: fixedLookupField,
+      action: resolveButton,
+      trailingAction: scanButton,
+      breakpoint: 250,
     );
   }
 
@@ -2727,103 +2681,56 @@ class _CompanyAcceptanceCreateSheetState
       icon: const Icon(Icons.photo_camera_back_rounded),
     );
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        if (constraints.maxWidth < 430) {
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: <Widget>[
-              lookupField,
-              const SizedBox(height: 8),
-              Row(
-                children: <Widget>[
-                  Expanded(child: searchButton),
-                  const SizedBox(width: 8),
-                  scanButton,
-                ],
-              ),
-            ],
-          );
-        }
+    return TerminalResponsiveLookupRow(
+      field: lookupField,
+      action: searchButton,
+      trailingAction: scanButton,
+    );
+  }
 
-        return Row(
-          children: <Widget>[
-            Expanded(child: lookupField),
-            const SizedBox(width: 12),
-            searchButton,
-            const SizedBox(width: 8),
-            scanButton,
-          ],
-        );
+  Widget _buildDispatchQuantityField(_AcceptanceLineDraft line) {
+    return TerminalQuantityStepper(
+      controller: line.dispatchQuantityController,
+      label: 'Irs. Miktar*',
+      step: line.quantityStep,
+      dense: true,
+      onMinimumReached: () {
+        final index = _lines.indexOf(line);
+        if (index < 0 || _lines.length <= 1) {
+          return;
+        }
+        setState(() {
+          line.dispose();
+          _lines.removeAt(index);
+        });
+        _draftSession.scheduleSave();
+      },
+      onChanged: (_) => _handleDispatchQuantityChanged(line),
+      validator: (_) {
+        if (line.dispatchQuantity <= 0) {
+          return 'Miktar > 0';
+        }
+        return null;
       },
     );
   }
 
-  Widget _buildQuantityFields(_AcceptanceLineDraft line) {
-    Widget dispatchField() {
-      return TerminalQuantityStepper(
-        controller: line.dispatchQuantityController,
-        label: 'Irs. Miktar*',
-        step: line.quantityStep,
-        onMinimumReached: () {
-          final index = _lines.indexOf(line);
-          if (index < 0 || _lines.length <= 1) {
-            return;
-          }
-          setState(() {
-            line.dispose();
-            _lines.removeAt(index);
-          });
-          _draftSession.scheduleSave();
-        },
-        onChanged: (_) => _handleDispatchQuantityChanged(line),
-        validator: (_) {
-          if (line.dispatchQuantity <= 0) {
-            return 'Miktar > 0';
-          }
-          return null;
-        },
-      );
-    }
-
-    Widget acceptedField() {
-      return TerminalQuantityStepper(
-        controller: line.acceptedQuantityController,
-        label: 'Fiili Miktar*',
-        step: line.quantityStep,
-        maximum: line.dispatchQuantity,
-        onChanged: (_) => _handleAcceptedQuantityChanged(line),
-        validator: (_) {
-          if (line.acceptedQuantity < 0) {
-            return 'Negatif olamaz';
-          }
-          if (line.acceptedQuantity > line.dispatchQuantity) {
-            return 'Irsaliyeyi gecemez';
-          }
-          return null;
-        },
-      );
-    }
-
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        if (constraints.maxWidth < 280) {
-          return Column(
-            children: <Widget>[
-              dispatchField(),
-              const SizedBox(height: 10),
-              acceptedField(),
-            ],
-          );
+  Widget _buildAcceptedQuantityField(_AcceptanceLineDraft line) {
+    return TerminalQuantityStepper(
+      controller: line.acceptedQuantityController,
+      label: 'Fiili Miktar*',
+      step: line.quantityStep,
+      dense: true,
+      maximum: line.dispatchQuantity,
+      onChanged: (_) => _handleAcceptedQuantityChanged(line),
+      validator: (_) {
+        if (line.acceptedQuantity < 0) {
+          return 'Negatif olamaz';
         }
-
-        return Row(
-          children: <Widget>[
-            Expanded(child: dispatchField()),
-            const SizedBox(width: 12),
-            Expanded(child: acceptedField()),
-          ],
-        );
+        if (line.acceptedQuantity > line.dispatchQuantity) {
+          return 'Irsaliyeyi gecemez';
+        }
+        return null;
       },
     );
   }

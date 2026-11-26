@@ -232,7 +232,7 @@ class _UserSummary extends StatelessWidget {
               const SizedBox(height: 6),
               Text(
                 'Islem yapmak icin asagidaki menu listesinden bir ekran secin.',
-                maxLines: 1,
+                maxLines: 2,
                 overflow: TextOverflow.ellipsis,
                 style: theme.textTheme.labelSmall?.copyWith(
                   color: Colors.white.withAlpha(205),

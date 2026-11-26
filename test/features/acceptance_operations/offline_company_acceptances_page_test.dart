@@ -300,7 +300,7 @@ void main() {
         await _openOfflineCompanyAcceptanceLines(tester);
         final lookup = find.widgetWithText(
           TextFormField,
-          'Barkod / stok kodu / urun adi',
+          'Barkod / stok / urun',
         );
         await tester.enterText(lookup.first, '8690000000012');
         await tester.tap(find.widgetWithText(FilledButton, 'Urun').first);
@@ -458,7 +458,7 @@ void main() {
 
     final lookup = find.widgetWithText(
       TextFormField,
-      'Barkod / stok kodu / urun adi',
+      'Barkod / stok / urun',
     );
     await tester.enterText(lookup.first, '8690000000099');
     await tester.tap(find.widgetWithText(FilledButton, 'Urun').first);
@@ -545,7 +545,7 @@ void main() {
 
     final lookup = find.widgetWithText(
       TextFormField,
-      'Barkod / stok kodu / urun adi',
+      'Barkod / stok / urun',
     );
     await tester.enterText(lookup.first, '8690000000012');
     await tester.tap(find.widgetWithText(FilledButton, 'Urun').first);

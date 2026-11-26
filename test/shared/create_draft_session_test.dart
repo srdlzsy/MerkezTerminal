@@ -79,6 +79,28 @@ void main() {
     expect(repository.saveCount, 1);
     expect(repository.saved.single.payload['value'], 'son');
   });
+
+  test(
+    'confirmed submit does not recreate a draft deleted by its owner',
+    () async {
+      final repository = _MemoryDraftRepository();
+      final session = CreateDraftSession(
+        draft: _draft(),
+        repository: repository,
+        hasContent: () => true,
+        buildPayload: () => const <String, dynamic>{'lineCount': 2},
+        buildTitle: () => 'Taslak',
+      );
+
+      session.scheduleSave();
+      session.markSubmittedWithoutFlush();
+      await Future<void>.delayed(const Duration(milliseconds: 350));
+      session.dispose();
+
+      expect(repository.saveCount, 0);
+      expect(repository.deletedIds, isEmpty);
+    },
+  );
 }
 
 CreateDraft _draft() {

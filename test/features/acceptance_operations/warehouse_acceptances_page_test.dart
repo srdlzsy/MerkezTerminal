@@ -83,6 +83,51 @@ void main() {
     expect(find.text('Fazla'), findsNothing);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets(
+    'autofocuses barcode scan input on open and renders stepper on 320x533 and 360x640',
+    (tester) async {
+      for (final size in <Size>[const Size(320, 533), const Size(360, 640)]) {
+        tester.view.physicalSize = size;
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: WarehouseAcceptancesPage(
+                repository: _FakeWarehouseAcceptancesRepository(),
+                accessToken: 'token',
+                defaultWarehouseNo: '56',
+                userWarehouseName: 'MANAV DEPO',
+                canSubmit: true,
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.text('F56.1'));
+        await tester.pumpAndSettle();
+
+        final scanEditable = tester.widget<EditableText>(
+          find.descendant(
+            of: find.widgetWithText(TextFormField, 'Stok kodu / barkod okut'),
+            matching: find.byType(EditableText),
+          ),
+        );
+        expect(
+          scanEditable.focusNode.hasFocus,
+          isTrue,
+          reason: 'Depo Mal Kabul scan input must autofocus on $size',
+        );
+        expect(find.byTooltip('Azalt'), findsOneWidget);
+        expect(find.byTooltip('Artir'), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      }
+    },
+  );
 }
 
 class _FakeWarehouseAcceptancesRepository

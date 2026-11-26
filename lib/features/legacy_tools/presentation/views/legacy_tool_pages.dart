@@ -74,6 +74,7 @@ class _ProductLookupToolPageState extends State<ProductLookupToolPage> {
     super.initState();
     _queryController.addListener(_handleQueryChanged);
     unawaited(_loadCatalogMetadata());
+    _focusSearchField();
   }
 
   @override
@@ -327,75 +328,81 @@ class _ProductLookupToolPageState extends State<ProductLookupToolPage> {
 
   @override
   Widget build(BuildContext context) {
+    final isCompactWidth = MediaQuery.sizeOf(context).width < 420;
+    final showCatalogBelow = _products.isNotEmpty && !_isSyncingCatalog;
+
     return SafeArea(
       top: false,
       bottom: true,
       child: ListView(
-        padding: EdgeInsets.fromLTRB(
-          16,
-          16,
-          16,
-          20 + MediaQuery.paddingOf(context).bottom,
-        ),
+        padding: terminalPdaListPagePadding(context),
         children: <Widget>[
           SectionCard(
             title: widget.title,
-            subtitle: widget.subtitle,
+            subtitle: isCompactWidth ? null : widget.subtitle,
+            dense: true,
             child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: <Widget>[
                 TerminalResponsiveLookupRow(
-                  breakpoint: 340,
+                  breakpoint: 250,
                   field: ProductLookupField(
                     controller: _queryController,
                     focusNode: _queryFocusNode,
                     autofocus: true,
                     enabled: true,
                     onSubmit: _search,
-                    labelText: 'Arama veya barkod',
+                    labelText: 'Barkod / urun',
                     suffixIcon: _hasQuery
                         ? IconButton(
                             onPressed: _isLoading ? null : _clearSearch,
                             tooltip: 'Temizle',
-                            icon: const Icon(Icons.close_rounded),
+                            icon: const Icon(Icons.close_rounded, size: 18),
                           )
                         : null,
                   ),
-                  action: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: <Widget>[
-                      FilledButton.icon(
-                        onPressed: _isLoading ? null : _search,
-                        icon: const Icon(Icons.search_rounded),
-                        label: const Text('Urun'),
-                      ),
-                      const SizedBox(width: 8),
-                      IconButton.filledTonal(
-                        onPressed: _isLoading ? null : _scanWithCamera,
-                        tooltip: 'Kamera ile oku',
-                        icon: const Icon(Icons.photo_camera_back_rounded),
-                      ),
-                    ],
+                  action: FilledButton.icon(
+                    onPressed: _isLoading ? null : _search,
+                    icon: const Icon(Icons.search_rounded),
+                    label: const Text('Urun'),
+                  ),
+                  trailingAction: IconButton.filledTonal(
+                    onPressed: _isLoading ? null : _scanWithCamera,
+                    tooltip: 'Kamera ile oku',
+                    icon: const Icon(Icons.photo_camera_back_rounded),
                   ),
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 6),
                 Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
+                  spacing: 6,
+                  runSpacing: 6,
+                  crossAxisAlignment: WrapCrossAlignment.center,
                   children: <Widget>[
                     FilledButton.tonalIcon(
                       onPressed: _isSyncingCatalog ? null : _syncCatalog,
+                      style: FilledButton.styleFrom(
+                        minimumSize: const Size(0, 36),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 4,
+                        ),
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        visualDensity: VisualDensity.compact,
+                      ),
                       icon: _isSyncingCatalog
                           ? const SizedBox.square(
-                              dimension: 18,
+                              dimension: 15,
                               child: CircularProgressIndicator(strokeWidth: 2),
                             )
-                          : const Icon(Icons.sync_rounded),
+                          : const Icon(Icons.sync_rounded, size: 17),
                       label: Text(
                         _isSyncingCatalog ? 'Sync...' : 'Mobil Katalog Sync',
                       ),
                     ),
                     FilterChip(
                       selected: _hideDelistedProducts,
+                      visualDensity: VisualDensity.compact,
+                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                       onSelected: _isLoading
                           ? null
                           : (selected) {
@@ -411,17 +418,19 @@ class _ProductLookupToolPageState extends State<ProductLookupToolPage> {
                         _hideDelistedProducts
                             ? Icons.visibility_off_rounded
                             : Icons.visibility_rounded,
-                        size: 18,
+                        size: 16,
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 12),
-                _buildCatalogStatusBlock(),
+                if (!showCatalogBelow) ...<Widget>[
+                  const SizedBox(height: 6),
+                  _buildCatalogStatusBlock(),
+                ],
               ],
             ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 8),
           SectionCard(
             title: 'Sonuclar',
             subtitle: _isLoading
@@ -429,16 +438,18 @@ class _ProductLookupToolPageState extends State<ProductLookupToolPage> {
                 : _isUsingOfflineCatalog
                 ? '${_products.length} urun local katalogdan bulundu.'
                 : '${_products.length} urun bulundu.',
+            dense: true,
+            framed: _products.isEmpty,
             child: Column(
               children: <Widget>[
                 if (_errorMessage != null)
                   Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
+                    padding: const EdgeInsets.only(bottom: 8),
                     child: TerminalMessageBlock.error(message: _errorMessage!),
                   ),
                 if (_isLoading)
                   const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 28),
+                    padding: EdgeInsets.symmetric(vertical: 20),
                     child: CircularProgressIndicator(),
                   )
                 else if (_products.isEmpty)
@@ -457,22 +468,30 @@ class _ProductLookupToolPageState extends State<ProductLookupToolPage> {
                     ];
 
                     return Padding(
-                      padding: const EdgeInsets.only(bottom: 10),
+                      padding: const EdgeInsets.only(bottom: 6),
                       child: TerminalPdaDetailPanel(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: <Widget>[
                             Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: <Widget>[
                                 Expanded(
                                   child: Text(
                                     item.stockName,
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
                                     style: Theme.of(context)
                                         .textTheme
                                         .titleSmall
-                                        ?.copyWith(fontWeight: FontWeight.w800),
+                                        ?.copyWith(
+                                          fontSize: 13.5,
+                                          height: 1.12,
+                                          fontWeight: FontWeight.w900,
+                                        ),
                                   ),
                                 ),
+                                const SizedBox(width: 6),
                                 TerminalBadge(
                                   label: _resultBadgeLabel(item),
                                   backgroundColor: _resultBadgeBackground(item),
@@ -480,19 +499,10 @@ class _ProductLookupToolPageState extends State<ProductLookupToolPage> {
                                 ),
                               ],
                             ),
-                            const SizedBox(height: 6),
+                            const SizedBox(height: 5),
                             TerminalPdaInfoGrid(
+                              compact: true,
                               items: <TerminalPdaInfo>[
-                                TerminalPdaInfo(
-                                  label: 'Kod',
-                                  value: item.stockCode,
-                                ),
-                                TerminalPdaInfo(
-                                  label: 'Barkod',
-                                  value: item.barcode.isEmpty
-                                      ? '-'
-                                      : item.barcode,
-                                ),
                                 TerminalPdaInfo(
                                   label: widget.useStockAvailabilityEndpoint
                                       ? 'Stok'
@@ -501,6 +511,15 @@ class _ProductLookupToolPageState extends State<ProductLookupToolPage> {
                                       ? _stockQuantityLabel(item)
                                       : AppFormatters.currency(item.price),
                                 ),
+                                TerminalPdaInfo(
+                                  label: 'Kod',
+                                  value: item.stockCode,
+                                ),
+                                if (item.barcode.trim().isNotEmpty)
+                                  TerminalPdaInfo(
+                                    label: 'Barkod',
+                                    value: item.barcode,
+                                  ),
                                 TerminalPdaInfo(
                                   label: 'Birim',
                                   value: item.unitName,
@@ -528,11 +547,23 @@ class _ProductLookupToolPageState extends State<ProductLookupToolPage> {
                             if (widget.useStockAvailabilityEndpoint &&
                                 item.isVariableWeightBarcode) ...<Widget>[
                               const SizedBox(height: 4),
-                              Text(_variableWeightLabel(item)),
+                              Text(
+                                _variableWeightLabel(item),
+                                style: Theme.of(context).textTheme.bodySmall,
+                              ),
                             ],
                             if (blockLabels.isNotEmpty) ...<Widget>[
                               const SizedBox(height: 4),
-                              Text('Bloklu: ${blockLabels.join(', ')}'),
+                              Text(
+                                'Bloklu: ${blockLabels.join(', ')}',
+                                style: Theme.of(context).textTheme.bodySmall
+                                    ?.copyWith(
+                                      color: Theme.of(
+                                        context,
+                                      ).colorScheme.error,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                              ),
                             ],
                           ],
                         ),
@@ -542,6 +573,10 @@ class _ProductLookupToolPageState extends State<ProductLookupToolPage> {
               ],
             ),
           ),
+          if (showCatalogBelow) ...<Widget>[
+            const SizedBox(height: 8),
+            _buildCatalogStatusBlock(),
+          ],
         ],
       ),
     );
@@ -707,6 +742,7 @@ class CompanyLookupToolPage extends StatefulWidget {
 
 class _CompanyLookupToolPageState extends State<CompanyLookupToolPage> {
   final TextEditingController _queryController = TextEditingController();
+  final FocusNode _queryFocusNode = FocusNode();
   bool _isLoading = false;
   bool _isSyncingCatalog = false;
   bool _hasQuery = false;
@@ -721,13 +757,23 @@ class _CompanyLookupToolPageState extends State<CompanyLookupToolPage> {
     super.initState();
     _queryController.addListener(_handleQueryChanged);
     unawaited(_loadCatalogMetadata());
+    _focusSearchField();
   }
 
   @override
   void dispose() {
     _queryController.removeListener(_handleQueryChanged);
     _queryController.dispose();
+    _queryFocusNode.dispose();
     super.dispose();
+  }
+
+  void _focusSearchField() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _queryFocusNode.requestFocus();
+      }
+    });
   }
 
   void _handleQueryChanged() {
@@ -750,6 +796,7 @@ class _CompanyLookupToolPageState extends State<CompanyLookupToolPage> {
       _isUsingOfflineCatalog = false;
       _isLoading = false;
     });
+    _focusSearchField();
   }
 
   Future<void> _loadCatalogMetadata() async {
@@ -770,8 +817,14 @@ class _CompanyLookupToolPageState extends State<CompanyLookupToolPage> {
       setState(() {
         _errorMessage = 'Cari bulmak icin barkod girilmeli.';
       });
+      _focusSearchField();
       return;
     }
+
+    if (RegExp(r'^\d{7,}$').hasMatch(query)) {
+      _queryController.clear();
+    }
+    _focusSearchField();
 
     setState(() {
       _isLoading = true;
@@ -833,6 +886,8 @@ class _CompanyLookupToolPageState extends State<CompanyLookupToolPage> {
         _errorMessage = error.toString().replaceFirst('Exception: ', '');
       });
     }
+
+    _focusSearchField();
   }
 
   Future<void> _syncCatalog() async {
@@ -898,79 +953,86 @@ class _CompanyLookupToolPageState extends State<CompanyLookupToolPage> {
 
   @override
   Widget build(BuildContext context) {
+    final isCompactWidth = MediaQuery.sizeOf(context).width < 420;
+    final showCatalogBelow = _customers.isNotEmpty && !_isSyncingCatalog;
+
     return SafeArea(
       top: false,
       bottom: true,
       child: ListView(
-        padding: EdgeInsets.fromLTRB(
-          16,
-          16,
-          16,
-          20 + MediaQuery.paddingOf(context).bottom,
-        ),
+        padding: terminalPdaListPagePadding(context),
         children: <Widget>[
           SectionCard(
             title: widget.title,
-            subtitle: widget.subtitle,
+            subtitle: isCompactWidth ? null : widget.subtitle,
+            dense: true,
             child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: <Widget>[
                 TerminalResponsiveLookupRow(
-                  breakpoint: 340,
+                  breakpoint: 250,
                   field: ProductLookupField(
                     controller: _queryController,
-                    enabled: !_isLoading,
+                    focusNode: _queryFocusNode,
+                    autofocus: true,
+                    enabled: true,
                     onSubmit: _search,
-                    labelText: 'Arama veya barkod',
+                    labelText: 'Barkod / cari',
                     suffixIcon: _hasQuery
                         ? IconButton(
                             onPressed: _isLoading ? null : _clearSearch,
                             tooltip: 'Temizle',
-                            icon: const Icon(Icons.close_rounded),
+                            icon: const Icon(Icons.close_rounded, size: 18),
                           )
                         : null,
                   ),
-                  action: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: <Widget>[
-                      FilledButton.icon(
-                        onPressed: _isLoading ? null : _search,
-                        icon: const Icon(Icons.search_rounded),
-                        label: const Text('Cari'),
-                      ),
-                      const SizedBox(width: 8),
-                      IconButton.filledTonal(
-                        onPressed: _isLoading ? null : _scanWithCamera,
-                        tooltip: 'Kamera ile oku',
-                        icon: const Icon(Icons.photo_camera_back_rounded),
-                      ),
-                    ],
+                  action: FilledButton.icon(
+                    onPressed: _isLoading ? null : _search,
+                    icon: const Icon(Icons.search_rounded),
+                    label: const Text('Cari'),
+                  ),
+                  trailingAction: IconButton.filledTonal(
+                    onPressed: _isLoading ? null : _scanWithCamera,
+                    tooltip: 'Kamera ile oku',
+                    icon: const Icon(Icons.photo_camera_back_rounded),
                   ),
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 6),
                 Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
+                  spacing: 6,
+                  runSpacing: 6,
                   children: <Widget>[
                     FilledButton.tonalIcon(
                       onPressed: _isSyncingCatalog ? null : _syncCatalog,
+                      style: FilledButton.styleFrom(
+                        minimumSize: const Size(0, 36),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 4,
+                        ),
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        visualDensity: VisualDensity.compact,
+                      ),
                       icon: _isSyncingCatalog
                           ? const SizedBox.square(
-                              dimension: 18,
+                              dimension: 15,
                               child: CircularProgressIndicator(strokeWidth: 2),
                             )
-                          : const Icon(Icons.sync_rounded),
+                          : const Icon(Icons.sync_rounded, size: 17),
                       label: Text(
                         _isSyncingCatalog ? 'Sync...' : 'Cari Katalog Sync',
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 12),
-                _buildCustomerCatalogStatusBlock(),
+                if (!showCatalogBelow) ...<Widget>[
+                  const SizedBox(height: 6),
+                  _buildCustomerCatalogStatusBlock(),
+                ],
               ],
             ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 8),
           SectionCard(
             title: 'Firmalar',
             subtitle: _isLoading
@@ -978,16 +1040,18 @@ class _CompanyLookupToolPageState extends State<CompanyLookupToolPage> {
                 : _isUsingOfflineCatalog
                 ? '${_customers.length} firma local katalogdan bulundu.'
                 : '${_customers.length} firma bulundu.',
+            dense: true,
+            framed: _customers.isEmpty,
             child: Column(
               children: <Widget>[
                 if (_errorMessage != null)
                   Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
+                    padding: const EdgeInsets.only(bottom: 8),
                     child: TerminalMessageBlock.error(message: _errorMessage!),
                   ),
                 if (_isLoading)
                   const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 28),
+                    padding: EdgeInsets.symmetric(vertical: 20),
                     child: CircularProgressIndicator(),
                   )
                 else if (_customers.isEmpty)
@@ -995,18 +1059,57 @@ class _CompanyLookupToolPageState extends State<CompanyLookupToolPage> {
                 else
                   ..._customers.map((item) {
                     return Padding(
-                      padding: const EdgeInsets.only(bottom: 10),
+                      padding: const EdgeInsets.only(bottom: 6),
                       child: TerminalPdaDetailPanel(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: <Widget>[
-                            Text(
-                              item.lookupTitle,
-                              style: Theme.of(context).textTheme.titleSmall
-                                  ?.copyWith(fontWeight: FontWeight.w800),
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: <Widget>[
+                                Expanded(
+                                  child: Text(
+                                    item.lookupTitle,
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .titleSmall
+                                        ?.copyWith(
+                                          fontSize: 13.5,
+                                          height: 1.12,
+                                          fontWeight: FontWeight.w900,
+                                        ),
+                                  ),
+                                ),
+                                if (item.isLocked ||
+                                    item.isClosed ||
+                                    item.isEDespatchCustomer) ...<Widget>[
+                                  const SizedBox(width: 6),
+                                  Wrap(
+                                    spacing: 4,
+                                    children: <Widget>[
+                                      if (item.isEDespatchCustomer)
+                                        const TerminalBadge(label: 'E-Irs.'),
+                                      if (item.isLocked)
+                                        const TerminalBadge(
+                                          label: 'Kilitli',
+                                          backgroundColor: Color(0xFFFFE5E5),
+                                          foregroundColor: Color(0xFF7A1818),
+                                        ),
+                                      if (item.isClosed)
+                                        const TerminalBadge(
+                                          label: 'Kapali',
+                                          backgroundColor: Color(0xFFFFE5E5),
+                                          foregroundColor: Color(0xFF7A1818),
+                                        ),
+                                    ],
+                                  ),
+                                ],
+                              ],
                             ),
                             if (item.selectionLabel.trim().isNotEmpty) ...[
-                              const SizedBox(height: 3),
+                              const SizedBox(height: 2),
                               Text(
                                 item.selectionLabel,
                                 maxLines: 2,
@@ -1014,25 +1117,26 @@ class _CompanyLookupToolPageState extends State<CompanyLookupToolPage> {
                                 style: Theme.of(context).textTheme.bodySmall,
                               ),
                             ],
-                            const SizedBox(height: 6),
+                            const SizedBox(height: 5),
                             TerminalPdaInfoGrid(
+                              compact: true,
                               items: <TerminalPdaInfo>[
                                 TerminalPdaInfo(
                                   label: 'Kod',
                                   value: item.customerCode,
                                 ),
-                                TerminalPdaInfo(
-                                  label: 'Vergi',
-                                  value: item.displayTaxNumber.isEmpty
-                                      ? '-'
-                                      : item.displayTaxNumber,
-                                ),
-                                TerminalPdaInfo(
-                                  label: 'Unvan',
-                                  value: item.customerTitle.isEmpty
-                                      ? '-'
-                                      : item.customerTitle,
-                                ),
+                                if (item.displayTaxNumber.trim().isNotEmpty)
+                                  TerminalPdaInfo(
+                                    label: 'Vergi',
+                                    value: item.displayTaxNumber,
+                                  ),
+                                if (item.customerTitle.trim().isNotEmpty &&
+                                    item.customerTitle.trim() !=
+                                        item.lookupTitle.trim())
+                                  TerminalPdaInfo(
+                                    label: 'Unvan',
+                                    value: item.customerTitle,
+                                  ),
                                 if (item.groupCode.isNotEmpty)
                                   TerminalPdaInfo(
                                     label: 'Grup',
@@ -1053,31 +1157,16 @@ class _CompanyLookupToolPageState extends State<CompanyLookupToolPage> {
                                     label: 'Vergi D.',
                                     value: item.taxOfficeName,
                                   ),
-                                TerminalPdaInfo(
-                                  label: 'E-Irs.',
-                                  value: item.isEDespatchCustomer
-                                      ? 'evet'
-                                      : 'hayir',
-                                ),
-                                TerminalPdaInfo(
-                                  label: 'Temsilci',
-                                  value: item.representativeName.isEmpty
-                                      ? '-'
-                                      : item.representativeName,
-                                ),
-                                TerminalPdaInfo(
-                                  label: 'Kilitli',
-                                  value: item.isLocked ? 'evet' : 'hayir',
-                                ),
-                                TerminalPdaInfo(
-                                  label: 'Kapali',
-                                  value: item.isClosed ? 'evet' : 'hayir',
-                                ),
+                                if (item.representativeName.trim().isNotEmpty)
+                                  TerminalPdaInfo(
+                                    label: 'Temsilci',
+                                    value: item.representativeName,
+                                  ),
                               ],
                             ),
                             if (widget.onOpenCompanyAcceptance != null ||
                                 widget.onOpenCompanyReturn != null) ...<Widget>[
-                              const SizedBox(height: 10),
+                              const SizedBox(height: 8),
                               Row(
                                 children: <Widget>[
                                   if (widget.onOpenCompanyAcceptance != null)
@@ -1092,8 +1181,24 @@ class _CompanyLookupToolPageState extends State<CompanyLookupToolPage> {
                                                     context,
                                                     item,
                                                   ),
+                                        style: FilledButton.styleFrom(
+                                          minimumSize: const Size(0, 40),
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 8,
+                                            vertical: 0,
+                                          ),
+                                          tapTargetSize:
+                                              MaterialTapTargetSize.shrinkWrap,
+                                          visualDensity: VisualDensity.standard,
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(
+                                              8,
+                                            ),
+                                          ),
+                                        ),
                                         icon: const Icon(
                                           Icons.inventory_2_rounded,
+                                          size: 17,
                                         ),
                                         label: const Text('Mal Kabul'),
                                       ),
@@ -1111,7 +1216,25 @@ class _CompanyLookupToolPageState extends State<CompanyLookupToolPage> {
                                                 context,
                                                 item,
                                               ),
-                                        icon: const Icon(Icons.undo_rounded),
+                                        style: OutlinedButton.styleFrom(
+                                          minimumSize: const Size(0, 40),
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 8,
+                                            vertical: 0,
+                                          ),
+                                          tapTargetSize:
+                                              MaterialTapTargetSize.shrinkWrap,
+                                          visualDensity: VisualDensity.standard,
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(
+                                              8,
+                                            ),
+                                          ),
+                                        ),
+                                        icon: const Icon(
+                                          Icons.undo_rounded,
+                                          size: 17,
+                                        ),
                                         label: const Text('Firma Iade'),
                                       ),
                                     ),
@@ -1139,6 +1262,10 @@ class _CompanyLookupToolPageState extends State<CompanyLookupToolPage> {
               ],
             ),
           ),
+          if (showCatalogBelow) ...<Widget>[
+            const SizedBox(height: 8),
+            _buildCustomerCatalogStatusBlock(),
+          ],
         ],
       ),
     );

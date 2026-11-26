@@ -170,8 +170,79 @@ void main() {
     expect(find.widgetWithText(FilledButton, 'Cari'), findsOneWidget);
     expect(find.byIcon(Icons.photo_camera_back_rounded), findsOneWidget);
     expect(find.widgetWithText(FilledButton, 'Ara'), findsNothing);
+    await tester.pump();
+    final editable = tester.widget<EditableText>(
+      find.byType(EditableText).first,
+    );
+    expect(editable.focusNode.hasFocus, isTrue);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets(
+    'fiyat gor, var yok, and cari bul autofocus scan input on open across 320x533 and 360x640',
+    (tester) async {
+      for (final size in <Size>[const Size(320, 533), const Size(360, 640)]) {
+        tester.view.physicalSize = size;
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        final pages = <Widget>[
+          ProductLookupToolPage(
+            repository: _FakeLegacyToolsRepository(),
+            accessToken: 'token',
+            defaultWarehouseNo: '110',
+            productCatalogRepository: _productCatalogRepository(),
+            productCatalogSyncService: _productCatalogSyncService(),
+            customerCatalogRepository: _customerCatalogRepository(),
+            customerCatalogSyncService: _customerCatalogSyncService(),
+            warehouseCatalogRepository: _warehouseCatalogRepository(),
+            warehouseCatalogSyncService: _warehouseCatalogSyncService(),
+            title: 'Fiyat Gor',
+            subtitle: 'Test',
+            emptyMessage: 'Bos',
+          ),
+          ProductLookupToolPage(
+            repository: _FakeLegacyToolsRepository(),
+            accessToken: 'token',
+            defaultWarehouseNo: '110',
+            productCatalogRepository: _productCatalogRepository(),
+            productCatalogSyncService: _productCatalogSyncService(),
+            customerCatalogRepository: _customerCatalogRepository(),
+            customerCatalogSyncService: _customerCatalogSyncService(),
+            warehouseCatalogRepository: _warehouseCatalogRepository(),
+            warehouseCatalogSyncService: _warehouseCatalogSyncService(),
+            title: 'Var Yok',
+            subtitle: 'Test',
+            emptyMessage: 'Bos',
+            useStockAvailabilityEndpoint: true,
+          ),
+          CompanyLookupToolPage(
+            repository: _FakeLegacyToolsRepository(),
+            accessToken: 'token',
+            defaultWarehouseNo: '110',
+            customerCatalogRepository: _customerCatalogRepository(),
+            customerCatalogSyncService: _customerCatalogSyncService(),
+            title: 'Cari Bul',
+            subtitle: 'Test',
+            emptyMessage: 'Bos',
+          ),
+        ];
+
+        for (final page in pages) {
+          await tester.pumpWidget(MaterialApp(home: Scaffold(body: page)));
+          await tester.pump();
+          await tester.pump();
+
+          final editable = tester.widget<EditableText>(
+            find.byType(EditableText).first,
+          );
+          expect(editable.focusNode.hasFocus, isTrue);
+          expect(tester.takeException(), isNull);
+        }
+      }
+    },
+  );
 
   testWidgets('cari bul carries selected customer to document actions', (
     tester,

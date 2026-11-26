@@ -129,7 +129,7 @@ void main() {
     );
 
     final productField = find
-        .widgetWithText(TextFormField, 'Barkod / stok kodu / urun adi')
+        .widgetWithText(TextFormField, 'Barkod / stok / urun')
         .first;
     await tester.enterText(productField, '8690000000012');
     await tester.tap(find.widgetWithText(FilledButton, 'Urun').first);
@@ -165,7 +165,7 @@ void main() {
     );
 
     final productField = find
-        .widgetWithText(TextFormField, 'Barkod / stok kodu / urun adi')
+        .widgetWithText(TextFormField, 'Barkod / stok / urun')
         .first;
     await tester.enterText(productField, '9999999999999');
     await tester.tap(find.widgetWithText(FilledButton, 'Urun').first);
@@ -175,7 +175,7 @@ void main() {
     expect(find.text('Giris satiri'), findsOneWidget);
     expect(find.text('Urun bulunamadi.'), findsWidgets);
     expect(
-      find.widgetWithText(TextFormField, 'Barkod / stok kodu / urun adi'),
+      find.widgetWithText(TextFormField, 'Barkod / stok / urun'),
       findsOneWidget,
     );
   });
@@ -183,7 +183,7 @@ void main() {
 
 Future<void> _addStockReceiptLine(WidgetTester tester) async {
   final productField = find
-      .widgetWithText(TextFormField, 'Barkod / stok kodu / urun adi')
+      .widgetWithText(TextFormField, 'Barkod / stok / urun')
       .first;
   await tester.enterText(productField, '8690000000012');
   await tester.tap(find.widgetWithText(FilledButton, 'Urun').first);

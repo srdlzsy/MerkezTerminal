@@ -55,9 +55,7 @@ Future<CreateDraftLaunch?> showCreateDraftPicker({
                     title: drafts.length == 1
                         ? 'Yarim Kalan Form Bulundu'
                         : 'Yarim Kalan Formlar',
-                    subtitle:
-                        'Bunlar sunucuya gonderilmis evraklar degildir. '
-                        'Yalnizca bu cihazda yarim kalan girislerdir.',
+                    subtitle: 'Sunucuya gonderilmemis yerel taslaklar.',
                     padding: EdgeInsets.zero,
                   ),
                   const SizedBox(height: 8),

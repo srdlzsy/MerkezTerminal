@@ -198,7 +198,7 @@ void main() {
     );
 
     expect(tester.takeException(), isNull);
-    expect(find.text('Barkod / stok kodu / urun adi'), findsOneWidget);
+    expect(find.text('Barkod / stok / urun'), findsOneWidget);
     expect(find.text('Koli ici: 12 ADET'), findsOneWidget);
     expect(find.text('Barkod: 8690000000012'), findsOneWidget);
     expect(find.text('Fiyat: 10,00'), findsOneWidget);
@@ -464,7 +464,12 @@ void main() {
     expect(find.textContaining('Koli ici 12 ADET'), findsOneWidget);
     expect(find.text('01'), findsOneWidget);
     expect(find.byTooltip('Satiri sil'), findsOneWidget);
-    expect(find.text('Sil'), findsOneWidget);
+    expect(find.byIcon(Icons.delete_outline_rounded), findsOneWidget);
+    expect(tester.getSize(find.byTooltip('Satiri sil')).width, 44);
+    expect(tester.getSize(find.byTooltip('Satiri sil')).height, 44);
+    expect(tester.getSize(find.byTooltip('Azalt')), const Size(48, 48));
+    expect(tester.getSize(find.byTooltip('Artir')), const Size(48, 48));
+    expect(find.text('ADET'), findsOneWidget);
     final highlight = tester.widget<TweenAnimationBuilder<double>>(
       find.byKey(const ValueKey<String>('terminal-product-line-highlight')),
     );
@@ -557,4 +562,259 @@ void main() {
     );
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('compact product line adapts metadata density by card width', (
+    tester,
+  ) async {
+    Future<double> pumpCard(double width) async {
+      final controller = TextEditingController(text: '20');
+      addTearDown(controller.dispose);
+      final key = GlobalKey();
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Align(
+              alignment: Alignment.topLeft,
+              child: SizedBox(
+                width: width,
+                child: KeyedSubtree(
+                  key: key,
+                  child: TerminalCompactProductLineCard(
+                    lineNo: 1,
+                    stockCode: '044224',
+                    stockName: 'TORKU TOZ SEKER 2KG*10',
+                    quantityController: controller,
+                    unitLabel: 'ADET',
+                    packageLabel: '10',
+                    barcode: '8690120010120',
+                    onDelete: () {},
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      return tester.getSize(find.byKey(key)).height;
+    }
+
+    final narrowHeight = await pumpCard(304);
+    final wideHeight = await pumpCard(376);
+
+    expect(wideHeight, lessThan(narrowHeight));
+    expect(narrowHeight, lessThanOrEqualTo(145));
+    expect(wideHeight, lessThanOrEqualTo(130));
+  });
+
+  testWidgets('long pressing product name opens full product details dialog', (
+    tester,
+  ) async {
+    final quantityController = TextEditingController(text: '12');
+    addTearDown(quantityController.dispose);
+    const fullName = 'TORKU TOZ SEKER 2KG*10 COK UZUN TAM URUN ACIKLAMASI';
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 304,
+            child: TerminalCompactProductLineCard(
+              lineNo: 1,
+              stockCode: '044224',
+              stockName: fullName,
+              quantityController: quantityController,
+              unitLabel: 'ADET',
+              packageLabel: '10',
+              barcode: '8690120010120',
+              onDelete: () {},
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.longPress(
+      find.byKey(const ValueKey<String>('terminal-product-line-name')),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byType(AlertDialog), findsOneWidget);
+    expect(find.text('Stok kodu: 044224'), findsOneWidget);
+    expect(find.text('Barkod: 8690120010120'), findsOneWidget);
+    expect(find.text('Koli ici: 10 ADET'), findsOneWidget);
+  });
+
+  testWidgets(
+    'centers quantity with unit between minus and plus with visible icons',
+    (tester) async {
+      final quantityController = TextEditingController(text: '24');
+      addTearDown(quantityController.dispose);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: 304,
+              child: TerminalCompactProductLineCard(
+                lineNo: 1,
+                stockCode: '044224',
+                stockName: 'TORKU TOZ SEKER 2KG*10',
+                quantityController: quantityController,
+                unitLabel: 'ADET',
+                packageLabel: '10',
+                barcode: '8690120010120',
+                onDelete: () {},
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byIcon(Icons.qr_code_scanner_rounded), findsOneWidget);
+      expect(find.byIcon(Icons.inventory_2_outlined), findsOneWidget);
+
+      final minusRect = tester.getRect(find.byTooltip('Azalt'));
+      final plusRect = tester.getRect(find.byTooltip('Artir'));
+      final qtyRect = tester.getRect(find.byType(TextFormField));
+      final unitRect = tester.getRect(find.text('ADET'));
+
+      final controlCenterX = (minusRect.right + plusRect.left) / 2;
+      final groupCenterX = (qtyRect.left + unitRect.right) / 2;
+
+      expect((groupCenterX - controlCenterX).abs(), lessThanOrEqualTo(4));
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'dual quantity V2 card stacks full-width steppers on PDA and shows full error',
+    (tester) async {
+      final formKey = GlobalKey<FormState>();
+      final dispatchController = TextEditingController(text: '11');
+      final acceptedController = TextEditingController(text: '15');
+      addTearDown(dispatchController.dispose);
+      addTearDown(acceptedController.dispose);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Form(
+              key: formKey,
+              child: Align(
+                alignment: Alignment.topLeft,
+                child: SizedBox(
+                  width: 344,
+                  child: TerminalDualQuantityProductLineCard(
+                    lineNo: 1,
+                    stockCode: '006541',
+                    stockName: 'COCA COLA 2 LT',
+                    unitLabel: 'ADET',
+                    packageLabel: '6',
+                    barcode: '5000112665116',
+                    priceLabel: 'Net 61,46 TL | Brut 78,99 TL',
+                    onDelete: () {},
+                    primaryQuantity: TerminalQuantityStepper(
+                      controller: dispatchController,
+                      label: 'Irs. Miktar*',
+                      dense: true,
+                    ),
+                    secondaryQuantity: TerminalQuantityStepper(
+                      controller: acceptedController,
+                      label: 'Fiili Miktar*',
+                      maximum: 11,
+                      dense: true,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final dispatchRect = tester.getRect(
+        find.widgetWithText(TextFormField, 'Irs. Miktar*'),
+      );
+      final acceptedRect = tester.getRect(
+        find.widgetWithText(TextFormField, 'Fiili Miktar*'),
+      );
+      expect(acceptedRect.top, greaterThan(dispatchRect.bottom));
+      expect(dispatchRect.width, greaterThan(180));
+      expect(acceptedRect.width, greaterThan(180));
+      expect(tester.getSize(find.byTooltip('Satiri sil')), const Size(44, 44));
+
+      expect(formKey.currentState!.validate(), isFalse);
+      await tester.pump();
+
+      expect(find.text('En fazla 11'), findsOneWidget);
+      final errorRect = tester.getRect(find.text('En fazla 11'));
+      expect(errorRect.width, greaterThan(180));
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'ProductDraftEntryPanel places full-width Vazgec + icon Ekle bar below quantity on 320 and 360 dp',
+    (tester) async {
+      for (final width in <double>[320, 360]) {
+        final primaryController = TextEditingController(text: '12');
+        final secondaryController = TextEditingController(text: '12');
+        addTearDown(primaryController.dispose);
+        addTearDown(secondaryController.dispose);
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: MediaQuery(
+              data: MediaQueryData(size: Size(width, 640)),
+              child: Scaffold(
+                body: SingleChildScrollView(
+                  padding: const EdgeInsets.all(8),
+                  child: ProductDraftEntryPanel(
+                    stockCode: '006541',
+                    stockName: 'COCA COLA 2 LT ZERO SUGAR',
+                    quantityController: primaryController,
+                    quantityLabel: 'Irs. Miktar*',
+                    secondaryQuantityController: secondaryController,
+                    secondaryQuantityLabel: 'Fiili Miktar*',
+                    unitLabel: 'ADET',
+                    packageLabel: '6',
+                    barcode: '5000112665116',
+                    priceLabel: 'Net 61,46 TL | Brut 78,99 TL',
+                    onConfirm: () {},
+                    onCancel: () {},
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        final cancelBtn = find.widgetWithText(OutlinedButton, 'Vazgec');
+        final addBtn = find.widgetWithText(FilledButton, 'Ekle');
+        final cancelRect = tester.getRect(cancelBtn);
+        final addRect = tester.getRect(addBtn);
+        final qtyRect = tester.getRect(
+          find.widgetWithText(TextFormField, 'Fiili Miktar*'),
+        );
+        final titleRect = tester.getRect(
+          find.text('COCA COLA 2 LT ZERO SUGAR'),
+        );
+
+        expect(find.byIcon(Icons.close_rounded), findsOneWidget);
+        expect(find.byIcon(Icons.add_circle_outline_rounded), findsOneWidget);
+        expect(titleRect.width, greaterThan(width - 80));
+        expect(cancelRect.top, greaterThan(qtyRect.bottom));
+        expect((cancelRect.center.dy - addRect.center.dy).abs(), lessThan(2));
+        expect((cancelRect.height - addRect.height).abs(), lessThanOrEqualTo(1));
+        expect(addRect.width, greaterThanOrEqualTo(140));
+        expect(tester.takeException(), isNull);
+      }
+    },
+  );
 }
