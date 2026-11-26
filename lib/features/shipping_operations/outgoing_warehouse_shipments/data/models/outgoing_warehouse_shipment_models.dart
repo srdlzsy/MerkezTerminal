@@ -329,6 +329,7 @@ class WarehouseShipmentCreateLine {
     this.warehouseOrderLineGuid,
     this.greenGrocerReferenceOrderLineGuid,
     this.greenGrocerOverDeliveryConfirmed = false,
+    this.greenGrocerActualCaseCount,
     required this.stockCode,
     required this.quantity,
     required this.unitPrice,
@@ -342,6 +343,7 @@ class WarehouseShipmentCreateLine {
   final String? warehouseOrderLineGuid;
   final String? greenGrocerReferenceOrderLineGuid;
   final bool greenGrocerOverDeliveryConfirmed;
+  final double? greenGrocerActualCaseCount;
   final String stockCode;
   final double quantity;
   final double unitPrice;
@@ -361,6 +363,8 @@ class WarehouseShipmentCreateLine {
         'greenGrocerReferenceOrderLineGuid': greenGrocerReferenceOrderLineGuid,
       if (greenGrocerOverDeliveryConfirmed)
         'greenGrocerOverDeliveryConfirmed': true,
+      if (greenGrocerActualCaseCount != null && greenGrocerActualCaseCount! > 0)
+        'greenGrocerActualCaseCount': greenGrocerActualCaseCount,
       'stockCode': stockCode,
       'quantity': quantity,
       'unitPrice': unitPrice,
@@ -380,6 +384,11 @@ class WarehouseShipmentCreateLine {
       ),
       greenGrocerOverDeliveryConfirmed:
           json['greenGrocerOverDeliveryConfirmed'] == true,
+      greenGrocerActualCaseCount: json['greenGrocerActualCaseCount'] is num
+          ? (json['greenGrocerActualCaseCount'] as num).toDouble()
+          : double.tryParse(
+              json['greenGrocerActualCaseCount']?.toString() ?? '',
+            ),
       stockCode: _readString(json['stockCode']),
       quantity: _readDouble(json['quantity']),
       unitPrice: _readDouble(json['unitPrice']),

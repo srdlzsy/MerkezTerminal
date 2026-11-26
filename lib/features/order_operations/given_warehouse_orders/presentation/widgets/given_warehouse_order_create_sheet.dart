@@ -73,6 +73,8 @@ class _GivenWarehouseOrderCreateSheetState
   bool _isGreenGrocerPreviewEnabled = true;
   late bool _isGreenGrocerFeatureEnabled;
   int _greenGrocerSourceWarehouseNo = 56;
+  bool _greenGrocerRequireOrderUserManualApproval = false;
+  bool _greenGrocerAuthDbTrackingEnabled = false;
   Set<String> _greenGrocerModelCodes = const <String>{'10', '11', '12', '23'};
   bool _isGreenGrocerCapabilitiesLoading = false;
   Future<void>? _greenGrocerCapabilitiesFuture;
@@ -176,6 +178,9 @@ class _GivenWarehouseOrderCreateSheetState
       }
       setState(() {
         _isGreenGrocerFeatureEnabled = capabilities.enabled;
+        _greenGrocerRequireOrderUserManualApproval =
+            capabilities.requireOrderUserManualApproval;
+        _greenGrocerAuthDbTrackingEnabled = capabilities.authDbTrackingEnabled;
         if (capabilities.sourceWarehouseNo > 0) {
           _greenGrocerSourceWarehouseNo = capabilities.sourceWarehouseNo;
         }
@@ -1426,29 +1431,33 @@ class _GivenWarehouseOrderCreateSheetState
         return true;
       }
 
-      final message = error.detail ?? error.title;
       setState(() {
-        line.setProductCaseStatus(message, isError: true);
+        _isGreenGrocerPreviewEnabled = false;
+        line.clearProductCaseStatus();
       });
       if (showWarnings) {
-        _showFeedback(message);
+        _showFeedback(
+          'Manav kasa hesabi yapilamadi; girilen miktarla devam edilecek.',
+        );
       }
-      unawaited(TerminalFeedback.error());
-      return false;
-    } catch (error) {
+      unawaited(TerminalFeedback.warning());
+      return true;
+    } catch (_) {
       if (!mounted || requestId != line.productCaseRequestId) {
         return false;
       }
 
-      final message = userFacingErrorMessage(error);
       setState(() {
-        line.setProductCaseStatus(message, isError: true);
+        _isGreenGrocerPreviewEnabled = false;
+        line.clearProductCaseStatus();
       });
       if (showWarnings) {
-        _showFeedback(message);
+        _showFeedback(
+          'Manav kasa hesabi yapilamadi; girilen miktarla devam edilecek.',
+        );
       }
-      unawaited(TerminalFeedback.error());
-      return false;
+      unawaited(TerminalFeedback.warning());
+      return true;
     }
   }
 
@@ -1517,10 +1526,20 @@ class _GivenWarehouseOrderCreateSheetState
           ? resolution.coefficientOfVariation
           : null,
       confidence: resolution.confidence,
-      requiresManualApproval: resolution.requiresManualApproval,
-      allowOrderLinking: resolution.isOrderLinkable,
+      requiresManualApproval:
+          _greenGrocerRequireOrderUserManualApproval &&
+          resolution.requiresManualApproval,
+      allowOrderLinking:
+          _greenGrocerAuthDbTrackingEnabled && resolution.isOrderLinkable,
       overDeliveryTolerancePercent: resolution.overDeliveryTolerancePercent,
       severeOverDeliveryMultiplier: resolution.severeOverDeliveryMultiplier,
+      calculationTier: resolution.calculationTier,
+      averageWindowDaysUsed: resolution.averageWindowDaysUsed,
+      labelAgeDays: resolution.labelAgeDays,
+      priorAverageKgPerCase: resolution.priorAverageKgPerCase,
+      driftPercent: resolution.driftPercent,
+      manualApprovalConfirmed: false,
+      approvedKgPerCase: null,
     );
   }
 
@@ -1542,10 +1561,15 @@ class _GivenWarehouseOrderCreateSheetState
   String _greenGrocerResolutionLabel(
     GreenGrocerProductCaseResolutionResult result,
   ) {
-    return '${AppFormatters.quantity(result.inputQuantity)} '
+    final base =
+        '${AppFormatters.quantity(result.inputQuantity)} '
         '${result.displayInputMode} ~= '
         '${AppFormatters.quantity(result.estimatedQuantity)} '
         '${result.displayMicroUnit}';
+    if (result.driftDetected && result.priorAverageKgPerCase != null) {
+      return '$base | Onceki ${AppFormatters.quantity(result.priorAverageKgPerCase!)} KG/kasa';
+    }
+    return base;
   }
 
   String _greenGrocerUnitLabel(

@@ -26,6 +26,25 @@ void main() {
     expect(capabilities.defaultOverDeliveryTolerancePercent, 20);
     expect(capabilities.severeOverDeliveryMultiplier, 1.5);
     expect(capabilities.modelCodes, <String>['10', '11', '12', '23']);
+    expect(capabilities.requireOrderUserManualApproval, isFalse);
+    expect(capabilities.authDbProfileStorageEnabled, isFalse);
+    expect(capabilities.authDbTrackingEnabled, isFalse);
+  });
+
+  test('current capabilities response exposes optional Auth DB decisions', () {
+    final capabilities =
+        GreenGrocerProductCaseCapabilities.fromJson(const <String, dynamic>{
+          'enabled': true,
+          'orderLinkingEnabled': true,
+          'requireOrderUserManualApproval': true,
+          'authDbProfileStorageEnabled': true,
+          'authDbTrackingEnabled': true,
+          'sourceWarehouseNo': 56,
+        });
+
+    expect(capabilities.requireOrderUserManualApproval, isTrue);
+    expect(capabilities.authDbProfileStorageEnabled, isTrue);
+    expect(capabilities.authDbTrackingEnabled, isTrue);
   });
 
   test('explicit empty model code list remains authoritative', () {

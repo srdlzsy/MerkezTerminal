@@ -100,6 +100,13 @@ class GreenGrocerProductCaseResolutionResult {
     required this.isUsable,
     required this.warnings,
     required this.errors,
+    this.calculationTier,
+    this.averageWindowDaysUsed,
+    this.labelAgeDays,
+    this.priorAverageKgPerCase,
+    this.driftPercent,
+    this.driftDetected = false,
+    this.alternativeAverageKgPerCase,
   });
 
   final String stockCode;
@@ -129,6 +136,13 @@ class GreenGrocerProductCaseResolutionResult {
   final bool isUsable;
   final List<String> warnings;
   final List<String> errors;
+  final String? calculationTier;
+  final int? averageWindowDaysUsed;
+  final int? labelAgeDays;
+  final double? priorAverageKgPerCase;
+  final double? driftPercent;
+  final bool driftDetected;
+  final double? alternativeAverageKgPerCase;
 
   String get primaryError {
     if (errors.isNotEmpty) {
@@ -224,6 +238,21 @@ class GreenGrocerProductCaseResolutionResult {
       isUsable: _readBool(json['isUsable']),
       warnings: _readStringList(json['warnings']),
       errors: _readStringList(json['errors']),
+      calculationTier: _readString(json['calculationTier']).isEmpty
+          ? null
+          : _readString(json['calculationTier']),
+      averageWindowDaysUsed: json['averageWindowDaysUsed'] == null
+          ? null
+          : _readInt(json['averageWindowDaysUsed']),
+      labelAgeDays: json['labelAgeDays'] == null
+          ? null
+          : _readInt(json['labelAgeDays']),
+      priorAverageKgPerCase: _readNullableDouble(json['priorAverageKgPerCase']),
+      driftPercent: _readNullableDouble(json['driftPercent']),
+      driftDetected: _readBool(json['driftDetected']),
+      alternativeAverageKgPerCase: _readNullableDouble(
+        json['alternativeAverageKgPerCase'],
+      ),
     );
   }
 }
@@ -232,6 +261,9 @@ class GreenGrocerProductCaseCapabilities {
   const GreenGrocerProductCaseCapabilities({
     required this.enabled,
     required this.orderLinkingEnabled,
+    this.requireOrderUserManualApproval = false,
+    this.authDbProfileStorageEnabled = false,
+    this.authDbTrackingEnabled = false,
     required this.sourceWarehouseNo,
     required this.modelCodes,
     required this.defaultOverDeliveryTolerancePercent,
@@ -240,6 +272,9 @@ class GreenGrocerProductCaseCapabilities {
 
   final bool enabled;
   final bool orderLinkingEnabled;
+  final bool requireOrderUserManualApproval;
+  final bool authDbProfileStorageEnabled;
+  final bool authDbTrackingEnabled;
   final int sourceWarehouseNo;
   final List<String> modelCodes;
   final double defaultOverDeliveryTolerancePercent;
@@ -259,6 +294,13 @@ class GreenGrocerProductCaseCapabilities {
     return GreenGrocerProductCaseCapabilities(
       enabled: _readBool(json['enabled']),
       orderLinkingEnabled: _readBool(json['orderLinkingEnabled']),
+      requireOrderUserManualApproval: _readBool(
+        json['requireOrderUserManualApproval'],
+      ),
+      authDbProfileStorageEnabled: _readBool(
+        json['authDbProfileStorageEnabled'],
+      ),
+      authDbTrackingEnabled: _readBool(json['authDbTrackingEnabled']),
       sourceWarehouseNo: _readInt(json['sourceWarehouseNo']),
       modelCodes: modelCodes,
       defaultOverDeliveryTolerancePercent:

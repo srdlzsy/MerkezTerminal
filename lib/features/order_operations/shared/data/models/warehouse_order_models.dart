@@ -172,6 +172,13 @@ class WarehouseOrderLineGreenGrocerCase {
     this.actualShippedQuantity,
     this.actualShippedCaseCount,
     this.status = '',
+    this.calculationTier,
+    this.averageWindowDaysUsed,
+    this.labelAgeDays,
+    this.priorAverageKgPerCase,
+    this.driftPercent,
+    this.manualApprovalConfirmed = false,
+    this.approvedKgPerCase,
   });
 
   final double inputQuantity;
@@ -193,6 +200,13 @@ class WarehouseOrderLineGreenGrocerCase {
   final double? actualShippedQuantity;
   final double? actualShippedCaseCount;
   final String status;
+  final String? calculationTier;
+  final int? averageWindowDaysUsed;
+  final int? labelAgeDays;
+  final double? priorAverageKgPerCase;
+  final double? driftPercent;
+  final bool manualApprovalConfirmed;
+  final double? approvedKgPerCase;
 
   String get displayInputMode {
     return switch (inputMode.trim().toLowerCase()) {
@@ -225,6 +239,16 @@ class WarehouseOrderLineGreenGrocerCase {
       'allowOrderLinking': allowOrderLinking,
       'overDeliveryTolerancePercent': overDeliveryTolerancePercent,
       'severeOverDeliveryMultiplier': severeOverDeliveryMultiplier,
+      if (calculationTier != null && calculationTier!.trim().isNotEmpty)
+        'calculationTier': calculationTier,
+      if (averageWindowDaysUsed != null)
+        'averageWindowDaysUsed': averageWindowDaysUsed,
+      if (labelAgeDays != null) 'labelAgeDays': labelAgeDays,
+      if (priorAverageKgPerCase != null)
+        'priorAverageKgPerCase': priorAverageKgPerCase,
+      if (driftPercent != null) 'driftPercent': driftPercent,
+      if (manualApprovalConfirmed) 'manualApprovalConfirmed': true,
+      if (approvedKgPerCase != null) 'approvedKgPerCase': approvedKgPerCase,
     };
   }
 
@@ -266,6 +290,15 @@ class WarehouseOrderLineGreenGrocerCase {
         json['actualShippedCaseCount'],
       ),
       status: _readString(json['status']),
+      calculationTier: _readString(json['calculationTier']).isEmpty
+          ? null
+          : _readString(json['calculationTier']),
+      averageWindowDaysUsed: _readNullableInt(json['averageWindowDaysUsed']),
+      labelAgeDays: _readNullableInt(json['labelAgeDays']),
+      priorAverageKgPerCase: _readNullableDouble(json['priorAverageKgPerCase']),
+      driftPercent: _readNullableDouble(json['driftPercent']),
+      manualApprovalConfirmed: _readBool(json['manualApprovalConfirmed']),
+      approvedKgPerCase: _readNullableDouble(json['approvedKgPerCase']),
     );
   }
 }

@@ -48,6 +48,8 @@ class OutgoingWarehouseShipmentCreateSheet extends StatefulWidget {
     this.greenGrocerProductCasesRepository,
     this.draft,
     this.draftRepository,
+    this.initialOrderLinked = false,
+    this.autoOpenOrderPicker = false,
   });
 
   final OutgoingWarehouseShipmentsRepository repository;
@@ -58,6 +60,8 @@ class OutgoingWarehouseShipmentCreateSheet extends StatefulWidget {
   final GreenGrocerProductCasesRepository? greenGrocerProductCasesRepository;
   final CreateDraft? draft;
   final CreateDraftRepository? draftRepository;
+  final bool initialOrderLinked;
+  final bool autoOpenOrderPicker;
 
   @override
   State<OutgoingWarehouseShipmentCreateSheet> createState() =>
@@ -115,7 +119,12 @@ class _OutgoingWarehouseShipmentCreateSheetState
     _documentDate =
         DateTime.tryParse(payload['documentDate']?.toString() ?? '') ??
         _normalizedDate(DateTime.now());
-    _mode = payload['mode']?.toString() == 'orderLinked'
+    final savedMode = payload['mode']?.toString();
+    _mode = savedMode == 'orderLinked'
+        ? _ShipmentCreateMode.orderLinked
+        : savedMode == 'manual'
+        ? _ShipmentCreateMode.manual
+        : widget.initialOrderLinked
         ? _ShipmentCreateMode.orderLinked
         : _ShipmentCreateMode.manual;
     final warehouseJson = _shipmentDraftMap(payload['selectedTargetWarehouse']);
@@ -167,6 +176,17 @@ class _OutgoingWarehouseShipmentCreateSheetState
       _descriptionController,
     ]);
     unawaited(_loadGreenGrocerCapabilities());
+    if (widget.autoOpenOrderPicker &&
+        _mode == _ShipmentCreateMode.orderLinked &&
+        _selectedOrder == null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted &&
+            _mode == _ShipmentCreateMode.orderLinked &&
+            _selectedOrder == null) {
+          unawaited(_pickWarehouseOrder());
+        }
+      });
+    }
   }
 
   Future<void> _loadGreenGrocerCapabilities() async {
@@ -291,13 +311,10 @@ class _OutgoingWarehouseShipmentCreateSheetState
 
   Future<void> _pickWarehouseOrder() async {
     final targetWarehouseNo = _parseInt(_targetWarehouseNoController.text);
-
-    if (targetWarehouseNo == null || targetWarehouseNo <= 0) {
-      setState(() {
-        _validationMessage = 'Once gecerli bir hedef depo secin.';
-      });
-      return;
-    }
+    final initialTargetWarehouseNo =
+        targetWarehouseNo != null && targetWarehouseNo > 0
+        ? targetWarehouseNo.toString()
+        : '';
 
     final selectedOrder = await showModalBottomSheet<_SelectedWarehouseOrder>(
       context: context,
@@ -309,7 +326,7 @@ class _OutgoingWarehouseShipmentCreateSheetState
           repository: widget.receivedWarehouseOrdersRepository,
           accessToken: widget.accessToken,
           currentWarehouseNo: widget.defaultWarehouseNo,
-          targetWarehouseNo: targetWarehouseNo.toString(),
+          targetWarehouseNo: initialTargetWarehouseNo,
         );
       },
     );
@@ -334,7 +351,17 @@ class _OutgoingWarehouseShipmentCreateSheetState
       return;
     }
 
+    final resolvedTarget = _resolveOrderTargetWarehouse(
+      selectedOrder.item,
+      currentWarehouseNo: widget.defaultWarehouseNo,
+    );
+
     setState(() {
+      if (resolvedTarget != null) {
+        _selectedTargetWarehouse = resolvedTarget;
+        _targetWarehouseNoController.text = resolvedTarget.warehouseNo
+            .toString();
+      }
       for (final line in _linkedLines) {
         line.dispose();
       }
@@ -346,6 +373,44 @@ class _OutgoingWarehouseShipmentCreateSheetState
     });
     _draftSession.scheduleSave();
     _focusFreshLinkedEntryLine();
+  }
+
+  static WarehouseLookupItem? _resolveOrderTargetWarehouse(
+    WarehouseOrderListItem item, {
+    required String currentWarehouseNo,
+  }) {
+    final currentNo = int.tryParse(currentWarehouseNo.trim());
+    final candidates = <(int, String)>[
+      (item.relatedWarehouseNo, item.relatedWarehouseName),
+      (item.outWarehouseNo, item.outWarehouseName),
+      (item.inWarehouseNo, item.inWarehouseName),
+    ];
+
+    for (final (no, name) in candidates) {
+      if (no > 0 && no != currentNo) {
+        return WarehouseLookupItem(
+          warehouseNo: no,
+          warehouseName: name.trim().isEmpty ? 'Depo $no' : name.trim(),
+          address: '',
+          district: '',
+          province: '',
+        );
+      }
+    }
+
+    for (final (no, name) in candidates) {
+      if (no > 0) {
+        return WarehouseLookupItem(
+          warehouseNo: no,
+          warehouseName: name.trim().isEmpty ? 'Depo $no' : name.trim(),
+          address: '',
+          district: '',
+          province: '',
+        );
+      }
+    }
+
+    return null;
   }
 
   _LinkedShipmentLineDraft _createLinkedOrderLine(
@@ -2245,45 +2310,152 @@ class _OutgoingWarehouseShipmentCreateSheetState
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          if (selectedOrder == null)
+          if (selectedOrder == null) ...<Widget>[
+            Row(
+              children: <Widget>[
+                Icon(
+                  Icons.inventory_2_outlined,
+                  size: 16,
+                  color: theme.colorScheme.primary,
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    _hasTargetWarehouseSelection
+                        ? 'Secili deponun veya tum subelerin siparislerini cagirabilirsiniz.'
+                        : 'Depo secmeden tum gelen siparisleri gorup cagirabilirsiniz.',
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
             SizedBox(
               width: double.infinity,
               child: OutlinedButton.icon(
                 onPressed: _pickWarehouseOrder,
-                icon: const Icon(Icons.fact_check_outlined),
+                icon: const Icon(Icons.fact_check_outlined, size: 19),
                 label: const Text('Depo Siparisi Sec'),
-              ),
-            )
-          else ...<Widget>[
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.fromLTRB(8, 4, 4, 4),
-              decoration: BoxDecoration(
-                color: theme.colorScheme.primaryContainer.withAlpha(45),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(
-                  color: theme.colorScheme.primary.withAlpha(45),
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size.fromHeight(42),
+                  visualDensity: VisualDensity.standard,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
                 ),
               ),
-              child: Row(
+            ),
+          ] else ...<Widget>[
+            _buildActiveOrderSummaryBanner(theme, selectedOrder),
+            const SizedBox(height: 5),
+            _buildLinkedEntryLine(),
+            if (_linkedFilledLineIndexes().isNotEmpty) ...<Widget>[
+              const SizedBox(height: 5),
+              _buildLinkedOrderFilterBar(theme),
+            ],
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildActiveOrderSummaryBanner(
+    ThemeData theme,
+    _SelectedWarehouseOrder selectedOrder,
+  ) {
+    final allIndexes = _linkedFilledLineIndexes();
+    final listenables = <Listenable>[
+      for (final index in allIndexes) _linkedLines[index].quantityController,
+    ];
+    final targetWarehouse = _resolveOrderTargetWarehouse(
+      selectedOrder.item,
+      currentWarehouseNo: widget.defaultWarehouseNo,
+    );
+    final storeTitle = targetWarehouse != null
+        ? '${targetWarehouse.warehouseNo} · ${targetWarehouse.warehouseName}'
+        : '${selectedOrder.item.outWarehouseName} -> ${selectedOrder.item.inWarehouseName}';
+
+    return AnimatedBuilder(
+      animation: Listenable.merge(listenables),
+      builder: (context, _) {
+        var readyCount = 0;
+        var pendingCount = 0;
+        var exceededCount = 0;
+        var totalShipped = 0.0;
+
+        for (final index in allIndexes) {
+          final line = _linkedLines[index];
+          final qty = productEntryController.readQuantity(
+            line.quantityController.text,
+            fallback: 0,
+          );
+          if (qty <= 0) {
+            pendingCount += 1;
+          } else {
+            readyCount += 1;
+            totalShipped += qty;
+            if (_isLinkedLineExceeded(line, qty)) {
+              exceededCount += 1;
+            }
+          }
+        }
+
+        final totalLines = allIndexes.length;
+        final progress = totalLines > 0
+            ? (readyCount / totalLines).clamp(0.0, 1.0)
+            : 0.0;
+        final accentColor = exceededCount > 0
+            ? theme.colorScheme.error
+            : totalLines > 0 && pendingCount == 0
+            ? Colors.teal.shade700
+            : theme.colorScheme.primary;
+
+        return Container(
+          width: double.infinity,
+          padding: const EdgeInsets.fromLTRB(8, 6, 4, 6),
+          decoration: BoxDecoration(
+            color: accentColor.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: accentColor.withValues(alpha: 0.35)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: <Widget>[
+              Row(
                 children: <Widget>[
-                  Icon(
-                    Icons.fact_check_outlined,
-                    size: 16,
-                    color: theme.colorScheme.primary,
-                  ),
+                  Icon(Icons.storefront_outlined, size: 16, color: accentColor),
                   const SizedBox(width: 6),
                   Expanded(
-                    child: Text(
-                      '${selectedOrder.item.documentNoLabel} · '
-                      '${selectedOrder.item.outWarehouseName} -> '
-                      '${selectedOrder.item.inWarehouseName}',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.labelSmall?.copyWith(
-                        fontWeight: FontWeight.w800,
-                        color: theme.colorScheme.onPrimaryContainer,
-                      ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: <Widget>[
+                        Text(
+                          storeTitle,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.labelMedium?.copyWith(
+                            fontWeight: FontWeight.w900,
+                            color: theme.colorScheme.onSurface,
+                          ),
+                        ),
+                        Text(
+                          '${selectedOrder.item.documentNoLabel} · '
+                          '$readyCount/$totalLines satir · '
+                          'Toplam ${AppFormatters.quantity(totalShipped)}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            fontWeight: FontWeight.w700,
+                            color: accentColor,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                   const SizedBox(width: 4),
@@ -2298,16 +2470,25 @@ class _OutgoingWarehouseShipmentCreateSheetState
                   ),
                 ],
               ),
-            ),
-            const SizedBox(height: 5),
-            _buildLinkedEntryLine(),
-            if (_linkedFilledLineIndexes().isNotEmpty) ...<Widget>[
-              const SizedBox(height: 5),
-              _buildLinkedOrderFilterBar(theme),
+              if (totalLines > 0) ...<Widget>[
+                const SizedBox(height: 4),
+                Padding(
+                  padding: const EdgeInsets.only(right: 4),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(2),
+                    child: LinearProgressIndicator(
+                      value: progress,
+                      minHeight: 3,
+                      backgroundColor: accentColor.withValues(alpha: 0.16),
+                      valueColor: AlwaysStoppedAnimation<Color>(accentColor),
+                    ),
+                  ),
+                ),
+              ],
             ],
-          ],
-        ],
-      ),
+          ),
+        );
+      },
     );
   }
 
@@ -2770,25 +2951,19 @@ class _ManualShipmentLineCard extends StatelessWidget {
             labelText: 'Barkod okut / urun degistir',
             onSubmit: onPickProduct,
           ),
-          action: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: <Widget>[
-              FilledButton.icon(
-                onPressed: isReadyForScanning && !line.isLookupStatusLoading
-                    ? onPickProduct
-                    : null,
-                icon: const Icon(Icons.search_rounded),
-                label: const Text('Urun'),
-              ),
-              const SizedBox(width: 8),
-              IconButton.filledTonal(
-                onPressed: isReadyForScanning && !line.isLookupStatusLoading
-                    ? onScanWithCamera
-                    : null,
-                tooltip: 'Kamera ile oku',
-                icon: const Icon(Icons.photo_camera_back_rounded),
-              ),
-            ],
+          action: FilledButton.icon(
+            onPressed: isReadyForScanning && !line.isLookupStatusLoading
+                ? onPickProduct
+                : null,
+            icon: const Icon(Icons.search_rounded),
+            label: const Text('Urun'),
+          ),
+          trailingAction: IconButton.filledTonal(
+            onPressed: isReadyForScanning && !line.isLookupStatusLoading
+                ? onScanWithCamera
+                : null,
+            tooltip: 'Kamera ile oku',
+            icon: const Icon(Icons.photo_camera_back_rounded),
           ),
         ),
       );
@@ -2851,25 +3026,19 @@ class _ManualShipmentLineCard extends StatelessWidget {
                 enabled: isReadyForScanning && !line.isLookupStatusLoading,
                 onSubmit: onPickProduct,
               ),
-              action: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: <Widget>[
-                  FilledButton.icon(
-                    onPressed: isReadyForScanning && !line.isLookupStatusLoading
-                        ? onPickProduct
-                        : null,
-                    icon: const Icon(Icons.search_rounded),
-                    label: const Text('Urun'),
-                  ),
-                  const SizedBox(width: 8),
-                  IconButton.filledTonal(
-                    onPressed: isReadyForScanning && !line.isLookupStatusLoading
-                        ? onScanWithCamera
-                        : null,
-                    tooltip: 'Kamera ile oku',
-                    icon: const Icon(Icons.photo_camera_back_rounded),
-                  ),
-                ],
+              action: FilledButton.icon(
+                onPressed: isReadyForScanning && !line.isLookupStatusLoading
+                    ? onPickProduct
+                    : null,
+                icon: const Icon(Icons.search_rounded),
+                label: const Text('Urun'),
+              ),
+              trailingAction: IconButton.filledTonal(
+                onPressed: isReadyForScanning && !line.isLookupStatusLoading
+                    ? onScanWithCamera
+                    : null,
+                tooltip: 'Kamera ile oku',
+                icon: const Icon(Icons.photo_camera_back_rounded),
               ),
             ),
           if (isFreshEntry && line.lookupStatusMessage != null) ...<Widget>[
@@ -2988,25 +3157,19 @@ class _LinkedShipmentLineCard extends StatelessWidget {
             labelText: 'Barkod okut / urun degistir',
             onSubmit: onPickProduct,
           ),
-          action: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: <Widget>[
-              FilledButton.icon(
-                onPressed: isReadyForScanning && !line.isLookupStatusLoading
-                    ? onPickProduct
-                    : null,
-                icon: const Icon(Icons.search_rounded),
-                label: const Text('Urun'),
-              ),
-              const SizedBox(width: 8),
-              IconButton.filledTonal(
-                onPressed: isReadyForScanning && !line.isLookupStatusLoading
-                    ? onScanWithCamera
-                    : null,
-                tooltip: 'Kamera ile oku',
-                icon: const Icon(Icons.photo_camera_back_rounded),
-              ),
-            ],
+          action: FilledButton.icon(
+            onPressed: isReadyForScanning && !line.isLookupStatusLoading
+                ? onPickProduct
+                : null,
+            icon: const Icon(Icons.search_rounded),
+            label: const Text('Urun'),
+          ),
+          trailingAction: IconButton.filledTonal(
+            onPressed: isReadyForScanning && !line.isLookupStatusLoading
+                ? onScanWithCamera
+                : null,
+            tooltip: 'Kamera ile oku',
+            icon: const Icon(Icons.photo_camera_back_rounded),
           ),
         ),
       );
@@ -3057,6 +3220,12 @@ class _LinkedShipmentLineCard extends StatelessWidget {
           if (line.greenGrocerCase != null) ...<Widget>[
             const SizedBox(height: 6),
             _GreenGrocerShipmentBand(line: line),
+          ] else if (line.isOrderLinked) ...<Widget>[
+            const SizedBox(height: 6),
+            _OrderLinkedLineProgressBand(
+              line: line,
+              isQuantityLimited: isQuantityLimited,
+            ),
           ],
         ],
       );
@@ -3083,25 +3252,19 @@ class _LinkedShipmentLineCard extends StatelessWidget {
                 enabled: isReadyForScanning && !line.isLookupStatusLoading,
                 onSubmit: onPickProduct,
               ),
-              action: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: <Widget>[
-                  FilledButton.icon(
-                    onPressed: isReadyForScanning && !line.isLookupStatusLoading
-                        ? onPickProduct
-                        : null,
-                    icon: const Icon(Icons.search_rounded),
-                    label: const Text('Urun'),
-                  ),
-                  const SizedBox(width: 8),
-                  IconButton.filledTonal(
-                    onPressed: isReadyForScanning && !line.isLookupStatusLoading
-                        ? onScanWithCamera
-                        : null,
-                    tooltip: 'Kamera ile oku',
-                    icon: const Icon(Icons.photo_camera_back_rounded),
-                  ),
-                ],
+              action: FilledButton.icon(
+                onPressed: isReadyForScanning && !line.isLookupStatusLoading
+                    ? onPickProduct
+                    : null,
+                icon: const Icon(Icons.search_rounded),
+                label: const Text('Urun'),
+              ),
+              trailingAction: IconButton.filledTonal(
+                onPressed: isReadyForScanning && !line.isLookupStatusLoading
+                    ? onScanWithCamera
+                    : null,
+                tooltip: 'Kamera ile oku',
+                icon: const Icon(Icons.photo_camera_back_rounded),
               ),
             )
           else ...<Widget>[
@@ -3191,30 +3354,120 @@ class _WarehouseOrderPickerSheet extends StatefulWidget {
       _WarehouseOrderPickerSheetState();
 }
 
+enum _OrderPickerDatePreset { today, last3Days, last7Days, custom }
+
 class _WarehouseOrderPickerSheetState
     extends State<_WarehouseOrderPickerSheet> {
   late final TextEditingController _queryController;
   late DateTime _startDate;
   late DateTime _endDate;
+  _OrderPickerDatePreset _datePreset = _OrderPickerDatePreset.today;
+  late bool _filterByTargetWarehouse;
   bool _isLoading = false;
   String? _errorMessage;
   String? _loadingDetailKey;
-  List<WarehouseOrderListItem> _items = const <WarehouseOrderListItem>[];
+  List<WarehouseOrderListItem> _allItems = const <WarehouseOrderListItem>[];
+
+  int? get _parsedTargetWarehouseNo =>
+      int.tryParse(widget.targetWarehouseNo.trim());
+
+  bool get _hasTargetWarehouseFilterOption {
+    final targetNo = _parsedTargetWarehouseNo;
+    return targetNo != null && targetNo > 0;
+  }
 
   @override
   void initState() {
     super.initState();
     _queryController = TextEditingController();
-    final today = DateTime.now();
-    _startDate = DateTime(today.year, today.month, today.day);
-    _endDate = _startDate;
+    _queryController.addListener(_onQueryChanged);
+    final today = _todayDate();
+    _startDate = today;
+    _endDate = today;
+    _filterByTargetWarehouse = _hasTargetWarehouseFilterOption;
     _load();
   }
 
   @override
   void dispose() {
+    _queryController.removeListener(_onQueryChanged);
     _queryController.dispose();
     super.dispose();
+  }
+
+  static DateTime _todayDate() {
+    final now = DateTime.now();
+    return DateTime(now.year, now.month, now.day);
+  }
+
+  void _onQueryChanged() {
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
+  bool _matchesTargetWarehouse(WarehouseOrderListItem item) {
+    final targetNo = _parsedTargetWarehouseNo;
+    if (targetNo == null || targetNo <= 0) {
+      return true;
+    }
+    return item.outWarehouseNo == targetNo ||
+        item.relatedWarehouseNo == targetNo;
+  }
+
+  List<WarehouseOrderListItem> get _filteredItems {
+    final query = _queryController.text.trim().toLowerCase();
+    return _allItems
+        .where((item) {
+          if (_filterByTargetWarehouse && !_matchesTargetWarehouse(item)) {
+            return false;
+          }
+
+          if (query.isEmpty) {
+            return true;
+          }
+
+          final targetStore =
+              _OutgoingWarehouseShipmentCreateSheetState._resolveOrderTargetWarehouse(
+                item,
+                currentWarehouseNo: widget.currentWarehouseNo,
+              );
+          return item.documentNoLabel.toLowerCase().contains(query) ||
+              item.relatedWarehouseName.toLowerCase().contains(query) ||
+              item.relatedWarehouseNo.toString().contains(query) ||
+              item.inWarehouseName.toLowerCase().contains(query) ||
+              item.outWarehouseName.toLowerCase().contains(query) ||
+              item.outWarehouseNo.toString().contains(query) ||
+              (targetStore != null &&
+                  targetStore.displayLabel.toLowerCase().contains(query));
+        })
+        .toList(growable: false);
+  }
+
+  int get _targetWarehouseOrderCount {
+    if (!_hasTargetWarehouseFilterOption) {
+      return _allItems.length;
+    }
+    return _allItems.where(_matchesTargetWarehouse).length;
+  }
+
+  void _applyDatePreset(_OrderPickerDatePreset preset) {
+    final today = _todayDate();
+    setState(() {
+      _datePreset = preset;
+      _endDate = today;
+      _startDate = switch (preset) {
+        _OrderPickerDatePreset.today => today,
+        _OrderPickerDatePreset.last3Days => today.subtract(
+          const Duration(days: 2),
+        ),
+        _OrderPickerDatePreset.last7Days => today.subtract(
+          const Duration(days: 6),
+        ),
+        _OrderPickerDatePreset.custom => _startDate,
+      };
+    });
+    unawaited(_load());
   }
 
   Future<void> _pickDate({required bool isStart}) async {
@@ -3230,6 +3483,7 @@ class _WarehouseOrderPickerSheetState
     }
 
     setState(() {
+      _datePreset = _OrderPickerDatePreset.custom;
       if (isStart) {
         _startDate = pickedDate;
         if (_endDate.isBefore(_startDate)) {
@@ -3242,6 +3496,7 @@ class _WarehouseOrderPickerSheetState
         }
       }
     });
+    unawaited(_load());
   }
 
   Future<void> _load() async {
@@ -3251,7 +3506,6 @@ class _WarehouseOrderPickerSheetState
     });
 
     try {
-      final targetWarehouseNo = int.tryParse(widget.targetWarehouseNo.trim());
       final items = await widget.repository.fetchOrders(
         accessToken: widget.accessToken,
         filter: WarehouseOrderListFilter(
@@ -3261,35 +3515,12 @@ class _WarehouseOrderPickerSheetState
         ),
       );
 
-      final query = _queryController.text.trim().toLowerCase();
-      final filtered = items
-          .where((item) {
-            final matchesTargetWarehouse =
-                targetWarehouseNo == null ||
-                item.outWarehouseNo == targetWarehouseNo ||
-                item.relatedWarehouseNo == targetWarehouseNo;
-
-            if (!matchesTargetWarehouse) {
-              return false;
-            }
-
-            if (query.isEmpty) {
-              return true;
-            }
-
-            return item.documentNoLabel.toLowerCase().contains(query) ||
-                item.relatedWarehouseName.toLowerCase().contains(query) ||
-                item.inWarehouseName.toLowerCase().contains(query) ||
-                item.outWarehouseName.toLowerCase().contains(query);
-          })
-          .toList(growable: false);
-
       if (!mounted) {
         return;
       }
 
       setState(() {
-        _items = filtered;
+        _allItems = items;
         _isLoading = false;
       });
     } catch (error) {
@@ -3305,6 +3536,9 @@ class _WarehouseOrderPickerSheetState
   }
 
   Future<void> _selectItem(WarehouseOrderListItem item) async {
+    if (_loadingDetailKey != null) {
+      return;
+    }
     setState(() {
       _loadingDetailKey = item.documentKey;
       _errorMessage = null;
@@ -3337,122 +3571,480 @@ class _WarehouseOrderPickerSheetState
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return SafeArea(
-      child: FractionallySizedBox(
-        heightFactor: 0.9,
-        child: Material(
-          color: Theme.of(context).scaffoldBackgroundColor,
-          child: ListView(
-            padding: EdgeInsets.fromLTRB(
-              16,
-              12,
-              16,
-              20 + MediaQuery.viewInsetsOf(context).bottom,
+  Widget _buildFilterPill(
+    ThemeData theme, {
+    required String label,
+    required bool selected,
+    required VoidCallback onTap,
+  }) {
+    final activeColor = theme.colorScheme.primary;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(14),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+        decoration: BoxDecoration(
+          color: selected
+              ? activeColor
+              : theme.colorScheme.surfaceContainerHighest.withAlpha(110),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: selected ? activeColor : theme.colorScheme.outlineVariant,
+          ),
+        ),
+        child: Text(
+          label,
+          maxLines: 1,
+          style: theme.textTheme.labelSmall?.copyWith(
+            fontWeight: FontWeight.w800,
+            color: selected
+                ? theme.colorScheme.onPrimary
+                : theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildOrderCard(ThemeData theme, WarehouseOrderListItem item) {
+    final targetStore =
+        _OutgoingWarehouseShipmentCreateSheetState._resolveOrderTargetWarehouse(
+          item,
+          currentWarehouseNo: widget.currentWarehouseNo,
+        );
+    final isLoadingItem = _loadingDetailKey == item.documentKey;
+    final storeNo = targetStore?.warehouseNo ?? item.relatedWarehouseNo;
+    final storeName = targetStore?.warehouseName.isNotEmpty == true
+        ? targetStore!.warehouseName
+        : item.relatedWarehouseName.isNotEmpty
+        ? item.relatedWarehouseName
+        : item.outWarehouseName;
+
+    Widget metaChip({
+      required IconData icon,
+      required String label,
+      Color? tint,
+    }) {
+      final fg = tint ?? theme.colorScheme.onSurfaceVariant;
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+        decoration: BoxDecoration(
+          color: (tint ?? theme.colorScheme.surfaceContainerHighest).withValues(
+            alpha: tint != null ? 0.1 : 0.65,
+          ),
+          borderRadius: BorderRadius.circular(6),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            Icon(icon, size: 12, color: fg),
+            const SizedBox(width: 3),
+            Text(
+              label,
+              maxLines: 1,
+              style: theme.textTheme.labelSmall?.copyWith(
+                fontWeight: FontWeight.w800,
+                color: fg,
+              ),
             ),
+          ],
+        ),
+      );
+    }
+
+    return Material(
+      color: theme.colorScheme.surface,
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        onTap: isLoadingItem ? null : () => _selectItem(item),
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(10, 8, 8, 8),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: isLoadingItem
+                  ? theme.colorScheme.primary
+                  : theme.colorScheme.outlineVariant.withAlpha(90),
+            ),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: <Widget>[
-              SectionCard(
-                title: 'Depo Siparisi Sec',
-                subtitle:
-                    '${widget.targetWarehouseNo} deposunun bu depoya verdigi siparisler listelenir.',
+              Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
-                    Wrap(
-                      spacing: 12,
-                      runSpacing: 12,
+                    Row(
                       children: <Widget>[
-                        _DateField(
-                          label: 'Baslangic',
-                          value: AppFormatters.date(_startDate),
-                          onPressed: () => _pickDate(isStart: true),
-                        ),
-                        _DateField(
-                          label: 'Bitis',
-                          value: AppFormatters.date(_endDate),
-                          onPressed: () => _pickDate(isStart: false),
+                        if (storeNo > 0) ...<Widget>[
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: theme.colorScheme.primaryContainer,
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              '$storeNo',
+                              style: theme.textTheme.labelSmall?.copyWith(
+                                fontWeight: FontWeight.w900,
+                                color: theme.colorScheme.onPrimaryContainer,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                        ],
+                        Expanded(
+                          child: Text(
+                            storeName.isEmpty
+                                ? item.documentNoLabel
+                                : storeName,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.titleSmall?.copyWith(
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 12),
-                    _ResponsiveSearchRow(
-                      textField: TerminalLookupSearchField(
-                        controller: _queryController,
-                        onSearch: _load,
-                        decoration: const InputDecoration(
-                          labelText: 'Siparis ara',
-                          hintText: 'Ornek: D110.1915',
+                    const SizedBox(height: 4),
+                    Wrap(
+                      spacing: 5,
+                      runSpacing: 4,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: <Widget>[
+                        Text(
+                          item.documentNoLabel,
+                          style: theme.textTheme.labelMedium?.copyWith(
+                            fontWeight: FontWeight.w900,
+                            color: theme.colorScheme.primary,
+                          ),
                         ),
-                      ),
-                      button: FilledButton.icon(
-                        onPressed: _load,
-                        icon: const Icon(Icons.search_rounded),
-                        label: const Text('Listele'),
-                      ),
+                        metaChip(
+                          icon: Icons.format_list_numbered_rounded,
+                          label: '${item.lineCount} satir',
+                        ),
+                        metaChip(
+                          icon: Icons.inventory_2_outlined,
+                          label: AppFormatters.quantity(item.totalQuantity),
+                          tint: Colors.teal.shade700,
+                        ),
+                        if (item.documentDate != null)
+                          metaChip(
+                            icon: Icons.calendar_today_outlined,
+                            label: AppFormatters.date(item.documentDate!),
+                          ),
+                        if (item.deliveryDate != null)
+                          metaChip(
+                            icon: Icons.local_shipping_outlined,
+                            label:
+                                'Teslim ${AppFormatters.date(item.deliveryDate!)}',
+                            tint: Colors.indigo.shade700,
+                          ),
+                      ],
                     ),
                   ],
                 ),
               ),
-              const SizedBox(height: 16),
-              if (_errorMessage != null)
-                _ValidationBlock(message: _errorMessage!)
-              else if (_isLoading)
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 32),
-                  child: Center(child: CircularProgressIndicator()),
-                )
-              else if (_items.isEmpty)
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 32),
-                  child: Center(
-                    child: Text(
-                      'Secilen depo icin bu depoya verilmis baglanabilir siparis bulunamadi.',
-                      style: Theme.of(context).textTheme.bodyLarge,
-                      textAlign: TextAlign.center,
-                    ),
-                  ),
+              const SizedBox(width: 6),
+              if (isLoadingItem)
+                const SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2),
                 )
               else
-                Column(
-                  children: _items
-                      .map(
-                        (item) => Padding(
-                          padding: const EdgeInsets.only(bottom: 12),
-                          child: ListTile(
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(20),
-                              side: BorderSide(
-                                color: Theme.of(
-                                  context,
-                                ).colorScheme.outlineVariant.withAlpha(80),
-                              ),
-                            ),
-                            title: Text(
-                              item.documentNoLabel,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w800,
-                              ),
-                            ),
-                            subtitle: Text(
-                              '${item.outWarehouseName} -> ${item.inWarehouseName} | ${item.lineCount} satir | ${AppFormatters.quantity(item.totalQuantity)}',
-                            ),
-                            trailing: _loadingDetailKey == item.documentKey
-                                ? const SizedBox(
-                                    width: 18,
-                                    height: 18,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                    ),
-                                  )
-                                : const Icon(Icons.chevron_right_rounded),
-                            onTap: () => _selectItem(item),
-                          ),
-                        ),
-                      )
-                      .toList(growable: false),
+                Icon(
+                  Icons.chevron_right_rounded,
+                  color: theme.colorScheme.onSurfaceVariant,
                 ),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final visibleItems = _filteredItems;
+    final hasOtherStoreOrders =
+        _filterByTargetWarehouse &&
+        _allItems.isNotEmpty &&
+        visibleItems.isEmpty;
+
+    return SafeArea(
+      child: FractionallySizedBox(
+        heightFactor: 0.94,
+        child: Material(
+          color: theme.scaffoldBackgroundColor,
+          child: Padding(
+            padding: EdgeInsets.fromLTRB(
+              10,
+              4,
+              10,
+              8 + MediaQuery.viewInsetsOf(context).bottom,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: <Widget>[
+                Row(
+                  children: <Widget>[
+                    Icon(
+                      Icons.fact_check_outlined,
+                      size: 20,
+                      color: theme.colorScheme.primary,
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        'Depo Siparisi Sec',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 3,
+                      ),
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.primaryContainer,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        '${visibleItems.length} siparis',
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          fontWeight: FontWeight.w900,
+                          color: theme.colorScheme.onPrimaryContainer,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      icon: const Icon(Icons.close_rounded),
+                      tooltip: 'Kapat',
+                      visualDensity: VisualDensity.compact,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.surface,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: theme.colorScheme.outlineVariant.withAlpha(80),
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: <Widget>[
+                      SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Row(
+                          children: <Widget>[
+                            _buildFilterPill(
+                              theme,
+                              label: 'Bugun',
+                              selected:
+                                  _datePreset == _OrderPickerDatePreset.today,
+                              onTap: () => _applyDatePreset(
+                                _OrderPickerDatePreset.today,
+                              ),
+                            ),
+                            const SizedBox(width: 5),
+                            _buildFilterPill(
+                              theme,
+                              label: 'Son 3 Gun',
+                              selected:
+                                  _datePreset ==
+                                  _OrderPickerDatePreset.last3Days,
+                              onTap: () => _applyDatePreset(
+                                _OrderPickerDatePreset.last3Days,
+                              ),
+                            ),
+                            const SizedBox(width: 5),
+                            _buildFilterPill(
+                              theme,
+                              label: 'Son 7 Gun',
+                              selected:
+                                  _datePreset ==
+                                  _OrderPickerDatePreset.last7Days,
+                              onTap: () => _applyDatePreset(
+                                _OrderPickerDatePreset.last7Days,
+                              ),
+                            ),
+                            if (_hasTargetWarehouseFilterOption) ...<Widget>[
+                              const SizedBox(width: 8),
+                              _buildFilterPill(
+                                theme,
+                                label:
+                                    'Depo ${widget.targetWarehouseNo} ($_targetWarehouseOrderCount)',
+                                selected: _filterByTargetWarehouse,
+                                onTap: () => setState(
+                                  () => _filterByTargetWarehouse = true,
+                                ),
+                              ),
+                              const SizedBox(width: 5),
+                              _buildFilterPill(
+                                theme,
+                                label: 'Tum Subeler (${_allItems.length})',
+                                selected: !_filterByTargetWarehouse,
+                                onTap: () => setState(
+                                  () => _filterByTargetWarehouse = false,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Row(
+                        children: <Widget>[
+                          Expanded(
+                            child: TerminalFilterButton(
+                              label: 'Baslangic',
+                              value: AppFormatters.date(_startDate),
+                              onPressed: () => _pickDate(isStart: true),
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: TerminalFilterButton(
+                              label: 'Bitis',
+                              value: AppFormatters.date(_endDate),
+                              onPressed: () => _pickDate(isStart: false),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      TerminalResponsiveLookupRow(
+                        breakpoint: 240,
+                        field: TerminalLookupSearchField(
+                          controller: _queryController,
+                          onSearch: _load,
+                          decoration: const InputDecoration(
+                            labelText: 'Siparis veya sube ara',
+                            hintText: 'Sube adi, no veya D110.1915',
+                            isDense: true,
+                            constraints: BoxConstraints(
+                              minHeight: 42,
+                              maxHeight: 42,
+                            ),
+                            contentPadding: EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 8,
+                            ),
+                          ),
+                        ),
+                        action: FilledButton.icon(
+                          onPressed: _isLoading ? null : _load,
+                          icon: const Icon(Icons.refresh_rounded, size: 18),
+                          label: const Text('Listele'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Expanded(
+                  child: _errorMessage != null
+                      ? Center(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: <Widget>[
+                              _ValidationBlock(message: _errorMessage!),
+                              const SizedBox(height: 8),
+                              FilledButton.icon(
+                                onPressed: _load,
+                                icon: const Icon(Icons.refresh_rounded),
+                                label: const Text('Tekrar Dene'),
+                              ),
+                            ],
+                          ),
+                        )
+                      : _isLoading
+                      ? const Center(child: CircularProgressIndicator())
+                      : visibleItems.isEmpty
+                      ? Center(
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 12),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: <Widget>[
+                                Icon(
+                                  Icons.inbox_outlined,
+                                  size: 36,
+                                  color: theme.colorScheme.onSurfaceVariant,
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  hasOtherStoreOrders
+                                      ? 'Depo ${widget.targetWarehouseNo} icin siparis yok, diger subelerde ${_allItems.length} siparis var.'
+                                      : 'Secilen aralikta baglanabilir siparis bulunamadi.',
+                                  style: theme.textTheme.bodyMedium?.copyWith(
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                  textAlign: TextAlign.center,
+                                ),
+                                const SizedBox(height: 10),
+                                Wrap(
+                                  spacing: 8,
+                                  runSpacing: 8,
+                                  alignment: WrapAlignment.center,
+                                  children: <Widget>[
+                                    if (hasOtherStoreOrders)
+                                      FilledButton.icon(
+                                        onPressed: () => setState(
+                                          () =>
+                                              _filterByTargetWarehouse = false,
+                                        ),
+                                        icon: const Icon(
+                                          Icons.storefront_outlined,
+                                          size: 18,
+                                        ),
+                                        label: Text(
+                                          'Tum Subeleri Goster (${_allItems.length})',
+                                        ),
+                                      ),
+                                    if (_datePreset ==
+                                        _OrderPickerDatePreset.today)
+                                      OutlinedButton.icon(
+                                        onPressed: () => _applyDatePreset(
+                                          _OrderPickerDatePreset.last3Days,
+                                        ),
+                                        icon: const Icon(
+                                          Icons.date_range_rounded,
+                                          size: 18,
+                                        ),
+                                        label: const Text('Son 3 Gunu Getir'),
+                                      ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                        )
+                      : ListView.separated(
+                          itemCount: visibleItems.length,
+                          separatorBuilder: (_, _) => const SizedBox(height: 6),
+                          itemBuilder: (context, index) =>
+                              _buildOrderCard(theme, visibleItems[index]),
+                        ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -4563,78 +5155,159 @@ class _ShipmentModeButton extends StatelessWidget {
               child: FittedBox(
                 fit: BoxFit.scaleDown,
                 child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: <Widget>[
-                  Icon(
-                    icon,
-                    size: 16,
-                    color: selected
-                        ? colorScheme.onPrimaryContainer
-                        : colorScheme.onSurfaceVariant,
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    label,
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    Icon(
+                      icon,
+                      size: 16,
                       color: selected
                           ? colorScheme.onPrimaryContainer
                           : colorScheme.onSurfaceVariant,
                     ),
-                  ),
-                ],
+                    const SizedBox(width: 4),
+                    Text(
+                      label,
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: selected
+                            ? colorScheme.onPrimaryContainer
+                            : colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
-        ),
         ),
       ),
     );
   }
 }
 
-class _DateField extends StatelessWidget {
-  const _DateField({
-    required this.label,
-    required this.value,
-    required this.onPressed,
+class _OrderLinkedLineProgressBand extends StatelessWidget {
+  const _OrderLinkedLineProgressBand({
+    required this.line,
+    required this.isQuantityLimited,
   });
 
-  final String label;
-  final String value;
-  final VoidCallback onPressed;
+  final _LinkedShipmentLineDraft line;
+  final bool isQuantityLimited;
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: 142,
-      child: OutlinedButton.icon(
-        onPressed: onPressed,
-        style: OutlinedButton.styleFrom(
-          minimumSize: const Size(142, 48),
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-          tapTargetSize: MaterialTapTargetSize.padded,
-        ),
-        icon: const Icon(Icons.calendar_month_rounded, size: 19),
-        label: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: <Widget>[
-            Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
-            Text(
-              value,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                fontSize: 15,
-                height: 1.12,
-                fontWeight: FontWeight.w700,
+    final theme = Theme.of(context);
+    return AnimatedBuilder(
+      animation: line.quantityController,
+      builder: (context, _) {
+        final actual = productEntryController.readQuantity(
+          line.quantityController.text,
+          fallback: 0,
+        );
+        final target = line.maxQuantity > 0
+            ? line.maxQuantity
+            : line.orderQuantity;
+        final isExceeded =
+            isQuantityLimited &&
+            line.maxQuantity > 0 &&
+            actual > line.maxQuantity;
+        final isPending = actual <= 0;
+        final isComplete =
+            !isPending && !isExceeded && target > 0 && actual >= target;
+
+        final color = isExceeded
+            ? theme.colorScheme.error
+            : isPending
+            ? Colors.blueGrey.shade600
+            : isComplete
+            ? Colors.teal.shade700
+            : Colors.amber.shade900;
+        final icon = isExceeded
+            ? Icons.error_outline_rounded
+            : isPending
+            ? Icons.hourglass_empty_rounded
+            : isComplete
+            ? Icons.check_circle_outline_rounded
+            : Icons.timelapse_rounded;
+        final status = isExceeded
+            ? 'Kalan asildi'
+            : isPending
+            ? 'Bekliyor'
+            : isComplete
+            ? 'Tam'
+            : 'Kismi';
+        final progress = target > 0 ? (actual / target).clamp(0.0, 1.0) : 0.0;
+        final unitSuffix = line.unitName.trim().isEmpty
+            ? ''
+            : ' ${line.unitName.trim()}';
+        final summary =
+            'Sip. ${AppFormatters.quantity(line.orderQuantity)} · '
+            'Kalan ${AppFormatters.quantity(line.maxQuantity)} · '
+            'Sevk ${AppFormatters.quantity(actual)}$unitSuffix';
+
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.08),
+            border: Border.all(color: color.withValues(alpha: 0.4)),
+            borderRadius: BorderRadius.circular(6),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: <Widget>[
+              Row(
+                children: <Widget>[
+                  Icon(icon, size: 15, color: color),
+                  const SizedBox(width: 5),
+                  Expanded(
+                    child: Text(
+                      summary,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: color,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: color.withValues(alpha: 0.14),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text(
+                      status,
+                      maxLines: 1,
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: color,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ),
+                ],
               ),
-            ),
-          ],
-        ),
-      ),
+              if (target > 0) ...<Widget>[
+                const SizedBox(height: 4),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(2),
+                  child: LinearProgressIndicator(
+                    value: progress,
+                    minHeight: 3,
+                    backgroundColor: color.withValues(alpha: 0.16),
+                    valueColor: AlwaysStoppedAnimation<Color>(color),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        );
+      },
     );
   }
 }
@@ -4709,36 +5382,46 @@ class _GreenGrocerShipmentBand extends StatelessWidget {
         }
 
         final difference = total - expected;
+        final remaining = (expected - total) > 0 ? (expected - total) : 0.0;
         final progress = expected > 0
             ? (total / expected).clamp(0.0, 1.0)
             : 0.0;
+        final caseCountInfo =
+            snapshot.actualShippedCaseCount != null &&
+                snapshot.actualShippedCaseCount! > 0
+            ? 'Fiziksel kasa: ${AppFormatters.quantity(snapshot.actualShippedCaseCount!)} kasa'
+            : 'Kasa adedi bilinmiyor';
+        final coeffInfo =
+            snapshot.averageKgPerCase != null && snapshot.averageKgPerCase! > 0
+            ? ' | Katsayi ${AppFormatters.quantity(snapshot.averageKgPerCase!)} KG/kasa'
+            : '';
+        final priorInfo =
+            snapshot.priorAverageKgPerCase != null &&
+                snapshot.priorAverageKgPerCase! > 0
+            ? ' | Onceki ort ${AppFormatters.quantity(snapshot.priorAverageKgPerCase!)} KG'
+            : '';
         final detailText = isPending
-            ? '${AppFormatters.quantity(snapshot.inputQuantity)} '
-                  '${snapshot.displayInputMode} talep = '
-                  '${AppFormatters.quantity(expected)} ${snapshot.microUnit} | '
+            ? 'Istenen ${AppFormatters.quantity(snapshot.inputQuantity)} '
+                  '${snapshot.displayInputMode} | '
+                  'Hedef ${AppFormatters.quantity(expected)} ${snapshot.microUnit} | '
                   '${previous > 0 ? 'Onceki ${AppFormatters.quantity(previous)} | ' : ''}'
-                  'Bu sevk henuz okutulmadi'
-            : '${AppFormatters.quantity(snapshot.inputQuantity)} '
-                  '${snapshot.displayInputMode} = '
-                  '${AppFormatters.quantity(expected)} ${snapshot.microUnit} | '
+                  'Kalan ${AppFormatters.quantity(remaining)} ${snapshot.microUnit} | '
+                  '$caseCountInfo$coeffInfo$priorInfo'
+            : 'Istenen ${AppFormatters.quantity(snapshot.inputQuantity)} '
+                  '${snapshot.displayInputMode} | '
+                  'Hedef ${AppFormatters.quantity(expected)} ${snapshot.microUnit} | '
                   '${previous > 0 ? 'Onceki ${AppFormatters.quantity(previous)} | ' : ''}'
                   'Bu ${AppFormatters.quantity(actual)} | '
                   'Toplam ${AppFormatters.quantity(total)} | '
+                  'Kalan ${AppFormatters.quantity(remaining)} | '
                   'Fark ${difference >= 0 ? '+' : ''}'
-                  '${AppFormatters.quantity(difference)}';
-        final compactText = isPending
-            ? previous > 0
-                  ? 'Onceki ${AppFormatters.quantity(previous)} | '
-                        'Hedef ${AppFormatters.quantity(expected)} ${snapshot.microUnit}'
-                  : 'Hedef ${AppFormatters.quantity(expected)} ${snapshot.microUnit}'
-            : previous > 0
-            ? 'Onceki ${AppFormatters.quantity(previous)} | '
-                  'Bu ${AppFormatters.quantity(actual)} | '
-                  'Toplam ${AppFormatters.quantity(total)} ${snapshot.microUnit}'
-            : 'Hedef ${AppFormatters.quantity(expected)} | '
-                  'Bu ${AppFormatters.quantity(actual)} | '
-                  'Fark ${difference >= 0 ? '+' : ''}'
-                  '${AppFormatters.quantity(difference)} ${snapshot.microUnit}';
+                  '${AppFormatters.quantity(difference)} | '
+                  '$caseCountInfo$coeffInfo$priorInfo';
+        final compactText =
+            '${AppFormatters.quantity(snapshot.inputQuantity)} ${snapshot.displayInputMode}'
+            ' | Hedef ${AppFormatters.quantity(expected)}'
+            ' | Sevk ${AppFormatters.quantity(total)}'
+            ' | Kalan ${AppFormatters.quantity(remaining)} ${snapshot.microUnit}';
 
         return Container(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),

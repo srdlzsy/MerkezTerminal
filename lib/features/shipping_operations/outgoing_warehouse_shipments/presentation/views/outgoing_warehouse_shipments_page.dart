@@ -228,7 +228,7 @@ class _OutgoingWarehouseShipmentsPageState
     unawaited(_applyFilters());
   }
 
-  Future<void> _openCreateSheet() async {
+  Future<void> _openCreateSheet({bool initialOrderLinked = false}) async {
     CreateDraft? draft;
     if (widget.draftRepository != null && widget.draftModuleKey.isNotEmpty) {
       final launch = await showCreateDraftPicker(
@@ -237,7 +237,9 @@ class _OutgoingWarehouseShipmentsPageState
         moduleKey: widget.draftModuleKey,
         userId: widget.currentUserId,
         warehouseNo: widget.defaultWarehouseNo,
-        createTitle: 'Yeni Giden Depolar Arasi Sevk',
+        createTitle: initialOrderLinked
+            ? 'Yeni Siparisli Depo Sevk'
+            : 'Yeni Giden Depolar Arasi Sevk',
       );
       if (launch == null || !mounted) {
         return;
@@ -248,15 +250,19 @@ class _OutgoingWarehouseShipmentsPageState
             moduleKey: widget.draftModuleKey,
             userId: widget.currentUserId,
             warehouseNo: widget.defaultWarehouseNo,
-            title: 'Yeni Giden Depolar Arasi Sevk',
+            title: initialOrderLinked
+                ? 'Yeni Siparisli Depo Sevk'
+                : 'Yeni Giden Depolar Arasi Sevk',
           );
     }
 
     var submittedInline = false;
+    final isFreshOrderLinkedLaunch =
+        initialOrderLinked && (draft == null || draft.payload.isEmpty);
     final request =
         await openTerminalCreatePage<WarehouseShipmentCreateRequest>(
           context: context,
-          title: 'Yeni Sevk',
+          title: initialOrderLinked ? 'Siparisli Sevk' : 'Yeni Sevk',
           builder: (context) {
             return OutgoingWarehouseShipmentCreateSheet(
               repository: widget.repository,
@@ -270,6 +276,8 @@ class _OutgoingWarehouseShipmentsPageState
                   widget.greenGrocerProductCasesRepository,
               draft: draft,
               draftRepository: widget.draftRepository,
+              initialOrderLinked: initialOrderLinked,
+              autoOpenOrderPicker: isFreshOrderLinkedLaunch,
             );
           },
           onSubmit: (request) async {
@@ -692,14 +700,14 @@ class _OutgoingWarehouseShipmentsPageState
           icon: const Icon(Icons.restart_alt_rounded),
           label: const Text('Temizle'),
         ),
-        if (widget.canCreate)
+        if (widget.canCreate) ...<Widget>[
           FilledButton.tonalIcon(
             onPressed:
                 _controller.isCreating ||
                     _isRestoringPendingCreate ||
                     _hasPendingCreateStorageError
                 ? null
-                : _openCreateSheet,
+                : () => _openCreateSheet(),
             icon: _controller.isCreating || _isRestoringPendingCreate
                 ? const SizedBox(
                     height: 16,
@@ -721,6 +729,17 @@ class _OutgoingWarehouseShipmentsPageState
                   : 'Yeni Sevk',
             ),
           ),
+          FilledButton.icon(
+            onPressed:
+                _controller.isCreating ||
+                    _isRestoringPendingCreate ||
+                    _hasPendingCreateStorageError
+                ? null
+                : () => _openCreateSheet(initialOrderLinked: true),
+            icon: const Icon(Icons.fact_check_outlined),
+            label: const Text('Siparisli Sevk'),
+          ),
+        ],
       ],
     );
   }
@@ -1150,14 +1169,15 @@ class _ShipmentItemCard extends StatelessWidget {
       lineNo: displayLineNo,
       stockName: item.stockName,
       stockCode: item.stockCode,
-      quantityLabel:
-          '${AppFormatters.quantity(item.quantity)} ${item.unitName}'.trim(),
+      quantityLabel: '${AppFormatters.quantity(item.quantity)} ${item.unitName}'
+          .trim(),
       secondaryFacts: <String>[
         if (item.warehouseOrderNo.trim().isNotEmpty)
           'Siparis ${item.warehouseOrderNo.trim()}',
       ],
       priceFacts: <String>[
-        if (item.unitPrice > 0) 'Fiyat ${AppFormatters.currency(item.unitPrice)}',
+        if (item.unitPrice > 0)
+          'Fiyat ${AppFormatters.currency(item.unitPrice)}',
         if (item.lineAmount > 0)
           'Tutar ${AppFormatters.currency(item.lineAmount)}',
       ],

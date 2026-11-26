@@ -816,7 +816,10 @@ void main() {
       expect(find.text('Bekleyen (2)'), findsOneWidget);
       expect(find.text('Okutulan (0)'), findsOneWidget);
       expect(find.text('Bekliyor'), findsNWidgets(2));
-      expect(find.textContaining('Onceki 10'), findsOneWidget);
+      expect(
+        find.textContaining('3 kasa | Hedef 25 | Sevk 10 | Kalan 15 KG'),
+        findsOneWidget,
+      );
 
       // Previous 10 + current 20 reaches the inclusive 30 KG tolerance limit.
       await _enterShipmentBarcode(tester, barcode: '2700000020000');
@@ -837,6 +840,88 @@ void main() {
       expect(request!.lines, hasLength(1));
       expect(request!.lines.single.stockCode, '015792');
       expect(request!.lines.single.quantity, closeTo(20, 0.000001));
+    },
+  );
+
+  testWidgets(
+    'order-linked picker works without preselecting warehouse across 320x533 and 360x640',
+    (tester) async {
+      for (final size in const <Size>[Size(320, 533), Size(360, 640)]) {
+        tester.view.physicalSize = size;
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        final ordersRepository = _MultiStoreReceivedWarehouseOrdersRepository();
+
+        await tester.pumpWidget(
+          MaterialApp(
+            key: ValueKey<String>('order-picker-${size.width}x${size.height}'),
+            home: Scaffold(
+              body: OutgoingWarehouseShipmentCreateSheet(
+                repository: _FakeOutgoingWarehouseShipmentsRepository(),
+                receivedWarehouseOrdersRepository: ordersRepository,
+                accessToken: 'token',
+                defaultWarehouseNo: '110',
+                mobileWarehouseCatalogRepository:
+                    _emptyWarehouseCatalogRepository(),
+                initialOrderLinked: true,
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull);
+        expect(
+          find.widgetWithText(OutlinedButton, 'Depo Siparisi Sec'),
+          findsOneWidget,
+        );
+
+        // Open order picker WITHOUT choosing target warehouse first.
+        await tester.tap(
+          find.widgetWithText(OutlinedButton, 'Depo Siparisi Sec'),
+        );
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull);
+        expect(find.text('2 siparis'), findsOneWidget);
+        expect(find.text('MILLET 1'), findsOneWidget);
+        expect(find.text('GEMLIK 3 HISAR'), findsOneWidget);
+
+        // Quick date preset triggers reload.
+        await tester.tap(find.text('Son 3 Gun'));
+        await tester.pumpAndSettle();
+        expect(ordersRepository.fetchCount, greaterThanOrEqualTo(2));
+
+        // Live client-side search filters immediately by store name.
+        await tester.enterText(
+          find.widgetWithText(TextField, 'Siparis veya sube ara'),
+          'gemlik',
+        );
+        await tester.pumpAndSettle();
+        expect(find.text('1 siparis'), findsOneWidget);
+        expect(find.text('GEMLIK 3 HISAR'), findsOneWidget);
+        expect(find.text('MILLET 1'), findsNothing);
+
+        // Selecting order auto-fills target warehouse and opens ready-to-scan view.
+        await tester.tap(find.text('D172.2044'));
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull);
+        final warehouseField = tester.widget<TextFormField>(
+          find.widgetWithText(TextFormField, 'Hedef depo no*'),
+        );
+        expect(warehouseField.controller?.text, '172');
+        expect(find.text('172 · GEMLIK 3 HISAR'), findsOneWidget);
+        expect(find.textContaining('D172.2044 · 1/1 satir'), findsOneWidget);
+        expect(find.text('Siparis Urun'), findsOneWidget);
+        expect(find.text('Tam'), findsOneWidget);
+        expect(
+          find.textContaining('Sip. 6 · Kalan 4 · Sevk 4 AD'),
+          findsOneWidget,
+        );
+      }
     },
   );
 }
@@ -1462,4 +1547,57 @@ class _TwoLineGreenGrocerReceivedWarehouseOrdersRepository
       deliveryDate: null,
     ),
   ];
+}
+
+class _MultiStoreReceivedWarehouseOrdersRepository
+    extends _FakeReceivedWarehouseOrdersRepository {
+  int fetchCount = 0;
+
+  @override
+  Future<List<WarehouseOrderListItem>> fetchOrders({
+    required String accessToken,
+    required WarehouseOrderListFilter filter,
+  }) async {
+    fetchCount += 1;
+    return <WarehouseOrderListItem>[
+      WarehouseOrderListItem(
+        documentKey: 'D105-1915',
+        documentDate: DateTime(2026, 11, 26),
+        documentSerie: 'D105',
+        documentOrderNo: 1915,
+        documentNumber: 'D105.1915',
+        warehouseNo: 110,
+        warehouseName: 'KAYNAK DEPO',
+        relatedWarehouseNo: 105,
+        relatedWarehouseName: 'MILLET 1',
+        inWarehouseNo: 110,
+        inWarehouseName: 'KAYNAK DEPO',
+        outWarehouseNo: 105,
+        outWarehouseName: 'MILLET 1',
+        lineCount: 3,
+        totalQuantity: 12,
+        totalAmount: 420,
+        deliveryDate: DateTime(2026, 11, 27),
+      ),
+      WarehouseOrderListItem(
+        documentKey: 'D172-2044',
+        documentDate: DateTime(2026, 11, 26),
+        documentSerie: 'D172',
+        documentOrderNo: 2044,
+        documentNumber: 'D172.2044',
+        warehouseNo: 110,
+        warehouseName: 'KAYNAK DEPO',
+        relatedWarehouseNo: 172,
+        relatedWarehouseName: 'GEMLIK 3 HISAR',
+        inWarehouseNo: 110,
+        inWarehouseName: 'KAYNAK DEPO',
+        outWarehouseNo: 172,
+        outWarehouseName: 'GEMLIK 3 HISAR',
+        lineCount: 1,
+        totalQuantity: 6,
+        totalAmount: 150,
+        deliveryDate: null,
+      ),
+    ];
+  }
 }
