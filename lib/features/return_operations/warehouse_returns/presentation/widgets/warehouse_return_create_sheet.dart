@@ -59,6 +59,9 @@ class _WarehouseReturnCreateSheetState extends State<WarehouseReturnCreateSheet>
   String? _validationMessage;
   late final CreateDraftSession _draftSession;
   String? _lastAddedProductKey;
+  bool _isHeaderExpanded = false;
+  final TerminalLineAccordionController _accordionController =
+      TerminalLineAccordionController();
 
   bool get _hasTargetWarehouse =>
       _selectedWarehouse != null ||
@@ -115,6 +118,7 @@ class _WarehouseReturnCreateSheetState extends State<WarehouseReturnCreateSheet>
 
   @override
   void dispose() {
+    _accordionController.dispose();
     _draftSession.dispose();
     _scrollController.dispose();
     _targetWarehouseController.dispose();
@@ -822,6 +826,7 @@ class _WarehouseReturnCreateSheetState extends State<WarehouseReturnCreateSheet>
       final line = activeLines[index];
       final stockCode = line.stockCodeController.text.trim();
       if (stockCode.isEmpty) {
+        _accordionController.expand(ObjectKey(line));
         setState(() {
           _validationMessage = '${index + 1}. satir icin urun secin.';
         });
@@ -829,9 +834,19 @@ class _WarehouseReturnCreateSheetState extends State<WarehouseReturnCreateSheet>
       }
 
       if (line.quantity <= 0) {
+        _accordionController.expand(ObjectKey(line));
         setState(() {
           _validationMessage =
               '${index + 1}. satir icin miktar sifirdan buyuk olmali.';
+        });
+        return;
+      }
+
+      if (line.quantity > terminalCreateMaximumQuantity) {
+        _accordionController.expand(ObjectKey(line));
+        setState(() {
+          _validationMessage =
+              '${index + 1}. satir icin miktar en fazla ${terminalCreateMaximumQuantity.toInt()} olabilir.';
         });
         return;
       }
@@ -878,33 +893,68 @@ class _WarehouseReturnCreateSheetState extends State<WarehouseReturnCreateSheet>
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final canCollapseHeader =
+        _hasTargetWarehouse && _filledLineIndexes().isNotEmpty;
+    final showCompactHeader = canCollapseHeader && !_isHeaderExpanded;
+    final warehouseSummary = _selectedWarehouse != null
+        ? _selectedWarehouse!.displayLabel
+        : 'Depo ${_targetWarehouseController.text.trim()}';
 
     return SafeArea(
-      child: Padding(
-        padding: EdgeInsets.zero,
-        child: FractionallySizedBox(
-          heightFactor: 0.97,
-          child: Material(
-            color: theme.scaffoldBackgroundColor,
-            child: Form(
-              key: _formKey,
-              autovalidateMode: createFormAutovalidateMode,
-              child: Column(
+      child: Material(
+        color: theme.scaffoldBackgroundColor,
+        child: Form(
+          key: _formKey,
+          autovalidateMode: createFormAutovalidateMode,
+          child: Column(
+            children: <Widget>[
+              TerminalSheetHeader(
+                title: 'Yeni Giden Depo Iadesi',
+                badges: <Widget>[
+                  TerminalLineCountBadge(count: _filledLineIndexes().length),
+                ],
+                elevated: true,
+              ),
+              TerminalCreateInputDock(
+                compactChild: _buildEntryLineCard(theme),
                 children: <Widget>[
-                  TerminalSheetHeader(
-                    title: 'Yeni Giden Depo Iadesi',
-                    badges: <Widget>[
-                      TerminalLineCountBadge(
-                        count: _filledLineIndexes().length,
+                  if (canCollapseHeader) ...<Widget>[
+                    TerminalCollapsibleHeaderSummary(
+                      icon: Icons.warehouse_outlined,
+                      title: warehouseSummary,
+                      expanded: _isHeaderExpanded,
+                      onTap: () => setState(
+                        () => _isHeaderExpanded = !_isHeaderExpanded,
                       ),
-                    ],
-                    elevated: true,
-                  ),
-                  TerminalCreateInputDock(
-                    compactChild: _buildEntryLineCard(theme),
-                    children: <Widget>[
-                      _buildHeaderSection(theme),
-                      const SizedBox(height: 5),
+                      trailingActions: <Widget>[
+                        Tooltip(
+                          message: 'Iade edilebilir urunler',
+                          child: FilledButton.tonalIcon(
+                            onPressed: _pickReturnableProduct,
+                            icon: const Icon(
+                              Icons.assignment_return_rounded,
+                              size: 16,
+                            ),
+                            label: const Text('Iade'),
+                            style: FilledButton.styleFrom(
+                              minimumSize: const Size(0, 30),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 0,
+                              ),
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              visualDensity: VisualDensity.standard,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                  ],
+                  if (!showCompactHeader) ...<Widget>[
+                    _buildHeaderSection(theme),
+                    const SizedBox(height: 4),
+                    if (!canCollapseHeader) ...<Widget>[
                       TerminalSectionToolbar(
                         title: 'Satirlar',
                         breakpoint: 0,
@@ -914,47 +964,58 @@ class _WarehouseReturnCreateSheetState extends State<WarehouseReturnCreateSheet>
                             message: 'Iade edilebilir urunler',
                             child: FilledButton.tonalIcon(
                               onPressed: _pickReturnableProduct,
-                              icon: const Icon(Icons.assignment_return_rounded),
+                              icon: const Icon(
+                                Icons.assignment_return_rounded,
+                                size: 17,
+                              ),
                               label: const Text('Iade'),
+                              style: FilledButton.styleFrom(
+                                minimumSize: const Size(0, 34),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 0,
+                                ),
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                visualDensity: VisualDensity.standard,
+                              ),
                             ),
                           ),
                         ],
                       ),
                       const SizedBox(height: 4),
                     ],
-                  ),
-
-                  Expanded(
-                    child: CustomScrollView(
-                      controller: _scrollController,
-                      slivers: <Widget>[
-                        _buildLazyLineSliver(theme),
-                        const SliverToBoxAdapter(child: SizedBox(height: 8)),
-                      ],
-                    ),
-                  ),
-                  if (_validationMessage != null)
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(12, 4, 12, 0),
-                      child: _ValidationBlock(message: _validationMessage!),
-                    ),
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
-                    child: TerminalFormActionRow(
-                      cancel: OutlinedButton(
-                        onPressed: () => Navigator.of(context).pop(),
-                        child: const Text('Vazgec'),
-                      ),
-                      submit: FilledButton.icon(
-                        onPressed: _submit,
-                        icon: const Icon(Icons.save_rounded),
-                        label: const Text('Kaydet'),
-                      ),
-                    ),
-                  ),
+                  ],
                 ],
               ),
-            ),
+              Expanded(
+                child: CustomScrollView(
+                  controller: _scrollController,
+                  slivers: <Widget>[
+                    _buildLazyLineSliver(theme),
+                    const SliverToBoxAdapter(child: SizedBox(height: 8)),
+                  ],
+                ),
+              ),
+              if (_validationMessage != null)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 4, 12, 0),
+                  child: _ValidationBlock(message: _validationMessage!),
+                ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(10, 4, 10, 6),
+                child: TerminalFormActionRow(
+                  cancel: OutlinedButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: const Text('Vazgec'),
+                  ),
+                  submit: FilledButton.icon(
+                    onPressed: _submit,
+                    icon: const Icon(Icons.save_rounded),
+                    label: const Text('Kaydet'),
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ),
@@ -1019,6 +1080,7 @@ class _WarehouseReturnCreateSheetState extends State<WarehouseReturnCreateSheet>
       padding: const EdgeInsets.symmetric(horizontal: 12),
       sliver: TerminalSearchableLineSliver<int>(
         items: indexes,
+        accordionController: _accordionController,
         searchText: (index) {
           final line = _lines[index];
           final product = line.selectedProduct;

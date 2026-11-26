@@ -57,6 +57,9 @@ class _VirmanCreateSheetState extends State<VirmanCreateSheet>
   late final CreateDraftSession _draftSession;
   String? _lastAddedProductKey;
   bool _isProductLookupBusy = false;
+  bool _isHeaderExpanded = false;
+  final TerminalLineAccordionController _accordionController =
+      TerminalLineAccordionController();
 
   @override
   void initState() {
@@ -95,6 +98,7 @@ class _VirmanCreateSheetState extends State<VirmanCreateSheet>
 
   @override
   void dispose() {
+    _accordionController.dispose();
     _draftSession.dispose();
     _descriptionController.dispose();
     for (final line in _lines) {
@@ -965,6 +969,7 @@ class _VirmanCreateSheetState extends State<VirmanCreateSheet>
       final lotNo = int.tryParse(line.lotNoController.text.trim()) ?? 0;
 
       if (stockCode.isEmpty) {
+        _accordionController.expand(ObjectKey(line));
         setState(() {
           _errorMessage = 'Her satirda stok kodu zorunlu.';
         });
@@ -972,6 +977,7 @@ class _VirmanCreateSheetState extends State<VirmanCreateSheet>
       }
 
       if (movementType != 0 && movementType != 1) {
+        _accordionController.expand(ObjectKey(line));
         setState(() {
           _errorMessage = 'Her satir tipi Cikis veya Giris olmali.';
         });
@@ -979,6 +985,7 @@ class _VirmanCreateSheetState extends State<VirmanCreateSheet>
       }
 
       if (quantity == null || quantity <= 0) {
+        _accordionController.expand(ObjectKey(line));
         setState(() {
           _errorMessage = 'Her satirda miktar sifirdan buyuk olmali.';
         });
@@ -1045,9 +1052,10 @@ class _VirmanCreateSheetState extends State<VirmanCreateSheet>
     final useCompactConfiguredInput =
         (mediaQuery.size.width < 260 || mediaQuery.textScaler.scale(1) > 1.2) &&
         (_filledLineIndexes().isNotEmpty || hasPendingEntry);
+    final descriptionText = _descriptionController.text.trim();
 
     return Padding(
-      padding: EdgeInsets.fromLTRB(10, 4, 10, compactHeight ? 4 : 10),
+      padding: EdgeInsets.fromLTRB(10, 4, 10, compactHeight ? 4 : 8),
       child: Form(
         key: _formKey,
         autovalidateMode: createFormAutovalidateMode,
@@ -1057,14 +1065,10 @@ class _VirmanCreateSheetState extends State<VirmanCreateSheet>
             TerminalSheetHeader(
               title: 'Yeni Virman',
               badges: <Widget>[
-                TerminalLineCountBadge(count: _filledLineIndexes().length),
-                _VirmanFlowBadge(
-                  label: 'Cikis ${_movementLineCount(1)}',
-                  movementType: 1,
-                ),
-                _VirmanFlowBadge(
-                  label: 'Giris ${_movementLineCount(0)}',
-                  movementType: 0,
+                _VirmanHeaderSummaryBadge(
+                  lineCount: _filledLineIndexes().length,
+                  outgoingCount: _movementLineCount(1),
+                  incomingCount: _movementLineCount(0),
                 ),
               ],
               padding: EdgeInsets.zero,
@@ -1076,40 +1080,49 @@ class _VirmanCreateSheetState extends State<VirmanCreateSheet>
               children: useCompactConfiguredInput
                   ? const <Widget>[]
                   : <Widget>[
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 6,
-                        children: <Widget>[
-                          TerminalFilterButton(
-                            label: 'Hareket Tarihi',
-                            value: AppFormatters.date(_movementDate),
-                            onPressed: () => _pickDate(isMovementDate: true),
-                          ),
-                          TerminalFilterButton(
-                            label: 'Belge Tarihi',
-                            value: AppFormatters.date(_documentDate),
-                            onPressed: () => _pickDate(isMovementDate: false),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 4),
-                      TextFormField(
-                        controller: _descriptionController,
-                        maxLines: 1,
-                        decoration: const InputDecoration(
-                          labelText: 'Aciklama',
-                          isDense: true,
-                          contentPadding: EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 8,
-                          ),
+                      TerminalCollapsibleHeaderSummary(
+                        icon: Icons.event_note_outlined,
+                        title: AppFormatters.date(_movementDate),
+                        subtitle: descriptionText.isNotEmpty
+                            ? descriptionText
+                            : 'Belge & Aciklama',
+                        expanded: _isHeaderExpanded,
+                        onTap: () => setState(
+                          () => _isHeaderExpanded = !_isHeaderExpanded,
                         ),
                       ),
-                      const SizedBox(height: 4),
-                      TerminalSectionToolbar(
-                        title: 'Urun Ekle',
-                        actions: const <Widget>[],
-                      ),
+                      if (_isHeaderExpanded) ...<Widget>[
+                        const SizedBox(height: 4),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 6,
+                          children: <Widget>[
+                            TerminalFilterButton(
+                              label: 'Hareket Tarihi',
+                              value: AppFormatters.date(_movementDate),
+                              onPressed: () => _pickDate(isMovementDate: true),
+                            ),
+                            TerminalFilterButton(
+                              label: 'Belge Tarihi',
+                              value: AppFormatters.date(_documentDate),
+                              onPressed: () => _pickDate(isMovementDate: false),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        TextFormField(
+                          controller: _descriptionController,
+                          maxLines: 1,
+                          decoration: const InputDecoration(
+                            labelText: 'Aciklama',
+                            isDense: true,
+                            contentPadding: EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 8,
+                            ),
+                          ),
+                        ),
+                      ],
                       const SizedBox(height: 4),
                     ],
             ),
@@ -1139,7 +1152,7 @@ class _VirmanCreateSheetState extends State<VirmanCreateSheet>
                 child: TerminalMessageBlock.error(message: _errorMessage!),
               ),
             Padding(
-              padding: const EdgeInsets.only(top: 4, bottom: 4),
+              padding: const EdgeInsets.only(top: 4, bottom: 2),
               child: TerminalFormActionRow(
                 cancel: OutlinedButton(
                   onPressed: () => Navigator.of(context).pop(),
@@ -1204,6 +1217,7 @@ class _VirmanCreateSheetState extends State<VirmanCreateSheet>
 
     return TerminalSearchableLineSliver<int>(
       items: indexes,
+      accordionController: _accordionController,
       searchText: (index) {
         final line = _lines[index];
         final product = line.selectedProduct;
@@ -1349,29 +1363,32 @@ class _VirmanDraftLineCard extends StatelessWidget {
     }
 
     if (!isFreshEntry && product != null) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: <Widget>[
-          TerminalCompactProductLineCard(
-            key: ObjectKey(line),
-            lineNo: lineNumber,
-            stockCode: product.stockCode,
-            stockName: product.stockName,
-            quantityController: line.quantityController,
-            quantityStep: line.quantityStep,
-            unitLabel: product.unitName,
-            packageLabel: packageLabel,
-            barcode: product.barcode,
-            priceLabel: product.price > 0
-                ? '$movementTitle · ${AppFormatters.currency(product.price)}'
-                : movementTitle,
-            highlightOnMount: lineNumber == 1,
-            canDelete: canRemove,
-            onDelete: onRemove,
-            onMinimumReached: canRemove ? onRemove : null,
-          ),
-          _buildMovementTypeSelector(context),
-        ],
+      final movementBg = _movementTypeBackgroundColor(movementType, context);
+      return TerminalCompactProductLineCard(
+        key: ObjectKey(line),
+        lineNo: lineNumber,
+        stockCode: product.stockCode,
+        stockName: product.stockName,
+        quantityController: line.quantityController,
+        quantityStep: line.quantityStep,
+        unitLabel: product.unitName,
+        packageLabel: packageLabel,
+        barcode: product.barcode,
+        priceLabel: product.price > 0
+            ? AppFormatters.currency(product.price)
+            : null,
+        highlightOnMount: lineNumber == 1,
+        canDelete: canRemove,
+        onDelete: onRemove,
+        onMinimumReached: canRemove ? onRemove : null,
+        collapsedPillPrefix: movementType == 1 ? '↑ Cikis' : '↓ Giris',
+        collapsedPillBackgroundColor: movementBg,
+        collapsedPillBorderColor: movementColor.withAlpha(90),
+        collapsedPillForegroundColor: movementColor,
+        expandedExtraChild: _buildMovementTypeSelector(
+          context,
+          caption: 'Bu satirin hareket yonu',
+        ),
       );
     }
 
@@ -1450,8 +1467,8 @@ class _VirmanDraftLineCard extends StatelessWidget {
     );
   }
 
-  Widget _buildMovementTypeSelector(BuildContext context) {
-    return Row(
+  Widget _buildMovementTypeSelector(BuildContext context, {String? caption}) {
+    final row = Row(
       children: <Widget>[
         Expanded(
           child: _VirmanMovementTypeOption(
@@ -1470,6 +1487,26 @@ class _VirmanDraftLineCard extends StatelessWidget {
         ),
       ],
     );
+    if (caption == null || caption.trim().isEmpty) {
+      return row;
+    }
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: <Widget>[
+        Text(
+          caption,
+          style: theme.textTheme.labelSmall?.copyWith(
+            fontSize: 10.5,
+            fontWeight: FontWeight.w800,
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+        const SizedBox(height: 3),
+        row,
+      ],
+    );
   }
 
   void _setMovementType(int movementType) {
@@ -1482,31 +1519,35 @@ class _VirmanDraftLineCard extends StatelessWidget {
   }
 }
 
-class _VirmanFlowBadge extends StatelessWidget {
-  const _VirmanFlowBadge({required this.label, required this.movementType});
+class _VirmanHeaderSummaryBadge extends StatelessWidget {
+  const _VirmanHeaderSummaryBadge({
+    required this.lineCount,
+    required this.outgoingCount,
+    required this.incomingCount,
+  });
 
-  final String label;
-  final int movementType;
+  final int lineCount;
+  final int outgoingCount;
+  final int incomingCount;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final foregroundColor = _movementTypeForegroundColor(movementType, context);
-
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
-        color: _movementTypeBackgroundColor(movementType, context),
+        color: theme.colorScheme.primaryContainer.withAlpha(90),
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: foregroundColor.withAlpha(44)),
+        border: Border.all(color: theme.colorScheme.primary.withAlpha(44)),
       ),
       child: Text(
-        label,
+        '$lineCount kalem | Cikis $outgoingCount | Giris $incomingCount',
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
         style: theme.textTheme.labelSmall?.copyWith(
           height: 1,
-          color: foregroundColor,
+          fontSize: 10.5,
+          color: theme.colorScheme.primary,
           fontWeight: FontWeight.w900,
         ),
       ),

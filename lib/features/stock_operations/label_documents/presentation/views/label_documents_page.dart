@@ -910,6 +910,33 @@ class _LabelDocumentCreateSheetState extends State<LabelDocumentCreateSheet> {
         .where((item) => !_isBlankLine(item))
         .length;
 
+    if (!isFreshEntry && product != null) {
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 4),
+        child: TerminalCompactProductLineSummary(
+          key: ObjectKey(line),
+          lineNo: displayLineNo,
+          stockCode: product.stockCode,
+          stockName: product.stockName,
+          unitLabel: product.unitName,
+          barcode: product.barcode,
+          packageLabel: product.unitMultiplier > 1
+              ? _labelProductPackageText(product)
+              : null,
+          priceLabel: product.price > 0
+              ? AppFormatters.currency(product.price)
+              : null,
+          highlightOnMount: displayLineNo == 1,
+          trailing: _lines.length > 1
+              ? TerminalLineDeleteButton(
+                  onPressed: () => _removeLineAt(index),
+                  compactIconOnly: true,
+                )
+              : null,
+        ),
+      );
+    }
+
     return TerminalPdaLineCard(
       title: isFreshEntry ? 'Giris satiri' : 'Satir $displayLineNo',
       subtitle:

@@ -5,6 +5,27 @@ import 'package:furpa_merkez_terminal/shared/product_entry/product_entry_widgets
 import 'package:furpa_merkez_terminal/shared/widgets/terminal_ui_parts.dart';
 
 void main() {
+  testWidgets('disposed scanner field does not leave a stale focus target', (
+    tester,
+  ) async {
+    final controller = TextEditingController();
+    addTearDown(controller.dispose);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: ProductLookupField(controller: controller, onSubmit: () {}),
+        ),
+      ),
+    );
+    await tester.pumpWidget(const MaterialApp(home: SizedBox.shrink()));
+
+    TerminalLineAccordionScope.returnFocusToScanner();
+    await tester.pump();
+
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets(
     'product lookup field selects on focus and places cursor on tap',
     (tester) async {
@@ -675,7 +696,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byIcon(Icons.qr_code_scanner_rounded), findsOneWidget);
-      expect(find.byIcon(Icons.inventory_2_outlined), findsOneWidget);
+      expect(find.byIcon(Icons.inventory_2_outlined), findsNothing);
 
       final minusRect = tester.getRect(find.byTooltip('Azalt'));
       final plusRect = tester.getRect(find.byTooltip('Artir'));
@@ -811,7 +832,10 @@ void main() {
         expect(titleRect.width, greaterThan(width - 80));
         expect(cancelRect.top, greaterThan(qtyRect.bottom));
         expect((cancelRect.center.dy - addRect.center.dy).abs(), lessThan(2));
-        expect((cancelRect.height - addRect.height).abs(), lessThanOrEqualTo(1));
+        expect(
+          (cancelRect.height - addRect.height).abs(),
+          lessThanOrEqualTo(1),
+        );
         expect(addRect.width, greaterThanOrEqualTo(140));
         expect(tester.takeException(), isNull);
       }

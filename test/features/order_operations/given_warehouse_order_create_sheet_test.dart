@@ -89,7 +89,7 @@ void main() {
 
     expect(find.text('Yeni Verilen Depo Siparisi'), findsOneWidget);
     expect(find.text('0 kalem'), findsOneWidget);
-    expect(find.text('Satirlar'), findsOneWidget);
+    expect(find.text('Satirlar'), findsNothing);
 
     await tester.scrollUntilVisible(
       find.text('Kaydet'),
@@ -508,9 +508,9 @@ void main() {
     );
 
     await _pickWarehouse(tester, label: '56 - MANAV DEPO');
-    expect(find.widgetWithText(FilledButton, 'Depo urunleri'), findsOneWidget);
+    expect(find.widgetWithText(FilledButton, 'Getir'), findsOneWidget);
 
-    await tester.tap(find.widgetWithText(FilledButton, 'Depo urunleri'));
+    await tester.tap(find.widgetWithText(FilledButton, 'Getir'));
     await tester.pumpAndSettle();
 
     expect(repository.lastSourceWarehouseNo, 56);
@@ -629,9 +629,9 @@ void main() {
     );
 
     await _pickWarehouse(tester);
-    expect(find.widgetWithText(FilledButton, 'Depo urunleri'), findsOneWidget);
+    expect(find.widgetWithText(FilledButton, 'Getir'), findsOneWidget);
 
-    await tester.tap(find.widgetWithText(FilledButton, 'Depo urunleri'));
+    await tester.tap(find.widgetWithText(FilledButton, 'Getir'));
     await tester.pumpAndSettle();
 
     expect(repository.lastSourceWarehouseNo, 50);
@@ -694,7 +694,7 @@ void main() {
     );
 
     await _pickWarehouse(tester, label: '56 - MANAV DEPO');
-    await tester.tap(find.widgetWithText(FilledButton, 'Depo urunleri'));
+    await tester.tap(find.widgetWithText(FilledButton, 'Getir'));
     await tester.pumpAndSettle();
 
     expect(find.text('2 kalem'), findsOneWidget);
@@ -780,7 +780,7 @@ void main() {
     );
 
     await _pickWarehouse(tester, label: '56 - MANAV DEPO');
-    await tester.tap(find.widgetWithText(FilledButton, 'Depo urunleri'));
+    await tester.tap(find.widgetWithText(FilledButton, 'Getir'));
     await tester.pumpAndSettle();
 
     expect(find.text('1 kalem'), findsOneWidget);
@@ -795,7 +795,7 @@ void main() {
     expect(find.text('0 kalem'), findsOneWidget);
     expect(find.text('MNV MAYDANOZ ADET'), findsNothing);
 
-    await tester.tap(find.widgetWithText(FilledButton, 'Depo urunleri'));
+    await tester.tap(find.widgetWithText(FilledButton, 'Getir'));
     await tester.pumpAndSettle();
 
     expect(repository.lastSourceWarehouseNo, 55);
@@ -872,6 +872,8 @@ void main() {
     await tester.pumpAndSettle();
     await _pickWarehouse(tester, label: '56 - MANAV DEPO');
     await _pickWarehouseOrderProduct(tester);
+    await tester.tap(find.text('MNV Test Urun'));
+    await tester.pumpAndSettle();
 
     final quantityField = find.byWidgetPredicate(
       (widget) => widget is TextFormField && widget.controller?.text == '1',
@@ -967,6 +969,8 @@ void main() {
       await _pickWarehouseOrderProduct(tester);
       // Preserves resolved KG estimate after Ekle commits the line.
       expect(find.text('1 kasa ~= 3,75 KG'), findsOneWidget);
+      await tester.tap(find.text('MNV Test Urun'));
+      await tester.pumpAndSettle();
 
       final quantityField = find.byWidgetPredicate(
         (widget) => widget is TextFormField && widget.controller?.text == '1',

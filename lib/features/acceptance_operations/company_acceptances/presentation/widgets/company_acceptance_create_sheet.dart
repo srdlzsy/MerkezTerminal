@@ -112,6 +112,8 @@ class _CompanyAcceptanceCreateSheetState
   bool _isSubmitting = false;
   bool _submissionLocked = false;
   bool _retryWithSnapshot = false;
+  final TerminalLineAccordionController _accordionController =
+      TerminalLineAccordionController();
 
   @override
   void initState() {
@@ -218,6 +220,7 @@ class _CompanyAcceptanceCreateSheetState
 
   @override
   void dispose() {
+    _accordionController.dispose();
     _draftSession.dispose();
     _customerController.dispose();
     _customerCodeController.dispose();
@@ -1421,92 +1424,79 @@ class _CompanyAcceptanceCreateSheetState
     }
 
     final usedOrderGuids = <String>{};
+    void failLine(_AcceptanceLineDraft line, String message) {
+      _accordionController.expand(ObjectKey(line));
+      _showStepError(step: _CompanyAcceptanceCreateStep.lines, message: message);
+    }
+
     for (var index = 0; index < activeLines.length; index += 1) {
       final line = activeLines[index];
       if (line.stockCodeController.text.trim().isEmpty) {
-        _showStepError(
-          step: _CompanyAcceptanceCreateStep.lines,
-          message: '${index + 1}. satir icin urun secin.',
-        );
+        failLine(line, '${index + 1}. satir icin urun secin.');
         return;
       }
 
       if (line.dispatchQuantity <= 0) {
-        _showStepError(
-          step: _CompanyAcceptanceCreateStep.lines,
-          message:
-              '${index + 1}. satir icin irsaliye miktari sifirdan buyuk olmali.',
+        failLine(
+          line,
+          '${index + 1}. satir icin irsaliye miktari sifirdan buyuk olmali.',
         );
         return;
       }
 
       if (line.dispatchQuantity > terminalCreateMaximumQuantity) {
-        _showStepError(
-          step: _CompanyAcceptanceCreateStep.lines,
-          message:
-              '${index + 1}. satir icin irsaliye miktari en fazla ${terminalCreateMaximumQuantity.toInt()} olabilir.',
+        failLine(
+          line,
+          '${index + 1}. satir icin irsaliye miktari en fazla ${terminalCreateMaximumQuantity.toInt()} olabilir.',
         );
         return;
       }
 
       if (line.acceptedQuantity < 0) {
-        _showStepError(
-          step: _CompanyAcceptanceCreateStep.lines,
-          message:
-              '${index + 1}. satir icin fiili kabul miktari negatif olamaz.',
+        failLine(
+          line,
+          '${index + 1}. satir icin fiili kabul miktari negatif olamaz.',
         );
         return;
       }
 
       if (line.acceptedQuantity > terminalCreateMaximumQuantity) {
-        _showStepError(
-          step: _CompanyAcceptanceCreateStep.lines,
-          message:
-              '${index + 1}. satir icin fiili kabul miktari en fazla ${terminalCreateMaximumQuantity.toInt()} olabilir.',
+        failLine(
+          line,
+          '${index + 1}. satir icin fiili kabul miktari en fazla ${terminalCreateMaximumQuantity.toInt()} olabilir.',
         );
         return;
       }
 
       if (line.acceptedQuantity > line.dispatchQuantity) {
-        _showStepError(
-          step: _CompanyAcceptanceCreateStep.lines,
-          message:
-              '${index + 1}. satirda fiili kabul irsaliye miktarini gecemez.',
+        failLine(
+          line,
+          '${index + 1}. satirda fiili kabul irsaliye miktarini gecemez.',
         );
         return;
       }
 
       if (line.unitPointer <= 0 || line.unitPointer > 255) {
-        _showStepError(
-          step: _CompanyAcceptanceCreateStep.lines,
-          message: '${index + 1}. satir icin unitPointer 1-255 olmali.',
-        );
+        failLine(line, '${index + 1}. satir icin unitPointer 1-255 olmali.');
         return;
       }
 
       if (line.lotNo < 0) {
-        _showStepError(
-          step: _CompanyAcceptanceCreateStep.lines,
-          message: '${index + 1}. satir icin lot no negatif olamaz.',
-        );
+        failLine(line, '${index + 1}. satir icin lot no negatif olamaz.');
         return;
       }
 
       final lineLengthError = _validateLineLengthLimits(line, index);
       if (lineLengthError != null) {
-        _showStepError(
-          step: _CompanyAcceptanceCreateStep.lines,
-          message: lineLengthError,
-        );
+        failLine(line, lineLengthError);
         return;
       }
 
       final orderGuid = line.orderGuid?.trim() ?? '';
       if (orderGuid.isNotEmpty && !usedOrderGuids.add(orderGuid)) {
-        _showStepError(
-          step: _CompanyAcceptanceCreateStep.lines,
-          message:
-              '${index + 1}. satirda ayni siparis satiri tekrar kullanilamaz.',
+        failLine(
+          line,
+          '${index + 1}. satirda ayni siparis satiri tekrar kullanilamaz.',
         );
         return;
       }
@@ -2207,6 +2197,7 @@ class _CompanyAcceptanceCreateSheetState
 
     return TerminalSearchableLineSliver<int>(
       items: indexes,
+      accordionController: _accordionController,
       searchText: (index) {
         final line = _lines[index];
         final product = line.selectedProduct;
@@ -2312,6 +2303,8 @@ class _CompanyAcceptanceCreateSheetState
         highlightOnMount: displayLineNo == 1,
         canDelete: _lines.length > 1,
         onDelete: () => _removeLineAt(index),
+        primaryQuantityController: line.dispatchQuantityController,
+        secondaryQuantityController: line.acceptedQuantityController,
         primaryQuantity: _buildDispatchQuantityField(line),
         secondaryQuantity: _buildAcceptedQuantityField(line),
         footerBanner: line.returnQuantity > 0

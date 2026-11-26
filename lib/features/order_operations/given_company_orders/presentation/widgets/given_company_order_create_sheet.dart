@@ -65,6 +65,8 @@ class _GivenCompanyOrderCreateSheetState
   late final CreateDraftSession _draftSession;
   String? _lastAddedProductKey;
   bool _isLoadingCustomerProducts = false;
+  final TerminalLineAccordionController _accordionController =
+      TerminalLineAccordionController();
 
   @override
   void initState() {
@@ -124,6 +126,7 @@ class _GivenCompanyOrderCreateSheetState
 
   @override
   void dispose() {
+    _accordionController.dispose();
     _draftSession.dispose();
     _scrollController.dispose();
     _customerCodeController.dispose();
@@ -933,6 +936,7 @@ class _GivenCompanyOrderCreateSheetState
       );
 
       if (stockCode.isEmpty) {
+        _accordionController.expand(ObjectKey(line));
         setState(() {
           _validationMessage = '${index + 1}. satir icin urun secin.';
         });
@@ -941,9 +945,19 @@ class _GivenCompanyOrderCreateSheetState
 
       if (selectedProduct != null &&
           _isUnavailableCompanyOrderProduct(selectedProduct)) {
+        _accordionController.expand(ObjectKey(line));
         setState(() {
           _validationMessage =
               '${index + 1}. satirdaki $stockCode pasif veya DLS durumunda; siparis kaydedilemez.';
+        });
+        return;
+      }
+
+      if (quantity > terminalCreateMaximumQuantity) {
+        _accordionController.expand(ObjectKey(line));
+        setState(() {
+          _validationMessage =
+              '${index + 1}. satir icin miktar en fazla ${terminalCreateMaximumQuantity.toInt()} olabilir.';
         });
         return;
       }
@@ -1009,66 +1023,59 @@ class _GivenCompanyOrderCreateSheetState
         mediaQuery.size.height - mediaQuery.viewInsets.bottom < 650;
 
     return SafeArea(
-      child: Padding(
-        padding: EdgeInsets.zero,
-        child: FractionallySizedBox(
-          heightFactor: 0.97,
-          child: Material(
-            color: theme.scaffoldBackgroundColor,
-            child: Form(
-              key: _formKey,
-              autovalidateMode: createFormAutovalidateMode,
-              child: Column(
+      child: Material(
+        color: theme.scaffoldBackgroundColor,
+        child: Form(
+          key: _formKey,
+          autovalidateMode: createFormAutovalidateMode,
+          child: Column(
+            children: <Widget>[
+              TerminalSheetHeader(
+                title: 'Yeni Verilen Firma Siparisi',
+                badges: <Widget>[
+                  TerminalLineCountBadge(count: _activeLineCount()),
+                ],
+                elevated: true,
+              ),
+              TerminalCreateInputDock(
+                compactChild: _buildEntryLineCard(theme),
                 children: <Widget>[
-                  TerminalSheetHeader(
-                    title: 'Yeni Verilen Firma Siparisi',
-                    badges: <Widget>[
-                      TerminalLineCountBadge(count: _activeLineCount()),
-                    ],
-                    elevated: true,
-                  ),
-                  TerminalCreateInputDock(
-                    compactChild: _buildEntryLineCard(theme),
-                    children: <Widget>[
-                      _buildCustomerSection(theme),
-                      SizedBox(height: compactHeight ? 2 : 5),
-                      _buildLinesToolbar(theme, compactHeight: compactHeight),
-                      SizedBox(height: compactHeight ? 2 : 4),
-                    ],
-                  ),
-
-                  Expanded(
-                    child: CustomScrollView(
-                      controller: _scrollController,
-                      slivers: <Widget>[
-                        _buildLazyLineSliver(theme),
-                        const SliverToBoxAdapter(child: SizedBox(height: 8)),
-                      ],
-                    ),
-                  ),
-                  if (_validationMessage != null)
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(12, 4, 12, 0),
-                      child: _ValidationBlock(message: _validationMessage!),
-                    ),
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
-                    child: TerminalFormActionRow(
-                      submitFlex: 2,
-                      cancel: OutlinedButton(
-                        onPressed: () => Navigator.of(context).pop(),
-                        child: const Text('Vazgec'),
-                      ),
-                      submit: FilledButton.icon(
-                        onPressed: _submit,
-                        icon: const Icon(Icons.save_rounded),
-                        label: const Text('Kaydet'),
-                      ),
-                    ),
-                  ),
+                  _buildCustomerSection(theme),
+                  SizedBox(height: compactHeight ? 2 : 5),
+                  _buildLinesToolbar(theme, compactHeight: compactHeight),
+                  SizedBox(height: compactHeight ? 2 : 4),
                 ],
               ),
-            ),
+              Expanded(
+                child: CustomScrollView(
+                  controller: _scrollController,
+                  slivers: <Widget>[
+                    _buildLazyLineSliver(theme),
+                    const SliverToBoxAdapter(child: SizedBox(height: 8)),
+                  ],
+                ),
+              ),
+              if (_validationMessage != null)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 4, 12, 0),
+                  child: _ValidationBlock(message: _validationMessage!),
+                ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(10, 4, 10, 6),
+                child: TerminalFormActionRow(
+                  submitFlex: 2,
+                  cancel: OutlinedButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: const Text('Vazgec'),
+                  ),
+                  submit: FilledButton.icon(
+                    onPressed: _submit,
+                    icon: const Icon(Icons.save_rounded),
+                    label: const Text('Kaydet'),
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ),
@@ -1402,6 +1409,7 @@ class _GivenCompanyOrderCreateSheetState
       padding: const EdgeInsets.symmetric(horizontal: 12),
       sliver: TerminalSearchableLineSliver<int>(
         items: indexes,
+        accordionController: _accordionController,
         searchText: (index) {
           final line = _lines[index];
           final product = line.selectedProduct;

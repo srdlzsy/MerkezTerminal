@@ -460,6 +460,9 @@ class _OfflineInventoryCountCreateSheetState
   String? _errorMessage;
   String? _lastAddedProductKey;
   bool _isProductLookupBusy = false;
+  bool _isHeaderExpanded = false;
+  final TerminalLineAccordionController _accordionController =
+      TerminalLineAccordionController();
 
   @override
   void initState() {
@@ -470,6 +473,7 @@ class _OfflineInventoryCountCreateSheetState
 
   @override
   void dispose() {
+    _accordionController.dispose();
     _nameController.dispose();
     for (final line in _lines) {
       line.dispose();
@@ -1009,6 +1013,36 @@ class _OfflineInventoryCountCreateSheetState
       return;
     }
 
+    for (var index = 0; index < activeLines.length; index += 1) {
+      final line = activeLines[index];
+      if (line.stockCodeController.text.trim().isEmpty) {
+        _accordionController.expand(ObjectKey(line));
+        unawaited(TerminalFeedback.warning());
+        setState(() {
+          _errorMessage = '${index + 1}. satir icin urun secin.';
+        });
+        return;
+      }
+      if (line.quantity <= 0) {
+        _accordionController.expand(ObjectKey(line));
+        unawaited(TerminalFeedback.warning());
+        setState(() {
+          _errorMessage =
+              '${index + 1}. satir icin miktar sifirdan buyuk olmali.';
+        });
+        return;
+      }
+      if (line.quantity > terminalCreateMaximumQuantity) {
+        _accordionController.expand(ObjectKey(line));
+        unawaited(TerminalFeedback.warning());
+        setState(() {
+          _errorMessage =
+              '${index + 1}. satir icin miktar en fazla ${terminalCreateMaximumQuantity.toInt()} olabilir.';
+        });
+        return;
+      }
+    }
+
     final draft = OfflineInventoryCountDraft(
       id: _draftId,
       userId: widget.currentUserId,
@@ -1039,10 +1073,17 @@ class _OfflineInventoryCountCreateSheetState
 
   @override
   Widget build(BuildContext context) {
+    final hasPendingEntry = _lines.isNotEmpty && !_isBlankLine(_lines.first);
+    final nameText = _nameController.text.trim();
+    final canCollapseHeader =
+        nameText.isNotEmpty &&
+        (_filledLineIndexes().isNotEmpty || hasPendingEntry);
+    final showCompactHeader = canCollapseHeader && !_isHeaderExpanded;
+
     return Material(
       color: Theme.of(context).scaffoldBackgroundColor,
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(10, 4, 10, 10),
+        padding: const EdgeInsets.fromLTRB(10, 4, 10, 6),
         child: Form(
           key: _formKey,
           autovalidateMode: createFormAutovalidateMode,
@@ -1061,61 +1102,70 @@ class _OfflineInventoryCountCreateSheetState
                 padding: EdgeInsets.zero,
                 compactChild: _buildEntryLineCard(),
                 children: <Widget>[
-                  LayoutBuilder(
-                    builder: (context, constraints) {
-                      final nameField = TextFormField(
-                        controller: _nameController,
-                        decoration: const InputDecoration(
-                          labelText: 'Sayim Adi',
-                          isDense: true,
-                          contentPadding: EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 8,
-                          ),
-                        ),
-                        validator: (value) {
-                          if ((value ?? '').trim().isEmpty) {
-                            return 'Sayim adi zorunludur.';
-                          }
-                          return null;
-                        },
-                      );
-                      final dateButton = TerminalFilterButton(
-                        label: 'Belge Tarihi',
-                        value: AppFormatters.date(_documentDate),
-                        onPressed: _pickDate,
-                      );
-
-                      if (constraints.maxWidth < 260) {
-                        return Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: <Widget>[
-                            nameField,
-                            const SizedBox(height: 4),
-                            Align(
-                              alignment: Alignment.centerLeft,
-                              child: dateButton,
+                  if (canCollapseHeader) ...<Widget>[
+                    TerminalCollapsibleHeaderSummary(
+                      icon: Icons.inventory_outlined,
+                      title: nameText,
+                      subtitle: AppFormatters.date(_documentDate),
+                      expanded: _isHeaderExpanded,
+                      onTap: () => setState(
+                        () => _isHeaderExpanded = !_isHeaderExpanded,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                  ],
+                  if (!showCompactHeader) ...<Widget>[
+                    LayoutBuilder(
+                      builder: (context, constraints) {
+                        final nameField = TextFormField(
+                          controller: _nameController,
+                          decoration: const InputDecoration(
+                            labelText: 'Sayim Adi',
+                            isDense: true,
+                            contentPadding: EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 8,
                             ),
+                          ),
+                          validator: (value) {
+                            if ((value ?? '').trim().isEmpty) {
+                              return 'Sayim adi zorunludur.';
+                            }
+                            return null;
+                          },
+                        );
+                        final dateButton = TerminalFilterButton(
+                          label: 'Belge Tarihi',
+                          value: AppFormatters.date(_documentDate),
+                          onPressed: _pickDate,
+                        );
+
+                        if (constraints.maxWidth < 260) {
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: <Widget>[
+                              nameField,
+                              const SizedBox(height: 4),
+                              Align(
+                                alignment: Alignment.centerLeft,
+                                child: dateButton,
+                              ),
+                            ],
+                          );
+                        }
+
+                        return Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: <Widget>[
+                            Expanded(child: nameField),
+                            const SizedBox(width: 6),
+                            dateButton,
                           ],
                         );
-                      }
-
-                      return Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: <Widget>[
-                          Expanded(child: nameField),
-                          const SizedBox(width: 6),
-                          dateButton,
-                        ],
-                      );
-                    },
-                  ),
-                  const SizedBox(height: 4),
-                  TerminalSectionToolbar(
-                    title: 'Satirlar',
-                    actions: const <Widget>[],
-                  ),
-                  const SizedBox(height: 4),
+                      },
+                    ),
+                    const SizedBox(height: 4),
+                  ],
                 ],
               ),
               const SizedBox(height: 4),
@@ -1133,7 +1183,7 @@ class _OfflineInventoryCountCreateSheetState
                   child: TerminalMessageBlock.error(message: _errorMessage!),
                 ),
               Padding(
-                padding: const EdgeInsets.only(top: 4, bottom: 4),
+                padding: const EdgeInsets.only(top: 4, bottom: 2),
                 child: TerminalFormActionRow(
                   cancel: OutlinedButton(
                     onPressed: () => Navigator.of(context).pop(),
@@ -1165,6 +1215,7 @@ class _OfflineInventoryCountCreateSheetState
 
     return TerminalSearchableLineSliver<int>(
       items: indexes,
+      accordionController: _accordionController,
       searchText: (index) {
         final line = _lines[index];
         return '${line.stockNameController.text} '

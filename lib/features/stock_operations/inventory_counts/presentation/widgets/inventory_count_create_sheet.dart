@@ -56,6 +56,9 @@ class _InventoryCountCreateSheetState extends State<InventoryCountCreateSheet>
   String? _lastAddedProductKey;
   bool _isPreparingSubmit = false;
   bool _isProductLookupBusy = false;
+  bool _isHeaderExpanded = false;
+  final TerminalLineAccordionController _accordionController =
+      TerminalLineAccordionController();
 
   @override
   void initState() {
@@ -91,6 +94,7 @@ class _InventoryCountCreateSheetState extends State<InventoryCountCreateSheet>
 
   @override
   void dispose() {
+    _accordionController.dispose();
     _draftSession.dispose();
     _scrollController.dispose();
     _nameController.dispose();
@@ -727,6 +731,7 @@ class _InventoryCountCreateSheetState extends State<InventoryCountCreateSheet>
       );
 
       if (stockCode.isEmpty) {
+        _accordionController.expand(ObjectKey(line));
         setState(() {
           _validationMessage = '${index + 1}. satir icin urun secin.';
         });
@@ -734,9 +739,19 @@ class _InventoryCountCreateSheetState extends State<InventoryCountCreateSheet>
       }
 
       if (quantity <= 0) {
+        _accordionController.expand(ObjectKey(line));
         setState(() {
           _validationMessage =
               '${index + 1}. satir icin miktar sifirdan buyuk olmali.';
+        });
+        return;
+      }
+
+      if (quantity > terminalCreateMaximumQuantity) {
+        _accordionController.expand(ObjectKey(line));
+        setState(() {
+          _validationMessage =
+              '${index + 1}. satir icin miktar en fazla ${terminalCreateMaximumQuantity.toInt()} olabilir.';
         });
         return;
       }
@@ -795,134 +810,140 @@ class _InventoryCountCreateSheetState extends State<InventoryCountCreateSheet>
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final hasPendingEntry = _lines.isNotEmpty && !_isBlankLine(_lines.first);
+    final nameText = _nameController.text.trim();
+    final canCollapseHeader =
+        nameText.isNotEmpty &&
+        (_filledLineIndexes().isNotEmpty || hasPendingEntry);
+    final showCompactHeader = canCollapseHeader && !_isHeaderExpanded;
 
     return SafeArea(
-      child: Padding(
-        padding: EdgeInsets.zero,
-        child: FractionallySizedBox(
-          heightFactor: 0.97,
-          child: Material(
-            color: theme.scaffoldBackgroundColor,
-            child: Form(
-              key: _formKey,
-              autovalidateMode: createFormAutovalidateMode,
-              child: Column(
+      child: Material(
+        color: theme.scaffoldBackgroundColor,
+        child: Form(
+          key: _formKey,
+          autovalidateMode: createFormAutovalidateMode,
+          child: Column(
+            children: <Widget>[
+              TerminalSheetHeader(
+                title: 'Yeni Sayim Sonucu',
+                badges: <Widget>[
+                  TerminalLineCountBadge(count: _filledLineIndexes().length),
+                ],
+                elevated: true,
+              ),
+              TerminalCreateInputDock(
+                compactChild: _buildEntryLineCard(theme),
                 children: <Widget>[
-                  TerminalSheetHeader(
-                    title: 'Yeni Sayim Sonucu',
-                    badges: <Widget>[
-                      TerminalLineCountBadge(
-                        count: _filledLineIndexes().length,
+                  if (canCollapseHeader) ...<Widget>[
+                    TerminalCollapsibleHeaderSummary(
+                      icon: Icons.inventory_outlined,
+                      title: nameText,
+                      subtitle: AppFormatters.date(_documentDate),
+                      expanded: _isHeaderExpanded,
+                      onTap: () => setState(
+                        () => _isHeaderExpanded = !_isHeaderExpanded,
                       ),
-                    ],
-                    elevated: true,
-                  ),
-                  TerminalCreateInputDock(
-                    compactChild: _buildEntryLineCard(theme),
-                    children: <Widget>[
-                      LayoutBuilder(
-                        builder: (context, constraints) {
-                          final nameField = TextFormField(
-                            controller: _nameController,
-                            decoration: const InputDecoration(
-                              labelText: 'Sayim Adi*',
-                              hintText: 'Nisan 2026 Genel Sayim',
-                              isDense: true,
-                              contentPadding: EdgeInsets.symmetric(
-                                horizontal: 10,
-                                vertical: 8,
-                              ),
+                    ),
+                    const SizedBox(height: 4),
+                  ],
+                  if (!showCompactHeader) ...<Widget>[
+                    LayoutBuilder(
+                      builder: (context, constraints) {
+                        final nameField = TextFormField(
+                          controller: _nameController,
+                          decoration: const InputDecoration(
+                            labelText: 'Sayim Adi*',
+                            hintText: 'Nisan 2026 Genel Sayim',
+                            isDense: true,
+                            contentPadding: EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 8,
                             ),
-                            validator: (value) {
-                              if ((value ?? '').trim().isEmpty) {
-                                return 'Zorunlu';
-                              }
+                          ),
+                          validator: (value) {
+                            if ((value ?? '').trim().isEmpty) {
+                              return 'Zorunlu';
+                            }
 
-                              return null;
-                            },
-                          );
-                          final dateButton = TerminalFilterButton(
-                            label: 'Belge Tarihi',
-                            value: AppFormatters.date(_documentDate),
-                            onPressed: _pickDate,
-                          );
+                            return null;
+                          },
+                        );
+                        final dateButton = TerminalFilterButton(
+                          label: 'Belge Tarihi',
+                          value: AppFormatters.date(_documentDate),
+                          onPressed: _pickDate,
+                        );
 
-                          if (constraints.maxWidth < 260) {
-                            return Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: <Widget>[
-                                nameField,
-                                const SizedBox(height: 4),
-                                Align(
-                                  alignment: Alignment.centerLeft,
-                                  child: dateButton,
-                                ),
-                              ],
-                            );
-                          }
-
-                          return Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                        if (constraints.maxWidth < 260) {
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: <Widget>[
-                              Expanded(child: nameField),
-                              const SizedBox(width: 6),
-                              dateButton,
+                              nameField,
+                              const SizedBox(height: 4),
+                              Align(
+                                alignment: Alignment.centerLeft,
+                                child: dateButton,
+                              ),
                             ],
                           );
-                        },
-                      ),
-                      const SizedBox(height: 5),
-                      TerminalSectionToolbar(
-                        title: 'Satirlar',
-                        actions: const <Widget>[],
-                      ),
-                      const SizedBox(height: 4),
-                    ],
-                  ),
+                        }
 
-                  Expanded(
-                    child: CustomScrollView(
-                      controller: _scrollController,
-                      slivers: <Widget>[
-                        _buildLazyLineSliver(theme),
-                        const SliverToBoxAdapter(child: SizedBox(height: 8)),
-                      ],
+                        return Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: <Widget>[
+                            Expanded(child: nameField),
+                            const SizedBox(width: 6),
+                            dateButton,
+                          ],
+                        );
+                      },
                     ),
-                  ),
-                  if (_validationMessage != null)
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(12, 4, 12, 0),
-                      child: _ValidationBlock(message: _validationMessage!),
-                    ),
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
-                    child: TerminalFormActionRow(
-                      submitFlex: 2,
-                      cancel: OutlinedButton(
-                        onPressed: _isPreparingSubmit
-                            ? null
-                            : () => Navigator.of(context).pop(),
-                        child: const Text('Vazgec'),
-                      ),
-                      submit: FilledButton.icon(
-                        onPressed: _isPreparingSubmit ? null : _submit,
-                        icon: _isPreparingSubmit
-                            ? const SizedBox.square(
-                                dimension: 18,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2.2,
-                                ),
-                              )
-                            : const Icon(Icons.save_rounded),
-                        label: Text(
-                          _isPreparingSubmit ? 'Hazirlaniyor...' : 'Kaydet',
-                        ),
-                      ),
-                    ),
-                  ),
+                    const SizedBox(height: 4),
+                  ],
                 ],
               ),
-            ),
+              Expanded(
+                child: CustomScrollView(
+                  controller: _scrollController,
+                  slivers: <Widget>[
+                    _buildLazyLineSliver(theme),
+                    const SliverToBoxAdapter(child: SizedBox(height: 8)),
+                  ],
+                ),
+              ),
+              if (_validationMessage != null)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 4, 12, 0),
+                  child: _ValidationBlock(message: _validationMessage!),
+                ),
+              Padding(
+                  padding: const EdgeInsets.fromLTRB(10, 4, 10, 6),
+                  child: TerminalFormActionRow(
+                    submitFlex: 2,
+                    cancel: OutlinedButton(
+                      onPressed: _isPreparingSubmit
+                          ? null
+                          : () => Navigator.of(context).pop(),
+                      child: const Text('Vazgec'),
+                    ),
+                    submit: FilledButton.icon(
+                      onPressed: _isPreparingSubmit ? null : _submit,
+                      icon: _isPreparingSubmit
+                          ? const SizedBox.square(
+                              dimension: 18,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2.2,
+                              ),
+                            )
+                          : const Icon(Icons.save_rounded),
+                      label: Text(
+                        _isPreparingSubmit ? 'Hazirlaniyor...' : 'Kaydet',
+                      ),
+                    ),
+                  ),
+                ),
+            ],
           ),
         ),
       ),
@@ -1151,6 +1172,7 @@ class _InventoryCountCreateSheetState extends State<InventoryCountCreateSheet>
       padding: const EdgeInsets.symmetric(horizontal: 12),
       sliver: TerminalSearchableLineSliver<int>(
         items: indexes,
+        accordionController: _accordionController,
         searchText: (index) {
           final line = _lines[index];
           final product = line.selectedProduct;

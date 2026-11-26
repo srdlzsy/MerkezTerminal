@@ -494,6 +494,8 @@ void main() {
     expect(find.text('SIP001'), findsOneWidget);
     expect(find.text('AD'), findsOneWidget);
 
+    await tester.tap(find.text('Siparis Urun').first);
+    await tester.pumpAndSettle();
     await tester.tap(find.byIcon(Icons.delete_outline_rounded).first);
     await tester.pumpAndSettle();
 
@@ -706,6 +708,8 @@ void main() {
       );
       expect(productLineCard, findsOneWidget);
       await tester.ensureVisible(productLineCard);
+      await tester.tap(find.text('MNV Test Urun').first);
+      await tester.pumpAndSettle();
       await tester.tap(
         find.descendant(
           of: productLineCard,
@@ -827,6 +831,20 @@ void main() {
       expect(find.text('Okutulan (1)'), findsOneWidget);
       expect(find.text('Uygun'), findsOneWidget);
 
+      // Filtering must keep the original order line number so the operator can
+      // reconcile the screen with the selected order without paper.
+      await tester.tap(find.text('Bekleyen (1)'));
+      await tester.pumpAndSettle();
+      expect(find.text('MNV Ikinci Urun'), findsOneWidget);
+      expect(find.text('MNV Test Urun'), findsNothing);
+      expect(find.text('02'), findsOneWidget);
+
+      await tester.tap(find.text('Okutulan (1)'));
+      await tester.pumpAndSettle();
+      expect(find.text('MNV Test Urun'), findsOneWidget);
+      expect(find.text('MNV Ikinci Urun'), findsNothing);
+      expect(find.text('01'), findsOneWidget);
+
       // Submit ships only the 1 scanned line and skips the untouched empty Manav line.
       await tester.scrollUntilVisible(
         find.text('Kaydet'),
@@ -904,24 +922,125 @@ void main() {
         expect(find.text('GEMLIK 3 HISAR'), findsOneWidget);
         expect(find.text('MILLET 1'), findsNothing);
 
-        // Selecting order auto-fills target warehouse and opens ready-to-scan view.
+        // Selecting order auto-fills target warehouse, collapses upper setup,
+        // and opens ready-to-scan view.
         await tester.tap(find.text('D172.2044'));
         await tester.pumpAndSettle();
 
         expect(tester.takeException(), isNull);
+        expect(
+          find.widgetWithText(TextFormField, 'Hedef depo no*'),
+          findsNothing,
+        );
+        expect(find.text('172 · GEMLIK 3 HISAR'), findsOneWidget);
+        expect(find.textContaining('D172.2044 · 0/1 satir'), findsOneWidget);
+        expect(find.text('Siparis Urun'), findsOneWidget);
+        expect(find.text('Bekliyor'), findsOneWidget);
+        expect(
+          find.textContaining('Sip. 6 · Kalan 4 · Sevk 0 AD'),
+          findsOneWidget,
+        );
+
+        // Expanding setup via tune icon reveals prefilled target warehouse 172.
+        await tester.tap(find.byTooltip('Mod / Hedef depo'));
+        await tester.pumpAndSettle();
         final warehouseField = tester.widget<TextFormField>(
           find.widgetWithText(TextFormField, 'Hedef depo no*'),
         );
         expect(warehouseField.controller?.text, '172');
-        expect(find.text('172 · GEMLIK 3 HISAR'), findsOneWidget);
-        expect(find.textContaining('D172.2044 · 1/1 satir'), findsOneWidget);
-        expect(find.text('Siparis Urun'), findsOneWidget);
-        expect(find.text('Tam'), findsOneWidget);
-        expect(
-          find.textContaining('Sip. 6 · Kalan 4 · Sevk 4 AD'),
-          findsOneWidget,
-        );
       }
+    },
+  );
+
+  testWidgets(
+    'scanning an ordered product increments the existing order-linked line instead of adding a duplicate row',
+    (tester) async {
+      tester.view.physicalSize = const Size(360, 720);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      WarehouseShipmentCreateRequest? submittedRequest;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Builder(
+              builder: (context) => FilledButton(
+                onPressed: () async {
+                  submittedRequest =
+                      await showModalBottomSheet<
+                        WarehouseShipmentCreateRequest
+                      >(
+                        context: context,
+                        isScrollControlled: true,
+                        builder: (_) => OutgoingWarehouseShipmentCreateSheet(
+                          repository: _FakeOutgoingWarehouseShipmentsRepository(
+                            barcodeResolutionBuilder: (request) {
+                              return buildBarcodeResolutionResult(
+                                barcode: request.barcode,
+                                warehouseNo: 129,
+                                stockCode: 'SIP001',
+                                stockName: 'Siparis Urun',
+                                unitName: 'AD',
+                                unitMultiplier: 1,
+                                operationType: request.operationType ?? '',
+                                screenCode: request.screenCode ?? '',
+                              );
+                            },
+                          ),
+                          receivedWarehouseOrdersRepository:
+                              _MultiStoreReceivedWarehouseOrdersRepository(),
+                          accessToken: 'token',
+                          defaultWarehouseNo: '129',
+                          initialOrderLinked: true,
+                          mobileWarehouseCatalogRepository:
+                              _emptyWarehouseCatalogRepository(),
+                        ),
+                      );
+                },
+                child: const Text('Ac'),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.text('Ac'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.widgetWithText(OutlinedButton, 'Depo Siparisi Sec'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('D172.2044'));
+      await tester.pumpAndSettle();
+
+      // Order has 1 line: SIP001 with remaining 4 AD, currently 0 AD.
+      expect(find.text('Siparis Urun'), findsOneWidget);
+      expect(find.textContaining('D172.2044 · 0/1 satir'), findsOneWidget);
+
+      // Scan SIP001 barcode twice -> must increment the SAME order-linked line (0 -> 1 -> 2),
+      // never creating a second unlinked row!
+      await _enterShipmentBarcode(tester, barcode: '8690000000012');
+      expect(find.text('Siparis Urun'), findsOneWidget);
+      expect(find.textContaining('D172.2044 · 1/1 satir'), findsOneWidget);
+      expect(find.textContaining('Sevk 1 AD'), findsOneWidget);
+
+      await _enterShipmentBarcode(tester, barcode: '8690000000012');
+      expect(find.text('Siparis Urun'), findsOneWidget);
+      expect(find.textContaining('Sevk 2 AD'), findsOneWidget);
+
+      // Submit -> single order-linked line with quantity 2 and preserved lineGuid!
+      await tester.tap(find.widgetWithText(FilledButton, 'Kaydet'));
+      await tester.pumpAndSettle();
+
+      expect(submittedRequest, isNotNull);
+      expect(submittedRequest!.lines, hasLength(1));
+      expect(submittedRequest!.lines.single.stockCode, 'SIP001');
+      expect(submittedRequest!.lines.single.quantity, 2);
+      expect(
+        submittedRequest!.lines.single.warehouseOrderLineGuid,
+        'order-line-guid-1',
+      );
     },
   );
 }

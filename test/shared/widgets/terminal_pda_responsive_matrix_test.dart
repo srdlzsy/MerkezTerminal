@@ -536,7 +536,8 @@ void main() {
         );
         final menus = modules
             .expand(
-              (m) => m.menus.map((menu) => MenuEntry.fromPermissionMenu(m, menu)),
+              (m) =>
+                  m.menus.map((menu) => MenuEntry.fromPermissionMenu(m, menu)),
             )
             .toList(growable: false);
 
@@ -863,8 +864,14 @@ void main() {
           expect(temizleRect.height, closeTo(40, 2));
           expect(yeniRect.height, closeTo(40, 2));
           expect(offlineRect.height, closeTo(40, 2));
-          expect((listeleRect.center.dy - yeniRect.center.dy).abs(), lessThan(2));
-          expect((offlineRect.center.dy - yeniRect.center.dy).abs(), lessThan(2));
+          expect(
+            (listeleRect.center.dy - yeniRect.center.dy).abs(),
+            lessThan(2),
+          );
+          expect(
+            (offlineRect.center.dy - yeniRect.center.dy).abs(),
+            lessThan(2),
+          );
           expect(tester.takeException(), isNull);
         }
       },
@@ -921,9 +928,18 @@ void main() {
           );
           final okuRect = tester.getRect(find.byTooltip('Kamera ile oku'));
 
-          expect((fieldRect.height - urunRect.height).abs(), lessThanOrEqualTo(3));
-          expect((urunRect.height - okuRect.height).abs(), lessThanOrEqualTo(2));
-          expect((fieldRect.center.dy - urunRect.center.dy).abs(), lessThanOrEqualTo(2));
+          expect(
+            (fieldRect.height - urunRect.height).abs(),
+            lessThanOrEqualTo(3),
+          );
+          expect(
+            (urunRect.height - okuRect.height).abs(),
+            lessThanOrEqualTo(2),
+          );
+          expect(
+            (fieldRect.center.dy - urunRect.center.dy).abs(),
+            lessThanOrEqualTo(2),
+          );
           expect(tester.takeException(), isNull);
         }
       },
@@ -999,6 +1015,298 @@ void main() {
           tester.getBottomRight(find.widgetWithText(FilledButton, 'Kaydet')).dy,
           lessThanOrEqualTo(872 - 34),
         );
+        expect(tester.takeException(), isNull);
+      },
+    );
+
+    testWidgets(
+      'Accordion A & C line cards fit 5+ items on 320x533, keep single card open, and auto-expand on Form.validate error',
+      (tester) async {
+        final controllers = List<TextEditingController>.generate(
+          6,
+          (i) => TextEditingController(text: '${(i + 1) * 5}'),
+        );
+        addTearDown(() {
+          for (final c in controllers) {
+            c.dispose();
+          }
+        });
+        final formKey = GlobalKey<FormState>();
+
+        tester.view.physicalSize = const Size(320, 533);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: Form(
+                key: formKey,
+                child: Column(
+                  children: <Widget>[
+                    const TerminalSheetHeader(title: 'Yeni Stok Fisi'),
+                    TerminalCollapsibleHeaderSummary(
+                      icon: Icons.calendar_today_outlined,
+                      title: '26.11.2026 · Depo 129',
+                      subtitle: 'Aciklama: Stok girisi',
+                      onTap: () {},
+                    ),
+                    Expanded(
+                      child: CustomScrollView(
+                        slivers: <Widget>[
+                          TerminalSearchableLineSliver<int>(
+                            items: const <int>[0, 1, 2, 3, 4, 5],
+                            searchText: (i) => 'URUN $i',
+                            itemBuilder: (context, i) {
+                              return TerminalCompactProductLineCard(
+                                key: ValueKey<int>(i),
+                                lineNo: i + 1,
+                                stockCode: '00110$i',
+                                stockName: 'TEST URUN ${i + 1} KG',
+                                quantityController: controllers[i],
+                                unitLabel: 'AD',
+                                packageLabel: '10',
+                                maximumQuantity: 100,
+                                quantityValidator: (val) {
+                                  final n = double.tryParse(val ?? '') ?? 0;
+                                  return n > 100 ? 'En fazla 100' : null;
+                                },
+                                onDelete: () {},
+                              );
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull);
+        // At least 5 collapsed product cards are visible on 320x533 without scrolling!
+        for (var i = 1; i <= 5; i += 1) {
+          expect(find.text('TEST URUN $i KG').hitTestable(), findsOneWidget);
+        }
+        // Collapsed state hides delete buttons from hit testing.
+        expect(find.byIcon(Icons.delete_outline_rounded), findsNothing);
+
+        // Tap card 1 -> opens ONLY card 1.
+        await tester.tap(find.text('TEST URUN 1 KG'));
+        await tester.pumpAndSettle();
+        expect(find.byIcon(Icons.delete_outline_rounded), findsOneWidget);
+
+        // Tap card 2 -> closes card 1 and opens ONLY card 2.
+        await tester.tap(find.text('TEST URUN 2 KG'));
+        await tester.pumpAndSettle();
+        expect(find.byIcon(Icons.delete_outline_rounded), findsOneWidget);
+
+        // Collapse card 2 so all cards are collapsed, then set invalid qty on card 4.
+        await tester.tap(find.text('TEST URUN 2 KG'));
+        await tester.pumpAndSettle();
+        expect(find.byIcon(Icons.delete_outline_rounded), findsNothing);
+
+        controllers[3].text = '250';
+        expect(formKey.currentState!.validate(), isFalse);
+        await tester.pumpAndSettle();
+
+        // Card 4 automatically expanded on validation failure!
+        expect(find.byIcon(Icons.delete_outline_rounded), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      '320x533 stress test: long names + 1.3x textScale + expanded Virman A & Dual C cards + keyboard inset without overflow',
+      (tester) async {
+        final virmanQty = TextEditingController(text: '12');
+        final dualDisp = TextEditingController(text: '10');
+        final dualAcc = TextEditingController(text: '8');
+        final accordionController = TerminalLineAccordionController();
+        addTearDown(() {
+          virmanQty.dispose();
+          dualDisp.dispose();
+          dualAcc.dispose();
+          accordionController.dispose();
+        });
+
+        tester.view.physicalSize = const Size(320, 533);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: MediaQuery(
+              data: const MediaQueryData(
+                size: Size(320, 533),
+                viewInsets: EdgeInsets.only(bottom: 180),
+                textScaler: TextScaler.linear(1.3),
+              ),
+              child: Scaffold(
+                resizeToAvoidBottomInset: false,
+                body: SizedBox(
+                  width: 320,
+                  height: 353,
+                  child: Column(
+                    children: <Widget>[
+                      const TerminalSheetHeader(title: 'Stres Testi'),
+                      Expanded(
+                        child: CustomScrollView(
+                          slivers: <Widget>[
+                            TerminalSearchableLineSliver<int>(
+                              items: const <int>[0, 1],
+                              accordionController: accordionController,
+                              searchText: (i) => 'UZUN URUN $i',
+                              itemBuilder: (context, i) {
+                                if (i == 0) {
+                                  return TerminalCompactProductLineCard(
+                                    key: const ValueKey<String>('virman-long'),
+                                    lineNo: 1,
+                                    stockCode: '015550',
+                                    stockName:
+                                        'COK UZUN TEST URUN ADI SODA SADE ALTILI PAKET OZEL SERI 1500 ML',
+                                    quantityController: virmanQty,
+                                    unitLabel: 'AD',
+                                    packageLabel: '6',
+                                    collapsedPillPrefix: '↑ Cikis',
+                                    collapsedPillBackgroundColor: const Color(
+                                      0xFFFFF1E6,
+                                    ),
+                                    collapsedPillBorderColor: const Color(
+                                      0xFFE5A93C,
+                                    ),
+                                    collapsedPillForegroundColor: const Color(
+                                      0xFF8A4B00,
+                                    ),
+                                    expandedExtraChild: const Text(
+                                      'Bu satirin hareket yonu',
+                                    ),
+                                    onDelete: () {},
+                                  );
+                                }
+                                return TerminalDualQuantityProductLineCard(
+                                  key: const ValueKey<String>('dual-long'),
+                                  lineNo: 2,
+                                  stockCode: '012415',
+                                  stockName:
+                                      'COK UZUN MAL KABUL URUN ADI TAM YAGLI KAYMAKLI YOGURT 2000 GR',
+                                  unitLabel: 'AD',
+                                  packageLabel: '6',
+                                  primaryQuantityController: dualDisp,
+                                  secondaryQuantityController: dualAcc,
+                                  primaryQuantity: TerminalQuantityStepper(
+                                    controller: dualDisp,
+                                    label: 'Irsaliye Miktari*',
+                                    dense: true,
+                                  ),
+                                  secondaryQuantity: TerminalQuantityStepper(
+                                    controller: dualAcc,
+                                    label: 'Fiili Miktar*',
+                                    dense: true,
+                                  ),
+                                  onDelete: () {},
+                                );
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+        expect(find.text('↑'), findsOneWidget);
+
+        // Expand Virman Type A card under 320x533 + 1.3x scale + keyboard inset.
+        accordionController.expand(const ValueKey<String>('virman-long'));
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+        expect(find.text('Bu satirin hareket yonu'), findsOneWidget);
+
+        // Switch to Dual Type C card under 320x533 + 1.3x scale + keyboard inset.
+        accordionController.expand(const ValueKey<String>('dual-long'));
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+        expect(find.text('Irsaliye Miktari*'), findsOneWidget);
+        expect(find.text('Fiili Miktar*'), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'Off-screen lazy SliverList model validation opens unmounted invalid card via TerminalLineAccordionController',
+      (tester) async {
+        final controllers = List<TextEditingController>.generate(
+          20,
+          (i) => TextEditingController(text: i == 18 ? '0' : '5'),
+        );
+        final accordionController = TerminalLineAccordionController();
+        final scrollController = ScrollController();
+        addTearDown(() {
+          for (final c in controllers) {
+            c.dispose();
+          }
+          accordionController.dispose();
+          scrollController.dispose();
+        });
+
+        tester.view.physicalSize = const Size(320, 533);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: CustomScrollView(
+                controller: scrollController,
+                slivers: <Widget>[
+                  TerminalSearchableLineSliver<int>(
+                    items: List<int>.generate(20, (i) => i),
+                    accordionController: accordionController,
+                    searchText: (i) => 'SATIR ${i + 1}',
+                    itemBuilder: (context, i) => TerminalCompactProductLineCard(
+                      key: ValueKey<int>(i),
+                      lineNo: i + 1,
+                      stockCode: '0020${i.toString().padLeft(2, '0')}',
+                      stockName: 'LAZY URUN ${i + 1}',
+                      quantityController: controllers[i],
+                      unitLabel: 'AD',
+                      onDelete: () {},
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        // Item 19 (index 18) is off-screen and not even mounted by SliverList!
+        expect(find.text('LAZY URUN 19'), findsNothing);
+
+        // Model-level submit validation scans ALL 20 models regardless of viewport,
+        // detects index 18 has qty <= 0, and expands ValueKey<int>(18).
+        final invalidIndex = controllers.indexWhere(
+          (c) => (double.tryParse(c.text.trim()) ?? 0) <= 0,
+        );
+        expect(invalidIndex, 18);
+        accordionController.expand(ValueKey<int>(invalidIndex));
+        await tester.pump();
+
+        // Scroll down to item 19 -> it renders already expanded with stepper & delete button!
+        scrollController.jumpTo(scrollController.position.maxScrollExtent);
+        await tester.pumpAndSettle();
+        expect(find.text('LAZY URUN 19'), findsOneWidget);
+        expect(find.byIcon(Icons.delete_outline_rounded), findsOneWidget);
         expect(tester.takeException(), isNull);
       },
     );

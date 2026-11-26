@@ -6,12 +6,109 @@ import 'package:flutter/services.dart';
 
 const double terminalCreateMaximumQuantity = 100000;
 
+class TerminalLineAccordionController extends ValueNotifier<Object?> {
+  TerminalLineAccordionController([super.value]);
+
+  void expand(Object key) {
+    if (value != key) {
+      value = key;
+    }
+  }
+
+  void collapse() {
+    if (value != null) {
+      value = null;
+    }
+  }
+}
+
+class TerminalLineAccordionScope extends InheritedWidget {
+  const TerminalLineAccordionScope({
+    super.key,
+    required this.expandedKeyNotifier,
+    required super.child,
+  });
+
+  final ValueNotifier<Object?> expandedKeyNotifier;
+  static FocusNode? _lastScanFocusNode;
+
+  static void registerScanFocusNode(FocusNode? focusNode) {
+    if (focusNode != null) {
+      _lastScanFocusNode = focusNode;
+    }
+  }
+
+  static void unregisterScanFocusNode(FocusNode? focusNode) {
+    if (identical(_lastScanFocusNode, focusNode)) {
+      _lastScanFocusNode = null;
+    }
+  }
+
+  static void returnFocusToScanner() {
+    final node = _lastScanFocusNode;
+    if (node != null && node.canRequestFocus) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (node.canRequestFocus) {
+          node.requestFocus();
+        }
+      });
+    }
+  }
+
+  static TerminalLineAccordionScope? maybeOf(BuildContext context) {
+    return context
+        .dependOnInheritedWidgetOfExactType<TerminalLineAccordionScope>();
+  }
+
+  void toggle(Object key) {
+    expandedKeyNotifier.value = expandedKeyNotifier.value == key ? null : key;
+  }
+
+  void expand(Object key) {
+    if (expandedKeyNotifier.value != key) {
+      expandedKeyNotifier.value = key;
+    }
+  }
+
+  void collapseAndReturnFocus(Object key) {
+    if (expandedKeyNotifier.value == key) {
+      expandedKeyNotifier.value = null;
+    }
+    returnFocusToScanner();
+  }
+
+  @override
+  bool updateShouldNotify(TerminalLineAccordionScope oldWidget) {
+    return oldWidget.expandedKeyNotifier != expandedKeyNotifier;
+  }
+}
+
+class _TerminalAccordionItemScope extends InheritedWidget {
+  const _TerminalAccordionItemScope({
+    required this.onValidationInvalid,
+    required this.onQuantitySubmitted,
+    required super.child,
+  });
+
+  final VoidCallback onValidationInvalid;
+  final VoidCallback onQuantitySubmitted;
+
+  static _TerminalAccordionItemScope? maybeOf(BuildContext context) {
+    return context
+        .dependOnInheritedWidgetOfExactType<_TerminalAccordionItemScope>();
+  }
+
+  @override
+  bool updateShouldNotify(_TerminalAccordionItemScope oldWidget) => false;
+}
+
 class TerminalSearchableLineSliver<T> extends StatefulWidget {
   const TerminalSearchableLineSliver({
     super.key,
     required this.items,
     required this.searchText,
     required this.itemBuilder,
+    this.accordionController,
     this.searchThreshold = 8,
     this.hintText = 'Kalemlerde ara',
   });
@@ -19,6 +116,7 @@ class TerminalSearchableLineSliver<T> extends StatefulWidget {
   final List<T> items;
   final String Function(T item) searchText;
   final Widget Function(BuildContext context, T item) itemBuilder;
+  final TerminalLineAccordionController? accordionController;
   final int searchThreshold;
   final String hintText;
 
@@ -30,10 +128,16 @@ class TerminalSearchableLineSliver<T> extends StatefulWidget {
 class _TerminalSearchableLineSliverState<T>
     extends State<TerminalSearchableLineSliver<T>> {
   final TextEditingController _controller = TextEditingController();
+  final ValueNotifier<Object?> _internalExpandedKeyNotifier =
+      ValueNotifier<Object?>(null);
   String _query = '';
+
+  ValueNotifier<Object?> get _expandedKeyNotifier =>
+      widget.accordionController ?? _internalExpandedKeyNotifier;
 
   @override
   void dispose() {
+    _internalExpandedKeyNotifier.dispose();
     _controller.dispose();
     super.dispose();
   }
@@ -120,7 +224,10 @@ class _TerminalSearchableLineSliverState<T>
           );
         }
 
-        return widget.itemBuilder(context, visibleItems[index - offset]);
+        return TerminalLineAccordionScope(
+          expandedKeyNotifier: _expandedKeyNotifier,
+          child: widget.itemBuilder(context, visibleItems[index - offset]),
+        );
       }, childCount: childCount),
     );
   }
@@ -2175,7 +2282,7 @@ class TerminalPdaLineCard extends StatelessWidget {
 
     return Container(
       width: double.infinity,
-      margin: const EdgeInsets.only(bottom: 6),
+      margin: isEntryLine ? EdgeInsets.zero : const EdgeInsets.only(bottom: 6),
       decoration: BoxDecoration(
         color: isEntryLine
             ? theme.colorScheme.primaryContainer.withAlpha(42)
@@ -2198,16 +2305,18 @@ class TerminalPdaLineCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
           Padding(
-            padding: const EdgeInsets.fromLTRB(8, 4, 6, 3),
+            padding: isEntryLine
+                ? const EdgeInsets.fromLTRB(8, 3, 6, 1)
+                : const EdgeInsets.fromLTRB(8, 4, 6, 3),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: <Widget>[
                 if (leading != null) ...<Widget>[
                   IconTheme.merge(
-                    data: const IconThemeData(size: 18),
+                    data: IconThemeData(size: isEntryLine ? 15 : 18),
                     child: leading!,
                   ),
-                  const SizedBox(width: 6),
+                  const SizedBox(width: 5),
                 ],
                 Expanded(
                   child: promoteSubtitle
@@ -2245,10 +2354,16 @@ class TerminalPdaLineCard extends StatelessWidget {
                                 overflow: showFullTitle
                                     ? TextOverflow.visible
                                     : TextOverflow.ellipsis,
-                                style: theme.textTheme.titleSmall?.copyWith(
-                                  height: 1.05,
-                                  fontWeight: FontWeight.w900,
-                                ),
+                                style: isEntryLine
+                                    ? theme.textTheme.labelSmall?.copyWith(
+                                        height: 1.05,
+                                        color: theme.colorScheme.primary,
+                                        fontWeight: FontWeight.w900,
+                                      )
+                                    : theme.textTheme.titleSmall?.copyWith(
+                                        height: 1.05,
+                                        fontWeight: FontWeight.w900,
+                                      ),
                               ),
                             ),
                             if (normalizedSubtitle.isNotEmpty) ...<Widget>[
@@ -2275,7 +2390,7 @@ class TerminalPdaLineCard extends StatelessWidget {
                   IconButtonTheme(
                     data: IconButtonThemeData(
                       style: IconButton.styleFrom(
-                        minimumSize: const Size(44, 44),
+                        minimumSize: const Size(42, 42),
                         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                         padding: EdgeInsets.zero,
                       ),
@@ -2286,8 +2401,13 @@ class TerminalPdaLineCard extends StatelessWidget {
               ],
             ),
           ),
-          const Divider(height: 1),
-          Padding(padding: const EdgeInsets.all(5), child: child),
+          if (!isEntryLine) const Divider(height: 1),
+          Padding(
+            padding: isEntryLine
+                ? const EdgeInsets.fromLTRB(5, 2, 5, 5)
+                : const EdgeInsets.all(5),
+            child: child,
+          ),
         ],
       ),
     );
@@ -2318,6 +2438,12 @@ class TerminalCompactProductLineCard extends StatelessWidget {
     this.quantityInputFormatters = const <TextInputFormatter>[],
     this.quantityValidator,
     this.allowEmptyQuantity = false,
+    this.collapsible = true,
+    this.expandedExtraChild,
+    this.collapsedPillPrefix,
+    this.collapsedPillBackgroundColor,
+    this.collapsedPillBorderColor,
+    this.collapsedPillForegroundColor,
   });
 
   final int lineNo;
@@ -2339,10 +2465,67 @@ class TerminalCompactProductLineCard extends StatelessWidget {
   final List<TextInputFormatter> quantityInputFormatters;
   final FormFieldValidator<String>? quantityValidator;
   final bool allowEmptyQuantity;
+  final bool collapsible;
+  final Widget? expandedExtraChild;
+  final String? collapsedPillPrefix;
+  final Color? collapsedPillBackgroundColor;
+  final Color? collapsedPillBorderColor;
+  final Color? collapsedPillForegroundColor;
+
+  Object get _accordionKey => key ?? '$lineNo-$stockCode-$stockName';
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final accordionScope = collapsible
+        ? TerminalLineAccordionScope.maybeOf(context)
+        : null;
+
+    if (accordionScope == null) {
+      return _buildCardContent(
+        context,
+        theme: theme,
+        isAccordion: false,
+        isExpanded: true,
+        onToggleAccordion: null,
+        onQuantitySubmitted: null,
+        onValidationInvalid: null,
+      );
+    }
+
+    final cardKey = _accordionKey;
+    return ValueListenableBuilder<Object?>(
+      valueListenable: accordionScope.expandedKeyNotifier,
+      builder: (context, expandedKey, _) {
+        final isExpanded = expandedKey == cardKey;
+        return _buildCardContent(
+          context,
+          theme: theme,
+          isAccordion: true,
+          isExpanded: isExpanded,
+          onToggleAccordion: () => accordionScope.toggle(cardKey),
+          onQuantitySubmitted: () =>
+              accordionScope.collapseAndReturnFocus(cardKey),
+          onValidationInvalid: () {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              accordionScope.expand(cardKey);
+            });
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildCardContent(
+    BuildContext context, {
+    required ThemeData theme,
+    required bool isAccordion,
+    required bool isExpanded,
+    required VoidCallback? onToggleAccordion,
+    required VoidCallback? onQuantitySubmitted,
+    required VoidCallback? onValidationInvalid,
+  }) {
+    final hasExplicitWarning = (warningLabel ?? '').trim().isNotEmpty;
 
     return TweenAnimationBuilder<double>(
       key: const ValueKey<String>('terminal-product-line-highlight'),
@@ -2350,24 +2533,35 @@ class TerminalCompactProductLineCard extends StatelessWidget {
       duration: const Duration(milliseconds: 900),
       curve: Curves.easeOutCubic,
       builder: (context, emphasis, child) {
+        final baseColor = isAccordion && isExpanded
+            ? (hasExplicitWarning
+                  ? const Color(0xFFFFF5F4)
+                  : theme.colorScheme.primaryContainer.withAlpha(32))
+            : theme.colorScheme.surface;
+        final baseBorderColor = isAccordion && isExpanded
+            ? (hasExplicitWarning
+                  ? theme.colorScheme.error.withAlpha(140)
+                  : theme.colorScheme.primary.withAlpha(145))
+            : theme.colorScheme.outlineVariant.withAlpha(115);
+
         return Container(
           width: double.infinity,
           margin: const EdgeInsets.only(bottom: 4),
           padding: const EdgeInsets.fromLTRB(7, 4, 7, 4),
           decoration: BoxDecoration(
             color: Color.lerp(
-              theme.colorScheme.surface,
+              baseColor,
               theme.colorScheme.secondaryContainer,
               emphasis * 0.7,
             ),
             borderRadius: BorderRadius.circular(10),
             border: Border.all(
               color: Color.lerp(
-                theme.colorScheme.outlineVariant.withAlpha(115),
+                baseBorderColor,
                 theme.colorScheme.secondary,
                 emphasis,
               )!,
-              width: 1 + (emphasis * 0.5),
+              width: (isAccordion && isExpanded ? 1.2 : 1) + (emphasis * 0.5),
             ),
           ),
           child: child,
@@ -2375,15 +2569,20 @@ class TerminalCompactProductLineCard extends StatelessWidget {
       },
       child: LayoutBuilder(
         builder: (context, constraints) {
-          // Responsive kirilimlar ekran genisligine degil, kartin gercek
-          // kullanilabilir genisligine gore belirlenir.
           final density = _resolveDensity(constraints.maxWidth);
-          final isDesktopRow = constraints.maxWidth >= 560;
+          final isDesktopRow = !isAccordion && constraints.maxWidth >= 560;
           final deleteButton = TerminalLineDeleteButton(
             enabled: canDelete,
             onPressed: onDelete,
             compactIconOnly: true,
           );
+          final accordionTrailing = isAccordion
+              ? _buildAccordionQuantityPill(
+                  theme: theme,
+                  isExpanded: isExpanded,
+                  maxWidth: constraints.maxWidth,
+                )
+              : (isDesktopRow ? null : deleteButton);
           final details = _TerminalCompactProductLineDetails(
             lineNo: lineNo,
             stockCode: stockCode,
@@ -2394,8 +2593,18 @@ class TerminalCompactProductLineCard extends StatelessWidget {
             packageLabel: packageLabel,
             density: density,
             showUnitInMeta: false,
-            trailing: isDesktopRow ? null : deleteButton,
+            trailing: accordionTrailing,
           );
+          final headerWidget = isAccordion
+              ? InkWell(
+                  key: const ValueKey<String>(
+                    'terminal-product-line-accordion-toggle',
+                  ),
+                  onTap: onToggleAccordion,
+                  borderRadius: BorderRadius.circular(8),
+                  child: details,
+                )
+              : details;
           final quantityControl = _TerminalCompactQuantityControl(
             controller: quantityController,
             unitLabel: unitLabel,
@@ -2405,28 +2614,90 @@ class TerminalCompactProductLineCard extends StatelessWidget {
             validator: quantityValidator,
             allowEmptyQuantity: allowEmptyQuantity,
             onMinimumReached: onMinimumReached,
+            onSubmitted: onQuantitySubmitted,
+            onInvalid: onValidationInvalid,
           );
 
-          final content = isDesktopRow
-              ? Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: <Widget>[
-                    Expanded(child: details),
-                    const SizedBox(width: 8),
-                    SizedBox(width: 196, child: quantityControl),
-                    const SizedBox(width: 4),
-                    deleteButton,
-                  ],
-                )
-              : Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  mainAxisSize: MainAxisSize.min,
-                  children: <Widget>[
-                    details,
-                    const SizedBox(height: 4),
-                    quantityControl,
-                  ],
-                );
+          final Widget content;
+          if (isDesktopRow) {
+            content = Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: <Widget>[
+                Expanded(child: headerWidget),
+                const SizedBox(width: 8),
+                SizedBox(width: 196, child: quantityControl),
+                const SizedBox(width: 4),
+                deleteButton,
+              ],
+            );
+          } else if (isAccordion) {
+            content = Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                headerWidget,
+                if (isExpanded)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 6),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      mainAxisSize: MainAxisSize.min,
+                      children: <Widget>[
+                        if (expandedExtraChild != null) ...<Widget>[
+                          expandedExtraChild!,
+                          const SizedBox(height: 6),
+                        ],
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: <Widget>[
+                            Expanded(child: quantityControl),
+                            if (canDelete && onDelete != null) ...<Widget>[
+                              const SizedBox(width: 6),
+                              deleteButton,
+                            ],
+                          ],
+                        ),
+                      ],
+                    ),
+                  )
+                else
+                  FormField<String>(
+                    validator: (_) {
+                      final text = quantityController.text;
+                      if (allowEmptyQuantity && text.trim().isEmpty) {
+                        return null;
+                      }
+                      final customError = quantityValidator?.call(text);
+                      if (customError != null) {
+                        onValidationInvalid?.call();
+                        return customError;
+                      }
+                      final qty =
+                          _TerminalCompactQuantityControlState._readQuantity(
+                            text,
+                          );
+                      if (qty <= 0 ||
+                          (maximumQuantity != null && qty > maximumQuantity!)) {
+                        onValidationInvalid?.call();
+                        return '';
+                      }
+                      return null;
+                    },
+                    builder: (_) => const SizedBox.shrink(),
+                  ),
+              ],
+            );
+          } else {
+            content = Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                headerWidget,
+                const SizedBox(height: 4),
+                quantityControl,
+              ],
+            );
+          }
 
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -2435,6 +2706,100 @@ class TerminalCompactProductLineCard extends StatelessWidget {
           );
         },
       ),
+    );
+  }
+
+  Widget _buildAccordionQuantityPill({
+    required ThemeData theme,
+    required bool isExpanded,
+    required double maxWidth,
+  }) {
+    final unit = (unitLabel ?? '').trim();
+    return ValueListenableBuilder<TextEditingValue>(
+      valueListenable: quantityController,
+      builder: (context, value, _) {
+        final rawText = value.text.trim();
+        final displayQty = rawText.isEmpty ? '0' : rawText;
+        final hasWarning =
+            (warningLabel ?? '').trim().isNotEmpty ||
+            _packageMultipleWarning(rawText) != null;
+        final pillBg = hasWarning
+            ? const Color(0xFFFFF1E6)
+            : (collapsedPillBackgroundColor ?? const Color(0xFFE6F5EA));
+        final pillBorder = hasWarning
+            ? const Color(0xFFE5A93C)
+            : (collapsedPillBorderColor ?? const Color(0xFFA8D9B5));
+        final pillFg = hasWarning
+            ? const Color(0xFF8A4B00)
+            : (collapsedPillForegroundColor ?? const Color(0xFF186A3B));
+        final rawPrefix = (collapsedPillPrefix ?? '').trim();
+        final textScale = MediaQuery.textScalerOf(context).scale(1);
+        final compactPill = maxWidth < 260 || textScale > 1.25;
+        final prefix = rawPrefix.isEmpty
+            ? ''
+            : compactPill
+            ? rawPrefix.split(' ').first
+            : rawPrefix;
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            Container(
+              padding: EdgeInsets.symmetric(
+                horizontal: compactPill ? 5 : 7,
+                vertical: 4,
+              ),
+              decoration: BoxDecoration(
+                color: pillBg,
+                borderRadius: BorderRadius.circular(7),
+                border: Border.all(color: pillBorder),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  if (prefix.isNotEmpty) ...<Widget>[
+                    Text(
+                      prefix,
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        height: 1.05,
+                        color: pillFg,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(width: 3),
+                  ],
+                  Text(
+                    displayQty,
+                    style: theme.textTheme.labelMedium?.copyWith(
+                      height: 1.05,
+                      color: pillFg,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  if (unit.isNotEmpty) ...<Widget>[
+                    const SizedBox(width: 3),
+                    Text(
+                      unit,
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        height: 1.05,
+                        color: pillFg,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            const SizedBox(width: 2),
+            Icon(
+              isExpanded
+                  ? Icons.keyboard_arrow_up_rounded
+                  : Icons.keyboard_arrow_down_rounded,
+              size: 20,
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -2666,6 +3031,8 @@ class TerminalDualQuantityProductLineCard extends StatelessWidget {
     required this.stockName,
     required this.primaryQuantity,
     required this.secondaryQuantity,
+    this.primaryQuantityController,
+    this.secondaryQuantityController,
     this.unitLabel,
     this.priceLabel,
     this.barcode,
@@ -2675,6 +3042,7 @@ class TerminalDualQuantityProductLineCard extends StatelessWidget {
     this.highlightOnMount = false,
     this.canDelete = true,
     this.onDelete,
+    this.collapsible = true,
   });
 
   final int lineNo;
@@ -2682,6 +3050,8 @@ class TerminalDualQuantityProductLineCard extends StatelessWidget {
   final String stockName;
   final Widget primaryQuantity;
   final Widget secondaryQuantity;
+  final TextEditingController? primaryQuantityController;
+  final TextEditingController? secondaryQuantityController;
   final String? unitLabel;
   final String? priceLabel;
   final String? barcode;
@@ -2691,35 +3061,93 @@ class TerminalDualQuantityProductLineCard extends StatelessWidget {
   final bool highlightOnMount;
   final bool canDelete;
   final VoidCallback? onDelete;
+  final bool collapsible;
+
+  Object get _accordionKey => key ?? 'dual-$lineNo-$stockCode-$stockName';
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final accordionScope =
+        collapsible &&
+            primaryQuantityController != null &&
+            secondaryQuantityController != null
+        ? TerminalLineAccordionScope.maybeOf(context)
+        : null;
 
+    if (accordionScope == null) {
+      return _buildDualCardContent(
+        context,
+        theme: theme,
+        isAccordion: false,
+        isExpanded: true,
+        onToggleAccordion: null,
+      );
+    }
+
+    final cardKey = _accordionKey;
+    return ValueListenableBuilder<Object?>(
+      valueListenable: accordionScope.expandedKeyNotifier,
+      builder: (context, expandedKey, _) {
+        final isExpanded = expandedKey == cardKey;
+        return _TerminalAccordionItemScope(
+          onValidationInvalid: () {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              accordionScope.expand(cardKey);
+            });
+          },
+          onQuantitySubmitted: () =>
+              accordionScope.collapseAndReturnFocus(cardKey),
+          child: _buildDualCardContent(
+            context,
+            theme: theme,
+            isAccordion: true,
+            isExpanded: isExpanded,
+            onToggleAccordion: () => accordionScope.toggle(cardKey),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildDualCardContent(
+    BuildContext context, {
+    required ThemeData theme,
+    required bool isAccordion,
+    required bool isExpanded,
+    required VoidCallback? onToggleAccordion,
+  }) {
     return TweenAnimationBuilder<double>(
       key: const ValueKey<String>('terminal-dual-product-line-highlight'),
       tween: Tween<double>(begin: highlightOnMount ? 1 : 0, end: 0),
       duration: const Duration(milliseconds: 900),
       curve: Curves.easeOutCubic,
       builder: (context, emphasis, child) {
+        final baseColor = isAccordion && isExpanded
+            ? theme.colorScheme.primaryContainer.withAlpha(32)
+            : theme.colorScheme.surface;
+        final baseBorderColor = isAccordion && isExpanded
+            ? theme.colorScheme.primary.withAlpha(145)
+            : theme.colorScheme.outlineVariant.withAlpha(115);
+
         return Container(
           width: double.infinity,
-          margin: const EdgeInsets.only(bottom: 6),
-          padding: const EdgeInsets.fromLTRB(8, 5, 8, 6),
+          margin: const EdgeInsets.only(bottom: 5),
+          padding: const EdgeInsets.fromLTRB(8, 5, 8, 5),
           decoration: BoxDecoration(
             color: Color.lerp(
-              theme.colorScheme.surface,
+              baseColor,
               theme.colorScheme.secondaryContainer,
               emphasis * 0.7,
             ),
             borderRadius: BorderRadius.circular(10),
             border: Border.all(
               color: Color.lerp(
-                theme.colorScheme.outlineVariant.withAlpha(115),
+                baseBorderColor,
                 theme.colorScheme.secondary,
                 emphasis,
               )!,
-              width: 1 + (emphasis * 0.5),
+              width: (isAccordion && isExpanded ? 1.2 : 1) + (emphasis * 0.5),
             ),
           ),
           child: child,
@@ -2730,14 +3158,23 @@ class TerminalDualQuantityProductLineCard extends StatelessWidget {
           final density = TerminalCompactProductLineCard._resolveDensity(
             constraints.maxWidth,
           );
+          final deleteButton = canDelete && onDelete != null
+              ? TerminalLineDeleteButton(
+                  enabled: canDelete,
+                  onPressed: onDelete,
+                  compactIconOnly: !isAccordion,
+                )
+              : null;
           final trailingWidgets = <Widget>[
-            ?statusBadge,
-            if (canDelete && onDelete != null)
-              TerminalLineDeleteButton(
-                enabled: canDelete,
-                onPressed: onDelete,
-                compactIconOnly: true,
-              ),
+            if (!isAccordion) ?statusBadge,
+            if (isAccordion)
+              _buildDualComparisonPill(
+                theme: theme,
+                isExpanded: isExpanded,
+                maxWidth: constraints.maxWidth,
+              )
+            else
+              ?deleteButton,
           ];
           final trailing = trailingWidgets.isEmpty
               ? null
@@ -2756,27 +3193,34 @@ class TerminalDualQuantityProductLineCard extends StatelessWidget {
                     ],
                   ],
                 );
-          // Iki tam miktar stepper'i yalniz gercekten genis kartlarda yan yana
-          // konur; kucuk PDA ekranlarinda etiketlerin ve uyarilarin kesilmemesi
-          // icin iki temiz tam genislik satir kullanilir.
           final useSideBySide = constraints.maxWidth >= 420;
+          final details = _TerminalCompactProductLineDetails(
+            lineNo: lineNo,
+            stockCode: stockCode,
+            stockName: stockName,
+            unitLabel: unitLabel,
+            priceLabel: priceLabel,
+            barcode: barcode,
+            packageLabel: packageLabel,
+            density: density,
+            showUnitInMeta: true,
+            trailing: trailing,
+          );
+          final headerWidget = isAccordion
+              ? InkWell(
+                  key: const ValueKey<String>(
+                    'terminal-dual-line-accordion-toggle',
+                  ),
+                  onTap: onToggleAccordion,
+                  borderRadius: BorderRadius.circular(8),
+                  child: details,
+                )
+              : details;
 
-          return Column(
+          final steppersBlock = Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             mainAxisSize: MainAxisSize.min,
             children: <Widget>[
-              _TerminalCompactProductLineDetails(
-                lineNo: lineNo,
-                stockCode: stockCode,
-                stockName: stockName,
-                unitLabel: unitLabel,
-                priceLabel: priceLabel,
-                barcode: barcode,
-                packageLabel: packageLabel,
-                density: density,
-                showUnitInMeta: true,
-                trailing: trailing,
-              ),
               const SizedBox(height: 6),
               if (useSideBySide)
                 Row(
@@ -2785,21 +3229,118 @@ class TerminalDualQuantityProductLineCard extends StatelessWidget {
                     Expanded(child: primaryQuantity),
                     const SizedBox(width: 10),
                     Expanded(child: secondaryQuantity),
+                    if (isAccordion && deleteButton != null) ...<Widget>[
+                      const SizedBox(width: 6),
+                      deleteButton,
+                    ],
                   ],
                 )
               else ...<Widget>[
                 primaryQuantity,
                 const SizedBox(height: 6),
                 secondaryQuantity,
+                if (isAccordion && deleteButton != null) ...<Widget>[
+                  const SizedBox(height: 6),
+                  Align(alignment: Alignment.centerRight, child: deleteButton),
+                ],
               ],
+            ],
+          );
+
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              headerWidget,
+              if (isAccordion)
+                Visibility(
+                  visible: isExpanded,
+                  maintainState: true,
+                  maintainAnimation: true,
+                  maintainSize: false,
+                  child: steppersBlock,
+                )
+              else
+                steppersBlock,
               if (footerBanner != null) ...<Widget>[
-                const SizedBox(height: 6),
+                const SizedBox(height: 5),
                 footerBanner!,
               ],
             ],
           );
         },
       ),
+    );
+  }
+
+  Widget _buildDualComparisonPill({
+    required ThemeData theme,
+    required bool isExpanded,
+    required double maxWidth,
+  }) {
+    final pCtrl = primaryQuantityController!;
+    final sCtrl = secondaryQuantityController!;
+
+    return AnimatedBuilder(
+      animation: Listenable.merge(<Listenable>[pCtrl, sCtrl]),
+      builder: (context, _) {
+        final primaryRaw = pCtrl.text.trim();
+        final secondaryRaw = sCtrl.text.trim();
+        final primaryVal =
+            double.tryParse(primaryRaw.replaceAll(',', '.')) ?? 0;
+        final secondaryVal =
+            double.tryParse(secondaryRaw.replaceAll(',', '.')) ?? 0;
+        final diff = secondaryVal - primaryVal;
+        final hasDiff = diff.abs() > 0.0001;
+        final diffText = diff > 0
+            ? '+${TerminalCompactProductLineCard._formatQuantity(diff)}'
+            : TerminalCompactProductLineCard._formatQuantity(diff);
+
+        final badgeBg = hasDiff
+            ? const Color(0xFFFDECEA)
+            : const Color(0xFFE6F5EA);
+        final badgeFg = hasDiff
+            ? const Color(0xFFB71C1C)
+            : const Color(0xFF186A3B);
+        final pLabel = primaryRaw.isEmpty ? '0' : primaryRaw;
+        final sLabel = secondaryRaw.isEmpty ? '0' : secondaryRaw;
+        final useLabeledText = maxWidth >= 310;
+        final pillText = useLabeledText
+            ? 'Irs:$pLabel F:$sLabel${hasDiff ? ' ($diffText)' : ''}'
+            : '$pLabel/$sLabel${hasDiff ? ' ($diffText)' : ''}';
+
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+              decoration: BoxDecoration(
+                color: badgeBg,
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Text(
+                pillText,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.labelSmall?.copyWith(
+                  fontSize: 10.5,
+                  height: 1.05,
+                  color: badgeFg,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ),
+            const SizedBox(width: 2),
+            Icon(
+              isExpanded
+                  ? Icons.keyboard_arrow_up_rounded
+                  : Icons.keyboard_arrow_down_rounded,
+              size: 18,
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ],
+        );
+      },
     );
   }
 }
@@ -2875,6 +3416,10 @@ class _TerminalCompactProductLineDetails extends StatelessWidget {
         density == _TerminalProductCardDensity.ultraNarrow ||
         density == _TerminalProductCardDensity.narrow ||
         (priceLabel ?? '').trim().isNotEmpty;
+    final stackTrailing =
+        density == _TerminalProductCardDensity.ultraNarrow ||
+        (density == _TerminalProductCardDensity.narrow &&
+            MediaQuery.textScalerOf(context).scale(1) > 1.15);
 
     if (useFullWidthMeta) {
       return Column(
@@ -2887,12 +3432,16 @@ class _TerminalCompactProductLineDetails extends StatelessWidget {
               lineBadge,
               const SizedBox(width: 6),
               Expanded(child: nameWidget),
-              if (trailing != null) ...<Widget>[
+              if (trailing != null && !stackTrailing) ...<Widget>[
                 const SizedBox(width: 4),
                 trailing!,
               ],
             ],
           ),
+          if (trailing != null && stackTrailing) ...<Widget>[
+            const SizedBox(height: 2),
+            Align(alignment: Alignment.centerRight, child: trailing!),
+          ],
           if (metaBlock != null) ...<Widget>[
             const SizedBox(height: 2),
             metaBlock,
@@ -3015,6 +3564,77 @@ class _TerminalCompactProductLineDetails extends StatelessWidget {
       child: Text('·', style: separatorStyle),
     );
 
+    // Normal terminal widths keep operational identity on one line. Values
+    // scale down only when needed, so none of them turn into an ellipsis.
+    if (density != _TerminalProductCardDensity.ultraNarrow) {
+      final identitySegments = <Widget>[];
+      void addIdentity(Widget widget) {
+        if (identitySegments.isNotEmpty) {
+          identitySegments.add(dot());
+        }
+        identitySegments.add(widget);
+      }
+
+      if (code.isNotEmpty) {
+        addIdentity(Text(code, style: codeStyle));
+      }
+      if (codeBarcode.isNotEmpty) {
+        addIdentity(Text(codeBarcode, style: baseStyle));
+      }
+      if (showUnitInMeta && unit.isNotEmpty) {
+        addIdentity(Text(unit, style: codeStyle));
+      }
+      if (packageInfo.isNotEmpty) {
+        addIdentity(Text('Koli ici $packageInfo', style: packageStyle));
+      }
+
+      if (identitySegments.isEmpty && price.isEmpty) {
+        return null;
+      }
+
+      Widget fittedLine({
+        required IconData icon,
+        required Color iconColor,
+        required List<Widget> children,
+      }) {
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: <Widget>[
+            Icon(icon, size: 14, color: iconColor),
+            const SizedBox(width: 5),
+            Expanded(
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: Row(mainAxisSize: MainAxisSize.min, children: children),
+              ),
+            ),
+          ],
+        );
+      }
+
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          if (identitySegments.isNotEmpty)
+            fittedLine(
+              icon: Icons.qr_code_scanner_rounded,
+              iconColor: codeIconColor,
+              children: identitySegments,
+            ),
+          if (price.isNotEmpty) ...<Widget>[
+            if (identitySegments.isNotEmpty) const SizedBox(height: 2),
+            fittedLine(
+              icon: Icons.payments_outlined,
+              iconColor: packageIconColor,
+              children: <Widget>[Text(price, style: baseStyle)],
+            ),
+          ],
+        ],
+      );
+    }
+
     final canUseSingleLine =
         density == _TerminalProductCardDensity.wide &&
         price.isEmpty &&
@@ -3056,11 +3676,7 @@ class _TerminalCompactProductLineDetails extends StatelessWidget {
       return Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          Icon(
-            Icons.qr_code_scanner_rounded,
-            size: 14,
-            color: codeIconColor,
-          ),
+          Icon(Icons.qr_code_scanner_rounded, size: 14, color: codeIconColor),
           const SizedBox(width: 5),
           Expanded(
             child: Wrap(
@@ -3107,11 +3723,7 @@ class _TerminalCompactProductLineDetails extends StatelessWidget {
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
-            Icon(
-              Icons.qr_code_scanner_rounded,
-              size: 14,
-              color: codeIconColor,
-            ),
+            Icon(Icons.qr_code_scanner_rounded, size: 14, color: codeIconColor),
             const SizedBox(width: 5),
             Expanded(
               child: Wrap(
@@ -3277,6 +3889,8 @@ class _TerminalCompactQuantityControl extends StatefulWidget {
     this.validator,
     this.allowEmptyQuantity = false,
     required this.onMinimumReached,
+    this.onSubmitted,
+    this.onInvalid,
   });
 
   final TextEditingController controller;
@@ -3287,6 +3901,8 @@ class _TerminalCompactQuantityControl extends StatefulWidget {
   final FormFieldValidator<String>? validator;
   final bool allowEmptyQuantity;
   final VoidCallback? onMinimumReached;
+  final VoidCallback? onSubmitted;
+  final VoidCallback? onInvalid;
 
   @override
   State<_TerminalCompactQuantityControl> createState() =>
@@ -3375,7 +3991,10 @@ class _TerminalCompactQuantityControlState
                           focusNode: _focusNode,
                           textAlign: TextAlign.center,
                           textInputAction: TextInputAction.done,
-                          onFieldSubmitted: (_) => _focusNode.unfocus(),
+                          onFieldSubmitted: (_) {
+                            _focusNode.unfocus();
+                            widget.onSubmitted?.call();
+                          },
                           keyboardType: const TextInputType.numberWithOptions(
                             decimal: true,
                           ),
@@ -3411,21 +4030,24 @@ class _TerminalCompactQuantityControlState
                             }
                             final customError = widget.validator?.call(value);
                             if (customError != null) {
+                              widget.onInvalid?.call();
                               return customError;
                             }
                             final quantity = _readQuantity(value ?? '');
                             if (quantity <= 0) {
+                              widget.onInvalid?.call();
                               return '';
                             }
                             final max = widget.maximum;
                             if (max != null && quantity > max) {
+                              widget.onInvalid?.call();
                               return '';
                             }
                             return null;
                           },
                         );
 
-                        if (unit.isEmpty) {
+                        if (unit.isEmpty || constraints.maxWidth < 64.0) {
                           return buildQuantityField();
                         }
 
@@ -3672,8 +4294,30 @@ class TerminalQuantityStepper extends StatefulWidget {
 }
 
 class _TerminalQuantityStepperState extends State<TerminalQuantityStepper> {
+  final GlobalKey<FormFieldState<String>> _fieldKey =
+      GlobalKey<FormFieldState<String>>();
   final ValueNotifier<String?> _errorNotifier = ValueNotifier<String?>(null);
   Timer? _ensureVisibleTimer;
+
+  @override
+  void didUpdateWidget(covariant TerminalQuantityStepper oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.maximum == widget.maximum &&
+        oldWidget.minimum == widget.minimum &&
+        oldWidget.controller == widget.controller) {
+      return;
+    }
+
+    if (_errorNotifier.value != null ||
+        _fieldKey.currentState?.hasError == true) {
+      _setErrorText(_resolveError(widget.controller.text));
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _fieldKey.currentState?.hasError == true) {
+          _fieldKey.currentState?.validate();
+        }
+      });
+    }
+  }
 
   @override
   void dispose() {
@@ -3683,19 +4327,22 @@ class _TerminalQuantityStepperState extends State<TerminalQuantityStepper> {
   }
 
   void _setErrorText(String? error) {
-    if (_errorNotifier.value == error) {
-      return;
-    }
     if (SchedulerBinding.instance.schedulerPhase ==
         SchedulerPhase.persistentCallbacks) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted && _errorNotifier.value != error) {
-          _errorNotifier.value = error;
+        if (!mounted) {
+          return;
+        }
+        final latest = _resolveError(widget.controller.text);
+        if (_errorNotifier.value != latest) {
+          _errorNotifier.value = latest;
         }
       });
       return;
     }
-    _errorNotifier.value = error;
+    if (_errorNotifier.value != error) {
+      _errorNotifier.value = error;
+    }
   }
 
   String? _resolveError(String? value) {
@@ -3746,6 +4393,7 @@ class _TerminalQuantityStepperState extends State<TerminalQuantityStepper> {
               child: Builder(
                 builder: (fieldContext) {
                   return TextFormField(
+                    key: _fieldKey,
                     controller: widget.controller,
                     enabled: widget.enabled,
                     textAlign: TextAlign.center,
@@ -3777,6 +4425,11 @@ class _TerminalQuantityStepperState extends State<TerminalQuantityStepper> {
                     validator: (value) {
                       final error = _resolveError(value);
                       _setErrorText(error);
+                      if (error != null) {
+                        _TerminalAccordionItemScope.maybeOf(
+                          fieldContext,
+                        )?.onValidationInvalid();
+                      }
                       return error == null ? null : '';
                     },
                     onTap: () => _keepQuantityFieldVisible(fieldContext),
@@ -3787,7 +4440,15 @@ class _TerminalQuantityStepperState extends State<TerminalQuantityStepper> {
                       }
                       widget.onChanged?.call(value);
                     },
-                    onFieldSubmitted: (_) => widget.onSubmitted?.call(),
+                    onFieldSubmitted: (_) {
+                      if (widget.onSubmitted != null) {
+                        widget.onSubmitted!();
+                        return;
+                      }
+                      _TerminalAccordionItemScope.maybeOf(
+                        fieldContext,
+                      )?.onQuantitySubmitted();
+                    },
                   );
                 },
               ),
@@ -3960,24 +4621,174 @@ class TerminalFormActionRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final mediaQuery = MediaQuery.of(context);
     final usableHeight = mediaQuery.size.height - mediaQuery.viewInsets.bottom;
-    if (usableHeight < 430) {
-      return SizedBox(height: 48, child: submit);
+    final buttonTheme = Theme.of(context);
+
+    Widget wrapCompactButtons(Widget child) {
+      return Theme(
+        data: buttonTheme.copyWith(
+          filledButtonTheme: FilledButtonThemeData(
+            style: FilledButton.styleFrom(
+              minimumSize: const Size(0, 48),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 0),
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              visualDensity: VisualDensity.standard,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+          ),
+          outlinedButtonTheme: OutlinedButtonThemeData(
+            style: OutlinedButton.styleFrom(
+              minimumSize: const Size(0, 48),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 0),
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              visualDensity: VisualDensity.standard,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+          ),
+        ),
+        child: child,
+      );
     }
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        if (constraints.maxWidth < breakpoint) {
-          return SizedBox(height: 48, child: submit);
-        }
+    if (usableHeight < 430) {
+      return wrapCompactButtons(SizedBox(height: 48, child: submit));
+    }
 
-        return Row(
-          children: <Widget>[
-            Expanded(child: cancel),
-            SizedBox(width: spacing),
-            Expanded(flex: submitFlex, child: submit),
-          ],
-        );
-      },
+    return wrapCompactButtons(
+      LayoutBuilder(
+        builder: (context, constraints) {
+          if (constraints.maxWidth < breakpoint) {
+            return SizedBox(height: 48, child: submit);
+          }
+
+          return Row(
+            children: <Widget>[
+              Expanded(child: cancel),
+              SizedBox(width: spacing),
+              Expanded(flex: submitFlex, child: submit),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+class TerminalCollapsibleHeaderSummary extends StatelessWidget {
+  const TerminalCollapsibleHeaderSummary({
+    super.key,
+    required this.icon,
+    required this.title,
+    this.subtitle,
+    this.actionLabel = 'Duzenle',
+    this.expanded = false,
+    required this.onTap,
+    this.trailingActions = const <Widget>[],
+  });
+
+  final IconData icon;
+  final String title;
+  final String? subtitle;
+  final String actionLabel;
+  final bool expanded;
+  final VoidCallback onTap;
+  final List<Widget> trailingActions;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final hasSubtitle = subtitle != null && subtitle!.trim().isNotEmpty;
+
+    return Material(
+      color: theme.colorScheme.surface,
+      borderRadius: BorderRadius.circular(9),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(9),
+        child: Container(
+          constraints: const BoxConstraints(minHeight: 36),
+          padding: const EdgeInsets.fromLTRB(9, 5, 7, 5),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(9),
+            border: Border.all(
+              color: expanded
+                  ? theme.colorScheme.primary.withAlpha(110)
+                  : theme.colorScheme.outlineVariant.withAlpha(110),
+            ),
+          ),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final showActionText =
+                  constraints.maxWidth >= (trailingActions.isEmpty ? 200 : 280);
+
+              return Row(
+                children: <Widget>[
+                  Icon(icon, size: 17, color: theme.colorScheme.primary),
+                  const SizedBox(width: 7),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: <Widget>[
+                        Text(
+                          title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.labelMedium?.copyWith(
+                            height: 1.1,
+                            fontWeight: FontWeight.w900,
+                            color: theme.colorScheme.onSurface,
+                          ),
+                        ),
+                        if (hasSubtitle)
+                          Text(
+                            subtitle!.trim(),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.labelSmall?.copyWith(
+                              fontSize: 10.5,
+                              height: 1.1,
+                              fontWeight: FontWeight.w700,
+                              color: theme.colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                  if (trailingActions.isNotEmpty) ...<Widget>[
+                    const SizedBox(width: 4),
+                    ...trailingActions,
+                  ],
+                  const SizedBox(width: 4),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: <Widget>[
+                      if (showActionText)
+                        Text(
+                          expanded ? 'Gizle' : actionLabel,
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            fontWeight: FontWeight.w800,
+                            color: theme.colorScheme.primary,
+                          ),
+                        ),
+                      Icon(
+                        expanded
+                            ? Icons.keyboard_arrow_up_rounded
+                            : Icons.keyboard_arrow_down_rounded,
+                        size: 18,
+                        color: theme.colorScheme.primary,
+                      ),
+                    ],
+                  ),
+                ],
+              );
+            },
+          ),
+        ),
+      ),
     );
   }
 }
@@ -4096,7 +4907,7 @@ class TerminalSheetHeader extends StatelessWidget {
     required this.title,
     this.subtitle,
     this.badges = const <Widget>[],
-    this.padding = const EdgeInsets.fromLTRB(10, 4, 6, 4),
+    this.padding = const EdgeInsets.fromLTRB(10, 2, 4, 2),
     this.elevated = false,
   });
 
@@ -4176,10 +4987,10 @@ class TerminalSheetHeader extends StatelessWidget {
           const SizedBox(width: 6),
           IconButton(
             onPressed: () => Navigator.of(context).pop(),
-            icon: const Icon(Icons.close_rounded, size: 20),
+            icon: const Icon(Icons.close_rounded, size: 19),
             tooltip: 'Kapat',
             padding: EdgeInsets.zero,
-            constraints: const BoxConstraints.tightFor(width: 40, height: 40),
+            constraints: const BoxConstraints.tightFor(width: 36, height: 36),
             style: IconButton.styleFrom(
               tapTargetSize: MaterialTapTargetSize.shrinkWrap,
             ),

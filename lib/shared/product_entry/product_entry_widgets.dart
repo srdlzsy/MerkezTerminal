@@ -104,47 +104,52 @@ class ProductDraftEntryPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     final mediaQuery = MediaQuery.of(context);
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final keyboardHeight = mediaQuery.viewInsets.bottom;
-        final usableHeight = mediaQuery.size.height - keyboardHeight;
-        final isCompact =
-            mediaQuery.size.width < 380 ||
-            usableHeight < 700 ||
-            keyboardHeight > 0 ||
-            (constraints.hasBoundedHeight && constraints.maxHeight < 360);
-        final isTightHeight =
-            constraints.hasBoundedHeight && constraints.maxHeight <= 240;
-        final body = _buildBody(
-          context,
-          isCompact: isCompact,
-          isTightHeight: isTightHeight,
-          includeActions: true,
-        );
+    return CallbackShortcuts(
+      bindings: <ShortcutActivator, VoidCallback>{
+        const SingleActivator(LogicalKeyboardKey.escape): onCancel,
+      },
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final keyboardHeight = mediaQuery.viewInsets.bottom;
+          final usableHeight = mediaQuery.size.height - keyboardHeight;
+          final isCompact =
+              mediaQuery.size.width < 380 ||
+              usableHeight < 700 ||
+              keyboardHeight > 0 ||
+              (constraints.hasBoundedHeight && constraints.maxHeight < 360);
+          final isTightHeight =
+              constraints.hasBoundedHeight && constraints.maxHeight <= 240;
+          final body = _buildBody(
+            context,
+            isCompact: isCompact,
+            isTightHeight: isTightHeight,
+            includeActions: true,
+          );
 
-        if (!isCompact) {
-          return TerminalPdaLineCard(
-            title: title,
-            subtitle: stockName,
-            isEntryLine: true,
-            leading: const Icon(Icons.inventory_2_rounded),
-            trailing: IconButton(
-              onPressed: onCancel,
-              icon: const Icon(Icons.close_rounded),
-              tooltip: 'Secimi temizle',
-            ),
+          if (!isCompact) {
+            return TerminalPdaLineCard(
+              title: title,
+              subtitle: stockName,
+              isEntryLine: true,
+              leading: const Icon(Icons.inventory_2_rounded),
+              trailing: IconButton(
+                onPressed: onCancel,
+                icon: const Icon(Icons.close_rounded),
+                tooltip: 'Secimi temizle',
+              ),
+              child: body,
+            );
+          }
+
+          return _CompactDraftEntryCard(
+            title: stockName,
+            subtitle: _compactMetaSummary,
+            sourceLabel: _sourceTypeLabel,
+            isTightHeight: isTightHeight,
             child: body,
           );
-        }
-
-        return _CompactDraftEntryCard(
-          title: stockName,
-          subtitle: _compactMetaSummary,
-          sourceLabel: _sourceTypeLabel,
-          isTightHeight: isTightHeight,
-          child: body,
-        );
-      },
+        },
+      ),
     );
   }
 
@@ -796,11 +801,15 @@ class _ProductLookupFieldState extends State<ProductLookupField> {
   @override
   void didUpdateWidget(ProductLookupField oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.enabled && !widget.enabled) {
+      TerminalLineAccordionScope.unregisterScanFocusNode(_effectiveFocusNode);
+    }
     if (oldWidget.focusNode == widget.focusNode) {
       return;
     }
 
     final oldFocusNode = oldWidget.focusNode ?? _ownedFocusNode;
+    TerminalLineAccordionScope.unregisterScanFocusNode(oldFocusNode);
     oldFocusNode?.removeListener(_handleFocusChanged);
     if (widget.focusNode != null) {
       _ownedFocusNode?.dispose();
@@ -811,6 +820,7 @@ class _ProductLookupFieldState extends State<ProductLookupField> {
 
   @override
   void dispose() {
+    TerminalLineAccordionScope.unregisterScanFocusNode(_effectiveFocusNode);
     _effectiveFocusNode.removeListener(_handleFocusChanged);
     _ownedFocusNode?.dispose();
     super.dispose();
@@ -818,6 +828,9 @@ class _ProductLookupFieldState extends State<ProductLookupField> {
 
   @override
   Widget build(BuildContext context) {
+    if (widget.enabled) {
+      TerminalLineAccordionScope.registerScanFocusNode(_effectiveFocusNode);
+    }
     return TerminalSubmitOnTab(
       enabled: widget.enabled,
       onSubmit: widget.onSubmit,

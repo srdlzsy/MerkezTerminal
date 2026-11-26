@@ -90,6 +90,9 @@ class _OutgoingWarehouseShipmentCreateSheetState
   late final CreateDraftSession _draftSession;
   String? _lastAddedProductKey;
   GreenGrocerProductCaseCapabilities? _greenGrocerCapabilities;
+  bool _isSetupExpanded = false;
+  final TerminalLineAccordionController _accordionController =
+      TerminalLineAccordionController();
 
   bool get _hasTargetWarehouseSelection {
     return _selectedTargetWarehouse != null ||
@@ -211,6 +214,7 @@ class _OutgoingWarehouseShipmentCreateSheetState
   @override
   void dispose() {
     _draftSession.dispose();
+    _accordionController.dispose();
     _scrollController.dispose();
     _targetWarehouseNoController.dispose();
     _transitWarehouseNoController.dispose();
@@ -356,11 +360,20 @@ class _OutgoingWarehouseShipmentCreateSheetState
       currentWarehouseNo: widget.defaultWarehouseNo,
     );
 
+    final currentWarehouseNo = _parseInt(widget.defaultWarehouseNo);
+    final isTargetSameAsSource =
+        resolvedTarget != null &&
+        currentWarehouseNo != null &&
+        resolvedTarget.warehouseNo == currentWarehouseNo;
+
     setState(() {
       if (resolvedTarget != null) {
         _selectedTargetWarehouse = resolvedTarget;
         _targetWarehouseNoController.text = resolvedTarget.warehouseNo
             .toString();
+      }
+      if (resolvedTarget == null || isTargetSameAsSource) {
+        _isSetupExpanded = true;
       }
       for (final line in _linkedLines) {
         line.dispose();
@@ -369,7 +382,9 @@ class _OutgoingWarehouseShipmentCreateSheetState
       _linkedFilter = _LinkedShipmentFilter.all;
       _linkedLines = linkedLines;
       _ensureFreshLinkedEntryLine();
-      _validationMessage = null;
+      _validationMessage = isTargetSameAsSource
+          ? 'Hedef depo, kaynak depo ile ayni olamaz.'
+          : null;
     });
     _draftSession.scheduleSave();
     _focusFreshLinkedEntryLine();
@@ -1117,6 +1132,31 @@ class _OutgoingWarehouseShipmentCreateSheetState
       return;
     }
 
+    final mergeTarget = _findLinkedMergeTarget(line, product);
+    if (mergeTarget != null && _isLinkedLineQuantityLimited(mergeTarget)) {
+      final existingQuantity = productEntryController.readQuantity(
+        mergeTarget.quantityController.text,
+        fallback: 0,
+      );
+      if (existingQuantity + quantity > mergeTarget.maxQuantity) {
+        final remaining = (mergeTarget.maxQuantity - existingQuantity).clamp(
+          0.0,
+          mergeTarget.maxQuantity,
+        );
+        _accordionController.expand(ObjectKey(mergeTarget));
+        setState(() {
+          _validationMessage = remaining <= 0
+              ? '${product.stockName} icin siparis miktari '
+                    '(${AppFormatters.quantity(mergeTarget.maxQuantity)}) zaten tamamlandi.'
+              : '${product.stockName} icin toplam miktar kalan siparisi '
+                    '(${AppFormatters.quantity(mergeTarget.maxQuantity)}) asamaz. '
+                    'En fazla ${AppFormatters.quantity(remaining)} daha ekleyebilirsiniz.';
+        });
+        unawaited(TerminalFeedback.warning());
+        return;
+      }
+    }
+
     if (!await _confirmLinkedDuplicateIncrease(line, product)) {
       return;
     }
@@ -1507,7 +1547,7 @@ class _OutgoingWarehouseShipmentCreateSheetState
     _LinkedShipmentLineDraft line,
     ProductLookupItem product,
   ) {
-    return _findGreenGrocerLinkedOrderLineForProduct(line, product) ??
+    return _findOrderLinkedLineForProduct(line, product) ??
         productEntryController.findDuplicateLine(
           ProductEntryDuplicateMergePolicy<_LinkedShipmentLineDraft>(
             currentLine: line,
@@ -1522,26 +1562,56 @@ class _OutgoingWarehouseShipmentCreateSheetState
         );
   }
 
-  _LinkedShipmentLineDraft? _findGreenGrocerLinkedOrderLineForProduct(
+  _LinkedShipmentLineDraft? _findOrderLinkedLineForProduct(
     _LinkedShipmentLineDraft currentLine,
     ProductLookupItem product,
   ) {
-    final stockCode = product.stockCode.trim();
-    if (stockCode.isEmpty) {
+    final normalizedStockCode = product.stockCode.trim().toLowerCase();
+    final normalizedBarcode = product.barcode.trim().toLowerCase();
+    if (normalizedStockCode.isEmpty && normalizedBarcode.isEmpty) {
       return null;
     }
 
-    for (final line in _linkedLines) {
-      if (identical(line, currentLine) ||
-          !_shouldDetachGreenGrocerOrderLink(line)) {
+    _LinkedShipmentLineDraft? firstMatch;
+    for (final candidate in _linkedLines) {
+      if (identical(candidate, currentLine) || !candidate.isOrderLinked) {
         continue;
       }
-      if (line.stockCode.trim() == stockCode) {
-        return line;
+
+      final candidateStockCode = candidate.stockCode.trim().toLowerCase();
+      final candidateBarcode =
+          (candidate.selectedProduct?.barcode ??
+                  candidate.barcodeController.text)
+              .trim()
+              .toLowerCase();
+
+      final matchesStockCode =
+          normalizedStockCode.isNotEmpty &&
+          candidateStockCode == normalizedStockCode;
+      final matchesBarcode =
+          normalizedBarcode.isNotEmpty &&
+          candidateBarcode.isNotEmpty &&
+          candidateBarcode == normalizedBarcode;
+
+      if (!matchesStockCode && !matchesBarcode) {
+        continue;
+      }
+
+      firstMatch ??= candidate;
+      if (!_isLinkedLineQuantityLimited(candidate)) {
+        return candidate;
+      }
+
+      final currentQty = productEntryController.readQuantity(
+        candidate.quantityController.text,
+        fallback: 0,
+      );
+      if (currentQty < candidate.maxQuantity) {
+        return candidate;
       }
     }
 
-    return null;
+    return firstMatch;
   }
 
   void _recycleMergedManualLine(
@@ -1749,6 +1819,7 @@ class _OutgoingWarehouseShipmentCreateSheetState
 
     if (targetWarehouseNo == null || targetWarehouseNo <= 0) {
       setState(() {
+        _isSetupExpanded = true;
         _validationMessage = 'Gecerli bir hedef depo numarasi girin.';
       });
       return;
@@ -1756,6 +1827,7 @@ class _OutgoingWarehouseShipmentCreateSheetState
 
     if (currentWarehouseNo != null && currentWarehouseNo == targetWarehouseNo) {
       setState(() {
+        _isSetupExpanded = true;
         _validationMessage = 'Hedef depo, kaynak depo ile ayni olamaz.';
       });
       return;
@@ -1763,6 +1835,7 @@ class _OutgoingWarehouseShipmentCreateSheetState
 
     if (transitWarehouseNo != null && transitWarehouseNo <= 0) {
       setState(() {
+        _isSetupExpanded = true;
         _validationMessage = 'Transit depo numarasi pozitif olmali.';
       });
       return;
@@ -1848,6 +1921,7 @@ class _OutgoingWarehouseShipmentCreateSheetState
       );
 
       if (stockCode.isEmpty) {
+        _accordionController.expand(ObjectKey(line));
         setState(() {
           _validationMessage = '${index + 1}. satir icin urun secin.';
         });
@@ -1855,6 +1929,7 @@ class _OutgoingWarehouseShipmentCreateSheetState
       }
 
       if (quantity == null) {
+        _accordionController.expand(ObjectKey(line));
         return null;
       }
 
@@ -1915,6 +1990,7 @@ class _OutgoingWarehouseShipmentCreateSheetState
       );
 
       if (stockCode.isEmpty) {
+        _accordionController.expand(ObjectKey(line));
         setState(() {
           _validationMessage = '${index + 1}. satir icin urun secin.';
         });
@@ -1922,6 +1998,7 @@ class _OutgoingWarehouseShipmentCreateSheetState
       }
 
       if (quantity == null) {
+        _accordionController.expand(ObjectKey(line));
         return null;
       }
 
@@ -1930,6 +2007,7 @@ class _OutgoingWarehouseShipmentCreateSheetState
         final snapshot = line.greenGrocerCase;
         final expected = snapshot?.estimatedQuantity ?? 0;
         final previous = snapshot?.actualShippedQuantity ?? 0;
+        _accordionController.expand(ObjectKey(line));
         setState(() {
           _validationMessage =
               '$lineLabel kritik manav sevk sinirini asiyor. '
@@ -2101,6 +2179,19 @@ class _OutgoingWarehouseShipmentCreateSheetState
         ? _hasPendingManualEntryLine
         : _hasPendingLinkedEntryLine;
 
+    final canCollapseManualSetup =
+        _mode == _ShipmentCreateMode.manual &&
+        _hasTargetWarehouseSelection &&
+        _manualFilledLineIndexes().isNotEmpty;
+    final canCollapseOrderLinkedSetup =
+        _mode == _ShipmentCreateMode.orderLinked && _selectedOrder != null;
+    final hideFullSetup =
+        (canCollapseManualSetup || canCollapseOrderLinkedSetup) &&
+        !_isSetupExpanded;
+    final manualWarehouseTitle = _selectedTargetWarehouse != null
+        ? _selectedTargetWarehouse!.displayLabel
+        : 'Depo ${_targetWarehouseNoController.text.trim()}';
+
     return SafeArea(
       child: Padding(
         padding: EdgeInsets.zero,
@@ -2123,8 +2214,22 @@ class _OutgoingWarehouseShipmentCreateSheetState
                   children: useCompactConfiguredInput
                       ? const <Widget>[]
                       : <Widget>[
-                          _buildShipmentSetupSection(theme),
-                          const SizedBox(height: 5),
+                          if (canCollapseManualSetup) ...<Widget>[
+                            TerminalCollapsibleHeaderSummary(
+                              icon: Icons.warehouse_outlined,
+                              title: manualWarehouseTitle,
+                              subtitle: 'Siparissiz sevk',
+                              expanded: _isSetupExpanded,
+                              onTap: () => setState(
+                                () => _isSetupExpanded = !_isSetupExpanded,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                          ],
+                          if (!hideFullSetup) ...<Widget>[
+                            _buildShipmentSetupSection(theme),
+                            const SizedBox(height: 5),
+                          ],
                         ],
                 ),
                 Expanded(
@@ -2280,20 +2385,7 @@ class _OutgoingWarehouseShipmentCreateSheetState
   }
 
   Widget _buildManualEntrySection(ThemeData theme) {
-    return Container(
-      padding: const EdgeInsets.all(8),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: theme.colorScheme.outlineVariant.withAlpha(70),
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[_buildManualEntryLine()],
-      ),
-    );
+    return _buildManualEntryLine();
   }
 
   Widget _buildOrderLinkedEntrySection(ThemeData theme) {
@@ -2459,6 +2551,23 @@ class _OutgoingWarehouseShipmentCreateSheetState
                     ),
                   ),
                   const SizedBox(width: 4),
+                  IconButton(
+                    onPressed: () =>
+                        setState(() => _isSetupExpanded = !_isSetupExpanded),
+                    icon: Icon(
+                      _isSetupExpanded
+                          ? Icons.keyboard_arrow_up_rounded
+                          : Icons.tune_rounded,
+                      size: 18,
+                    ),
+                    tooltip: 'Mod / Hedef depo',
+                    constraints: const BoxConstraints.tightFor(
+                      width: 32,
+                      height: 32,
+                    ),
+                    padding: EdgeInsets.zero,
+                    visualDensity: VisualDensity.compact,
+                  ),
                   TextButton(
                     onPressed: _pickWarehouseOrder,
                     style: TextButton.styleFrom(
@@ -2640,6 +2749,7 @@ class _OutgoingWarehouseShipmentCreateSheetState
       sliver: TerminalSearchableLineSliver<int>(
         key: const ValueKey<String>('manual-shipment-lines'),
         items: filledIndexes,
+        accordionController: _accordionController,
         searchText: (index) {
           final line = _manualLines[index];
           final product = line.selectedProduct;
@@ -2714,6 +2824,7 @@ class _OutgoingWarehouseShipmentCreateSheetState
       sliver: TerminalSearchableLineSliver<int>(
         key: const ValueKey<String>('linked-shipment-lines'),
         items: filledIndexes,
+        accordionController: _accordionController,
         searchText: (index) {
           final line = _linkedLines[index];
           final product = line.selectedProduct;
@@ -2728,7 +2839,7 @@ class _OutgoingWarehouseShipmentCreateSheetState
               bottom: index == filledIndexes.last ? 0 : 8,
             ),
             child: _LinkedShipmentLineCard(
-              lineNumber: filledIndexes.indexOf(index) + 1,
+              lineNumber: allFilledIndexes.indexOf(index) + 1,
               isEntrySlot: false,
               isFreshEntry: false,
               line: line,
@@ -4591,9 +4702,7 @@ class _LinkedShipmentLineDraft {
        barcodeController = TextEditingController(),
        stockNameController = TextEditingController(text: stockName),
        unitNameController = TextEditingController(text: unitName),
-       quantityController = TextEditingController(
-         text: maxQuantity > 0 ? '$maxQuantity' : '',
-       ) {
+       quantityController = TextEditingController() {
     for (final controller in _controllers) {
       controller.addListener(_notifyChanged);
     }
@@ -4740,10 +4849,16 @@ class _LinkedShipmentLineDraft {
 
   void applyScannedProduct(ProductLookupItem product) {
     selectedProduct = product;
-    stockCodeController.text = product.stockCode;
+    if (product.stockCode.trim().isNotEmpty) {
+      stockCodeController.text = product.stockCode;
+    }
     barcodeController.clear();
-    stockNameController.text = product.stockName;
-    unitNameController.text = product.unitName;
+    if (product.stockName.trim().isNotEmpty) {
+      stockNameController.text = product.stockName;
+    }
+    if (product.unitName.trim().isNotEmpty) {
+      unitNameController.text = product.unitName;
+    }
   }
 
   void clearShipmentQuantity() {

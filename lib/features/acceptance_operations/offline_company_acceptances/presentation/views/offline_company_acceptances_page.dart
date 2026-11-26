@@ -626,6 +626,8 @@ class _OfflineCompanyAcceptanceCreateSheetState
     extends State<_OfflineCompanyAcceptanceCreateSheet>
     with CreateFormValidation {
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
+  final TerminalLineAccordionController _accordionController =
+      TerminalLineAccordionController();
   final List<_OfflineCompanyAcceptanceLineDraft> _lines =
       <_OfflineCompanyAcceptanceLineDraft>[];
   late final String _draftId;
@@ -663,6 +665,7 @@ class _OfflineCompanyAcceptanceCreateSheetState
 
   @override
   void dispose() {
+    _accordionController.dispose();
     _customerSearchController.dispose();
     _customerCodeController.dispose();
     _documentSerieController.dispose();
@@ -1502,78 +1505,69 @@ class _OfflineCompanyAcceptanceCreateSheetState
     }
 
     final usedOrderGuids = <String>{};
+    void failLine(_OfflineCompanyAcceptanceLineDraft line, String message) {
+      _accordionController.expand(ObjectKey(line));
+      setState(() {
+        _step = _OfflineCompanyAcceptanceCreateStep.lines;
+        _validationMessage = message;
+      });
+    }
+
     for (var index = 0; index < activeLines.length; index += 1) {
       final line = activeLines[index];
       if (line.stockCodeController.text.trim().isEmpty) {
-        setState(() {
-          _step = _OfflineCompanyAcceptanceCreateStep.lines;
-          _validationMessage = '${index + 1}. satir icin stok kodu zorunlu.';
-        });
+        failLine(line, '${index + 1}. satir icin stok kodu zorunlu.');
         return;
       }
       if (line.dispatchQuantity <= 0) {
-        setState(() {
-          _step = _OfflineCompanyAcceptanceCreateStep.lines;
-          _validationMessage =
-              '${index + 1}. satir icin irsaliye miktari sifirdan buyuk olmali.';
-        });
+        failLine(
+          line,
+          '${index + 1}. satir icin irsaliye miktari sifirdan buyuk olmali.',
+        );
         return;
       }
       if (line.dispatchQuantity > terminalCreateMaximumQuantity) {
-        setState(() {
-          _step = _OfflineCompanyAcceptanceCreateStep.lines;
-          _validationMessage =
-              '${index + 1}. satir icin irsaliye miktari en fazla ${terminalCreateMaximumQuantity.toInt()} olabilir.';
-        });
+        failLine(
+          line,
+          '${index + 1}. satir icin irsaliye miktari en fazla ${terminalCreateMaximumQuantity.toInt()} olabilir.',
+        );
         return;
       }
       if (line.acceptedQuantity < 0) {
-        setState(() {
-          _step = _OfflineCompanyAcceptanceCreateStep.lines;
-          _validationMessage =
-              '${index + 1}. satir icin sayilan miktar negatif olamaz.';
-        });
+        failLine(
+          line,
+          '${index + 1}. satir icin sayilan miktar negatif olamaz.',
+        );
         return;
       }
       if (line.acceptedQuantity > terminalCreateMaximumQuantity) {
-        setState(() {
-          _step = _OfflineCompanyAcceptanceCreateStep.lines;
-          _validationMessage =
-              '${index + 1}. satir icin sayilan miktar en fazla ${terminalCreateMaximumQuantity.toInt()} olabilir.';
-        });
+        failLine(
+          line,
+          '${index + 1}. satir icin sayilan miktar en fazla ${terminalCreateMaximumQuantity.toInt()} olabilir.',
+        );
         return;
       }
       if (line.acceptedQuantity > line.dispatchQuantity) {
-        setState(() {
-          _step = _OfflineCompanyAcceptanceCreateStep.lines;
-          _validationMessage =
-              '${index + 1}. satirda sayilan miktar irsaliye miktarini gecemez.';
-        });
+        failLine(
+          line,
+          '${index + 1}. satirda sayilan miktar irsaliye miktarini gecemez.',
+        );
         return;
       }
       if (line.unitPointer <= 0 || line.unitPointer > 255) {
-        setState(() {
-          _step = _OfflineCompanyAcceptanceCreateStep.lines;
-          _validationMessage =
-              '${index + 1}. satir icin unitPointer 1-255 olmali.';
-        });
+        failLine(line, '${index + 1}. satir icin unitPointer 1-255 olmali.');
         return;
       }
       if (line.lotNo < 0) {
-        setState(() {
-          _step = _OfflineCompanyAcceptanceCreateStep.lines;
-          _validationMessage =
-              '${index + 1}. satir icin lot no negatif olamaz.';
-        });
+        failLine(line, '${index + 1}. satir icin lot no negatif olamaz.');
         return;
       }
       final orderGuid = line.orderGuid?.trim() ?? '';
       if (orderGuid.isNotEmpty && !usedOrderGuids.add(orderGuid)) {
-        setState(() {
-          _step = _OfflineCompanyAcceptanceCreateStep.lines;
-          _validationMessage =
-              '${index + 1}. satirda ayni siparis satiri tekrar kullanilamaz.';
-        });
+        failLine(
+          line,
+          '${index + 1}. satirda ayni siparis satiri tekrar kullanilamaz.',
+        );
         return;
       }
     }
@@ -1932,6 +1926,7 @@ class _OfflineCompanyAcceptanceCreateSheetState
 
     return TerminalSearchableLineSliver<int>(
       items: indexes,
+      accordionController: _accordionController,
       searchText: (index) {
         final line = _lines[index];
         final product = line.selectedProduct;
@@ -2034,6 +2029,8 @@ class _OfflineCompanyAcceptanceCreateSheetState
         highlightOnMount: displayLineNo == 1,
         canDelete: _lines.length > 1,
         onDelete: () => _removeLineAt(index),
+        primaryQuantityController: line.dispatchQuantityController,
+        secondaryQuantityController: line.acceptedQuantityController,
         primaryQuantity: _buildDispatchQuantityField(line),
         secondaryQuantity: _buildAcceptedQuantityField(line),
         footerBanner: line.returnQuantity > 0

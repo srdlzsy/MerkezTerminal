@@ -77,6 +77,9 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
   bool _restoringDraft = true;
   bool _submitted = false;
   String? _lastAddedProductKey;
+  bool _isHeaderExpanded = false;
+  final TerminalLineAccordionController _accordionController =
+      TerminalLineAccordionController();
 
   bool get _isCompanyReturn => widget.barcodeOperationType == 'return';
 
@@ -114,6 +117,7 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
 
   @override
   void dispose() {
+    _accordionController.dispose();
     WidgetsBinding.instance.removeObserver(this);
     _draftSaveTimer?.cancel();
     if (!_submitted) {
@@ -950,11 +954,31 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
       return;
     }
 
-    if (activeLines.any((line) => line.selectedProduct == null)) {
-      setState(() {
-        _lookupError = 'Tum satirlarda urun secimi tamamlanmali.';
-      });
-      return;
+    for (var index = 0; index < activeLines.length; index += 1) {
+      final line = activeLines[index];
+      if (line.selectedProduct == null) {
+        _accordionController.expand(ObjectKey(line));
+        setState(() {
+          _lookupError = 'Tum satirlarda urun secimi tamamlanmali.';
+        });
+        return;
+      }
+      if (line.quantity <= 0) {
+        _accordionController.expand(ObjectKey(line));
+        setState(() {
+          _lookupError =
+              '${index + 1}. satir icin miktar sifirdan buyuk olmali.';
+        });
+        return;
+      }
+      if (line.quantity > terminalCreateMaximumQuantity) {
+        _accordionController.expand(ObjectKey(line));
+        setState(() {
+          _lookupError =
+              '${index + 1}. satir icin miktar en fazla ${terminalCreateMaximumQuantity.toInt()} olabilir.';
+        });
+        return;
+      }
     }
 
     final request = CompanyMovementCreateRequest(
@@ -1008,9 +1032,18 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
     final useCompactConfiguredInput =
         (mediaQuery.size.width < 260 || mediaQuery.textScaler.scale(1) > 1.2) &&
         (_filledLineIndexes().isNotEmpty || hasPendingEntry);
+    final canCollapseHeader =
+        _selectedCustomer != null && _filledLineIndexes().isNotEmpty;
+    final showCompactHeader = canCollapseHeader && !_isHeaderExpanded;
+    final deliverySummary = <String>[
+      if (_delivererController.text.trim().isNotEmpty)
+        _delivererController.text.trim(),
+      if (_receiverController.text.trim().isNotEmpty)
+        _receiverController.text.trim(),
+    ].join(' -> ');
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(10, 4, 10, 10),
+      padding: const EdgeInsets.fromLTRB(10, 4, 10, 6),
       child: Form(
         key: _formKey,
         autovalidateMode: createFormAutovalidateMode,
@@ -1031,40 +1064,56 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
               children: useCompactConfiguredInput
                   ? const <Widget>[]
                   : <Widget>[
-                      TerminalResponsiveLookupRow(
-                        field: TextFormField(
-                          controller: _customerController,
-                          decoration: const InputDecoration(
-                            labelText: 'Cari',
-                            hintText: 'Cari adi veya kodu',
-                            isDense: true,
-                            contentPadding: EdgeInsets.symmetric(
-                              horizontal: 10,
-                              vertical: 8,
-                            ),
+                      if (canCollapseHeader) ...<Widget>[
+                        TerminalCollapsibleHeaderSummary(
+                          icon: Icons.business_outlined,
+                          title: _selectedCustomer!.displayLabel,
+                          subtitle: deliverySummary,
+                          expanded: _isHeaderExpanded,
+                          onTap: () => setState(
+                            () => _isHeaderExpanded = !_isHeaderExpanded,
                           ),
-                          validator: (_) {
-                            if (_selectedCustomer == null) {
-                              return 'Cari secimi zorunludur.';
-                            }
+                        ),
+                        const SizedBox(height: 4),
+                      ],
+                      if (!showCompactHeader) ...<Widget>[
+                        TerminalResponsiveLookupRow(
+                          field: TextFormField(
+                            controller: _customerController,
+                            decoration: const InputDecoration(
+                              labelText: 'Cari',
+                              hintText: 'Cari adi veya kodu',
+                              isDense: true,
+                              contentPadding: EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 8,
+                              ),
+                            ),
+                            validator: (_) {
+                              if (_selectedCustomer == null) {
+                                return 'Cari secimi zorunludur.';
+                              }
 
-                            return null;
-                          },
+                              return null;
+                            },
+                          ),
+                          action: FilledButton.icon(
+                            onPressed: _searchCustomer,
+                            icon: const Icon(Icons.search_rounded),
+                            label: const Text('Bul'),
+                          ),
                         ),
-                        action: FilledButton.icon(
-                          onPressed: _searchCustomer,
-                          icon: const Icon(Icons.search_rounded),
-                          label: const Text('Bul'),
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      _buildDeliveryInfoRow(),
-                      const SizedBox(height: 4),
-                      TerminalSectionToolbar(
-                        title: 'Satirlar',
-                        actions: const <Widget>[],
-                      ),
-                      const SizedBox(height: 4),
+                        const SizedBox(height: 4),
+                        _buildDeliveryInfoRow(),
+                        if (_filledLineIndexes().isEmpty) ...<Widget>[
+                          const SizedBox(height: 4),
+                          TerminalSectionToolbar(
+                            title: 'Satirlar',
+                            actions: const <Widget>[],
+                          ),
+                        ],
+                        const SizedBox(height: 4),
+                      ],
                     ],
             ),
             const SizedBox(height: 4),
@@ -1082,7 +1131,7 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
                 child: TerminalMessageBlock.error(message: _lookupError!),
               ),
             Padding(
-              padding: const EdgeInsets.only(top: 4, bottom: 4),
+              padding: const EdgeInsets.only(top: 4, bottom: 2),
               child: TerminalFormActionRow(
                 cancel: OutlinedButton(
                   onPressed: () => Navigator.of(context).pop(),
@@ -1164,6 +1213,7 @@ class _CompanyMovementCreateSheetState extends State<CompanyMovementCreateSheet>
 
     return TerminalSearchableLineSliver<int>(
       items: indexes,
+      accordionController: _accordionController,
       searchText: (index) {
         final line = _lines[index];
         final product = line.selectedProduct;

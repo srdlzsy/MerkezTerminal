@@ -166,11 +166,12 @@ class _TerminalCreatePageState<TResult>
               ),
               filledButtonTheme: FilledButtonThemeData(
                 style: FilledButton.styleFrom(
-                  minimumSize: const Size(0, 48),
+                  minimumSize: const Size(0, 44),
                   padding: const EdgeInsets.symmetric(
                     horizontal: 12,
-                    vertical: 9,
+                    vertical: 6,
                   ),
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),
                   ),
@@ -181,11 +182,12 @@ class _TerminalCreatePageState<TResult>
               ),
               outlinedButtonTheme: OutlinedButtonThemeData(
                 style: OutlinedButton.styleFrom(
-                  minimumSize: const Size(0, 48),
+                  minimumSize: const Size(0, 44),
                   padding: const EdgeInsets.symmetric(
                     horizontal: 12,
-                    vertical: 9,
+                    vertical: 6,
                   ),
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),
                   ),
@@ -196,7 +198,8 @@ class _TerminalCreatePageState<TResult>
               ),
               iconButtonTheme: IconButtonThemeData(
                 style: IconButton.styleFrom(
-                  minimumSize: const Size(44, 44),
+                  minimumSize: const Size(42, 42),
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),
                   ),

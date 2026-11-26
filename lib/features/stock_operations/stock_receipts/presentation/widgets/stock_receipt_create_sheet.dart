@@ -58,6 +58,9 @@ class _StockReceiptCreateSheetState extends State<StockReceiptCreateSheet>
   String? _lookupError;
   late final CreateDraftSession _draftSession;
   String? _lastAddedProductKey;
+  bool _isHeaderExpanded = false;
+  final TerminalLineAccordionController _accordionController =
+      TerminalLineAccordionController();
 
   bool get _showDocumentNoField => widget.kind != StockReceiptKind.expense;
 
@@ -113,6 +116,7 @@ class _StockReceiptCreateSheetState extends State<StockReceiptCreateSheet>
 
   @override
   void dispose() {
+    _accordionController.dispose();
     _draftSession.dispose();
     _creatorController.dispose();
     _acceptorController.dispose();
@@ -698,11 +702,31 @@ class _StockReceiptCreateSheetState extends State<StockReceiptCreateSheet>
       return;
     }
 
-    if (activeLines.any((line) => line.selectedProduct == null)) {
-      setState(() {
-        _lookupError = 'Tum satirlarda urun secimi tamamlanmali.';
-      });
-      return;
+    for (var index = 0; index < activeLines.length; index += 1) {
+      final line = activeLines[index];
+      if (line.selectedProduct == null) {
+        _accordionController.expand(ObjectKey(line));
+        setState(() {
+          _lookupError = 'Tum satirlarda urun secimi tamamlanmali.';
+        });
+        return;
+      }
+      if (line.quantity <= 0) {
+        _accordionController.expand(ObjectKey(line));
+        setState(() {
+          _lookupError =
+              '${index + 1}. satir icin miktar sifirdan buyuk olmali.';
+        });
+        return;
+      }
+      if (line.quantity > terminalCreateMaximumQuantity) {
+        _accordionController.expand(ObjectKey(line));
+        setState(() {
+          _lookupError =
+              '${index + 1}. satir icin miktar en fazla ${terminalCreateMaximumQuantity.toInt()} olabilir.';
+        });
+        return;
+      }
     }
 
     final request = StockReceiptCreateRequest(
@@ -744,8 +768,17 @@ class _StockReceiptCreateSheetState extends State<StockReceiptCreateSheet>
 
   @override
   Widget build(BuildContext context) {
+    final hasPendingEntry = _lines.isNotEmpty && !_isBlankLine(_lines.first);
+    final creatorText = _creatorController.text.trim();
+    final acceptorText = _acceptorController.text.trim();
+    final canCollapseHeader =
+        creatorText.isNotEmpty &&
+        acceptorText.isNotEmpty &&
+        (_filledLineIndexes().isNotEmpty || hasPendingEntry);
+    final showCompactHeader = canCollapseHeader && !_isHeaderExpanded;
+
     return Padding(
-      padding: const EdgeInsets.fromLTRB(10, 4, 10, 10),
+      padding: const EdgeInsets.fromLTRB(10, 4, 10, 6),
       child: Form(
         key: _formKey,
         autovalidateMode: createFormAutovalidateMode,
@@ -764,11 +797,22 @@ class _StockReceiptCreateSheetState extends State<StockReceiptCreateSheet>
               padding: EdgeInsets.zero,
               compactChild: _buildEntryLineCard(),
               children: <Widget>[
-                _buildReceiptSetupSection(),
-                TerminalSectionToolbar(
-                  title: 'Satirlar',
-                  actions: const <Widget>[],
-                ),
+                if (canCollapseHeader) ...<Widget>[
+                  TerminalCollapsibleHeaderSummary(
+                    icon: Icons.assignment_ind_outlined,
+                    title: '$creatorText / $acceptorText',
+                    subtitle: _descriptionController.text.trim(),
+                    expanded: _isHeaderExpanded,
+                    onTap: () => setState(
+                      () => _isHeaderExpanded = !_isHeaderExpanded,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                ],
+                if (!showCompactHeader) ...<Widget>[
+                  _buildReceiptSetupSection(),
+                  const SizedBox(height: 4),
+                ],
               ],
             ),
             const SizedBox(height: 4),
@@ -786,7 +830,7 @@ class _StockReceiptCreateSheetState extends State<StockReceiptCreateSheet>
                 child: TerminalMessageBlock.error(message: _lookupError!),
               ),
             Padding(
-              padding: const EdgeInsets.only(top: 4, bottom: 4),
+              padding: const EdgeInsets.only(top: 4, bottom: 2),
               child: TerminalFormActionRow(
                 cancel: OutlinedButton(
                   onPressed: () => Navigator.of(context).pop(),
@@ -899,6 +943,7 @@ class _StockReceiptCreateSheetState extends State<StockReceiptCreateSheet>
 
     return TerminalSearchableLineSliver<int>(
       items: indexes,
+      accordionController: _accordionController,
       searchText: (index) {
         final line = _lines[index];
         final product = line.selectedProduct;

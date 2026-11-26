@@ -1793,9 +1793,11 @@ class _GivenWarehouseOrderCreateSheetState
                           compactHeight: compactHeight,
                         ),
                       ],
-                      SizedBox(height: compactHeight ? 2 : 5),
-                      _buildLinesToolbar(theme, compactHeight: compactHeight),
-                      SizedBox(height: compactHeight ? 2 : 4),
+                      if (_emptyQuantityLineCount > 0) ...<Widget>[
+                        SizedBox(height: compactHeight ? 2 : 5),
+                        _buildLinesToolbar(theme, compactHeight: compactHeight),
+                        SizedBox(height: compactHeight ? 2 : 4),
+                      ],
                     ],
                   ),
 
@@ -1865,6 +1867,7 @@ class _GivenWarehouseOrderCreateSheetState
   }) {
     final selectedWarehouse = _selectedWarehouse;
     if (selectedWarehouse != null) {
+      final useIconOnlyActions = MediaQuery.sizeOf(context).width < 280;
       return Container(
         width: double.infinity,
         padding: EdgeInsets.fromLTRB(
@@ -1889,7 +1892,7 @@ class _GivenWarehouseOrderCreateSheetState
             Expanded(
               child: Text(
                 selectedWarehouse.displayLabel,
-                maxLines: 2,
+                maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: theme.textTheme.bodySmall?.copyWith(
                   fontWeight: FontWeight.w700,
@@ -1898,16 +1901,73 @@ class _GivenWarehouseOrderCreateSheetState
               ),
             ),
             const SizedBox(width: 4),
-            FilledButton.tonalIcon(
-              onPressed: _searchWarehouse,
-              icon: const Icon(Icons.warehouse_outlined, size: 17),
-              label: const Text('Sec'),
-              style: FilledButton.styleFrom(
-                minimumSize: const Size(64, 38),
-                padding: const EdgeInsets.symmetric(horizontal: 8),
-                visualDensity: VisualDensity.compact,
+            if (useIconOnlyActions)
+              IconButton.filledTonal(
+                onPressed: _searchWarehouse,
+                tooltip: 'Depo sec',
+                icon: const Icon(Icons.warehouse_outlined, size: 18),
+                constraints: const BoxConstraints.tightFor(
+                  width: 40,
+                  height: 40,
+                ),
+                padding: EdgeInsets.zero,
+              )
+            else
+              FilledButton.tonalIcon(
+                onPressed: _searchWarehouse,
+                icon: const Icon(Icons.warehouse_outlined, size: 17),
+                label: const Text('Sec'),
+                style: FilledButton.styleFrom(
+                  minimumSize: const Size(64, 38),
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  visualDensity: VisualDensity.compact,
+                ),
               ),
-            ),
+            if (_canLoadSourceWarehouseProducts) ...<Widget>[
+              const SizedBox(width: 4),
+              if (useIconOnlyActions)
+                IconButton.filledTonal(
+                  onPressed: _isLoadingSourceProducts || !_hasWarehouseSelection
+                      ? null
+                      : _loadSourceWarehouseProducts,
+                  tooltip: 'Depo urunlerini getir',
+                  icon: _isLoadingSourceProducts
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.download_rounded, size: 17),
+                  constraints: const BoxConstraints.tightFor(
+                    width: 40,
+                    height: 40,
+                  ),
+                  padding: EdgeInsets.zero,
+                )
+              else
+                Tooltip(
+                  message: 'Depo urunleri',
+                  child: FilledButton.tonalIcon(
+                    onPressed:
+                        _isLoadingSourceProducts || !_hasWarehouseSelection
+                        ? null
+                        : _loadSourceWarehouseProducts,
+                    icon: _isLoadingSourceProducts
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.download_rounded, size: 17),
+                    label: Text(_isLoadingSourceProducts ? 'Bekle' : 'Getir'),
+                    style: FilledButton.styleFrom(
+                      minimumSize: const Size(62, 38),
+                      padding: const EdgeInsets.symmetric(horizontal: 7),
+                      visualDensity: VisualDensity.compact,
+                    ),
+                  ),
+                ),
+            ],
           ],
         ),
       );
@@ -1982,108 +2042,17 @@ class _GivenWarehouseOrderCreateSheetState
   }
 
   Widget _buildLinesToolbar(ThemeData theme, {required bool compactHeight}) {
-    if (!compactHeight) {
-      return TerminalSectionToolbar(
-        title: 'Satirlar',
-        breakpoint: 430,
-        actions: <Widget>[
-          if (_canLoadSourceWarehouseProducts)
-            FilledButton.tonalIcon(
-              onPressed: _isLoadingSourceProducts || !_hasWarehouseSelection
-                  ? null
-                  : _loadSourceWarehouseProducts,
-              icon: _isLoadingSourceProducts
-                  ? const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.playlist_add_rounded, size: 18),
-              label: Text(
-                _isLoadingSourceProducts ? 'Yukleniyor' : 'Depo urunleri',
-              ),
-            ),
-          if (_emptyQuantityLineCount > 0)
-            FilledButton.tonalIcon(
-              onPressed: _removeEmptyQuantityLines,
-              icon: const Icon(Icons.cleaning_services_rounded, size: 18),
-              label: const Text('Boslari sil'),
-            ),
-        ],
-      );
-    }
-
-    return SizedBox(
-      height: 40,
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final hasLoadAction = _canLoadSourceWarehouseProducts;
-          final hasClearAction = _emptyQuantityLineCount > 0;
-          final showTitle =
-              constraints.maxWidth >= 380 || !(hasLoadAction && hasClearAction);
-
-          Widget loadButton() => Tooltip(
-            message: 'Depo urunleri',
-            child: FilledButton.tonalIcon(
-              onPressed: _isLoadingSourceProducts || !_hasWarehouseSelection
-                  ? null
-                  : _loadSourceWarehouseProducts,
-              icon: _isLoadingSourceProducts
-                  ? const SizedBox(
-                      width: 17,
-                      height: 17,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.playlist_add_rounded, size: 17),
-              label: Text(_isLoadingSourceProducts ? 'Bekle' : 'Getir'),
-              style: FilledButton.styleFrom(
-                minimumSize: const Size(0, 36),
-                padding: const EdgeInsets.symmetric(horizontal: 8),
-                visualDensity: VisualDensity.compact,
-              ),
-            ),
-          );
-
-          Widget clearButton() => Tooltip(
-            message: 'Boslari sil',
-            child: FilledButton.tonalIcon(
-              onPressed: _removeEmptyQuantityLines,
-              icon: const Icon(Icons.cleaning_services_rounded, size: 17),
-              label: const Text('Boslari Sil'),
-              style: FilledButton.styleFrom(
-                minimumSize: const Size(0, 36),
-                padding: const EdgeInsets.symmetric(horizontal: 8),
-                visualDensity: VisualDensity.compact,
-              ),
-            ),
-          );
-
-          return Row(
-            children: <Widget>[
-              if (showTitle) ...<Widget>[
-                Expanded(
-                  child: Text(
-                    'Satirlar',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 4),
-              ],
-              if (hasLoadAction)
-                if (showTitle) loadButton() else Expanded(child: loadButton()),
-              if (hasLoadAction && hasClearAction) const SizedBox(width: 4),
-              if (hasClearAction)
-                if (showTitle)
-                  clearButton()
-                else
-                  Expanded(child: clearButton()),
-            ],
-          );
-        },
+    return Align(
+      alignment: Alignment.centerRight,
+      child: FilledButton.tonalIcon(
+        onPressed: _removeEmptyQuantityLines,
+        icon: const Icon(Icons.cleaning_services_rounded, size: 17),
+        label: const Text('Boslari sil'),
+        style: FilledButton.styleFrom(
+          minimumSize: Size(0, compactHeight ? 36 : 40),
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          visualDensity: VisualDensity.compact,
+        ),
       ),
     );
   }
